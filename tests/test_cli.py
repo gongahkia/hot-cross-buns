@@ -38,7 +38,12 @@ def cli_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[CliRunner,
     monkeypatch.setattr(
         cli,
         "_runtime_factory",
-        lambda: Runtime(paths, environ={}, token_store=tokens),  # type: ignore[arg-type]
+        lambda: Runtime(
+            paths,
+            environ={},
+            token_store=tokens,  # type: ignore[arg-type]
+            credential_file=tmp_path / "google.env",
+        ),
     )
     with Storage(paths.database_file) as storage:
         storage.upsert_account(Account("work", "me@example.com"))

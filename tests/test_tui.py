@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from textual.app import SuspendNotSupported
-from textual.widgets import Button, Input, ListView, Select, Static
+from textual.widgets import Button, Input, Label, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
 from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime
@@ -21,6 +21,7 @@ from hcb.tui import (
     EditorScreen,
     EventEditorScreen,
     FindTimeScreen,
+    GoogleSetupScreen,
     HcbApp,
     ImportScreen,
     LoadingScreen,
@@ -567,6 +568,8 @@ def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> 
         assert isinstance(app.screen, LoadingScreen)
         loader = app.screen.query_one("#rattles-loader", Static)
         assert str(loader.render()).strip() in {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+        app.update_loading("Fetching task lists")
+        assert str(app.screen.query_one("#loading-message", Label).render()) == "Fetching task lists"
         app.stop_loading()
         await pilot.pause()  # type: ignore[attr-defined]
         assert not isinstance(app.screen, LoadingScreen)
@@ -587,9 +590,11 @@ def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
         def __init__(self) -> None:
             self.storage = original_storage
 
-        def sync(self, account_id: str) -> Result:
+        def sync(self, account_id: str, *, progress: Callable[[str], None] | None = None) -> Result:
             assert self.storage is not original_storage
             assert self.storage.get_account(account_id) is not None
+            assert progress is not None
+            progress("Fetching task lists")
             return Result()
 
     def sync_engine(_: str) -> Engine:
@@ -609,6 +614,29 @@ def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
                 break
         assert engines
         assert not isinstance(app.screen, LoadingScreen)
+
+    app_test(app, assertions)
+
+
+def test_sync_without_google_credentials_shows_recovery_steps(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    runtime.credential_file_override = tmp_path / "missing-google.env"
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        app.action_sync()
+        for _ in range(30):
+            await asyncio.sleep(0.01)
+            await pilot.pause()  # type: ignore[attr-defined]
+            if isinstance(app.screen, GoogleSetupScreen):
+                break
+        assert isinstance(app.screen, GoogleSetupScreen)
+        guidance = str(app.screen.query_one("#google-setup-guidance", Static).render())
+        assert "Desktop OAuth client" in guidance
+        assert "HCB_GOOGLE_CLIENT_ID" in guidance
+        assert str(runtime.credential_file("work")) in guidance
+        assert "hcb --env-file" in guidance
+        assert "auth connect work me@example.com" in guidance
 
     app_test(app, assertions)
 

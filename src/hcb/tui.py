@@ -45,7 +45,7 @@ from textual.widgets import (
 
 from .application import ResponseStatus, SearchResult, TimeSlot
 from .config import Config, ConfigError, ThemeColors, load
-from .errors import AuthenticationRequired, HcbError
+from .errors import AuthenticationRequired, ConfigurationError, HcbError
 from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
 from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
@@ -80,12 +80,11 @@ DENSITY_OPTIONS = (
 BORDER_OPTIONS = (
     ("ASCII", "ascii"),
     ("Unicode", "unicode"),
-    ("None", "none"),
 )
 FOCUS_OPTIONS = (
     ("ASCII", "ascii"),
     ("Underline", "underline"),
-    ("Inverse", "inverse"),
+    ("Reverse", "reverse"),
 )
 BOOLEAN_OPTIONS = (
     ("Enabled", "true"),
@@ -429,6 +428,71 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         if not isinstance(value, str):
             raise ValueError(f"select {label}")
         return value
+
+
+class GoogleSetupScreen(ModalScreen[None]):
+    """Explain how to recover from an unavailable Google connection."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(
+        self,
+        *,
+        operation: str,
+        account_id: str,
+        email: str,
+        credential_file: Path,
+        reason: str,
+    ) -> None:
+        super().__init__()
+        self.operation = operation
+        self.account_id = account_id
+        self.email = email
+        self.credential_file = credential_file
+        self.reason = reason
+
+    def compose(self) -> ComposeResult:
+        credential_path = str(self.credential_file)
+        command = " ".join(
+            (
+                "hcb",
+                "--env-file",
+                shlex.quote(credential_path),
+                "auth",
+                "connect",
+                shlex.quote(self.account_id),
+                shlex.quote(self.email),
+            )
+        )
+        with Vertical(id="google-setup-dialog"):
+            yield Label("Google connection required", id="dialog-title")
+            with VerticalScroll(id="google-setup-content"):
+                yield Static(
+                    f"{self.operation} did not start because HCB could not use the Google "
+                    f"connection for {self.account_id!r}.\n\n"
+                    f"Details: {self.reason}\n\n"
+                    "To fix it:\n"
+                    "1. In Google Cloud, create a Desktop OAuth client and enable the Google "
+                    "Calendar, Tasks, and Drive APIs.\n"
+                    f"2. Add its client ID to {credential_path}:\n"
+                    "   HCB_GOOGLE_CLIENT_ID=...apps.googleusercontent.com\n"
+                    "   HCB_GOOGLE_CLIENT_SECRET=...  # optional for Desktop clients\n"
+                    f"3. Secure the file: chmod 600 {shlex.quote(credential_path)}\n"
+                    "4. In a terminal, connect this account:\n"
+                    f"   {command}\n\n"
+                    "Approve the browser request, return here, and try again. When running HCB "
+                    "from this source checkout, prefix the command with `uv run`.",
+                    id="google-setup-guidance",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Close", variant="primary", id="google-setup-close")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "google-setup-close":
+            self.dismiss(None)
 
 
 class ScheduleScreen(ModalScreen[None]):
@@ -1309,14 +1373,50 @@ class HcbApp(App[None]):
     def connect_google(self) -> None:
         if self.account_id is None:
             return
+        failure: Exception | None = None
         try:
-            self.runtime.authenticator(self.account_id).connect(self.account_id)
+            authenticator = self.runtime.authenticator(self.account_id)
+            self.call_from_thread(self.update_loading, "Waiting for browser approval")
+            authenticator.connect(self.account_id)
         except Exception as exc:
-            self.call_from_thread(self.notify, f"Google connection failed: {exc}", severity="error")
+            failure = exc
         else:
             self.call_from_thread(self.notify, "Google connected; sync remains explicit")
         finally:
             self.call_from_thread(self.stop_loading)
+        if failure is not None:
+            self.call_from_thread(
+                self._show_remote_failure,
+                "Google connection",
+                failure,
+                self.account_id,
+            )
+
+    def _show_remote_failure(
+        self, operation: str, error: Exception, account_id: str | None
+    ) -> None:
+        if account_id is not None and isinstance(
+            error, (AuthenticationRequired, ConfigurationError)
+        ):
+            account = self.runtime.storage.get_account(account_id)
+            email = account.email if account is not None else "YOUR_GOOGLE_EMAIL"
+            self.push_screen(
+                GoogleSetupScreen(
+                    operation=operation,
+                    account_id=account_id,
+                    email=email,
+                    credential_file=self.runtime.credential_file(account_id),
+                    reason=error.message,
+                )
+            )
+            return
+        if isinstance(error, HcbError):
+            message = f"{operation} failed: {error.message}"
+            if error.hint:
+                message += f" Next: {error.hint}"
+        else:
+            message = f"{operation} failed: {error}"
+        self.notify(message, severity="error", timeout=15)
 
     def _bind_configured_keys(self) -> None:
         keys = self.runtime.config.keys
@@ -1576,6 +1676,13 @@ class HcbApp(App[None]):
             self.push_screen(self._loading_screen)
         else:
             self._loading_screen.set_message(operation)
+        self._render_chrome()
+
+    def update_loading(self, status: str) -> None:
+        """Display the current, concrete stage of the active remote operation."""
+        self.loading_operation = status
+        if self._loading_screen is not None:
+            self._loading_screen.set_message(status)
         self._render_chrome()
 
     def stop_loading(self) -> None:
@@ -2293,14 +2400,20 @@ class HcbApp(App[None]):
         body: dict[str, object],
         callback: Callable[[dict[str, object]], None],
     ) -> None:
+        failure: Exception | None = None
         try:
+            self.call_from_thread(self.update_loading, "Waiting for Google availability")
             result = self.runtime.sync_engine(account_id).gateway.freebusy(body)
         except Exception as exc:  # Google failures must not tear down the workspace.
-            self.call_from_thread(self.notify, f"Google free/busy failed: {exc}", severity="error")
+            failure = exc
         else:
             self.call_from_thread(callback, result)
         finally:
             self.call_from_thread(self.stop_loading)
+        if failure is not None:
+            self.call_from_thread(
+                self._show_remote_failure, "Google free/busy", failure, account_id
+            )
 
     def action_jump(self) -> None:
         self.push_screen(
@@ -2324,21 +2437,24 @@ class HcbApp(App[None]):
         if self.account_id is None:
             self.call_from_thread(
                 self.notify,
-                "Connect an account before syncing",
+                "No account is configured. Open / → First-run setup, then connect Google.",
                 severity="warning",
             )
             return
-        self.call_from_thread(self.start_loading, "Syncing with Google")
+        account_id = self.account_id
+        failure: Exception | None = None
+        self.call_from_thread(self.start_loading, "Preparing Google sync")
         worker_storage: Storage | None = None
         try:
-            engine = self.runtime.sync_engine(self.account_id)
+            engine = self.runtime.sync_engine(account_id)
             worker_storage = Storage(self.runtime.paths.database_file)
             engine.storage = worker_storage
-            result = engine.sync(self.account_id)
-        except HcbError as exc:
-            self.call_from_thread(self.notify, str(exc), severity="error")
+            result = engine.sync(
+                account_id,
+                progress=lambda status: self.call_from_thread(self.update_loading, status),
+            )
         except Exception as exc:  # provider failures must not tear down the workspace
-            self.call_from_thread(self.notify, f"Sync failed: {exc}", severity="error")
+            failure = exc
         else:
             self.call_from_thread(
                 self.notify,
@@ -2349,6 +2465,8 @@ class HcbApp(App[None]):
                 worker_storage.close()
             self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
+        if failure is not None:
+            self.call_from_thread(self._show_remote_failure, "Sync", failure, account_id)
 
     @work(thread=True, exclusive=True, group="sync")
     def action_refresh_instances(self) -> None:
@@ -2369,19 +2487,22 @@ class HcbApp(App[None]):
         if calendar_id is None:
             self.call_from_thread(self.notify, "Select a calendar first", severity="warning")
             return
+        account_id = self.account_id
         start = datetime.combine(self.selected_date, datetime.min.time(), UTC)
         duration = {"Day": 1, "Week": 7, "Month": 35}.get(self.surface, 14)
-        self.call_from_thread(self.start_loading, "Refreshing recurring instances")
+        self.call_from_thread(self.start_loading, "Preparing recurring instance refresh")
         worker_storage: Storage | None = None
+        failure: Exception | None = None
         try:
-            engine = self.runtime.sync_engine(self.account_id)
+            engine = self.runtime.sync_engine(account_id)
             worker_storage = Storage(self.runtime.paths.database_file)
             engine.storage = worker_storage
+            self.call_from_thread(self.update_loading, "Fetching recurring events")
             events = engine.refresh_occurrences(
-                self.account_id, calendar_id, start, start + timedelta(days=duration)
+                account_id, calendar_id, start, start + timedelta(days=duration)
             )
         except Exception as exc:
-            self.call_from_thread(self.notify, f"Instance refresh failed: {exc}", severity="error")
+            failure = exc
         else:
             self.call_from_thread(self.notify, f"Refreshed {len(events)} recurring instances")
         finally:
@@ -2389,6 +2510,10 @@ class HcbApp(App[None]):
                 worker_storage.close()
             self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
+        if failure is not None:
+            self.call_from_thread(
+                self._show_remote_failure, "Instance refresh", failure, account_id
+            )
 
 
 def run_tui(runtime: Runtime | None = None, *, account: str | None = None) -> None:

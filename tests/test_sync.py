@@ -179,6 +179,21 @@ def test_initial_and_incremental_task_sync_uses_overlap(store):
     assert gateway.calls[-1][-1] == "2026-08-21T07:55:00Z"
 
 
+def test_sync_reports_completed_stages(store):
+    stages: list[str] = []
+
+    SyncEngine(store, FakeGateway()).sync("a", progress=stages.append)
+
+    assert stages == [
+        "Sending local changes",
+        "Fetching task lists",
+        "Fetching tasks 1/1",
+        "Fetching calendars",
+        "Fetching calendar 1/1",
+        "Finishing sync",
+    ]
+
+
 def test_page_checkpoint_resumes_without_replaying_committed_page(store):
     gateway = FakeGateway()
     gateway.task_pages = {

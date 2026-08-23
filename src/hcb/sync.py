@@ -33,6 +33,10 @@ from .storage import Storage
 RATE_LIMIT_REASONS = {"rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded"}
 
 
+def _ignore_progress(_: str) -> None:
+    """Default progress callback for non-interactive callers."""
+
+
 @dataclass(frozen=True, slots=True)
 class SyncResult:
     pages: int = 0
@@ -232,14 +236,23 @@ class SyncEngine:
         self.now = now
         self.crash_hook = crash_hook or (lambda _phase, _mutation: None)
 
-    def sync(self, account_id: str) -> SyncResult:
+    def sync(
+        self, account_id: str, *, progress: Callable[[str], None] | None = None
+    ) -> SyncResult:
+        """Synchronize an account and report completed stages when requested."""
+
         if self.storage.get_account(account_id) is None:
             raise ValueError(f"unknown account {account_id!r}")
+        report = progress or _ignore_progress
+        report("Sending local changes")
         result = self.flush_outbox(account_id)
         if result.retry_pending:
             return result
-        for pull in (self.sync_task_lists, self.sync_calendars):
-            result = result.plus(pull(account_id))
+        report("Fetching task lists")
+        result = result.plus(self.sync_task_lists(account_id, progress=report))
+        report("Fetching calendars")
+        result = result.plus(self.sync_calendars(account_id, progress=report))
+        report("Finishing sync")
         return result
 
     def _paged(
@@ -281,7 +294,9 @@ class SyncEngine:
             raise
         return SyncResult(pages=pages, pulled=pulled)
 
-    def sync_task_lists(self, account_id: str) -> SyncResult:
+    def sync_task_lists(
+        self, account_id: str, *, progress: Callable[[str], None] | None = None
+    ) -> SyncResult:
         def apply(item: Json) -> None:
             existing = self.storage.get_task_list_by_remote(account_id, str(item["id"]))
             if existing is None or not existing.metadata.dirty:
@@ -297,9 +312,11 @@ class SyncEngine:
             lambda token: self.gateway.list_task_lists(page_token=token),
             apply,
         )
-        for task_list in self.storage.list_task_lists(account_id):
-            if task_list.remote_id:
-                result = result.plus(self.sync_tasks(account_id, task_list))
+        report = progress or _ignore_progress
+        task_lists = [item for item in self.storage.list_task_lists(account_id) if item.remote_id]
+        for index, task_list in enumerate(task_lists, start=1):
+            report(f"Fetching tasks {index}/{len(task_lists)}")
+            result = result.plus(self.sync_tasks(account_id, task_list))
         return result
 
     def sync_tasks(self, account_id: str, task_list: TaskList) -> SyncResult:
@@ -337,7 +354,9 @@ class SyncEngine:
         self.storage.set_cursor(SyncCursor(account_id, scope, completed_at))
         return result
 
-    def sync_calendars(self, account_id: str) -> SyncResult:
+    def sync_calendars(
+        self, account_id: str, *, progress: Callable[[str], None] | None = None
+    ) -> SyncResult:
         def apply(item: Json) -> None:
             existing = self.storage.get_calendar_by_remote(account_id, str(item["id"]))
             if existing is None or not existing.metadata.dirty:
@@ -371,9 +390,15 @@ class SyncEngine:
                         self.storage.finish_checkpoint(stale[0], error="sync token expired")
                 cursor = None
                 reset = True
-        for calendar in self.storage.list_calendars(account_id):
-            if calendar.remote_id and calendar.selected:
-                result = result.plus(self.sync_events(account_id, calendar))
+        report = progress or _ignore_progress
+        calendars = [
+            item
+            for item in self.storage.list_calendars(account_id)
+            if item.remote_id and item.selected
+        ]
+        for index, calendar in enumerate(calendars, start=1):
+            report(f"Fetching calendar {index}/{len(calendars)}")
+            result = result.plus(self.sync_events(account_id, calendar))
         return result
 
     def sync_events(self, account_id: str, calendar: Calendar) -> SyncResult:
