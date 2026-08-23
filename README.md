@@ -148,7 +148,9 @@ HCB ships 30 Ghostty-derived visual presets, selected from Ghostty's bundled
 theme collection using family-level community adoption and recurrent terminal
 theme curation. `hcb themes list` shows the stable ranked set, `hcb themes show
 NAME` prints every semantic token, and `hcb themes apply NAME` writes it to
-`config.json`. The running TUI notices that edit and reloads it.
+`config.json`. `hcb themes RANK` is a shorthand that applies that numbered
+preset, so `hcb themes 20` applies Rose Pine. The running TUI notices that edit
+and reloads it.
 
 For a fully custom appearance, apply a strict standalone theme JSON document:
 

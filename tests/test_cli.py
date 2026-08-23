@@ -365,6 +365,10 @@ def test_theme_commands_apply_bundled_and_complete_custom_themes(
     assert applied["theme"]["preset"] == "Catppuccin Latte"
     assert json.loads(paths.config_file.read_text())["theme"]["preset"] == "Catppuccin Latte"
 
+    ranked = json_data(invoke(runner, ["--json", "themes", "20"]), "themes.apply")
+    assert ranked["source"]["rank"] == 20
+    assert ranked["theme"]["preset"] == "Rose Pine"
+
     colors = ThemeColors(**{name: "#123456" for name in ThemeColors.__dataclass_fields__})
     custom = Theme(
         profile="light",

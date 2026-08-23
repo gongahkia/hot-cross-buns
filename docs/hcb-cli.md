@@ -112,7 +112,8 @@ as selection, colors, default reminders, and notification preferences.
 `themes list` returns HCB's 30 bundled Ghostty-derived presets in rank order.
 `themes show NAME` returns one full semantic palette, and `themes apply NAME`
 writes it to `config.json` while retaining the current density, border, focus,
-mouse, and loader choices. `themes apply --file PATH` accepts a strict standalone
+mouse, and loader choices. `themes RANK` is an equivalent shorthand, so
+`themes 20` applies Rose Pine. `themes apply --file PATH` accepts a strict standalone
 `theme` JSON object: `profile`, `density`, `borders`, `focus`, `mouse`, `loader`, plus a
 `colors` object with any or all of `background`, `surface`, `panel`, `overlay`,
 `control`, `text`, `muted`, `border`, `focus`, `selection`, `accent`, `success`,

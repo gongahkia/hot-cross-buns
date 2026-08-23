@@ -115,6 +115,21 @@ class HcbGroup(typer.core.TyperGroup):
         }.get(exit_code, "hcb_error")
 
 
+class ThemesGroup(HcbGroup):
+    """Accept a preset rank as a concise alias for ``themes apply``."""
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        if args and args[0].isdigit():
+            rank = int(args[0])
+            selected = next((item for item in presets() if item.rank == rank), None)
+            if selected is None:
+                raise ValueError(f"unknown theme rank {rank}; run `hcb themes list`")
+            args = ["apply", selected.name, *args[1:]]
+        return super().resolve_command(ctx, args)
+
+
 CONTEXT = {"help_option_names": ["-h", "--help"]}
 app = typer.Typer(
     cls=HcbGroup,
@@ -132,7 +147,7 @@ conflicts_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Resolv
 import_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Preview or apply imports.")
 auth_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage authentication.")
 config_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage configuration.")
-themes_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage visual themes.")
+themes_app = typer.Typer(cls=ThemesGroup, context_settings=CONTEXT, help="Manage visual themes.")
 daemon_app = typer.Typer(
     cls=HcbGroup, context_settings=CONTEXT, help="Inspect sync daemon support."
 )
