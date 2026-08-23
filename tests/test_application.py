@@ -8,7 +8,10 @@ from hcb.application import ApplicationService
 from hcb.models import (
     Account,
     Calendar,
+    Conflict,
     DateTimeKind,
+    DriveFile,
+    EntityType,
     EventDateTime,
     NotesProjection,
     ReminderOverride,
@@ -189,6 +192,76 @@ def test_schedule_search_orphan_and_undo_redo(app: ApplicationService) -> None:
     assert app.storage.get_event("a", event.id).metadata.deleted is False
     assert app.redo("a") is not None
     assert app.storage.get_event("a", event.id).metadata.deleted is True
+
+
+def test_indexed_workspace_search_covers_every_user_facing_local_entity(
+    app: ApplicationService,
+) -> None:
+    app.storage.upsert_task_list(TaskList("research", "a", "Research needle"))
+    app.storage.upsert_calendar(
+        Calendar("secondary", "a", "Calendar needle", description="calendarbodyneedle")
+    )
+    task = app.create_task("a", "research", "Task needle", notes="notebodyneedle")
+    event = app.create_event(
+        "a",
+        "secondary",
+        "Event needle",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC)),
+        description="eventbodyneedle",
+    )
+    app.storage.upsert_drive_file(DriveFile("drive", "a", "Drive needle"))
+    saved = app.save_search("a", "Saved needle", "task:needle")
+    conflict_id = app.storage.add_conflict(
+        Conflict(
+            None,
+            "a",
+            EntityType.TASK,
+            task.id,
+            {"detail": "conflictbodyneedle"},
+            {"detail": "remote"},
+        )
+    )
+
+    results = app.search("a", "needle")
+    assert {result.kind for result in results} == {
+        "task",
+        "event",
+        "calendar",
+        "task-list",
+        "drive",
+        "saved-search",
+    }
+    assert [result.item.id for result in app.search("a", "type:list needle")] == ["research"]
+    assert [result.item.id for result in app.search("a", "body:notebodyneedle")] == [task.id]
+    assert [result.item.id for result in app.search("a", "body:eventbodyneedle")] == [event.id]
+    assert [result.item.id for result in app.search("a", "body:conflictbodyneedle")] == [
+        conflict_id
+    ]
+    assert {result.kind for result in app.search("a", "source:local")} == {
+        "conflict",
+        "saved-search",
+    }
+    assert app.search("a", "type:saved needle")[0].item.id == saved.id
+
+    app.update_task("a", task.id, title="Renamed result")
+    assert not app.search("a", "Task needle")
+    assert app.search("a", "Renamed result")[0].item.id == task.id
+    app.delete_task("a", task.id)
+    assert not app.search("a", "Renamed result")
+
+
+def test_workspace_search_uses_its_index_instead_of_scanning_entity_tables(
+    app: ApplicationService,
+) -> None:
+    task = app.create_task("a", "inbox", "Indexed needle")
+
+    def fail_scan(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("workspace search must not scan every entity")
+
+    app.storage.list_tasks = fail_scan  # type: ignore[method-assign]
+    app.storage.list_events = fail_scan  # type: ignore[method-assign]
+    assert app.search("a", "needle")[0].item.id == task.id
 
 
 def test_import_apply_is_atomic_and_diagnostics_are_redacted(

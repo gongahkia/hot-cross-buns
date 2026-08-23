@@ -48,7 +48,7 @@ from .config import Config, ConfigError, ThemeColors, load
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
 from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
-from .models import ConflictStatus, DateTimeKind, Event, EventDateTime, Task, TaskStatus
+from .models import ConflictStatus, DateTimeKind, DriveFile, Event, EventDateTime, Task, TaskStatus
 from .runtime import DEFAULT_CREDENTIAL_FILE, Runtime
 from .storage import Storage
 
@@ -1104,18 +1104,23 @@ class PaletteScreen(ModalScreen[tuple[str, str] | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Close")]
 
-    def __init__(self, app_service: HcbApp) -> None:
+    def __init__(self, app_service: HcbApp, *, initial_query: str = "") -> None:
         super().__init__()
         self.hcb = app_service
+        self.initial_query = initial_query
 
     def compose(self) -> ComposeResult:
         with Vertical(id="palette-dialog"):
-            yield Input(placeholder="Type a command or search local data", id="palette-query")
+            yield Input(
+                value=self.initial_query,
+                placeholder="Type a command or search local data",
+                id="palette-query",
+            )
             yield ListView(id="palette-results")
 
     def on_mount(self) -> None:
         self.query_one(Input).focus()
-        self._fill("")
+        self._fill(self.initial_query)
 
     def _fill(self, query: str) -> None:
         view = self.query_one(ListView)
@@ -1126,13 +1131,11 @@ class PaletteScreen(ModalScreen[tuple[str, str] | None]):
                 view.append(EntityRow(title, kind="command", item_id=action, action=action))
         if needle and self.hcb.account_id:
             for result in self.hcb.search_local(query):
-                item = result.item
-                title = item.title if isinstance(item, Task) else getattr(item, "summary", "")
                 view.append(
                     EntityRow(
-                        f"{title}  · {result.kind}",
+                        f"{result.display_title}  · {result.kind.replace('-', ' ')}",
                         kind=result.kind,
-                        item_id=item.id,
+                        item_id=str(result.item.id),
                     )
                 )
         if view.children:
@@ -2065,6 +2068,22 @@ class HcbApp(App[None]):
                     + "\n\nStructured CLI editing preserves specialist fields."
                 )
             )
+            return
+        drive_file = self._selected_drive()
+        if drive_file:
+            modified = (
+                self.format_date_time(drive_file.modified_time) if drive_file.modified_time else "—"
+            )
+            self.query_one("#inspection", Static).update(
+                Text(
+                    f"{drive_file.name}\n\n"
+                    f"Type: {drive_file.mime_type or 'unknown'}\n"
+                    f"Modified: {modified}\n\n"
+                    f"{drive_file.web_view_link or 'No web link cached'}"
+                )
+            )
+            return
+        self.query_one("#inspection", Static).update("Select an item")
 
     def _selected_task(self) -> Task | None:
         if not self.selected or self.selected[0] != "task":
@@ -2075,6 +2094,11 @@ class HcbApp(App[None]):
         if not self.selected or self.selected[0] != "event":
             return None
         return next((item for item in self.cache.events if item.id == self.selected[1]), None)
+
+    def _selected_drive(self) -> DriveFile | None:
+        if not self.selected or self.selected[0] != "drive" or self.account_id is None:
+            return None
+        return self.runtime.storage.get_drive_file(self.account_id, self.selected[1])
 
     def search_local(self, query: str) -> tuple[SearchResult, ...]:
         if self.account_id is None:
@@ -2126,10 +2150,43 @@ class HcbApp(App[None]):
             self.push_screen(OnboardingScreen(), self._onboarding_result)
         elif kind in {"task", "event"}:
             self.surface = "Tasks" if kind == "task" else "Agenda"
+            self.resource_filter = None
             self.selected = (kind, value)
             self._render_chrome()
             self._render_surface()
             self._render_inspector()
+        elif kind == "task-list":
+            self.surface = "Tasks"
+            self.resource_filter = ("task-list", value)
+            self.selected = None
+            self._render_chrome()
+            self._render_surface()
+            self._render_inspector()
+        elif kind == "calendar":
+            self.surface = "Agenda"
+            self.resource_filter = ("calendar", value)
+            self.selected = None
+            self._render_chrome()
+            self._render_surface()
+            self._render_inspector()
+        elif kind == "drive":
+            self.selected = (kind, value)
+            self._render_inspector()
+        elif kind == "saved-search" and self.account_id is not None:
+            saved = next(
+                (
+                    item
+                    for item in self.runtime.application.list_saved_searches(self.account_id)
+                    if item.id == value
+                ),
+                None,
+            )
+            if saved is not None:
+                self.push_screen(
+                    PaletteScreen(self, initial_query=saved.query), self._palette_result
+                )
+        elif kind == "conflict":
+            self.push_screen(ConflictScreen(self))
 
     def action_create(self) -> None:
         if self.account_id is None:

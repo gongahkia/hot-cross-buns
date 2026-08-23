@@ -16,6 +16,6 @@ def test_deterministic_large_fixture_local_performance(tmp_path: Path) -> None:
     # These are regression tripwires, not microbenchmarks. The generous limits
     # tolerate shared CI runners while still detecting accidental quadratic work.
     assert result.cold_open_seconds < 5.0
-    assert result.search_10k_seconds < 5.0
+    assert result.search_10k_seconds < 0.25
     assert result.agenda_seconds < 5.0
     assert result.tui_cache_load_seconds < 5.0

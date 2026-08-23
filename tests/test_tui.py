@@ -10,7 +10,15 @@ from textual.app import SuspendNotSupported
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
-from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime, Preferences
+from hcb.models import (
+    Account,
+    Conflict,
+    DateTimeKind,
+    DriveFile,
+    EntityType,
+    EventDateTime,
+    Preferences,
+)
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
 from hcb.storage import Storage
@@ -372,6 +380,75 @@ def test_palette_shows_commands_and_title_first_results(tmp_path: Path) -> None:
         labels = [str(row.query_one("Label").render()) for row in results.children]
         assert any(label.startswith("Ship TUI") for label in labels)
         await pilot.press("escape")  # type: ignore[attr-defined]
+
+    app_test(app, assertions)
+
+
+def test_palette_searches_indexed_drive_files_and_opens_their_inspector(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    runtime.storage.upsert_drive_file(
+        DriveFile(
+            "brief",
+            "work",
+            "Quarterly brief workspaceunique",
+            "application/pdf",
+            "https://example.test/brief",
+        )
+    )
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("/")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        query = app.screen.query_one("#palette-query", Input)
+        query.value = "workspaceunique"
+        await pilot.pause()  # type: ignore[attr-defined]
+        labels = [
+            str(row.query_one("Label").render())
+            for row in app.screen.query_one("#palette-results", ListView).children
+        ]
+        assert labels == ["Quarterly brief workspaceunique  · drive"]
+        await pilot.press("enter")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.selected == ("drive", "brief")
+        assert "application/pdf" in str(app.query_one("#inspection", Static).render())
+
+    app_test(app, assertions)
+
+
+def test_palette_workspace_result_navigation_for_lists_calendars_saved_searches_and_conflicts(
+    tmp_path: Path,
+) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.application.create_task_list("work", "Research")
+    calendar = runtime.application.create_calendar("work", "Travel")
+    saved = runtime.application.save_search(
+        "work", "Open research", "list:Research completed:false"
+    )
+    runtime.storage.add_conflict(
+        Conflict(None, "work", EntityType.TASK, "missing", {"title": "L"}, {"title": "R"})
+    )
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        app._palette_result(("task-list", task_list.id))
+        assert app.surface == "Tasks"
+        assert app.resource_filter == ("task-list", task_list.id)
+
+        app._palette_result(("calendar", calendar.id))
+        assert app.surface == "Agenda"
+        assert app.resource_filter == ("calendar", calendar.id)
+
+        app._palette_result(("saved-search", saved.id))
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, PaletteScreen)
+        assert app.screen.query_one("#palette-query", Input).value == saved.query
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        app._palette_result(("conflict", "1"))
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ConflictScreen)
 
     app_test(app, assertions)
 

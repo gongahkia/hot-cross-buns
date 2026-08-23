@@ -29,6 +29,9 @@ def _legacy_database(path: Path, version: int) -> None:
     if version >= 6:
         connection.executescript(storage_module._MIGRATION_6)
         connection.execute("PRAGMA user_version = 6")
+    if version >= 7:
+        connection.executescript(storage_module._MIGRATION_7)
+        connection.execute("PRAGMA user_version = 7")
     connection.execute(
         """INSERT INTO accounts(id,email,display_name,provider,enabled,created_at)
         VALUES ('legacy','redacted@example.test',NULL,'google',1,'2026-08-21T00:00:00+00:00')"""
@@ -66,7 +69,7 @@ def test_fresh_database_and_repeated_open_are_idempotent(tmp_path: Path) -> None
             assert version == SCHEMA_VERSION
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 6])
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 6, 7])
 def test_historical_databases_migrate_to_current_without_data_loss(
     tmp_path: Path, version: int
 ) -> None:
@@ -91,6 +94,10 @@ def test_historical_databases_migrate_to_current_without_data_loss(
         mutation = migrated.pending_mutations("legacy")[0]
         assert mutation.delivery_state.value == "pending"
         assert mutation.payload["body"]["title"] == "Legacy intent"
+        assert [
+            document.kind
+            for document in migrated.search_workspace("legacy", text="Legacy", search_body=False)
+        ] == ["task-list"]
         assert migrated.connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
 
     with Storage(path) as repeated:

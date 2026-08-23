@@ -48,7 +48,7 @@ from .quick_capture import (
     QuickCaptureResult,
     parse_quick_capture,
 )
-from .search import matches_calendar_result, matches_event, matches_task, parse_palette_query
+from .search import parse_palette_query
 from .storage import Storage
 from .task_recurrence import (
     parse_task_recurrence_notes,
@@ -87,9 +87,21 @@ class TaskEventLink:
 
 @dataclass(frozen=True, slots=True)
 class SearchResult:
-    kind: Literal["task", "event", "calendar"]
-    item: Task | Event | Calendar
+    kind: Literal["task", "event", "calendar", "task-list", "drive", "saved-search", "conflict"]
+    item: Task | Event | Calendar | TaskList | DriveFile | SavedSearch | Conflict
     score: int
+
+    @property
+    def display_title(self) -> str:
+        if isinstance(self.item, (Task, TaskList)):
+            return self.item.title
+        if isinstance(self.item, Event | Calendar):
+            return self.item.summary
+        if isinstance(self.item, DriveFile):
+            return self.item.name
+        if isinstance(self.item, SavedSearch):
+            return self.item.name
+        return f"{self.item.entity_type.value.title()} conflict · {self.item.entity_id}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1740,51 +1752,76 @@ class ApplicationService:
         self, account_id: str, query: str, *, today: date | None = None, limit: int = 50
     ) -> tuple[SearchResult, ...]:
         parsed = parse_palette_query(query)
-        lists = {item.id: item.title for item in self.storage.list_task_lists(account_id)}
-        calendars = {item.id: item.summary for item in self.storage.list_calendars(account_id)}
-        results: list[SearchResult] = []
-        for task in self.storage.list_tasks(account_id):
-            if matches_task(
-                task,
-                parsed,
-                today=today,
-                metadata=task,
-                list_name=lists.get(task.list_id),
-            ):
-                results.append(
+        documents = self.storage.search_workspace(
+            account_id,
+            text=parsed.text,
+            search_body=parsed.search_body,
+            kinds=parsed.filters.types,
+            source=parsed.filters.source,
+            status=parsed.filters.status,
+            priority=parsed.filters.priority,
+            due=parsed.filters.due,
+            completed=parsed.filters.completed,
+            event_date=parsed.filters.date,
+            list_query=parsed.filters.list_query,
+            calendar_query=parsed.filters.calendar_query,
+            today=today,
+            limit=limit,
+        )
+        results: list[tuple[SearchResult, float, str]] = []
+        for document in documents:
+            item = self._workspace_search_item(account_id, document.kind, document.entity_id)
+            if item is None:
+                continue
+            results.append(
+                (
                     SearchResult(
-                        "task",
-                        task,
+                        document.kind,  # type: ignore[arg-type]
+                        item,
                         self._score(
-                            task.title,
+                            document.title,
                             parsed.text,
-                            task.notes if parsed.search_body else None,
+                            document.body if parsed.search_body else None,
                         ),
-                    )
+                    ),
+                    document.rank,
+                    document.entity_id,
                 )
-        for event in self.storage.list_events(account_id):
-            if matches_event(
-                event, parsed, calendar_name=calendars.get(event.calendar_id), today=today
-            ):
-                body = " ".join(value for value in (event.description, event.location) if value)
-                results.append(
-                    SearchResult(
-                        "event",
-                        event,
-                        self._score(
-                            event.summary,
-                            parsed.text,
-                            body if parsed.search_body else None,
-                        ),
-                    )
+            )
+        results.sort(key=lambda result: (-result[0].score, result[1], result[0].kind, result[2]))
+        return tuple(result[0] for result in results)
+
+    def _workspace_search_item(
+        self, account_id: str, kind: str, entity_id: str
+    ) -> Task | Event | Calendar | TaskList | DriveFile | SavedSearch | Conflict | None:
+        if kind == "task":
+            return self.storage.get_task(account_id, entity_id)
+        if kind == "event":
+            return self.storage.get_event(account_id, entity_id)
+        if kind == "calendar":
+            return self.storage.get_calendar(account_id, entity_id)
+        if kind == "task-list":
+            return self.storage.get_task_list(account_id, entity_id)
+        if kind == "drive":
+            return self.storage.get_drive_file(account_id, entity_id)
+        if kind == "saved-search":
+            row = self.storage.connection.execute(
+                "SELECT * FROM saved_searches WHERE account_id=? AND id=?", (account_id, entity_id)
+            ).fetchone()
+            return (
+                SavedSearch(
+                    row["id"],
+                    row["account_id"],
+                    row["name"],
+                    row["query"],
+                    datetime.fromisoformat(row["created_at"]),
                 )
-        for calendar in self.storage.list_calendars(account_id):
-            if matches_calendar_result(calendar, parsed):
-                results.append(
-                    SearchResult("calendar", calendar, self._score(calendar.summary, parsed.text))
-                )
-        results.sort(key=lambda result: (-result.score, result.kind, result.item.id))
-        return tuple(results[:limit])
+                if row
+                else None
+            )
+        if kind == "conflict" and entity_id.isdecimal():
+            return self.storage.get_conflict(account_id, int(entity_id))
+        return None
 
     def run_saved_search(
         self, account_id: str, search_id: str, *, today: date | None = None

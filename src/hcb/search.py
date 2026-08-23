@@ -8,12 +8,20 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-ResultType = Literal["task", "event", "calendar", "drive"]
+ResultType = Literal["task", "event", "calendar", "task-list", "drive", "saved-search", "conflict"]
 WindowKind = Literal["today", "past", "upcoming", "this-week", "next-week", "day", "range"]
 Source = Literal["google", "local"]
 Priority = Literal["none", "low", "medium", "high"]
 
-_RESULT_TYPES = frozenset(("task", "event", "calendar", "drive"))
+_RESULT_TYPES = frozenset(
+    ("task", "event", "calendar", "task-list", "drive", "saved-search", "conflict")
+)
+_TYPE_ALIASES = {
+    "list": "task-list",
+    "task-list": "task-list",
+    "saved": "saved-search",
+    "saved-search": "saved-search",
+}
 _PRIORITIES = frozenset(("none", "low", "medium", "high"))
 _TOKEN = re.compile(r'[^\s"]+:"[^"]*"|"[^"]*"|\S+')
 
@@ -174,11 +182,14 @@ def parse_palette_query(text: str) -> ParsedPaletteQuery:
         key = token[:separator].lower()
         value = _unquote(token[separator + 1 :])
         normalized = value.lower()
-        if key == "type" and normalized in _RESULT_TYPES:
-            add_type(normalized)
+        if (
+            key == "type"
+            and (result_type := _TYPE_ALIASES.get(normalized, normalized)) in _RESULT_TYPES
+        ):
+            add_type(result_type)
             has_filters = True
-        elif key in {"task", "event", "drive"}:
-            add_type(key)
+        elif key in {"task", "event", "drive", "saved", "saved-search", "conflict", "task-list"}:
+            add_type(_TYPE_ALIASES.get(key, key))
             has_filters = True
             if value:
                 terms.append(value)

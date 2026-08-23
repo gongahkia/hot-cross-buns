@@ -6,7 +6,8 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +36,21 @@ from .models import (
     utc_now,
 )
 from .paths import AppPaths
+from .search import DateWindow
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceSearchDocument:
+    """A ranked, indexed local workspace record before model hydration."""
+
+    kind: str
+    entity_id: str
+    title: str
+    body: str
+    rank: float
+
 
 _SCHEMA = """
 CREATE TABLE accounts (
@@ -214,6 +228,268 @@ CREATE INDEX event_instance_ranges_coverage
 ON event_instance_ranges(account_id,calendar_id,state,start_value,end_value);
 """
 
+_MIGRATION_8 = """
+CREATE TABLE workspace_search_documents (
+    id INTEGER PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL,
+    status TEXT,
+    priority TEXT,
+    due TEXT,
+    event_date TEXT,
+    list_id TEXT,
+    list_name TEXT,
+    calendar_id TEXT,
+    calendar_name TEXT,
+    UNIQUE(account_id, kind, entity_id)
+);
+CREATE INDEX workspace_search_documents_filters ON workspace_search_documents(
+    account_id, kind, source, status, priority, due, event_date
+);
+CREATE VIRTUAL TABLE workspace_search USING fts5(
+    title, body,
+    content='workspace_search_documents',
+    content_rowid='id',
+    tokenize='trigram'
+);
+CREATE TRIGGER workspace_search_documents_ai AFTER INSERT ON workspace_search_documents BEGIN
+    INSERT INTO workspace_search(rowid,title,body) VALUES (new.id,new.title,new.body);
+END;
+CREATE TRIGGER workspace_search_documents_ad BEFORE DELETE ON workspace_search_documents BEGIN
+    INSERT INTO workspace_search(workspace_search,rowid,title,body)
+    VALUES ('delete',old.id,old.title,old.body);
+END;
+CREATE TRIGGER workspace_search_documents_au BEFORE UPDATE ON workspace_search_documents BEGIN
+    INSERT INTO workspace_search(workspace_search,rowid,title,body)
+    VALUES ('delete',old.id,old.title,old.body);
+END;
+CREATE TRIGGER workspace_search_documents_au_after AFTER UPDATE ON workspace_search_documents BEGIN
+    INSERT INTO workspace_search(rowid,title,body) VALUES (new.id,new.title,new.body);
+END;
+
+CREATE TRIGGER workspace_search_task_lists_ai AFTER INSERT ON task_lists BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='task-list' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    SELECT new.account_id,'task-list',new.id,new.title,'','google' WHERE new.deleted=0;
+END;
+CREATE TRIGGER workspace_search_task_lists_au AFTER UPDATE ON task_lists BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind IN ('task-list','task')
+      AND (entity_id=new.id OR list_id=new.id);
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    SELECT new.account_id,'task-list',new.id,new.title,'','google' WHERE new.deleted=0;
+    INSERT INTO workspace_search_documents(
+        account_id,kind,entity_id,title,body,source,status,priority,due,list_id,list_name
+    )
+    SELECT t.account_id,'task',t.id,t.title,COALESCE(t.notes,''),'google',t.status,t.priority,
+           t.due,t.list_id,new.title
+    FROM tasks t WHERE t.account_id=new.account_id AND t.list_id=new.id AND t.deleted=0;
+END;
+CREATE TRIGGER workspace_search_task_lists_ad AFTER DELETE ON task_lists BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind IN ('task-list','task')
+      AND (entity_id=old.id OR list_id=old.id);
+END;
+
+CREATE TRIGGER workspace_search_tasks_ai AFTER INSERT ON tasks BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='task' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(
+        account_id,kind,entity_id,title,body,source,status,priority,due,list_id,list_name
+    )
+    SELECT new.account_id,'task',new.id,new.title,COALESCE(new.notes,''),'google',new.status,
+           new.priority,new.due,new.list_id,
+           COALESCE((
+               SELECT title FROM task_lists WHERE account_id=new.account_id AND id=new.list_id
+           ),'')
+    WHERE new.deleted=0;
+END;
+CREATE TRIGGER workspace_search_tasks_au AFTER UPDATE ON tasks BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='task' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(
+        account_id,kind,entity_id,title,body,source,status,priority,due,list_id,list_name
+    )
+    SELECT new.account_id,'task',new.id,new.title,COALESCE(new.notes,''),'google',new.status,
+           new.priority,new.due,new.list_id,
+           COALESCE((
+               SELECT title FROM task_lists WHERE account_id=new.account_id AND id=new.list_id
+           ),'')
+    WHERE new.deleted=0;
+END;
+CREATE TRIGGER workspace_search_tasks_ad AFTER DELETE ON tasks BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind='task' AND entity_id=old.id;
+END;
+
+CREATE TRIGGER workspace_search_calendars_ai AFTER INSERT ON calendars BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='calendar' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    SELECT new.account_id,'calendar',new.id,new.summary,
+           COALESCE(new.description,'') || ' ' || COALESCE(new.location,'') || ' ' ||
+           COALESCE(new.summary_override,''),'google'
+    WHERE new.deleted=0;
+END;
+CREATE TRIGGER workspace_search_calendars_au AFTER UPDATE ON calendars BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind IN ('calendar','event')
+      AND (entity_id=new.id OR calendar_id=new.id);
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    SELECT new.account_id,'calendar',new.id,new.summary,
+           COALESCE(new.description,'') || ' ' || COALESCE(new.location,'') || ' ' ||
+           COALESCE(new.summary_override,''),'google'
+    WHERE new.deleted=0;
+    INSERT INTO workspace_search_documents(
+        account_id,kind,entity_id,title,body,source,status,event_date,calendar_id,calendar_name
+    )
+    SELECT e.account_id,'event',e.id,e.summary,
+           COALESCE(e.description,'') || ' ' || COALESCE(e.location,'') || ' ' ||
+           COALESCE(e.attendees,'') || ' ' || COALESCE(e.attachments,'') || ' ' ||
+           COALESCE(e.conference,'') || ' ' || COALESCE(e.recurrence,''),'google',e.status,
+           substr(e.start_value,1,10),e.calendar_id,new.summary
+    FROM events e WHERE e.account_id=new.account_id AND e.calendar_id=new.id AND e.deleted=0;
+END;
+CREATE TRIGGER workspace_search_calendars_ad AFTER DELETE ON calendars BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind IN ('calendar','event')
+      AND (entity_id=old.id OR calendar_id=old.id);
+END;
+
+CREATE TRIGGER workspace_search_events_ai AFTER INSERT ON events BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='event' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(
+        account_id,kind,entity_id,title,body,source,status,event_date,calendar_id,calendar_name
+    )
+    SELECT new.account_id,'event',new.id,new.summary,
+           COALESCE(new.description,'') || ' ' || COALESCE(new.location,'') || ' ' ||
+           COALESCE(new.attendees,'') || ' ' || COALESCE(new.attachments,'') || ' ' ||
+           COALESCE(new.conference,'') || ' ' || COALESCE(new.recurrence,''),'google',new.status,
+           substr(new.start_value,1,10),new.calendar_id,
+           COALESCE((
+               SELECT summary FROM calendars WHERE account_id=new.account_id AND id=new.calendar_id
+           ),'')
+    WHERE new.deleted=0;
+END;
+CREATE TRIGGER workspace_search_events_au AFTER UPDATE ON events BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='event' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(
+        account_id,kind,entity_id,title,body,source,status,event_date,calendar_id,calendar_name
+    )
+    SELECT new.account_id,'event',new.id,new.summary,
+           COALESCE(new.description,'') || ' ' || COALESCE(new.location,'') || ' ' ||
+           COALESCE(new.attendees,'') || ' ' || COALESCE(new.attachments,'') || ' ' ||
+           COALESCE(new.conference,'') || ' ' || COALESCE(new.recurrence,''),'google',new.status,
+           substr(new.start_value,1,10),new.calendar_id,
+           COALESCE((
+               SELECT summary FROM calendars WHERE account_id=new.account_id AND id=new.calendar_id
+           ),'')
+    WHERE new.deleted=0;
+END;
+CREATE TRIGGER workspace_search_events_ad AFTER DELETE ON events BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind='event' AND entity_id=old.id;
+END;
+
+CREATE TRIGGER workspace_search_drive_files_ai AFTER INSERT ON drive_files BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='drive' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    VALUES (new.account_id,'drive',new.id,new.name,
+            COALESCE(new.mime_type,'') || ' ' || COALESCE(new.web_view_link,''),'google');
+END;
+CREATE TRIGGER workspace_search_drive_files_au AFTER UPDATE ON drive_files BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='drive' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    VALUES (new.account_id,'drive',new.id,new.name,
+            COALESCE(new.mime_type,'') || ' ' || COALESCE(new.web_view_link,''),'google');
+END;
+CREATE TRIGGER workspace_search_drive_files_ad AFTER DELETE ON drive_files BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind='drive' AND entity_id=old.id;
+END;
+
+CREATE TRIGGER workspace_search_saved_searches_ai AFTER INSERT ON saved_searches BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='saved-search' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    VALUES (new.account_id,'saved-search',new.id,new.name,new.query,'local');
+END;
+CREATE TRIGGER workspace_search_saved_searches_au AFTER UPDATE ON saved_searches BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='saved-search' AND entity_id=new.id;
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+    VALUES (new.account_id,'saved-search',new.id,new.name,new.query,'local');
+END;
+CREATE TRIGGER workspace_search_saved_searches_ad AFTER DELETE ON saved_searches BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind='saved-search' AND entity_id=old.id;
+END;
+
+CREATE TRIGGER workspace_search_conflicts_ai AFTER INSERT ON conflicts BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='conflict' AND entity_id=CAST(new.id AS TEXT);
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source,status)
+    VALUES (new.account_id,'conflict',CAST(new.id AS TEXT),new.entity_type || ' conflict',
+            new.local_payload || ' ' || new.remote_payload,'local',new.status);
+END;
+CREATE TRIGGER workspace_search_conflicts_au AFTER UPDATE ON conflicts BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=new.account_id AND kind='conflict' AND entity_id=CAST(new.id AS TEXT);
+    INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source,status)
+    VALUES (new.account_id,'conflict',CAST(new.id AS TEXT),new.entity_type || ' conflict',
+            new.local_payload || ' ' || new.remote_payload,'local',new.status);
+END;
+CREATE TRIGGER workspace_search_conflicts_ad AFTER DELETE ON conflicts BEGIN
+    DELETE FROM workspace_search_documents
+    WHERE account_id=old.account_id AND kind='conflict' AND entity_id=CAST(old.id AS TEXT);
+END;
+
+INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+SELECT account_id,'task-list',id,title,'','google' FROM task_lists WHERE deleted=0;
+INSERT INTO workspace_search_documents(
+    account_id,kind,entity_id,title,body,source,status,priority,due,list_id,list_name
+)
+SELECT t.account_id,'task',t.id,t.title,COALESCE(t.notes,''),'google',t.status,t.priority,t.due,
+       t.list_id,COALESCE(l.title,'')
+FROM tasks t LEFT JOIN task_lists l ON l.account_id=t.account_id AND l.id=t.list_id
+WHERE t.deleted=0;
+INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+SELECT account_id,'calendar',id,summary,
+       COALESCE(description,'') || ' ' || COALESCE(location,'') || ' ' ||
+       COALESCE(summary_override,''),'google'
+FROM calendars WHERE deleted=0;
+INSERT INTO workspace_search_documents(
+    account_id,kind,entity_id,title,body,source,status,event_date,calendar_id,calendar_name
+)
+SELECT e.account_id,'event',e.id,e.summary,
+       COALESCE(e.description,'') || ' ' || COALESCE(e.location,'') || ' ' ||
+       COALESCE(e.attendees,'') || ' ' || COALESCE(e.attachments,'') || ' ' ||
+       COALESCE(e.conference,'') || ' ' || COALESCE(e.recurrence,''),'google',e.status,
+       substr(e.start_value,1,10),e.calendar_id,COALESCE(c.summary,'')
+FROM events e LEFT JOIN calendars c ON c.account_id=e.account_id AND c.id=e.calendar_id
+WHERE e.deleted=0;
+INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+SELECT account_id,'drive',id,name,
+       COALESCE(mime_type,'') || ' ' || COALESCE(web_view_link,''),'google'
+FROM drive_files;
+INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source)
+SELECT account_id,'saved-search',id,name,query,'local' FROM saved_searches;
+INSERT INTO workspace_search_documents(account_id,kind,entity_id,title,body,source,status)
+SELECT account_id,'conflict',CAST(id AS TEXT),entity_type || ' conflict',
+       local_payload || ' ' || remote_payload,'local',status
+FROM conflicts;
+INSERT INTO workspace_search(workspace_search) VALUES ('rebuild');
+"""
+
 
 def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
@@ -287,6 +563,11 @@ class Storage:
             with self.transaction():
                 self.connection.executescript(_MIGRATION_7)
                 self.connection.execute("PRAGMA user_version = 7")
+            version = 7
+        if version == 7:
+            with self.transaction():
+                self.connection.executescript(_MIGRATION_8)
+                self.connection.execute("PRAGMA user_version = 8")
 
     def close(self) -> None:
         self.connection.close()
@@ -508,6 +789,148 @@ class Storage:
             (account_id, f"%{escaped}%", f"%{escaped}%", limit),
         )
         return [self._task(row) for row in rows]
+
+    @staticmethod
+    def _workspace_like(value: str) -> str:
+        escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return f"%{escaped}%"
+
+    @staticmethod
+    def _workspace_date_clause(
+        column: str, window: DateWindow, today: date
+    ) -> tuple[str, list[str]]:
+        today_key = today.isoformat()
+        if window.kind == "today":
+            return f"{column}=?", [today_key]
+        if window.kind == "past":
+            return f"{column}<?", [today_key]
+        if window.kind == "upcoming":
+            return f"{column}>=?", [today_key]
+        monday = today - timedelta(days=today.weekday())
+        if window.kind == "this-week":
+            return f"{column} BETWEEN ? AND ?", [
+                monday.isoformat(),
+                (monday + timedelta(days=6)).isoformat(),
+            ]
+        if window.kind == "next-week":
+            start = monday + timedelta(days=7)
+            return f"{column} BETWEEN ? AND ?", [
+                start.isoformat(),
+                (start + timedelta(days=6)).isoformat(),
+            ]
+        if window.kind == "day" and window.day is not None:
+            return f"{column}=?", [window.day]
+        if window.start is not None and window.end is not None:
+            return f"{column} BETWEEN ? AND ?", [window.start, window.end]
+        raise ValueError("date window is incomplete")
+
+    def search_workspace(
+        self,
+        account_id: str,
+        *,
+        text: str,
+        search_body: bool,
+        kinds: tuple[str, ...] = (),
+        source: str | None = None,
+        status: str | None = None,
+        priority: str | None = None,
+        due: DateWindow | str | None = None,
+        completed: bool | None = None,
+        event_date: DateWindow | None = None,
+        list_query: str | None = None,
+        calendar_query: str | None = None,
+        today: date | None = None,
+        limit: int = 50,
+    ) -> list[WorkspaceSearchDocument]:
+        """Search indexed local records with SQL-side workspace filters.
+
+        FTS5 handles normal three-character-or-longer text queries. One- and two-character
+        queries retain substring behavior through a bounded SQLite fallback, where a trigram
+        index cannot represent the query.
+        """
+        if limit <= 0:
+            return []
+        clauses = ["d.account_id=?"]
+        arguments: list[Any] = [account_id]
+        if kinds:
+            clauses.append("d.kind IN (" + ",".join("?" for _ in kinds) + ")")
+            arguments.extend(kinds)
+        if source is not None:
+            clauses.append("d.source=?")
+            arguments.append(source)
+        if status is not None:
+            if status.casefold() == "open":
+                clauses.append("d.status='needsAction'")
+            else:
+                clauses.append("LOWER(COALESCE(d.status,''))=?")
+                arguments.append(status.casefold())
+        if priority is not None:
+            clauses.append("d.priority=?")
+            arguments.append(priority)
+        if completed is not None:
+            clauses.append("d.status=?" if completed else "d.status<>?")
+            arguments.append("completed")
+        current_day = today or date.today()
+        if due == "none":
+            clauses.append("d.due IS NULL")
+        elif isinstance(due, DateWindow):
+            due_clause, due_arguments = self._workspace_date_clause("d.due", due, current_day)
+            clauses.append(due_clause)
+            arguments.extend(due_arguments)
+            if due.kind == "past":
+                clauses.append("d.status<>'completed'")
+        if event_date is not None:
+            date_clause, date_arguments = self._workspace_date_clause(
+                "d.event_date", event_date, current_day
+            )
+            clauses.append(date_clause)
+            arguments.extend(date_arguments)
+        if list_query:
+            pattern = self._workspace_like(list_query)
+            clauses.append("(d.list_id LIKE ? ESCAPE '\\' OR d.list_name LIKE ? ESCAPE '\\')")
+            arguments.extend((pattern, pattern))
+        if calendar_query:
+            pattern = self._workspace_like(calendar_query)
+            clauses.append(
+                "(d.calendar_id LIKE ? ESCAPE '\\' OR d.calendar_name LIKE ? ESCAPE '\\')"
+            )
+            arguments.extend((pattern, pattern))
+
+        query_text = text.strip()
+        if len(query_text) >= 3:
+            phrase = f'"{query_text.replace(chr(34), chr(34) * 2)}"'
+            match = f"title : {phrase} OR body : {phrase}" if search_body else f"title : {phrase}"
+            sql = """SELECT d.kind,d.entity_id,d.title,d.body,
+            bm25(workspace_search, 10.0, 1.0) AS rank
+            FROM workspace_search JOIN workspace_search_documents d ON d.id=workspace_search.rowid
+            WHERE workspace_search MATCH ? AND """
+            arguments = [match, *arguments]
+            order = "rank,d.kind,d.title COLLATE NOCASE,d.entity_id"
+        else:
+            sql = (
+                "SELECT d.kind,d.entity_id,d.title,d.body,0.0 AS rank "
+                "FROM workspace_search_documents d WHERE "
+            )
+            if query_text:
+                pattern = self._workspace_like(query_text)
+                title_or_body = "d.title LIKE ? ESCAPE '\\'"
+                clauses.append(
+                    f"({title_or_body} OR d.body LIKE ? ESCAPE '\\')"
+                    if search_body
+                    else title_or_body
+                )
+                arguments.extend((pattern, pattern) if search_body else (pattern,))
+            order = "d.kind,d.title COLLATE NOCASE,d.entity_id"
+        rows = self.connection.execute(
+            sql + " AND ".join(clauses) + f" ORDER BY {order} LIMIT ?",  # noqa: S608
+            (*arguments, limit),
+        )
+        return [
+            WorkspaceSearchDocument(
+                row["kind"], row["entity_id"], row["title"], row["body"], float(row["rank"])
+            )
+            for row in rows
+        ]
 
     def delete_task(self, account_id: str, task_id: str) -> None:
         self.connection.execute(
@@ -974,6 +1397,24 @@ class Storage:
             ),
         )
 
+    def get_drive_file(self, account_id: str, file_id: str) -> DriveFile | None:
+        row = self.connection.execute(
+            "SELECT * FROM drive_files WHERE account_id=? AND id=?", (account_id, file_id)
+        ).fetchone()
+        return (
+            DriveFile(
+                row["id"],
+                row["account_id"],
+                row["name"],
+                row["mime_type"],
+                row["web_view_link"],
+                row["icon_link"],
+                _datetime(row["modified_time"]),
+            )
+            if row
+            else None
+        )
+
     def list_drive_files(self, account_id: str) -> list[DriveFile]:
         return [
             DriveFile(
@@ -1198,6 +1639,26 @@ class Storage:
             )
             for row in self.connection.execute(sql + " ORDER BY id", args)
         ]
+
+    def get_conflict(self, account_id: str, conflict_id: int) -> Conflict | None:
+        row = self.connection.execute(
+            "SELECT * FROM conflicts WHERE account_id=? AND id=?", (account_id, conflict_id)
+        ).fetchone()
+        return (
+            Conflict(
+                row["id"],
+                row["account_id"],
+                EntityType(row["entity_type"]),
+                row["entity_id"],
+                json.loads(row["local_payload"]),
+                json.loads(row["remote_payload"]),
+                ConflictStatus(row["status"]),
+                datetime.fromisoformat(row["created_at"]),
+                _datetime(row["resolved_at"]),
+            )
+            if row
+            else None
+        )
 
     def resolve_conflict(self, account_id: str, conflict_id: int, status: ConflictStatus) -> None:
         if status is ConflictStatus.OPEN:

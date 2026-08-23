@@ -29,6 +29,14 @@ In a wide terminal, drag either vertical divider to resize the sidebar or
 Inspector for the current session. `Ctrl+Alt+←` / `Ctrl+Alt+→` resize the
 sidebar; add `Shift` to resize the Inspector instead.
 
+The `/` palette is a local, indexed workspace search. It searches task titles
+and event summaries by default; `body:QUERY` (or `notes:QUERY`) also searches
+task notes, event details, and cached structured metadata. It covers tasks and
+notes, task lists, calendars, events, cached Drive files, saved searches, and
+conflicts—without contacting Google. Use `type:task`, `type:list`,
+`type:event`, `type:calendar`, `type:drive`, `type:saved`, or `type:conflict`
+to narrow results.
+
 ## Text editing
 
 Every TUI text field supports Slack-style emoji completion: type a colon and an

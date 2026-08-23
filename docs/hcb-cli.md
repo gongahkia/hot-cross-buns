@@ -16,6 +16,13 @@ Major command groups are `tasks`, `task-lists`, `notes`, `events`, `calendars`,
 `drive`, and `schema`. Top-level operations include `capture`, `search`, `find-time`,
 `freebusy`, `sync`, `export`, `undo`, `redo`, and `doctor`.
 
+The TUI’s `/` palette uses a local SQLite full-text index and never contacts
+Google. It searches tasks/notes, task lists, calendars, events, cached Drive
+files, saved searches, and conflicts. Bare terms are title-first; use
+`body:QUERY` or `notes:QUERY` for descriptions and notes, and `type:task`,
+`type:list`, `type:event`, `type:calendar`, `type:drive`, `type:saved`, or
+`type:conflict` to narrow the result type.
+
 Examples:
 
 ```sh
