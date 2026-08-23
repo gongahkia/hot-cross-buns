@@ -386,6 +386,45 @@ def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> 
     app_test(app, assertions)
 
 
+def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    original_storage = runtime.storage
+    engines: list[object] = []
+
+    class Result:
+        pulled = 0
+        pushed = 0
+
+    class Engine:
+        def __init__(self) -> None:
+            self.storage = original_storage
+
+        def sync(self, account_id: str) -> Result:
+            assert self.storage is not original_storage
+            assert self.storage.get_account(account_id) is not None
+            return Result()
+
+    def sync_engine(_: str) -> Engine:
+        engine = Engine()
+        engines.append(engine)
+        return engine
+
+    runtime.sync_engine = sync_engine  # type: ignore[method-assign,assignment]
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        app.action_sync()
+        for _ in range(20):
+            await asyncio.sleep(0.01)
+            await pilot.pause()  # type: ignore[attr-defined]
+            if engines and not isinstance(app.screen, LoadingScreen):
+                break
+        assert engines
+        assert not isinstance(app.screen, LoadingScreen)
+
+    app_test(app, assertions)
+
+
 def test_palette_find_time_uses_only_cached_events(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     calendar_id = runtime.application.workspace("work").calendars[0].id
