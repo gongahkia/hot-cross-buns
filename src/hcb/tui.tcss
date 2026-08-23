@@ -78,6 +78,41 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
     color: $text-muted;
 }
 
+#mini-month-title, #mini-month-weekdays {
+    height: 1;
+    content-align: center middle;
+    color: $text-muted;
+}
+
+.mini-month-week {
+    height: 1;
+}
+
+#mini-month Button.mini-day {
+    width: 1fr;
+    min-width: 0;
+    height: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: $text-muted;
+    content-align: center middle;
+}
+
+#mini-month Button.mini-day:hover {
+    text-style: underline;
+}
+
+#mini-month Button.mini-day.mini-day-selected {
+    color: $foreground;
+    text-style: bold reverse;
+}
+
+#mini-month Button.mini-day:focus {
+    outline: none;
+    text-style: underline;
+}
+
 .section-title, #surface-title {
     height: 3;
     padding: 1;

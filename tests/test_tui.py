@@ -922,8 +922,13 @@ def test_mini_month_click_selects_a_day_without_rebuilding_resources(tmp_path: P
     async def assertions(pilot: object) -> None:
         resources = app.query_one("#resources", ListView)
         before = tuple(resources.children)
+        button_id = next(
+            button_id
+            for button_id, value in app._mini_month_days.items()
+            if value == date(2026, 8, 3)
+        )
 
-        await pilot.click("#mini-month", offset=(1, 3))  # type: ignore[attr-defined]
+        await pilot.click(f"#{button_id}")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
 
         assert app.selected_date == date(2026, 8, 3)
@@ -937,13 +942,14 @@ def test_mini_month_visibly_marks_the_selected_day(tmp_path: Path) -> None:
     app = HcbApp(seeded_runtime(tmp_path), selected_date=date(2026, 8, 23))
 
     async def assertions(pilot: object) -> None:
-        text = app.query_one("#mini-month", Static).content
-        assert isinstance(text, Text)
-        assert any(
-            text.plain[span.start : span.end] == "23"
-            and span.style == Style(bold=True, reverse=True)
-            for span in text.spans
+        button_id = next(
+            button_id
+            for button_id, value in app._mini_month_days.items()
+            if value == date(2026, 8, 23)
         )
+        button = app.query_one(f"#{button_id}", Button)
+        assert button.label == "23"
+        assert button.has_class("mini-day-selected")
 
     app_test(app, assertions)
 

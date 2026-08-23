@@ -1873,9 +1873,7 @@ class HcbApp(App[None]):
     def _render_mini_month(self) -> None:
         """Render date controls for the sidebar's current calendar month."""
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)
-        self.query_one("#mini-month-title", Static).update(
-            f"{self.selected_date:%B %Y}"
-        )
+        self.query_one("#mini-month-title", Static).update(f"{self.selected_date:%B %Y}")
         weekdays = cal.formatweekheader(2)
         if self.border_style != "ascii":
             weekdays = weekdays.replace(" ", " ")
@@ -2117,8 +2115,11 @@ class HcbApp(App[None]):
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id and event.button.id.startswith("surface-"):
-            self.action_surface(event.button.id.removeprefix("surface-").title())
+        button_id = event.button.id
+        if button_id in self._mini_month_days:
+            self._select_date(self._mini_month_days[button_id])
+        elif button_id and button_id.startswith("surface-"):
+            self.action_surface(button_id.removeprefix("surface-").title())
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if event.list_view.id != "content" or not isinstance(event.item, EntityRow):
