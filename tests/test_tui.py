@@ -731,6 +731,64 @@ def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> 
     app_test(app, assertions)
 
 
+def test_loading_progress_keeps_the_resource_list_and_selection_stable(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path))
+
+    async def assertions(pilot: object) -> None:
+        resources = app.query_one("#resources", ListView)
+        before = tuple(resources.children)
+        resources.index = 1
+        app.resource_filter = ("task-list", before[1].item_id)
+
+        app.start_loading("Syncing with Google")
+        await pilot.pause()  # type: ignore[attr-defined]
+        app.update_loading("Fetching task lists")
+        app.stop_loading()
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        assert tuple(resources.children) == before
+        assert resources.index == 1
+        assert app.resource_filter == ("task-list", before[1].item_id)
+
+    app_test(app, assertions)
+
+
+def test_unicode_chrome_keeps_a_content_row_and_single_edge_dividers(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    save(Config(theme=Theme(borders="unicode")), runtime.paths.config_file)
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        topbar = app.query_one("#topbar", Static)
+        tabs = app.query_one("#tabs")
+        sidebar_resize = app.query_one("#sidebar-resize", Static)
+
+        assert topbar.content_size.height >= 1
+        assert tabs.content_size.height >= 1
+        assert topbar.styles.border_top[0] == ""
+        assert topbar.styles.border_bottom[0] == "solid"
+        assert sidebar_resize.styles.border_left[0] == "solid"
+        assert sidebar_resize.styles.border_top[0] == ""
+
+    app_test(app, assertions)
+
+
+def test_ascii_chrome_keeps_a_visible_title_and_bottom_divider(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    save(Config(theme=Theme(borders="ascii")), runtime.paths.config_file)
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        topbar = app.query_one("#topbar", Static)
+
+        assert topbar.content_size.height >= 1
+        assert "HCB" in str(topbar.render())
+        assert topbar.styles.border_top[0] == ""
+        assert topbar.styles.border_bottom[0] == "ascii"
+
+    app_test(app, assertions)
+
+
 def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     original_storage = runtime.storage

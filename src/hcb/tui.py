@@ -1761,19 +1761,21 @@ class HcbApp(App[None]):
             "HCB will not contact Google until you explicitly connect and run sync."
         )
 
-    def _render_chrome(self) -> None:
+    def _render_chrome(self, *, refresh_resources: bool = True) -> None:
+        """Refresh stable chrome without resetting the resource selection during loading."""
         self.query_one("#topbar", Static).update(
             f"HCB  ·  {self.cache.identity}  ·  {self.format_date(self.selected_date)}"
             "  ·  / command palette"
         )
         self.query_one("#mini-month", Static).update(self._month_text())
-        resources = self.query_one("#resources", ListView)
-        resources.clear()
-        resources.append(EntityRow("All resources", kind="resource-all", item_id="all"))
-        for item_id, title in self.cache.task_lists:
-            resources.append(EntityRow(f"☐ {title}", kind="task-list", item_id=item_id))
-        for item_id, title, _ in self.cache.calendars:
-            resources.append(EntityRow(f"□ {title}", kind="calendar", item_id=item_id))
+        if refresh_resources:
+            resources = self.query_one("#resources", ListView)
+            resources.clear()
+            resources.append(EntityRow("All resources", kind="resource-all", item_id="all"))
+            for item_id, title in self.cache.task_lists:
+                resources.append(EntityRow(f"☐ {title}", kind="task-list", item_id=item_id))
+            for item_id, title, _ in self.cache.calendars:
+                resources.append(EntityRow(f"□ {title}", kind="calendar", item_id=item_id))
         state = self.loading_operation or "offline cache"
         cache_badge = self._instance_cache_badge()
         suffix = f" · {cache_badge}" if cache_badge else ""
@@ -1789,14 +1791,14 @@ class HcbApp(App[None]):
             self.push_screen(self._loading_screen)
         else:
             self._loading_screen.set_message(operation)
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
 
     def update_loading(self, status: str) -> None:
         """Display the current, concrete stage of the active remote operation."""
         self.loading_operation = status
         if self._loading_screen is not None:
             self._loading_screen.set_message(status)
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
 
     def stop_loading(self) -> None:
         """Remove the active loading surface after its worker has completed."""
@@ -1805,7 +1807,7 @@ class HcbApp(App[None]):
         self._loading_screen = None
         if screen is not None and self.screen is screen:
             self.pop_screen()
-        self._render_chrome()
+        self._render_chrome(refresh_resources=False)
 
     def _month_text(self) -> Text:
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)

@@ -6,7 +6,7 @@ Screen {
 
 #topbar {
     height: 3;
-    padding: 1 2;
+    padding: 1 2 0 2;
     background: $background;
     color: $foreground;
     border-bottom: ascii $border;
@@ -164,14 +164,22 @@ Input.-invalid, TextArea.-invalid {
 }
 
 .borders-unicode Button, .borders-unicode Input, .borders-unicode TextArea,
-.borders-unicode .column-resize-handle,
-.borders-unicode #topbar, .borders-unicode #tabs,
 .borders-unicode #palette-dialog, .borders-unicode #editor-dialog,
 .borders-unicode #confirm-dialog, .borders-unicode #event-dialog,
 .borders-unicode #rsvp-dialog, .borders-unicode #calendar-dialog,
 .borders-unicode #settings-dialog, .borders-unicode #find-time-dialog,
 .borders-unicode #google-setup-dialog {
     border: round $border;
+}
+
+.borders-unicode #topbar, .borders-unicode #tabs {
+    border: none;
+    border-bottom: solid $border;
+}
+
+.borders-unicode .column-resize-handle {
+    border: none;
+    border-left: solid $border;
 }
 
 .focus-ascii Button:focus, .focus-ascii Input:focus, .focus-ascii TextArea:focus,
