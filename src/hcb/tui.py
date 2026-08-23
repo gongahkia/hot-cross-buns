@@ -1639,27 +1639,28 @@ class HcbApp(App[None]):
             return
         if event.button != 1:
             return
-        if event.widget.id == "mini-month":
-            offset = event.get_content_offset(event.widget)
+        widget = event.widget
+        if widget is not None and widget.id == "mini-month":
+            offset = event.get_content_offset(widget)
             selected_date = self._mini_month_date_at(offset.x, offset.y) if offset else None
             if selected_date is not None:
                 self._select_date(selected_date)
             event.stop()
             event.prevent_default()
             return
-        if not isinstance(event.widget, Static):
+        if not isinstance(widget, Static):
             return
         targets: dict[str, Literal["sidebar", "inspector"]] = {
             "sidebar-resize": "sidebar",
             "inspector-resize": "inspector",
         }
-        target = targets.get(event.widget.id or "")
+        target = targets.get(widget.id or "")
         if target is None or not self._can_resize_columns():
             return
         self._resize_target = target
-        self._resize_handle = event.widget
+        self._resize_handle = widget
         self._resize_anchor_x = event.screen_x
-        event.widget.capture_mouse()
+        widget.capture_mouse()
         event.stop()
         event.prevent_default()
 
@@ -2663,11 +2664,11 @@ class HcbApp(App[None]):
         if not result:
             return
         try:
-            self.selected_date = date.fromisoformat(result["date"])
+            selected_date = date.fromisoformat(result["date"])
         except ValueError:
             self.notify("Use a date in YYYY-MM-DD format", severity="error")
             return
-        self._select_date(date.fromisoformat(result["date"]))
+        self._select_date(selected_date)
 
     @work(thread=True, exclusive=True, group="sync")
     def action_sync(self) -> None:

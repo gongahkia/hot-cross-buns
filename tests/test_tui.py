@@ -801,9 +801,7 @@ def test_mini_month_click_selects_a_day_without_rebuilding_resources(tmp_path: P
 
         assert app.selected_date == date(2026, 8, 3)
         assert tuple(resources.children) == before
-        assert "Monday, 3 August 2026" in str(
-            app.query_one("#surface-title", Static).render()
-        )
+        assert "Monday, 03 August 2026" in str(app.query_one("#surface-title", Static).render())
 
     app_test(app, assertions)
 
