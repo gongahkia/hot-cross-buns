@@ -46,8 +46,18 @@
         "borders": { "enum": ["ascii", "unicode"] },
         "focus": { "enum": ["ascii", "underline", "reverse"] },
         "mouse": { "type": "boolean" },
+        "loader": { "$ref": "#/$defs/loader" },
         "colors": { "$ref": "#/$defs/colors" }
       }
+    },
+    "loader": {
+      "type": "string",
+      "enum": [
+        "arrows.arrow", "arrows.double_arrow",
+        "ascii.dqpb", "ascii.rolling_line", "ascii.simple_dots", "ascii.simple_dots_scrolling", "ascii.arc", "ascii.balloon", "ascii.circle_halves", "ascii.circle_quarters", "ascii.point", "ascii.square_corners", "ascii.toggle", "ascii.triangle", "ascii.grow_horizontal", "ascii.grow_vertical", "ascii.noise",
+        "braille.dots", "braille.dots2", "braille.dots3", "braille.dots4", "braille.dots5", "braille.dots6", "braille.dots7", "braille.dots8", "braille.dots9", "braille.dots10", "braille.dots11", "braille.dots12", "braille.dots13", "braille.dots14", "braille.sand", "braille.bounce", "braille.dots_circle", "braille.wave", "braille.scan", "braille.rain", "braille.pulse", "braille.snake", "braille.sparkle", "braille.cascade", "braille.columns", "braille.orbit", "braille.breathe", "braille.waverows", "braille.checkerboard", "braille.helix", "braille.fillsweep", "braille.diagswipe", "braille.infinity",
+        "emoji.hearts", "emoji.clock", "emoji.earth", "emoji.moon", "emoji.speaker", "emoji.weather"
+      ]
     },
     "colors": {
       "type": "object",

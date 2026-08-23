@@ -11,6 +11,7 @@ from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 
 from textual.color import Color, ColorParseError
 
+from .loaders import DEFAULT_LOADER, LOADER_PRESETS
 from .models import Preferences
 from .paths import AppPaths
 
@@ -57,6 +58,7 @@ class Theme:
     borders: str = "ascii"
     focus: str = "ascii"
     mouse: bool = True
+    loader: str = DEFAULT_LOADER
     colors: ThemeColors = field(default_factory=ThemeColors)
 
     def __post_init__(self) -> None:
@@ -70,6 +72,8 @@ class Theme:
             raise ValueError("theme.borders must be unicode or ascii")
         if self.focus not in {"ascii", "underline", "reverse"}:
             raise ValueError("theme.focus must be ascii, underline, or reverse")
+        if self.loader not in LOADER_PRESETS:
+            raise ValueError("theme.loader must name a bundled Rattles loader")
 
 
 @dataclass(frozen=True, slots=True)

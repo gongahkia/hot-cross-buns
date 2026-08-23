@@ -165,6 +165,7 @@ class Runtime:
         borders: str,
         focus: str,
         mouse: bool,
+        loader: str,
         week_starts_on: int,
         colors: ThemeColors,
     ) -> Config:
@@ -181,6 +182,7 @@ class Runtime:
                 borders=borders,
                 focus=focus,
                 mouse=mouse,
+                loader=loader,
                 colors=colors,
             ),
         )
