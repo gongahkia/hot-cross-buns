@@ -1243,6 +1243,7 @@ class HcbApp(App[None]):
         self.resource_filter: tuple[str, str] | None = None
         self.marked: set[str] = set()
         self.marked_events: set[str] = set()
+        self._mini_month_days: dict[str, date] = {}
         self.sidebar_width = 27
         self.inspector_width = 32
         self._resize_target: Literal["sidebar", "inspector"] | None = None
@@ -1271,7 +1272,17 @@ class HcbApp(App[None]):
         )
         with Horizontal(id="workspace"):
             with Vertical(id="sidebar"):
-                yield Static(id="mini-month")
+                with Vertical(id="mini-month"):
+                    yield Static(id="mini-month-title")
+                    yield Static(id="mini-month-weekdays")
+                    for week in range(6):
+                        with Horizontal(classes="mini-month-week"):
+                            for weekday in range(7):
+                                yield Button(
+                                    "",
+                                    id=f"mini-day-{week}-{weekday}",
+                                    classes="mini-day",
+                                )
                 yield Static("Resources", classes="section-title")
                 yield ListView(id="resources")
                 yield Static(id="sync-state")
@@ -1670,14 +1681,6 @@ class HcbApp(App[None]):
         if event.button != 1:
             return
         widget = event.widget
-        if widget is not None and widget.id == "mini-month":
-            offset = event.get_content_offset(widget)
-            selected_date = self._mini_month_date_at(offset.x, offset.y) if offset else None
-            if selected_date is not None:
-                self._select_date(selected_date)
-            event.stop()
-            event.prevent_default()
-            return
         if not isinstance(widget, Static):
             return
         targets: dict[str, Literal["sidebar", "inspector"]] = {
@@ -1801,7 +1804,7 @@ class HcbApp(App[None]):
 
     def _render_onboarding(self) -> None:
         self.query_one("#topbar", Static).update("HCB  ·  offline workspace")
-        self.query_one("#mini-month", Static).update(self._month_text())
+        self._render_mini_month()
         self.query_one("#resources", ListView).clear()
         self.query_one("#sync-state", Static).update("Not connected · no network activity")
         self.query_one("#surface-title", Static).update("Welcome")
@@ -1824,7 +1827,7 @@ class HcbApp(App[None]):
             f"HCB  ·  {self.cache.identity}  ·  {self.format_date(self.selected_date)}"
             "  ·  / command palette"
         )
-        self.query_one("#mini-month", Static).update(self._month_text())
+        self._render_mini_month()
         if refresh_resources:
             resources = self.query_one("#resources", ListView)
             resources.clear()
@@ -1867,36 +1870,32 @@ class HcbApp(App[None]):
             self.pop_screen()
         self._render_chrome(refresh_resources=False)
 
-    def _month_text(self) -> Text:
+    def _render_mini_month(self) -> None:
+        """Render date controls for the sidebar's current calendar month."""
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)
-        value = cal.formatmonth(self.selected_date.year, self.selected_date.month, w=2, l=1)
+        self.query_one("#mini-month-title", Static).update(
+            f"{self.selected_date:%B %Y}"
+        )
+        weekdays = cal.formatweekheader(2)
         if self.border_style != "ascii":
-            value = value.replace(" ", " ")
-        text = Text(value)
+            weekdays = weekdays.replace(" ", " ")
+        self.query_one("#mini-month-weekdays", Static).update(weekdays)
         weeks = calendar.Calendar(self.runtime.config.preferences.week_starts_on).monthdayscalendar(
             self.selected_date.year, self.selected_date.month
         )
-        for week_index, week in enumerate(weeks):
-            if self.selected_date.day not in week:
-                continue
-            weekday = week.index(self.selected_date.day)
-            line_start = sum(len(line) + 1 for line in value.splitlines()[: week_index + 2])
-            cell_start = line_start + (weekday * 3)
-            text.stylize(Style(bold=True, reverse=True), cell_start, cell_start + 2)
-            break
-        return text
-
-    def _mini_month_date_at(self, x: int, y: int) -> date | None:
-        """Map a mini-month content coordinate to its visible calendar day."""
-        week = y - 2  # month title and weekday labels precede the day rows
-        weekday = x // 3  # TextCalendar uses two columns plus one separator per day
-        weeks = calendar.Calendar(self.runtime.config.preferences.week_starts_on).monthdayscalendar(
-            self.selected_date.year, self.selected_date.month
-        )
-        if not (0 <= week < len(weeks) and 0 <= weekday < 7):
-            return None
-        day = weeks[week][weekday]
-        return date(self.selected_date.year, self.selected_date.month, day) if day else None
+        self._mini_month_days.clear()
+        for week_index in range(6):
+            days = weeks[week_index] if week_index < len(weeks) else (0,) * 7
+            for weekday, day in enumerate(days):
+                button = self.query_one(f"#mini-day-{week_index}-{weekday}", Button)
+                target = (
+                    date(self.selected_date.year, self.selected_date.month, day) if day else None
+                )
+                button.label = str(day) if day else ""
+                button.disabled = target is None
+                button.set_class(target == self.selected_date, "mini-day-selected")
+                if target is not None and button.id is not None:
+                    self._mini_month_days[button.id] = target
 
     def _select_date(self, value: date) -> None:
         """Apply a local date navigation without disturbing the resource list."""
