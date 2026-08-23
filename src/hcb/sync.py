@@ -236,9 +236,7 @@ class SyncEngine:
         self.now = now
         self.crash_hook = crash_hook or (lambda _phase, _mutation: None)
 
-    def sync(
-        self, account_id: str, *, progress: Callable[[str], None] | None = None
-    ) -> SyncResult:
+    def sync(self, account_id: str, *, progress: Callable[[str], None] | None = None) -> SyncResult:
         """Synchronize an account and report completed stages when requested."""
 
         if self.storage.get_account(account_id) is None:

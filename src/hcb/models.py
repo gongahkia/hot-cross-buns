@@ -278,6 +278,7 @@ class Preferences:
     reminder_sync_interval_minutes: int = 0
     reminder_sync_mode: str = "all"
     time_zone: str = "UTC"
+    date_time_format: str = "friendly"
 
     def __post_init__(self) -> None:
         if not self.editor.strip():
@@ -294,6 +295,8 @@ class Preferences:
             raise ValueError("reminder_sync_interval_minutes must be non-negative")
         if self.reminder_sync_mode not in {"all", "pull", "off"}:
             raise ValueError("reminder_sync_mode must be all, pull, or off")
+        if self.date_time_format not in {"friendly", "friendly_24h", "iso"}:
+            raise ValueError("date_time_format must be friendly, friendly_24h, or iso")
         try:
             from zoneinfo import ZoneInfo
 

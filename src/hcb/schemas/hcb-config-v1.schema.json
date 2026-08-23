@@ -34,7 +34,8 @@
         "reminder_jitter_seconds": { "type": "integer", "minimum": 0 },
         "reminder_sync_interval_minutes": { "type": "integer", "minimum": 0 },
         "reminder_sync_mode": { "enum": ["all", "pull", "off"] },
-        "time_zone": { "type": "string", "minLength": 1 }
+        "time_zone": { "type": "string", "minLength": 1 },
+        "date_time_format": { "enum": ["friendly", "friendly_24h", "iso"] }
       }
     },
     "theme": {

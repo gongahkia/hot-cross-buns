@@ -30,6 +30,7 @@ def test_defaults_are_terminal_minimal_and_valid(tmp_path: Path) -> None:
     assert config.keys.external_editor == "ctrl+g"
     assert config.preferences.editor == "nvim"
     assert config.preferences.week_starts_on == 0
+    assert config.preferences.date_time_format == "friendly"
     assert config.theme.loader == DEFAULT_LOADER
 
 
@@ -131,6 +132,7 @@ def test_legacy_toml_is_not_read_or_migrated(tmp_path: Path) -> None:
         '{"unknown":{"value":true}}',
         '{"preferences":{"week_starts_on":"0"}}',
         '{"preferences":{"editor":""}}',
+        '{"preferences":{"date_time_format":"clockwork"}}',
         '{"keys":{"external_editor":""}}',
         '{"theme":{"colors":{"accent":"not-a-color"}}}',
         '{"theme":{"loader":"not-a-loader"}}',

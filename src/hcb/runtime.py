@@ -168,6 +168,7 @@ class Runtime:
         mouse: bool,
         loader: str,
         week_starts_on: int,
+        date_time_format: str,
         editor: str,
         external_editor: str,
         colors: ThemeColors,
@@ -179,6 +180,7 @@ class Runtime:
             preferences=replace(
                 current.preferences,
                 week_starts_on=week_starts_on,
+                date_time_format=date_time_format,
                 editor=editor,
             ),
             keys=replace(current.keys, external_editor=external_editor),

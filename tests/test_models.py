@@ -20,3 +20,5 @@ def test_preferences_validates_week_start() -> None:
     assert Preferences(week_starts_on=6).week_starts_on == 6
     with pytest.raises(ValueError):
         Preferences(week_starts_on=7)
+    with pytest.raises(ValueError):
+        Preferences(date_time_format="clockwork")

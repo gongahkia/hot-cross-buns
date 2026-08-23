@@ -15,7 +15,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from time import monotonic
 from typing import ClassVar, Literal, cast
-from zoneinfo import available_timezones
+from zoneinfo import ZoneInfo, available_timezones
 
 from rich._emoji_codes import EMOJI as RICH_EMOJI
 from rich.color import Color as RichColor
@@ -53,6 +53,10 @@ from .runtime import DEFAULT_CREDENTIAL_FILE, Runtime
 from .storage import Storage
 
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
+MIN_SIDEBAR_WIDTH = 22
+MIN_CENTER_WIDTH = 28
+MIN_INSPECTOR_WIDTH = 24
+SPLITTER_WIDTH = 1
 PALETTE_COMMANDS = (
     ("Create item", "create"),
     ("Sync now", "sync"),
@@ -98,6 +102,11 @@ WEEK_START_OPTIONS = (
     ("Friday", "4"),
     ("Saturday", "5"),
     ("Sunday", "6"),
+)
+DATE_TIME_FORMAT_OPTIONS = (
+    ("Friendly · 26 May 2026, 7:23pm", "friendly"),
+    ("24-hour · 26 May 2026, 19:23", "friendly_24h"),
+    ("ISO 8601 (with seconds)", "iso"),
 )
 TIME_ZONE_OPTIONS = tuple((time_zone, time_zone) for time_zone in sorted(available_timezones()))
 
@@ -943,6 +952,21 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                     id="setting-week",
                 )
             with Horizontal(classes="settings-pair"):
+                yield Select(
+                    DATE_TIME_FORMAT_OPTIONS,
+                    allow_blank=False,
+                    prompt="Date and time display",
+                    value=values["date_time_format"],
+                    id="setting-date-time-format",
+                )
+                yield Select(
+                    [(name, name) for name in LOADER_NAMES],
+                    allow_blank=False,
+                    prompt="Loading indicator",
+                    value=values["loader"],
+                    id="setting-loader",
+                )
+            with Horizontal(classes="settings-pair"):
                 yield Input(
                     value=values["editor"],
                     placeholder="External editor command",
@@ -953,13 +977,6 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                     placeholder="External editor shortcut",
                     id="setting-external-editor",
                 )
-            yield Select(
-                [(name, name) for name in LOADER_NAMES],
-                allow_blank=False,
-                prompt="Loading indicator",
-                value=values["loader"],
-                id="setting-loader",
-            )
             yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
             yield TerminalTextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
@@ -981,6 +998,9 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 "focus": self._selected_value("#setting-focus", "a focus style"),
                 "mouse": self._selected_value("#setting-mouse", "a mouse setting"),
                 "week_starts_on": self._selected_value("#setting-week", "a week start day"),
+                "date_time_format": self._selected_value(
+                    "#setting-date-time-format", "a date and time display"
+                ),
                 "editor": self.query_one("#setting-editor", Input).value.strip(),
                 "external_editor": self.query_one("#setting-external-editor", Input).value.strip(),
                 "loader": self._selected_loader(),
@@ -1041,7 +1061,7 @@ class FindTimeScreen(ModalScreen[None]):
         for slot in slots:
             view.append(
                 EntityRow(
-                    f"{slot.start:%H:%M}–{slot.end:%H:%M}",
+                    f"{self.hcb.format_time(slot.start)}–{self.hcb.format_time(slot.end)}",
                     kind="time-slot",
                     item_id=slot.start.isoformat(),
                 )
@@ -1165,6 +1185,10 @@ class HcbApp(App[None]):
         Binding("4", "surface('Day')", "Day", show=False),
         Binding("5", "surface('Week')", "Week", show=False),
         Binding("6", "surface('Month')", "Month", show=False),
+        Binding("ctrl+alt+left", "resize_sidebar(-2)", "Narrow sidebar", show=False),
+        Binding("ctrl+alt+right", "resize_sidebar(2)", "Widen sidebar", show=False),
+        Binding("ctrl+alt+shift+left", "resize_inspector(2)", "Widen inspector", show=False),
+        Binding("ctrl+alt+shift+right", "resize_inspector(-2)", "Narrow inspector", show=False),
     ]
 
     def __init__(
@@ -1187,6 +1211,11 @@ class HcbApp(App[None]):
         self.resource_filter: tuple[str, str] | None = None
         self.marked: set[str] = set()
         self.marked_events: set[str] = set()
+        self.sidebar_width = 27
+        self.inspector_width = 32
+        self._resize_target: Literal["sidebar", "inspector"] | None = None
+        self._resize_handle: Static | None = None
+        self._resize_anchor_x = 0
         self.loading_operation: str | None = None
         self._loading_screen: LoadingScreen | None = None
         self._theme_revision = 0
@@ -1213,9 +1242,11 @@ class HcbApp(App[None]):
                 yield Static("Resources", classes="section-title")
                 yield ListView(id="resources")
                 yield Static(id="sync-state")
+            yield Static(id="sidebar-resize", classes="column-resize-handle")
             with Vertical(id="center"):
                 yield Static(id="surface-title")
                 yield ListView(id="content")
+            yield Static(id="inspector-resize", classes="column-resize-handle")
             with Vertical(id="inspector"):
                 yield Static("Inspector", classes="section-title")
                 yield Static("Select an item", id="inspection")
@@ -1231,6 +1262,7 @@ class HcbApp(App[None]):
         except AuthenticationRequired:
             self.account_id = None
         self.refresh_workspace()
+        self._apply_column_widths()
         if self.account_id is None and not self.runtime.storage.list_accounts():
             self.call_after_refresh(
                 lambda: self.push_screen(OnboardingScreen(), self._onboarding_result)
@@ -1325,7 +1357,9 @@ class HcbApp(App[None]):
         self.runtime.__dict__["config"] = config
         self._apply_visual_config(config)
         self._render_chrome()
-        self.notify("config.json visual settings reloaded")
+        self._render_surface()
+        self._render_inspector()
+        self.notify("config.json settings reloaded")
 
     def _onboarding_result(self, result: dict[str, str] | None) -> None:
         if result is None:
@@ -1599,10 +1633,86 @@ class HcbApp(App[None]):
         if not self.mouse_enabled:
             event.stop()
             event.prevent_default()
+            return
+        if event.button != 1 or not isinstance(event.widget, Static):
+            return
+        targets: dict[str, Literal["sidebar", "inspector"]] = {
+            "sidebar-resize": "sidebar",
+            "inspector-resize": "inspector",
+        }
+        target = targets.get(event.widget.id or "")
+        if target is None or not self._can_resize_columns():
+            return
+        self._resize_target = target
+        self._resize_handle = event.widget
+        self._resize_anchor_x = event.screen_x
+        event.widget.capture_mouse()
+        event.stop()
+        event.prevent_default()
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        if self._resize_target is None:
+            return
+        delta = event.screen_x - self._resize_anchor_x
+        if delta:
+            if self._resize_target == "sidebar":
+                self._resize_columns(sidebar_delta=delta)
+            else:
+                self._resize_columns(inspector_delta=-delta)
+            self._resize_anchor_x = event.screen_x
+        event.stop()
+        event.prevent_default()
+
+    def on_mouse_up(self, event: events.MouseUp) -> None:
+        if self._resize_target is None:
+            return
+        if self._resize_handle is not None:
+            self._resize_handle.capture_mouse(False)
+        self._resize_target = None
+        self._resize_handle = None
+        event.stop()
+        event.prevent_default()
 
     def on_resize(self, event: events.Resize) -> None:
         self.set_class(event.size.width < 90, "narrow")
         self.set_class(event.size.width < 62, "very-narrow")
+        self._apply_column_widths()
+
+    def _can_resize_columns(self) -> bool:
+        return self.size.width >= 90
+
+    def _apply_column_widths(self) -> None:
+        """Apply in-session column widths while the three-pane layout is visible."""
+        sidebar = self.query_one("#sidebar", Vertical)
+        inspector = self.query_one("#inspector", Vertical)
+        if not self._can_resize_columns():
+            sidebar.styles.clear_rule("width")
+            inspector.styles.clear_rule("width")
+            return
+        available = self.size.width - (2 * SPLITTER_WIDTH)
+        self.inspector_width = max(
+            MIN_INSPECTOR_WIDTH,
+            min(self.inspector_width, available - MIN_SIDEBAR_WIDTH - MIN_CENTER_WIDTH),
+        )
+        self.sidebar_width = max(
+            MIN_SIDEBAR_WIDTH,
+            min(self.sidebar_width, available - self.inspector_width - MIN_CENTER_WIDTH),
+        )
+        sidebar.styles.width = self.sidebar_width
+        inspector.styles.width = self.inspector_width
+
+    def _resize_columns(self, *, sidebar_delta: int = 0, inspector_delta: int = 0) -> None:
+        if not self._can_resize_columns():
+            return
+        self.sidebar_width += sidebar_delta
+        self.inspector_width += inspector_delta
+        self._apply_column_widths()
+
+    def action_resize_sidebar(self, delta: int | str) -> None:
+        self._resize_columns(sidebar_delta=int(delta))
+
+    def action_resize_inspector(self, delta: int | str) -> None:
+        self._resize_columns(inspector_delta=int(delta))
 
     def refresh_workspace(self) -> None:
         """Refresh the UI cache through the application controller boundary."""
@@ -1650,7 +1760,7 @@ class HcbApp(App[None]):
 
     def _render_chrome(self) -> None:
         self.query_one("#topbar", Static).update(
-            f"HCB  ·  {self.cache.identity}  ·  {self.selected_date.isoformat()}"
+            f"HCB  ·  {self.cache.identity}  ·  {self.format_date(self.selected_date)}"
             "  ·  / command palette"
         )
         self.query_one("#mini-month", Static).update(self._month_text())
@@ -1701,6 +1811,38 @@ class HcbApp(App[None]):
             return Text(value)
         return Text(value.replace(" ", " "))
 
+    def format_date(self, value: date) -> str:
+        """Render a date using the selected user-facing display style."""
+        if self.runtime.config.preferences.date_time_format == "iso":
+            return value.isoformat()
+        return f"{value.day} {value:%B %Y}"
+
+    def format_time(self, value: datetime) -> str:
+        """Render an instant in the configured local timezone."""
+        local = self._local_time(value)
+        style = self.runtime.config.preferences.date_time_format
+        if style == "iso":
+            return local.isoformat()
+        if style == "friendly_24h":
+            return f"{local.hour:02d}:{local.minute:02d}"
+        hour = local.hour % 12 or 12
+        suffix = "am" if local.hour < 12 else "pm"
+        return f"{hour}:{local.minute:02d}{suffix}"
+
+    def format_date_time(self, value: date | datetime) -> str:
+        """Render all-day values as dates and timed values with local clock time."""
+        if not isinstance(value, datetime):
+            return self.format_date(value)
+        if self.runtime.config.preferences.date_time_format == "iso":
+            return self._local_time(value).isoformat()
+        local = self._local_time(value)
+        return f"{self.format_date(local.date())}, {self.format_time(local)}"
+
+    def _local_time(self, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(ZoneInfo(self.runtime.config.preferences.time_zone))
+
     def _task_rows(self, tasks: tuple[Task, ...]) -> list[tuple[Task, str]]:
         children: dict[str | None, list[Task]] = {}
         for task in tasks:
@@ -1750,10 +1892,9 @@ class HcbApp(App[None]):
             for task, indent in self._task_rows(tasks):
                 marked = "*" if task.id in self.marked else " "
                 status = "✓" if task.status is TaskStatus.COMPLETED else "·"
-                due = f"  {task.due.isoformat()}" if task.due else ""
-                notes = (
-                    f" — {(task.notes or '').splitlines()[0]}" if self.surface == "Notes" else ""
-                )
+                due = f"  {self.format_date(task.due)}" if task.due else ""
+                note_lines = (task.notes or "").splitlines()
+                notes = f" — {note_lines[0]}" if self.surface == "Notes" and note_lines else ""
                 content.append(
                     EntityRow(
                         f"{marked} {indent}{status} {task.title}{due}{notes}",
@@ -1764,7 +1905,7 @@ class HcbApp(App[None]):
         else:
             events = self._events_for_surface()
             for event in events:
-                when = event.start.value.isoformat()
+                when = self.format_date_time(event.start.value)
                 marked = "*" if event.id in self.marked_events else " "
                 content.append(
                     EntityRow(
@@ -1835,9 +1976,9 @@ class HcbApp(App[None]):
             (str(item["stale_reason"]) for item in ranges if item.get("state") == "stale"),
             None,
         )
-        details = f"{start.isoformat()}–{end.isoformat()}"
+        details = f"{self.format_date(start)}–{self.format_date(end)}"
         if refreshed:
-            details += f", refreshed {refreshed}"
+            details += f", refreshed {self.format_date_time(datetime.fromisoformat(refreshed))}"
         if stale_reason:
             details += f", {stale_reason.replace('-', ' ')}"
         return f"instances: {state} ({details})"
@@ -1888,7 +2029,8 @@ class HcbApp(App[None]):
             self.query_one("#inspection", Static).update(
                 Text(
                     f"{target.title}\n\nStatus: {target.status.value}\n"
-                    f"Due: {target.due or '—'}\nPriority: {target.priority.value}\n\n"
+                    f"Due: {self.format_date(target.due) if target.due else '—'}\n"
+                    f"Priority: {target.priority.value}\n\n"
                     f"{target.notes or 'No notes'}"
                 )
             )
@@ -1916,8 +2058,8 @@ class HcbApp(App[None]):
             )
             self.query_one("#inspection", Static).update(
                 Text(
-                    f"{event.summary}\n\n{event.start.value.isoformat()} → "
-                    f"{event.end.value.isoformat()}\n{event.location or ''}\n\n"
+                    f"{event.summary}\n\n{self.format_date_time(event.start.value)} → "
+                    f"{self.format_date_time(event.end.value)}\n{event.location or ''}\n\n"
                     f"{event.description or 'No description'}\n\n{details}"
                     + (f"\nProperties: {properties}" if properties else "")
                     + "\n\nStructured CLI editing preserves specialist fields."
@@ -2284,6 +2426,7 @@ class HcbApp(App[None]):
             "mouse": str(config.theme.mouse).lower(),
             "loader": config.theme.loader,
             "week_starts_on": str(config.preferences.week_starts_on),
+            "date_time_format": config.preferences.date_time_format,
             "editor": config.preferences.editor,
             "external_editor": config.keys.external_editor,
             "colors": json.dumps(asdict(config.theme.colors), indent=2, sort_keys=True),
@@ -2308,6 +2451,9 @@ class HcbApp(App[None]):
                 raise ValueError("focus must be ascii, underline, or reverse")
             if mouse_raw not in {"true", "false"}:
                 raise ValueError("mouse must be true or false")
+            date_time_format = result["date_time_format"]
+            if date_time_format not in {"friendly", "friendly_24h", "iso"}:
+                raise ValueError("choose a supported date and time display")
             loader = result["loader"]
             if loader not in LOADER_PRESETS:
                 raise ValueError("choose a bundled Rattles loading indicator")
@@ -2327,6 +2473,7 @@ class HcbApp(App[None]):
                 mouse=mouse_raw == "true",
                 loader=loader,
                 week_starts_on=int(result["week_starts_on"]),
+                date_time_format=date_time_format,
                 editor=result["editor"],
                 external_editor=result["external_editor"],
                 colors=colors,
@@ -2337,6 +2484,8 @@ class HcbApp(App[None]):
         self._apply_visual_config(config)
         self._observed_config_marker = self._config_marker()
         self._render_chrome()
+        self._render_surface()
+        self._render_inspector()
         self.notify("Settings saved and applied")
 
     def find_time_local(

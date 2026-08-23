@@ -79,7 +79,11 @@ For example:
 ```sh
 hcb config set preferences.editor "nvim"
 hcb config set keys.external_editor "ctrl+g"
+hcb config set preferences.date_time_format friendly
 ```
+
+`preferences.date_time_format` accepts `friendly` (default), `friendly_24h`,
+or `iso`; it controls the dates and times displayed by the TUI.
 
 TUI text fields offer standard Rich emoji codes and aliases after `:`; use
 `↑`/`↓` to select and `Tab` or `Enter` to insert the displayed emoji.

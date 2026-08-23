@@ -57,8 +57,19 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 #sidebar {
     width: 27;
     min-width: 22;
-    border-right: ascii $border;
     background: $panel;
+}
+
+.column-resize-handle {
+    width: 1;
+    min-width: 1;
+    height: 1fr;
+    border-left: ascii $border;
+    background: $panel;
+}
+
+.column-resize-handle:hover {
+    border-left: ascii $primary;
 }
 
 #mini-month {
@@ -86,6 +97,7 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 
 #center {
     width: 1fr;
+    min-width: 28;
 }
 
 #content {
@@ -108,7 +120,6 @@ ListView > ListItem.--highlight {
 
 #inspector {
     width: 32;
-    border-left: ascii $border;
     background: $panel;
 }
 
@@ -153,7 +164,7 @@ Input.-invalid, TextArea.-invalid {
 }
 
 .borders-unicode Button, .borders-unicode Input, .borders-unicode TextArea,
-.borders-unicode #sidebar, .borders-unicode #inspector,
+.borders-unicode .column-resize-handle,
 .borders-unicode #topbar, .borders-unicode #tabs,
 .borders-unicode #palette-dialog, .borders-unicode #editor-dialog,
 .borders-unicode #confirm-dialog, .borders-unicode #event-dialog,
@@ -324,6 +335,10 @@ Footer {
     display: none;
 }
 
+.narrow #inspector-resize {
+    display: none;
+}
+
 .narrow #sidebar {
     width: 22;
 }
@@ -333,6 +348,10 @@ Footer {
 }
 
 .very-narrow #sidebar {
+    display: none;
+}
+
+.very-narrow #sidebar-resize {
     display: none;
 }
 

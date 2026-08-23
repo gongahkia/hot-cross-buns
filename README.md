@@ -25,6 +25,10 @@ uv run hcb --help
 Run `hcb` in a terminal to open the Textual TUI. Run `hcb --help` to discover
 scriptable commands.
 
+In a wide terminal, drag either vertical divider to resize the sidebar or
+Inspector for the current session. `Ctrl+Alt+←` / `Ctrl+Alt+→` resize the
+sidebar; add `Shift` to resize the Inspector instead.
+
 ## Text editing
 
 Every TUI text field supports Slack-style emoji completion: type a colon and an
@@ -40,11 +44,16 @@ and shortcut in `config.json` or through the CLI:
 ```sh
 hcb config set preferences.editor "nvim"
 hcb config set keys.external_editor "ctrl+g"
+hcb config set preferences.date_time_format friendly
 ```
 
 `HCB_EDITOR` overrides `preferences.editor` for the current process. It is a
 normal environment variable, separate from HCB's account `.env` credential
 file.
+
+`preferences.date_time_format` controls TUI timestamps: `friendly` (the
+default, `26 May 2026, 7:23pm`), `friendly_24h` (`26 May 2026, 19:23`), or
+`iso`.
 
 ## Desktop OAuth setup
 

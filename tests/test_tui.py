@@ -10,7 +10,7 @@ from textual.app import SuspendNotSupported
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
 from hcb.config import Config, Theme, ThemeColors, save
-from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime
+from hcb.models import Account, Conflict, DateTimeKind, EntityType, EventDateTime, Preferences
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
 from hcb.storage import Storage
@@ -87,6 +87,78 @@ def test_startup_surface_switching_and_narrow_layout(tmp_path: Path) -> None:
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("very-narrow")
         assert app.query_one("#inspector").display is False
+
+    app_test(app, assertions)
+
+
+def test_workspace_splitters_resize_columns_and_respect_narrow_layout(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path))
+
+    async def assertions(pilot: object) -> None:
+        sidebar = app.query_one("#sidebar")
+        inspector = app.query_one("#inspector")
+        sidebar_width = sidebar.size.width
+        inspector_width = inspector.size.width
+
+        await pilot.press("ctrl+alt+right", "ctrl+alt+right")  # type: ignore[attr-defined]
+        await pilot.press("ctrl+alt+shift+left", "ctrl+alt+shift+left")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert sidebar.size.width == sidebar_width + 4
+        assert inspector.size.width == inspector_width + 4
+
+        await pilot.mouse_down("#sidebar-resize", offset=(0, 4))  # type: ignore[attr-defined]
+        await pilot.mouse_up("#center", offset=(5, 4))  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert sidebar.size.width > sidebar_width + 4
+        assert app._resize_target is None
+
+        await pilot.resize_terminal(58, 24)  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.query_one("#sidebar-resize", Static).display is False
+        assert app.query_one("#inspector-resize", Static).display is False
+
+    app_test(app, assertions, size=(120, 34))
+
+
+def test_notes_surface_handles_tasks_without_notes(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    runtime.application.create_task("work", task_list.id, "Untitled note")
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        app.action_surface("Notes")
+        await pilot.pause()  # type: ignore[attr-defined]
+        rows = app.query_one("#content", ListView).children
+        labels = [str(row.query_one("Label").render()) for row in rows]
+        assert any("Untitled note" in label for label in labels)
+
+    app_test(app, assertions)
+
+
+def test_agenda_uses_the_configured_friendly_date_time_format(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    save(
+        Config(preferences=Preferences(time_zone="Asia/Singapore", date_time_format="friendly")),
+        runtime.paths.config_file,
+    )
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Evening meeting",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 5, 26, 11, 23, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 5, 26, 12, 23, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 5, 25))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("3")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        rows = app.query_one("#content", ListView).children
+        labels = [str(row.query_one("Label").render()) for row in rows]
+        assert any("26 May 2026, 7:23pm" in label for label in labels), labels
+        assert all("T11:23:00" not in label for label in labels)
 
     app_test(app, assertions)
 
@@ -280,7 +352,7 @@ def test_event_surface_marks_stale_instance_cache_ranges(tmp_path: Path) -> None
         cache_state = str(app.query_one("#sync-state", Static).render())
         assert "instances: stale" in cache_state
         assert "local recurring event updated" in cache_state
-        assert "2026-08-21" in cache_state
+        assert "21 August 2026" in cache_state
 
     app_test(app, assertions)
 
@@ -536,11 +608,13 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
             "#setting-focus",
             "#setting-mouse",
             "#setting-week",
+            "#setting-date-time-format",
         ):
             assert isinstance(app.screen.query_one(selector), Select)
         app.screen.query_one("#setting-density", Select).value = "compact"
         app.screen.query_one("#setting-borders", Select).value = "ascii"
         app.screen.query_one("#setting-mouse", Select).value = "false"
+        app.screen.query_one("#setting-date-time-format", Select).value = "friendly_24h"
         app.screen.query_one("#setting-editor", Input).value = "hx"
         app.screen.query_one("#setting-external-editor", Input).value = "ctrl+o"
         app.screen.query_one("#setting-loader", Select).value = "emoji.weather"
@@ -555,6 +629,7 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
     assert saved.theme.borders == "ascii"
     assert not saved.theme.mouse
     assert saved.theme.loader == "emoji.weather"
+    assert saved.preferences.date_time_format == "friendly_24h"
     assert saved.preferences.editor == "hx"
     assert saved.keys.external_editor == "ctrl+o"
 
@@ -569,7 +644,9 @@ def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> 
         loader = app.screen.query_one("#rattles-loader", Static)
         assert str(loader.render()).strip() in {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
         app.update_loading("Fetching task lists")
-        assert str(app.screen.query_one("#loading-message", Label).render()) == "Fetching task lists"
+        assert (
+            str(app.screen.query_one("#loading-message", Label).render()) == "Fetching task lists"
+        )
         app.stop_loading()
         await pilot.pause()  # type: ignore[attr-defined]
         assert not isinstance(app.screen, LoadingScreen)
