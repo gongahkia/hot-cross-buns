@@ -954,6 +954,22 @@ def test_mini_month_visibly_marks_the_selected_day(tmp_path: Path) -> None:
     app_test(app, assertions)
 
 
+def test_mini_month_renders_at_narrow_terminal_widths(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path), selected_date=date(2026, 8, 23))
+
+    async def assertions(_: object) -> None:
+        button_id = next(
+            button_id
+            for button_id, value in app._mini_month_days.items()
+            if value == date(2026, 8, 31)
+        )
+        button = app.query_one(f"#{button_id}", Button)
+        assert button.size.width >= 2
+        assert button.label == "31"
+
+    app_test(app, assertions, size=(80, 34))
+
+
 def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     original_storage = runtime.storage

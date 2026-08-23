@@ -1886,6 +1886,9 @@ class HcbApp(App[None]):
             days = weeks[week_index] if week_index < len(weeks) else (0,) * 7
             for weekday, day in enumerate(days):
                 button = self.query_one(f"#mini-day-{week_index}-{weekday}", Button)
+                # A standard Button adds one cell of implicit line padding on each side.
+                # Day cells can be two columns wide in the narrow layout, so remove it.
+                button.styles.line_pad = 0
                 target = (
                     date(self.selected_date.year, self.selected_date.month, day) if day else None
                 )
