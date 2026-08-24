@@ -1269,6 +1269,30 @@ def test_sync_without_google_credentials_shows_recovery_steps(tmp_path: Path) ->
     app_test(app, assertions)
 
 
+def test_recovery_modal_centers_in_a_half_terminal(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        app.push_screen(
+            GoogleSetupScreen(
+                operation="Sync",
+                account_id="work",
+                email="me@example.com",
+                credential_file=runtime.credential_file("work"),
+                reason="credentials are unavailable",
+            )
+        )
+        await pilot.pause()  # type: ignore[attr-defined]
+        dialog = app.screen.query_one("#google-setup-dialog")
+        center_x = dialog.region.x + dialog.region.width / 2
+        center_y = dialog.region.y + dialog.region.height / 2
+        assert abs(center_x - app.size.width / 2) <= 1
+        assert abs(center_y - app.size.height / 2) <= 1
+
+    app_test(app, assertions, size=(80, 18))
+
+
 def test_palette_find_time_uses_only_cached_events(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     calendar_id = runtime.application.workspace("work").calendars[0].id

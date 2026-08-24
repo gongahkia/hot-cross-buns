@@ -4,6 +4,11 @@ Screen {
     layers: base overlay;
 }
 
+/* Keep recovery and confirmation overlays centered at every terminal size. */
+ModalScreen {
+    align: center middle;
+}
+
 #topbar {
     height: 3;
     padding: 1 2 0 2;
