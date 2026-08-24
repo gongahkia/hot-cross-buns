@@ -531,7 +531,7 @@ def test_sync_reports_bounded_retry_exhaustion_with_a_resume_hint(
         "_runtime_factory",
         lambda: SyncRuntime(paths, environ={}, token_store=MemoryTokens()),  # type: ignore[arg-type]
     )
-    result = invoke(runner, ["sync"])
+    result = runner.invoke(cli.app, ["sync"])
     assert result.exit_code == 6
     assert "bounded retries" in result.stderr
     assert "hcb sync to resume" in result.stderr

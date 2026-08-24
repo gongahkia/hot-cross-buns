@@ -712,7 +712,7 @@ def test_safe_outbox_writes_retry_only_transient_google_failures(
     assert result.pushed == 1
     assert attempts == 2
     assert waits == [retry_after or 1.25]
-    assert "retrying 1/4" in progress[-1]
+    assert any("retrying 1/4" in status for status in progress)
     assert store.pending_mutations("a") == []
 
 

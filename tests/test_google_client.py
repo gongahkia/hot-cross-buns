@@ -123,7 +123,9 @@ def test_retry_after_http_date_is_converted_to_a_delay(monkeypatch: pytest.Monke
             return __import__("datetime").datetime(2026, 8, 24, 12, 0, tzinfo=tz)
 
     monkeypatch.setattr("hcb.google_client.datetime", FixedDateTime)
-    request = Request(error=HttpFailure(429, Retry_After="Mon, 24 Aug 2026 12:00:07 GMT"))
+    request = Request(
+        error=HttpFailure(429, **{"Retry-After": "Mon, 24 Aug 2026 12:00:07 GMT"})
+    )
     with pytest.raises(GoogleApiError) as raised:
         GoogleApiClient._execute(request)
     assert raised.value.retry_after == 7
