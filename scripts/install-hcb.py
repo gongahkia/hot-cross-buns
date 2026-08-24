@@ -203,8 +203,12 @@ def select_tool(preference: str) -> str:
 def resolve_target(args: argparse.Namespace) -> InstallTarget:
     if args.source is not None:
         source = args.source.expanduser().resolve()
-        if not source.is_dir() or not (source / "pyproject.toml").is_file():
+        project_file = source / "pyproject.toml"
+        if not source.is_dir() or not project_file.is_file():
             raise InstallerError(f"'{source}' is not an HCB source checkout (pyproject.toml is missing).")
+        project_metadata = project_file.read_text(encoding="utf-8", errors="replace")
+        if not re.search(r'^name\s*=\s*["\']hot-cross-buns["\']\s*$', project_metadata, re.MULTILINE):
+            raise InstallerError(f"'{source}' is not an HCB source checkout (project name is not hot-cross-buns).")
         return InstallTarget(str(source), f"local checkout: {source}")
 
     ref = args.ref

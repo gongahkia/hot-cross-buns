@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 INSTALLER = ROOT / "scripts" / "install-hcb.py"
@@ -57,6 +56,15 @@ def test_installer_rejects_a_non_checkout_source(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "pyproject.toml is missing" in result.stderr
+
+
+def test_installer_rejects_a_non_hcb_checkout(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "another-project"\n')
+
+    result = run_installer("--source", str(tmp_path), "--dry-run")
+
+    assert result.returncode == 1
+    assert "project name is not hot-cross-buns" in result.stderr
 
 
 def test_installer_rejects_ambiguous_git_refs() -> None:

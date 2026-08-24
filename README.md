@@ -10,7 +10,8 @@ machine.
 HCB is currently distributed from its canonical Git source, not a package
 registry. The bootstrapper uses an isolated `uv` environment when available,
 or `pipx` as a fallback; the installed application still requires Python 3.12
-or newer.
+or newer. See the [full installation guide](docs/installation.md) for security,
+accessibility, update, removal, and troubleshooting details.
 
 Download the installer, inspect it if desired, then run it:
 
