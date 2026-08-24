@@ -1073,7 +1073,9 @@ def events_respond_many(
 ) -> None:
     application = _state(ctx).runtime.application
     preview = application.preview_event_response(
-        _account(ctx), event_ids, response  # type: ignore[arg-type]
+        _account(ctx),
+        event_ids,
+        response,  # type: ignore[arg-type]
     )
     _show_batch_preflight(ctx, preview)
     _emit(

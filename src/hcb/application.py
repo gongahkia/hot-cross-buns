@@ -775,9 +775,7 @@ class ApplicationService:
             self._batch_tasks(account_id, task_ids),
         )
 
-    def preview_task_deletion(
-        self, account_id: str, task_ids: list[str]
-    ) -> BatchActionPreview:
+    def preview_task_deletion(self, account_id: str, task_ids: list[str]) -> BatchActionPreview:
         return BatchActionPreview("task", "delete", self._batch_tasks(account_id, task_ids))
 
     def preview_task_move(
@@ -1678,9 +1676,7 @@ class ApplicationService:
             response_status=response_status,
         )
 
-    def preview_event_deletion(
-        self, account_id: str, event_ids: list[str]
-    ) -> BatchActionPreview:
+    def preview_event_deletion(self, account_id: str, event_ids: list[str]) -> BatchActionPreview:
         return BatchActionPreview("event", "delete", self._batch_events(account_id, event_ids))
 
     def preview_event_move(

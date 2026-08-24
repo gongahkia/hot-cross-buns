@@ -31,6 +31,7 @@ from hcb.runtime import Runtime
 from hcb.storage import Storage
 from hcb.tui import (
     PALETTE_COMMANDS,
+    BatchActionScreen,
     BatchMoveScreen,
     CalendarScreen,
     ConfirmScreen,
@@ -693,9 +694,13 @@ def test_task_create_edit_complete_and_delete(tmp_path: Path) -> None:
         await pilot.pause()  # type: ignore[attr-defined]
         await pilot.press("space")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchActionScreen)
+        await pilot.click("#batch-action-apply")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
         await pilot.press("d")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
-        await pilot.press("y")  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchActionScreen)
+        await pilot.click("#batch-action-apply")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
 
     app_test(app, actions)
@@ -1137,6 +1142,7 @@ def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
     class Result:
         pulled = 0
         pushed = 0
+        conflicts = 0
         cancelled = False
         retry_exhausted = False
 
@@ -1313,6 +1319,9 @@ def test_schedule_bulk_undo_redo_and_import_dialogs(
         await activate_palette(pilot, app, "Bulk actions")
         await pilot.click("#bulk-complete")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchActionScreen)
+        await pilot.click("#batch-action-apply")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
         assert runtime.storage.get_task("work", task_id).status.value == "completed"
         await pilot.press("u")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
@@ -1393,6 +1402,53 @@ def test_keyboard_marking_and_batch_move_review_keep_the_selection_visible(tmp_p
         await pilot.pause()  # type: ignore[attr-defined]
         assert runtime.storage.get_event("work", event.id).calendar_id == calendar_archive.id  # type: ignore[union-attr]
         assert event.id in app.marked_events
+
+        app.action_rsvp()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, RsvpScreen)
+        await pilot.click("#accepted")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchActionScreen)
+        review = str(app.screen.query_one("#batch-action-summary", Static).render())
+        assert "Move me" in review and "needsAction → accepted" in review
+        await pilot.click("#batch-action-apply")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert event.id in app.marked_events
+
+        app.marked.add(task_id)
+        app.action_delete()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert not isinstance(app.screen, BatchActionScreen)
+        assert task_id in app.marked and event.id in app.marked_events
+
+    app_test(app, actions)
+
+
+def test_pointer_marking_and_batch_review_show_exact_task_change(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    app = HcbApp(runtime)
+
+    async def actions(pilot: object) -> None:
+        task = app.cache.tasks[0]
+        row = next(
+            item
+            for item in app.query_one("#content", ListView).children
+            if isinstance(item, EntityRow) and item.item_id == task.id
+        )
+        await pilot.click(row, control=True)  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert task.id in app.marked
+        assert "selected: 1 task(s)" in str(app.query_one("#surface-title", Static).render())
+
+        app.action_complete()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchActionScreen)
+        review = str(app.screen.query_one("#batch-action-summary", Static).render())
+        assert "Ship TUI" in review and "needsAction → completed" in review
+        await pilot.click("#batch-action-apply")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert runtime.storage.get_task("work", task.id).status.value == "completed"
+        assert task.id in app.marked
 
     app_test(app, actions)
 

@@ -204,7 +204,8 @@ Input.-invalid, TextArea.-invalid {
 .borders-unicode #rsvp-dialog, .borders-unicode #calendar-dialog,
 .borders-unicode #settings-dialog, .borders-unicode #find-time-dialog,
 .borders-unicode #google-setup-dialog, .borders-unicode #batch-move-dialog,
-.borders-unicode #batch-move-preview {
+.borders-unicode #batch-action-dialog, .borders-unicode #batch-move-preview,
+.borders-unicode #batch-action-preview {
     border: round $border;
 }
 
@@ -243,7 +244,7 @@ Input.-invalid, TextArea.-invalid {
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
 #rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
-#onboarding-dialog, #google-setup-dialog, #batch-move-dialog {
+#onboarding-dialog, #google-setup-dialog, #batch-move-dialog, #batch-action-dialog {
     width: 70;
     max-width: 90%;
     height: auto;
@@ -355,7 +356,11 @@ EmojiCompletion {
     height: 28;
 }
 
-#batch-move-preview {
+#batch-action-dialog {
+    height: 28;
+}
+
+#batch-move-preview, #batch-action-preview {
     height: 1fr;
     margin-top: 1;
     border: ascii $border;

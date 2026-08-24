@@ -16,8 +16,10 @@ from hcb.models import (
     EventDateTime,
     NotesProjection,
     ReminderOverride,
+    Task,
     TaskList,
     TaskPriority,
+    TaskStatus,
 )
 from hcb.storage import Storage
 from hcb.task_recurrence import (
@@ -97,6 +99,45 @@ def test_batch_task_move_preflights_hierarchies_and_queues_in_order(
     assert all(item.list_id == archive.id and item.parent_id is None for item in moved)
     moves = [item for item in app.storage.pending_mutations("a") if item.operation.value == "move"]
     assert [item.entity_id for item in moves] == [second.id, first.id]
+
+
+def test_batch_actions_preflight_all_targets_before_mutating(app: ApplicationService) -> None:
+    first = app.create_task("a", "inbox", "First", id="first")
+    second = app.create_task("a", "inbox", "Second", id="second")
+    before = len(app.storage.pending_mutations("a"))
+
+    preview = app.preview_task_completion("a", [second.id, first.id], completed=True)
+    assert preview.action == "complete"
+    assert [item.id for item in preview.items] == [second.id, first.id]
+    with pytest.raises(NotFoundError, match="does not exist"):
+        app.preview_task_deletion("a", [first.id, "missing"])
+    assert app.storage.get_task("a", first.id).status is TaskStatus.NEEDS_ACTION  # type: ignore[union-attr]
+    assert len(app.storage.pending_mutations("a")) == before
+
+    app.complete_tasks("a", [second.id, first.id])
+    assert app.storage.get_task("a", first.id).status is TaskStatus.COMPLETED  # type: ignore[union-attr]
+
+
+def test_large_task_batch_preserves_the_requested_serial_order(app: ApplicationService) -> None:
+    tasks = [
+        Task(f"task-{index}", "a", "inbox", f"Task {index}", remote_id=f"remote-{index}")
+        for index in range(64)
+    ]
+    for task in tasks:
+        app.storage.upsert_task(task)
+    ids = [task.id for task in reversed(tasks)]
+
+    preview = app.preview_task_completion("a", ids, completed=True)
+    assert len(preview.items) == 64
+    completed = app.complete_tasks("a", ids)
+
+    assert [task.id for task in completed] == ids
+    updates = [
+        mutation.entity_id
+        for mutation in app.storage.pending_mutations("a")
+        if mutation.operation.value == "update"
+    ]
+    assert updates[-64:] == ids
 
 
 def test_batch_event_move_rejects_google_unsupported_event_types(app: ApplicationService) -> None:

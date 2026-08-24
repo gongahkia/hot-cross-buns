@@ -48,7 +48,13 @@ from textual.widgets import (
     Input as TextualInput,
 )
 
-from .application import BatchMovePreview, ResponseStatus, SearchResult, TimeSlot
+from .application import (
+    BatchActionPreview,
+    BatchMovePreview,
+    ResponseStatus,
+    SearchResult,
+    TimeSlot,
+)
 from .config import Config, ConfigError, ThemeColors, load
 from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
@@ -932,6 +938,56 @@ class BulkScreen(ModalScreen[None]):
         elif event.button.id == "bulk-move-events":
             self.dismiss(None)
             self.hcb.action_move_marked("event")
+
+
+class BatchActionScreen(ModalScreen[None]):
+    """Show an exact local batch transformation before applying it."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp, preview: BatchActionPreview) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.preview = preview
+
+    def compose(self) -> ComposeResult:
+        action_labels = {
+            "complete": "Complete",
+            "reopen": "Reopen",
+            "delete": "Delete",
+            "respond": "Queue RSVP",
+        }
+        label = action_labels[self.preview.action]
+        with Vertical(id="batch-action-dialog"):
+            yield Label(f"Review batch {self.preview.action}", id="dialog-title")
+            yield Label(
+                f"{len(self.preview.items)} selected {self.preview.entity_type}(s). "
+                "Nothing changes until you apply this plan."
+            )
+            with VerticalScroll(id="batch-action-preview"):
+                yield Static(
+                    self.hcb.batch_action_preview_text(self.preview),
+                    id="batch-action-summary",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button(
+                    label,
+                    variant="error" if self.preview.action == "delete" else "primary",
+                    id="batch-action-apply",
+                )
+                yield Button("Cancel", id="batch-action-cancel")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "batch-action-cancel":
+            self.dismiss(None)
+            return
+        if event.button.id != "batch-action-apply":
+            return
+        if self.hcb.apply_batch_action(self.preview):
+            self.dismiss(None)
 
 
 class BatchMoveScreen(ModalScreen[None]):
@@ -2113,18 +2169,31 @@ class HcbApp(App[None]):
         event.prevent_default()
 
     def on_click(self, event: events.Click) -> None:
-        """Open a link only when its Rich style supplied an allowed URL target."""
+        """Open safe links and allow Ctrl/Cmd-click multi-selection in content rows."""
         url = event.style.link
-        if not self.mouse_enabled or event.button != 1 or url is None or not is_web_url(url):
+        if not self.mouse_enabled or event.button != 1:
             return
-        try:
-            opened = self._url_opener(url)
-        except (OSError, webbrowser.Error) as exc:
-            self.notify(f"Could not open link: {exc}", severity="error")
+        if url is not None and is_web_url(url):
+            try:
+                opened = self._url_opener(url)
+            except (OSError, webbrowser.Error) as exc:
+                self.notify(f"Could not open link: {exc}", severity="error")
+                return
+            if not opened:
+                self.notify("Could not open link in your default browser", severity="error")
+                return
+            event.stop()
+            event.prevent_default()
             return
-        if not opened:
-            self.notify("Could not open link in your default browser", severity="error")
+        if not (event.ctrl or event.meta):
             return
+        row = event.widget if isinstance(event.widget, EntityRow) else None
+        if row is None and event.widget is not None and isinstance(event.widget.parent, EntityRow):
+            row = event.widget.parent
+        if row is None or row.kind not in {"task", "event"}:
+            return
+        self.selected = (row.kind, row.item_id)
+        self.action_mark()
         event.stop()
         event.prevent_default()
 
@@ -2995,6 +3064,71 @@ class HcbApp(App[None]):
             lines.append(f"{event.summary}  ·  {source} → {destination}")
         return "\n".join(lines)
 
+    @staticmethod
+    def batch_action_preview_text(preview: BatchActionPreview) -> str:
+        if preview.entity_type == "task":
+            tasks = tuple(item for item in preview.items if isinstance(item, Task))
+            if preview.action == "delete":
+                lines = [f"Delete {len(tasks)} task(s):", ""]
+                lines.extend(f"{task.title}  ·  active → deleted" for task in tasks)
+            else:
+                target = "completed" if preview.action == "complete" else "needs action"
+                lines = [f"{preview.action.title()} {len(tasks)} task(s):", ""]
+                lines.extend(f"{task.title}  ·  {task.status.value} → {target}" for task in tasks)
+            return "\n".join(lines)
+
+        events = tuple(item for item in preview.items if isinstance(item, Event))
+        if preview.action == "delete":
+            lines = [f"Delete {len(events)} event(s):", ""]
+            lines.extend(f"{event.summary}  ·  active → deleted" for event in events)
+        else:
+            target = preview.response_status or "needsAction"
+            lines = [f"Queue RSVP {target} for {len(events)} event(s):", ""]
+            lines.extend(
+                f"{event.summary}  ·  {event.attendee_response or 'needsAction'} → {target}"
+                for event in events
+            )
+        return "\n".join(lines)
+
+    def apply_batch_action(self, preview: BatchActionPreview) -> bool:
+        """Apply one previously displayed plan, retaining it on a local failure."""
+        if self.account_id is None:
+            return False
+        item_ids = [item.id for item in preview.items]
+        try:
+            if preview.entity_type == "task":
+                if preview.action in {"complete", "reopen"}:
+                    self.runtime.application.complete_tasks(
+                        self.account_id,
+                        item_ids,
+                        completed=preview.action == "complete",
+                    )
+                elif preview.action == "delete":
+                    self.runtime.application.delete_tasks(self.account_id, item_ids)
+                    self.marked.difference_update(item_ids)
+                else:
+                    raise ValueError("unsupported task batch action")
+            elif preview.action == "respond":
+                response = preview.response_status
+                if response is None:
+                    raise ValueError("batch RSVP has no response")
+                self.runtime.application.respond_events(self.account_id, item_ids, response)
+            elif preview.action == "delete":
+                self.runtime.application.delete_events(self.account_id, item_ids)
+                self.marked_events.difference_update(item_ids)
+            else:
+                raise ValueError("unsupported event batch action")
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return False
+        self.refresh_workspace()
+        action = "RSVP" if preview.action == "respond" else preview.action
+        self.notify(f"Queued {action} for {len(item_ids)} {preview.entity_type}(s)")
+        return True
+
+    def _review_batch_action(self, preview: BatchActionPreview) -> None:
+        self.push_screen(BatchActionScreen(self, preview))
+
     def action_move_marked(self, entity_type: Literal["task", "event"]) -> None:
         ids = self._batch_ids(entity_type)
         destinations = self.cache.task_lists if entity_type == "task" else self.cache.calendars
@@ -3020,11 +3154,14 @@ class HcbApp(App[None]):
         event_ids = self._batch_ids("event")
         if not event_ids:
             return
-        self.runtime.application.respond_events(
-            self.account_id, event_ids, cast(ResponseStatus, response)
-        )
-        self.refresh_workspace()
-        self.notify(f"RSVP {response} queued")
+        try:
+            preview = self.runtime.application.preview_event_response(
+                self.account_id, event_ids, cast(ResponseStatus, response)
+            )
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self._review_batch_action(preview)
 
     def action_complete(self) -> None:
         if self.account_id is None:
@@ -3035,11 +3172,14 @@ class HcbApp(App[None]):
             return
         targets = [item for item in self.cache.tasks if item.id in set(ids)]
         completed = not all(item.status is TaskStatus.COMPLETED for item in targets)
-        self.runtime.application.complete_tasks(
-            self.account_id, [item.id for item in targets], completed=completed
-        )
-        self.refresh_workspace()
-        self.notify(f"Updated {len(ids)} task(s)")
+        try:
+            preview = self.runtime.application.preview_task_completion(
+                self.account_id, [item.id for item in targets], completed=completed
+            )
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self._review_batch_action(preview)
 
     def action_mark(self) -> None:
         task = self._selected_task()
@@ -3062,30 +3202,24 @@ class HcbApp(App[None]):
         if not ids and not event_ids:
             self.notify("Select an item to delete", severity="warning")
             return
-        count = len(ids) + len(event_ids)
-        self.push_screen(
-            ConfirmScreen(
-                f"Delete {count} selected item(s)?",
-                confirm_label="Delete",
-                confirm_variant="error",
-            ),
-            self._delete_result,
-        )
-
-    def _delete_result(self, confirmed: bool | None) -> None:
-        if not confirmed or self.account_id is None:
+        if ids and event_ids:
+            self.notify(
+                "Delete marked tasks or marked events separately so the batch stays unambiguous",
+                severity="warning",
+            )
             return
-        ids = self._batch_ids("task")
-        event_ids = self._batch_ids("event")
-        if ids:
-            self.runtime.application.delete_tasks(self.account_id, ids)
-        if event_ids:
-            self.runtime.application.delete_events(self.account_id, event_ids)
-        self.marked.clear()
-        self.marked_events.clear()
-        self.selected = None
-        self.refresh_workspace()
-        self.notify("Deleted")
+        if self.account_id is None:
+            return
+        try:
+            preview = (
+                self.runtime.application.preview_task_deletion(self.account_id, ids)
+                if ids
+                else self.runtime.application.preview_event_deletion(self.account_id, event_ids)
+            )
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self._review_batch_action(preview)
 
     def action_undo(self) -> None:
         if self.account_id is not None:
@@ -3351,6 +3485,13 @@ class HcbApp(App[None]):
                 self.call_from_thread(
                     self.notify,
                     result.retry_message or "Sync paused. Local changes remain queued.",
+                    severity="warning",
+                )
+            elif result.conflicts:
+                self.call_from_thread(
+                    self.notify,
+                    f"Sync completed with {result.conflicts} conflict(s). "
+                    "Open Conflicts to review them; your marked items remain selected.",
                     severity="warning",
                 )
             else:

@@ -227,6 +227,67 @@ def test_batch_moves_show_a_complete_plan_and_require_confirmation(
     assert event_moved[0]["calendar_id"] == calendar_archive
 
 
+def test_batch_actions_show_exact_preflights_before_applying(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    task_list = seed_list(runner)
+    task_ids = [
+        json_data(
+            invoke(runner, ["--json", "tasks", "create", title, "--list", task_list]),
+            "tasks.create",
+        )["id"]
+        for title in ("First", "Second")
+    ]
+
+    completed = invoke(runner, ["--json", "tasks", "complete-many", *task_ids])
+    assert "Preflight: complete 2 task(s):" in completed.stderr
+    assert "First" in completed.stderr and "needsAction → completed" in completed.stderr
+    assert all(
+        item["status"] == "completed" for item in json_data(completed, "tasks.complete-many")
+    )
+
+    denied_task_delete = runner.invoke(cli.app, ["tasks", "delete-many", *task_ids])
+    assert denied_task_delete.exit_code == 2
+    assert "First" in denied_task_delete.stderr and "active → deleted" in denied_task_delete.stderr
+    assert "--yes" in denied_task_delete.stderr
+
+    calendar = seed_calendar(runner)
+    event = json_data(
+        invoke(
+            runner,
+            [
+                "--json",
+                "events",
+                "create",
+                "Review me",
+                "--calendar",
+                calendar,
+                "--start",
+                "2026-08-22",
+                "--end",
+                "2026-08-23",
+                "--all-day",
+            ],
+        ),
+        "events.create",
+    )
+    responded = invoke(
+        runner,
+        ["--json", "events", "respond-many", event["id"], "--response", "accepted"],
+    )
+    assert "Preflight: RSVP accepted for 1 event(s):" in responded.stderr
+    assert "Review me" in responded.stderr and "needsAction → accepted" in responded.stderr
+
+    denied_event_delete = runner.invoke(cli.app, ["events", "delete-many", event["id"]])
+    assert denied_event_delete.exit_code == 2
+    assert (
+        "Review me" in denied_event_delete.stderr
+        and "active → deleted" in denied_event_delete.stderr
+    )
+    assert "--yes" in denied_event_delete.stderr
+
+
 def test_events_search_saved_search_and_capture(cli_env: tuple[CliRunner, AppPaths]) -> None:
     runner, _ = cli_env
     list_id = seed_list(runner)
