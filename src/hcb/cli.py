@@ -16,7 +16,7 @@ from uuid import uuid4
 import typer
 from typer import _click as click
 
-from .application import BatchMovePreview, SearchResult
+from .application import BatchActionPreview, BatchMovePreview, SearchResult
 from .config import ConfigError, load, save
 from .config import schema as config_schema
 from .errors import ExitCode, HcbError, OfflineError
@@ -325,6 +325,35 @@ def _show_move_preflight(ctx: typer.Context, preview: BatchMovePreview) -> bool:
     return cross_destination
 
 
+def _show_batch_preflight(ctx: typer.Context, preview: BatchActionPreview) -> None:
+    """Show each local change before invoking a batch operation."""
+    if preview.entity_type == "task":
+        tasks = tuple(item for item in preview.items if isinstance(item, Task))
+        if preview.action == "delete":
+            lines = [f"Preflight: delete {len(tasks)} task(s):"]
+            lines.extend(f"- {task.id} · {task.title}: active → deleted" for task in tasks)
+        else:
+            target = "completed" if preview.action == "complete" else "needs action"
+            lines = [f"Preflight: {preview.action} {len(tasks)} task(s):"]
+            lines.extend(
+                f"- {task.id} · {task.title}: {task.status.value} → {target}" for task in tasks
+            )
+    else:
+        events = tuple(item for item in preview.items if isinstance(item, Event))
+        if preview.action == "delete":
+            lines = [f"Preflight: delete {len(events)} event(s):"]
+            lines.extend(f"- {event.id} · {event.summary}: active → deleted" for event in events)
+        else:
+            target = preview.response_status or "needsAction"
+            lines = [f"Preflight: RSVP {target} for {len(events)} event(s):"]
+            lines.extend(
+                f"- {event.id} · {event.summary}: "
+                f"{event.attendee_response or 'needsAction'} → {target}"
+                for event in events
+            )
+    click.echo("\n".join(lines), err=True)
+
+
 def _event_point(raw: str, all_day: bool, zone: str | None) -> EventDateTime:
     if all_day:
         return EventDateTime(DateTimeKind.DATE, date.fromisoformat(raw))
@@ -485,9 +514,10 @@ def tasks_move(
 def tasks_complete_many(
     ctx: typer.Context, task_ids: list[str], reopen: bool = typer.Option(False, "--reopen")
 ) -> None:
-    items = _state(ctx).runtime.application.complete_tasks(
-        _account(ctx), task_ids, completed=not reopen
-    )
+    application = _state(ctx).runtime.application
+    preview = application.preview_task_completion(_account(ctx), task_ids, completed=not reopen)
+    _show_batch_preflight(ctx, preview)
+    items = application.complete_tasks(_account(ctx), task_ids, completed=not reopen)
     _emit(ctx, items, human=lambda value: f"{value.id}\t{value.status.value}")
 
 
@@ -495,8 +525,11 @@ def tasks_complete_many(
 def tasks_delete_many(
     ctx: typer.Context, task_ids: list[str], yes: bool = typer.Option(False, "--yes", "-y")
 ) -> None:
-    _confirm(yes, f"Delete {len(task_ids)} tasks?")
-    _emit(ctx, _state(ctx).runtime.application.delete_tasks(_account(ctx), task_ids))
+    application = _state(ctx).runtime.application
+    preview = application.preview_task_deletion(_account(ctx), task_ids)
+    _show_batch_preflight(ctx, preview)
+    _confirm(yes, f"Delete {len(preview.items)} task(s)?")
+    _emit(ctx, application.delete_tasks(_account(ctx), task_ids))
 
 
 @tasks_app.command("move-many")
@@ -1023,8 +1056,11 @@ def events_respond(
 def events_delete_many(
     ctx: typer.Context, event_ids: list[str], yes: bool = typer.Option(False, "--yes", "-y")
 ) -> None:
-    _confirm(yes, f"Delete {len(event_ids)} events?")
-    _emit(ctx, _state(ctx).runtime.application.delete_events(_account(ctx), event_ids))
+    application = _state(ctx).runtime.application
+    preview = application.preview_event_deletion(_account(ctx), event_ids)
+    _show_batch_preflight(ctx, preview)
+    _confirm(yes, f"Delete {len(preview.items)} event(s)?")
+    _emit(ctx, application.delete_events(_account(ctx), event_ids))
 
 
 @events_app.command("respond-many")
@@ -1035,9 +1071,14 @@ def events_respond_many(
     comment: str | None = typer.Option(None),
     send_updates: str = typer.Option("all", "--send-updates"),
 ) -> None:
+    application = _state(ctx).runtime.application
+    preview = application.preview_event_response(
+        _account(ctx), event_ids, response  # type: ignore[arg-type]
+    )
+    _show_batch_preflight(ctx, preview)
     _emit(
         ctx,
-        _state(ctx).runtime.application.respond_events(
+        application.respond_events(
             _account(ctx),
             event_ids,
             response,  # type: ignore[arg-type]

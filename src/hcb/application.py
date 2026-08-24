@@ -135,6 +135,16 @@ class BatchMovePreview:
     items: tuple[Task | Event, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class BatchActionPreview:
+    """Validated local plan for a batch action before it changes the mirror."""
+
+    entity_type: Literal["task", "event"]
+    action: Literal["complete", "reopen", "delete", "respond"]
+    items: tuple[Task | Event, ...]
+    response_status: ResponseStatus | None = None
+
+
 def _id() -> str:
     return uuid4().hex
 
@@ -733,22 +743,42 @@ class ApplicationService:
     def complete_tasks(
         self, account_id: str, task_ids: list[str], *, completed: bool = True
     ) -> tuple[Task, ...]:
-        targets = self._batch_tasks(account_id, task_ids)
+        preview = self.preview_task_completion(account_id, task_ids, completed=completed)
         with self.storage.transaction():
             return tuple(
-                self.complete_task(account_id, task.id, completed=completed) for task in targets
+                self.complete_task(account_id, task.id, completed=completed)
+                for task in preview.items
+                if isinstance(task, Task)
             )
 
     def delete_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
-        targets = self._batch_tasks(account_id, task_ids)
+        preview = self.preview_task_deletion(account_id, task_ids)
         with self.storage.transaction():
-            return tuple(self.delete_task(account_id, task.id) for task in targets)
+            return tuple(
+                self.delete_task(account_id, task.id)
+                for task in preview.items
+                if isinstance(task, Task)
+            )
 
     def _batch_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
         ids = tuple(dict.fromkeys(task_ids))
         if not ids:
             raise ValueError("select at least one task")
         return tuple(self._require_task(account_id, task_id) for task_id in ids)
+
+    def preview_task_completion(
+        self, account_id: str, task_ids: list[str], *, completed: bool
+    ) -> BatchActionPreview:
+        return BatchActionPreview(
+            "task",
+            "complete" if completed else "reopen",
+            self._batch_tasks(account_id, task_ids),
+        )
+
+    def preview_task_deletion(
+        self, account_id: str, task_ids: list[str]
+    ) -> BatchActionPreview:
+        return BatchActionPreview("task", "delete", self._batch_tasks(account_id, task_ids))
 
     def preview_task_move(
         self, account_id: str, task_ids: list[str], list_id: str
@@ -1607,7 +1637,7 @@ class ApplicationService:
         comment: str | None = None,
         send_updates: str = "all",
     ) -> tuple[PendingMutation, ...]:
-        targets = self._batch_events(account_id, event_ids)
+        preview = self.preview_event_response(account_id, event_ids, response_status)
         with self.storage.transaction():
             return tuple(
                 self.respond_event(
@@ -1617,19 +1647,41 @@ class ApplicationService:
                     comment=comment,
                     send_updates=send_updates,
                 )
-                for event in targets
+                for event in preview.items
+                if isinstance(event, Event)
             )
 
     def delete_events(self, account_id: str, event_ids: list[str]) -> tuple[Event, ...]:
-        targets = self._batch_events(account_id, event_ids)
+        preview = self.preview_event_deletion(account_id, event_ids)
         with self.storage.transaction():
-            return tuple(self.delete_event(account_id, event.id) for event in targets)
+            return tuple(
+                self.delete_event(account_id, event.id)
+                for event in preview.items
+                if isinstance(event, Event)
+            )
 
     def _batch_events(self, account_id: str, event_ids: list[str]) -> tuple[Event, ...]:
         ids = tuple(dict.fromkeys(event_ids))
         if not ids:
             raise ValueError("select at least one event")
         return tuple(self._require_event(account_id, event_id) for event_id in ids)
+
+    def preview_event_response(
+        self, account_id: str, event_ids: list[str], response_status: ResponseStatus
+    ) -> BatchActionPreview:
+        if response_status not in {"accepted", "declined", "tentative", "needsAction"}:
+            raise ValueError("invalid RSVP response")
+        return BatchActionPreview(
+            "event",
+            "respond",
+            self._batch_events(account_id, event_ids),
+            response_status=response_status,
+        )
+
+    def preview_event_deletion(
+        self, account_id: str, event_ids: list[str]
+    ) -> BatchActionPreview:
+        return BatchActionPreview("event", "delete", self._batch_events(account_id, event_ids))
 
     def preview_event_move(
         self, account_id: str, event_ids: list[str], calendar_id: str
