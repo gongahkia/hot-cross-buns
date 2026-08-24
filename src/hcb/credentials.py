@@ -29,6 +29,14 @@ class CredentialFileError(ValueError):
     """The local credential file is missing, malformed, or unsafe to use."""
 
 
+def credential_key_account(path: Path) -> str:
+    """Return the keyring account used for a credential file's encryption key."""
+
+    resolved = path.expanduser().resolve()
+    digest = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()
+    return f"credential-file-key-{digest}"
+
+
 def load_client_config(path: Path) -> dict[str, Any]:
     """Return a google-auth-oauthlib desktop-client configuration from *path*."""
 
@@ -169,8 +177,7 @@ class EncryptedFileTokenStore:
         return True
 
     def _key_account(self) -> str:
-        digest = hashlib.sha256(str(self.path).encode("utf-8")).hexdigest()
-        return f"credential-file-key-{digest}"
+        return credential_key_account(self.path)
 
     def _check_account(self, account_id: str) -> None:
         if account_id != self.account_id:
