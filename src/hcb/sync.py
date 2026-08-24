@@ -307,15 +307,14 @@ class SyncEngine:
         if isinstance(error, (RequestNotSentError, TransientTransportError)):
             return True
         return isinstance(error, GoogleApiError) and (
-            error.retryable
-            or (error.status == 403 and error.reason in RATE_LIMIT_REASONS)
+            error.retryable or (error.status == 403 and error.reason in RATE_LIMIT_REASONS)
         )
 
     def _retry_delay(self, error: Exception, retry: int) -> float:
         retry_after = error.retry_after if isinstance(error, GoogleApiError) else None
         backoff = min(self.max_retry_delay, self.base_retry_delay * (2 ** (retry - 1)))
-        jitter = min(1.0, max(0.0, self.random_source()))
-        return max(retry_after or 0.0, backoff + jitter)
+        jitter = min(1.0, max(0.0, float(self.random_source())))
+        return float(max(retry_after or 0.0, backoff + jitter))
 
     @staticmethod
     def _check_cancel(context: _RetryContext) -> None:
@@ -430,9 +429,11 @@ class SyncEngine:
         pages = pulled = 0
         try:
             while True:
-                page = self._retry_call(
-                    f"Fetching {scope}", lambda token=token: fetch(token), context
-                )
+
+                def fetch_current_page(token: str | None = token) -> Page:
+                    return fetch(token)
+
+                page = self._retry_call(f"Fetching {scope}", fetch_current_page, context)
                 with self.storage.transaction():
                     for item in page.items:
                         apply(item)
@@ -465,6 +466,7 @@ class SyncEngine:
         context: _RetryContext | None = None,
     ) -> SyncResult:
         context = context or self._retry_context(progress)
+
         def apply(item: Json) -> None:
             existing = self.storage.get_task_list_by_remote(account_id, str(item["id"]))
             if existing is None or not existing.metadata.dirty:
@@ -539,6 +541,7 @@ class SyncEngine:
         context: _RetryContext | None = None,
     ) -> SyncResult:
         context = context or self._retry_context(progress)
+
         def apply(item: Json) -> None:
             existing = self.storage.get_calendar_by_remote(account_id, str(item["id"]))
             if existing is None or not existing.metadata.dirty:
@@ -782,9 +785,7 @@ class SyncEngine:
                 )
         return conflicts
 
-    def flush_outbox(
-        self, account_id: str, *, context: _RetryContext | None = None
-    ) -> SyncResult:
+    def flush_outbox(self, account_id: str, *, context: _RetryContext | None = None) -> SyncResult:
         context = context or self._retry_context()
         pushed = 0
         conflicts = self.recover_interrupted_deliveries(account_id)
@@ -809,14 +810,20 @@ class SyncEngine:
                 raise RuntimeError(f"outbox mutation {mutation.id} disappeared")
             self.crash_hook("before-request", sending)
             try:
+
+                def push_sending(sending: PendingMutation = sending) -> Json | None:
+                    return self._push(sending)
+
+                def retry_is_safe(error: Exception, sending: PendingMutation = sending) -> bool:
+                    return isinstance(
+                        error, RequestNotSentError
+                    ) or not self._non_idempotent_create(sending)
+
                 response = self._retry_call(
                     "Sending local change",
-                    lambda sending=sending: self._push(sending),
+                    push_sending,
                     context,
-                    safe_to_retry=lambda error, sending=sending: isinstance(
-                        error, RequestNotSentError
-                    )
-                    or not self._non_idempotent_create(sending),
+                    safe_to_retry=retry_is_safe,
                 )
             except _RetryCancelled:
                 self.storage.reset_mutation_pending(account_id, mutation.id, "sync cancelled")

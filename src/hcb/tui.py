@@ -3326,9 +3326,7 @@ class HcbApp(App[None]):
         account_id = self.account_id
         failure: Exception | None = None
         self._sync_cancel.clear()
-        self.call_from_thread(
-            lambda: self.start_loading("Preparing Google sync", cancellable=True)
-        )
+        self.call_from_thread(lambda: self.start_loading("Preparing Google sync", cancellable=True))
         worker_storage: Storage | None = None
         try:
             engine = self.runtime.sync_engine(account_id)
