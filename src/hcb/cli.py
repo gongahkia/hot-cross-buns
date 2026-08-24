@@ -61,6 +61,13 @@ from .output import to_primitive
 from .runtime import Runtime
 from .scheduler import DaemonState, ReminderScheduler, run_loop
 from .themes import apply_preset, load_custom_theme, preset, presets
+from .uninstall import (
+    RemovalProgress,
+    UninstallPlan,
+    build_plan,
+    execute_plan,
+    package_removal,
+)
 
 
 class HcbGroup(typer.core.TyperGroup):
@@ -289,6 +296,18 @@ def _confirm(yes: bool, message: str) -> None:
         raise ValueError("destructive operation requires --yes when stdin is not a TTY")
     if not typer.confirm(message):
         raise typer.Abort()
+
+
+def _confirm_uninstall(yes: bool) -> None:
+    """Require a stronger acknowledgement before deleting every local HCB record."""
+
+    if yes:
+        return
+    if not sys.stdin.isatty():
+        raise ValueError("uninstall requires --yes when stdin is not a TTY")
+    acknowledged = click.prompt("Type UNINSTALL to permanently remove HCB", default="", show_default=False)
+    if acknowledged != "UNINSTALL":
+        raise ValueError("uninstall cancelled; no HCB data was removed")
 
 
 def _show_move_preflight(ctx: typer.Context, preview: BatchMovePreview) -> bool:
