@@ -1030,6 +1030,10 @@ def test_settings_theme_selector_offers_and_applies_detected_theme(tmp_path: Pat
         assert ThemeColors(**json.loads(colors)) == selected.colors
         await pilot.click("#settings-save")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
+        await activate_palette(pilot, app, "Settings")
+        assert isinstance(app.screen, SettingsScreen)
+        assert app.screen.query_one("#setting-theme", Select).value == "Rose Pine"
+        await pilot.press("escape")  # type: ignore[attr-defined]
 
     app_test(app, actions, size=(80, 18))
     assert runtime.config.theme.preset == "Rose Pine"
