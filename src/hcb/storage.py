@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .models import (
     Metadata,
@@ -549,8 +549,8 @@ class _StorageCore:
     def close(self) -> None:
         self.connection.close()
 
-    def __enter__(self) -> _StorageCore:
-        return self
+    def __enter__(self) -> Storage:
+        return cast(Storage, self)
 
     def __exit__(self, *_: object) -> None:
         self.close()
