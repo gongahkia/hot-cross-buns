@@ -925,6 +925,9 @@ def test_event_modal_create_edit_rsvp_and_delete(tmp_path: Path) -> None:
         assert isinstance(app.screen, RsvpScreen)
         await pilot.click("#accepted")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchActionScreen)
+        await pilot.click("#batch-action-apply")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
         assert app.cache.pending >= 2
         await pilot.press("e")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
