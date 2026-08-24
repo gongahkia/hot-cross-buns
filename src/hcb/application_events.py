@@ -7,7 +7,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from .application import (
-    _UNSET,
     BatchActionPreview,
     BatchMovePreview,
     ResponseStatus,
@@ -26,6 +25,8 @@ from .models import (
     PendingMutation,
     ReminderOverride,
 )
+
+_UNSET = _Unset()
 
 
 class EventServiceMixin(CalendarServiceMixin):

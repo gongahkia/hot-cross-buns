@@ -6,7 +6,6 @@ from dataclasses import replace
 from datetime import date, datetime
 
 from .application import (
-    _UNSET,
     BatchActionPreview,
     BatchMovePreview,
     _ApplicationServiceBase,
@@ -30,6 +29,8 @@ from .task_recurrence import (
     serialize_task_notes,
     task_recurrence_successor,
 )
+
+_UNSET = _Unset()
 
 
 class TaskServiceMixin(_ApplicationServiceBase):

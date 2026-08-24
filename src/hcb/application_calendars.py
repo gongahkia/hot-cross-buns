@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from .application import _UNSET, Json, _ApplicationServiceBase, _dirty, _id, _Unset
+from .application import Json, _ApplicationServiceBase, _dirty, _id, _Unset
 from .errors import NotFoundError
 from .models import (
     Calendar,
@@ -16,6 +16,8 @@ from .models import (
     ReminderOverride,
     utc_now,
 )
+
+_UNSET = _Unset()
 
 
 class CalendarServiceMixin(_ApplicationServiceBase):
