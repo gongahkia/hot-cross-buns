@@ -83,7 +83,7 @@ uv sync --extra dev
 uv run hcb
 ```
 
-## Update, PATH, and removal
+## Update, PATH, and complete removal
 
 Re-run the installer to refresh HCB from the selected ref. It uses `uv tool
 install --reinstall` or `pipx install --force`, so the update replaces the
@@ -98,17 +98,48 @@ uv tool update-shell
 pipx ensurepath
 ```
 
-Remove HCB without deleting its local database or credentials:
+Use HCB's own uninstall command to preview and then remove its complete local
+footprint:
+
+```sh
+hcb uninstall --dry-run
+hcb uninstall
+```
+
+The interactive command prints every target and requires typing `UNINSTALL`.
+For an automated teardown, use `hcb uninstall --yes`. Its compact spinner
+animates real cleanup work in an interactive terminal; use `--no-animate` for
+logs and accessibility tools.
+
+For an HCB installed by this bootstrapper, the command detects `uv` or `pipx`
+and removes the executable only after all HCB state is cleanly removed. It
+removes HCB's configuration, SQLite data, cache, credential `.env` files under
+HCB's configuration directory, their known OS-keyring encryption keys, and the
+macOS reminders LaunchAgent and log when present. Google Tasks, Calendar, and
+Drive data are never changed. Shared `uv`/`pipx` caches are intentionally left
+alone because they may belong to other applications.
+
+An explicit `--env-file` or `HCB_ENV_FILE` outside HCB's configuration directory
+is preserved by default. Delete it only when you explicitly include it in the
+reviewed plan:
+
+```sh
+hcb --env-file /path/to/personal.env uninstall --include-env-file
+```
+
+If HCB was launched with `uv run` or another unrecognised installer, it cannot
+safely infer how to remove its executable. Use `--keep-program` to remove only
+HCB state, or name the package manager explicitly with `--package-manager uv`
+or `--package-manager pipx`.
+
+The direct package-manager commands remain a recovery option when `hcb` cannot
+start:
 
 ```sh
 uv tool uninstall hot-cross-buns
 # or
 pipx uninstall hot-cross-buns
 ```
-
-Choose the matching command for the installer you used. Local HCB data remains
-intact so that a later reinstall can use it; remove that data separately only
-if you deliberately want to reset the application.
 
 ## macOS checkout helper
 

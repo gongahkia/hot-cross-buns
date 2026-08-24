@@ -91,6 +91,7 @@ def test_help_has_completion_and_full_command_groups(cli_env: tuple[CliRunner, A
         "config",
         "themes",
         "doctor",
+        "uninstall",
         "find-time",
         "daemon",
     ):

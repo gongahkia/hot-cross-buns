@@ -305,7 +305,8 @@ def _confirm_uninstall(yes: bool) -> None:
         return
     if not sys.stdin.isatty():
         raise ValueError("uninstall requires --yes when stdin is not a TTY")
-    acknowledged = click.prompt("Type UNINSTALL to permanently remove HCB", default="", show_default=False)
+    typer.echo("Type UNINSTALL to permanently remove HCB: ", nl=False)
+    acknowledged = input()
     if acknowledged != "UNINSTALL":
         raise ValueError("uninstall cancelled; no HCB data was removed")
 
@@ -1837,6 +1838,127 @@ def doctor(ctx: typer.Context) -> None:
         ctx,
         diagnostics,
         human=lambda row: "\n".join(f"{key}: {value}" for key, value in row.items()),
+    )
+
+
+def _uninstall_plan_data(plan: UninstallPlan, *, keep_program: bool) -> dict[str, object]:
+    return {
+        "targets": [{"label": target.label, "path": str(target.path)} for target in plan.targets],
+        "credential_key_files": [str(path) for path in plan.credential_key_files],
+        "external_credential_file_preserved": (
+            str(plan.excluded_credential_file) if plan.excluded_credential_file else None
+        ),
+        "running_daemon_pid": plan.running_daemon_pid,
+        "package_removal": (
+            {"manager": plan.package_removal.manager, "command": list(plan.package_removal.command)}
+            if plan.package_removal
+            else None
+        ),
+        "keep_program": keep_program,
+        "google_data_unchanged": True,
+    }
+
+
+def _uninstall_plan_human(data: dict[str, object]) -> str:
+    lines = ["HCB uninstall plan:"]
+    for target in cast(list[dict[str, str]], data["targets"]):
+        lines.append(f"- remove {target['label']}: {target['path']}")
+    key_files = cast(list[str], data["credential_key_files"])
+    if key_files:
+        lines.append(f"- remove {len(key_files)} credential encryption key(s) from the OS keyring")
+    preserved = cast(str | None, data["external_credential_file_preserved"])
+    if preserved:
+        lines.append(f"- preserve external credential file: {preserved}")
+    package = cast(dict[str, object] | None, data["package_removal"])
+    if package:
+        lines.append(f"- remove the HCB executable through {package['manager']}")
+    elif data["keep_program"]:
+        lines.append("- keep the HCB executable by request")
+    else:
+        lines.append("- package manager could not be identified")
+    lines.append("- Google Tasks, Calendar, and Drive data are not changed")
+    return "\n".join(lines)
+
+
+def _uninstall_result_human(value: dict[str, object]) -> str:
+    package_status = value["package_removal"]
+    if package_status == "removed":
+        return "HCB has been removed. Google data was not changed."
+    if package_status == "scheduled":
+        log_path = value["deferred_log"]
+        return f"HCB data has been removed; executable removal is scheduled. Log: {log_path}"
+    return "HCB data has been removed; the executable was kept by request."
+
+
+@app.command("uninstall")
+def uninstall(
+    ctx: typer.Context,
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the typed UNINSTALL confirmation."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the exact teardown plan only."),
+    package_manager: str = typer.Option(
+        "auto",
+        "--package-manager",
+        help="auto, uv, or pipx; use this when auto detection is unavailable.",
+    ),
+    keep_program: bool = typer.Option(
+        False, "--keep-program", help="Remove HCB data but leave the installed executable in place."
+    ),
+    include_env_file: bool = typer.Option(
+        False,
+        "--include-env-file",
+        help="Also remove an explicit --env-file or HCB_ENV_FILE outside HCB's config directory.",
+    ),
+    no_animate: bool = typer.Option(
+        False, "--no-animate", help="Disable the compact terminal removal animation."
+    ),
+) -> None:
+    """Remove HCB-owned local state, credentials, reminders, and its managed executable."""
+
+    state = _state(ctx)
+    explicit_credential_file = bool(
+        state.runtime.credential_file_override or state.runtime.environ.get("HCB_ENV_FILE")
+    )
+    package = None if keep_program else package_removal(package_manager)
+    plan = build_plan(
+        state.runtime.paths,
+        active_credential_file=state.runtime.credential_file("uninstall"),
+        credential_file_is_explicit=explicit_credential_file,
+        include_explicit_credential_file=include_env_file,
+        package=package,
+    )
+    plan_data = _uninstall_plan_data(plan, keep_program=keep_program)
+    if dry_run:
+        _emit(ctx, plan_data, human=_uninstall_plan_human)
+        return
+    if not keep_program and package is None:
+        if not state.json:
+            click.echo(_uninstall_plan_human(plan_data), err=True)
+        raise ValueError(
+            "HCB could not identify its package manager; rerun with --package-manager uv or "
+            "--package-manager pipx, or use --keep-program"
+        )
+    if plan.running_daemon_pid is not None and sys.platform != "darwin":
+        raise ValueError(
+            f"HCB reminders appear to be running (pid {plan.running_daemon_pid}); "
+            "stop that daemon first"
+        )
+    _confirm_uninstall(yes)
+    state.runtime.close()
+    result = execute_plan(
+        plan,
+        progress=RemovalProgress(enabled=not state.json, animate=not no_animate),
+        keyring_store=state.runtime.keyring_store,
+    )
+    _emit(
+        ctx,
+        {
+            "removed": list(result.removed),
+            "skipped": list(result.skipped),
+            "package_removal": result.package_removal,
+            "deferred_log": str(result.deferred_log) if result.deferred_log else None,
+            "google_data_unchanged": True,
+        },
+        human=_uninstall_result_human,
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -55,6 +56,7 @@ class UninstallPlan:
     excluded_credential_file: Path | None
     package_removal: PackageRemoval | None
     running_daemon_pid: int | None
+    daemon_cache_dir: Path
     launch_agent_path: Path | None
 
 
@@ -71,14 +73,30 @@ class UninstallResult:
 class RemovalProgress:
     """Render real removal work with a compact spinner on interactive terminals."""
 
-    def __init__(self, *, enabled: bool) -> None:
-        self.enabled = enabled and sys.stdout.isatty() and os.environ.get("TERM", "dumb") != "dumb"
+    def __init__(self, *, enabled: bool, animate: bool = True) -> None:
+        self.visible = enabled
+        self.enabled = (
+            enabled and animate and sys.stdout.isatty() and os.environ.get("TERM", "dumb") != "dumb"
+        )
         self.unicode = "utf" in (sys.stdout.encoding or "").lower()
-        self.frames = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+        self.frames: tuple[str, ...] = (
+            "⠋",
+            "⠙",
+            "⠹",
+            "⠸",
+            "⠼",
+            "⠴",
+            "⠦",
+            "⠧",
+            "⠇",
+            "⠏",
+        )
         if not self.unicode:
             self.frames = ("|", "/", "-", "\\")
 
     def run(self, label: str, action: Callable[[], _T]) -> _T:
+        if not self.visible:
+            return action()
         if not self.enabled:
             print(f"  {'>' if not self.unicode else '›'} {label}")
             result = action()
@@ -89,7 +107,11 @@ class RemovalProgress:
             future = executor.submit(action)
             frame = 0
             while not future.done():
-                print(f"\r\033[2K  {self.frames[frame % len(self.frames)]} {label}", end="", flush=True)
+                print(
+                    f"\r\033[2K  {self.frames[frame % len(self.frames)]} {label}",
+                    end="",
+                    flush=True,
+                )
                 frame += 1
                 time.sleep(0.08)
             print("\r\033[2K", end="", flush=True)
@@ -114,8 +136,10 @@ def package_removal(
         return None
     executable = find_executable(manager)
     if executable is None:
-        raise ValueError(f"{manager} is required to remove this HCB installation but is not on PATH")
-    command = (executable, "tool", "uninstall", PACKAGE_NAME)
+        raise ValueError(
+            f"{manager} is required to remove this HCB installation but is not on PATH"
+        )
+    command: tuple[str, ...] = (executable, "tool", "uninstall", PACKAGE_NAME)
     if manager == "pipx":
         command = (executable, "uninstall", PACKAGE_NAME)
     return PackageRemoval(manager, command)
@@ -157,7 +181,9 @@ def build_plan(
         targets.extend(
             (
                 RemovalTarget("HCB reminders LaunchAgent", launch_agent),
-                RemovalTarget("HCB reminders log", home_directory / "Library/Logs/hcb-reminderd.log"),
+                RemovalTarget(
+                    "HCB reminders log", home_directory / "Library/Logs/hcb-reminderd.log"
+                ),
             )
         )
 
@@ -184,6 +210,7 @@ def build_plan(
         excluded_credential_file=excluded,
         package_removal=package,
         running_daemon_pid=running_daemon_pid(paths.cache_dir),
+        daemon_cache_dir=paths.cache_dir,
         launch_agent_path=launch_agent,
     )
 
@@ -217,7 +244,10 @@ def _unique_targets(targets: list[RemovalTarget]) -> list[RemovalTarget]:
     result: list[RemovalTarget] = []
     for target in targets:
         _validate_target(target.path)
-        if any(target.path.expanduser().resolve() == item.path.expanduser().resolve() for item in result):
+        if any(
+            target.path.expanduser().resolve() == item.path.expanduser().resolve()
+            for item in result
+        ):
             continue
         result.append(target)
     return result
@@ -255,33 +285,55 @@ def execute_plan(
     platform_label = platform_name or sys.platform
     if plan.running_daemon_pid is not None and platform_label != "darwin":
         raise UninstallError(
-            f"HCB reminders appear to be running (pid {plan.running_daemon_pid}). Stop that daemon first.",
+            f"HCB reminders appear to be running (pid {plan.running_daemon_pid}). "
+            "Stop that daemon first.",
             hint="Do not delete HCB state while a manually supervised daemon is still running.",
         )
     removed: list[str] = []
     skipped: list[str] = []
 
-    if plan.launch_agent_path is not None:
-        progress.run("Stopping HCB reminders", _stop_macos_launch_agent)
+    launch_agent = plan.launch_agent_path
+    if launch_agent is not None:
+
+        def stop_launch_agent(path: Path = launch_agent) -> None:
+            _stop_macos_launch_agent(path)
+
+        progress.run("Stopping HCB reminders", stop_launch_agent)
+        active_pid = running_daemon_pid(plan.daemon_cache_dir)
+        if active_pid is not None:
+            raise UninstallError(
+                f"HCB reminders are still running (pid {active_pid}). "
+                "Stop that daemon before retrying.",
+                hint="HCB will not remove state while a daemon may still recreate it.",
+            )
 
     for credential_file in plan.credential_key_files:
         label = f"Removing credential key for {credential_file.name}"
-        removed_key = progress.run(label, lambda path=credential_file: _delete_key(keyring_store, path))
+
+        def delete_credential_key(path: Path = credential_file) -> bool:
+            return _delete_key(keyring_store, path)
+
+        removed_key = progress.run(label, delete_credential_key)
         (removed if removed_key else skipped).append(label)
 
     for target in plan.targets:
-        deleted = progress.run(f"Removing {target.label}", lambda item=target: _remove_target(item.path))
+
+        def delete_target(item: RemovalTarget = target) -> bool:
+            return _remove_target(item.path)
+
+        deleted = progress.run(f"Removing {target.label}", delete_target)
         (removed if deleted else skipped).append(target.label)
 
     if plan.package_removal is None:
         return UninstallResult(tuple(removed), tuple(skipped), "kept")
+    package = plan.package_removal
     if os.name == "nt":
         log_path = progress.run(
-            "Scheduling HCB executable removal", lambda: _schedule_windows_removal(plan.package_removal)
+            "Scheduling HCB executable removal", lambda: _schedule_windows_removal(package)
         )
         return UninstallResult(tuple(removed), tuple(skipped), "scheduled", log_path)
 
-    progress.run("Removing the HCB executable", lambda: _run_package_removal(plan.package_removal))
+    progress.run("Removing the HCB executable", lambda: _run_package_removal(package))
     return UninstallResult(tuple(removed), tuple(skipped), "removed")
 
 
@@ -299,8 +351,7 @@ def _remove_target(path: Path) -> bool:
     return True
 
 
-def _stop_macos_launch_agent() -> None:
-    target = Path.home() / "Library/LaunchAgents/com.hot-cross-buns.reminderd.plist"
+def _stop_macos_launch_agent(target: Path) -> None:
     subprocess.run(
         ["launchctl", "bootout", f"gui/{os.getuid()}", str(target)],
         check=False,
@@ -332,19 +383,27 @@ def _schedule_windows_removal(package: PackageRemoval) -> Path:
         )
     descriptor, log_name = tempfile.mkstemp(prefix="hcb-uninstall-", suffix=".log")
     os.close(descriptor)
-    helper = (
-        "import json, os, subprocess, sys, time; "
-        "pid=int(sys.argv[1]); command=json.loads(sys.argv[2]); log=sys.argv[3]; "
-        "deadline=time.monotonic()+30; "
-        "while time.monotonic()<deadline:\n"
-        "    try: os.kill(pid, 0)\n"
-        "    except OSError: break\n"
-        "    time.sleep(0.1)\n"
-        "with open(log, 'w', encoding='utf-8') as output: "
-        "    subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)"
-    )
+    helper = """import json
+import os
+import subprocess
+import sys
+import time
+
+parent_pid = int(sys.argv[1])
+command = json.loads(sys.argv[2])
+log_path = sys.argv[3]
+deadline = time.monotonic() + 30
+while time.monotonic() < deadline:
+    try:
+        os.kill(parent_pid, 0)
+    except OSError:
+        break
+    time.sleep(0.1)
+with open(log_path, "w", encoding="utf-8") as output:
+    subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
+"""
     subprocess.Popen(
-        [str(base_python), "-c", helper, str(os.getpid()), __import__("json").dumps(package.command), log_name],
+        [str(base_python), "-c", helper, str(os.getpid()), json.dumps(package.command), log_name],
         close_fds=True,
         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         | getattr(subprocess, "DETACHED_PROCESS", 0),

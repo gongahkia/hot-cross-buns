@@ -14,7 +14,7 @@ hcb --tsv COMMAND
 Major command groups are `tasks`, `task-lists`, `notes`, `events`, `calendars`,
 `saved-searches`, `conflicts`, `import`, `auth`, `config`, `themes`, `daemon`,
 `drive`, and `schema`. Top-level operations include `capture`, `search`, `find-time`,
-`freebusy`, `sync`, `export`, `undo`, `redo`, and `doctor`.
+`freebusy`, `sync`, `export`, `undo`, `redo`, `doctor`, and `uninstall`.
 
 The TUI’s `/` palette uses a local SQLite full-text index and never contacts
 Google. It searches tasks/notes, task lists, calendars, events, cached Drive
@@ -51,6 +51,15 @@ hcb export --format ics --output calendar.ics
 `--json` and `--tsv` are mutually exclusive. Human output goes to stdout and
 actionable errors go to stderr. Destructive noninteractive commands require
 `--yes`. `NO_COLOR` and `TERM=dumb` disable decoration.
+
+`hcb uninstall --dry-run` prints the exact local teardown plan. `hcb uninstall`
+requires typing `UNINSTALL` before removing HCB-owned configuration, data,
+cache, credentials, known keyring keys, the macOS reminders agent, and the
+managed `uv`/`pipx` executable. It never changes Google data. Use `--yes` only
+for reviewed automation, `--no-animate` for plain logs, and
+`--include-env-file` only when an explicit external credential file should be
+deleted too. HCB refuses teardown while a manually supervised reminders daemon
+appears active.
 
 All `--json` success output has this envelope:
 

@@ -98,6 +98,7 @@ JSON_COMMANDS = (
     "themes.apply",
     "themes.list",
     "themes.show",
+    "uninstall",
     "undo",
 )
 
