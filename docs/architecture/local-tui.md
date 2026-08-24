@@ -80,7 +80,7 @@ is running; nonvisual preferences and key bindings apply on the next start.
 external-editor command and shortcut; `HCB_EDITOR` is a process-only override.
 The credential `.env` remains restricted to OAuth credentials.
 
-The `themes` CLI group applies one of 30 bundled Ghostty-derived palettes or a
+The `themes` CLI group applies one of 50 bundled Ghostty-derived palettes or a
 strict standalone JSON theme. Bundled palettes are projections from the
 terminal palette into HCB's semantic UI tokens; they do not attempt to change
 the user's terminal emulator palette. A preset changes the complete HCB color

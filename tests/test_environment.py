@@ -59,6 +59,22 @@ def test_detects_wsl_and_windows_terminal_profile_scheme(tmp_path: Path) -> None
     assert environment.suggested_preset == "TokyoNight Storm"
 
 
+def test_detects_a_newly_bundled_ghostty_theme(tmp_path: Path) -> None:
+    config = tmp_path / ".config" / "ghostty" / "config.ghostty"
+    config.parent.mkdir(parents=True)
+    config.write_text("theme = Flexoki Light\n", encoding="utf-8")
+
+    environment = detect_local_environment(
+        {"TERM_PROGRAM": "Ghostty"},
+        home=tmp_path,
+        system_name="Linux",
+        machine_name="x86_64",
+    )
+
+    assert environment.terminal_theme == "Flexoki Light"
+    assert environment.suggested_preset == "Flexoki Light"
+
+
 def test_unknown_theme_is_reported_without_a_preset_or_config_write(tmp_path: Path) -> None:
     config = tmp_path / ".config" / "ghostty" / "config.ghostty"
     config.parent.mkdir(parents=True)

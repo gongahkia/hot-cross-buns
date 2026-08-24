@@ -1,14 +1,14 @@
 # Ghostty bundled-theme inventory
 
-This is a name-for-name inventory of the Ghostty-compatible files from the iTerm2 Color Schemes upstream snapshot `4cbae6273354e5e91a7641d72c69daa3de6a867f` (2026-08-17). Ghostty documents that its built-in themes are sourced from that collection; this snapshot contains **606** theme files.
+This is a name-for-name inventory of the Ghostty-compatible files from the iTerm2 Color Schemes upstream snapshot `75c93eebaca34a6194ba8bdb83d99b62e20f9aba` (2026-08-23). Ghostty documents that its built-in themes are sourced from that collection; this snapshot contains **606** theme files.
 
-HCB does not bundle all 606 palettes. Its [top-30 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
+HCB does not bundle all 606 palettes. Its [top-50 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
 
-Source: <https://github.com/mbadolato/iTerm2-Color-Schemes/tree/4cbae6273354e5e91a7641d72c69daa3de6a867f/ghostty>.
+Source: <https://github.com/mbadolato/iTerm2-Color-Schemes/tree/75c93eebaca34a6194ba8bdb83d99b62e20f9aba/ghostty>.
 
 ## HCB bundled presets
 
-The order below is a curated popularity aggregate as of 2026-08-22, not a
+The order below is a curated popularity aggregate as of 2026-08-24, not a
 claim that each individual flavour has independently comparable usage data.
 Theme projects expose adoption at the family level, so the ranking combines
 that evidence with recurring inclusion in terminal/TUI theme curation; common
@@ -16,12 +16,18 @@ light and dark flavours follow their popular family. The primary signals were
 the canonical [Dracula](https://github.com/dracula/dracula-theme),
 [Gruvbox](https://github.com/morhetz/gruvbox),
 [Catppuccin](https://github.com/catppuccin/catppuccin), and
-[TokyoNight](https://github.com/folke/tokyonight.nvim) projects, corroborated
-against the independent [Ratatui theme collection](https://github.com/ricardodantas/ratatui-themes).
+[TokyoNight](https://github.com/folke/tokyonight.nvim),
+[Nightfox](https://github.com/EdenEast/nightfox.nvim),
+[Flexoki](https://github.com/kepano/flexoki),
+[Gruvbox Material](https://github.com/sainnhe/gruvbox-material),
+[Doom One](https://github.com/doomemacs/themes),
+[Sonokai](https://github.com/sainnhe/sonokai), and
+[Oxocarbon](https://github.com/nyoom-engineering/oxocarbon.nvim) projects,
+corroborated against the independent [Ratatui theme collection](https://github.com/ricardodantas/ratatui-themes).
 This avoids inventing a precise per-variant popularity number where the source
 projects do not publish one.
 
-HCB stores these 30 as a pinned semantic-token projection in
+HCB stores these 50 as a pinned semantic-token projection in
 [`hcb-theme-presets-v1.json`](../../src/hcb/schemas/hcb-theme-presets-v1.json).
 It uses the source foreground/background, cursor, selection, and ANSI palette
 colors for the equivalent HCB tokens; it does not modify the terminal emulator's
@@ -59,6 +65,26 @@ own palette.
 | 28 | Night Owl | Night Owl | Night Owl |
 | 29 | Ayu Mirage | Ayu Mirage | Ayu |
 | 30 | Material Dark | Material Dark | Material |
+| 31 | Gruvbox Material Dark | Gruvbox Material Dark | Gruvbox Material |
+| 32 | Gruvbox Material Light | Gruvbox Material Light | Gruvbox Material |
+| 33 | TokyoNight Moon | TokyoNight Moon | TokyoNight |
+| 34 | TokyoNight Day | TokyoNight Day | TokyoNight |
+| 35 | GitHub Dark Default | GitHub Dark Default | GitHub |
+| 36 | GitHub Dark Dimmed | GitHub Dark Dimmed | GitHub |
+| 37 | Atom One Light | Atom One Light | One Dark |
+| 38 | Monokai Pro Light | Monokai Pro Light | Monokai |
+| 39 | Nightfox | Nightfox | Nightfox |
+| 40 | Carbonfox | Carbonfox | Nightfox |
+| 41 | Dawnfox | Dawnfox | Nightfox |
+| 42 | Duskfox | Duskfox | Nightfox |
+| 43 | Dayfox | Dayfox | Nightfox |
+| 44 | Nordfox | Nordfox | Nightfox |
+| 45 | Terafox | Terafox | Nightfox |
+| 46 | Flexoki Dark | Flexoki Dark | Flexoki |
+| 47 | Flexoki Light | Flexoki Light | Flexoki |
+| 48 | Doom One | Doom One | Doom One |
+| 49 | Sonokai | Sonokai | Sonokai |
+| 50 | Oxocarbon | Oxocarbon | Oxocarbon |
 
 ## Complete upstream name map
 

@@ -487,10 +487,12 @@ def test_theme_commands_apply_bundled_and_complete_custom_themes(
     runner, paths = cli_env
 
     listed = json_data(invoke(runner, ["--json", "themes", "list"]), "themes.list")
-    assert len(listed) == 30
+    assert len(listed) == 50
     assert listed[0]["rank"] == 1
     assert listed[0]["name"] == "Dracula"
     assert listed[0]["colors"]["background"] == "#282a36"
+    assert listed[-1]["rank"] == 50
+    assert listed[-1]["name"] == "Oxocarbon"
 
     shown = json_data(
         invoke(runner, ["--json", "themes", "show", "Catppuccin Latte"]), "themes.show"
@@ -506,6 +508,10 @@ def test_theme_commands_apply_bundled_and_complete_custom_themes(
     ranked = json_data(invoke(runner, ["--json", "themes", "20"]), "themes.apply")
     assert ranked["source"]["rank"] == 20
     assert ranked["theme"]["preset"] == "Rose Pine"
+
+    latest = json_data(invoke(runner, ["--json", "themes", "50"]), "themes.apply")
+    assert latest["source"]["rank"] == 50
+    assert latest["theme"]["preset"] == "Oxocarbon"
 
     colors = ThemeColors(**{name: "#123456" for name in ThemeColors.__dataclass_fields__})
     custom = Theme(

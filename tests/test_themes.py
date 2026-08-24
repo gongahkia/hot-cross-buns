@@ -7,14 +7,21 @@ from pathlib import Path
 import pytest
 
 from hcb.config import ConfigError, Theme, ThemeColors
-from hcb.themes import apply_preset, load_custom_theme, preset, presets, source
+from hcb.themes import (
+    BUNDLED_PRESET_COUNT,
+    apply_preset,
+    load_custom_theme,
+    preset,
+    presets,
+    source,
+)
 
 
 def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     available = presets()
 
-    assert len(available) == 30
-    assert [item.rank for item in available] == list(range(1, 31))
+    assert len(available) == BUNDLED_PRESET_COUNT == 50
+    assert [item.rank for item in available] == list(range(1, 51))
     assert available[0].name == "Dracula"
     assert available[0].colors.background == "#282a36"
     assert {item.name.casefold() for item in available} == {
@@ -23,8 +30,10 @@ def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     assert all(
         set(asdict(item.colors)) == set(ThemeColors.__dataclass_fields__) for item in available
     )
-    assert source()["upstream_commit"] == "4cbae6273354e5e91a7641d72c69daa3de6a867f"
+    assert source()["upstream_commit"] == "75c93eebaca34a6194ba8bdb83d99b62e20f9aba"
     assert source()["upstream_theme_count"] == 606
+    assert preset("Flexoki Light").profile == "light"
+    assert preset("Oxocarbon").colors.background == "#161616"
 
 
 def test_applying_a_preset_preserves_user_interface_preferences() -> None:

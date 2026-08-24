@@ -12,6 +12,7 @@ from typing import Any
 from .config import ConfigError, Theme, ThemeColors, loads_theme
 
 PRESET_RESOURCE = "hcb-theme-presets-v1.json"
+BUNDLED_PRESET_COUNT = 50
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,8 +67,12 @@ def presets() -> tuple[ThemePreset, ...]:
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(f"invalid bundled theme preset: {exc}") from exc
     ordered = tuple(sorted(result, key=lambda preset: preset.rank))
-    if len(ordered) != 30 or [preset.rank for preset in ordered] != list(range(1, 31)):
-        raise RuntimeError("bundled theme presets must contain ranks 1 through 30")
+    if len(ordered) != BUNDLED_PRESET_COUNT or [preset.rank for preset in ordered] != list(
+        range(1, BUNDLED_PRESET_COUNT + 1)
+    ):
+        raise RuntimeError(
+            f"bundled theme presets must contain ranks 1 through {BUNDLED_PRESET_COUNT}"
+        )
     if len({preset.name.casefold() for preset in ordered}) != len(ordered):
         raise RuntimeError("bundled theme preset names must be unique")
     return ordered

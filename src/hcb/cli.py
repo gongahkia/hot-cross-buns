@@ -1738,7 +1738,7 @@ def config_set(ctx: typer.Context, key: str, value: str) -> None:
 # Themes
 @themes_app.command("list")
 def themes_list(ctx: typer.Context) -> None:
-    """List the 30 built-in Ghostty-derived visual presets."""
+    """List all built-in Ghostty-derived visual presets."""
     _emit(
         ctx,
         presets(),
