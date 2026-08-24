@@ -3,9 +3,9 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/gongahkia/hot-cross-buns/security/advisories/new
     about: Report suspected vulnerabilities privately.
-  - name: Latest release downloads
-    url: https://github.com/gongahkia/hot-cross-buns/releases/latest
-    about: Download current macOS, Linux, and Windows builds.
+  - name: Current installation guide
+    url: https://github.com/gongahkia/hot-cross-buns#install
+    about: Install the current Python terminal client or troubleshoot setup.
   - name: Platform support docs
     url: https://github.com/gongahkia/hot-cross-buns/tree/main/docs/support
     about: Read install and troubleshooting notes before opening an issue.

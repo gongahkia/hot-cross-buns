@@ -1,11 +1,11 @@
 #!/bin/sh
 set -eu
 
-if ! command -v pipx >/dev/null 2>&1; then
-  echo "pipx is required (install it with: brew install pipx)" >&2
+project_dir=${1:-"$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"}
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required to run the HCB installer." >&2
   exit 1
 fi
 
-project_dir=${1:-"$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"}
-pipx install "$project_dir"
-echo "Installed hcb. Run 'hcb daemon install' separately to enable reminders."
+exec python3 "$project_dir/scripts/install-hcb.py" --source "$project_dir"

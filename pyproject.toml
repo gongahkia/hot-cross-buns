@@ -38,6 +38,9 @@ include = [
   "/docs/hcb-cli.md",
   "/docs/architecture/ghostty-bundled-themes.md",
   "/docs/architecture/ghostty-bundled-themes.md",
+  "/scripts/install-hcb.py",
+  "/packaging/macos/install-hcb.sh",
+  "/packaging/macos/README.md",
   "/pyproject.toml",
 ]
 exclude = ["**/__pycache__", "**/*.pyc"]

@@ -12,7 +12,7 @@ This documentation describes the Python local-first TUI and CLI only.
 - [TUI parity matrix](product/tui-parity-matrix.md)
 - [Local TUI smoke test](testing/local-tui-smoke.md)
 - [Live Google TUI smoke test](testing/live-google-tui-smoke.md)
-- [macOS installation and reminders](../packaging/macos/README.md)
+- [Cross-platform installation and macOS reminders](../packaging/macos/README.md)
 
 The Qt, browser/PWA, Electron, native packaging, and self-hosted products are
 retired and are not current architecture or support targets. Live Google

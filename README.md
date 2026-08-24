@@ -7,15 +7,31 @@ machine.
 
 ## Install
 
-Python 3.12 or newer is required.
+HCB is currently distributed from its canonical Git source, not a package
+registry. The bootstrapper uses an isolated `uv` environment when available,
+or `pipx` as a fallback; the installed application still requires Python 3.12
+or newer.
+
+Download the installer, inspect it if desired, then run it:
 
 ```sh
-uv tool install hot-cross-buns
-# or
-pipx install hot-cross-buns
+curl --proto '=https' --tlsv1.2 -fL \
+  https://raw.githubusercontent.com/gongahkia/hot-cross-buns/main/scripts/install-hcb.py \
+  -o hcb-install.py
+python3 hcb-install.py
 ```
 
-From a source checkout:
+It shows a compact animated progress indicator in an interactive terminal,
+keeps package-manager output in a temporary log, and prints that log's path on
+failure. Use `--no-animate`, `--no-color`, or `NO_COLOR=1` for accessible or
+automated environments. Installation does not launch HCB, connect Google, add
+credentials, or install the optional reminders daemon.
+
+The installer accepts `--ref BRANCH_OR_COMMIT` to select a canonical Git ref;
+use `--source .` to install a local checkout. `--dry-run` shows the exact
+package-manager command without changing anything.
+
+For development from a source checkout:
 
 ```sh
 uv sync --extra dev
