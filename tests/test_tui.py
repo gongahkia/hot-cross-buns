@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -29,6 +30,7 @@ from hcb.models import (
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
 from hcb.storage import Storage
+from hcb.themes import preset
 from hcb.tui import (
     PALETTE_COMMANDS,
     BatchActionScreen,
@@ -1001,6 +1003,37 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
     assert saved.preferences.date_time_format == "friendly_24h"
     assert saved.preferences.editor == "hx"
     assert saved.keys.external_editor == "ctrl+o"
+
+
+def test_settings_theme_selector_offers_and_applies_detected_theme(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    app = HcbApp(
+        runtime,
+        local_environment=LocalEnvironment(
+            "macOS",
+            "arm64",
+            "Ghostty",
+            terminal_theme="Rose Pine",
+            suggested_preset="Rose Pine",
+        ),
+    )
+
+    async def actions(pilot: object) -> None:
+        await activate_palette(pilot, app, "Settings")
+        assert isinstance(app.screen, SettingsScreen)
+        assert ("Use detected Rose Pine", "Rose Pine") in app.screen._theme_options()
+        app.screen.query_one("#setting-theme", Select).value = "Rose Pine"
+        await pilot.pause()  # type: ignore[attr-defined]
+        selected = preset("Rose Pine")
+        assert app.screen.query_one("#setting-profile", Select).value == selected.profile
+        colors = app.screen.query_one("#settings-colors", TerminalTextArea).text
+        assert ThemeColors(**json.loads(colors)) == selected.colors
+        await pilot.click("#settings-save")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+
+    app_test(app, actions, size=(80, 18))
+    assert runtime.config.theme.preset == "Rose Pine"
+    assert runtime.config.theme.profile == preset("Rose Pine").profile
 
 
 def test_loading_surface_renders_the_selected_rattles_loader(tmp_path: Path) -> None:

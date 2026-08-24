@@ -160,6 +160,10 @@ terminal defaults** remains selected unless the user chooses otherwise. This
 read-only check never changes the terminal's configuration or connects to
 Google.
 
+The Settings dialog also offers every bundled palette, including **Use detected
+NAME** when HCB finds a matching local terminal theme. Choosing a palette updates
+the pending profile and semantic colors; it takes effect only after **Save**.
+
 For a fully custom appearance, apply a strict standalone theme JSON document:
 
 ```sh

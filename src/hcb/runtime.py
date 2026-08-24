@@ -172,6 +172,7 @@ class Runtime:
         focus: str,
         mouse: bool,
         loader: str,
+        theme_preset: str | None,
         week_starts_on: int,
         date_time_format: str,
         editor: str,
@@ -180,6 +181,13 @@ class Runtime:
     ) -> Config:
         """Persist interactive presentation settings through the runtime boundary."""
         current = self.config
+        selected_theme = (
+            apply_preset(current.theme, theme_preset) if theme_preset is not None else current.theme
+        )
+        if theme_preset is not None and (
+            profile != selected_theme.profile or colors != selected_theme.colors
+        ):
+            raise ValueError("a selected theme palette must keep its bundled profile and colors")
         updated = replace(
             current,
             preferences=replace(
@@ -190,9 +198,9 @@ class Runtime:
             ),
             keys=replace(current.keys, external_editor=external_editor),
             theme=replace(
-                current.theme,
+                selected_theme,
                 profile=profile,
-                preset=None,
+                preset=theme_preset,
                 density=density,
                 borders=borders,
                 focus=focus,

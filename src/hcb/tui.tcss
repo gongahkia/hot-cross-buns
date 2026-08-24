@@ -268,8 +268,12 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #settings-dialog {
-    height: 32;
+    height: 35;
     max-height: 90%;
+}
+
+#settings-fields {
+    height: 1fr;
 }
 
 #onboarding-dialog {

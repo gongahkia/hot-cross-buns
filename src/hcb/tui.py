@@ -63,7 +63,7 @@ from .loaders import LOADER_NAMES, LOADER_PRESETS, loader_preset
 from .models import ConflictStatus, DateTimeKind, DriveFile, Event, EventDateTime, Task, TaskStatus
 from .runtime import DEFAULT_CREDENTIAL_FILE, Runtime
 from .storage import Storage
-from .themes import presets
+from .themes import preset, presets
 
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
 MIN_SIDEBAR_WIDTH = 22
@@ -121,6 +121,7 @@ DATE_TIME_FORMAT_OPTIONS = (
     ("24-hour · 26 May 2026, 19:23", "friendly_24h"),
     ("ISO 8601 (with seconds)", "iso"),
 )
+CURRENT_THEME_VALUE = "__current_theme__"
 TIME_ZONE_OPTIONS = tuple((time_zone, time_zone) for time_zone in sorted(available_timezones()))
 DUE_DAY_OPTIONS = tuple((f"{day:02d}", str(day)) for day in range(1, 32))
 DUE_MONTH_OPTIONS = tuple((calendar.month_name[month], str(month)) for month in range(1, 13))
@@ -1392,79 +1393,88 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
         values = self.hcb.settings_values()
         with Vertical(id="settings-dialog"):
             yield Label("Settings", id="dialog-title")
-            with Horizontal(classes="settings-pair"):
-                yield Select(
-                    PROFILE_OPTIONS,
-                    allow_blank=False,
-                    prompt="Profile",
-                    value=values["profile"],
-                    id="setting-profile",
-                )
-                yield Select(
-                    DENSITY_OPTIONS,
-                    allow_blank=False,
-                    prompt="Density",
-                    value=values["density"],
-                    id="setting-density",
-                )
-            with Horizontal(classes="settings-pair"):
-                yield Select(
-                    BORDER_OPTIONS,
-                    allow_blank=False,
-                    prompt="Border style",
-                    value=values["borders"],
-                    id="setting-borders",
-                )
-                yield Select(
-                    FOCUS_OPTIONS,
-                    allow_blank=False,
-                    prompt="Focus style",
-                    value=values["focus"],
-                    id="setting-focus",
-                )
-            with Horizontal(classes="settings-pair"):
-                yield Select(
-                    BOOLEAN_OPTIONS,
-                    allow_blank=False,
-                    prompt="Mouse support",
-                    value=values["mouse"],
-                    id="setting-mouse",
-                )
-                yield Select(
-                    WEEK_START_OPTIONS,
-                    allow_blank=False,
-                    prompt="Week starts on",
-                    value=values["week_starts_on"],
-                    id="setting-week",
-                )
-            with Horizontal(classes="settings-pair"):
-                yield Select(
-                    DATE_TIME_FORMAT_OPTIONS,
-                    allow_blank=False,
-                    prompt="Date and time display",
-                    value=values["date_time_format"],
-                    id="setting-date-time-format",
-                )
-                yield Select(
-                    [(name, name) for name in LOADER_NAMES],
-                    allow_blank=False,
-                    prompt="Loading indicator",
-                    value=values["loader"],
-                    id="setting-loader",
-                )
-            with Horizontal(classes="settings-pair"):
-                yield Input(
-                    value=values["editor"],
-                    placeholder="External editor command",
-                    id="setting-editor",
-                )
-                yield Input(
-                    value=values["external_editor"],
-                    placeholder="External editor shortcut",
-                    id="setting-external-editor",
-                )
-            yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
-            yield TerminalTextArea(values["colors"], id="settings-colors")
+            with VerticalScroll(id="settings-fields"):
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        self._theme_options(),
+                        allow_blank=False,
+                        prompt="Theme palette",
+                        value=values["theme_preset"],
+                        id="setting-theme",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        PROFILE_OPTIONS,
+                        allow_blank=False,
+                        prompt="Profile",
+                        value=values["profile"],
+                        id="setting-profile",
+                    )
+                    yield Select(
+                        DENSITY_OPTIONS,
+                        allow_blank=False,
+                        prompt="Density",
+                        value=values["density"],
+                        id="setting-density",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        BORDER_OPTIONS,
+                        allow_blank=False,
+                        prompt="Border style",
+                        value=values["borders"],
+                        id="setting-borders",
+                    )
+                    yield Select(
+                        FOCUS_OPTIONS,
+                        allow_blank=False,
+                        prompt="Focus style",
+                        value=values["focus"],
+                        id="setting-focus",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        allow_blank=False,
+                        prompt="Mouse support",
+                        value=values["mouse"],
+                        id="setting-mouse",
+                    )
+                    yield Select(
+                        WEEK_START_OPTIONS,
+                        allow_blank=False,
+                        prompt="Week starts on",
+                        value=values["week_starts_on"],
+                        id="setting-week",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        DATE_TIME_FORMAT_OPTIONS,
+                        allow_blank=False,
+                        prompt="Date and time display",
+                        value=values["date_time_format"],
+                        id="setting-date-time-format",
+                    )
+                    yield Select(
+                        [(name, name) for name in LOADER_NAMES],
+                        allow_blank=False,
+                        prompt="Loading indicator",
+                        value=values["loader"],
+                        id="setting-loader",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Input(
+                        value=values["editor"],
+                        placeholder="External editor command",
+                        id="setting-editor",
+                    )
+                    yield Input(
+                        value=values["external_editor"],
+                        placeholder="External editor shortcut",
+                        id="setting-external-editor",
+                    )
+                yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
+                yield TerminalTextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="settings-save")
                 yield Button("Cancel", id="settings-cancel")
@@ -1479,6 +1489,7 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
         self.dismiss(
             {
                 "profile": self._selected_value("#setting-profile", "a profile"),
+                "theme_preset": self._selected_value("#setting-theme", "a theme palette"),
                 "density": self._selected_value("#setting-density", "a density"),
                 "borders": self._selected_value("#setting-borders", "a border style"),
                 "focus": self._selected_value("#setting-focus", "a focus style"),
@@ -1493,6 +1504,20 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 "colors": self.query_one("#settings-colors", TextArea).text.strip(),
             }
         )
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id != "setting-theme" or not isinstance(event.value, str):
+            return
+        if event.value == CURRENT_THEME_VALUE:
+            return
+        selected = preset(event.value)
+        self.query_one("#setting-profile", Select).value = selected.profile
+        self.query_one("#settings-colors", TextArea).load_text(
+            json.dumps(asdict(selected.colors), indent=2, sort_keys=True)
+        )
+
+    def _theme_options(self) -> tuple[tuple[str, str], ...]:
+        return self.hcb.settings_theme_options()
 
     def _selected_loader(self) -> str:
         return self._selected_value("#setting-loader", "a loading indicator")
@@ -1907,9 +1932,12 @@ class HcbApp(App[None]):
             self.notify("Offline account created; Google remains disconnected")
 
     def _onboarding_screen(self) -> OnboardingScreen:
+        return OnboardingScreen(self._local_environment())
+
+    def _local_environment(self) -> LocalEnvironment:
         if self.local_environment is None:
             self.local_environment = detect_local_environment(self.runtime.environ)
-        return OnboardingScreen(self.local_environment)
+        return self.local_environment
 
     def _onboarding_connect_confirmed(self, confirmed: bool | None) -> None:
         if not confirmed or self.account_id is None:
@@ -3279,7 +3307,11 @@ class HcbApp(App[None]):
 
     def settings_values(self) -> dict[str, str]:
         config = self.runtime.config
+        preset_names = {item.name for item in presets()}
         return {
+            "theme_preset": (
+                config.theme.preset if config.theme.preset in preset_names else CURRENT_THEME_VALUE
+            ),
             "profile": config.theme.profile,
             "density": config.theme.density,
             "borders": config.theme.borders,
@@ -3292,6 +3324,26 @@ class HcbApp(App[None]):
             "external_editor": config.keys.external_editor,
             "colors": json.dumps(asdict(config.theme.colors), indent=2, sort_keys=True),
         }
+
+    def settings_theme_options(self) -> tuple[tuple[str, str], ...]:
+        """Return theme choices with the matching local palette clearly identified."""
+        current = self.runtime.config.theme.preset
+        available = presets()
+        names = {item.name for item in available}
+        detected = self._local_environment().suggested_preset
+        options: list[tuple[str, str]] = []
+        if current in names and current == detected:
+            options.append((f"Use detected {current}", current))
+        elif current in names:
+            options.append((f"Current: {current}", current))
+        else:
+            options.append(("Keep current theme", CURRENT_THEME_VALUE))
+        if detected and detected != current:
+            options.append((f"Use detected {detected}", detected))
+        options.extend(
+            (item.name, item.name) for item in available if item.name not in {current, detected}
+        )
+        return tuple(options)
 
     def _settings_result(self, result: dict[str, str] | None) -> None:
         if result is None:
@@ -3326,6 +3378,13 @@ class HcbApp(App[None]):
             if not isinstance(colors_data, dict):
                 raise ValueError("semantic colors must be a JSON object")
             colors = ThemeColors(**colors_data)
+            theme_preset: str | None = result["theme_preset"]
+            if theme_preset is None or theme_preset == CURRENT_THEME_VALUE:
+                theme_preset = None
+            else:
+                selected = preset(theme_preset)
+                if profile != selected.profile or colors != selected.colors:
+                    theme_preset = None
             config = self.runtime.update_tui_settings(
                 profile=profile,
                 density=density,
@@ -3333,6 +3392,7 @@ class HcbApp(App[None]):
                 focus=focus,
                 mouse=mouse_raw == "true",
                 loader=loader,
+                theme_preset=theme_preset,
                 week_starts_on=int(result["week_starts_on"]),
                 date_time_format=date_time_format,
                 editor=result["editor"],
