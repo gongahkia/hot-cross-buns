@@ -56,6 +56,10 @@ class RequestNotSentError(Exception):
     """A transport failure that guarantees no remote request was transmitted."""
 
 
+class TransientTransportError(Exception):
+    """A temporary transport failure where the remote delivery is unknown."""
+
+
 class GoogleApiError(HcbError):
     """A sanitized Google API failure."""
 
@@ -74,7 +78,7 @@ class GoogleApiError(HcbError):
 
     @property
     def retryable(self) -> bool:
-        return self.status == 429 or 500 <= self.status < 600
+        return self.status in {408, 429} or 500 <= self.status < 600
 
     @property
     def is_conflict(self) -> bool:

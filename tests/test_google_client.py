@@ -3,7 +3,7 @@ import socket
 
 import pytest
 
-from hcb.errors import GoogleApiError, RequestNotSentError
+from hcb.errors import GoogleApiError, RequestNotSentError, TransientTransportError
 from hcb.google_client import GoogleApiClient
 
 
@@ -94,7 +94,7 @@ def test_http_statuses_are_mapped_without_network(status):
     assert raised.value.status == status
     assert raised.value.reason == "bad"
     assert str(raised.value) == "sanitized"
-    assert raised.value.retryable is (status == 429 or status >= 500)
+    assert raised.value.retryable is (status in {408, 429} or status >= 500)
     assert raised.value.is_conflict is (status in {409, 410, 412})
 
 
@@ -108,6 +108,25 @@ def test_execute_applies_if_match_and_returns_json():
 def test_pre_connection_failures_are_explicitly_safe_to_retry(error):
     with pytest.raises(RequestNotSentError):
         GoogleApiClient._execute(Request(error=error))
+
+
+@pytest.mark.parametrize("error", [BrokenPipeError(), ConnectionResetError(), TimeoutError()])
+def test_interrupted_requests_are_transient_but_not_confirmed_unsent(error):
+    with pytest.raises(TransientTransportError):
+        GoogleApiClient._execute(Request(error=error))
+
+
+def test_retry_after_http_date_is_converted_to_a_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FixedDateTime:
+        @classmethod
+        def now(cls, tz):
+            return __import__("datetime").datetime(2026, 8, 24, 12, 0, tzinfo=tz)
+
+    monkeypatch.setattr("hcb.google_client.datetime", FixedDateTime)
+    request = Request(error=HttpFailure(429, Retry_After="Mon, 24 Aug 2026 12:00:07 GMT"))
+    with pytest.raises(GoogleApiError) as raised:
+        GoogleApiClient._execute(request)
+    assert raised.value.retry_after == 7
 
 
 def test_calendar_list_patch_uses_calendar_list_endpoint_and_if_match():

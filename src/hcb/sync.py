@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import hashlib
+import random
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
+from typing import TypeVar
 
-from .errors import AuthenticationRequired, GoogleApiError, RequestNotSentError
+from .errors import (
+    AuthenticationRequired,
+    GoogleApiError,
+    RequestNotSentError,
+    TransientTransportError,
+)
 from .google_client import GoogleGateway, Json, Page, rfc3339
 from .models import (
     Calendar,
@@ -31,10 +39,36 @@ from .models import (
 from .storage import Storage
 
 RATE_LIMIT_REASONS = {"rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded"}
+T = TypeVar("T")
 
 
 def _ignore_progress(_: str) -> None:
     """Default progress callback for non-interactive callers."""
+
+
+def _not_cancelled() -> bool:
+    return False
+
+
+@dataclass(frozen=True, slots=True)
+class _RetryContext:
+    progress: Callable[[str], None]
+    cancelled: Callable[[], bool]
+    cancel_hint: str
+
+
+class _RetryCancelled(Exception):
+    """Internal signal used to leave a retry wait without another request."""
+
+
+class _RetryExhausted(Exception):
+    """Internal signal carrying the final retryable failure."""
+
+    def __init__(self, operation: str, error: Exception, retry_after: float) -> None:
+        super().__init__(f"{operation} could not complete after bounded retries: {error}")
+        self.operation = operation
+        self.error = error
+        self.retry_after = retry_after
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,16 +79,22 @@ class SyncResult:
     conflicts: int = 0
     retry_pending: bool = False
     retry_after: float | None = None
+    retry_exhausted: bool = False
+    cancelled: bool = False
+    retry_message: str | None = None
 
     def plus(self, other: SyncResult) -> SyncResult:
         delays = [value for value in (self.retry_after, other.retry_after) if value is not None]
         return SyncResult(
-            self.pages + other.pages,
-            self.pulled + other.pulled,
-            self.pushed + other.pushed,
-            self.conflicts + other.conflicts,
-            self.retry_pending or other.retry_pending,
-            max(delays) if delays else None,
+            pages=self.pages + other.pages,
+            pulled=self.pulled + other.pulled,
+            pushed=self.pushed + other.pushed,
+            conflicts=self.conflicts + other.conflicts,
+            retry_pending=self.retry_pending or other.retry_pending,
+            retry_after=max(delays) if delays else None,
+            retry_exhausted=self.retry_exhausted or other.retry_exhausted,
+            cancelled=self.cancelled or other.cancelled,
+            retry_message=other.retry_message or self.retry_message,
         )
 
 
@@ -230,28 +270,149 @@ class SyncEngine:
         *,
         now: Callable[[], datetime] = utc_now,
         crash_hook: Callable[[str, PendingMutation], None] | None = None,
+        max_retries: int = 4,
+        base_retry_delay: float = 1.0,
+        max_retry_delay: float = 32.0,
+        random_source: Callable[[], float] = random.random,
+        wait_for_retry: Callable[[float, Callable[[], bool]], bool] | None = None,
     ) -> None:
+        if max_retries < 1:
+            raise ValueError("max_retries must be at least one")
+        if base_retry_delay <= 0 or max_retry_delay < base_retry_delay:
+            raise ValueError("retry delays must be positive and ordered")
         self.storage = storage
         self.gateway = gateway
         self.now = now
         self.crash_hook = crash_hook or (lambda _phase, _mutation: None)
+        self.max_retries = max_retries
+        self.base_retry_delay = base_retry_delay
+        self.max_retry_delay = max_retry_delay
+        self.random_source = random_source
+        self.wait_for_retry = wait_for_retry or self._wait_for_retry
 
-    def sync(self, account_id: str, *, progress: Callable[[str], None] | None = None) -> SyncResult:
+    @staticmethod
+    def _wait_for_retry(delay: float, cancelled: Callable[[], bool]) -> bool:
+        """Wait in short intervals so a TUI cancellation is observed promptly."""
+        deadline = time.monotonic() + delay
+        while True:
+            if cancelled():
+                return False
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return True
+            time.sleep(min(0.1, remaining))
+
+    @staticmethod
+    def _transient(error: Exception) -> bool:
+        if isinstance(error, (RequestNotSentError, TransientTransportError)):
+            return True
+        return isinstance(error, GoogleApiError) and (
+            error.retryable
+            or (error.status == 403 and error.reason in RATE_LIMIT_REASONS)
+        )
+
+    def _retry_delay(self, error: Exception, retry: int) -> float:
+        retry_after = error.retry_after if isinstance(error, GoogleApiError) else None
+        backoff = min(self.max_retry_delay, self.base_retry_delay * (2 ** (retry - 1)))
+        jitter = min(1.0, max(0.0, self.random_source()))
+        return max(retry_after or 0.0, backoff + jitter)
+
+    @staticmethod
+    def _check_cancel(context: _RetryContext) -> None:
+        if context.cancelled():
+            raise _RetryCancelled
+
+    def _retry_call(
+        self,
+        operation: str,
+        call: Callable[[], T],
+        context: _RetryContext,
+        *,
+        safe_to_retry: Callable[[Exception], bool] | None = None,
+    ) -> T:
+        """Retry a transient request serially, without replaying unsafe creates."""
+        retry = 0
+        while True:
+            self._check_cancel(context)
+            try:
+                return call()
+            except (RequestNotSentError, TransientTransportError, GoogleApiError) as error:
+                if not self._transient(error) or (
+                    safe_to_retry is not None and not safe_to_retry(error)
+                ):
+                    raise
+                if retry >= self.max_retries:
+                    raise _RetryExhausted(
+                        operation, error, self._retry_delay(error, retry + 1)
+                    ) from error
+                retry += 1
+                delay = self._retry_delay(error, retry)
+                context.progress(
+                    f"{operation} temporarily failed; retrying {retry}/{self.max_retries} "
+                    f"in {delay:.1f}s. {context.cancel_hint}"
+                )
+                if not self.wait_for_retry(delay, context.cancelled):
+                    raise _RetryCancelled from None
+
+    def _retry_context(
+        self,
+        progress: Callable[[str], None] | None = None,
+        cancelled: Callable[[], bool] | None = None,
+        cancel_hint: str = "Press Ctrl+C to cancel.",
+    ) -> _RetryContext:
+        return _RetryContext(progress or _ignore_progress, cancelled or _not_cancelled, cancel_hint)
+
+    def sync(
+        self,
+        account_id: str,
+        *,
+        progress: Callable[[str], None] | None = None,
+        cancelled: Callable[[], bool] | None = None,
+        cancel_hint: str = "Press Ctrl+C to cancel.",
+    ) -> SyncResult:
         """Synchronize an account and report completed stages when requested."""
 
         if self.storage.get_account(account_id) is None:
             raise ValueError(f"unknown account {account_id!r}")
-        report = progress or _ignore_progress
-        report("Sending local changes")
-        result = self.flush_outbox(account_id)
-        if result.retry_pending:
+        context = self._retry_context(progress, cancelled, cancel_hint)
+        result = SyncResult()
+        try:
+            self._check_cancel(context)
+            context.progress("Sending local changes")
+            result = self.flush_outbox(account_id, context=context)
+            if result.retry_pending or result.cancelled:
+                return result
+            context.progress("Fetching task lists")
+            result = result.plus(
+                self.sync_task_lists(account_id, progress=context.progress, context=context)
+            )
+            context.progress("Fetching calendars")
+            result = result.plus(
+                self.sync_calendars(account_id, progress=context.progress, context=context)
+            )
+            context.progress("Finishing sync")
             return result
-        report("Fetching task lists")
-        result = result.plus(self.sync_task_lists(account_id, progress=report))
-        report("Fetching calendars")
-        result = result.plus(self.sync_calendars(account_id, progress=report))
-        report("Finishing sync")
-        return result
+        except _RetryCancelled:
+            return result.plus(
+                SyncResult(
+                    cancelled=True,
+                    retry_message=(
+                        "Sync cancelled. Local changes remain queued; run sync to resume."
+                    ),
+                )
+            )
+        except _RetryExhausted as error:
+            return result.plus(
+                SyncResult(
+                    retry_pending=True,
+                    retry_after=error.retry_after,
+                    retry_exhausted=True,
+                    retry_message=(
+                        f"{error.operation} paused after bounded retries. "
+                        "Local changes remain queued; run sync to resume."
+                    ),
+                )
+            )
 
     def _paged(
         self,
@@ -261,13 +422,17 @@ class SyncEngine:
         apply: Callable[[Json], None],
         *,
         final_cursor_scope: str | None = None,
+        context: _RetryContext | None = None,
     ) -> SyncResult:
+        context = context or self._retry_context()
         resumed = self.storage.resumable_checkpoint(account_id, scope)
         checkpoint, token = resumed or (self.storage.start_checkpoint(account_id, scope), None)
         pages = pulled = 0
         try:
             while True:
-                page = fetch(token)
+                page = self._retry_call(
+                    f"Fetching {scope}", lambda token=token: fetch(token), context
+                )
                 with self.storage.transaction():
                     for item in page.items:
                         apply(item)
@@ -293,8 +458,13 @@ class SyncEngine:
         return SyncResult(pages=pages, pulled=pulled)
 
     def sync_task_lists(
-        self, account_id: str, *, progress: Callable[[str], None] | None = None
+        self,
+        account_id: str,
+        *,
+        progress: Callable[[str], None] | None = None,
+        context: _RetryContext | None = None,
     ) -> SyncResult:
+        context = context or self._retry_context(progress)
         def apply(item: Json) -> None:
             existing = self.storage.get_task_list_by_remote(account_id, str(item["id"]))
             if existing is None or not existing.metadata.dirty:
@@ -309,15 +479,23 @@ class SyncEngine:
             "task-lists",
             lambda token: self.gateway.list_task_lists(page_token=token),
             apply,
+            context=context,
         )
-        report = progress or _ignore_progress
+        report = context.progress
         task_lists = [item for item in self.storage.list_task_lists(account_id) if item.remote_id]
         for index, task_list in enumerate(task_lists, start=1):
             report(f"Fetching tasks {index}/{len(task_lists)}")
-            result = result.plus(self.sync_tasks(account_id, task_list))
+            result = result.plus(self.sync_tasks(account_id, task_list, context=context))
         return result
 
-    def sync_tasks(self, account_id: str, task_list: TaskList) -> SyncResult:
+    def sync_tasks(
+        self,
+        account_id: str,
+        task_list: TaskList,
+        *,
+        context: _RetryContext | None = None,
+    ) -> SyncResult:
+        context = context or self._retry_context()
         assert task_list.remote_id is not None
         remote_list_id = task_list.remote_id
         scope = f"tasks:{remote_list_id}"
@@ -348,13 +526,19 @@ class SyncEngine:
                 remote_list_id, page_token=token, updated_min=updated_min
             ),
             apply,
+            context=context,
         )
         self.storage.set_cursor(SyncCursor(account_id, scope, completed_at))
         return result
 
     def sync_calendars(
-        self, account_id: str, *, progress: Callable[[str], None] | None = None
+        self,
+        account_id: str,
+        *,
+        progress: Callable[[str], None] | None = None,
+        context: _RetryContext | None = None,
     ) -> SyncResult:
+        context = context or self._retry_context(progress)
         def apply(item: Json) -> None:
             existing = self.storage.get_calendar_by_remote(account_id, str(item["id"]))
             if existing is None or not existing.metadata.dirty:
@@ -376,7 +560,14 @@ class SyncEngine:
                 )
 
             try:
-                result = self._paged(account_id, scope, fetch, apply, final_cursor_scope=scope)
+                result = self._paged(
+                    account_id,
+                    scope,
+                    fetch,
+                    apply,
+                    final_cursor_scope=scope,
+                    context=context,
+                )
                 break
             except GoogleApiError as exc:
                 if exc.status != 410 or reset:
@@ -388,7 +579,7 @@ class SyncEngine:
                         self.storage.finish_checkpoint(stale[0], error="sync token expired")
                 cursor = None
                 reset = True
-        report = progress or _ignore_progress
+        report = context.progress
         calendars = [
             item
             for item in self.storage.list_calendars(account_id)
@@ -396,10 +587,17 @@ class SyncEngine:
         ]
         for index, calendar in enumerate(calendars, start=1):
             report(f"Fetching calendar {index}/{len(calendars)}")
-            result = result.plus(self.sync_events(account_id, calendar))
+            result = result.plus(self.sync_events(account_id, calendar, context=context))
         return result
 
-    def sync_events(self, account_id: str, calendar: Calendar) -> SyncResult:
+    def sync_events(
+        self,
+        account_id: str,
+        calendar: Calendar,
+        *,
+        context: _RetryContext | None = None,
+    ) -> SyncResult:
+        context = context or self._retry_context()
         assert calendar.remote_id is not None
         remote_calendar_id = calendar.remote_id
         scope = f"events:{remote_calendar_id}"
@@ -456,6 +654,7 @@ class SyncEngine:
                     fetch,
                     apply,
                     final_cursor_scope=scope,
+                    context=context,
                 )
             except GoogleApiError as exc:
                 if exc.status != 410 or reset:
@@ -583,7 +782,10 @@ class SyncEngine:
                 )
         return conflicts
 
-    def flush_outbox(self, account_id: str) -> SyncResult:
+    def flush_outbox(
+        self, account_id: str, *, context: _RetryContext | None = None
+    ) -> SyncResult:
+        context = context or self._retry_context()
         pushed = 0
         conflicts = self.recover_interrupted_deliveries(account_id)
         for mutation in self.storage.pending_mutations(
@@ -607,15 +809,47 @@ class SyncEngine:
                 raise RuntimeError(f"outbox mutation {mutation.id} disappeared")
             self.crash_hook("before-request", sending)
             try:
-                response = self._push(sending)
-            except RequestNotSentError as exc:
-                self.storage.reset_mutation_pending(account_id, mutation.id, str(exc))
+                response = self._retry_call(
+                    "Sending local change",
+                    lambda sending=sending: self._push(sending),
+                    context,
+                    safe_to_retry=lambda error, sending=sending: isinstance(
+                        error, RequestNotSentError
+                    )
+                    or not self._non_idempotent_create(sending),
+                )
+            except _RetryCancelled:
+                self.storage.reset_mutation_pending(account_id, mutation.id, "sync cancelled")
+                return SyncResult(
+                    pushed=pushed,
+                    conflicts=conflicts,
+                    cancelled=True,
+                    retry_message=(
+                        "Sync cancelled. Local changes remain queued; run sync to resume."
+                    ),
+                )
+            except _RetryExhausted as error:
+                self.storage.fail_mutation(account_id, mutation.id, str(error.error))
                 return SyncResult(
                     pushed=pushed,
                     conflicts=conflicts,
                     retry_pending=True,
-                    retry_after=min(300.0, float(2 ** min(mutation.attempts, 8))),
+                    retry_after=error.retry_after,
+                    retry_exhausted=True,
+                    retry_message=(
+                        "Sync paused after bounded retries. Local changes remain queued; "
+                        "run sync to resume."
+                    ),
                 )
+            except TransientTransportError as exc:
+                if self._non_idempotent_create(sending):
+                    self._quarantine_uncertain_create(
+                        sending, "transport ended before Google confirmed delivery"
+                    )
+                    conflicts += 1
+                    continue
+                self.storage.fail_mutation(account_id, mutation.id, str(exc))
+                raise
             except GoogleApiError as exc:
                 if (
                     sending.entity_type is EntityType.EVENT
@@ -624,7 +858,7 @@ class SyncEngine:
                     and exc.status == 409
                 ):
                     response = {"id": sending.request_id}
-                elif self._non_idempotent_create(sending) and exc.status >= 500:
+                elif self._non_idempotent_create(sending) and self._transient(exc):
                     self._quarantine_uncertain_create(
                         sending, f"Google returned ambiguous status {exc.status}"
                     )
@@ -652,15 +886,10 @@ class SyncEngine:
                     continue
                 else:
                     self.storage.fail_mutation(account_id, mutation.id, str(exc))
-                    retryable = exc.retryable or exc.reason in RATE_LIMIT_REASONS
-                    return SyncResult(
-                        pushed=pushed,
-                        conflicts=conflicts,
-                        retry_pending=retryable,
-                        retry_after=exc.retry_after
-                        if exc.retry_after is not None
-                        else min(300.0, float(2 ** min(mutation.attempts, 8))),
-                    )
+                    raise
+            except KeyboardInterrupt:
+                self.storage.reset_mutation_pending(account_id, mutation.id, "sync cancelled")
+                raise
             self.crash_hook("after-remote-success", sending)
             with self.storage.transaction():
                 self._accept_push(sending, response)

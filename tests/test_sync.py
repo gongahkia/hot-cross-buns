@@ -4,12 +4,20 @@ from pathlib import Path
 import pytest
 
 from hcb.application import ApplicationService
-from hcb.errors import GoogleApiError, RequestNotSentError
+from hcb.errors import (
+    AuthenticationRequired,
+    GoogleApiError,
+    RequestNotSentError,
+    TransientTransportError,
+)
 from hcb.google_client import Page
 from hcb.models import (
     Account,
     Calendar,
+    DateTimeKind,
     EntityType,
+    Event,
+    EventDateTime,
     Metadata,
     MutationOperation,
     OutboxDeliveryState,
@@ -203,22 +211,29 @@ def test_page_checkpoint_resumes_without_replaying_committed_page(store):
     }
     original = gateway.list_tasks
     failed = False
+    attempts: list[str | None] = []
+    waits: list[float] = []
 
     def interrupted(task_list_id, *, page_token=None, updated_min=None):
         nonlocal failed
+        attempts.append(page_token)
         if page_token == "p2" and not failed:
             failed = True
             raise GoogleApiError(503, "temporary")
         return original(task_list_id, page_token=page_token, updated_min=updated_min)
 
     gateway.list_tasks = interrupted
-    engine = SyncEngine(store, gateway, now=lambda: NOW)
-    with pytest.raises(GoogleApiError):
-        engine.sync_tasks("a", store.get_task_list("a", "list"))
-    assert store.get_task("a", "one") is not None
-
+    engine = SyncEngine(
+        store,
+        gateway,
+        now=lambda: NOW,
+        random_source=lambda: 0.0,
+        wait_for_retry=lambda delay, _: waits.append(delay) or True,
+    )
     engine.sync_tasks("a", store.get_task_list("a", "list"))
-    assert [call[2] for call in gateway.calls if call[0] == "tasks"] == [None, "p2"]
+    assert store.get_task("a", "one") is not None
+    assert attempts == [None, "p2", "p2"]
+    assert waits == [1.0]
     assert store.get_task("a", "two") is not None
 
 
@@ -281,7 +296,7 @@ def test_remote_recurring_series_change_stales_cached_instance_ranges(store):
     assert ranges[0]["stale_reason"] == "remote-recurring-event-changed"
 
 
-def test_outbox_create_reconciles_id_and_retry_retains_write(store):
+def test_non_idempotent_task_create_is_quarantined_after_ambiguous_rate_limit(store):
     gateway = FakeGateway()
     store.upsert_task(Task("tmp", "a", "list", "Local"))
     mutation = PendingMutation(
@@ -294,15 +309,14 @@ def test_outbox_create_reconciles_id_and_retry_retains_write(store):
     )
     store.enqueue(mutation)
     gateway.fail = GoogleApiError(429, "slow", retry_after=9)
-    result = SyncEngine(store, gateway).flush_outbox("a")
-    assert result.retry_pending and result.retry_after == 9
-    assert store.pending_mutations("a")[0].attempts == 1
-
-    gateway.fail = None
-    result = SyncEngine(store, gateway).flush_outbox("a")
-    assert result.pushed == 1
+    result = SyncEngine(
+        store,
+        gateway,
+        wait_for_retry=lambda _delay, _: pytest.fail("unsafe create must not be retried"),
+    ).flush_outbox("a")
+    assert result.conflicts == 1
     assert store.pending_mutations("a") == []
-    assert store.get_task("a", "tmp").remote_id == "task-r"
+    assert store.list_conflicts("a")[0].local_payload["kind"] == "uncertain-delivery"
 
 
 @pytest.mark.parametrize("status", [409, 410, 412])
@@ -637,10 +651,259 @@ def test_known_request_not_sent_failure_remains_retryable(store: Storage) -> Non
         return original(task_list_id, body)
 
     gateway.create_task = not_sent
-    first = SyncEngine(store, gateway).flush_outbox("a")
-    assert first.retry_pending
+    waits: list[float] = []
+    result = SyncEngine(
+        store,
+        gateway,
+        random_source=lambda: 0.0,
+        wait_for_retry=lambda delay, _: waits.append(delay) or True,
+    ).flush_outbox("a")
+    assert result.pushed == 1
+    assert waits == [1.0]
+    assert store.pending_mutations("a") == []
+
+
+@pytest.mark.parametrize(
+    ("status", "reason", "retry_after"),
+    [
+        (408, None, None),
+        (429, "rateLimitExceeded", 7.0),
+        (503, None, None),
+        (403, "userRateLimitExceeded", None),
+    ],
+)
+def test_safe_outbox_writes_retry_only_transient_google_failures(
+    store: Storage,
+    status: int,
+    reason: str | None,
+    retry_after: float | None,
+) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("remote", "a", "list", "Existing", remote_id="task-r"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "remote",
+            MutationOperation.UPDATE,
+            {"list_id": "list", "body": {"title": "Updated"}},
+        )
+    )
+    attempts = 0
+    waits: list[float] = []
+
+    def flaky_update(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise GoogleApiError(status, "temporary", reason=reason, retry_after=retry_after)
+        return {"id": args[1]}
+
+    gateway.update_task = flaky_update
+    progress: list[str] = []
+    result = SyncEngine(
+        store,
+        gateway,
+        random_source=lambda: 0.25,
+        wait_for_retry=lambda delay, _: waits.append(delay) or True,
+    ).sync("a", progress=progress.append)
+
+    assert result.pushed == 1
+    assert attempts == 2
+    assert waits == [retry_after or 1.25]
+    assert "retrying 1/4" in progress[-1]
+    assert store.pending_mutations("a") == []
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [(400, None), (401, None), (403, "insufficientPermissions"), (409, None)],
+)
+def test_permanent_google_write_failures_are_not_retried(
+    store: Storage, status: int, reason: str | None
+) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("remote", "a", "list", "Existing", remote_id="task-r"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "remote",
+            MutationOperation.UPDATE,
+            {"list_id": "list", "body": {"title": "Updated"}},
+        )
+    )
+    attempts = 0
+
+    def rejected(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise GoogleApiError(status, "permanent", reason=reason)
+
+    gateway.update_task = rejected
+    engine = SyncEngine(
+        store,
+        gateway,
+        wait_for_retry=lambda _delay, _: pytest.fail("permanent failure must not be retried"),
+    )
+    if status == 409:
+        result = engine.flush_outbox("a")
+        assert result.conflicts == 1
+    elif status in {401, 403}:
+        with pytest.raises(AuthenticationRequired, match="Google authorization is required"):
+            engine.flush_outbox("a")
+    else:
+        with pytest.raises(GoogleApiError, match="permanent"):
+            engine.flush_outbox("a")
+    assert attempts == 1
+
+
+def test_retry_exhaustion_keeps_a_safe_write_queued_for_manual_resume(store: Storage) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("remote", "a", "list", "Existing", remote_id="task-r"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "remote",
+            MutationOperation.UPDATE,
+            {"list_id": "list", "body": {"title": "Updated"}},
+        )
+    )
+    attempts = 0
+    waits: list[float] = []
+
+    def unavailable(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise GoogleApiError(503, "unavailable")
+
+    gateway.update_task = unavailable
+    result = SyncEngine(
+        store,
+        gateway,
+        max_retries=2,
+        random_source=lambda: 0.0,
+        wait_for_retry=lambda delay, _: waits.append(delay) or True,
+    ).sync("a")
+
+    assert result.retry_pending and result.retry_exhausted
+    assert result.retry_message and "run sync to resume" in result.retry_message
+    assert attempts == 3
+    assert waits == [1.0, 2.0]
+    mutation = store.pending_mutations("a")[0]
+    assert mutation.delivery_state is OutboxDeliveryState.PENDING
+    assert mutation.attempts == 1
+
+
+def test_cancelling_a_retry_wait_preserves_the_queued_write(store: Storage) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("remote", "a", "list", "Existing", remote_id="task-r"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "remote",
+            MutationOperation.UPDATE,
+            {"list_id": "list", "body": {"title": "Updated"}},
+        )
+    )
+    attempts = 0
+
+    def unavailable(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise GoogleApiError(503, "unavailable")
+
+    gateway.update_task = unavailable
+    result = SyncEngine(
+        store,
+        gateway,
+        wait_for_retry=lambda _delay, _: False,
+    ).sync("a")
+
+    assert result.cancelled
+    assert attempts == 1
     assert store.pending_mutations("a")[0].delivery_state is OutboxDeliveryState.PENDING
-    assert SyncEngine(store, gateway).flush_outbox("a").pushed == 1
+
+
+def test_ambiguous_transport_failure_quarantines_task_create_without_replay(store: Storage) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("tmp", "a", "list", "Local"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "tmp",
+            MutationOperation.CREATE,
+            {"list_id": "list", "body": {"title": "Local"}},
+        )
+    )
+    attempts = 0
+
+    def interrupted(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise TransientTransportError("response lost")
+
+    gateway.create_task = interrupted
+    result = SyncEngine(
+        store,
+        gateway,
+        wait_for_retry=lambda _delay, _: pytest.fail("ambiguous create must not be retried"),
+    ).sync("a")
+
+    assert result.conflicts == 1
+    assert attempts == 1
+    assert store.pending_mutations("a") == []
+
+
+def test_calendar_event_create_retries_with_one_deterministic_id(store: Storage) -> None:
+    gateway = FakeGateway()
+    store.upsert_event(
+        Event(
+            "local-event",
+            "a",
+            "cal",
+            "Planning",
+            start=EventDateTime(DateTimeKind.DATETIME, NOW),
+            end=EventDateTime(DateTimeKind.DATETIME, NOW),
+        )
+    )
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.EVENT,
+            "local-event",
+            MutationOperation.CREATE,
+            {"calendar_id": "cal", "body": {"summary": "Planning"}},
+        )
+    )
+    event_ids: list[str] = []
+
+    def flaky_event(calendar_id, body, **kwargs):
+        event_ids.append(body["id"])
+        if len(event_ids) == 1:
+            raise GoogleApiError(503, "unavailable")
+        raise GoogleApiError(409, "already exists")
+
+    gateway.create_event = flaky_event
+    result = SyncEngine(
+        store,
+        gateway,
+        random_source=lambda: 0.0,
+        wait_for_retry=lambda _delay, _: True,
+    ).sync("a")
+
+    assert result.pushed == 1
+    assert event_ids[0] == event_ids[1]
+    assert store.get_event("a", "local-event").remote_id == event_ids[0]
 
 
 @pytest.mark.parametrize(

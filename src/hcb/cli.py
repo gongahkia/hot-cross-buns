@@ -19,7 +19,7 @@ from typer import _click as click
 from .application import BatchMovePreview, SearchResult
 from .config import ConfigError, load, save
 from .config import schema as config_schema
-from .errors import ExitCode, HcbError
+from .errors import ExitCode, HcbError, OfflineError
 from .import_export import (
     ImportedEvent,
     ImportedRecord,
@@ -1370,7 +1370,21 @@ def sync(
         for item in state.runtime.storage.list_task_lists(account):
             if item.remote_id:
                 state.runtime.storage.delete_cursor(account, f"tasks:{item.remote_id}")
-    result = state.runtime.sync_engine(account).sync(account)
+    try:
+        result = state.runtime.sync_engine(account).sync(
+            account,
+            progress=lambda status: click.echo(status, err=True),
+            cancel_hint="Press Ctrl+C to cancel.",
+        )
+    except KeyboardInterrupt as exc:
+        raise OfflineError(
+            "Sync cancelled. Local changes remain queued.", hint="Run hcb sync to resume."
+        ) from exc
+    if result.cancelled or result.retry_exhausted:
+        raise OfflineError(
+            result.retry_message or "Sync paused. Local changes remain queued.",
+            hint="Run hcb sync to resume.",
+        )
     _emit(
         ctx,
         result,

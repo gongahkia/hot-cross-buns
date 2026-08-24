@@ -491,7 +491,7 @@ def test_sync_is_explicit_network_boundary(
     calls: list[str] = []
 
     class Engine:
-        def sync(self, account_id: str) -> SyncResult:
+        def sync(self, account_id: str, **kwargs: object) -> SyncResult:
             calls.append(account_id)
             return SyncResult(pulled=2, pushed=1)
 
@@ -507,6 +507,34 @@ def test_sync_is_explicit_network_boundary(
     result = invoke(runner, ["--json", "sync"])
     assert json_data(result, "sync")["pulled"] == 2
     assert calls == ["work"]
+
+
+def test_sync_reports_bounded_retry_exhaustion_with_a_resume_hint(
+    cli_env: tuple[CliRunner, AppPaths], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, paths = cli_env
+
+    class Engine:
+        def sync(self, account_id: str, **kwargs: object) -> SyncResult:
+            return SyncResult(
+                retry_pending=True,
+                retry_exhausted=True,
+                retry_message="Sending local change paused after bounded retries.",
+            )
+
+    class SyncRuntime(Runtime):
+        def sync_engine(self, account_id: str) -> Engine:
+            return Engine()
+
+    monkeypatch.setattr(
+        cli,
+        "_runtime_factory",
+        lambda: SyncRuntime(paths, environ={}, token_store=MemoryTokens()),  # type: ignore[arg-type]
+    )
+    result = invoke(runner, ["sync"])
+    assert result.exit_code == 6
+    assert "bounded retries" in result.stderr
+    assert "hcb sync to resume" in result.stderr
 
 
 def test_expected_not_found_uses_stable_exit_without_traceback(

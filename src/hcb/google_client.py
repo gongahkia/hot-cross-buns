@@ -7,10 +7,11 @@ import socket
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any, Protocol, cast
 
-from .errors import GoogleApiError, RequestNotSentError
+from .errors import GoogleApiError, RequestNotSentError, TransientTransportError
 
 Json = dict[str, Any]
 
@@ -128,6 +129,12 @@ def _error_from_http(exc: BaseException) -> GoogleApiError:
     if raw_retry is not None:
         with suppress(TypeError, ValueError):
             retry_after = float(raw_retry)
+        if retry_after is None and isinstance(raw_retry, str):
+            with suppress(TypeError, ValueError, IndexError):
+                retry_at = parsedate_to_datetime(raw_retry)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=UTC)
+                retry_after = max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
     reason: str | None = None
     message = f"Google API request failed ({status or 'unknown status'})"
     content = getattr(exc, "content", b"")
@@ -183,6 +190,12 @@ class GoogleApiClient:
             if isinstance(exc, (ConnectionRefusedError, socket.gaierror)):
                 raise RequestNotSentError(
                     "Google request was not sent because the connection could not be established"
+                ) from exc
+            if isinstance(
+                exc, (BrokenPipeError, ConnectionResetError, TimeoutError, socket.timeout)
+            ):
+                raise TransientTransportError(
+                    "Google request was interrupted before a response was received"
                 ) from exc
             raise
 

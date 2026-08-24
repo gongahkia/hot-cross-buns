@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
+from threading import Event as ThreadEvent
+from threading import Lock
 from time import monotonic
 from typing import ClassVar, Literal, cast
 from urllib.parse import urlparse
@@ -465,20 +467,29 @@ class RattlesLoader(Static):
 
 
 class LoadingScreen(ModalScreen[None]):
-    """Non-dismissable progress surface shared by each remote TUI operation."""
+    """Progress surface shared by explicit remote TUI operations."""
 
-    def __init__(self, message: str) -> None:
+    BINDINGS = [Binding("escape", "cancel_sync", "Cancel sync")]
+
+    def __init__(self, message: str, *, cancellable: bool = False) -> None:
         super().__init__()
         self.message = message
+        self.cancellable = cancellable
 
     def compose(self) -> ComposeResult:
         with Vertical(id="loading-dialog"):
             yield RattlesLoader()
             yield Label(self.message, id="loading-message")
+            if self.cancellable:
+                yield Label("Press Esc to cancel safely", id="loading-cancel-hint")
 
     def set_message(self, message: str) -> None:
         self.message = message
         self.query_one("#loading-message", Label).update(message)
+
+    def action_cancel_sync(self) -> None:
+        if self.cancellable:
+            cast(HcbApp, self.app).cancel_sync()
 
 
 class EditorScreen(ModalScreen[dict[str, str] | None]):
@@ -1643,6 +1654,8 @@ class HcbApp(App[None]):
         self._resize_anchor_x = 0
         self.loading_operation: str | None = None
         self._loading_screen: LoadingScreen | None = None
+        self._sync_cancel = ThreadEvent()
+        self._sync_lock = Lock()
         self._theme_revision = 0
         self._observed_config_marker: tuple[int, int] | None = None
         self._emoji_target: EmojiTarget | None = None
@@ -2248,15 +2261,22 @@ class HcbApp(App[None]):
             f"{state} · {self.cache.pending} pending{suffix}"
         )
 
-    def start_loading(self, operation: str) -> None:
+    def start_loading(self, operation: str, *, cancellable: bool = False) -> None:
         """Show the selected loader while one explicit remote operation is in progress."""
         self.loading_operation = operation
         if self._loading_screen is None:
-            self._loading_screen = LoadingScreen(operation)
+            self._loading_screen = LoadingScreen(operation, cancellable=cancellable)
             self.push_screen(self._loading_screen)
         else:
             self._loading_screen.set_message(operation)
         self._render_chrome(refresh_resources=False)
+
+    def cancel_sync(self) -> None:
+        """Ask the active sync to stop before its next Google request."""
+        if not self._sync_lock.locked():
+            return
+        self._sync_cancel.set()
+        self.update_loading("Cancelling sync after the current request")
 
     def update_loading(self, status: str) -> None:
         """Display the current, concrete stage of the active remote operation."""
@@ -3296,9 +3316,19 @@ class HcbApp(App[None]):
                 severity="warning",
             )
             return
+        if not self._sync_lock.acquire(blocking=False):
+            self.call_from_thread(
+                self.notify,
+                "A sync is already running. Press Esc to cancel it.",
+                severity="warning",
+            )
+            return
         account_id = self.account_id
         failure: Exception | None = None
-        self.call_from_thread(self.start_loading, "Preparing Google sync")
+        self._sync_cancel.clear()
+        self.call_from_thread(
+            lambda: self.start_loading("Preparing Google sync", cancellable=True)
+        )
         worker_storage: Storage | None = None
         try:
             engine = self.runtime.sync_engine(account_id)
@@ -3307,19 +3337,35 @@ class HcbApp(App[None]):
             result = engine.sync(
                 account_id,
                 progress=lambda status: self.call_from_thread(self.update_loading, status),
+                cancelled=self._sync_cancel.is_set,
+                cancel_hint="Press Esc to cancel.",
             )
         except Exception as exc:  # provider failures must not tear down the workspace
             failure = exc
         else:
-            self.call_from_thread(
-                self.notify,
-                f"Sync complete: {result.pulled} pulled, {result.pushed} pushed",
-            )
+            if result.cancelled:
+                self.call_from_thread(
+                    self.notify,
+                    result.retry_message or "Sync cancelled. Local changes remain queued.",
+                    severity="warning",
+                )
+            elif result.retry_exhausted:
+                self.call_from_thread(
+                    self.notify,
+                    result.retry_message or "Sync paused. Local changes remain queued.",
+                    severity="warning",
+                )
+            else:
+                self.call_from_thread(
+                    self.notify,
+                    f"Sync complete: {result.pulled} pulled, {result.pushed} pushed",
+                )
         finally:
             if worker_storage is not None:
                 worker_storage.close()
             self.call_from_thread(self.stop_loading)
             self.call_from_thread(self.refresh_workspace)
+            self._sync_lock.release()
         if failure is not None:
             self.call_from_thread(self._show_remote_failure, "Sync", failure, account_id)
 

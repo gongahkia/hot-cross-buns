@@ -5,6 +5,8 @@ from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
+from threading import Event as ThreadEvent
+from time import sleep
 
 import pytest
 from rich.style import Style
@@ -1135,15 +1137,26 @@ def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
     class Result:
         pulled = 0
         pushed = 0
+        cancelled = False
+        retry_exhausted = False
 
     class Engine:
         def __init__(self) -> None:
             self.storage = original_storage
 
-        def sync(self, account_id: str, *, progress: Callable[[str], None] | None = None) -> Result:
+        def sync(
+            self,
+            account_id: str,
+            *,
+            progress: Callable[[str], None] | None = None,
+            cancelled: Callable[[], bool] | None = None,
+            cancel_hint: str | None = None,
+        ) -> Result:
             assert self.storage is not original_storage
             assert self.storage.get_account(account_id) is not None
             assert progress is not None
+            assert cancelled is not None
+            assert cancel_hint == "Press Esc to cancel."
             progress("Fetching task lists")
             return Result()
 
@@ -1163,6 +1176,62 @@ def test_sync_worker_uses_an_isolated_sqlite_connection(tmp_path: Path) -> None:
             if engines and not isinstance(app.screen, LoadingScreen):
                 break
         assert engines
+        assert not isinstance(app.screen, LoadingScreen)
+
+    app_test(app, assertions)
+
+
+def test_sync_loading_surface_cancels_a_retry_wait(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    started = ThreadEvent()
+
+    class Result:
+        pulled = 0
+        pushed = 0
+        cancelled = True
+        retry_exhausted = False
+        retry_message = "Sync cancelled. Local changes remain queued."
+
+    class Engine:
+        def __init__(self) -> None:
+            self.storage = runtime.storage
+
+        def sync(
+            self,
+            account_id: str,
+            *,
+            progress: Callable[[str], None] | None = None,
+            cancelled: Callable[[], bool] | None = None,
+            cancel_hint: str | None = None,
+        ) -> Result:
+            assert progress is not None and cancelled is not None
+            progress("Sending local change temporarily failed; retrying 1/4 in 1.0s.")
+            started.set()
+            for _ in range(100):
+                if cancelled():
+                    return Result()
+                sleep(0.01)
+            raise AssertionError("sync cancellation was not delivered")
+
+    runtime.sync_engine = lambda _: Engine()  # type: ignore[method-assign,assignment]
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        app.action_sync()
+        for _ in range(30):
+            await asyncio.sleep(0.01)
+            await pilot.pause()  # type: ignore[attr-defined]
+            if started.is_set() and isinstance(app.screen, LoadingScreen):
+                break
+        assert isinstance(app.screen, LoadingScreen)
+        assert app.screen.cancellable
+        assert "Esc to cancel" in str(app.screen.query_one("#loading-cancel-hint", Label).render())
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        for _ in range(30):
+            await asyncio.sleep(0.01)
+            await pilot.pause()  # type: ignore[attr-defined]
+            if not isinstance(app.screen, LoadingScreen):
+                break
         assert not isinstance(app.screen, LoadingScreen)
 
     app_test(app, assertions)
