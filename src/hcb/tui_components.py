@@ -1,0 +1,1400 @@
+"""Reusable Textual widgets and modal workflows for HCB."""
+
+import json
+import shlex
+import subprocess
+import webbrowser
+from collections.abc import Callable
+from contextlib import AbstractContextManager
+from dataclasses import asdict, dataclass
+from datetime import date
+from pathlib import Path
+from time import monotonic
+from typing import Literal, cast
+
+from rich.color import Color as RichColor
+from rich.style import Style
+from rich.text import Text
+from textual import events
+from textual._text_area_theme import TextAreaTheme
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.color import Color
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import (
+    Button,
+    Label,
+    ListItem,
+    ListView,
+    Select,
+    Static,
+    TextArea,
+)
+from textual.widgets import (
+    Input as TextualInput,
+)
+
+from .application import (
+    BatchActionPreview,
+    BatchMovePreview,
+)
+from .environment import LocalEnvironment
+from .errors import HcbError
+from .import_export import ImportPreview
+from .loaders import LOADER_NAMES, loader_preset
+from .models import ConflictStatus, Event, Task
+from .runtime import DEFAULT_CREDENTIAL_FILE
+from .themes import preset, presets
+from .tui import (
+    BOOLEAN_OPTIONS,
+    BORDER_OPTIONS,
+    CURRENT_THEME_VALUE,
+    DATE_TIME_FORMAT_OPTIONS,
+    DENSITY_OPTIONS,
+    DUE_DAY_OPTIONS,
+    DUE_MONTH_OPTIONS,
+    FOCUS_OPTIONS,
+    PALETTE_COMMANDS,
+    PROFILE_OPTIONS,
+    TIME_ZONE_OPTIONS,
+    WEEK_START_OPTIONS,
+    HcbApp,
+    linkify_urls,
+)
+
+
+class EmojiCompletion(Static):
+    """A non-focus-stealing suggestion surface shared by text editors."""
+
+    def __init__(self) -> None:
+        super().__init__(id="emoji-completion", markup=False)
+        self.display = False
+
+    def set_candidates(self, candidates: tuple[tuple[str, str], ...], selected: int) -> None:
+        self.update(
+            "\n".join(
+                f"{'> ' if index == selected else '  '}:{name}: {emoji}"
+                for index, (name, emoji) in enumerate(candidates)
+            )
+        )
+        self.display = True
+
+
+class Input(TextualInput):
+    """Keep a visible terminal-style caret in every single-line editor."""
+
+    def on_mount(self) -> None:
+        self.cursor_blink = False
+
+    async def _on_key(self, event: events.Key) -> None:
+        app = self.app
+        if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+            return
+        if isinstance(app, HcbApp) and app.handle_external_editor_key(self, event):
+            return
+        await super()._on_key(event)
+        if isinstance(app, HcbApp):
+            app.update_emoji_completion(self)
+
+    def on_blur(self, event: events.Blur) -> None:
+        app = self.app
+        if isinstance(app, HcbApp):
+            app.dismiss_emoji_completion(self)
+
+
+@dataclass(frozen=True, slots=True)
+class CachedWorkspace:
+    identity: str = ""
+    tasks: tuple[Task, ...] = ()
+    events: tuple[Event, ...] = ()
+    task_lists: tuple[tuple[str, str], ...] = ()
+    calendars: tuple[tuple[str, str, bool], ...] = ()
+    instance_ranges: tuple[dict[str, str], ...] = ()
+    pending: int = 0
+
+
+class EntityRow(ListItem):
+    """A selectable row carrying a domain identity."""
+
+    def __init__(
+        self, label: str | Text, *, kind: str, item_id: str, action: str | None = None
+    ) -> None:
+        super().__init__(Label(linkify_urls(label), markup=False))
+        self.kind = kind
+        self.item_id = item_id
+        self.palette_action = action
+
+
+class TerminalTextArea(TextArea):
+    """Use terminal-default Rich colors where Textual itself needs an opaque base style."""
+
+    def on_mount(self) -> None:
+        self.cursor_blink = False
+        self.apply_terminal_theme()
+
+    async def _on_key(self, event: events.Key) -> None:
+        app = self.app
+        if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+            return
+        if isinstance(app, HcbApp) and app.handle_external_editor_key(self, event):
+            return
+        await super()._on_key(event)
+        if isinstance(app, HcbApp):
+            app.update_emoji_completion(self)
+
+    def on_blur(self, event: events.Blur) -> None:
+        app = self.app
+        if isinstance(app, HcbApp):
+            app.dismiss_emoji_completion(self)
+
+    def apply_terminal_theme(self) -> None:
+        colors = cast(HcbApp, self.app).runtime.config.theme.colors
+        self.register_theme(
+            TextAreaTheme(
+                "hcb-terminal",
+                base_style=Style(
+                    color=self._rich_color(colors.text),
+                    bgcolor=self._rich_color(colors.control),
+                ),
+            )
+        )
+        self.theme = "css"
+        self.theme = "hcb-terminal"
+
+    @staticmethod
+    def _rich_color(value: str) -> RichColor | str:
+        if value in {"transparent", "ansi_default"}:
+            return "default"
+        return Color.parse(value).rich_color
+
+
+type EmojiTarget = Input | TerminalTextArea
+type EditorRunner = Callable[[list[str]], int]
+type SuspendContext = Callable[[], AbstractContextManager[None]]
+type UrlOpener = Callable[[str], bool]
+
+
+def _run_editor(command: list[str]) -> int:
+    return subprocess.run(command, check=False).returncode
+
+
+def _open_url(url: str) -> bool:
+    return webbrowser.open(url, new=2)
+
+
+class RattlesLoader(Static):
+    """Animate the configured Rattles preset using its source timing."""
+
+    def __init__(self) -> None:
+        super().__init__(id="rattles-loader")
+        self._started_at = monotonic()
+
+    def on_mount(self) -> None:
+        self._render_frame()
+        self.set_interval(0.05, self._render_frame)
+
+    def _render_frame(self) -> None:
+        app = cast(HcbApp, self.app)
+        preset = loader_preset(app.runtime.config.theme.loader)
+        self.update(preset.frame_at(monotonic() - self._started_at))
+
+
+class LoadingScreen(ModalScreen[None]):
+    """Progress surface shared by explicit remote TUI operations."""
+
+    BINDINGS = [Binding("escape", "cancel_sync", "Cancel sync")]
+
+    def __init__(self, message: str, *, cancellable: bool = False) -> None:
+        super().__init__()
+        self.message = message
+        self.cancellable = cancellable
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="loading-dialog"):
+            yield RattlesLoader()
+            yield Label(self.message, id="loading-message")
+            if self.cancellable:
+                yield Label("Press Esc to cancel safely", id="loading-cancel-hint")
+
+    def set_message(self, message: str) -> None:
+        self.message = message
+        self.query_one("#loading-message", Label).update(message)
+
+    def action_cancel_sync(self) -> None:
+        if self.cancellable:
+            cast(HcbApp, self.app).cancel_sync()
+
+
+class EditorScreen(ModalScreen[dict[str, str] | None]):
+    """Keyboard-first task editor and date-jump prompt."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(
+        self,
+        *,
+        title: str = "",
+        notes: str = "",
+        due: str = "",
+        jump: bool = False,
+        deletable: bool = False,
+    ) -> None:
+        super().__init__()
+        self.initial_title = title
+        self.initial_notes = notes
+        self.initial_due = due
+        self.jump = jump
+        self.deletable = deletable
+        self._initial_due_date = date.fromisoformat(due) if due else None
+
+    def _due_year_options(self) -> tuple[tuple[str, str], ...]:
+        current_year = date.today().year
+        initial_year = self._initial_due_date.year if self._initial_due_date else current_year
+        start = min(current_year - 5, initial_year)
+        end = max(current_year + 10, initial_year)
+        return tuple((str(year), str(year)) for year in range(start, end + 1))
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="editor-dialog"):
+            yield Label("Jump to date" if self.jump else "Task editor", id="dialog-title")
+            yield Input(
+                value=self.initial_due if self.jump else self.initial_title,
+                placeholder="YYYY-MM-DD" if self.jump else "Task title",
+                id="editor-title",
+            )
+            if not self.jump:
+                with Horizontal(classes="due-date-fields"):
+                    yield Select(
+                        DUE_DAY_OPTIONS,
+                        prompt="Day",
+                        value=(
+                            str(self._initial_due_date.day)
+                            if self._initial_due_date
+                            else Select.NULL
+                        ),
+                        id="editor-due-day",
+                    )
+                    yield Select(
+                        DUE_MONTH_OPTIONS,
+                        prompt="Month",
+                        value=(
+                            str(self._initial_due_date.month)
+                            if self._initial_due_date
+                            else Select.NULL
+                        ),
+                        id="editor-due-month",
+                    )
+                    yield Select(
+                        self._due_year_options(),
+                        prompt="Year",
+                        value=(
+                            str(self._initial_due_date.year)
+                            if self._initial_due_date
+                            else Select.NULL
+                        ),
+                        id="editor-due-year",
+                    )
+                yield TerminalTextArea(self.initial_notes, id="editor-notes")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Go" if self.jump else "Save", variant="primary", id="save")
+                if self.deletable:
+                    yield Button("Delete", variant="error", id="delete")
+                yield Button("Cancel", id="cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#editor-title", Input).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def _result(self) -> dict[str, str]:
+        if self.jump:
+            return {"date": self.query_one("#editor-title", Input).value.strip()}
+        return {
+            "title": self.query_one("#editor-title", Input).value.strip(),
+            "due": self._due_value(),
+            "notes": self.query_one("#editor-notes", TextArea).text,
+        }
+
+    def _due_value(self) -> str:
+        day_value = self.query_one("#editor-due-day", Select).value
+        month_value = self.query_one("#editor-due-month", Select).value
+        year_value = self.query_one("#editor-due-year", Select).value
+        values = (day_value, month_value, year_value)
+        if all(value is Select.NULL for value in values):
+            return ""
+        if not all(isinstance(value, str) for value in values):
+            raise ValueError("Choose a day, month, and year, or clear all due-date fields")
+        assert isinstance(day_value, str)
+        assert isinstance(month_value, str)
+        assert isinstance(year_value, str)
+        day, month, year = int(day_value), int(month_value), int(year_value)
+        return date(year, month, day).isoformat()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if self.jump:
+            self.dismiss(self._result())
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "delete":
+            self.dismiss({"action": "delete"})
+            return
+        if event.button.id != "save":
+            self.dismiss(None)
+            return
+        try:
+            self.dismiss(self._result())
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+
+
+class ConfirmScreen(ModalScreen[bool]):
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("y", "confirm", "Confirm"),
+        Binding("n", "cancel", "Cancel"),
+    ]
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        confirm_label: str = "Confirm",
+        confirm_variant: Literal["default", "primary", "success", "warning", "error"] = "primary",
+    ) -> None:
+        super().__init__()
+        self.message = message
+        self.confirm_label = confirm_label
+        self.confirm_variant = confirm_variant
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-dialog"):
+            yield Label(self.message, markup=False)
+            with Horizontal(classes="dialog-buttons"):
+                yield Button(self.confirm_label, variant=self.confirm_variant, id="confirm")
+                yield Button("Cancel", id="cancel")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "confirm")
+
+
+class OnboardingScreen(ModalScreen[dict[str, str] | None]):
+    """First-run setup; no network action occurs inside this screen."""
+
+    BINDINGS = [Binding("escape", "offline", "Stay offline")]
+
+    def __init__(self, environment: LocalEnvironment) -> None:
+        super().__init__()
+        self.environment = environment
+
+    def _theme_options(self) -> tuple[tuple[str, str], ...]:
+        detected = self.environment.suggested_preset
+        options: list[tuple[str, str]] = [("Keep terminal defaults", "terminal")]
+        if detected:
+            options.append((f"Use detected {detected}", detected))
+        options.extend((item.name, item.name) for item in presets() if item.name != detected)
+        return tuple(options)
+
+    def _appearance_notification(self) -> str:
+        theme = self.environment.terminal_theme
+        if self.environment.suggested_preset:
+            return (
+                f"Detected {theme} in {self.environment.terminal_name}. "
+                f"Use detected {self.environment.suggested_preset} is available under Appearance."
+            )
+        if theme:
+            return (
+                f"Detected {theme} in {self.environment.terminal_name}, but HCB has no matching "
+                "bundled palette."
+            )
+        return "No named terminal theme detected. Appearance remains optional."
+
+    def on_mount(self) -> None:
+        self.notify(self._appearance_notification(), timeout=8)
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="onboarding-dialog"):
+            yield Label("Welcome to Hot Cross Buns", id="dialog-title")
+            with VerticalScroll(id="onboarding-fields"):
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Credential .env path")
+                    yield Input(
+                        value=str(DEFAULT_CREDENTIAL_FILE),
+                        placeholder="Credential .env path",
+                        id="onboard-env-file",
+                    )
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Local account identifier")
+                    yield Input(placeholder="Local account identifier", id="onboard-account")
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Account email")
+                    yield Input(placeholder="Account email", id="onboard-email")
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Time zone")
+                    yield Select(
+                        TIME_ZONE_OPTIONS,
+                        allow_blank=False,
+                        prompt="Time zone",
+                        value="UTC",
+                        id="onboard-timezone",
+                    )
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Reminders")
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        allow_blank=False,
+                        prompt="Reminders",
+                        value="true",
+                        id="onboard-reminders",
+                    )
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Appearance")
+                    yield Select(
+                        self._theme_options(),
+                        allow_blank=False,
+                        value="terminal",
+                        id="onboard-theme",
+                    )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Save offline", id="onboard-offline")
+                yield Button("Save and connect", variant="primary", id="onboard-connect")
+
+    def action_offline(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id not in {"onboard-offline", "onboard-connect"}:
+            return
+        self.dismiss(
+            {
+                "env_file": self.query_one("#onboard-env-file", Input).value.strip(),
+                "account_id": self.query_one("#onboard-account", Input).value.strip(),
+                "email": self.query_one("#onboard-email", Input).value.strip(),
+                "time_zone": self._selected_value("#onboard-timezone", "a time zone"),
+                "reminders": self._selected_value("#onboard-reminders", "a reminder setting"),
+                "theme_preset": self._selected_value("#onboard-theme", "an appearance"),
+                "connect": str(event.button.id == "onboard-connect").lower(),
+            }
+        )
+
+    def _selected_value(self, selector: str, label: str) -> str:
+        value = self.query_one(selector, Select).value
+        if not isinstance(value, str):
+            raise ValueError(f"select {label}")
+        return value
+
+
+class GoogleSetupScreen(ModalScreen[None]):
+    """Explain how to recover from an unavailable Google connection."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(
+        self,
+        *,
+        operation: str,
+        account_id: str,
+        email: str,
+        credential_file: Path,
+        reason: str,
+    ) -> None:
+        super().__init__()
+        self.operation = operation
+        self.account_id = account_id
+        self.email = email
+        self.credential_file = credential_file
+        self.reason = reason
+
+    def compose(self) -> ComposeResult:
+        credential_path = str(self.credential_file)
+        command = " ".join(
+            (
+                "hcb",
+                "--env-file",
+                shlex.quote(credential_path),
+                "auth",
+                "connect",
+                shlex.quote(self.account_id),
+                shlex.quote(self.email),
+            )
+        )
+        with Vertical(id="google-setup-dialog"):
+            yield Label("Google connection required", id="dialog-title")
+            with VerticalScroll(id="google-setup-content"):
+                yield Static(
+                    f"{self.operation} did not start because HCB could not use the Google "
+                    f"connection for {self.account_id!r}.\n\n"
+                    f"Details: {self.reason}\n\n"
+                    "To fix it:\n"
+                    "1. In Google Cloud, create a Desktop OAuth client and enable the Google "
+                    "Calendar, Tasks, and Drive APIs.\n"
+                    f"2. Add its client ID to {credential_path}:\n"
+                    "   HCB_GOOGLE_CLIENT_ID=...apps.googleusercontent.com\n"
+                    "   HCB_GOOGLE_CLIENT_SECRET=...  # optional for Desktop clients\n"
+                    f"3. Secure the file: chmod 600 {shlex.quote(credential_path)}\n"
+                    "4. In a terminal, connect this account:\n"
+                    f"   {command}\n\n"
+                    "Approve the browser request, return here, and try again. When running HCB "
+                    "from this source checkout, prefix the command with `uv run`.",
+                    id="google-setup-guidance",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Close", variant="primary", id="google-setup-close")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "google-setup-close":
+            self.dismiss(None)
+
+
+class ScheduleScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp, task_id: str = "") -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.task_id = task_id
+
+    def compose(self) -> ComposeResult:
+        default_calendar = self.hcb.cache.calendars[0][0] if self.hcb.cache.calendars else ""
+        with Vertical(id="schedule-dialog"):
+            yield Label("Task schedule block", id="dialog-title")
+            yield Input(value=self.task_id, placeholder="Task id", id="schedule-task")
+            yield Input(value=default_calendar, placeholder="Calendar id", id="schedule-calendar")
+            yield Input(placeholder="Existing event id for repair", id="schedule-event")
+            yield Input(placeholder="Start ISO timestamp", id="schedule-start")
+            yield Input(placeholder="End ISO timestamp", id="schedule-end")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Schedule / move", variant="primary", id="schedule-save")
+                yield Button("Unschedule", variant="error", id="schedule-remove")
+                yield Button("Repair link", id="schedule-repair")
+                yield Button("Close", id="schedule-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "schedule-close":
+            self.dismiss(None)
+            return
+        if self.hcb.account_id is None:
+            return
+        task_id = self.query_one("#schedule-task", Input).value.strip()
+        try:
+            if event.button.id == "schedule-remove":
+                self.app.push_screen(
+                    ConfirmScreen(
+                        "Delete this task's active calendar block?",
+                        confirm_label="Delete",
+                        confirm_variant="error",
+                    ),
+                    lambda confirmed: self._unschedule(task_id, confirmed),
+                )
+                return
+            elif event.button.id == "schedule-repair":
+                self.hcb.runtime.application.repair_task_schedule(
+                    self.hcb.account_id,
+                    task_id,
+                    self.query_one("#schedule-event", Input).value.strip(),
+                )
+            else:
+                self.hcb.runtime.application.schedule_task(
+                    self.hcb.account_id,
+                    task_id,
+                    self.query_one("#schedule-calendar", Input).value.strip(),
+                    self.hcb._parse_event_point(
+                        self.query_one("#schedule-start", Input).value.strip()
+                    ),
+                    self.hcb._parse_event_point(
+                        self.query_one("#schedule-end", Input).value.strip()
+                    ),
+                )
+        except (ValueError, HcbError) as exc:
+            self.hcb.notify(str(exc), severity="error")
+            return
+        self.hcb.refresh_workspace()
+        self.hcb.notify("Schedule updated")
+
+    def _unschedule(self, task_id: str, confirmed: bool | None) -> None:
+        if confirmed and self.hcb.account_id is not None:
+            self.hcb.runtime.application.unschedule_task(self.hcb.account_id, task_id)
+            self.hcb.refresh_workspace()
+            self.hcb.notify("Task unscheduled")
+
+
+class BulkScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="bulk-dialog"):
+            yield Label(
+                f"Bulk actions · {len(self.hcb.marked)} task(s), "
+                f"{len(self.hcb.marked_events)} event(s)"
+            )
+            yield Button("Complete marked", variant="primary", id="bulk-complete")
+            yield Button("Move marked tasks…", id="bulk-move-tasks")
+            yield Button("RSVP to marked events", id="bulk-rsvp")
+            yield Button("Move marked events…", id="bulk-move-events")
+            yield Button("Delete marked…", variant="error", id="bulk-delete")
+            yield Button("Close", id="bulk-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "bulk-close":
+            self.dismiss(None)
+        elif event.button.id == "bulk-complete":
+            self.dismiss(None)
+            self.hcb.action_complete()
+        elif event.button.id == "bulk-move-tasks":
+            self.dismiss(None)
+            self.hcb.action_move_marked("task")
+        elif event.button.id == "bulk-delete":
+            self.dismiss(None)
+            self.hcb.action_delete()
+        elif event.button.id == "bulk-rsvp":
+            self.dismiss(None)
+            self.hcb.action_rsvp()
+        elif event.button.id == "bulk-move-events":
+            self.dismiss(None)
+            self.hcb.action_move_marked("event")
+
+
+class BatchActionScreen(ModalScreen[None]):
+    """Show an exact local batch transformation before applying it."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp, preview: BatchActionPreview) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.preview = preview
+
+    def compose(self) -> ComposeResult:
+        action_labels = {
+            "complete": "Complete",
+            "reopen": "Reopen",
+            "delete": "Delete",
+            "respond": "Queue RSVP",
+        }
+        label = action_labels[self.preview.action]
+        with Vertical(id="batch-action-dialog"):
+            yield Label(f"Review batch {self.preview.action}", id="dialog-title")
+            yield Label(
+                f"{len(self.preview.items)} selected {self.preview.entity_type}(s). "
+                "Nothing changes until you apply this plan."
+            )
+            with VerticalScroll(id="batch-action-preview"):
+                yield Static(
+                    self.hcb.batch_action_preview_text(self.preview),
+                    id="batch-action-summary",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button(
+                    label,
+                    variant="error" if self.preview.action == "delete" else "primary",
+                    id="batch-action-apply",
+                )
+                yield Button("Cancel", id="batch-action-cancel")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "batch-action-cancel":
+            self.dismiss(None)
+            return
+        if event.button.id != "batch-action-apply":
+            return
+        if self.hcb.apply_batch_action(self.preview):
+            self.dismiss(None)
+
+
+class BatchMoveScreen(ModalScreen[None]):
+    """Review a complete local move plan before enqueueing its serial mutations."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(
+        self, hcb: HcbApp, entity_type: Literal["task", "event"], item_ids: tuple[str, ...]
+    ) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.entity_type = entity_type
+        self.item_ids = item_ids
+        self.preview: BatchMovePreview | None = None
+
+    def compose(self) -> ComposeResult:
+        if self.entity_type == "task":
+            options = tuple((label, item_id) for item_id, label in self.hcb.cache.task_lists)
+            title = "Move marked tasks"
+            prompt = "Destination task list"
+        else:
+            options = tuple(
+                (label, item_id) for item_id, label, _selected in self.hcb.cache.calendars
+            )
+            title = "Move marked events"
+            prompt = "Destination calendar"
+        with Vertical(id="batch-move-dialog"):
+            yield Label(title, id="dialog-title")
+            yield Label(f"{len(self.item_ids)} selected {self.entity_type}(s)")
+            yield Select(
+                options,
+                prompt=prompt,
+                allow_blank=False,
+                id="batch-move-destination",
+            )
+            with VerticalScroll(id="batch-move-preview"):
+                yield Static(
+                    "Choose a destination, then review the exact local plan. "
+                    "Nothing changes until you confirm.",
+                    id="batch-move-summary",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Review move", variant="primary", id="batch-move-review")
+                yield Button("Confirm move", disabled=True, id="batch-move-confirm")
+                yield Button("Cancel", id="batch-move-cancel")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "batch-move-cancel":
+            self.dismiss(None)
+            return
+        if event.button.id not in {"batch-move-review", "batch-move-confirm"}:
+            return
+        if self.hcb.account_id is None:
+            return
+        destination = self.query_one("#batch-move-destination", Select).value
+        if not isinstance(destination, str):
+            self.notify("Choose a destination first", severity="warning")
+            return
+        if event.button.id == "batch-move-review":
+            try:
+                self.preview = (
+                    self.hcb.runtime.application.preview_task_move(
+                        self.hcb.account_id, list(self.item_ids), destination
+                    )
+                    if self.entity_type == "task"
+                    else self.hcb.runtime.application.preview_event_move(
+                        self.hcb.account_id, list(self.item_ids), destination
+                    )
+                )
+            except (ValueError, HcbError) as exc:
+                self.notify(str(exc), severity="error")
+                return
+            self.query_one("#batch-move-summary", Static).update(
+                self.hcb.batch_move_preview_text(self.preview)
+            )
+            self.query_one("#batch-move-confirm", Button).disabled = False
+            return
+        if self.preview is None or self.preview.destination_id != destination:
+            self.notify("Review the updated destination before confirming", severity="warning")
+            return
+        try:
+            if self.entity_type == "task":
+                self.hcb.runtime.application.move_tasks(
+                    self.hcb.account_id, list(self.item_ids), destination
+                )
+            else:
+                self.hcb.runtime.application.move_events(
+                    self.hcb.account_id, list(self.item_ids), destination
+                )
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self.hcb.refresh_workspace()
+        self.hcb.notify(f"Queued move for {len(self.item_ids)} {self.entity_type}(s)")
+        self.dismiss(None)
+
+
+class ImportScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.preview: ImportPreview | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="import-dialog"):
+            yield Label("Import preview", id="dialog-title")
+            yield Input(placeholder="CSV, JSON, or ICS path", id="import-path")
+            yield Static("Choose Preview; nothing is written until Apply.", id="import-summary")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Preview", variant="primary", id="import-preview")
+                yield Button("Apply accepted rows", id="import-apply")
+                yield Button("Close", id="import-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "import-close":
+            self.dismiss(None)
+            return
+        if self.hcb.account_id is None:
+            return
+        try:
+            if event.button.id == "import-preview":
+                target = Path(self.query_one("#import-path", Input).value).expanduser()
+                self.preview = self.hcb.runtime.application.preview_import(
+                    target.name, target.read_bytes()
+                )
+                accepted = sum(row.record is not None for row in self.preview.rows)
+                skipped = len(self.preview.rows) - accepted
+                self.query_one("#import-summary", Static).update(
+                    f"Accepted: {accepted} · skipped: {skipped} · errors: "
+                    f"{len(self.preview.errors)}"
+                )
+            elif self.preview is None:
+                raise ValueError("preview the import before applying it")
+            else:
+                self.app.push_screen(
+                    ConfirmScreen("Apply all accepted import rows atomically?"),
+                    self._apply_confirmed,
+                )
+        except (OSError, ValueError, HcbError) as exc:
+            self.hcb.notify(str(exc), severity="error")
+
+    def _apply_confirmed(self, confirmed: bool | None) -> None:
+        if not confirmed or self.preview is None or self.hcb.account_id is None:
+            return
+        try:
+            result = self.hcb.runtime.application.apply_import(
+                self.hcb.account_id,
+                self.preview,
+                default_task_list_id=(
+                    self.hcb.cache.task_lists[0][0] if self.hcb.cache.task_lists else None
+                ),
+                default_calendar_id=(
+                    self.hcb.cache.calendars[0][0] if self.hcb.cache.calendars else None
+                ),
+            )
+        except (ValueError, HcbError) as exc:
+            self.hcb.notify(str(exc), severity="error")
+            return
+        self.hcb.refresh_workspace()
+        self.hcb.notify(f"Imported {len(result.tasks)} tasks and {len(result.events)} events")
+
+
+class ConflictScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.conflict_id: int | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="conflict-dialog"):
+            yield Label("Sync conflicts", id="dialog-title")
+            yield ListView(id="conflict-list")
+            yield Input(
+                placeholder="Remote ID (required when uncertain create was delivered)",
+                id="conflict-remote-id",
+            )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Keep local", id="conflict-local")
+                yield Button("Keep Google", id="conflict-remote")
+                yield Button("Close", id="conflict-close")
+
+    def on_mount(self) -> None:
+        if self.hcb.account_id is None:
+            return
+        view = self.query_one("#conflict-list", ListView)
+        for conflict in self.hcb.runtime.storage.list_conflicts(self.hcb.account_id):
+            view.append(
+                EntityRow(
+                    f"{conflict.id} · {conflict.entity_type.value} · {conflict.entity_id}",
+                    kind="conflict",
+                    item_id=str(conflict.id),
+                )
+            )
+        if view.children:
+            view.index = 0
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        if isinstance(event.item, EntityRow):
+            self.conflict_id = int(event.item.item_id)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "conflict-close":
+            self.dismiss(None)
+        elif self.conflict_id is not None and self.hcb.account_id is not None:
+            conflict = next(
+                (
+                    item
+                    for item in self.hcb.runtime.storage.list_conflicts(self.hcb.account_id)
+                    if item.id == self.conflict_id
+                ),
+                None,
+            )
+            if conflict is None:
+                return
+            resolution = (
+                ConflictStatus.KEEP_LOCAL
+                if event.button.id == "conflict-local"
+                else ConflictStatus.KEEP_REMOTE
+            )
+            try:
+                if conflict.local_payload.get("kind") == "uncertain-delivery":
+                    self.hcb.runtime.application.resolve_uncertain_delivery(
+                        self.hcb.account_id,
+                        self.conflict_id,
+                        "retry" if resolution is ConflictStatus.KEEP_LOCAL else "delivered",
+                        remote_id=self.query_one("#conflict-remote-id", Input).value.strip()
+                        or None,
+                    )
+                else:
+                    self.hcb.runtime.application.resolve_conflict(
+                        self.hcb.account_id, self.conflict_id, resolution
+                    )
+            except (ValueError, HcbError) as exc:
+                self.hcb.notify(str(exc), severity="error")
+                return
+            self.dismiss(None)
+            self.hcb.notify("Conflict resolved")
+
+
+class EventEditorScreen(ModalScreen[dict[str, str] | None]):
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, event: Event | None, calendar_id: str) -> None:
+        super().__init__()
+        self.event = event
+        self.calendar_id = event.calendar_id if event else calendar_id
+
+    def compose(self) -> ComposeResult:
+        event = self.event
+        with Vertical(id="event-dialog"):
+            yield Label("Event editor", id="dialog-title")
+            yield Input(value=event.summary if event else "", placeholder="Title", id="event-title")
+            yield Input(
+                value=event.start.value.isoformat() if event else "",
+                placeholder="Start: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
+                id="event-start",
+            )
+            yield Input(
+                value=event.end.value.isoformat() if event else "",
+                placeholder="End: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
+                id="event-end",
+            )
+            yield Input(value=self.calendar_id, placeholder="Calendar id", id="event-calendar")
+            yield Input(
+                value=event.location or "" if event else "",
+                placeholder="Location",
+                id="event-location",
+            )
+            yield Input(
+                value=" | ".join(event.recurrence) if event else "",
+                placeholder="Recurrence lines separated by |",
+                id="event-recurrence",
+            )
+            yield TerminalTextArea(event.description or "" if event else "", id="event-description")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Save", variant="primary", id="event-save")
+                if event is not None:
+                    yield Button("Delete", variant="error", id="event-delete")
+                yield Button("Cancel", id="event-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#event-title", Input).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "event-delete":
+            self.dismiss({"action": "delete"})
+            return
+        if event.button.id != "event-save":
+            self.dismiss(None)
+            return
+        self.dismiss(
+            {
+                "title": self.query_one("#event-title", Input).value.strip(),
+                "start": self.query_one("#event-start", Input).value.strip(),
+                "end": self.query_one("#event-end", Input).value.strip(),
+                "calendar": self.query_one("#event-calendar", Input).value.strip(),
+                "location": self.query_one("#event-location", Input).value.strip(),
+                "recurrence": self.query_one("#event-recurrence", Input).value.strip(),
+                "description": self.query_one("#event-description", TextArea).text,
+            }
+        )
+
+
+class RsvpScreen(ModalScreen[str | None]):
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="rsvp-dialog"):
+            yield Label("RSVP response", id="dialog-title")
+            yield Button("Accept", id="accepted")
+            yield Button("Tentative", id="tentative")
+            yield Button("Decline", id="declined")
+            yield Button("Needs action", id="needsAction")
+            yield Button("Cancel", id="cancel")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(None if event.button.id == "cancel" else event.button.id)
+
+
+class CalendarScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.selected_id: str | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="calendar-dialog"):
+            yield Label("Calendars", id="dialog-title")
+            yield ListView(id="calendar-list")
+            yield Input(placeholder="New calendar name", id="calendar-name")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Add", variant="primary", id="calendar-add")
+                yield Button("Toggle", id="calendar-toggle")
+                yield Button("Delete", variant="error", id="calendar-delete")
+                yield Button("Close", id="calendar-close")
+
+    def on_mount(self) -> None:
+        self.refresh_list()
+
+    def refresh_list(self) -> None:
+        view = self.query_one("#calendar-list", ListView)
+        view.clear()
+        for calendar_id, summary, selected in self.hcb.calendar_rows():
+            marker = "x" if selected else " "
+            view.append(
+                EntityRow(
+                    f"[{marker}] {summary}",
+                    kind="calendar",
+                    item_id=calendar_id,
+                )
+            )
+        if view.children:
+            view.index = 0
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        if isinstance(event.item, EntityRow):
+            self.selected_id = event.item.item_id
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        action = event.button.id
+        if action == "calendar-close":
+            self.dismiss(None)
+        elif action == "calendar-add":
+            name = self.query_one("#calendar-name", Input).value.strip()
+            if name and self.hcb.create_calendar(name):
+                self.query_one("#calendar-name", Input).value = ""
+                self.refresh_list()
+        elif action == "calendar-toggle" and self.selected_id:
+            self.hcb.toggle_calendar(self.selected_id)
+            self.refresh_list()
+        elif action == "calendar-delete" and self.selected_id:
+            self.hcb.confirm_calendar_delete(self.selected_id, self.refresh_list)
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+class SettingsScreen(ModalScreen[dict[str, str] | None]):
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+
+    def compose(self) -> ComposeResult:
+        values = self.hcb.settings_values()
+        with Vertical(id="settings-dialog"):
+            yield Label("Settings", id="dialog-title")
+            with VerticalScroll(id="settings-fields"):
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        self._theme_options(),
+                        allow_blank=False,
+                        prompt="Theme palette",
+                        value=values["theme_preset"],
+                        id="setting-theme",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        PROFILE_OPTIONS,
+                        allow_blank=False,
+                        prompt="Profile",
+                        value=values["profile"],
+                        id="setting-profile",
+                    )
+                    yield Select(
+                        DENSITY_OPTIONS,
+                        allow_blank=False,
+                        prompt="Density",
+                        value=values["density"],
+                        id="setting-density",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        BORDER_OPTIONS,
+                        allow_blank=False,
+                        prompt="Border style",
+                        value=values["borders"],
+                        id="setting-borders",
+                    )
+                    yield Select(
+                        FOCUS_OPTIONS,
+                        allow_blank=False,
+                        prompt="Focus style",
+                        value=values["focus"],
+                        id="setting-focus",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        allow_blank=False,
+                        prompt="Mouse support",
+                        value=values["mouse"],
+                        id="setting-mouse",
+                    )
+                    yield Select(
+                        WEEK_START_OPTIONS,
+                        allow_blank=False,
+                        prompt="Week starts on",
+                        value=values["week_starts_on"],
+                        id="setting-week",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        DATE_TIME_FORMAT_OPTIONS,
+                        allow_blank=False,
+                        prompt="Date and time display",
+                        value=values["date_time_format"],
+                        id="setting-date-time-format",
+                    )
+                    yield Select(
+                        [(name, name) for name in LOADER_NAMES],
+                        allow_blank=False,
+                        prompt="Loading indicator",
+                        value=values["loader"],
+                        id="setting-loader",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Input(
+                        value=values["editor"],
+                        placeholder="External editor command",
+                        id="setting-editor",
+                    )
+                    yield Input(
+                        value=values["external_editor"],
+                        placeholder="External editor shortcut",
+                        id="setting-external-editor",
+                    )
+                yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
+                yield TerminalTextArea(values["colors"], id="settings-colors")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Save", variant="primary", id="settings-save")
+                yield Button("Cancel", id="settings-cancel")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id != "settings-save":
+            self.dismiss(None)
+            return
+        self.dismiss(
+            {
+                "profile": self._selected_value("#setting-profile", "a profile"),
+                "theme_preset": self._selected_value("#setting-theme", "a theme palette"),
+                "density": self._selected_value("#setting-density", "a density"),
+                "borders": self._selected_value("#setting-borders", "a border style"),
+                "focus": self._selected_value("#setting-focus", "a focus style"),
+                "mouse": self._selected_value("#setting-mouse", "a mouse setting"),
+                "week_starts_on": self._selected_value("#setting-week", "a week start day"),
+                "date_time_format": self._selected_value(
+                    "#setting-date-time-format", "a date and time display"
+                ),
+                "editor": self.query_one("#setting-editor", Input).value.strip(),
+                "external_editor": self.query_one("#setting-external-editor", Input).value.strip(),
+                "loader": self._selected_loader(),
+                "colors": self.query_one("#settings-colors", TextArea).text.strip(),
+            }
+        )
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id != "setting-theme" or not isinstance(event.value, str):
+            return
+        if event.value == CURRENT_THEME_VALUE:
+            return
+        selected = preset(event.value)
+        self.query_one("#setting-profile", Select).value = selected.profile
+        self.query_one("#settings-colors", TextArea).load_text(
+            json.dumps(asdict(selected.colors), indent=2, sort_keys=True)
+        )
+
+    def _theme_options(self) -> tuple[tuple[str, str], ...]:
+        return self.hcb.settings_theme_options()
+
+    def _selected_loader(self) -> str:
+        return self._selected_value("#setting-loader", "a loading indicator")
+
+    def _selected_value(self, selector: str, label: str) -> str:
+        value = self.query_one(selector, Select).value
+        if not isinstance(value, str):  # allow_blank=False makes this defensive only.
+            raise ValueError(f"select {label}")
+        return value
+
+
+class FindTimeScreen(ModalScreen[None]):
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="find-time-dialog"):
+            yield Label("Find time · local cached events", id="dialog-title")
+            yield Input(value=self.hcb.selected_date.isoformat(), id="find-date")
+            yield Input(value="30", placeholder="Duration minutes", id="find-duration")
+            yield Input(value="9", placeholder="Day starts (hour)", id="find-start")
+            yield Input(value="17", placeholder="Day ends (hour)", id="find-end")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Find local slots", variant="primary", id="find-local")
+                yield Button("Query Google free/busy", id="find-remote")
+                yield Button("Close", id="find-close")
+            yield Static(
+                "Remote freebusy is never queried here; use explicit sync separately.",
+                id="find-disclosure",
+            )
+            yield ListView(id="find-results")
+
+    def on_mount(self) -> None:
+        self.calculate()
+
+    def calculate(self) -> None:
+        try:
+            slots = self.hcb.find_time_local(
+                self.query_one("#find-date", Input).value,
+                self.query_one("#find-duration", Input).value,
+                self.query_one("#find-start", Input).value,
+                self.query_one("#find-end", Input).value,
+            )
+        except ValueError as exc:
+            self.hcb.notify(str(exc), severity="error")
+            return
+        view = self.query_one("#find-results", ListView)
+        view.clear()
+        for slot in slots:
+            view.append(
+                EntityRow(
+                    f"{self.hcb.format_time(slot.start)}–{self.hcb.format_time(slot.end)}",
+                    kind="time-slot",
+                    item_id=slot.start.isoformat(),
+                )
+            )
+        if not slots:
+            view.append(EntityRow("No local slots available", kind="empty", item_id="none"))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "find-local":
+            self.calculate()
+        elif event.button.id == "find-remote":
+            self.hcb.request_remote_freebusy(
+                self.query_one("#find-date", Input).value,
+                self.query_one("#find-start", Input).value,
+                self.query_one("#find-end", Input).value,
+                self._show_remote_freebusy,
+            )
+        else:
+            self.dismiss(None)
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def _show_remote_freebusy(self, result: dict[str, object]) -> None:
+        calendars = result.get("calendars", {})
+        busy = 0
+        if isinstance(calendars, dict):
+            for value in calendars.values():
+                if isinstance(value, dict):
+                    intervals = value.get("busy", ())
+                    if isinstance(intervals, (list, tuple)):
+                        busy += len(intervals)
+        self.query_one("#find-disclosure", Static).update(
+            f"Explicit Google free/busy complete · {busy} busy interval(s)"
+        )
+
+
+class PaletteScreen(ModalScreen[tuple[str, str] | None]):
+    """Command palette with commands first and title-first local results."""
+
+    BINDINGS = [Binding("escape", "cancel", "Close")]
+
+    def __init__(self, app_service: HcbApp, *, initial_query: str = "") -> None:
+        super().__init__()
+        self.hcb = app_service
+        self.initial_query = initial_query
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="palette-dialog"):
+            yield Input(
+                value=self.initial_query,
+                placeholder="Type a command or search local data",
+                id="palette-query",
+            )
+            yield ListView(id="palette-results")
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+        self._fill(self.initial_query)
+
+    def _fill(self, query: str) -> None:
+        view = self.query_one(ListView)
+        view.clear()
+        needle = query.casefold().strip()
+        for title, action in PALETTE_COMMANDS:
+            if not needle or needle in title.casefold():
+                view.append(EntityRow(title, kind="command", item_id=action, action=action))
+        if needle and self.hcb.account_id:
+            for result in self.hcb.search_local(query):
+                view.append(
+                    EntityRow(
+                        f"{result.display_title}  · {result.kind.replace('-', ' ')}",
+                        kind=result.kind,
+                        item_id=str(result.item.id),
+                    )
+                )
+        if view.children:
+            view.index = 0
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        self._fill(event.value)
+
+    def on_input_submitted(self, _: Input.Submitted) -> None:
+        self._choose()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        row = event.item
+        if isinstance(row, EntityRow):
+            self.dismiss((row.palette_action or row.kind, row.item_id))
+
+    def _choose(self) -> None:
+        view = self.query_one(ListView)
+        row = view.highlighted_child
+        if isinstance(row, EntityRow):
+            self.dismiss((row.palette_action or row.kind, row.item_id))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
