@@ -10,16 +10,15 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence, TextIO
-
+from pathlib import Path
 
 CANONICAL_REPOSITORY = "https://github.com/gongahkia/hot-cross-buns.git"
 DEFAULT_REF = "main"
@@ -68,7 +67,11 @@ class Presentation:
             print(f"\n{title}  {self._style(self._symbol('•', '*'), '38;5;244')}  {subtitle}")
         else:
             print(f"\n{title} - {subtitle}")
-        print(self._style("Installing without touching Google credentials or local HCB data.", "38;5;244"))
+        print(
+            self._style(
+                "Installing without touching Google credentials or local HCB data.", "38;5;244"
+            )
+        )
 
     def note(self, message: str) -> None:
         print(f"  {self._style(self._symbol('›', '>'), '38;5;244')} {message}")
@@ -135,7 +138,9 @@ class Presentation:
 def shlex_join(command: Sequence[str]) -> str:
     """Display a command without evaluating it or relying on a shell."""
 
-    return " ".join(repr(part) if any(char.isspace() for char in part) else part for part in command)
+    return " ".join(
+        repr(part) if any(char.isspace() for char in part) else part for part in command
+    )
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -205,15 +210,23 @@ def resolve_target(args: argparse.Namespace) -> InstallTarget:
         source = args.source.expanduser().resolve()
         project_file = source / "pyproject.toml"
         if not source.is_dir() or not project_file.is_file():
-            raise InstallerError(f"'{source}' is not an HCB source checkout (pyproject.toml is missing).")
+            raise InstallerError(
+                f"'{source}' is not an HCB source checkout (pyproject.toml is missing)."
+            )
         project_metadata = project_file.read_text(encoding="utf-8", errors="replace")
-        if not re.search(r'^name\s*=\s*["\']hot-cross-buns["\']\s*$', project_metadata, re.MULTILINE):
-            raise InstallerError(f"'{source}' is not an HCB source checkout (project name is not hot-cross-buns).")
+        if not re.search(
+            r'^name\s*=\s*["\']hot-cross-buns["\']\s*$', project_metadata, re.MULTILINE
+        ):
+            raise InstallerError(
+                f"'{source}' is not an HCB source checkout (project name is not hot-cross-buns)."
+            )
         return InstallTarget(str(source), f"local checkout: {source}")
 
     ref = args.ref
     if not REF_PATTERN.fullmatch(ref) or ref.startswith("/") or ".." in ref:
-        raise InstallerError("--ref must be a simple Git branch, tag, or commit from the canonical repo.")
+        raise InstallerError(
+            "--ref must be a simple Git branch, tag, or commit from the canonical repo."
+        )
     return InstallTarget(
         f"git+{CANONICAL_REPOSITORY}@{ref}",
         f"canonical source: {CANONICAL_REPOSITORY}@{ref}",
@@ -228,7 +241,9 @@ def install_command(tool: str, target: InstallTarget) -> list[str]:
 
 def require_safe_environment() -> None:
     if os.name != "nt" and hasattr(os, "geteuid") and os.geteuid() == 0:
-        raise InstallerError("Refusing to install as root. Run this as the person who will use HCB.")
+        raise InstallerError(
+            "Refusing to install as root. Run this as the person who will use HCB."
+        )
 
 
 def hcb_command() -> str | None:
@@ -274,7 +289,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             ui.run_step("Installing Hot Cross Buns", command, log_path)
             executable = hcb_command()
             if executable:
-                ui.run_step("Verifying the hcb command", [executable, "--json-schema-version"], log_path)
+                ui.run_step(
+                    "Verifying the hcb command", [executable, "--json-schema-version"], log_path
+                )
             show_success(ui, executable)
             return 0
         except InstallerError:
