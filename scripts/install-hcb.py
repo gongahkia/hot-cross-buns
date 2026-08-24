@@ -41,6 +41,8 @@ class InstallTarget:
 class Presentation:
     """Render a compact, accessible installation progress surface."""
 
+    panel_width = 36
+
     def __init__(self, *, no_animate: bool, no_color: bool, verbose: bool) -> None:
         self.stdout = sys.stdout
         self.stderr = sys.stderr
@@ -53,6 +55,7 @@ class Presentation:
         self.frames = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
         if not self.unicode:
             self.frames = ("|", "/", "-", "\\")
+        self._surface_height = 0
 
     def _style(self, message: str, code: str) -> str:
         return f"\033[{code}m{message}\033[0m" if self.color else message
@@ -60,18 +63,19 @@ class Presentation:
     def _symbol(self, unicode_symbol: str, ascii_symbol: str) -> str:
         return unicode_symbol if self.unicode else ascii_symbol
 
-    def banner(self) -> None:
+    def banner(self, *, preview: bool = False) -> None:
         title = self._style("Hot Cross Buns", "1;38;5;209")
         subtitle = "Local-first tasks and calendars for your terminal"
         if self.unicode:
             print(f"\n{title}  {self._style(self._symbol('•', '*'), '38;5;244')}  {subtitle}")
         else:
             print(f"\n{title} - {subtitle}")
-        print(
-            self._style(
-                "Installing without touching Google credentials or local HCB data.", "38;5;244"
-            )
+        message = (
+            "Previewing the installer. No files, packages, or HCB data will change."
+            if preview
+            else "Installing without touching Google credentials or local HCB data."
         )
+        print(self._style(message, "38;5;244"))
 
     def note(self, message: str) -> None:
         print(f"  {self._style(self._symbol('›', '>'), '38;5;244')} {message}")
@@ -85,11 +89,117 @@ class Presentation:
     def error(self, message: str) -> None:
         print(f"  {self._style(self._symbol('✗', 'ERROR'), '31')} {message}", file=self.stderr)
 
-    def run_step(self, label: str, command: Sequence[str], log_path: Path) -> None:
+    def _panel_line(self, content: str, *, tone: str | None = None) -> str:
+        vertical = self._symbol("│", "|")
+        line = f"  {vertical}{content[: self.panel_width].ljust(self.panel_width)}{vertical}"
+        return self._style(line, tone) if tone else line
+
+    def _panel_top(self, title: str) -> str:
+        top_left = self._symbol("╭", "+")
+        top_right = self._symbol("╮", "+")
+        horizontal = self._symbol("─", "-")
+        content = f" {title[: self.panel_width - 2]} "
+        return f"  {top_left}{content}{horizontal * (self.panel_width - len(content))}{top_right}"
+
+    def _panel_bottom(self) -> str:
+        bottom_left = self._symbol("╰", "+")
+        bottom_right = self._symbol("╯", "+")
+        horizontal = self._symbol("─", "-")
+        return f"  {bottom_left}{horizontal * self.panel_width}{bottom_right}"
+
+    def _stage_bar(self, stage: int, total: int, frame: int) -> str:
+        width = 12
+        completed = (stage - 1) * width // total
+        active = min(width - 1, completed + frame // 2)
+        cells = "".join(
+            "█" if index < completed else "▓" if index == active else "░" for index in range(width)
+        )
+        return f"[{cells}]  {stage}/{total}"
+
+    def _draw_surface(self, lines: Sequence[str]) -> None:
+        if self._surface_height:
+            print(f"\033[{self._surface_height}A", end="", flush=True)
+        for line in lines:
+            print(f"\r\033[2K{line}")
+        self._surface_height = len(lines)
+
+    def _render_progress(self, label: str, stage: int, total: int, frame: int) -> None:
+        spinner = self.frames[frame % len(self.frames)]
+        self._draw_surface(
+            (
+                self._style(self._panel_top("HCB installer"), "38;5;244"),
+                self._panel_line(f" {self._stage_bar(stage, total, frame)}", tone="38;5;209"),
+                self._panel_line(f" {spinner} {label}", tone="38;5;209"),
+                self._panel_line(" Google setup is not required", tone="38;5;244"),
+                self._style(self._panel_bottom(), "38;5;244"),
+            )
+        )
+
+    def _finish_surface(
+        self, title: str, first_line: str, second_line: str, *, succeeded: bool = True
+    ) -> None:
+        first_symbol = self._symbol("✓", "OK") if succeeded else self._symbol("✗", "ERROR")
+        second_symbol = self._symbol("✓", "OK") if succeeded else self._symbol("!", "!")
+        result_tone = "32" if succeeded else "31"
+        footer = (
+            " Google setup remains optional"
+            if succeeded
+            else " Review the installer log before retrying"
+        )
+        self._draw_surface(
+            (
+                self._style(self._panel_top(title), "38;5;244"),
+                self._panel_line(f" {first_symbol} {first_line}", tone=result_tone),
+                self._panel_line(f" {second_symbol} {second_line}", tone=result_tone),
+                self._panel_line(footer, tone="38;5;244"),
+                self._style(self._panel_bottom(), "38;5;244"),
+            )
+        )
+        self._surface_height = 0
+
+    def complete_installation(self, executable: str | None) -> None:
+        """Leave a concise completion surface in interactive terminal scrollback."""
+
+        if self.animate:
+            self._finish_surface(
+                "HCB is ready",
+                "Installation complete",
+                "hcb command verified" if executable else "Add the tool directory to PATH",
+            )
+        else:
+            self.success("Hot Cross Buns is ready.")
+
+    def preview(self) -> None:
+        """Show the complete animated experience without invoking an installer."""
+
+        stages = ("Preparing the workspace", "Installing HCB", "Checking the hcb command")
+        if not self.animate:
+            for index, label in enumerate(stages, start=1):
+                self.note(f"[{index}/{len(stages)}] {label}")
+            self.success("Preview complete. No changes were made.")
+            return
+
+        for stage, label in enumerate(stages, start=1):
+            for frame in range(10):
+                self._render_progress(label, stage, len(stages), frame)
+                time.sleep(0.08)
+        self._finish_surface(
+            "Installer preview", "Visual preview complete", "No files were changed"
+        )
+
+    def run_step(
+        self,
+        label: str,
+        command: Sequence[str],
+        log_path: Path,
+        *,
+        stage: int,
+        total_stages: int,
+    ) -> None:
         if self.verbose:
             self.note(f"Running: {shlex_join(command)}")
         if not self.animate:
-            self.note(label)
+            self.note(f"[{stage}/{total_stages}] {label}")
 
         with log_path.open("a", encoding="utf-8") as log_file:
             process = subprocess.Popen(
@@ -103,8 +213,7 @@ class Presentation:
             try:
                 while process.poll() is None:
                     if self.animate:
-                        spinner = self.frames[frame % len(self.frames)]
-                        print(f"\r\033[2K  {spinner} {label}", end="", flush=True)
+                        self._render_progress(label, stage, total_stages, frame)
                         frame += 1
                     time.sleep(0.08)
             except KeyboardInterrupt:
@@ -114,16 +223,20 @@ class Presentation:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-                if self.animate:
-                    print("\r\033[2K", end="", flush=True)
                 raise
 
-        if self.animate:
-            print("\r\033[2K", end="", flush=True)
         if process.returncode == 0:
-            self.success(label)
+            if not self.animate:
+                self.success(label)
             return
 
+        if self.animate:
+            self._finish_surface(
+                "Installation stopped",
+                f"{label} failed",
+                "Installer output is shown below",
+                succeeded=False,
+            )
         self.error(f"{label} failed.")
         self._show_log_tail(log_path)
         raise InstallerError(f"The installation log is available at {log_path}.")
@@ -168,7 +281,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--no-animate",
         action="store_true",
-        help="disable the animated progress indicator",
+        help="disable the animated progress surface",
     )
     parser.add_argument(
         "--no-color",
@@ -180,7 +293,13 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="show the exact package-manager command",
     )
-    parser.add_argument(
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--demo",
+        action="store_true",
+        help="preview the animated installer without changing anything",
+    )
+    mode_group.add_argument(
         "--dry-run",
         action="store_true",
         help="show the installation plan without changing anything",
@@ -252,8 +371,8 @@ def hcb_command() -> str | None:
 
 
 def show_success(ui: Presentation, executable: str | None) -> None:
+    ui.complete_installation(executable)
     print()
-    ui.success("Hot Cross Buns is ready.")
     if executable:
         ui.note("Start with: hcb")
     else:
@@ -266,6 +385,12 @@ def show_success(ui: Presentation, executable: str | None) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     ui = Presentation(no_animate=args.no_animate, no_color=args.no_color, verbose=args.verbose)
+
+    if args.demo:
+        ui.banner(preview=True)
+        ui.preview()
+        return 0
+
     ui.banner()
 
     try:
@@ -286,11 +411,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         log_path = Path(log_name)
         keep_log = False
         try:
-            ui.run_step("Installing Hot Cross Buns", command, log_path)
+            ui.run_step("Installing Hot Cross Buns", command, log_path, stage=1, total_stages=2)
             executable = hcb_command()
             if executable:
                 ui.run_step(
-                    "Verifying the hcb command", [executable, "--json-schema-version"], log_path
+                    "Verifying the hcb command",
+                    [executable, "--json-schema-version"],
+                    log_path,
+                    stage=2,
+                    total_stages=2,
                 )
             show_success(ui, executable)
             return 0

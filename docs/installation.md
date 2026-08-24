@@ -38,10 +38,18 @@ checks the installed command when it is already on `PATH`.
 
 ## The installation experience
 
-In an interactive UTF-8 terminal, installation uses a small animated progress
-indicator rather than a full-screen UI. It leaves scrollback intact, stores
+In an interactive UTF-8 terminal, installation uses a compact, staged progress
+card rather than a full-screen UI. It leaves scrollback intact, stores
 package-manager output in a temporary log while it runs, and displays the log
 path plus the final lines of output if an install step fails.
+
+To see the complete animation without installing anything, run:
+
+```sh
+python3 hcb-install.py --demo
+```
+
+The preview does not invoke uv or pipx, access the network, or modify files.
 
 For screen readers, CI, logs, and terminals without animation support:
 

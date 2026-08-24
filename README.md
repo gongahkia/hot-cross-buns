@@ -22,7 +22,7 @@ curl --proto '=https' --tlsv1.2 -fL \
 python3 hcb-install.py
 ```
 
-It shows a compact animated progress indicator in an interactive terminal,
+It shows a compact staged progress card in an interactive terminal,
 keeps package-manager output in a temporary log, and prints that log's path on
 failure. Use `--no-animate`, `--no-color`, or `NO_COLOR=1` for accessible or
 automated environments. Installation does not launch HCB, connect Google, add
@@ -30,7 +30,8 @@ credentials, or install the optional reminders daemon.
 
 The installer accepts `--ref BRANCH_OR_COMMIT` to select a canonical Git ref;
 use `--source .` to install a local checkout. `--dry-run` shows the exact
-package-manager command without changing anything.
+package-manager command without changing anything. `--demo` previews the full
+terminal animation without invoking a package manager or modifying files.
 
 For development from a source checkout:
 

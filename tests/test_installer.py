@@ -30,6 +30,7 @@ def test_installer_help_describes_safe_and_accessible_options() -> None:
     assert "--source" in result.stdout
     assert "--ref" in result.stdout
     assert "--no-animate" in result.stdout
+    assert "--demo" in result.stdout
     assert "--dry-run" in result.stdout
 
 
@@ -49,6 +50,22 @@ def test_dry_run_accepts_a_local_checkout(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert f"local checkout: {tmp_path}" in result.stdout
+
+
+def test_demo_is_a_no_change_preview_without_ansi_output() -> None:
+    result = run_installer("--demo")
+
+    assert result.returncode == 0
+    assert "Previewing the installer" in result.stdout
+    assert "Preview complete. No changes were made." in result.stdout
+    assert "\x1b[" not in result.stdout
+
+
+def test_demo_and_dry_run_are_mutually_exclusive() -> None:
+    result = run_installer("--demo", "--dry-run")
+
+    assert result.returncode == 2
+    assert "not allowed with argument" in result.stderr
 
 
 def test_installer_rejects_a_non_checkout_source(tmp_path: Path) -> None:
