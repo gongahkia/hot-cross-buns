@@ -863,6 +863,30 @@ def test_ambiguous_transport_failure_quarantines_task_create_without_replay(stor
     assert store.pending_mutations("a") == []
 
 
+def test_interrupt_during_task_create_quarantines_unconfirmed_delivery(store: Storage) -> None:
+    gateway = FakeGateway()
+    store.upsert_task(Task("tmp", "a", "list", "Local"))
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "tmp",
+            MutationOperation.CREATE,
+            {"list_id": "list", "body": {"title": "Local"}},
+        )
+    )
+
+    def interrupted(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    gateway.create_task = interrupted
+    with pytest.raises(KeyboardInterrupt):
+        SyncEngine(store, gateway).flush_outbox("a")
+    assert store.pending_mutations("a") == []
+    assert store.list_conflicts("a")[0].local_payload["kind"] == "uncertain-delivery"
+
+
 def test_calendar_event_create_retries_with_one_deterministic_id(store: Storage) -> None:
     gateway = FakeGateway()
     store.upsert_event(

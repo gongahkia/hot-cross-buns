@@ -895,7 +895,12 @@ class SyncEngine:
                     self.storage.fail_mutation(account_id, mutation.id, str(exc))
                     raise
             except KeyboardInterrupt:
-                self.storage.reset_mutation_pending(account_id, mutation.id, "sync cancelled")
+                if self._non_idempotent_create(sending):
+                    self._quarantine_uncertain_create(
+                        sending, "sync interrupted while Google delivery was unconfirmed"
+                    )
+                else:
+                    self.storage.reset_mutation_pending(account_id, mutation.id, "sync cancelled")
                 raise
             self.crash_hook("after-remote-success", sending)
             with self.storage.transaction():
