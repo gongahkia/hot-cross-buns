@@ -29,6 +29,7 @@ from hcb.runtime import Runtime
 from hcb.storage import Storage
 from hcb.tui import (
     PALETTE_COMMANDS,
+    BatchMoveScreen,
     CalendarScreen,
     ConfirmScreen,
     ConflictScreen,
@@ -1264,6 +1265,67 @@ def test_schedule_bulk_undo_redo_and_import_dialogs(
     app_test(app, actions)
     with Storage(database) as storage:
         assert any(task.title == "Imported in TUI" for task in storage.list_tasks("work"))
+
+
+def test_keyboard_marking_and_batch_move_review_keep_the_selection_visible(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    archive = runtime.application.create_task_list("work", "Archive")
+    source_calendar = runtime.storage.list_calendars("work")[0]
+    calendar_archive = runtime.application.create_calendar("work", "Calendar archive")
+    event = runtime.application.create_event(
+        "work",
+        source_calendar.id,
+        "Move me",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 21))
+
+    async def actions(pilot: object) -> None:
+        task_id = app.cache.tasks[0].id
+        app.selected = ("task", task_id)
+        await pilot.press("x")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert task_id in app.marked
+        assert "selected: 1 task(s)" in str(app.query_one("#surface-title", Static).render())
+
+        await activate_palette(pilot, app, "Bulk actions")
+        await pilot.click("#bulk-move-tasks")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchMoveScreen)
+        app.screen.query_one("#batch-move-destination", Select).value = archive.id
+        await pilot.click("#batch-move-review")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        review = str(app.screen.query_one("#batch-move-summary", Static).render())
+        assert "Ship TUI" in review and "Inbox" in review and "Archive" in review
+        assert app.screen.preview is not None
+        assert not app.screen.query_one("#batch-move-confirm", Button).disabled
+        assert app.screen.query_one("#batch-move-destination", Select).value == archive.id
+        await pilot.click("#batch-move-confirm")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert runtime.storage.get_task("work", task_id).list_id == archive.id  # type: ignore[union-attr]
+        assert task_id in app.marked
+
+        app.surface = "Agenda"
+        app.selected = ("event", event.id)
+        app._render_surface()
+        await pilot.pause()  # type: ignore[attr-defined]
+        app.selected = ("event", event.id)
+        app.action_mark()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert event.id in app.marked_events
+        app.action_move_marked("event")
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, BatchMoveScreen)
+        app.screen.query_one("#batch-move-destination", Select).value = calendar_archive.id
+        await pilot.click("#batch-move-review")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        await pilot.click("#batch-move-confirm")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert runtime.storage.get_event("work", event.id).calendar_id == calendar_archive.id  # type: ignore[union-attr]
+        assert event.id in app.marked_events
+
+    app_test(app, actions)
 
 
 def test_conflict_resolution_and_explicit_remote_freebusy(tmp_path: Path) -> None:

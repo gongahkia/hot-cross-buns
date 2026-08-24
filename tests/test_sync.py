@@ -87,6 +87,7 @@ class FakeGateway:
             raise self.fail
 
     def move_task(self, *args, **kwargs):
+        self.calls.append(("move-task", *args, kwargs))
         return {"id": args[1]}
 
     def create_task_list(self, body):
@@ -691,3 +692,59 @@ def test_every_non_idempotent_create_path_quarantines_interrupted_sending(
     assert SyncEngine(store, FakeGateway()).recover_interrupted_deliveries("a") == 1
     assert store.pending_mutations("a") == []
     assert store.list_conflicts("a")[0].local_payload["kind"] == "uncertain-delivery"
+
+
+def test_cross_list_task_move_uses_google_native_destination_move(store: Storage) -> None:
+    store.upsert_task_list(TaskList("source", "a", "Source", remote_id="source-r"))
+    store.upsert_task_list(TaskList("destination", "a", "Destination", remote_id="destination-r"))
+    store.upsert_task(Task("parent", "a", "destination", "Parent", remote_id="parent-r"))
+    store.upsert_task(
+        Task(
+            "previous",
+            "a",
+            "destination",
+            "Previous",
+            parent_id="parent",
+            remote_id="previous-r",
+        )
+    )
+    store.upsert_task(
+        Task(
+            "moved",
+            "a",
+            "destination",
+            "Moved",
+            parent_id="parent",
+            position="previous",
+            remote_id="moved-r",
+        )
+    )
+    store.enqueue(
+        PendingMutation(
+            None,
+            "a",
+            EntityType.TASK,
+            "moved",
+            MutationOperation.MOVE,
+            {
+                "source_list_id": "source",
+                "list_id": "destination",
+                "parent": "parent",
+                "previous": "previous",
+                "remote_id": "moved-r",
+            },
+        )
+    )
+
+    gateway = FakeGateway()
+    assert SyncEngine(store, gateway).flush_outbox("a").pushed == 1
+    assert gateway.calls[-1] == (
+        "move-task",
+        "source-r",
+        "moved-r",
+        {
+            "destination_task_list_id": "destination-r",
+            "parent": "parent-r",
+            "previous": "previous-r",
+        },
+    )

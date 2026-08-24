@@ -90,6 +90,7 @@ JSON_COMMANDS = (
     "tasks.edit",
     "tasks.list",
     "tasks.move",
+    "tasks.move-many",
     "tasks.reconcile-recurrence",
     "tasks.repair-schedule",
     "tasks.schedule",

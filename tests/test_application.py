@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from hcb.application import ApplicationService
+from hcb.errors import NotFoundError
 from hcb.models import (
     Account,
     Calendar,
@@ -70,6 +71,67 @@ def test_notes_projection_and_date_only_constraint(app: ApplicationService) -> N
     assert "notes" not in app.storage.pending_mutations("a")[-1].payload["body"]
     with pytest.raises(ValueError, match="date-only"):
         app.create_task("a", "inbox", "Bad due", due=datetime.now(UTC))  # type: ignore[arg-type]
+
+
+def test_batch_task_move_preflights_hierarchies_and_queues_in_order(
+    app: ApplicationService,
+) -> None:
+    archive = app.create_task_list("a", "Archive")
+    first = app.create_task("a", "inbox", "First", id="first")
+    second = app.create_task("a", "inbox", "Second", id="second")
+    parent = app.create_task("a", "inbox", "Parent", id="parent")
+    child = app.create_task("a", "inbox", "Child", parent_id=parent.id, id="child")
+
+    with pytest.raises(ValueError, match="both a parent and its subtask"):
+        app.preview_task_move("a", [parent.id, child.id], archive.id)
+    with pytest.raises(ValueError, match="tasks with subtasks"):
+        app.preview_task_move("a", [parent.id], archive.id)
+    with pytest.raises(NotFoundError, match="does not exist"):
+        app.complete_tasks("a", [first.id, "missing"])
+    assert app.storage.get_task("a", first.id).status.value == "needsAction"  # type: ignore[union-attr]
+
+    preview = app.preview_task_move("a", [second.id, first.id], archive.id)
+    assert [item.id for item in preview.items] == [second.id, first.id]
+    moved = app.move_tasks("a", [second.id, first.id, second.id], archive.id)
+    assert [item.id for item in moved] == [second.id, first.id]
+    assert all(item.list_id == archive.id and item.parent_id is None for item in moved)
+    moves = [item for item in app.storage.pending_mutations("a") if item.operation.value == "move"]
+    assert [item.entity_id for item in moves] == [second.id, first.id]
+
+
+def test_batch_event_move_rejects_google_unsupported_event_types(app: ApplicationService) -> None:
+    destination = app.create_calendar("a", "Archive")
+    event = app.create_event(
+        "a",
+        "cal",
+        "Focus",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 21, 10, tzinfo=UTC)),
+        event_type="focusTime",
+    )
+    with pytest.raises(ValueError, match="only moves default events"):
+        app.move_events("a", [event.id], destination.id)
+    assert app.storage.get_event("a", event.id).calendar_id == "cal"  # type: ignore[union-attr]
+
+
+def test_batch_task_move_persists_offline_across_a_restart(tmp_path: Path) -> None:
+    path = tmp_path / "batch-move.db"
+    with Storage(path) as storage:
+        storage.upsert_account(Account("a", "private@example.test"))
+        storage.upsert_task_list(TaskList("inbox", "a", "Inbox"))
+        storage.upsert_task_list(TaskList("archive", "a", "Archive"))
+        service = ApplicationService(storage)
+        first = service.create_task("a", "inbox", "First", id="first")
+        second = service.create_task("a", "inbox", "Second", id="second")
+        service.move_tasks("a", [first.id, second.id], "archive")
+    with Storage(path) as restarted:
+        assert [task.list_id for task in restarted.list_tasks("a")] == ["archive", "archive"]
+        moves = [
+            mutation
+            for mutation in restarted.pending_mutations("a")
+            if mutation.operation.value == "move"
+        ]
+        assert [mutation.entity_id for mutation in moves] == ["first", "second"]
 
 
 def test_calendar_list_preferences_and_event_rich_clears(app: ApplicationService) -> None:

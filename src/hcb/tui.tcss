@@ -203,7 +203,8 @@ Input.-invalid, TextArea.-invalid {
 .borders-unicode #confirm-dialog, .borders-unicode #event-dialog,
 .borders-unicode #rsvp-dialog, .borders-unicode #calendar-dialog,
 .borders-unicode #settings-dialog, .borders-unicode #find-time-dialog,
-.borders-unicode #google-setup-dialog {
+.borders-unicode #google-setup-dialog, .borders-unicode #batch-move-dialog,
+.borders-unicode #batch-move-preview {
     border: round $border;
 }
 
@@ -242,7 +243,7 @@ Input.-invalid, TextArea.-invalid {
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
 #rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
-#onboarding-dialog, #google-setup-dialog {
+#onboarding-dialog, #google-setup-dialog, #batch-move-dialog {
     width: 70;
     max-width: 90%;
     height: auto;
@@ -350,6 +351,17 @@ EmojiCompletion {
     width: 40;
 }
 
+#batch-move-dialog {
+    height: 28;
+}
+
+#batch-move-preview {
+    height: 1fr;
+    margin-top: 1;
+    border: ascii $border;
+    padding: 0 1;
+}
+
 #palette-results {
     height: 1fr;
 }
@@ -377,7 +389,8 @@ EmojiCompletion {
 }
 
 PaletteScreen, EditorScreen, ConfirmScreen, EventEditorScreen, RsvpScreen,
-CalendarScreen, SettingsScreen, FindTimeScreen, OnboardingScreen, LoadingScreen {
+CalendarScreen, SettingsScreen, FindTimeScreen, OnboardingScreen, LoadingScreen,
+BatchMoveScreen {
     align: center middle;
     background: $footer-background;
 }

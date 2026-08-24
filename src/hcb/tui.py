@@ -46,7 +46,7 @@ from textual.widgets import (
     Input as TextualInput,
 )
 
-from .application import ResponseStatus, SearchResult, TimeSlot
+from .application import BatchMovePreview, ResponseStatus, SearchResult, TimeSlot
 from .config import Config, ConfigError, ThemeColors, load
 from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
@@ -897,7 +897,9 @@ class BulkScreen(ModalScreen[None]):
                 f"{len(self.hcb.marked_events)} event(s)"
             )
             yield Button("Complete marked", variant="primary", id="bulk-complete")
+            yield Button("Move marked tasks…", id="bulk-move-tasks")
             yield Button("RSVP to marked events", id="bulk-rsvp")
+            yield Button("Move marked events…", id="bulk-move-events")
             yield Button("Delete marked…", variant="error", id="bulk-delete")
             yield Button("Close", id="bulk-close")
 
@@ -907,12 +909,117 @@ class BulkScreen(ModalScreen[None]):
         elif event.button.id == "bulk-complete":
             self.dismiss(None)
             self.hcb.action_complete()
+        elif event.button.id == "bulk-move-tasks":
+            self.dismiss(None)
+            self.hcb.action_move_marked("task")
         elif event.button.id == "bulk-delete":
             self.dismiss(None)
             self.hcb.action_delete()
         elif event.button.id == "bulk-rsvp":
             self.dismiss(None)
             self.hcb.action_rsvp()
+        elif event.button.id == "bulk-move-events":
+            self.dismiss(None)
+            self.hcb.action_move_marked("event")
+
+
+class BatchMoveScreen(ModalScreen[None]):
+    """Review a complete local move plan before enqueueing its serial mutations."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(
+        self, hcb: HcbApp, entity_type: Literal["task", "event"], item_ids: tuple[str, ...]
+    ) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.entity_type = entity_type
+        self.item_ids = item_ids
+        self.preview: BatchMovePreview | None = None
+
+    def compose(self) -> ComposeResult:
+        if self.entity_type == "task":
+            options = tuple((label, item_id) for item_id, label in self.hcb.cache.task_lists)
+            title = "Move marked tasks"
+            prompt = "Destination task list"
+        else:
+            options = tuple(
+                (label, item_id) for item_id, label, _selected in self.hcb.cache.calendars
+            )
+            title = "Move marked events"
+            prompt = "Destination calendar"
+        with Vertical(id="batch-move-dialog"):
+            yield Label(title, id="dialog-title")
+            yield Label(f"{len(self.item_ids)} selected {self.entity_type}(s)")
+            yield Select(
+                options,
+                prompt=prompt,
+                allow_blank=False,
+                id="batch-move-destination",
+            )
+            with VerticalScroll(id="batch-move-preview"):
+                yield Static(
+                    "Choose a destination, then review the exact local plan. "
+                    "Nothing changes until you confirm.",
+                    id="batch-move-summary",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Review move", variant="primary", id="batch-move-review")
+                yield Button("Confirm move", disabled=True, id="batch-move-confirm")
+                yield Button("Cancel", id="batch-move-cancel")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "batch-move-cancel":
+            self.dismiss(None)
+            return
+        if event.button.id not in {"batch-move-review", "batch-move-confirm"}:
+            return
+        if self.hcb.account_id is None:
+            return
+        destination = self.query_one("#batch-move-destination", Select).value
+        if not isinstance(destination, str):
+            self.notify("Choose a destination first", severity="warning")
+            return
+        if event.button.id == "batch-move-review":
+            try:
+                self.preview = (
+                    self.hcb.runtime.application.preview_task_move(
+                        self.hcb.account_id, list(self.item_ids), destination
+                    )
+                    if self.entity_type == "task"
+                    else self.hcb.runtime.application.preview_event_move(
+                        self.hcb.account_id, list(self.item_ids), destination
+                    )
+                )
+            except (ValueError, HcbError) as exc:
+                self.notify(str(exc), severity="error")
+                return
+            self.query_one("#batch-move-summary", Static).update(
+                self.hcb.batch_move_preview_text(self.preview)
+            )
+            self.query_one("#batch-move-confirm", Button).disabled = False
+            return
+        if self.preview is None or self.preview.destination_id != destination:
+            self.notify("Review the updated destination before confirming", severity="warning")
+            return
+        try:
+            if self.entity_type == "task":
+                self.hcb.runtime.application.move_tasks(
+                    self.hcb.account_id, list(self.item_ids), destination
+                )
+            else:
+                self.hcb.runtime.application.move_events(
+                    self.hcb.account_id, list(self.item_ids), destination
+                )
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self.hcb.refresh_workspace()
+        self.hcb.notify(f"Queued move for {len(self.item_ids)} {self.entity_type}(s)")
+        self.dismiss(None)
 
 
 class ImportScreen(ModalScreen[None]):
@@ -2094,6 +2201,8 @@ class HcbApp(App[None]):
             instance_ranges=tuple(self.runtime.storage.list_instance_ranges(self.account_id)),
             pending=snapshot.pending,
         )
+        self.marked.intersection_update(task.id for task in self.cache.tasks)
+        self.marked_events.intersection_update(event.id for event in self.cache.events)
         self._render_chrome()
         self._render_surface()
 
@@ -2259,8 +2368,9 @@ class HcbApp(App[None]):
         return rows
 
     def _render_surface(self) -> None:
+        selection = self._selection_summary()
         self.query_one("#surface-title", Static).update(
-            f"{self.surface}  ·  {self.selected_date:%A, %d %B %Y}"
+            f"{self.surface}  ·  {self.selected_date:%A, %d %B %Y}{selection}"
         )
         content = self.query_one("#content", ListView)
         content.clear()
@@ -2320,6 +2430,14 @@ class HcbApp(App[None]):
             )
         content.index = 0
         self._update_content_selection()
+
+    def _selection_summary(self) -> str:
+        parts: list[str] = []
+        if self.marked:
+            parts.append(f"{len(self.marked)} task(s)")
+        if self.marked_events:
+            parts.append(f"{len(self.marked_events)} event(s)")
+        return f"  ·  selected: {', '.join(parts)}" if parts else ""
 
     def _update_content_selection(self) -> None:
         """Keep the row that powers the Inspector visibly selected."""
@@ -2822,42 +2940,84 @@ class HcbApp(App[None]):
         self.refresh_workspace()
         self.notify(f"{kind.title()} deleted")
 
+    def _batch_ids(
+        self, entity_type: Literal["task", "event"], *, include_selected: bool = True
+    ) -> list[str]:
+        if entity_type == "task":
+            ids = [item.id for item in self.cache.tasks if item.id in self.marked]
+        else:
+            ids = [item.id for item in self.cache.events if item.id in self.marked_events]
+        if ids or not include_selected:
+            return ids
+        if self.selected and self.selected[0] == entity_type:
+            return [self.selected[1]]
+        return []
+
+    def batch_move_preview_text(self, preview: BatchMovePreview) -> str:
+        if preview.entity_type == "task":
+            titles = dict(self.cache.task_lists)
+            destination = titles.get(preview.destination_id, preview.destination_id)
+            lines = [
+                f"Move {len(preview.items)} task(s) to {destination!r} as top-level tasks:",
+                "",
+            ]
+            for task in preview.items:
+                assert isinstance(task, Task)
+                source = titles.get(task.list_id, task.list_id)
+                lines.append(f"{task.title}  ·  {source} → {destination}")
+            return "\n".join(lines)
+        titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
+        destination = titles.get(preview.destination_id, preview.destination_id)
+        lines = [f"Move {len(preview.items)} event(s) to {destination!r}:", ""]
+        for event in preview.items:
+            assert isinstance(event, Event)
+            source = titles.get(event.calendar_id, event.calendar_id)
+            lines.append(f"{event.summary}  ·  {source} → {destination}")
+        return "\n".join(lines)
+
+    def action_move_marked(self, entity_type: Literal["task", "event"]) -> None:
+        ids = self._batch_ids(entity_type)
+        destinations = self.cache.task_lists if entity_type == "task" else self.cache.calendars
+        if not ids:
+            self.notify(f"Select {entity_type}s to move", severity="warning")
+            return
+        if not destinations:
+            label = "task list" if entity_type == "task" else "calendar"
+            self.notify(f"Create a destination {label} first", severity="warning")
+            return
+        self.push_screen(BatchMoveScreen(self, entity_type, tuple(ids)))
+
     def action_rsvp(self) -> None:
-        if self._selected_event() is None and not self.marked_events:
+        event_ids = self._batch_ids("event")
+        if not event_ids:
             self.notify("Select an event to RSVP", severity="warning")
             return
         self.push_screen(RsvpScreen(), self._rsvp_result)
 
     def _rsvp_result(self, response: str | None) -> None:
-        event = self._selected_event()
-        if (
-            response is None
-            or (event is None and not self.marked_events)
-            or self.account_id is None
-        ):
+        if response is None or self.account_id is None:
             return
-        event_ids = list(self.marked_events) or ([event.id] if event else [])
+        event_ids = self._batch_ids("event")
+        if not event_ids:
+            return
         self.runtime.application.respond_events(
             self.account_id, event_ids, cast(ResponseStatus, response)
         )
-        self.marked_events.clear()
         self.refresh_workspace()
         self.notify(f"RSVP {response} queued")
 
     def action_complete(self) -> None:
         if self.account_id is None:
             return
-        task = self._selected_task()
-        ids = set(self.marked) or ({task.id} if task else set())
+        ids = self._batch_ids("task")
         if not ids:
             self.notify("Select a task to complete", severity="warning")
             return
-        targets = [item for item in self.cache.tasks if item.id in ids]
+        targets = [item for item in self.cache.tasks if item.id in set(ids)]
         completed = not all(item.status is TaskStatus.COMPLETED for item in targets)
         self.runtime.application.complete_tasks(
             self.account_id, [item.id for item in targets], completed=completed
         )
-        self.marked.clear()
         self.refresh_workspace()
         self.notify(f"Updated {len(ids)} task(s)")
 
@@ -2877,16 +3037,12 @@ class HcbApp(App[None]):
         self._render_surface()
 
     def action_delete(self) -> None:
-        task = self._selected_task()
-        event = self._selected_event()
-        ids = set(self.marked)
-        event_ids = set(self.marked_events)
-        if not ids and task:
-            ids.add(task.id)
-        if not ids and not event_ids and event is None:
+        ids = self._batch_ids("task")
+        event_ids = self._batch_ids("event")
+        if not ids and not event_ids:
             self.notify("Select an item to delete", severity="warning")
             return
-        count = len(ids) + len(event_ids) or 1
+        count = len(ids) + len(event_ids)
         self.push_screen(
             ConfirmScreen(
                 f"Delete {count} selected item(s)?",
@@ -2899,18 +3055,12 @@ class HcbApp(App[None]):
     def _delete_result(self, confirmed: bool | None) -> None:
         if not confirmed or self.account_id is None:
             return
-        event = self._selected_event()
-        ids = set(self.marked)
-        event_ids = set(self.marked_events)
-        task = self._selected_task()
-        if not ids and task:
-            ids.add(task.id)
+        ids = self._batch_ids("task")
+        event_ids = self._batch_ids("event")
         if ids:
-            self.runtime.application.delete_tasks(self.account_id, list(ids))
-        if event and not ids and not event_ids:
-            event_ids.add(event.id)
+            self.runtime.application.delete_tasks(self.account_id, ids)
         if event_ids:
-            self.runtime.application.delete_events(self.account_id, list(event_ids))
+            self.runtime.application.delete_events(self.account_id, event_ids)
         self.marked.clear()
         self.marked_events.clear()
         self.selected = None

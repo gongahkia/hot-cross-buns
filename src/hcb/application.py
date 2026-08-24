@@ -126,6 +126,15 @@ class TimeSlot:
     end: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class BatchMovePreview:
+    """Validated local plan for a serial task or event move."""
+
+    entity_type: Literal["task", "event"]
+    destination_id: str
+    items: tuple[Task | Event, ...]
+
+
 def _id() -> str:
     return uuid4().hex
 
@@ -724,16 +733,66 @@ class ApplicationService:
     def complete_tasks(
         self, account_id: str, task_ids: list[str], *, completed: bool = True
     ) -> tuple[Task, ...]:
+        targets = self._batch_tasks(account_id, task_ids)
         with self.storage.transaction():
             return tuple(
-                self.complete_task(account_id, task_id, completed=completed)
-                for task_id in dict.fromkeys(task_ids)
+                self.complete_task(account_id, task.id, completed=completed) for task in targets
             )
 
     def delete_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
+        targets = self._batch_tasks(account_id, task_ids)
+        with self.storage.transaction():
+            return tuple(self.delete_task(account_id, task.id) for task in targets)
+
+    def _batch_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
+        ids = tuple(dict.fromkeys(task_ids))
+        if not ids:
+            raise ValueError("select at least one task")
+        return tuple(self._require_task(account_id, task_id) for task_id in ids)
+
+    def preview_task_move(
+        self, account_id: str, task_ids: list[str], list_id: str
+    ) -> BatchMovePreview:
+        """Validate a task batch before moving every target to a list's top level."""
+        destination = self._require_task_list(account_id, list_id)
+        targets = self._batch_tasks(account_id, task_ids)
+        selected = {task.id for task in targets}
+        all_tasks = {task.id: task for task in self.storage.list_tasks(account_id)}
+
+        for task in targets:
+            parent_id = task.parent_id
+            seen = {task.id}
+            while parent_id:
+                if parent_id in seen:
+                    raise ValueError("task hierarchy contains a parent cycle")
+                if parent_id in selected:
+                    raise ValueError(
+                        "a task batch move cannot include both a parent and its subtask"
+                    )
+                seen.add(parent_id)
+                parent = all_tasks.get(parent_id)
+                if parent is None:
+                    break
+                parent_id = parent.parent_id
+
+        if any(task.list_id != destination.id for task in targets):
+            children = {task.parent_id for task in all_tasks.values() if task.parent_id}
+            parent_ids = selected.intersection(children)
+            if parent_ids:
+                raise ValueError(
+                    "a cross-list batch move cannot include tasks with subtasks; "
+                    "move the hierarchy one task at a time"
+                )
+        return BatchMovePreview("task", destination.id, targets)
+
+    def move_tasks(self, account_id: str, task_ids: list[str], list_id: str) -> tuple[Task, ...]:
+        """Move validated task leaves serially to the destination list's top level."""
+        preview = self.preview_task_move(account_id, task_ids, list_id)
         with self.storage.transaction():
             return tuple(
-                self.delete_task(account_id, task_id) for task_id in dict.fromkeys(task_ids)
+                self.move_task(account_id, task.id, list_id=preview.destination_id)
+                for task in preview.items
+                if isinstance(task, Task)
             )
 
     def move_task(
@@ -1548,31 +1607,55 @@ class ApplicationService:
         comment: str | None = None,
         send_updates: str = "all",
     ) -> tuple[PendingMutation, ...]:
+        targets = self._batch_events(account_id, event_ids)
         with self.storage.transaction():
             return tuple(
                 self.respond_event(
                     account_id,
-                    event_id,
+                    event.id,
                     response_status,
                     comment=comment,
                     send_updates=send_updates,
                 )
-                for event_id in dict.fromkeys(event_ids)
+                for event in targets
             )
 
     def delete_events(self, account_id: str, event_ids: list[str]) -> tuple[Event, ...]:
+        targets = self._batch_events(account_id, event_ids)
         with self.storage.transaction():
-            return tuple(
-                self.delete_event(account_id, event_id) for event_id in dict.fromkeys(event_ids)
+            return tuple(self.delete_event(account_id, event.id) for event in targets)
+
+    def _batch_events(self, account_id: str, event_ids: list[str]) -> tuple[Event, ...]:
+        ids = tuple(dict.fromkeys(event_ids))
+        if not ids:
+            raise ValueError("select at least one event")
+        return tuple(self._require_event(account_id, event_id) for event_id in ids)
+
+    def preview_event_move(
+        self, account_id: str, event_ids: list[str], calendar_id: str
+    ) -> BatchMovePreview:
+        """Validate that every selected event supports a native calendar move."""
+        destination = self._require_calendar(account_id, calendar_id)
+        targets = self._batch_events(account_id, event_ids)
+        unsupported = [
+            event.summary for event in targets if event.event_type not in {None, "default"}
+        ]
+        if unsupported:
+            raise ValueError(
+                "Google only moves default events between calendars; unsupported: "
+                + ", ".join(unsupported)
             )
+        return BatchMovePreview("event", destination.id, targets)
 
     def move_events(
         self, account_id: str, event_ids: list[str], calendar_id: str
     ) -> tuple[Event, ...]:
+        preview = self.preview_event_move(account_id, event_ids, calendar_id)
         with self.storage.transaction():
             return tuple(
-                self.move_event(account_id, event_id, calendar_id)
-                for event_id in dict.fromkeys(event_ids)
+                self.move_event(account_id, event.id, preview.destination_id)
+                for event in preview.items
+                if isinstance(event, Event)
             )
 
     def delete_event(

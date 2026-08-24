@@ -512,6 +512,9 @@ class SyncEngine:
             EntityType.CALENDAR,
         }:
             return True
+        # A cross-list Google Tasks move is sent to the source list. After a
+        # response is lost, repeating it may target a task that has already
+        # left that source, so require explicit delivery resolution instead.
         return (
             mutation.entity_type is EntityType.TASK
             and mutation.operation is MutationOperation.MOVE
@@ -700,17 +703,39 @@ class SyncEngine:
                     list_id, _required_remote(remote, "task"), body, etag=etag
                 )
             if mutation.operation is MutationOperation.MOVE:
-                source_local = payload.get("source_list_id")
-                if source_local and source_local != local_list_id:
-                    source = self._remote_list(account_id, source_local)
-                    created = self.gateway.create_task(list_id, body)
-                    self.gateway.delete_task(source, _required_remote(remote, "task"), etag=etag)
-                    return created
+                source_local = payload.get("source_list_id") or local_list_id
+                source = self._remote_list(account_id, _required_remote(source_local, "task list"))
+                destination = list_id if source_local != local_list_id else None
+                parent_local = payload.get("parent")
+                previous_local = payload.get("previous")
+                parent_task = (
+                    self.storage.get_task(account_id, parent_local)
+                    if isinstance(parent_local, str)
+                    else None
+                )
+                previous_task = (
+                    self.storage.get_task(account_id, previous_local)
+                    if isinstance(previous_local, str)
+                    else None
+                )
+                parent = (
+                    _required_remote(parent_task.remote_id if parent_task else None, "parent task")
+                    if parent_local
+                    else None
+                )
+                previous = (
+                    _required_remote(
+                        previous_task.remote_id if previous_task else None, "previous task"
+                    )
+                    if previous_local
+                    else None
+                )
                 return self.gateway.move_task(
-                    list_id,
+                    source,
                     _required_remote(remote, "task"),
-                    parent=payload.get("parent"),
-                    previous=payload.get("previous"),
+                    destination_task_list_id=destination,
+                    parent=parent,
+                    previous=previous,
                 )
             self.gateway.delete_task(list_id, _required_remote(remote, "task"), etag=etag)
             return None

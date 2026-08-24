@@ -58,6 +58,7 @@ class GoogleGateway(Protocol):
         task_list_id: str,
         task_id: str,
         *,
+        destination_task_list_id: str | None = None,
         parent: str | None = None,
         previous: str | None = None,
     ) -> Json: ...
@@ -281,12 +282,17 @@ class GoogleApiClient:
         task_list_id: str,
         task_id: str,
         *,
+        destination_task_list_id: str | None = None,
         parent: str | None = None,
         previous: str | None = None,
     ) -> Json:
         return self._execute(
             self.tasks.tasks().move(
-                tasklist=task_list_id, task=task_id, parent=parent, previous=previous
+                tasklist=task_list_id,
+                task=task_id,
+                destinationTasklist=destination_task_list_id,
+                parent=parent,
+                previous=previous,
             )
         )
 

@@ -16,7 +16,7 @@ from uuid import uuid4
 import typer
 from typer import _click as click
 
-from .application import SearchResult
+from .application import BatchMovePreview, SearchResult
 from .config import ConfigError, load, save
 from .config import schema as config_schema
 from .errors import ExitCode, HcbError
@@ -291,6 +291,40 @@ def _confirm(yes: bool, message: str) -> None:
         raise typer.Abort()
 
 
+def _show_move_preflight(ctx: typer.Context, preview: BatchMovePreview) -> bool:
+    """Write the complete local move plan before asking for confirmation."""
+    state = _state(ctx)
+    account = _account(ctx)
+    if preview.entity_type == "task":
+        tasks = tuple(item for item in preview.items if isinstance(item, Task))
+        destination_list = state.runtime.storage.get_task_list(account, preview.destination_id)
+        destination_title = destination_list.title if destination_list else preview.destination_id
+        lines = [
+            f"Preflight: move {len(tasks)} task(s) to {destination_title!r} as top-level tasks:"
+        ]
+        for task in tasks:
+            source_list = state.runtime.storage.get_task_list(account, task.list_id)
+            source_title = source_list.title if source_list else task.list_id
+            lines.append(f"- {task.id} · {task.title}: {source_title!r} → {destination_title!r}")
+        cross_destination = any(task.list_id != preview.destination_id for task in tasks)
+    else:
+        events = tuple(item for item in preview.items if isinstance(item, Event))
+        destination_calendar = state.runtime.storage.get_calendar(account, preview.destination_id)
+        destination_title = (
+            destination_calendar.summary if destination_calendar else preview.destination_id
+        )
+        lines = [f"Preflight: move {len(events)} event(s) to {destination_title!r}:"]
+        for event in events:
+            source_calendar = state.runtime.storage.get_calendar(account, event.calendar_id)
+            source_title = source_calendar.summary if source_calendar else event.calendar_id
+            lines.append(
+                f"- {event.id} · {event.summary}: {source_title!r} → {destination_title!r}"
+            )
+        cross_destination = any(event.calendar_id != preview.destination_id for event in events)
+    click.echo("\n".join(lines), err=True)
+    return cross_destination
+
+
 def _event_point(raw: str, all_day: bool, zone: str | None) -> EventDateTime:
     if all_day:
         return EventDateTime(DateTimeKind.DATE, date.fromisoformat(raw))
@@ -463,6 +497,25 @@ def tasks_delete_many(
 ) -> None:
     _confirm(yes, f"Delete {len(task_ids)} tasks?")
     _emit(ctx, _state(ctx).runtime.application.delete_tasks(_account(ctx), task_ids))
+
+
+@tasks_app.command("move-many")
+def tasks_move_many(
+    ctx: typer.Context,
+    task_ids: list[str],
+    task_list: str = typer.Option(..., "--list"),
+    yes: bool = typer.Option(False, "--yes", "-y"),
+) -> None:
+    account = _account(ctx)
+    application = _state(ctx).runtime.application
+    preview = application.preview_task_move(account, task_ids, task_list)
+    if _show_move_preflight(ctx, preview):
+        _confirm(yes, f"Move {len(preview.items)} task(s) to another list?")
+    _emit(
+        ctx,
+        application.move_tasks(account, task_ids, task_list),
+        human=lambda value: f"Moved task {value.id} to {value.list_id}",
+    )
 
 
 @tasks_app.command("schedule")
@@ -996,11 +1049,19 @@ def events_respond_many(
 
 @events_app.command("move-many")
 def events_move_many(
-    ctx: typer.Context, event_ids: list[str], calendar: str = typer.Option(...)
+    ctx: typer.Context,
+    event_ids: list[str],
+    calendar: str = typer.Option(...),
+    yes: bool = typer.Option(False, "--yes", "-y"),
 ) -> None:
+    account = _account(ctx)
+    application = _state(ctx).runtime.application
+    preview = application.preview_event_move(account, event_ids, calendar)
+    if _show_move_preflight(ctx, preview):
+        _confirm(yes, f"Move {len(preview.items)} event(s) to another calendar?")
     _emit(
         ctx,
-        _state(ctx).runtime.application.move_events(_account(ctx), event_ids, calendar),
+        application.move_events(account, event_ids, calendar),
     )
 
 

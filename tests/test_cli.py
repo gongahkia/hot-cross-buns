@@ -150,6 +150,83 @@ def test_destructive_commands_require_yes_when_not_tty(
     assert "Traceback" not in result.output
 
 
+def test_batch_moves_show_a_complete_plan_and_require_confirmation(
+    cli_env: tuple[CliRunner, AppPaths],
+) -> None:
+    runner, _ = cli_env
+    inbox = seed_list(runner)
+    archive = json_data(
+        invoke(runner, ["--json", "task-lists", "create", "Archive"]), "task-lists.create"
+    )["id"]
+    task_ids = [
+        json_data(
+            invoke(runner, ["--json", "tasks", "create", title, "--list", inbox]),
+            "tasks.create",
+        )["id"]
+        for title in ("First", "Second")
+    ]
+    denied = runner.invoke(cli.app, ["tasks", "move-many", *task_ids, "--list", str(archive)])
+    assert denied.exit_code == 2
+    assert "First" in denied.stderr and "Second" in denied.stderr
+    assert "--yes" in denied.stderr
+
+    moved = json_data(
+        invoke(
+            runner,
+            ["--json", "tasks", "move-many", *task_ids, "--list", str(archive), "--yes"],
+        ),
+        "tasks.move-many",
+    )
+    assert [item["id"] for item in moved] == task_ids
+    assert all(item["list_id"] == archive for item in moved)
+
+    calendar = seed_calendar(runner)
+    calendar_archive = json_data(
+        invoke(runner, ["--json", "calendars", "create", "Calendar archive"]),
+        "calendars.create",
+    )["id"]
+    event = json_data(
+        invoke(
+            runner,
+            [
+                "--json",
+                "events",
+                "create",
+                "Move event",
+                "--calendar",
+                calendar,
+                "--start",
+                "2026-08-22",
+                "--end",
+                "2026-08-23",
+                "--all-day",
+            ],
+        ),
+        "events.create",
+    )
+    event_denied = runner.invoke(
+        cli.app, ["events", "move-many", event["id"], "--calendar", str(calendar_archive)]
+    )
+    assert event_denied.exit_code == 2
+    assert "Move event" in event_denied.stderr and "--yes" in event_denied.stderr
+    event_moved = json_data(
+        invoke(
+            runner,
+            [
+                "--json",
+                "events",
+                "move-many",
+                event["id"],
+                "--calendar",
+                str(calendar_archive),
+                "--yes",
+            ],
+        ),
+        "events.move-many",
+    )
+    assert event_moved[0]["calendar_id"] == calendar_archive
+
+
 def test_events_search_saved_search_and_capture(cli_env: tuple[CliRunner, AppPaths]) -> None:
     runner, _ = cli_env
     list_id = seed_list(runner)
