@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+import pytest
 from rich.style import Style
 from rich.text import Text
 from textual import events
@@ -727,7 +728,15 @@ def test_task_editor_uses_due_date_selects_and_can_delete_one_task(tmp_path: Pat
     app_test(app, actions)
 
 
-def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None:
+def test_no_account_onboarding_is_actionable_and_offline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    notifications: list[str] = []
+
+    def record_notification(_screen: OnboardingScreen, message: object, **_kwargs: object) -> None:
+        notifications.append(str(message))
+
+    monkeypatch.setattr(OnboardingScreen, "notify", record_notification)
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
     app = HcbApp(
         Runtime(paths, environ={}),
@@ -758,8 +767,9 @@ def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None
         assert app.screen.query_one("#onboard-timezone", Select).value == "UTC"
         assert app.screen.query_one("#onboard-reminders", Select).value == "true"
         assert app.screen.query_one("#onboard-theme", Select).value == "terminal"
-        appearance = str(app.screen.query_one("#onboarding-appearance", Static).render())
-        assert "Use detected Rose Pine" in appearance
+        assert ("Use detected Rose Pine", "Rose Pine") in app.screen._theme_options()
+        assert len(app.screen.query("#onboarding-discovery")) == 0
+        assert len(app.screen.query("#onboarding-appearance")) == 0
         assert app.screen.query_one("#onboard-offline", Button).display
         assert app.screen.query_one("#onboard-connect", Button).display
         state = str(app.query_one("#sync-state", Static).render())
@@ -769,6 +779,9 @@ def test_no_account_onboarding_is_actionable_and_offline(tmp_path: Path) -> None
         await pilot.press("escape")  # type: ignore[attr-defined]
 
     app_test(app, assertions, size=(58, 24))
+    assert notifications == [
+        "Detected Rose Pine in Ghostty. Use detected Rose Pine is available under Appearance."
+    ]
 
 
 def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path) -> None:

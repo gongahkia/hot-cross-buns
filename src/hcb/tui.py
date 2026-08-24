@@ -640,43 +640,6 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(event.button.id == "confirm")
 
 
-class OnboardingDiscovery(Static):
-    """Animate the local-only setup checks before presenting the editable form."""
-
-    def __init__(self, environment: LocalEnvironment) -> None:
-        super().__init__(id="onboarding-discovery-message", markup=False)
-        self.environment = environment
-        self.stage = 0
-
-    def on_mount(self) -> None:
-        self._render_stage()
-        self.set_interval(0.6, self._advance)
-
-    def _advance(self) -> None:
-        if self.stage < 3:
-            self.stage += 1
-            self._render_stage()
-
-    def _render_stage(self) -> None:
-        messages = (
-            "Checking this device locally…",
-            f"Device detected · {self.environment.device_label}",
-            f"Terminal detected · {self.environment.terminal_label}",
-            self._theme_message(),
-        )
-        self.update(messages[self.stage])
-
-    def _theme_message(self) -> str:
-        if self.environment.suggested_preset:
-            return (
-                f"Theme detected · {self.environment.terminal_theme} "
-                f"→ HCB {self.environment.suggested_preset}"
-            )
-        if self.environment.terminal_theme:
-            return f"Theme detected · {self.environment.terminal_theme} (no HCB preset match)"
-        return "No named terminal theme found · keeping this optional"
-
-
 class OnboardingScreen(ModalScreen[dict[str, str] | None]):
     """First-run setup; no network action occurs inside this screen."""
 
@@ -694,37 +657,26 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         options.extend((item.name, item.name) for item in presets() if item.name != detected)
         return tuple(options)
 
-    def _appearance_message(self) -> str:
+    def _appearance_notification(self) -> str:
         theme = self.environment.terminal_theme
         if self.environment.suggested_preset:
             return (
-                f"Found {theme} in {self.environment.terminal_name}'s local configuration. "
-                f"Choose “Use detected {self.environment.suggested_preset}” below to save it "
-                "as HCB's default appearance."
+                f"Detected {theme} in {self.environment.terminal_name}. "
+                f"Use detected {self.environment.suggested_preset} is available under Appearance."
             )
         if theme:
             return (
-                f"Found {theme} in {self.environment.terminal_name}'s local configuration, "
-                "but HCB has no bundled palette with that name. Choose one below or keep "
-                "terminal defaults."
+                f"Detected {theme} in {self.environment.terminal_name}, but HCB has no matching "
+                "bundled palette."
             )
-        return (
-            "No named terminal color scheme was found in the standard local config locations. "
-            "Choose a palette below if you want, or keep terminal defaults."
-        )
+        return "No named terminal theme detected. Appearance remains optional."
+
+    def on_mount(self) -> None:
+        self.notify(self._appearance_notification(), timeout=8)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="onboarding-dialog"):
             yield Label("Welcome to Hot Cross Buns", id="dialog-title")
-            with Horizontal(id="onboarding-discovery"):
-                yield RattlesLoader()
-                yield OnboardingDiscovery(self.environment)
-            yield Static(
-                "These checks are local only. HCB does not modify terminal settings or contact "
-                "Google during onboarding.",
-                id="onboarding-privacy",
-            )
-            yield Static(self._appearance_message(), id="onboarding-appearance", markup=False)
             with VerticalScroll(id="onboarding-fields"):
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Credential .env path")
