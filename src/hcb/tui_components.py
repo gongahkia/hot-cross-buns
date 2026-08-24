@@ -1,5 +1,7 @@
 """Reusable Textual widgets and modal workflows for HCB."""
 
+from __future__ import annotations
+
 import json
 import shlex
 import subprocess
@@ -10,7 +12,7 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
 from time import monotonic
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from rich.color import Color as RichColor
 from rich.style import Style
@@ -59,9 +61,11 @@ from .tui import (
     PROFILE_OPTIONS,
     TIME_ZONE_OPTIONS,
     WEEK_START_OPTIONS,
-    HcbApp,
     linkify_urls,
 )
+
+if TYPE_CHECKING:
+    from .tui import HcbApp
 
 
 class EmojiCompletion(Static):
@@ -88,19 +92,16 @@ class Input(TextualInput):
         self.cursor_blink = False
 
     async def _on_key(self, event: events.Key) -> None:
-        app = self.app
-        if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+        app = cast("HcbApp", self.app)
+        if app.handle_emoji_key(self, event):
             return
-        if isinstance(app, HcbApp) and app.handle_external_editor_key(self, event):
+        if app.handle_external_editor_key(self, event):
             return
         await super()._on_key(event)
-        if isinstance(app, HcbApp):
-            app.update_emoji_completion(self)
+        app.update_emoji_completion(self)
 
     def on_blur(self, event: events.Blur) -> None:
-        app = self.app
-        if isinstance(app, HcbApp):
-            app.dismiss_emoji_completion(self)
+        cast("HcbApp", self.app).dismiss_emoji_completion(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,22 +135,19 @@ class TerminalTextArea(TextArea):
         self.apply_terminal_theme()
 
     async def _on_key(self, event: events.Key) -> None:
-        app = self.app
-        if isinstance(app, HcbApp) and app.handle_emoji_key(self, event):
+        app = cast("HcbApp", self.app)
+        if app.handle_emoji_key(self, event):
             return
-        if isinstance(app, HcbApp) and app.handle_external_editor_key(self, event):
+        if app.handle_external_editor_key(self, event):
             return
         await super()._on_key(event)
-        if isinstance(app, HcbApp):
-            app.update_emoji_completion(self)
+        app.update_emoji_completion(self)
 
     def on_blur(self, event: events.Blur) -> None:
-        app = self.app
-        if isinstance(app, HcbApp):
-            app.dismiss_emoji_completion(self)
+        cast("HcbApp", self.app).dismiss_emoji_completion(self)
 
     def apply_terminal_theme(self) -> None:
-        colors = cast(HcbApp, self.app).runtime.config.theme.colors
+        colors = cast("HcbApp", self.app).runtime.config.theme.colors
         self.register_theme(
             TextAreaTheme(
                 "hcb-terminal",
@@ -195,7 +193,7 @@ class RattlesLoader(Static):
         self.set_interval(0.05, self._render_frame)
 
     def _render_frame(self) -> None:
-        app = cast(HcbApp, self.app)
+        app = cast("HcbApp", self.app)
         preset = loader_preset(app.runtime.config.theme.loader)
         self.update(preset.frame_at(monotonic() - self._started_at))
 
@@ -223,7 +221,7 @@ class LoadingScreen(ModalScreen[None]):
 
     def action_cancel_sync(self) -> None:
         if self.cancellable:
-            cast(HcbApp, self.app).cancel_sync()
+            cast("HcbApp", self.app).cancel_sync()
 
 
 class EditorScreen(ModalScreen[dict[str, str] | None]):
