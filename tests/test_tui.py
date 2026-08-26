@@ -768,6 +768,7 @@ def test_no_account_onboarding_is_actionable_and_offline(
         labels = [str(label.render()) for label in app.screen.query(".onboarding-field Label")]
         assert labels == [
             "Credential .env path",
+            "Suggested .env files",
             "Local account identifier",
             "Account email",
             "Time zone",
@@ -777,6 +778,9 @@ def test_no_account_onboarding_is_actionable_and_offline(
         assert app.screen.query_one("#onboard-timezone", Select).value == "UTC"
         assert app.screen.query_one("#onboard-reminders", Select).value == "true"
         assert app.screen.query_one("#onboard-theme", Select).value == "terminal"
+        assert app.screen.query_one("#onboard-env-file-suggestion", Select).value == str(
+            Path("~/.config/hcb/personal.env").expanduser()
+        )
         assert ("Use detected Rose Pine", "Rose Pine") in app.screen._theme_options()
         assert len(app.screen.query("#onboarding-discovery")) == 0
         assert len(app.screen.query("#onboarding-appearance")) == 0
@@ -848,6 +852,25 @@ def test_onboarding_connect_waits_for_explicit_confirmation(tmp_path: Path) -> N
 
     app_test(app, actions)
     assert "public-client" not in paths.config_file.read_text()
+
+
+def test_onboarding_credential_file_suggestion_updates_the_editable_path(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    credential_file = paths.config_dir / "accounts" / "work.env"
+    credential_file.parent.mkdir(parents=True)
+    credential_file.write_text("HCB_GOOGLE_CLIENT_ID=client-id\n")
+    app = HcbApp(Runtime(paths, environ={}))
+
+    async def actions(pilot: object) -> None:
+        selector = app.screen.query_one("#onboard-env-file-suggestion", Select)
+        assert (f"Detected · {credential_file}", str(credential_file)) in (
+            app.screen._credential_file_options()
+        )
+        selector.value = str(credential_file)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen.query_one("#onboard-env-file", Input).value == str(credential_file)
+
+    app_test(app, actions)
 
 
 def test_no_color_forces_mono_ascii_and_disables_mouse(tmp_path: Path) -> None:

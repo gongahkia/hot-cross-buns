@@ -99,6 +99,22 @@ def test_runtime_defaults_to_the_personal_credential_file(tmp_path: Path) -> Non
     )
 
 
+def test_runtime_suggests_configured_default_and_detected_credential_files(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    configured = tmp_path / "configured.env"
+    detected = paths.config_dir / "accounts" / "work.env"
+    detected.parent.mkdir(parents=True)
+    detected.write_text("HCB_GOOGLE_CLIENT_ID=client-id\n")
+
+    runtime = Runtime(paths, environ={"HCB_ENV_FILE": str(configured)})
+
+    assert runtime.credential_file_suggestions("work") == (
+        configured,
+        DEFAULT_CREDENTIAL_FILE.expanduser(),
+        detected,
+    )
+
+
 def test_invalid_client_and_missing_credentials() -> None:
     with pytest.raises(ValueError):
         GoogleAuthenticator({}, TokenStore(FakeKeyring()))

@@ -12,6 +12,7 @@ import os
 import re
 import stat
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -33,15 +34,13 @@ def discover_credential_files(*paths: Path, config_dir: Path) -> tuple[Path, ...
     """Return suggested credential paths without searching outside HCB's config directory."""
 
     candidates = list(paths)
-    try:
+    with suppress(OSError):
         candidates.extend(
             sorted(
                 (path for path in config_dir.rglob("*.env") if path.is_file()),
                 key=lambda path: str(path),
             )
         )
-    except OSError:
-        pass
 
     discovered: list[Path] = []
     seen: set[Path] = set()
