@@ -388,9 +388,43 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
 
     BINDINGS = [Binding("escape", "offline", "Stay offline")]
 
-    def __init__(self, environment: LocalEnvironment) -> None:
+    def __init__(
+        self,
+        environment: LocalEnvironment,
+        *,
+        credential_file: Path = DEFAULT_CREDENTIAL_FILE,
+        credential_file_suggestions: tuple[Path, ...] = (),
+    ) -> None:
         super().__init__()
         self.environment = environment
+        self.credential_file = credential_file
+        self.credential_file_suggestions = credential_file_suggestions
+
+    @staticmethod
+    def _display_credential_file(path: Path) -> str:
+        expanded = path.expanduser()
+        try:
+            return f"~/{expanded.relative_to(Path.home())}"
+        except ValueError:
+            return str(expanded)
+
+    def _credential_file_options(self) -> tuple[tuple[str, str], ...]:
+        candidates = (self.credential_file, *self.credential_file_suggestions)
+        paths: list[Path] = []
+        seen: set[Path] = set()
+        for candidate in candidates:
+            resolved = candidate.expanduser().resolve(strict=False)
+            if resolved not in seen:
+                seen.add(resolved)
+                paths.append(resolved)
+        return tuple(
+            (
+                f"{'Suggested' if index == 0 else 'Detected'} · "
+                f"{self._display_credential_file(path)}",
+                str(path),
+            )
+            for index, path in enumerate(paths)
+        )
 
     def _theme_options(self) -> tuple[tuple[str, str], ...]:
         detected = self.environment.suggested_preset
@@ -424,9 +458,17 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Credential .env path")
                     yield Input(
-                        value=str(DEFAULT_CREDENTIAL_FILE),
+                        value=self._display_credential_file(self.credential_file),
                         placeholder="Credential .env path",
                         id="onboard-env-file",
+                    )
+                with Horizontal(classes="onboarding-field"):
+                    yield Label("Suggested .env files")
+                    yield Select(
+                        self._credential_file_options(),
+                        allow_blank=False,
+                        value=str(self.credential_file.expanduser().resolve(strict=False)),
+                        id="onboard-env-file-suggestion",
                     )
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Local account identifier")
@@ -480,6 +522,13 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
                 "theme_preset": self._selected_value("#onboard-theme", "an appearance"),
                 "connect": str(event.button.id == "onboard-connect").lower(),
             }
+        )
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id != "onboard-env-file-suggestion" or not isinstance(event.value, str):
+            return
+        self.query_one("#onboard-env-file", Input).value = self._display_credential_file(
+            Path(event.value)
         )
 
     def _selected_value(self, selector: str, label: str) -> str:

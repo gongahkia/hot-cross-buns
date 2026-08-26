@@ -277,7 +277,7 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #onboarding-dialog {
-    height: 27;
+    height: 30;
     max-height: 90%;
 }
 

@@ -12,7 +12,12 @@ from typing import Any
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
 from .config import Config, ConfigError, Theme, ThemeColors, load, save
-from .credentials import CredentialFileError, EncryptedFileTokenStore, load_client_config
+from .credentials import (
+    CredentialFileError,
+    EncryptedFileTokenStore,
+    discover_credential_files,
+    load_client_config,
+)
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
 from .models import Account
@@ -71,6 +76,15 @@ class Runtime:
         if configured:
             return Path(configured).expanduser()
         return DEFAULT_CREDENTIAL_FILE.expanduser()
+
+    def credential_file_suggestions(self, account_id: str) -> tuple[Path, ...]:
+        """List safe local credential-file suggestions for first-run setup."""
+
+        return discover_credential_files(
+            self.credential_file(account_id),
+            DEFAULT_CREDENTIAL_FILE,
+            config_dir=self.paths.config_dir,
+        )
 
     def token_store_for(self, account_id: str) -> EncryptedFileTokenStore:
         return EncryptedFileTokenStore(

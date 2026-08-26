@@ -29,6 +29,30 @@ class CredentialFileError(ValueError):
     """The local credential file is missing, malformed, or unsafe to use."""
 
 
+def discover_credential_files(*paths: Path, config_dir: Path) -> tuple[Path, ...]:
+    """Return suggested credential paths without searching outside HCB's config directory."""
+
+    candidates = list(paths)
+    try:
+        candidates.extend(
+            sorted(
+                (path for path in config_dir.rglob("*.env") if path.is_file()),
+                key=lambda path: str(path),
+            )
+        )
+    except OSError:
+        pass
+
+    discovered: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.expanduser().resolve(strict=False)
+        if resolved not in seen:
+            seen.add(resolved)
+            discovered.append(resolved)
+    return tuple(discovered)
+
+
 def credential_key_account(path: Path) -> str:
     """Return the keyring account used for a credential file's encryption key."""
 

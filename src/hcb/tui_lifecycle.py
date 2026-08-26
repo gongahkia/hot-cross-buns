@@ -203,7 +203,12 @@ class LifecycleMixin:
             self.notify("Offline account created; Google remains disconnected")
 
     def _onboarding_screen(self: Any) -> OnboardingScreen:
-        return OnboardingScreen(self._local_environment())
+        account_id = "onboarding"
+        return OnboardingScreen(
+            self._local_environment(),
+            credential_file=self.runtime.credential_file(account_id),
+            credential_file_suggestions=self.runtime.credential_file_suggestions(account_id),
+        )
 
     def _local_environment(self: Any) -> LocalEnvironment:
         if self.local_environment is None:
