@@ -24,6 +24,12 @@ CLIENT_ID_KEY = "HCB_GOOGLE_CLIENT_ID"
 CLIENT_SECRET_KEY = "HCB_GOOGLE_CLIENT_SECRET"
 REFRESH_TOKEN_KEY = "HCB_GOOGLE_REFRESH_TOKEN_ENCRYPTED"
 _ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
+_CREDENTIAL_TEMPLATE = """# Google OAuth credentials for Hot Cross Buns.
+# Create a Desktop OAuth client with the Google Calendar, Tasks, and Drive APIs enabled.
+HCB_GOOGLE_CLIENT_ID=
+# Optional for a Desktop OAuth client.
+HCB_GOOGLE_CLIENT_SECRET=
+"""
 
 
 class CredentialFileError(ValueError):
@@ -50,6 +56,21 @@ def discover_credential_files(*paths: Path, config_dir: Path) -> tuple[Path, ...
             seen.add(resolved)
             discovered.append(resolved)
     return tuple(discovered)
+
+
+def create_credential_template(path: Path) -> bool:
+    """Create a private OAuth credential template unless *path* already exists."""
+
+    destination = path.expanduser()
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(_CREDENTIAL_TEMPLATE)
+    return True
 
 
 def credential_key_account(path: Path) -> str:

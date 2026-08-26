@@ -172,8 +172,13 @@ class LifecycleMixin:
             self.notify("Reminders must be true or false", severity="error")
             self.push_screen(self._onboarding_screen(), self._onboarding_result)
             return
+        credential_file = (
+            Path(result["env_file"]).expanduser()
+            if result["env_file"]
+            else self.runtime.credential_file(result["account_id"])
+        )
         try:
-            self.runtime.save_onboarding(
+            template_created = self.runtime.save_onboarding(
                 account_id=result["account_id"],
                 email=result["email"],
                 time_zone=result["time_zone"],
@@ -181,17 +186,29 @@ class LifecycleMixin:
                 theme_preset=(
                     None if result["theme_preset"] == "terminal" else result["theme_preset"]
                 ),
+                credential_file=credential_file,
             )
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             self.notify(str(exc), severity="error")
             self.push_screen(self._onboarding_screen(), self._onboarding_result)
             return
         self.account_id = result["account_id"]
         if result["env_file"]:
-            self.runtime.credential_file_override = Path(result["env_file"]).expanduser()
+            self.runtime.credential_file_override = credential_file
         self._apply_visual_config(self.runtime.config)
         self.refresh_workspace()
         if result["connect"] == "true":
+            if template_created:
+                self.push_screen(
+                    GoogleSetupScreen(
+                        operation="Google connection",
+                        account_id=self.account_id,
+                        email=result["email"],
+                        credential_file=credential_file,
+                        reason="credential template created; add your Google OAuth client ID first",
+                    )
+                )
+                return
             self.push_screen(
                 ConfirmScreen(
                     "Open the browser and connect this Google account now?",
@@ -200,7 +217,10 @@ class LifecycleMixin:
                 self._onboarding_connect_confirmed,
             )
         else:
-            self.notify("Offline account created; Google remains disconnected")
+            message = "Offline account created; Google remains disconnected"
+            if template_created:
+                message = f"Created credential template at {credential_file}; {message}"
+            self.notify(message)
 
     def _onboarding_screen(self: Any) -> OnboardingScreen:
         account_id = "onboarding"

@@ -15,6 +15,7 @@ from .config import Config, ConfigError, Theme, ThemeColors, load, save
 from .credentials import (
     CredentialFileError,
     EncryptedFileTokenStore,
+    create_credential_template,
     discover_credential_files,
     load_client_config,
 )
@@ -125,7 +126,8 @@ class Runtime:
         time_zone: str,
         reminders_enabled: bool,
         theme_preset: str | None = None,
-    ) -> None:
+        credential_file: Path | None = None,
+    ) -> bool:
         if not account_id.strip() or any(character.isspace() for character in account_id):
             raise ValueError("account identifier is required and cannot contain whitespace")
         if "@" not in email or email.strip() != email:
@@ -144,10 +146,14 @@ class Runtime:
             ),
         )
         # Constructing Preferences validates the IANA zone before any state is written.
+        template_created = (
+            create_credential_template(credential_file) if credential_file is not None else False
+        )
         save(updated, self.paths.config_file)
         with self.storage.transaction():
             self.storage.upsert_account(Account(account_id, email))
         self.__dict__["config"] = updated
+        return template_created
 
     def authenticator(self, account_id: str) -> GoogleAuthenticator:
         try:

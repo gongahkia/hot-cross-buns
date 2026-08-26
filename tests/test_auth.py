@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from hcb.auth import GoogleAuthenticator, TokenStore
-from hcb.credentials import EncryptedFileTokenStore, load_client_config
+from hcb.credentials import EncryptedFileTokenStore, create_credential_template, load_client_config
 from hcb.models import Account
 from hcb.paths import AppPaths
 from hcb.runtime import DEFAULT_CREDENTIAL_FILE, Runtime
@@ -113,6 +113,26 @@ def test_runtime_suggests_configured_default_and_detected_credential_files(tmp_p
         DEFAULT_CREDENTIAL_FILE.expanduser(),
         detected,
     )
+
+
+def test_credential_template_is_private_and_never_overwrites_an_existing_file(
+    tmp_path: Path,
+) -> None:
+    credential_file = tmp_path / "config" / "personal.env"
+
+    assert create_credential_template(credential_file)
+    assert credential_file.stat().st_mode & 0o777 == 0o600
+    assert credential_file.read_text() == (
+        "# Google OAuth credentials for Hot Cross Buns.\n"
+        "# Create a Desktop OAuth client with the Google Calendar, Tasks, and Drive APIs enabled.\n"
+        "HCB_GOOGLE_CLIENT_ID=\n"
+        "# Optional for a Desktop OAuth client.\n"
+        "HCB_GOOGLE_CLIENT_SECRET=\n"
+    )
+
+    credential_file.write_text("HCB_GOOGLE_CLIENT_ID=existing\n")
+    assert not create_credential_template(credential_file)
+    assert credential_file.read_text() == "HCB_GOOGLE_CLIENT_ID=existing\n"
 
 
 def test_invalid_client_and_missing_credentials() -> None:

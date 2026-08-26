@@ -801,9 +801,11 @@ def test_no_account_onboarding_is_actionable_and_offline(
 def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path) -> None:
     paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
     app = HcbApp(Runtime(paths, environ={}))
+    credential_file = paths.config_dir / "personal.env"
 
     async def actions(pilot: object) -> None:
         assert isinstance(app.screen, OnboardingScreen)
+        app.screen.query_one("#onboard-env-file", Input).value = str(credential_file)
         app.screen.query_one("#onboard-account", Input).value = "offline"
         app.screen.query_one("#onboard-email", Input).value = "offline@example.test"
         app.screen.query_one("#onboard-timezone", Select).value = "Asia/Singapore"
@@ -820,6 +822,8 @@ def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path)
     assert not reopened.config.preferences.reminders_enabled
     assert reopened.config.theme.preset == "Rose Pine"
     assert reopened.storage.get_account("offline") is not None
+    assert credential_file.read_text().endswith("HCB_GOOGLE_CLIENT_SECRET=\n")
+    assert credential_file.stat().st_mode & 0o777 == 0o600
     reopened.close()
 
 
