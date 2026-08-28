@@ -45,7 +45,7 @@ from .environment import LocalEnvironment
 from .errors import HcbError
 from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, loader_preset
-from .models import ConflictStatus, DriveFile, Event, Task
+from .models import ConflictStatus, DriveFile, Event, Task, TaskStatus
 from .runtime import DEFAULT_CREDENTIAL_FILE
 from .themes import preset, presets
 from .tui import (
@@ -1218,13 +1218,19 @@ class ItemViewScreen(ModalScreen[str | None]):
 
     def _task_details(self, task: Task) -> Text:
         text = Text(
-            f"Status: {task.status.value}\n"
             f"Due: {self.hcb.format_date(task.due) if task.due else '—'}\n"
             f"Priority: {task.priority.value}"
         )
         if task.completed_at is not None:
             text.append(f"\nCompleted: {self.hcb.format_date_time(task.completed_at)}")
         return text
+
+    @staticmethod
+    def _task_title(task: Task) -> Text:
+        title = render_readonly_markup(task.title)
+        if task.status is TaskStatus.COMPLETED:
+            title.stylize(Style(strike=True))
+        return title
 
     def _event_color(self, event: Event) -> str | None:
         color = event.color_id
@@ -1237,10 +1243,16 @@ class ItemViewScreen(ModalScreen[str | None]):
 
     @staticmethod
     def _reminder_offset(minutes: int) -> str:
-        if minutes < 60:
-            return f"{minutes} min"
-        hours, remainder = divmod(minutes, 60)
-        return f"{hours} hr" + (f" {remainder} min" if remainder else "")
+        days, remainder = divmod(minutes, 24 * 60)
+        hours, minutes = divmod(remainder, 60)
+        parts = []
+        if days:
+            parts.append(f"{days} day" + ("s" if days != 1 else ""))
+        if hours:
+            parts.append(f"{hours} hr")
+        if minutes or not parts:
+            parts.append(f"{minutes} min")
+        return " ".join(parts)
 
     @staticmethod
     def _conference_url(conference: dict[str, object]) -> str | None:
@@ -1325,7 +1337,7 @@ class ItemViewScreen(ModalScreen[str | None]):
             yield Label(title, id="dialog-title")
             with VerticalScroll(id="item-view-content"):
                 if isinstance(item, Task):
-                    yield Static(render_readonly_markup(item.title), id="item-view-title")
+                    yield Static(self._task_title(item), id="item-view-title")
                     yield Static(self._task_details(item), classes="item-view-section")
                     yield Label("Notes", classes="event-field-label")
                     yield Static(

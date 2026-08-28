@@ -7,6 +7,8 @@ from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
+from rich.style import Style
+from rich.text import Text
 from textual.widgets import (
     Button,
     ListView,
@@ -255,9 +257,17 @@ class WorkspaceMixin:
                 due = f"  {self.format_date(task.due)}" if task.due else ""
                 note_lines = (task.notes or "").splitlines()
                 notes = f" — {note_lines[0]}" if self.surface == "Notes" and note_lines else ""
+                label = Text(f"{marked} {indent}{status} ")
+                title_start = len(label)
+                label.append(task.title)
+                title_end = len(label)
+                label.append(f"{due}{notes}")
+                if task.status is TaskStatus.COMPLETED:
+                    label.stylize(Style(dim=True))
+                    label.stylize(Style(strike=True), title_start, title_end)
                 content.append(
                     EntityRow(
-                        f"{marked} {indent}{status} {task.title}{due}{notes}",
+                        label,
                         kind="task",
                         item_id=task.id,
                     )

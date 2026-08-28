@@ -391,6 +391,37 @@ def test_event_view_only_shows_relevant_specialist_details(tmp_path: Path) -> No
     )
 
 
+def test_event_view_formats_reminder_offsets_as_readable_units() -> None:
+    assert ItemViewScreen._reminder_offset(59) == "59 min"
+    assert ItemViewScreen._reminder_offset(60) == "1 hr"
+    assert ItemViewScreen._reminder_offset(90) == "1 hr 30 min"
+    assert ItemViewScreen._reminder_offset(1500) == "1 day 1 hr"
+
+
+def test_completed_tasks_are_struck_through_in_detail_and_workspace(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task = runtime.application.complete_task("work", runtime.storage.list_tasks("work")[0].id)
+    app = HcbApp(runtime)
+    screen = ItemViewScreen(app, task)
+
+    assert "Status:" not in screen._task_details(task).plain
+    title = screen._task_title(task)
+    assert any(isinstance(span.style, Style) and span.style.strike for span in title.spans)
+
+    async def assertions(pilot: object) -> None:
+        row = next(
+            item
+            for item in app.query_one("#content", ListView).children
+            if isinstance(item, EntityRow) and item.item_id == task.id
+        )
+        label = row.query_one(Label).render()
+        spans = getattr(label, "spans", ())
+        assert any(getattr(span.style, "dim", False) for span in spans)
+        assert any(getattr(span.style, "strike", False) for span in spans)
+
+    app_test(app, assertions)
+
+
 def test_content_selection_persistently_marks_the_active_row(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]
