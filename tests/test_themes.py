@@ -20,8 +20,8 @@ from hcb.themes import (
 def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     available = presets()
 
-    assert len(available) == BUNDLED_PRESET_COUNT == 50
-    assert [item.rank for item in available] == list(range(1, 51))
+    assert len(available) == BUNDLED_PRESET_COUNT == 60
+    assert [item.rank for item in available] == list(range(1, 61))
     assert available[0].name == "Dracula"
     assert available[0].colors.background == "#282a36"
     assert {item.name.casefold() for item in available} == {
@@ -34,6 +34,16 @@ def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     assert source()["upstream_theme_count"] == 606
     assert preset("Flexoki Light").profile == "light"
     assert preset("Oxocarbon").colors.background == "#161616"
+    assert preset("Tomorrow Night").colors.background == "#1d1f21"
+    assert preset("Synthwave").colors.accent == "#2186ec"
+    assert preset("Iceberg Dark").colors.selection == "#c6c8d1"
+    assert preset("One Half Dark").colors.focus == "#a3b3cc"
+    assert preset("Ayu").colors.success == "#7fd962"
+    assert preset("Zenburn").colors.warning == "#f0dfaf"
+    assert preset("Cobalt2").colors.background == "#132738"
+    assert preset("Vesper").colors.danger == "#f5a191"
+    assert preset("Horizon").colors.accent == "#26bbd9"
+    assert preset("Poimandres").colors.text == "#a6accd"
 
 
 def test_applying_a_preset_preserves_user_interface_preferences() -> None:

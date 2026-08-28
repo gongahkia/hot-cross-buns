@@ -2,13 +2,13 @@
 
 This is a name-for-name inventory of the Ghostty-compatible files from the iTerm2 Color Schemes upstream snapshot `75c93eebaca34a6194ba8bdb83d99b62e20f9aba` (2026-08-23). Ghostty documents that its built-in themes are sourced from that collection; this snapshot contains **606** theme files.
 
-HCB does not bundle all 606 palettes. Its [top-50 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
+HCB does not bundle all 606 palettes. Its [top-60 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
 
 Source: <https://github.com/mbadolato/iTerm2-Color-Schemes/tree/75c93eebaca34a6194ba8bdb83d99b62e20f9aba/ghostty>.
 
 ## HCB bundled presets
 
-The order below is a curated popularity aggregate as of 2026-08-24, not a
+The order below is a curated popularity aggregate as of 2026-08-28, not a
 claim that each individual flavour has independently comparable usage data.
 Theme projects expose adoption at the family level, so the ranking combines
 that evidence with recurring inclusion in terminal/TUI theme curation; common
@@ -22,12 +22,22 @@ the canonical [Dracula](https://github.com/dracula/dracula-theme),
 [Gruvbox Material](https://github.com/sainnhe/gruvbox-material),
 [Doom One](https://github.com/doomemacs/themes),
 [Sonokai](https://github.com/sainnhe/sonokai), and
-[Oxocarbon](https://github.com/nyoom-engineering/oxocarbon.nvim) projects,
+[Oxocarbon](https://github.com/nyoom-engineering/oxocarbon.nvim),
+[Tomorrow](https://github.com/chriskempson/tomorrow-theme),
+[Synthwave](https://github.com/robb0wen/synthwave-vscode),
+[Iceberg](https://github.com/cocopon/iceberg.vim),
+[One Half](https://github.com/sonph/onehalf),
+[Ayu](https://github.com/ayu-theme/ayu-vim),
+[Zenburn](https://github.com/jnurmine/Zenburn),
+[Cobalt2](https://github.com/wesbos/cobalt2-vscode),
+[Vesper](https://github.com/raunofreiberg/vesper),
+[Horizon](https://github.com/jolaleye/horizon-theme-vscode), and
+[Poimandres](https://github.com/drcmda/poimandres-theme) projects,
 corroborated against the independent [Ratatui theme collection](https://github.com/ricardodantas/ratatui-themes).
 This avoids inventing a precise per-variant popularity number where the source
 projects do not publish one.
 
-HCB stores these 50 as a pinned semantic-token projection in
+HCB stores these 60 as a pinned semantic-token projection in
 [`hcb-theme-presets-v1.json`](../../src/hcb/schemas/hcb-theme-presets-v1.json).
 It uses the source foreground/background, cursor, selection, and ANSI palette
 colors for the equivalent HCB tokens; it does not modify the terminal emulator's
@@ -85,6 +95,16 @@ own palette.
 | 48 | Doom One | Doom One | Doom One |
 | 49 | Sonokai | Sonokai | Sonokai |
 | 50 | Oxocarbon | Oxocarbon | Oxocarbon |
+| 51 | Tomorrow Night | Tomorrow Night | Tomorrow |
+| 52 | Synthwave | Synthwave | Synthwave |
+| 53 | Iceberg Dark | Iceberg Dark | Iceberg |
+| 54 | One Half Dark | One Half Dark | One Half |
+| 55 | Ayu | Ayu | Ayu |
+| 56 | Zenburn | Zenburn | Zenburn |
+| 57 | Cobalt2 | Cobalt2 | Cobalt2 |
+| 58 | Vesper | Vesper | Vesper |
+| 59 | Horizon | Horizon | Horizon |
+| 60 | Poimandres | Poimandres | Poimandres |
 
 ## Complete upstream name map
 

@@ -169,7 +169,7 @@ invalid edits leave the active appearance in place and report an error.
 
 ## Themes
 
-HCB ships 50 Ghostty-derived visual presets, selected from Ghostty's bundled
+HCB ships 60 Ghostty-derived visual presets, selected from Ghostty's bundled
 theme collection using family-level community adoption and recurrent terminal
 theme curation. `hcb themes list` shows the stable ranked set, `hcb themes show
 NAME` prints every semantic token, and `hcb themes apply NAME` writes it to

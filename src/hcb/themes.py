@@ -12,7 +12,7 @@ from typing import Any
 from .config import ConfigError, Theme, ThemeColors, loads_theme
 
 PRESET_RESOURCE = "hcb-theme-presets-v1.json"
-BUNDLED_PRESET_COUNT = 50
+BUNDLED_PRESET_COUNT = 60
 
 
 @dataclass(frozen=True, slots=True)

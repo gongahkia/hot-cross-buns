@@ -126,7 +126,7 @@ JSON `null` and empty arrays as clears. `calendars edit` changes Calendar
 resource fields, while `calendars set-list` changes CalendarList settings such
 as selection, colors, default reminders, and notification preferences.
 
-`themes list` returns HCB's 50 bundled Ghostty-derived presets in rank order.
+`themes list` returns HCB's 60 bundled Ghostty-derived presets in rank order.
 `themes show NAME` returns one full semantic palette, and `themes apply NAME`
 writes it to `config.json` while retaining the current density, border, focus,
 mouse, and loader choices. `themes RANK` is an equivalent shorthand, so
