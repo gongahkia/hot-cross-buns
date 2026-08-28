@@ -21,6 +21,7 @@ from textual.widgets import (
 )
 
 from .config import Config, ConfigError, load
+from .credentials import create_credential_template
 from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
 from .tui import (
@@ -228,6 +229,8 @@ class LifecycleMixin:
             self._local_environment(),
             credential_file=self.runtime.credential_file(account_id),
             credential_file_suggestions=self.runtime.credential_file_suggestions(account_id),
+            editor_command=self._editor_command(),
+            external_editor_shortcut=self.runtime.config.keys.external_editor,
         )
 
     def _local_environment(self: Any) -> LocalEnvironment:
@@ -428,6 +431,9 @@ class LifecycleMixin:
         if not isinstance(target, (Input, TerminalTextArea)):
             return
         self.dismiss_emoji_completion(target)
+        if isinstance(target, Input) and target.id == "onboard-env-file":
+            self._open_onboarding_credential_file(target)
+            return
         temporary_path: Path | None = None
         try:
             command = shlex.split(self._editor_command())
@@ -464,6 +470,31 @@ class LifecycleMixin:
         else:
             target.load_text(edited)
             target.cursor_location = target.document.end
+
+    def _open_onboarding_credential_file(self: Any, target: Input) -> None:
+        """Open the first-run credential file, creating its private template when needed."""
+
+        try:
+            if not target.value.strip():
+                raise ValueError("credential file path is empty")
+            credential_file = Path(target.value.strip()).expanduser()
+            template_created = create_credential_template(credential_file)
+            command = shlex.split(self._editor_command())
+            if not command:
+                raise ValueError("external editor command is empty")
+            with self._editor_suspend():
+                return_code = self._editor_runner([*command, str(credential_file)])
+            if return_code != 0:
+                self.notify(f"External editor exited with status {return_code}", severity="error")
+                return
+        except SuspendNotSupported:
+            self.notify("External editor is unavailable in this environment", severity="error")
+            return
+        except (OSError, UnicodeError, ValueError) as exc:
+            self.notify(f"External editor failed: {exc}", severity="error")
+            return
+        if template_created:
+            self.notify(f"Created credential template at {credential_file}")
 
     def on_unmount(self: Any) -> None:
         self.runtime.close()

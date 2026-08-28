@@ -277,7 +277,7 @@ Input.-invalid, TextArea.-invalid {
 }
 
 #onboarding-dialog {
-    height: 30;
+    height: 31;
     max-height: 90%;
 }
 
@@ -296,6 +296,17 @@ Input.-invalid, TextArea.-invalid {
 
 .onboarding-field {
     height: 3;
+}
+
+.onboarding-credential-field {
+    height: 4;
+}
+
+#onboard-env-editor-hint {
+    height: 1;
+    margin-left: 24;
+    padding: 0 1;
+    color: $text-muted;
 }
 
 .onboarding-field Label {

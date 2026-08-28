@@ -765,6 +765,10 @@ def test_no_account_onboarding_is_actionable_and_offline(
         assert (
             app.screen.query_one("#onboard-env-file", Input).value == "~/.config/hcb/personal.env"
         )
+        assert (
+            str(app.screen.query_one("#onboard-env-editor-hint", Label).render())
+            == "Ctrl+G to open this credential file in nvim"
+        )
         labels = [str(label.render()) for label in app.screen.query(".onboarding-field Label")]
         assert labels == [
             "Credential .env path",
@@ -796,6 +800,41 @@ def test_no_account_onboarding_is_actionable_and_offline(
     assert notifications == [
         "Detected Rose Pine in Ghostty. Use detected Rose Pine is available under Appearance."
     ]
+
+
+def test_onboarding_credential_shortcut_opens_the_actual_credential_file(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    commands: list[list[str]] = []
+    suspensions: list[bool] = []
+    credential_file = tmp_path / "credentials" / "personal.env"
+
+    @contextmanager
+    def suspended() -> Iterator[None]:
+        suspensions.append(True)
+        yield
+
+    def run_editor(command: list[str]) -> int:
+        commands.append(command)
+        return 0
+
+    app = HcbApp(
+        Runtime(paths, environ={}),
+        editor_runner=run_editor,
+        suspend=suspended,
+    )
+
+    async def assertions(pilot: object) -> None:
+        field = app.screen.query_one("#onboard-env-file", Input)
+        field.value = str(credential_file)
+        await pilot.click("#onboard-env-file")  # type: ignore[attr-defined]
+        await pilot.press("ctrl+g")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert credential_file.read_text(encoding="utf-8").endswith("HCB_GOOGLE_CLIENT_SECRET=\n")
+        assert credential_file.stat().st_mode & 0o777 == 0o600
+
+    app_test(app, assertions)
+    assert commands == [["nvim", str(credential_file)]]
+    assert suspensions == [True]
 
 
 def test_onboarding_offline_saves_non_secret_config_without_auth(tmp_path: Path) -> None:

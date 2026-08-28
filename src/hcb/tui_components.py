@@ -394,11 +394,22 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         *,
         credential_file: Path = DEFAULT_CREDENTIAL_FILE,
         credential_file_suggestions: tuple[Path, ...] = (),
+        editor_command: str = "nvim",
+        external_editor_shortcut: str = "ctrl+g",
     ) -> None:
         super().__init__()
         self.environment = environment
         self.credential_file = credential_file
         self.credential_file_suggestions = credential_file_suggestions
+        self.editor_command = editor_command
+        self.external_editor_shortcut = external_editor_shortcut
+
+    def _credential_editor_hint(self) -> str:
+        shortcut = "+".join(
+            part.upper() if len(part) == 1 else part.capitalize()
+            for part in self.external_editor_shortcut.split("+")
+        )
+        return f"{shortcut} to open this credential file in {self.editor_command}"
 
     @staticmethod
     def _display_credential_file(path: Path) -> str:
@@ -455,13 +466,15 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         with Vertical(id="onboarding-dialog"):
             yield Label("Welcome to Hot Cross Buns", id="dialog-title")
             with VerticalScroll(id="onboarding-fields"):
-                with Horizontal(classes="onboarding-field"):
-                    yield Label("Credential .env path")
-                    yield Input(
-                        value=self._display_credential_file(self.credential_file),
-                        placeholder="Credential .env path",
-                        id="onboard-env-file",
-                    )
+                with Vertical(classes="onboarding-credential-field"):
+                    with Horizontal(classes="onboarding-field"):
+                        yield Label("Credential .env path")
+                        yield Input(
+                            value=self._display_credential_file(self.credential_file),
+                            placeholder="Credential .env path",
+                            id="onboard-env-file",
+                        )
+                    yield Label(self._credential_editor_hint(), id="onboard-env-editor-hint")
                 with Horizontal(classes="onboarding-field"):
                     yield Label("Suggested .env files")
                     yield Select(
