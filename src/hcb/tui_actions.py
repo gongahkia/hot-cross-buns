@@ -37,6 +37,7 @@ from .tui_components import (
     EventEditorScreen,
     FindTimeScreen,
     ImportScreen,
+    ItemViewScreen,
     PaletteScreen,
     RsvpScreen,
     ScheduleScreen,
@@ -101,24 +102,21 @@ class ActionMixin:
             self.selected = (kind, value)
             self._render_chrome(refresh_resources=False)
             self._render_surface()
-            self._render_inspector()
         elif kind == "task-list":
             self.surface = "Tasks"
             self.resource_filter = ("task-list", value)
             self.selected = None
             self._render_chrome(refresh_resources=False)
             self._render_surface()
-            self._render_inspector()
         elif kind == "calendar":
             self.surface = "Agenda"
             self.resource_filter = ("calendar", value)
             self.selected = None
             self._render_chrome(refresh_resources=False)
             self._render_surface()
-            self._render_inspector()
         elif kind == "drive":
             self.selected = (kind, value)
-            self._render_inspector()
+            self.action_view()
         elif kind == "saved-search" and self.account_id is not None:
             saved = next(
                 (
@@ -194,6 +192,20 @@ class ActionMixin:
             ),
             self._edit_result,
         )
+
+    def action_view(self: Any) -> None:
+        """Open the selected item in a read-only view before editing or deleting it."""
+        item = self._selected_task() or self._selected_event() or self._selected_drive()
+        if item is None:
+            self.notify("Select a task, note, or event to view", severity="warning")
+            return
+        self.push_screen(ItemViewScreen(self, item), self._view_result)
+
+    def _view_result(self: Any, result: str | None) -> None:
+        if result == "edit":
+            self.action_edit()
+        elif result == "delete":
+            self.action_delete()
 
     def _edit_result(self: Any, result: dict[str, str] | None) -> None:
         task = self._selected_task()
@@ -655,7 +667,6 @@ class ActionMixin:
         self._observed_config_marker = self._config_marker()
         self._render_chrome(refresh_resources=False)
         self._render_surface()
-        self._render_inspector()
         self.notify("Settings saved and applied")
 
     def find_time_local(

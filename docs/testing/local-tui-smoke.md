@@ -26,9 +26,9 @@ but does not replace, the automated suite or the live Google procedure.
 
 ## Terminal behavior
 
-1. Resize from at least 120x38 to 44x18 and back. The inspector must collapse and
-   restore, selection must remain stable, and long titles must visibly truncate or
-   remain scroll-reachable.
+1. Resize from at least 120x38 to 44x18 and back. The sidebar must collapse and
+   restore, selection must remain stable, and long titles must remain horizontally
+   scroll-reachable.
 2. Repeat with CJK text and emoji in selected titles.
 3. Run with `NO_COLOR=1` and with the terminal profile. Status must remain understandable
    without color, borders must be ASCII, and mouse use must be optional.

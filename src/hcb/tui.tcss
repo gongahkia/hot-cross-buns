@@ -143,6 +143,17 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 #content {
     height: 1fr;
     padding: 0 1;
+    overflow-x: auto;
+}
+
+#content > ListItem {
+    width: auto;
+    min-width: 100%;
+}
+
+#content > ListItem Label {
+    width: auto;
+    text-wrap: nowrap;
 }
 
 ListView > ListItem {
@@ -156,15 +167,6 @@ ListView > ListItem.--highlight {
     color: $foreground;
     outline: ascii $primary;
     text-style: bold underline;
-}
-
-#inspector {
-    width: 32;
-    background: $panel;
-}
-
-#inspection {
-    padding: 1 2;
 }
 
 Input, TextArea {
@@ -210,7 +212,7 @@ Input.-invalid, TextArea.-invalid {
 .borders-unicode #settings-dialog, .borders-unicode #find-time-dialog,
 .borders-unicode #google-setup-dialog, .borders-unicode #batch-move-dialog,
 .borders-unicode #batch-action-dialog, .borders-unicode #batch-move-preview,
-.borders-unicode #batch-action-preview {
+.borders-unicode #batch-action-preview, .borders-unicode #item-view-dialog {
     border: round $border;
 }
 
@@ -242,14 +244,15 @@ Input.-invalid, TextArea.-invalid {
     text-style: reverse;
 }
 
-/* This is the item shown in the Inspector, even after focus moves elsewhere. */
+/* Keep the active workspace item visible after focus moves elsewhere. */
 #content > ListItem.hcb-selected, #resources > ListItem.hcb-selected {
     text-style: bold reverse;
 }
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
 #rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
-#onboarding-dialog, #google-setup-dialog, #batch-move-dialog, #batch-action-dialog {
+#onboarding-dialog, #google-setup-dialog, #batch-move-dialog, #batch-action-dialog,
+#item-view-dialog {
     width: 70;
     max-width: 90%;
     height: auto;
@@ -265,6 +268,23 @@ Input.-invalid, TextArea.-invalid {
 
 #event-dialog, #calendar-dialog, #find-time-dialog {
     height: 30;
+}
+
+#event-fields, #item-view-content {
+    height: 1fr;
+}
+
+#event-description {
+    height: 7;
+}
+
+.event-field-label, #event-recurrence-summary {
+    height: auto;
+    color: $text-muted;
+}
+
+#event-recurrence-summary {
+    padding: 0 1;
 }
 
 #settings-dialog {
@@ -348,7 +368,7 @@ Input.-invalid, TextArea.-invalid {
     align: center middle;
 }
 
-#rattles-loader, #loading-message {
+#rattles-loader, #loading-message, #loading-cancel-hint {
     width: 1fr;
     content-align: center middle;
 }
@@ -406,6 +426,30 @@ EmojiCompletion {
     text-style: bold;
 }
 
+#item-view-dialog {
+    height: 32;
+}
+
+#item-view-content {
+    padding: 0 1;
+}
+
+#item-view-title {
+    height: auto;
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+.item-view-section {
+    height: auto;
+    margin-top: 1;
+}
+
+.item-view-location {
+    height: auto;
+    margin-top: 1;
+}
+
 #editor-notes {
     height: 8;
 }
@@ -430,14 +474,6 @@ Footer {
     background: $background;
     color: $foreground;
     border-top: ascii $border;
-}
-
-.narrow #inspector {
-    display: none;
-}
-
-.narrow #inspector-resize {
-    display: none;
 }
 
 .narrow #sidebar {

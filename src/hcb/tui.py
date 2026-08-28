@@ -9,7 +9,7 @@ from html.parser import HTMLParser
 from threading import Event as ThreadEvent
 from threading import Lock
 from typing import ClassVar, Literal
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 from zoneinfo import available_timezones
 
 from rich._emoji_codes import EMOJI as RICH_EMOJI
@@ -31,7 +31,6 @@ from .runtime import Runtime
 SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
 MIN_SIDEBAR_WIDTH = 22
 MIN_CENTER_WIDTH = 28
-MIN_INSPECTOR_WIDTH = 24
 SPLITTER_WIDTH = 1
 PALETTE_COMMANDS = (
     ("Create item", "create"),
@@ -88,6 +87,15 @@ CURRENT_THEME_VALUE = "__current_theme__"
 TIME_ZONE_OPTIONS = tuple((time_zone, time_zone) for time_zone in sorted(available_timezones()))
 DUE_DAY_OPTIONS = tuple((f"{day:02d}", str(day)) for day in range(1, 32))
 DUE_MONTH_OPTIONS = tuple((calendar.month_name[month], str(month)) for month in range(1, 13))
+RECURRENCE_FREQUENCY_OPTIONS = (
+    ("Does not repeat", "none"),
+    ("Daily", "daily"),
+    ("Weekly", "weekly"),
+    ("Monthly", "monthly"),
+    ("Yearly", "yearly"),
+    ("Custom rule", "custom"),
+)
+LOCATION_MAP_ICON = "󰖟"
 
 _EMOJI_QUERY = re.compile(r":([A-Za-z0-9_+\-]+)$")
 _EMOJI_SUGGESTION_LIMIT = 8
@@ -127,6 +135,106 @@ def is_web_url(value: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
+def google_maps_url(location: str) -> str | None:
+    """Return a Google Maps search target for a non-empty event location."""
+    query = location.strip()
+    if not query:
+        return None
+    return f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}"
+
+
+def _rrule_fields(rule: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for field in rule.split(";"):
+        key, equals, value = field.partition("=")
+        if equals:
+            fields[key.upper()] = value
+    return fields
+
+
+def recurrence_frequency(recurrence: tuple[str, ...]) -> str:
+    """Classify the first supported RRULE frequency for the event editor."""
+    for line in recurrence:
+        prefix, separator, rule = line.strip().partition(":")
+        if prefix.upper() != "RRULE" or not separator:
+            continue
+        fields = _rrule_fields(rule)
+        frequency = fields.get("FREQ", "").casefold()
+        if frequency in {"daily", "weekly", "monthly", "yearly"}:
+            return frequency
+        return "custom"
+    return "custom" if recurrence else "none"
+
+
+def recurrence_with_frequency(recurrence: tuple[str, ...], frequency: str) -> tuple[str, ...]:
+    """Apply a simple frequency while retaining any existing RRULE constraints."""
+    if frequency == "none":
+        return ()
+    if frequency not in {"daily", "weekly", "monthly", "yearly"}:
+        return recurrence
+    replacement = f"FREQ={frequency.upper()}"
+    for index, line in enumerate(recurrence):
+        prefix, separator, rule = line.strip().partition(":")
+        if prefix.upper() != "RRULE" or not separator:
+            continue
+        clauses = rule.split(";")
+        replaced = False
+        updated: list[str] = []
+        for clause in clauses:
+            key, equals, _value = clause.partition("=")
+            if equals and key.upper() == "FREQ":
+                updated.append(replacement)
+                replaced = True
+            else:
+                updated.append(clause)
+        if not replaced:
+            updated.insert(0, replacement)
+        return (*recurrence[:index], f"RRULE:{';'.join(updated)}", *recurrence[index + 1 :])
+    return (*recurrence, f"RRULE:{replacement}")
+
+
+def recurrence_summary(recurrence: tuple[str, ...]) -> str:
+    """Turn common Google RRULEs into a concise, readable recurrence summary."""
+    frequency = recurrence_frequency(recurrence)
+    if frequency == "none":
+        return "Does not repeat"
+    if frequency == "custom":
+        return "Custom recurrence"
+    fields: dict[str, str] = {}
+    for line in recurrence:
+        prefix, separator, rule = line.strip().partition(":")
+        if prefix.upper() == "RRULE" and separator:
+            fields = _rrule_fields(rule)
+            break
+    interval = fields.get("INTERVAL", "1")
+    unit = {
+        "daily": "day",
+        "weekly": "week",
+        "monthly": "month",
+        "yearly": "year",
+    }[frequency]
+    summary = f"Every {unit}" if interval == "1" else f"Every {interval} {unit}s"
+    day_names = {
+        "MO": "Monday",
+        "TU": "Tuesday",
+        "WE": "Wednesday",
+        "TH": "Thursday",
+        "FR": "Friday",
+        "SA": "Saturday",
+        "SU": "Sunday",
+    }
+    if by_day := fields.get("BYDAY"):
+        summary += " on " + ", ".join(day_names.get(day[-2:], day) for day in by_day.split(","))
+    if count := fields.get("COUNT"):
+        summary += f" · {count} times"
+    elif until := fields.get("UNTIL"):
+        try:
+            summary += f" · until {date.fromisoformat(until[:8]).strftime('%d %B %Y')}"
+        except ValueError:
+            summary += f" · until {until}"
+    return summary
+
+
 def linkify_urls(value: str | Text) -> Text:
     """Underline and attach click targets to every safe web URL in displayed text."""
     text = value.copy() if isinstance(value, Text) else Text(value)
@@ -139,7 +247,7 @@ def linkify_urls(value: str | Text) -> Text:
     return text
 
 
-class _InspectorHtmlParser(HTMLParser):
+class _HtmlToMarkdownParser(HTMLParser):
     """Turn a safe, readable HTML subset into Markdown before Rich rendering."""
 
     def __init__(self) -> None:
@@ -228,7 +336,7 @@ class _InspectorHtmlParser(HTMLParser):
 def _html_to_markdown(value: str) -> str:
     if not _HTML_TAG_PATTERN.search(value):
         return value
-    parser = _InspectorHtmlParser()
+    parser = _HtmlToMarkdownParser()
     parser.feed(value)
     parser.close()
     return parser.markdown()
@@ -273,8 +381,8 @@ def _render_markdown_inline(value: str) -> Text:
     return rendered
 
 
-def render_inspector_markup(value: str) -> Text:
-    """Render the supported Markdown and HTML subset used by Google descriptions."""
+def render_readonly_markup(value: str) -> Text:
+    """Render the supported Markdown and HTML subset used by read-only item views."""
     source = _html_to_markdown(value)
     rendered = Text()
     lines = source.splitlines() or [""]
@@ -320,6 +428,7 @@ from .tui_components import (  # noqa: E402, F401
     GoogleSetupScreen,
     ImportScreen,
     Input,
+    ItemViewScreen,
     LoadingScreen,
     OnboardingScreen,
     PaletteScreen,
@@ -364,8 +473,6 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
         Binding("6", "surface('Month')", "Month", show=False),
         Binding("ctrl+alt+left", "resize_sidebar(-2)", "Narrow sidebar", show=False),
         Binding("ctrl+alt+right", "resize_sidebar(2)", "Widen sidebar", show=False),
-        Binding("ctrl+alt+shift+left", "resize_inspector(2)", "Widen inspector", show=False),
-        Binding("ctrl+alt+shift+right", "resize_inspector(-2)", "Narrow inspector", show=False),
     ]
 
     def __init__(
@@ -392,8 +499,7 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
         self.marked_events: set[str] = set()
         self._mini_month_days: dict[str, date] = {}
         self.sidebar_width = 27
-        self.inspector_width = 32
-        self._resize_target: Literal["sidebar", "inspector"] | None = None
+        self._resize_target: Literal["sidebar"] | None = None
         self._resize_handle: Static | None = None
         self._resize_anchor_x = 0
         self.loading_operation: str | None = None
@@ -440,10 +546,6 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
             with Vertical(id="center"):
                 yield Static(id="surface-title")
                 yield ListView(id="content")
-            yield Static(id="inspector-resize", classes="column-resize-handle")
-            with Vertical(id="inspector"):
-                yield Static("Inspector", classes="section-title")
-                yield Static("Select an item", id="inspection")
         yield Footer()
 
 

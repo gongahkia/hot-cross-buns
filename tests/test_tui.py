@@ -45,6 +45,7 @@ from hcb.tui import (
     GoogleSetupScreen,
     HcbApp,
     ImportScreen,
+    ItemViewScreen,
     LoadingScreen,
     OnboardingScreen,
     PaletteScreen,
@@ -54,7 +55,7 @@ from hcb.tui import (
     TerminalTextArea,
     emoji_suggestions,
     linkify_urls,
-    render_inspector_markup,
+    render_readonly_markup,
 )
 
 
@@ -109,25 +110,21 @@ def test_startup_surface_switching_and_narrow_layout(tmp_path: Path) -> None:
         await pilot.resize_terminal(58, 24)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("very-narrow")
-        assert app.query_one("#inspector").display is False
+        assert not list(app.query("#inspector"))
 
     app_test(app, assertions)
 
 
-def test_workspace_splitters_resize_columns_and_respect_narrow_layout(tmp_path: Path) -> None:
+def test_workspace_splitter_resizes_sidebar_and_respects_narrow_layout(tmp_path: Path) -> None:
     app = HcbApp(seeded_runtime(tmp_path))
 
     async def assertions(pilot: object) -> None:
         sidebar = app.query_one("#sidebar")
-        inspector = app.query_one("#inspector")
         sidebar_width = sidebar.size.width
-        inspector_width = inspector.size.width
 
         await pilot.press("ctrl+alt+right", "ctrl+alt+right")  # type: ignore[attr-defined]
-        await pilot.press("ctrl+alt+shift+left", "ctrl+alt+shift+left")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert sidebar.size.width == sidebar_width + 4
-        assert inspector.size.width == inspector_width + 4
 
         await pilot.mouse_down("#sidebar-resize", offset=(0, 4))  # type: ignore[attr-defined]
         await pilot.mouse_up("#center", offset=(5, 4))  # type: ignore[attr-defined]
@@ -138,7 +135,6 @@ def test_workspace_splitters_resize_columns_and_respect_narrow_layout(tmp_path: 
         await pilot.resize_terminal(58, 24)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.query_one("#sidebar-resize", Static).display is False
-        assert app.query_one("#inspector-resize", Static).display is False
 
     app_test(app, assertions, size=(120, 34))
 

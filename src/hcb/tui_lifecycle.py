@@ -26,7 +26,6 @@ from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
 from .tui import (
     MIN_CENTER_WIDTH,
-    MIN_INSPECTOR_WIDTH,
     MIN_SIDEBAR_WIDTH,
     SPLITTER_WIDTH,
     emoji_suggestions,
@@ -49,7 +48,7 @@ if TYPE_CHECKING:
 
 
 class LifecycleMixin:
-    _resize_target: Literal["sidebar", "inspector"] | None
+    _resize_target: Literal["sidebar"] | None
     _resize_handle: Static | None
     _emoji_token_start: int | None
     _emoji_popup: EmojiCompletion | None
@@ -162,7 +161,6 @@ class LifecycleMixin:
         self._apply_visual_config(config)
         self._render_chrome(refresh_resources=False)
         self._render_surface()
-        self._render_inspector()
         self.notify("config.json settings reloaded")
 
     def _onboarding_result(self: Any, result: dict[str, str] | None) -> None:
@@ -556,7 +554,6 @@ class LifecycleMixin:
         self._observed_config_marker = self._config_marker()
         self._render_chrome(refresh_resources=False)
         self._render_surface()
-        self._render_inspector()
         self.notify("config.json validated; visual settings applied")
 
     def on_unmount(self: Any) -> None:
@@ -572,10 +569,7 @@ class LifecycleMixin:
         widget = event.widget
         if not isinstance(widget, Static):
             return
-        targets: dict[str, Literal["sidebar", "inspector"]] = {
-            "sidebar-resize": "sidebar",
-            "inspector-resize": "inspector",
-        }
+        targets: dict[str, Literal["sidebar"]] = {"sidebar-resize": "sidebar"}
         target = targets.get(widget.id or "")
         if target is None or not self._can_resize_columns():
             return
@@ -620,10 +614,7 @@ class LifecycleMixin:
             return
         delta = event.screen_x - self._resize_anchor_x
         if delta:
-            if self._resize_target == "sidebar":
-                self._resize_columns(sidebar_delta=delta)
-            else:
-                self._resize_columns(inspector_delta=-delta)
+            self._resize_columns(sidebar_delta=delta)
             self._resize_anchor_x = event.screen_x
         event.stop()
         event.prevent_default()
@@ -647,34 +638,23 @@ class LifecycleMixin:
         return bool(self.size.width >= 90)
 
     def _apply_column_widths(self: Any) -> None:
-        """Apply in-session column widths while the three-pane layout is visible."""
+        """Apply the in-session sidebar width while both workspace columns are visible."""
         sidebar = self.query_one("#sidebar", Vertical)
-        inspector = self.query_one("#inspector", Vertical)
         if not self._can_resize_columns():
             sidebar.styles.clear_rule("width")
-            inspector.styles.clear_rule("width")
             return
-        available = self.size.width - (2 * SPLITTER_WIDTH)
-        self.inspector_width = max(
-            MIN_INSPECTOR_WIDTH,
-            min(self.inspector_width, available - MIN_SIDEBAR_WIDTH - MIN_CENTER_WIDTH),
-        )
+        available = self.size.width - SPLITTER_WIDTH
         self.sidebar_width = max(
             MIN_SIDEBAR_WIDTH,
-            min(self.sidebar_width, available - self.inspector_width - MIN_CENTER_WIDTH),
+            min(self.sidebar_width, available - MIN_CENTER_WIDTH),
         )
         sidebar.styles.width = self.sidebar_width
-        inspector.styles.width = self.inspector_width
 
-    def _resize_columns(self: Any, *, sidebar_delta: int = 0, inspector_delta: int = 0) -> None:
+    def _resize_columns(self: Any, *, sidebar_delta: int = 0) -> None:
         if not self._can_resize_columns():
             return
         self.sidebar_width += sidebar_delta
-        self.inspector_width += inspector_delta
         self._apply_column_widths()
 
     def action_resize_sidebar(self: Any, delta: int | str) -> None:
         self._resize_columns(sidebar_delta=int(delta))
-
-    def action_resize_inspector(self: Any, delta: int | str) -> None:
-        self._resize_columns(inspector_delta=int(delta))

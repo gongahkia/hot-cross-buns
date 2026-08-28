@@ -43,9 +43,8 @@ uv run hcb --help
 Run `hcb` in a terminal to open the Textual TUI. Run `hcb --help` to discover
 scriptable commands.
 
-In a wide terminal, drag either vertical divider to resize the sidebar or
-Inspector for the current session. `Ctrl+Alt+←` / `Ctrl+Alt+→` resize the
-sidebar; add `Shift` to resize the Inspector instead.
+In a wide terminal, drag the vertical divider to resize the sidebar for the
+current session. `Ctrl+Alt+←` / `Ctrl+Alt+→` resize the sidebar.
 
 The `/` palette is a local, indexed workspace search. It searches task titles
 and event summaries by default; `body:QUERY` (or `notes:QUERY`) also searches

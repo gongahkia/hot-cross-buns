@@ -45,7 +45,7 @@ from .environment import LocalEnvironment
 from .errors import HcbError
 from .import_export import ImportPreview
 from .loaders import LOADER_NAMES, loader_preset
-from .models import ConflictStatus, Event, Task
+from .models import ConflictStatus, DriveFile, Event, Task
 from .runtime import DEFAULT_CREDENTIAL_FILE
 from .themes import preset, presets
 from .tui import (
@@ -57,11 +57,19 @@ from .tui import (
     DUE_DAY_OPTIONS,
     DUE_MONTH_OPTIONS,
     FOCUS_OPTIONS,
+    LOCATION_MAP_ICON,
     PALETTE_COMMANDS,
     PROFILE_OPTIONS,
+    RECURRENCE_FREQUENCY_OPTIONS,
     TIME_ZONE_OPTIONS,
     WEEK_START_OPTIONS,
+    google_maps_url,
+    is_web_url,
     linkify_urls,
+    recurrence_frequency,
+    recurrence_summary,
+    recurrence_with_frequency,
+    render_readonly_markup,
 )
 
 if TYPE_CHECKING:
@@ -1045,34 +1053,67 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
         super().__init__()
         self.event = event
         self.calendar_id = event.calendar_id if event else calendar_id
+        self._initial_recurrence = event.recurrence if event else ()
+
+    def _frequency(self) -> str:
+        value = self.query_one("#event-frequency", Select).value
+        return str(value) if isinstance(value, str) else "none"
+
+    def _recurrence(self) -> tuple[str, ...]:
+        frequency = self._frequency()
+        if frequency == "custom":
+            raw = self.query_one("#event-recurrence", Input).value
+            return tuple(item.strip() for item in raw.split("|") if item.strip())
+        return recurrence_with_frequency(self._initial_recurrence, frequency)
+
+    def _update_recurrence_fields(self) -> None:
+        frequency = self._frequency()
+        recurrence = self._recurrence()
+        self.query_one("#event-recurrence-summary", Static).update(
+            f"Recurrence: {recurrence_summary(recurrence)}"
+        )
+        self.query_one("#event-recurrence", Input).display = frequency == "custom"
 
     def compose(self) -> ComposeResult:
         event = self.event
         with Vertical(id="event-dialog"):
             yield Label("Event editor", id="dialog-title")
-            yield Input(value=event.summary if event else "", placeholder="Title", id="event-title")
-            yield Input(
-                value=event.start.value.isoformat() if event else "",
-                placeholder="Start: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
-                id="event-start",
-            )
-            yield Input(
-                value=event.end.value.isoformat() if event else "",
-                placeholder="End: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
-                id="event-end",
-            )
-            yield Input(value=self.calendar_id, placeholder="Calendar id", id="event-calendar")
-            yield Input(
-                value=event.location or "" if event else "",
-                placeholder="Location",
-                id="event-location",
-            )
-            yield Input(
-                value=" | ".join(event.recurrence) if event else "",
-                placeholder="Recurrence lines separated by |",
-                id="event-recurrence",
-            )
-            yield TerminalTextArea(event.description or "" if event else "", id="event-description")
+            with VerticalScroll(id="event-fields"):
+                yield Input(
+                    value=event.summary if event else "", placeholder="Title", id="event-title"
+                )
+                yield Input(
+                    value=event.start.value.isoformat() if event else "",
+                    placeholder="Start: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
+                    id="event-start",
+                )
+                yield Input(
+                    value=event.end.value.isoformat() if event else "",
+                    placeholder="End: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
+                    id="event-end",
+                )
+                yield Input(value=self.calendar_id, placeholder="Calendar id", id="event-calendar")
+                yield Input(
+                    value=event.location or "" if event else "",
+                    placeholder="Location",
+                    id="event-location",
+                )
+                yield Label("Frequency", classes="event-field-label")
+                yield Select(
+                    RECURRENCE_FREQUENCY_OPTIONS,
+                    value=recurrence_frequency(self._initial_recurrence),
+                    id="event-frequency",
+                )
+                yield Static(id="event-recurrence-summary")
+                yield Input(
+                    value=" | ".join(self._initial_recurrence),
+                    placeholder="Custom recurrence rules, separated by |",
+                    id="event-recurrence",
+                )
+                yield Label("Description", classes="event-field-label")
+                yield TerminalTextArea(
+                    event.description or "" if event else "", id="event-description"
+                )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="event-save")
                 if event is not None:
@@ -1081,6 +1122,11 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
 
     def on_mount(self) -> None:
         self.query_one("#event-title", Input).focus()
+        self._update_recurrence_fields()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "event-frequency":
+            self._update_recurrence_fields()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -1099,10 +1145,156 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                 "end": self.query_one("#event-end", Input).value.strip(),
                 "calendar": self.query_one("#event-calendar", Input).value.strip(),
                 "location": self.query_one("#event-location", Input).value.strip(),
-                "recurrence": self.query_one("#event-recurrence", Input).value.strip(),
+                "recurrence": " | ".join(self._recurrence()),
                 "description": self.query_one("#event-description", TextArea).text,
             }
         )
+
+
+class ItemViewScreen(ModalScreen[str | None]):
+    """Read-only detail view for workspace items before an explicit edit action."""
+
+    BINDINGS = [
+        Binding("e", "edit", "Edit"),
+        Binding("d", "delete", "Delete"),
+        Binding("escape", "close", "Close"),
+    ]
+
+    def __init__(self, hcb: HcbApp, item: Task | Event | DriveFile) -> None:
+        super().__init__()
+        self.hcb = hcb
+        self.item = item
+
+    @staticmethod
+    def _append_attachment(text: Text, attachment: dict[str, object]) -> None:
+        title = str(attachment.get("title") or attachment.get("fileId") or "Attachment")
+        url = next(
+            (
+                value
+                for key in ("fileUrl", "webViewLink", "url")
+                if isinstance((value := attachment.get(key)), str)
+                if is_web_url(value)
+            ),
+            None,
+        )
+        text.append("• ")
+        start = len(text)
+        text.append(title)
+        if url is not None:
+            text.stylize(Style(link=url, underline=True), start, len(text))
+        text.append("\n")
+
+    def _task_details(self, task: Task) -> Text:
+        text = Text(
+            f"Status: {task.status.value}\n"
+            f"Due: {self.hcb.format_date(task.due) if task.due else '—'}\n"
+            f"Priority: {task.priority.value}"
+        )
+        if task.completed_at is not None:
+            text.append(f"\nCompleted: {self.hcb.format_date_time(task.completed_at)}")
+        return text
+
+    def _event_details(self, event: Event) -> Text:
+        reminders = (
+            "Default reminders"
+            if event.reminder_use_default
+            else ", ".join(f"{item.method} {item.minutes} min" for item in event.reminder_overrides)
+            or "No reminders"
+        )
+        text = Text(
+            f"When: {self.hcb.format_date_time(event.start.value)} → "
+            f"{self.hcb.format_date_time(event.end.value)}\n"
+            f"Repeats: {recurrence_summary(event.recurrence)}\n"
+            f"Status: {event.status.value}\n"
+            f"Type: {event.event_type or 'default'}\n"
+            f"Visibility: {event.visibility or 'default'}\n"
+            f"Transparency: {event.transparency or 'transparent'}\n"
+            f"Color: {event.color_id or 'default'}\n"
+            f"Reminders: {reminders}\n"
+            f"Conference: {'yes' if event.conference else 'no'}\n"
+            f"Guest permissions: invite={event.guests_can_invite_others}, "
+            f"modify={event.guests_can_modify}, see={event.guests_can_see_other_guests}"
+        )
+        if event.attendees:
+            text.append("\n\nAttendees:")
+            for attendee in event.attendees:
+                name = attendee.get("displayName") or attendee.get("email") or "Guest"
+                response = attendee.get("responseStatus")
+                text.append(f"\n• {name}" + (f" · {response}" if response else ""))
+        if event.attachments:
+            text.append("\n\nAttachments:\n")
+            for attachment in event.attachments:
+                self._append_attachment(text, attachment)
+        properties = (
+            event.focus_time_properties
+            or event.out_of_office_properties
+            or event.working_location_properties
+        )
+        if properties:
+            text.append(f"\nProperties:\n{json.dumps(properties, indent=2, sort_keys=True)}")
+        return text
+
+    def compose(self) -> ComposeResult:
+        item = self.item
+        title = "Task" if isinstance(item, Task) else "Event" if isinstance(item, Event) else "File"
+        with Vertical(id="item-view-dialog"):
+            yield Label(title, id="dialog-title")
+            with VerticalScroll(id="item-view-content"):
+                if isinstance(item, Task):
+                    yield Static(render_readonly_markup(item.title), id="item-view-title")
+                    yield Static(self._task_details(item), classes="item-view-section")
+                    yield Label("Notes", classes="event-field-label")
+                    yield Static(
+                        render_readonly_markup(item.notes or "No notes"),
+                        classes="item-view-section",
+                    )
+                elif isinstance(item, Event):
+                    yield Static(render_readonly_markup(item.summary), id="item-view-title")
+                    yield Static(self._event_details(item), classes="item-view-section")
+                    if location := google_maps_url(item.location or ""):
+                        text = Text(f"{LOCATION_MAP_ICON} {item.location}")
+                        text.stylize(Style(link=location, underline=True), 0, len(text))
+                        yield Static(text, classes="item-view-location")
+                    yield Label("Description", classes="event-field-label")
+                    yield Static(
+                        render_readonly_markup(item.description or "No description"),
+                        classes="item-view-section",
+                    )
+                else:
+                    yield Static(render_readonly_markup(item.name), id="item-view-title")
+                    modified = (
+                        self.hcb.format_date_time(item.modified_time) if item.modified_time else "—"
+                    )
+                    yield Static(
+                        f"Type: {item.mime_type or 'unknown'}\nModified: {modified}",
+                        classes="item-view-section",
+                    )
+                    if item.web_view_link:
+                        yield Static(linkify_urls(item.web_view_link), classes="item-view-section")
+            with Horizontal(classes="dialog-buttons"):
+                if not isinstance(item, DriveFile):
+                    yield Button("Edit", variant="primary", id="item-view-edit")
+                    yield Button("Delete", variant="error", id="item-view-delete")
+                yield Button("Close", id="item-view-close")
+
+    def action_edit(self) -> None:
+        if not isinstance(self.item, DriveFile):
+            self.dismiss("edit")
+
+    def action_delete(self) -> None:
+        if not isinstance(self.item, DriveFile):
+            self.dismiss("delete")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "item-view-edit":
+            self.action_edit()
+        elif event.button.id == "item-view-delete":
+            self.action_delete()
+        else:
+            self.action_close()
 
 
 class RsvpScreen(ModalScreen[str | None]):

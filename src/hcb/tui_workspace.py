@@ -1,4 +1,4 @@
-"""Workspace loading, rendering, selection, and inspection handlers."""
+"""Workspace loading, rendering, and selection handlers."""
 
 from __future__ import annotations
 
@@ -7,8 +7,6 @@ from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
-from rich.style import Style
-from rich.text import Text
 from textual.widgets import (
     Button,
     ListView,
@@ -19,11 +17,6 @@ from .application import (
     SearchResult,
 )
 from .models import DriveFile, Event, Task, TaskStatus
-from .tui import (
-    is_web_url,
-    linkify_urls,
-    render_inspector_markup,
-)
 from .tui_components import (
     CachedWorkspace,
     EntityRow,
@@ -79,9 +72,6 @@ class WorkspaceMixin:
                 kind="onboarding",
                 item_id="connect",
             )
-        )
-        self.query_one("#inspection", Static).update(
-            "HCB will not contact Google until you explicitly connect and run sync."
         )
 
     def _render_chrome(self: Any, *, refresh_resources: bool = True) -> None:
@@ -306,7 +296,7 @@ class WorkspaceMixin:
         return f"  ·  selected: {', '.join(parts)}" if parts else ""
 
     def _update_content_selection(self: Any) -> None:
-        """Keep the row that powers the Inspector visibly selected."""
+        """Keep the active workspace row visibly selected."""
         content = self.query_one("#content", ListView)
         for row in content.query(EntityRow):
             row.set_class((row.kind, row.item_id) == self.selected, "hcb-selected")
@@ -424,113 +414,22 @@ class WorkspaceMixin:
         row = event.item
         self.selected = (row.kind, row.item_id)
         self._update_content_selection()
-        self._render_inspector()
 
     def on_list_view_selected(self: Any, event: ListView.Selected) -> None:
-        if event.list_view.id != "resources" or not isinstance(event.item, EntityRow):
+        if not isinstance(event.item, EntityRow):
             return
         row = event.item
+        if event.list_view.id == "content":
+            self.selected = (row.kind, row.item_id)
+            self._update_content_selection()
+            if row.kind in {"task", "event"}:
+                self.action_view()
+            return
+        if event.list_view.id != "resources":
+            return
         self.resource_filter = None if row.kind == "resource-all" else (row.kind, row.item_id)
         self._render_chrome(refresh_resources=False)
         self._render_surface()
-
-    @staticmethod
-    def _attachment_target(attachment: dict[str, object]) -> tuple[str, str | None]:
-        title = attachment.get("title") or attachment.get("fileId") or "Attachment"
-        url = next(
-            (
-                value
-                for key in ("fileUrl", "webViewLink", "url")
-                if isinstance((value := attachment.get(key)), str) and is_web_url(value)
-            ),
-            None,
-        )
-        return str(title), url
-
-    @staticmethod
-    def _append_link(text: Text, label: str, url: str) -> None:
-        start = len(text)
-        text.append(label)
-        text.stylize(Style(link=url, underline=True), start, len(text))
-
-    def _event_inspection_text(self: Any, event: Event) -> Text:
-        details = (
-            f"Type: {event.event_type or 'default'}\n"
-            f"Visibility: {event.visibility or 'default'}\n"
-            f"Transparency: {event.transparency or 'default'}\n"
-            f"Color: {event.color_id or 'default'}\n"
-            f"Attendees: {len(event.attendees)}\n"
-            f"RSVP: {event.attendee_response or 'none'}\n"
-            "Reminders: "
-            f"{'default' if event.reminder_use_default else len(event.reminder_overrides)}\n"
-            f"Attachments: {len(event.attachments)}\n"
-            f"Conference: {'yes' if event.conference else 'no'}\n"
-            f"Guest flags: invite={event.guests_can_invite_others}, "
-            f"modify={event.guests_can_modify}, see={event.guests_can_see_other_guests}"
-        )
-        properties = (
-            event.focus_time_properties
-            or event.out_of_office_properties
-            or event.working_location_properties
-        )
-        text = render_inspector_markup(event.summary)
-        text.append(
-            f"\n\n{self.format_date_time(event.start.value)} → "
-            f"{self.format_date_time(event.end.value)}\n"
-        )
-        text.append_text(render_inspector_markup(event.location or ""))
-        text.append("\n\n")
-        text.append_text(render_inspector_markup(event.description or "No description"))
-        text.append(f"\n\n{details}" + (f"\nProperties: {properties}" if properties else ""))
-        if event.attachments:
-            text.append("\n\nAttachments:\n")
-            for attachment in event.attachments:
-                title, url = self._attachment_target(attachment)
-                text.append("• ")
-                if url is None:
-                    text.append(title)
-                else:
-                    self._append_link(text, title, url)
-                    text.append("  ")
-                    self._append_link(text, url, url)
-                text.append("\n")
-        text.append("\nStructured CLI editing preserves specialist fields.")
-        return text
-
-    def _render_inspector(self: Any) -> None:
-        target = self._selected_task()
-        if target:
-            text = render_inspector_markup(target.title)
-            text.append(
-                f"\n\nStatus: {target.status.value}\n"
-                f"Due: {self.format_date(target.due) if target.due else '—'}\n"
-                f"Priority: {target.priority.value}\n\n"
-            )
-            text.append_text(render_inspector_markup(target.notes or "No notes"))
-            self.query_one("#inspection", Static).update(text)
-            return
-        event = self._selected_event()
-        if event:
-            self.query_one("#inspection", Static).update(self._event_inspection_text(event))
-            return
-        drive_file = self._selected_drive()
-        if drive_file:
-            modified = (
-                self.format_date_time(drive_file.modified_time) if drive_file.modified_time else "—"
-            )
-            text = Text()
-            if drive_file.web_view_link and is_web_url(drive_file.web_view_link):
-                self._append_link(text, drive_file.name, drive_file.web_view_link)
-            else:
-                text.append(drive_file.name)
-            text.append(f"\n\nType: {drive_file.mime_type or 'unknown'}\nModified: {modified}\n\n")
-            if drive_file.web_view_link and is_web_url(drive_file.web_view_link):
-                self._append_link(text, drive_file.web_view_link, drive_file.web_view_link)
-            else:
-                text.append("No web link cached")
-            self.query_one("#inspection", Static).update(linkify_urls(text))
-            return
-        self.query_one("#inspection", Static).update("Select an item")
 
     def _selected_task(self: Any) -> Task | None:
         if not self.selected or self.selected[0] != "task":
