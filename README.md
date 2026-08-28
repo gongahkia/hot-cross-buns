@@ -46,6 +46,9 @@ scriptable commands.
 In a wide terminal, drag the vertical divider to resize the sidebar for the
 current session. `Ctrl+Alt+←` / `Ctrl+Alt+→` resize the sidebar.
 
+Click a task, note, or event—or select one and press `Enter`—to open its
+read-only detail view. Press `e` there to edit it.
+
 The `/` palette is a local, indexed workspace search. It searches task titles
 and event summaries by default; `body:QUERY` (or `notes:QUERY`) also searches
 task notes, event details, and cached structured metadata. It covers tasks and

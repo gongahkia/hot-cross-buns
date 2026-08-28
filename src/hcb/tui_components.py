@@ -1074,6 +1074,17 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
         )
         self.query_one("#event-recurrence", Input).display = frequency == "custom"
 
+    def _update_location_map(self) -> None:
+        location = self.query_one("#event-location", Input).value
+        target = google_maps_url(location)
+        link = self.query_one("#event-location-map", Static)
+        link.display = target is not None
+        if target is None:
+            return
+        text = Text(f"{LOCATION_MAP_ICON} {location.strip()}")
+        text.stylize(Style(link=target, underline=True), 0, len(text))
+        link.update(text)
+
     def compose(self) -> ComposeResult:
         event = self.event
         with Vertical(id="event-dialog"):
@@ -1098,6 +1109,7 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                     placeholder="Location",
                     id="event-location",
                 )
+                yield Static(id="event-location-map")
                 yield Label("Frequency", classes="event-field-label")
                 yield Select(
                     RECURRENCE_FREQUENCY_OPTIONS,
@@ -1123,10 +1135,15 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
     def on_mount(self) -> None:
         self.query_one("#event-title", Input).focus()
         self._update_recurrence_fields()
+        self._update_location_map()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "event-frequency":
             self._update_recurrence_fields()
+
+    def on_input_changed(self, event: TextualInput.Changed) -> None:
+        if event.input.id == "event-location":
+            self._update_location_map()
 
     def action_cancel(self) -> None:
         self.dismiss(None)

@@ -278,12 +278,16 @@ Input.-invalid, TextArea.-invalid {
     height: 7;
 }
 
-.event-field-label, #event-recurrence-summary {
+.event-field-label, #event-recurrence-summary, #event-location-map {
     height: auto;
     color: $text-muted;
 }
 
 #event-recurrence-summary {
+    padding: 0 1;
+}
+
+#event-location-map {
     padding: 0 1;
 }
 

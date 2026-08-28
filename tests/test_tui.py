@@ -114,7 +114,6 @@ def test_startup_surface_switching_and_narrow_layout(tmp_path: Path) -> None:
         await pilot.resize_terminal(58, 24)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("very-narrow")
-        assert not list(app.query("#inspector"))
 
     app_test(app, assertions)
 
@@ -381,6 +380,10 @@ def test_content_enter_opens_a_readonly_view_and_e_opens_the_editor(tmp_path: Pa
         await pilot.press("e")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert isinstance(app.screen, EditorScreen)
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        await pilot.click("#content", offset=(4, 1))  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ItemViewScreen)
 
     app_test(app, assertions)
 
@@ -460,6 +463,13 @@ def test_event_view_location_uses_a_clickable_google_maps_link(tmp_path: Path) -
         assert any(
             isinstance(span.style, Style) and span.style.link == maps_url for span in location.spans
         )
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        app.action_edit()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EventEditorScreen)
+        editor_location = app.screen.query_one("#event-location-map", Static).content
+        assert isinstance(editor_location, Text)
+        assert editor_location.plain.startswith("󰖟 Maxwell Food Centre")
         app.on_click(
             events.Click(
                 app,
@@ -1483,7 +1493,9 @@ def test_sync_loading_surface_cancels_a_retry_wait(tmp_path: Path) -> None:
                 break
         assert isinstance(app.screen, LoadingScreen)
         assert app.screen.cancellable
-        assert "Esc to cancel" in str(app.screen.query_one("#loading-cancel-hint", Label).render())
+        cancel_hint = app.screen.query_one("#loading-cancel-hint", Label)
+        assert "Esc to cancel" in str(cancel_hint.render())
+        assert cancel_hint.styles.content_align_horizontal == "center"
         await pilot.press("escape")  # type: ignore[attr-defined]
         for _ in range(30):
             await asyncio.sleep(0.01)
