@@ -173,6 +173,15 @@ type SuspendContext = Callable[[], AbstractContextManager[None]]
 type UrlOpener = Callable[[str], bool]
 
 
+def editor_file_hint(shortcut: str, file_label: str, editor: str) -> str:
+    """Render a concise, human-readable external-editor affordance."""
+
+    shortcut_label = "+".join(
+        part.upper() if len(part) == 1 else part.capitalize() for part in shortcut.split("+")
+    )
+    return f"{shortcut_label} to open this {file_label} in {editor}"
+
+
 def _run_editor(command: list[str]) -> int:
     return subprocess.run(command, check=False).returncode
 
@@ -405,11 +414,9 @@ class OnboardingScreen(ModalScreen[dict[str, str] | None]):
         self.external_editor_shortcut = external_editor_shortcut
 
     def _credential_editor_hint(self) -> str:
-        shortcut = "+".join(
-            part.upper() if len(part) == 1 else part.capitalize()
-            for part in self.external_editor_shortcut.split("+")
+        return editor_file_hint(
+            self.external_editor_shortcut, "credential file", self.editor_command
         )
-        return f"{shortcut} to open this credential file in {self.editor_command}"
 
     @staticmethod
     def _display_credential_file(path: Path) -> str:
@@ -889,6 +896,14 @@ class ImportScreen(ModalScreen[None]):
         with Vertical(id="import-dialog"):
             yield Label("Import preview", id="dialog-title")
             yield Input(placeholder="CSV, JSON, or ICS path", id="import-path")
+            yield Label(
+                editor_file_hint(
+                    self.hcb.runtime.config.keys.external_editor,
+                    "import file",
+                    self.hcb._editor_command(),
+                ),
+                id="import-editor-hint",
+            )
             yield Static("Choose Preview; nothing is written until Apply.", id="import-summary")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Preview", variant="primary", id="import-preview")
@@ -1264,12 +1279,17 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 yield TerminalTextArea(values["colors"], id="settings-colors")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="settings-save")
+                yield Button("Edit config.json", id="settings-edit-config")
                 yield Button("Cancel", id="settings-cancel")
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "settings-edit-config":
+            self.dismiss(None)
+            self.hcb.call_after_refresh(self.hcb.action_edit_config_file)
+            return
         if event.button.id != "settings-save":
             self.dismiss(None)
             return

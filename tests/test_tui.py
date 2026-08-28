@@ -1475,6 +1475,79 @@ def test_schedule_bulk_undo_redo_and_import_dialogs(
         assert any(task.title == "Imported in TUI" for task in storage.list_tasks("work"))
 
 
+def test_import_path_shortcut_opens_the_source_and_discards_its_preview(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    source = tmp_path / "import.json"
+    source.write_text('{"version":1,"records":[{"kind":"task","title":"Imported"}]}')
+    commands: list[list[str]] = []
+    suspensions: list[bool] = []
+
+    @contextmanager
+    def suspended() -> Iterator[None]:
+        suspensions.append(True)
+        yield
+
+    def run_editor(command: list[str]) -> int:
+        commands.append(command)
+        return 0
+
+    app = HcbApp(runtime, editor_runner=run_editor, suspend=suspended)
+
+    async def actions(pilot: object) -> None:
+        await activate_palette(pilot, app, "Import")
+        assert isinstance(app.screen, ImportScreen)
+        field = app.screen.query_one("#import-path", Input)
+        field.value = str(source)
+        await pilot.click("#import-preview")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen.preview is not None
+        assert (
+            str(app.screen.query_one("#import-editor-hint", Label).render())
+            == "Ctrl+G to open this import file in nvim"
+        )
+        await pilot.click("#import-path")  # type: ignore[attr-defined]
+        await pilot.press("ctrl+g")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen.preview is None
+        assert "choose Preview again" in str(
+            app.screen.query_one("#import-summary", Static).render()
+        )
+
+    app_test(app, actions)
+    assert commands == [["nvim", str(source)]]
+    assert suspensions == [True]
+
+
+def test_settings_can_open_and_apply_the_complete_config_file(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    commands: list[list[str]] = []
+
+    @contextmanager
+    def suspended() -> Iterator[None]:
+        yield
+
+    def run_editor(command: list[str]) -> int:
+        commands.append(command)
+        Path(command[-1]).write_text(
+            '{"preferences":{"date_time_format":"iso"},"theme":{"density":"compact"}}\n',
+            encoding="utf-8",
+        )
+        return 0
+
+    app = HcbApp(runtime, editor_runner=run_editor, suspend=suspended)
+
+    async def actions(pilot: object) -> None:
+        await activate_palette(pilot, app, "Settings")
+        assert isinstance(app.screen, SettingsScreen)
+        await pilot.click("#settings-edit-config")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.runtime.config.preferences.date_time_format == "iso"
+        assert app.has_class("density-compact")
+
+    app_test(app, actions)
+    assert commands == [["nvim", str(runtime.paths.config_file)]]
+
+
 def test_keyboard_marking_and_batch_move_review_keep_the_selection_visible(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     archive = runtime.application.create_task_list("work", "Archive")

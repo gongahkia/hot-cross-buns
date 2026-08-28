@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from subprocess import CompletedProcess
 from typing import Any
 
 import pytest
@@ -534,6 +535,36 @@ def test_theme_commands_apply_bundled_and_complete_custom_themes(
 
     invoke(runner, ["config", "set", "theme.colors.accent", "cyan"])
     assert json.loads(paths.config_file.read_text())["theme"]["preset"] is None
+
+
+def test_config_and_custom_theme_files_open_in_the_configured_editor(
+    cli_env: tuple[CliRunner, AppPaths], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner, paths = cli_env
+    commands: list[list[str]] = []
+    custom_theme = tmp_path / "custom-theme.json"
+    custom_theme.write_text('{"profile":"dark","colors":{"accent":"#aabbcc"}}\n')
+
+    def run_editor(command: list[str], *, check: bool) -> CompletedProcess[str]:
+        commands.append(command)
+        assert check is False
+        return CompletedProcess(command, 0)
+
+    monkeypatch.setattr(cli.subprocess, "run", run_editor)
+    invoke(runner, ["config", "set", "preferences.editor", "vim -n"])
+
+    config_result = invoke(runner, ["--json", "config", "edit"])
+    assert json_data(config_result, "config.edit") == {
+        "path": str(paths.config_file),
+        "valid": True,
+    }
+
+    theme_result = invoke(runner, ["--json", "themes", "edit", str(custom_theme)])
+    assert json_data(theme_result, "themes.edit") == {"path": str(custom_theme), "valid": True}
+    assert commands == [
+        ["vim", "-n", str(paths.config_file)],
+        ["vim", "-n", str(custom_theme)],
+    ]
 
 
 def test_local_reads_do_not_construct_google_or_keyring(

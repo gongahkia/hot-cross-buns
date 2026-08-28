@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import plistlib
+import shlex
+import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -19,7 +21,7 @@ from typer import _click as click
 from .application import BatchActionPreview, BatchMovePreview, SearchResult
 from .config import ConfigError, load, save
 from .config import schema as config_schema
-from .errors import ExitCode, HcbError, OfflineError
+from .errors import ConfigurationError, ExitCode, HcbError, OfflineError
 from .import_export import (
     ImportedEvent,
     ImportedRecord,
@@ -231,6 +233,30 @@ def root(
 
 def _state(ctx: typer.Context) -> State:
     return cast(State, ctx.find_root().obj)
+
+
+def _open_in_external_editor(
+    runtime: Runtime, path: Path, *, fallback_editor: str | None = None
+) -> None:
+    """Open one user-requested text file with HCB's configured editor."""
+
+    configured = runtime.environ.get("HCB_EDITOR")
+    if not configured:
+        try:
+            configured = runtime.config.preferences.editor
+        except ConfigurationError:
+            if fallback_editor is None:
+                raise
+            configured = fallback_editor
+    command = shlex.split(configured)
+    if not command:
+        raise ValueError("external editor command is empty")
+    try:
+        result = subprocess.run([*command, str(path)], check=False)
+    except OSError as exc:
+        raise ValueError(f"external editor failed: {exc}") from exc
+    if result.returncode != 0:
+        raise ValueError(f"external editor exited with status {result.returncode}")
 
 
 def _account(ctx: typer.Context) -> str:
@@ -1692,6 +1718,23 @@ def config_init(ctx: typer.Context, force: bool = typer.Option(False, "--force")
     _emit(ctx, {"path": str(target)}, human=lambda value: value["path"])
 
 
+@config_app.command("edit")
+def config_edit(ctx: typer.Context) -> None:
+    """Open ``config.json`` in the configured editor and validate it when it closes."""
+
+    state = _state(ctx)
+    target = state.runtime.paths.config_file
+    if not target.exists():
+        save(state.runtime.config, target)
+    _open_in_external_editor(state.runtime, target, fallback_editor="nvim")
+    load(target)
+    _emit(
+        ctx,
+        {"path": str(target), "valid": True},
+        human=lambda value: f"Validated {value['path']}",
+    )
+
+
 @config_app.command("schema")
 def config_schema_show(ctx: typer.Context) -> None:
     """Print the Draft 2020-12 schema for the strict ``config.json`` file."""
@@ -1800,6 +1843,22 @@ def themes_apply(
         }
     updated = state.runtime.update_theme(theme)
     _emit(ctx, {"source": source, "theme": updated.theme})
+
+
+@themes_app.command("edit")
+def themes_edit(ctx: typer.Context, file: Path) -> None:
+    """Open an existing custom theme JSON file and validate it when it closes."""
+
+    target = file.expanduser()
+    if not target.is_file():
+        raise ValueError(f"custom theme file must be an existing file: {target}")
+    _open_in_external_editor(_state(ctx).runtime, target)
+    load_custom_theme(target)
+    _emit(
+        ctx,
+        {"path": str(target), "valid": True},
+        human=lambda value: f"Validated {value['path']}",
+    )
 
 
 @schema_app.command("list")

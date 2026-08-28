@@ -20,7 +20,7 @@ from textual.widgets import (
     TextArea,
 )
 
-from .config import Config, ConfigError, load
+from .config import Config, ConfigError, load, save
 from .credentials import create_credential_template
 from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
@@ -38,6 +38,7 @@ from .tui_components import (
     EmojiTarget,
     EntityRow,
     GoogleSetupScreen,
+    ImportScreen,
     Input,
     OnboardingScreen,
     TerminalTextArea,
@@ -434,6 +435,9 @@ class LifecycleMixin:
         if isinstance(target, Input) and target.id == "onboard-env-file":
             self._open_onboarding_credential_file(target)
             return
+        if isinstance(target, Input) and target.id == "import-path":
+            self._open_import_file(target)
+            return
         temporary_path: Path | None = None
         try:
             command = shlex.split(self._editor_command())
@@ -495,6 +499,65 @@ class LifecycleMixin:
             return
         if template_created:
             self.notify(f"Created credential template at {credential_file}")
+
+    def _open_import_file(self: Any, target: Input) -> None:
+        """Open an existing import source, then require a fresh parse before applying it."""
+
+        try:
+            if not target.value.strip():
+                raise ValueError("import file path is empty")
+            import_file = Path(target.value.strip()).expanduser()
+            if not import_file.is_file():
+                raise ValueError(f"import file must be an existing file: {import_file}")
+            command = shlex.split(self._editor_command())
+            if not command:
+                raise ValueError("external editor command is empty")
+            with self._editor_suspend():
+                return_code = self._editor_runner([*command, str(import_file)])
+            if return_code != 0:
+                self.notify(f"External editor exited with status {return_code}", severity="error")
+                return
+        except SuspendNotSupported:
+            self.notify("External editor is unavailable in this environment", severity="error")
+            return
+        except (OSError, UnicodeError, ValueError) as exc:
+            self.notify(f"External editor failed: {exc}", severity="error")
+            return
+        if isinstance(self.screen, ImportScreen):
+            self.screen.preview = None
+            self.screen.query_one("#import-summary", Static).update(
+                "Import file closed; choose Preview again before Apply."
+            )
+
+    def action_edit_config_file(self: Any) -> None:
+        """Open the complete configuration, keeping the running UI on its last valid settings."""
+
+        target = self.runtime.paths.config_file
+        try:
+            if not target.exists():
+                save(self.runtime.config, target)
+            command = shlex.split(self._editor_command())
+            if not command:
+                raise ValueError("external editor command is empty")
+            with self._editor_suspend():
+                return_code = self._editor_runner([*command, str(target)])
+            if return_code != 0:
+                self.notify(f"External editor exited with status {return_code}", severity="error")
+                return
+            config = load(target)
+        except SuspendNotSupported:
+            self.notify("External editor is unavailable in this environment", severity="error")
+            return
+        except (OSError, UnicodeError, ValueError) as exc:
+            self.notify(f"config.json not applied: {exc}", severity="error")
+            return
+        self.runtime.__dict__["config"] = config
+        self._apply_visual_config(config)
+        self._observed_config_marker = self._config_marker()
+        self._render_chrome(refresh_resources=False)
+        self._render_surface()
+        self._render_inspector()
+        self.notify("config.json validated; visual settings applied")
 
     def on_unmount(self: Any) -> None:
         self.runtime.close()

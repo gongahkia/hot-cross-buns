@@ -98,6 +98,14 @@ hcb config set keys.external_editor "ctrl+g"
 hcb config set preferences.date_time_format friendly
 ```
 
+`hcb config edit` creates `config.json` when needed, opens it in that editor,
+and validates the result after the editor exits. `hcb themes edit PATH` opens
+an existing custom theme JSON file and validates it without applying it. In the
+TUI, the onboarding credential path and Import path display the configured
+shortcut: it opens the actual credential file or existing import source rather
+than a temporary text-field buffer. Re-preview an import after returning from
+the editor.
+
 `preferences.date_time_format` accepts `friendly` (default), `friendly_24h`,
 or `iso`; it controls the dates and times displayed by the TUI.
 

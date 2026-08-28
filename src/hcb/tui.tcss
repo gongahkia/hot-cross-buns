@@ -309,6 +309,12 @@ Input.-invalid, TextArea.-invalid {
     color: $text-muted;
 }
 
+#import-editor-hint {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+
 .onboarding-field Label {
     width: 24;
     padding-top: 1;

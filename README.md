@@ -64,14 +64,21 @@ or `Enter` to insert the selected emoji. `Escape` dismisses the suggestions.
 Press `Ctrl+G` in a text field to edit its value in `nvim` by default. HCB
 suspends its terminal UI, passes a private temporary file directly to the
 editor command, then restores the changed value. Multiline fields retain their
-text; single-line fields join edited lines with spaces. Configure the command
-and shortcut in `config.json` or through the CLI:
+text; single-line fields join edited lines with spaces. In onboarding, the
+credential-path field opens the actual credential file (creating its
+owner-only template when needed); the Import path opens its existing CSV, JSON,
+or ICS source and requires a fresh preview when you return. Configure the
+command and shortcut in `config.json` or through the CLI:
 
 ```sh
 hcb config set preferences.editor "nvim"
 hcb config set keys.external_editor "ctrl+g"
 hcb config set preferences.date_time_format friendly
 ```
+
+`hcb config edit` opens the complete configuration in that editor and validates
+it when you close it. `hcb themes edit PATH` similarly opens and validates an
+existing standalone theme JSON file without applying it.
 
 `HCB_EDITOR` overrides `preferences.editor` for the current process. It is a
 normal environment variable, separate from HCB's account `.env` credential
