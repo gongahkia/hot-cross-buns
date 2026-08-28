@@ -26,6 +26,7 @@ from hcb.models import (
     EntityType,
     EventDateTime,
     Preferences,
+    ReminderOverride,
 )
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
@@ -340,6 +341,54 @@ def test_item_view_renders_markdown_and_safe_html(tmp_path: Path) -> None:
         assert "Important" in task_text
 
     app_test(app, assertions)
+
+
+def test_event_view_only_shows_relevant_specialist_details(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Long reminder",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 24)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 25)),
+        reminder_use_default=False,
+        reminder_overrides=(ReminderOverride("popup", 420), ReminderOverride("email", 90)),
+        color_id="4",
+        event_type="focusTime",
+        visibility="private",
+        transparency="opaque",
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+    screen = ItemViewScreen(app, event)
+
+    details = screen._event_details(event)
+    assert "Reminders: popup 7 hr, email 1 hr 30 min" in details.plain
+    assert "Status:" not in details.plain
+    assert "Type:" not in details.plain
+    assert "Visibility:" not in details.plain
+    assert "Transparency:" not in details.plain
+    assert "Conference:" not in details.plain
+    assert "Guest permissions:" not in details.plain
+    dot = next(span for span in details.spans if details.plain[span.start : span.end] == "●")
+    assert isinstance(dot.style, Style)
+    assert dot.style.color is not None
+    assert dot.style.color.get_truecolor().hex == "#e67c73"
+
+    relevant = runtime.application.update_event(
+        "work",
+        event.id,
+        conference={"entryPoints": [{"uri": "https://meet.google.com/example"}]},
+        guests_can_invite_others=False,
+        guests_can_modify=True,
+    )
+    relevant_details = screen._event_details(relevant)
+    assert "Conference: Open meeting" in relevant_details.plain
+    assert "Guest permissions: invite=no, modify=yes" in relevant_details.plain
+    assert any(
+        isinstance(span.style, Style) and span.style.link == "https://meet.google.com/example"
+        for span in relevant_details.spans
+    )
 
 
 def test_content_selection_persistently_marks_the_active_row(tmp_path: Path) -> None:

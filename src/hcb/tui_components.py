@@ -76,6 +76,21 @@ if TYPE_CHECKING:
     from .tui import HcbApp
 
 
+GOOGLE_EVENT_COLORS = {
+    "1": "#7986cb",  # Lavender
+    "2": "#33b679",  # Sage
+    "3": "#8e24aa",  # Grape
+    "4": "#e67c73",  # Flamingo
+    "5": "#f6c026",  # Banana
+    "6": "#f5511d",  # Tangerine
+    "7": "#039be5",  # Peacock
+    "8": "#616161",  # Graphite
+    "9": "#3f51b5",  # Blueberry
+    "10": "#0b8043",  # Basil
+    "11": "#d60000",  # Tomato
+}
+
+
 class EmojiCompletion(Static):
     """A non-focus-stealing suggestion surface shared by text editors."""
 
@@ -1211,27 +1226,79 @@ class ItemViewScreen(ModalScreen[str | None]):
             text.append(f"\nCompleted: {self.hcb.format_date_time(task.completed_at)}")
         return text
 
+    def _event_color(self, event: Event) -> str | None:
+        color = event.color_id
+        if color is None:
+            calendar = self.hcb.runtime.storage.get_calendar(event.account_id, event.calendar_id)
+            color = calendar.color if calendar is not None else None
+        if color is None:
+            return None
+        return GOOGLE_EVENT_COLORS.get(color) or (color if color.startswith("#") else None)
+
+    @staticmethod
+    def _reminder_offset(minutes: int) -> str:
+        if minutes < 60:
+            return f"{minutes} min"
+        hours, remainder = divmod(minutes, 60)
+        return f"{hours} hr" + (f" {remainder} min" if remainder else "")
+
+    @staticmethod
+    def _conference_url(conference: dict[str, object]) -> str | None:
+        entry_points = conference.get("entryPoints")
+        if not isinstance(entry_points, list):
+            return None
+        return next(
+            (
+                uri
+                for point in entry_points
+                if isinstance(point, dict)
+                if isinstance((uri := point.get("uri")), str)
+                if is_web_url(uri)
+            ),
+            None,
+        )
+
     def _event_details(self, event: Event) -> Text:
         reminders = (
             "Default reminders"
             if event.reminder_use_default
-            else ", ".join(f"{item.method} {item.minutes} min" for item in event.reminder_overrides)
+            else ", ".join(
+                f"{item.method} {self._reminder_offset(item.minutes)}"
+                for item in event.reminder_overrides
+            )
             or "No reminders"
         )
         text = Text(
             f"When: {self.hcb.format_date_time(event.start.value)} → "
             f"{self.hcb.format_date_time(event.end.value)}\n"
             f"Repeats: {recurrence_summary(event.recurrence)}\n"
-            f"Status: {event.status.value}\n"
-            f"Type: {event.event_type or 'default'}\n"
-            f"Visibility: {event.visibility or 'default'}\n"
-            f"Transparency: {event.transparency or 'transparent'}\n"
-            f"Color: {event.color_id or 'default'}\n"
-            f"Reminders: {reminders}\n"
-            f"Conference: {'yes' if event.conference else 'no'}\n"
-            f"Guest permissions: invite={event.guests_can_invite_others}, "
-            f"modify={event.guests_can_modify}, see={event.guests_can_see_other_guests}"
+            f"Reminders: {reminders}"
         )
+        if color := self._event_color(event):
+            text.append("\nColor: ")
+            text.append("●", style=Style(color=color))
+        if event.conference:
+            text.append("\nConference: ")
+            if url := self._conference_url(event.conference):
+                start = len(text)
+                text.append("Open meeting")
+                text.stylize(Style(link=url, underline=True), start, len(text))
+            else:
+                text.append("available")
+        permissions = tuple(
+            (label, value)
+            for label, value in (
+                ("invite", event.guests_can_invite_others),
+                ("modify", event.guests_can_modify),
+                ("see", event.guests_can_see_other_guests),
+            )
+            if value is not None
+        )
+        if permissions:
+            text.append("\nGuest permissions: ")
+            text.append(
+                ", ".join(f"{label}={'yes' if value else 'no'}" for label, value in permissions)
+            )
         if event.attendees:
             text.append("\n\nAttendees:")
             for attendee in event.attendees:
