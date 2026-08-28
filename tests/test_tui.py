@@ -54,7 +54,11 @@ from hcb.tui import (
     SettingsScreen,
     TerminalTextArea,
     emoji_suggestions,
+    google_maps_url,
     linkify_urls,
+    recurrence_frequency,
+    recurrence_summary,
+    recurrence_with_frequency,
     render_readonly_markup,
 )
 
@@ -224,7 +228,7 @@ def test_links_in_workspace_text_open_only_safe_web_urls(tmp_path: Path) -> None
     app_test(app, assertions)
 
 
-def test_inspector_links_event_attachments_and_drive_files(tmp_path: Path) -> None:
+def test_item_view_links_event_attachments_and_drive_files(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     calendar_id = runtime.storage.list_calendars("work")[0].id
     description_url = "https://example.test/event-notes"
@@ -244,30 +248,37 @@ def test_inspector_links_event_attachments_and_drive_files(tmp_path: Path) -> No
     )
     app = HcbApp(runtime, selected_date=date(2026, 8, 24))
 
-    def targets(value: object) -> set[str]:
-        assert isinstance(value, Text)
-        return {
-            span.style.link
-            for span in value.spans
-            if isinstance(span.style, Style) and span.style.link
-        }
+    def targets(screen: ItemViewScreen) -> set[str]:
+        targets: set[str] = set()
+        for widget in screen.query(Static):
+            content = widget.content
+            if not isinstance(content, Text):
+                continue
+            targets.update(
+                span.style.link
+                for span in content.spans
+                if isinstance(span.style, Style) and span.style.link
+            )
+        return targets
 
     async def assertions(pilot: object) -> None:
         app.selected = ("event", event.id)
-        app._render_inspector()
+        app.action_view()
         await pilot.pause()  # type: ignore[attr-defined]
-        assert {description_url, attachment_url} <= targets(
-            app.query_one("#inspection", Static).content
-        )
+        assert isinstance(app.screen, ItemViewScreen)
+        assert {description_url, attachment_url} <= targets(app.screen)
 
+        await pilot.press("escape")  # type: ignore[attr-defined]
         app.selected = ("drive", "brief")
-        app._render_inspector()
-        assert drive_url in targets(app.query_one("#inspection", Static).content)
+        app.action_view()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ItemViewScreen)
+        assert drive_url in targets(app.screen)
 
     app_test(app, assertions)
 
 
-def test_inspector_renders_markdown_and_safe_html(tmp_path: Path) -> None:
+def test_item_view_renders_markdown_and_safe_html(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]
     task = runtime.application.create_task(
@@ -291,7 +302,7 @@ def test_inspector_renders_markdown_and_safe_html(tmp_path: Path) -> None:
     )
     app = HcbApp(runtime, selected_date=date(2026, 8, 24))
 
-    rendered = render_inspector_markup(
+    rendered = render_readonly_markup(
         '<h2>Plan</h2><p>Use **bold** and _italics_ <a href="https://example.test">docs</a> '
         "and [unsafe](javascript:bad).</p>"
     )
@@ -303,28 +314,36 @@ def test_inspector_renders_markdown_and_safe_html(tmp_path: Path) -> None:
         for span in rendered.spans
     )
 
-    async def assertions(_: object) -> None:
-        app.selected = ("event", event.id)
-        app._render_inspector()
-        event_text = app.query_one("#inspection", Static).content
-        assert isinstance(event_text, Text)
-        assert "<p>" not in event_text.plain
-        assert "do-not-render" not in event_text.plain
-        assert "• First step" in event_text.plain
+    def text_parts(screen: ItemViewScreen) -> tuple[Text, ...]:
+        return tuple(
+            widget.content for widget in screen.query(Static) if isinstance(widget.content, Text)
+        )
 
+    async def assertions(pilot: object) -> None:
+        app.selected = ("event", event.id)
+        app.action_view()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ItemViewScreen)
+        event_text = "\n".join(part.plain for part in text_parts(app.screen))
+        assert "<p>" not in event_text
+        assert "do-not-render" not in event_text
+        assert "• First step" in event_text
+
+        await pilot.press("escape")  # type: ignore[attr-defined]
         app.selected = ("task", task.id)
-        app._render_inspector()
-        task_text = app.query_one("#inspection", Static).content
-        assert isinstance(task_text, Text)
-        assert "## Task heading" not in task_text.plain
-        assert "**Important**" not in task_text.plain
-        assert "Task heading" in task_text.plain
-        assert "Important" in task_text.plain
+        app.action_view()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ItemViewScreen)
+        task_text = "\n".join(part.plain for part in text_parts(app.screen))
+        assert "## Task heading" not in task_text
+        assert "**Important**" not in task_text
+        assert "Task heading" in task_text
+        assert "Important" in task_text
 
     app_test(app, assertions)
 
 
-def test_content_selection_persistently_marks_the_inspected_row(tmp_path: Path) -> None:
+def test_content_selection_persistently_marks_the_active_row(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]
     runtime.application.create_task("work", task_list.id, "Second task")
@@ -346,6 +365,134 @@ def test_content_selection_persistently_marks_the_inspected_row(tmp_path: Path) 
         assert rows[1].has_class("hcb-selected")
 
     app_test(app, assertions)
+
+
+def test_content_enter_opens_a_readonly_view_and_e_opens_the_editor(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path))
+
+    async def assertions(pilot: object) -> None:
+        content = app.query_one("#content", ListView)
+        content.focus()
+        await pilot.press("enter")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ItemViewScreen)
+        assert app.screen.query_one("#item-view-edit", Button).label == "Edit"
+        assert app.screen.query_one("#item-view-delete", Button).label == "Delete"
+        await pilot.press("e")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EditorScreen)
+
+    app_test(app, assertions)
+
+
+def test_event_editor_uses_readable_frequency_and_preserves_rrule_details(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Renew membership",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 1)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 2)),
+        recurrence=("RRULE:FREQ=YEARLY;COUNT=3",),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 1))
+
+    assert recurrence_frequency(event.recurrence) == "yearly"
+    assert recurrence_summary(event.recurrence) == "Every year · 3 times"
+    assert recurrence_with_frequency(event.recurrence, "weekly") == ("RRULE:FREQ=WEEKLY;COUNT=3",)
+
+    async def assertions(pilot: object) -> None:
+        app.selected = ("event", event.id)
+        app.action_edit()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EventEditorScreen)
+        assert app.screen.query_one("#event-frequency", Select).value == "yearly"
+        assert "Every year · 3 times" in str(
+            app.screen.query_one("#event-recurrence-summary", Static).render()
+        )
+        assert app.screen.query_one("#event-recurrence", Input).display is False
+
+        app.screen.query_one("#event-frequency", Select).value = "weekly"
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert "Every week · 3 times" in str(
+            app.screen.query_one("#event-recurrence-summary", Static).render()
+        )
+        await pilot.click("#event-save")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        updated = runtime.storage.get_event("work", event.id)
+        assert updated is not None
+        assert updated.recurrence == ("RRULE:FREQ=WEEKLY;COUNT=3",)
+
+    app_test(app, assertions)
+
+
+def test_event_view_location_uses_a_clickable_google_maps_link(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Lunch",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 24)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 25)),
+        location="Maxwell Food Centre, Singapore",
+    )
+    opened: list[str] = []
+    app = HcbApp(
+        runtime,
+        selected_date=date(2026, 8, 24),
+        url_opener=lambda target: opened.append(target) or True,
+    )
+    maps_url = google_maps_url(event.location or "")
+    assert maps_url == (
+        "https://www.google.com/maps/search/?api=1&query=Maxwell+Food+Centre%2C+Singapore"
+    )
+
+    async def assertions(pilot: object) -> None:
+        app.selected = ("event", event.id)
+        app.action_view()
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, ItemViewScreen)
+        location = app.screen.query_one(".item-view-location", Static).content
+        assert isinstance(location, Text)
+        assert location.plain.startswith("󰖟 Maxwell Food Centre")
+        assert any(
+            isinstance(span.style, Style) and span.style.link == maps_url for span in location.spans
+        )
+        app.on_click(
+            events.Click(
+                app,
+                0,
+                0,
+                0,
+                0,
+                1,
+                False,
+                False,
+                True,
+                style=Style(link=maps_url),
+            )
+        )
+        assert opened == [maps_url]
+
+    app_test(app, assertions)
+
+
+def test_content_rows_scroll_horizontally_for_long_titles(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    runtime.application.create_task("work", task_list.id, "Long title " * 30)
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        content = app.query_one("#content", ListView)
+        assert content.max_scroll_x > 0
+        content.scroll_to(content.max_scroll_x, animate=False, immediate=True)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert content.scroll_x == content.max_scroll_x
+
+    app_test(app, assertions, size=(80, 24))
 
 
 def test_topbar_uses_present_date_while_surface_uses_selected_date(tmp_path: Path) -> None:
@@ -607,7 +754,7 @@ def test_palette_shows_commands_and_title_first_results(tmp_path: Path) -> None:
     app_test(app, assertions)
 
 
-def test_palette_searches_indexed_drive_files_and_opens_their_inspector(tmp_path: Path) -> None:
+def test_palette_searches_indexed_drive_files_and_opens_their_view(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     runtime.storage.upsert_drive_file(
         DriveFile(
@@ -634,7 +781,10 @@ def test_palette_searches_indexed_drive_files_and_opens_their_inspector(tmp_path
         await pilot.press("enter")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.selected == ("drive", "brief")
-        assert "application/pdf" in str(app.query_one("#inspection", Static).render())
+        assert isinstance(app.screen, ItemViewScreen)
+        assert "application/pdf" in "\n".join(
+            str(widget.render()) for widget in app.screen.query(Static)
+        )
 
     app_test(app, assertions)
 
@@ -1693,7 +1843,7 @@ def test_conflict_resolution_and_explicit_remote_freebusy(tmp_path: Path) -> Non
     app_test(app, actions)
 
 
-def test_resize_preserves_unicode_selection_and_restores_inspector(tmp_path: Path) -> None:
+def test_resize_preserves_unicode_selection_and_restores_sidebar(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list_id = runtime.application.workspace("work").task_lists[0].id
     for index in range(35):
@@ -1718,14 +1868,14 @@ def test_resize_preserves_unicode_selection_and_restores_inspector(tmp_path: Pat
         assert app.has_class("very-narrow")
         assert rows.highlighted_child is not None
         assert rows.highlighted_child.item_id == selected_id
-        assert app.query_one("#inspector").display is False
+        assert app.query_one("#sidebar").display is False
 
         await pilot.resize_terminal(120, 38)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert not app.has_class("narrow")
         assert rows.highlighted_child is not None
         assert rows.highlighted_child.item_id == selected_id
-        assert app.query_one("#inspector").display is True
+        assert app.query_one("#sidebar").display is True
 
     app_test(app, assertions)
 
