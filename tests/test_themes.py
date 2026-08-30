@@ -20,8 +20,8 @@ from hcb.themes import (
 def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     available = presets()
 
-    assert len(available) == BUNDLED_PRESET_COUNT == 75
-    assert [item.rank for item in available] == list(range(1, 76))
+    assert len(available) == BUNDLED_PRESET_COUNT == 100
+    assert [item.rank for item in available] == list(range(1, 101))
     assert available[0].name == "Dracula"
     assert available[0].colors.background == "#282a36"
     assert {item.name.casefold() for item in available} == {
