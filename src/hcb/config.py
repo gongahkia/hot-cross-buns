@@ -338,9 +338,11 @@ def _theme(values: dict[str, Any]) -> Theme:
 
 def _preferences(values: dict[str, Any], *, migrate_v1: bool = False) -> Preferences:
     preference_values = dict(values)
-    if migrate_v1:
-        preference_values.pop("theme", None)
-        preference_values.pop("keymap", None)
+    # These names were emitted by v1 and early v2 releases but never affected the
+    # runtime. Keep accepting them so an existing config starts, then drop them
+    # the next time HCB writes the normalized v2 document.
+    preference_values.pop("theme", None)
+    preference_values.pop("keymap", None)
     capture = values.get("capture", {})
     if not isinstance(capture, dict):
         raise ConfigError("preferences.capture must be an object")

@@ -139,7 +139,6 @@ def test_legacy_toml_is_not_read_or_migrated(tmp_path: Path) -> None:
         '{"theme":{"colors":{"accent":"not-a-color"}}}',
         '{"theme":{"loader":"not-a-loader"}}',
         '{"theme":{"colors":{"accent":"red","accent":"blue"}}}',
-        '{"schema_version":2,"preferences":{"theme":"dark"}}',
         '{"preferences":{"capture":{"default_event_duration_minutes":0}}}',
         '{"preferences":{"capture":{"task_aliases":[""]}}}',
         '{"active_profile":"Work"}',
@@ -191,6 +190,9 @@ def test_v1_configuration_migrates_and_a_profile_overlays_only_its_values(tmp_pa
     save(migrated, target)
     assert "theme" not in json.loads(target.read_text())["preferences"]
     assert "keymap" not in json.loads(target.read_text())["preferences"]
+
+    early_v2 = loads('{"schema_version":2,"preferences":{"theme":"dark","keymap":"vim"}}')
+    assert not hasattr(early_v2.preferences, "theme")
 
     save(Config(active_profile="work"), target)
     overlay = profile_path(target, "work")
