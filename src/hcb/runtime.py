@@ -20,6 +20,7 @@ from .config import (
     ThemeRoles,
     TuiSettings,
     load,
+    profile_path,
     save,
 )
 from .credentials import (
@@ -262,6 +263,11 @@ class Runtime:
                 stylesheet=stylesheet,
             ),
         )
+        if active_profile is not None:
+            target = profile_path(self.paths.config_file, active_profile)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                target.write_text("{}\n", encoding="utf-8")
         save(updated, self.paths.config_file)
         self.__dict__["config"] = updated
         return updated

@@ -268,11 +268,15 @@ class WorkspaceMixin:
                     else ""
                 )
                 label = Text(f"{marked} {indent}{status} ")
+                title_start = len(label)
                 label.append(task.title)
+                title_end = len(label)
                 label.append(f"{due}{notes}")
+                if task.status is TaskStatus.COMPLETED:
+                    label.stylize(Style(dim=True))
+                    label.stylize(Style(strike=True), title_start, title_end)
                 row = EntityRow(label, kind="task", item_id=task.id)
                 if task.status is TaskStatus.COMPLETED:
-                    label.stylize(Style(dim=True, strike=True))
                     row.add_class("hcb-completed")
                 content.append(row)
         else:

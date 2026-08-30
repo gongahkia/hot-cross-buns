@@ -82,6 +82,15 @@ hcb config set preferences.date_time_format friendly
 it when you close it. `hcb themes edit PATH` similarly opens and validates an
 existing standalone theme JSON file without applying it.
 
+Configuration v2 keeps a strict base `config.json` and may overlay one named
+profile from `profiles/NAME.json`. Use `hcb config profiles create NAME` and
+`hcb config profiles select NAME`, or set `HCB_PROFILE=NAME` for one process.
+`hcb config get`, `set`, `set --json`, `unset`, and `explain` make every saved
+setting inspectable and scriptable. The terminal Settings screen exposes
+appearance, behavior, capture aliases, keymap, layout, profile, and advanced
+stylesheet controls; an optional per-profile TCSS file is loaded after HCB's
+built-in stylesheet and is rejected without changing the active UI if invalid.
+
 `HCB_EDITOR` overrides `preferences.editor` for the current process. It is a
 normal environment variable, separate from HCB's account `.env` credential
 file.

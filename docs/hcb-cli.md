@@ -106,6 +106,15 @@ shortcut: it opens the actual credential file or existing import source rather
 than a temporary text-field buffer. Re-preview an import after returning from
 the editor.
 
+Configuration uses schema version 2. `config.json` is the strict base file and
+`profiles/NAME.json` is an optional strict overlay selected by `active_profile`
+or the process-only `HCB_PROFILE` variable. Use `hcb config profiles list`,
+`create`, `select`, and `delete` to manage profile files. `hcb config get KEY`,
+`set KEY VALUE`, `set --json KEY JSON`, `unset KEY`, and `explain KEY` expose
+the resolved values, defaults, and reload behavior. Profile TCSS stylesheets
+are loaded after HCB's base TCSS and an invalid stylesheet falls back to the
+base UI with an error notification.
+
 `preferences.date_time_format` accepts `friendly` (default), `friendly_24h`,
 or `iso`; it controls the dates and times displayed by the TUI.
 

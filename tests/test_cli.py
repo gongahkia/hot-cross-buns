@@ -477,6 +477,28 @@ def test_config_commands_and_account_environment(
         ]
         == "cyan"
     )
+    invoke(
+        runner,
+        [
+            "config",
+            "set",
+            "preferences.capture",
+            '{"task_aliases":["todo"]}',
+            "--json",
+        ],
+    )
+    assert json_data(
+        invoke(runner, ["--json", "config", "get", "preferences.capture.task_aliases"]),
+        "config.get",
+    )["value"] == ["todo"]
+    invoke(runner, ["config", "profiles", "create", "work"])
+    assert (
+        json_data(
+            invoke(runner, ["--json", "config", "profiles", "select", "work"]),
+            "config.profiles.select",
+        )["active"]
+        == "work"
+    )
     assert invoke(runner, ["task-lists", "create", "Second"]).exit_code == 0
     with Storage(paths.database_file) as storage:
         assert len(storage.list_task_lists("second")) == 1

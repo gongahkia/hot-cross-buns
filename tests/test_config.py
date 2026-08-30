@@ -12,6 +12,7 @@ from hcb.config import (
     ThemeColors,
     load,
     loads,
+    profile_path,
     save,
     schema,
 )
@@ -150,3 +151,22 @@ def test_bundled_schema_accepts_saved_config_and_rejects_unknown_tokens(tmp_path
     assert list(validator.iter_errors(json.loads(target.read_text()))) == []
     invalid = {"theme": {"colors": {"unexpected": "red"}}}
     assert list(validator.iter_errors(invalid))
+
+
+def test_v1_configuration_migrates_and_a_profile_overlays_only_its_values(tmp_path: Path) -> None:
+    target = tmp_path / "config.json"
+    target.write_text('{"schema_version":1,"keys":{"quit":"ctrl+q"}}', encoding="utf-8")
+    migrated = load(target)
+    assert migrated.schema_version == 2
+    assert migrated.keys.quit == "ctrl+q"
+
+    save(Config(active_profile="work"), target)
+    overlay = profile_path(target, "work")
+    overlay.parent.mkdir()
+    overlay.write_text(
+        '{"preferences":{"capture":{"task_aliases":["todo"]}},"tui":{"agenda_days":21}}',
+        encoding="utf-8",
+    )
+    resolved = load(target)
+    assert resolved.preferences.capture.task_aliases == ("todo",)
+    assert resolved.tui.agenda_days == 21

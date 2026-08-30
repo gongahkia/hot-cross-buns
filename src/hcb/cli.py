@@ -9,7 +9,7 @@ import shlex
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -19,7 +19,7 @@ import typer
 from typer import _click as click
 
 from .application import BatchActionPreview, BatchMovePreview, SearchResult
-from .config import ConfigError, load, save
+from .config import Config, ConfigError, load, loads, profile_path, save
 from .config import schema as config_schema
 from .errors import ConfigurationError, ExitCode, HcbError, OfflineError
 from .import_export import (
@@ -156,6 +156,9 @@ conflicts_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Resolv
 import_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Preview or apply imports.")
 auth_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage authentication.")
 config_app = typer.Typer(cls=HcbGroup, context_settings=CONTEXT, help="Manage configuration.")
+config_profiles_app = typer.Typer(
+    cls=HcbGroup, context_settings=CONTEXT, help="Manage configuration profiles."
+)
 themes_app = typer.Typer(cls=ThemesGroup, context_settings=CONTEXT, help="Manage visual themes.")
 daemon_app = typer.Typer(
     cls=HcbGroup, context_settings=CONTEXT, help="Inspect sync daemon support."
@@ -173,6 +176,7 @@ app.add_typer(conflicts_app, name="conflicts")
 app.add_typer(import_app, name="import")
 app.add_typer(auth_app, name="auth")
 app.add_typer(config_app, name="config")
+config_app.add_typer(config_profiles_app, name="profiles")
 app.add_typer(themes_app, name="themes")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(drive_app, name="drive")
@@ -1754,49 +1758,137 @@ def _coerce_config(current: Any, raw: str) -> Any:
     return raw
 
 
+def _config_value(document: dict[str, Any], key: str) -> Any:
+    value: Any = document
+    for part in key.split("."):
+        if not isinstance(value, dict) or part not in value:
+            raise ValueError(f"unknown configuration key {key!r}")
+        value = value[part]
+    return value
+
+
+def _set_config_value(document: dict[str, Any], key: str, value: Any) -> None:
+    parts = key.split(".")
+    target: dict[str, Any] = document
+    for part in parts[:-1]:
+        current = target.get(part)
+        if not isinstance(current, dict):
+            raise ValueError(f"unknown configuration key {key!r}")
+        target = current
+    if parts[-1] not in target:
+        raise ValueError(f"unknown configuration key {key!r}")
+    target[parts[-1]] = value
+
+
 @config_app.command("set")
-def config_set(ctx: typer.Context, key: str, value: str) -> None:
+def config_set(
+    ctx: typer.Context,
+    key: str,
+    value: str,
+    as_json: bool = typer.Option(False, "--json", help="Interpret VALUE as JSON."),
+) -> None:
     state = _state(ctx)
     current = load(state.runtime.paths.config_file, resolve_profile=False)
-    parts = key.split(".")
-    if parts[:2] == ["theme", "colors"] and len(parts) == 3:
-        color_name = parts[2]
-        if color_name not in current.theme.colors.__dataclass_fields__:
-            raise ValueError(f"unknown configuration key {key!r}")
-        colors = replace(
-            current.theme.colors,
-            **{color_name: _coerce_config(getattr(current.theme.colors, color_name), value)},
-        )
-        updated = replace(current, theme=replace(current.theme, colors=colors, preset=None))
-        save(updated, state.runtime.paths.config_file)
-        state.runtime.__dict__.pop("config", None)
-        _emit(
-            ctx,
-            {"key": key, "value": getattr(colors, color_name)},
-            human=lambda row: f"{row['key']}={row['value']}",
-        )
-        return
-    if len(parts) != 2:
-        raise ValueError("configuration key must be SECTION.NAME or theme.colors.NAME")
-    section_name, field = parts
-    if section_name not in {"preferences", "theme", "keys"}:
-        raise ValueError(f"unknown configuration section {section_name!r}")
-    section = getattr(current, section_name)
-    if field not in section.__dataclass_fields__:
-        raise ValueError(f"unknown configuration key {key!r}")
-    if section_name == "theme" and field == "preset":
+    if key == "theme.preset":
         raise ValueError("apply a preset with `hcb themes apply NAME`, not config set")
-    updated_section = replace(section, **{field: _coerce_config(getattr(section, field), value)})
-    if section_name == "theme":
-        updated_section = replace(updated_section, preset=None)
-    updated = replace(current, **{section_name: updated_section})
+    document = asdict(current)
+    previous = _config_value(document, key)
+    try:
+        updated_value = json.loads(value) if as_json else _coerce_config(previous, value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON value: {exc.msg}") from exc
+    _set_config_value(document, key, updated_value)
+    if key.startswith("theme."):
+        document["theme"]["preset"] = None
+    updated = loads(json.dumps(document))
     save(updated, state.runtime.paths.config_file)
     state.runtime.__dict__.pop("config", None)
     _emit(
         ctx,
-        {"key": key, "value": getattr(updated_section, field)},
+        {"key": key, "value": updated_value},
         human=lambda row: f"{row['key']}={row['value']}",
     )
+
+
+@config_app.command("get")
+def config_get(ctx: typer.Context, key: str) -> None:
+    value = _config_value(asdict(_state(ctx).runtime.config), key)
+    _emit(ctx, {"key": key, "value": value}, human=lambda row: str(row["value"]))
+
+
+@config_app.command("unset")
+def config_unset(ctx: typer.Context, key: str) -> None:
+    state = _state(ctx)
+    current = load(state.runtime.paths.config_file, resolve_profile=False)
+    document = asdict(current)
+    default = asdict(Config())
+    _set_config_value(document, key, _config_value(default, key))
+    updated = loads(json.dumps(document))
+    save(updated, state.runtime.paths.config_file)
+    state.runtime.__dict__.pop("config", None)
+    _emit(ctx, {"key": key, "value": _config_value(asdict(updated), key)})
+
+
+@config_app.command("explain")
+def config_explain(ctx: typer.Context, key: str) -> None:
+    current = _config_value(asdict(_state(ctx).runtime.config), key)
+    default = _config_value(asdict(Config()), key)
+    _emit(
+        ctx,
+        {
+            "key": key,
+            "value": current,
+            "default": default,
+            "reload": "live" if key.startswith(("theme.", "keys.", "tui.")) else "next start",
+        },
+    )
+
+
+@config_profiles_app.command("list")
+def config_profiles_list(ctx: typer.Context) -> None:
+    paths = _state(ctx).runtime.paths
+    names = (
+        sorted(path.stem for path in paths.profiles_dir.glob("*.json"))
+        if paths.profiles_dir.exists()
+        else []
+    )
+    _emit(ctx, {"active": _state(ctx).runtime.config.active_profile, "profiles": names})
+
+
+@config_profiles_app.command("create")
+def config_profiles_create(ctx: typer.Context, name: str) -> None:
+    target = profile_path(_state(ctx).runtime.paths.config_file, name)
+    if target.exists():
+        raise ValueError(f"profile {name!r} already exists")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("{}\n", encoding="utf-8")
+    _emit(ctx, {"name": name, "path": str(target)})
+
+
+@config_profiles_app.command("select")
+def config_profiles_select(ctx: typer.Context, name: str) -> None:
+    state = _state(ctx)
+    current = load(state.runtime.paths.config_file, resolve_profile=False)
+    if not profile_path(state.runtime.paths.config_file, name).exists():
+        raise ValueError(f"profile {name!r} does not exist; create it first")
+    updated = replace(current, active_profile=name)
+    save(updated, state.runtime.paths.config_file)
+    state.runtime.__dict__.pop("config", None)
+    _emit(ctx, {"active": name})
+
+
+@config_profiles_app.command("delete")
+def config_profiles_delete(ctx: typer.Context, name: str) -> None:
+    state = _state(ctx)
+    target = profile_path(state.runtime.paths.config_file, name)
+    if not target.exists():
+        raise ValueError(f"profile {name!r} does not exist")
+    target.unlink()
+    current = load(state.runtime.paths.config_file, resolve_profile=False)
+    if current.active_profile == name:
+        save(replace(current, active_profile=None), state.runtime.paths.config_file)
+        state.runtime.__dict__.pop("config", None)
+    _emit(ctx, {"deleted": name})
 
 
 # Themes
