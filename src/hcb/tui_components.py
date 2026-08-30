@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shlex
 import subprocess
@@ -1533,32 +1534,47 @@ class ItemViewScreen(ModalScreen[str | None]):
         text.append_text(self._event_additional_details(event))
         return text
 
-    @work(thread=True, group="item-view-content", exit_on_error=False)
-    def _load_deferred_content(self) -> None:
-        """Parse potentially large Rich content after the read-only card is visible."""
+    async def _load_markup_progressively(
+        self, section_id: str, value: str, link_style: Style
+    ) -> None:
+        """Yield between bounded Markdown chunks so a large body cannot monopolize the UI."""
+        if "<" in value and ">" in value:
+            # HTML needs one parser pass to retain tag nesting. Yield once so the
+            # dialog can paint before that less-common, potentially large pass.
+            await asyncio.sleep(0)
+            self.post_message(
+                self.ContentReady(
+                    self,
+                    ((section_id, render_readonly_markup(value or "No description", link_style=link_style)),),
+                )
+            )
+            return
+        lines = value.splitlines(keepends=True) or [value]
+        rendered = Text()
+        for start in range(0, len(lines), 64):
+            chunk = "".join(lines[start : start + 64])
+            rendered.append_text(render_readonly_markup(chunk, link_style=link_style))
+            self.post_message(self.ContentReady(self, ((section_id, rendered.copy()),)))
+            await asyncio.sleep(0)
+
+    @work(group="item-view-content", exit_on_error=False)
+    async def _load_deferred_content(self) -> None:
+        """Populate non-essential detail content after the read-only card is visible."""
         link_style = role_rich_style(self.hcb.runtime.config.theme.roles.link)
         item = self.item
-        sections: tuple[tuple[str, Text], ...]
         if isinstance(item, Task):
-            sections = (
-                (
-                    "item-view-notes",
-                    render_readonly_markup(item.notes or "No notes", link_style=link_style),
-                ),
+            await self._load_markup_progressively(
+                "item-view-notes", item.notes or "No notes", link_style
             )
         elif isinstance(item, Event):
-            sections = (
-                ("item-view-extra", self._event_additional_details(item)),
-                (
-                    "item-view-description",
-                    render_readonly_markup(
-                        item.description or "No description", link_style=link_style
-                    ),
-                ),
+            self.post_message(
+                self.ContentReady(self, (("item-view-extra", self._event_additional_details(item)),))
+            )
+            await self._load_markup_progressively(
+                "item-view-description", item.description or "No description", link_style
             )
         else:
             return
-        self.post_message(self.ContentReady(self, sections))
 
     def compose(self) -> ComposeResult:
         item = self.item
