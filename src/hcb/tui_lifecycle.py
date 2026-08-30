@@ -5,6 +5,7 @@ from __future__ import annotations
 import shlex
 import tempfile
 import webbrowser
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -59,7 +60,9 @@ class LifecycleMixin:
         self._apply_visual_config(self.runtime.config)
         self._observed_config_marker = self._config_marker()
         self.set_interval(0.5, self._reload_visual_config)
-        self._bind_configured_keys()
+        self._apply_configured_keys(self.runtime.config)
+        if self._stylesheet_error is not None:
+            self.notify(self._stylesheet_error, severity="error", timeout=15)
         try:
             self.account_id = self.runtime.account_id(self.explicit_account)
         except AuthenticationRequired:
@@ -85,6 +88,7 @@ class LifecycleMixin:
     def _apply_visual_config(self: Any, config: Config) -> None:
         self._set_visual_state(config)
         colors = config.theme.colors
+        roles = config.theme.roles
         self._theme_revision += 1
         name = f"hcb-config-{self._theme_revision}"
         self.register_theme(
@@ -109,6 +113,16 @@ class LifecycleMixin:
                     "footer-background": colors.overlay,
                     "input-selection-background": colors.selection,
                     "screen-selection-background": colors.selection,
+                    "role-completed": roles.completed_item.color or colors.muted,
+                    "role-completed-background": roles.completed_item.background or "transparent",
+                    "role-completed-style": roles.completed_item.text_style,
+                    "role-selected": roles.selected_item.color or colors.text,
+                    "role-selected-background": roles.selected_item.background or "transparent",
+                    "role-selected-style": roles.selected_item.text_style,
+                    "role-link": roles.link.color or colors.accent,
+                    "role-link-style": roles.link.text_style,
+                    "role-modal-title": roles.modal_title.color or colors.text,
+                    "role-modal-title-style": roles.modal_title.text_style,
                 },
             )
         )
@@ -136,9 +150,13 @@ class LifecycleMixin:
         )
         self.set_class(self.border_style == "ascii", "ascii")
         self.set_class(not self.mouse_enabled, "no-mouse")
+        self.set_class(not config.tui.sidebar_visible, "sidebar-hidden")
         self.dark = self.theme_mode != "light"
         for text_area in self.query(TerminalTextArea):
             text_area.apply_terminal_theme()
+
+    def _apply_configured_keys(self: Any, config: Config) -> None:
+        self.set_keymap(asdict(config.keys))
 
     def _config_marker(self: Any) -> tuple[int, int] | None:
         try:
@@ -159,6 +177,7 @@ class LifecycleMixin:
             return
         self.runtime.__dict__["config"] = config
         self._apply_visual_config(config)
+        self._apply_configured_keys(config)
         self._render_chrome(refresh_resources=False)
         self._render_surface()
         self.notify("config.json settings reloaded")
@@ -292,19 +311,6 @@ class LifecycleMixin:
         else:
             message = f"{operation} failed: {error}"
         self.notify(message, severity="error", timeout=15)
-
-    def _bind_configured_keys(self: Any) -> None:
-        keys = self.runtime.config.keys
-        for key, action in (
-            (keys.quit, "quit"),
-            (keys.search, "palette"),
-            (keys.sync, "sync"),
-            (keys.create, "create"),
-            (keys.edit, "edit"),
-            (keys.delete, "delete"),
-            (keys.complete, "complete"),
-        ):
-            self.bind(key, action)
 
     def on_input_changed(self: Any, event: TextualInput.Changed) -> None:
         if isinstance(event.input, Input):
@@ -640,6 +646,8 @@ class LifecycleMixin:
     def _apply_column_widths(self: Any) -> None:
         """Apply the in-session sidebar width while both workspace columns are visible."""
         sidebar = self.query_one("#sidebar", Vertical)
+        if not self.runtime.config.tui.sidebar_visible:
+            return
         if not self._can_resize_columns():
             sidebar.styles.clear_rule("width")
             return

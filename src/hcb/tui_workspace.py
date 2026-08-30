@@ -254,32 +254,46 @@ class WorkspaceMixin:
             for task, indent in self._task_rows(tasks):
                 marked = "*" if task.id in self.marked else " "
                 status = "✓" if task.status is TaskStatus.COMPLETED else "·"
-                due = f"  {self.format_date(task.due)}" if task.due else ""
+                due = (
+                    f"  {self.format_date(task.due)}"
+                    if task.due and self.runtime.config.tui.task_show_due
+                    else ""
+                )
                 note_lines = (task.notes or "").splitlines()
-                notes = f" — {note_lines[0]}" if self.surface == "Notes" and note_lines else ""
+                notes = (
+                    f" — {note_lines[0]}"
+                    if self.surface == "Notes"
+                    and note_lines
+                    and self.runtime.config.tui.notes_show_preview
+                    else ""
+                )
                 label = Text(f"{marked} {indent}{status} ")
                 title_start = len(label)
                 label.append(task.title)
                 title_end = len(label)
                 label.append(f"{due}{notes}")
+                row = EntityRow(label, kind="task", item_id=task.id)
                 if task.status is TaskStatus.COMPLETED:
-                    label.stylize(Style(dim=True))
-                    label.stylize(Style(strike=True), title_start, title_end)
-                content.append(
-                    EntityRow(
-                        label,
-                        kind="task",
-                        item_id=task.id,
-                    )
-                )
+                    row.add_class("hcb-completed")
+                content.append(row)
         else:
             events = self._events_for_surface()
             for event in events:
                 when = self.format_date_time(event.start.value)
                 marked = "*" if event.id in self.marked_events else " "
+                extras: list[str] = []
+                if self.runtime.config.tui.agenda_show_calendar:
+                    calendar = next(
+                        (item for item in self.cache.calendars if item.id == event.calendar_id), None
+                    )
+                    if calendar is not None:
+                        extras.append(calendar.summary)
+                if self.runtime.config.tui.agenda_show_location and event.location:
+                    extras.append(event.location)
+                suffix = f"  · {' · '.join(extras)}" if extras else ""
                 content.append(
                     EntityRow(
-                        f"{marked} {when}  {event.summary}",
+                        f"{marked} {when}  {event.summary}{suffix}",
                         kind="event",
                         item_id=event.id,
                     )
@@ -333,7 +347,7 @@ class WorkspaceMixin:
         if self.surface == "Month":
             start = day.replace(day=1)
             return start, (start.replace(day=28) + timedelta(days=4)).replace(day=1)
-        return day, day + timedelta(days=14)
+        return day, day + timedelta(days=self.runtime.config.tui.agenda_days)
 
     def _instance_cache_badge(self: Any) -> str | None:
         """Summarize the local-only occurrence-cache state for the visible range."""

@@ -64,6 +64,21 @@ class ActionMixin:
     def action_palette(self: Any) -> None:
         self.push_screen(PaletteScreen(self), self._palette_result)
 
+    def action_help(self: Any) -> None:
+        bindings = self.runtime.config.keys
+        self.notify(
+            " · ".join(
+                (
+                    f"Help {bindings.help}",
+                    f"Command {bindings.search}",
+                    f"New {bindings.create}",
+                    f"Edit {bindings.edit}",
+                    f"Sync {bindings.sync}",
+                )
+            ),
+            timeout=12,
+        )
+
     def _palette_result(self: Any, result: tuple[str, str] | None) -> None:
         if result is None:
             return

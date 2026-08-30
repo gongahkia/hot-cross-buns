@@ -382,8 +382,8 @@ class EditorScreen(ModalScreen[dict[str, str] | None]):
 class ConfirmScreen(ModalScreen[bool]):
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
-        Binding("y", "confirm", "Confirm"),
-        Binding("n", "cancel", "Cancel"),
+        Binding("y", "confirm", "Confirm", id="modal_confirm"),
+        Binding("n", "cancel", "Cancel", id="modal_cancel"),
     ]
 
     def __init__(
@@ -1187,8 +1187,8 @@ class ItemViewScreen(ModalScreen[str | None]):
     """Read-only detail view for workspace items before an explicit edit action."""
 
     BINDINGS = [
-        Binding("e", "edit", "Edit"),
-        Binding("d", "delete", "Delete"),
+        Binding("e", "edit", "Edit", id="modal_edit"),
+        Binding("d", "delete", "Delete", id="modal_delete"),
         Binding("escape", "close", "Close"),
     ]
 

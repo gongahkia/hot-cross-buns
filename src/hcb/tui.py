@@ -17,6 +17,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.css.stylesheet import Stylesheet
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
     Button,
@@ -452,27 +453,27 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
     TITLE = "Hot Cross Buns"
     SUB_TITLE = "local-first tasks and calendar"
     BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
-        Binding("q", "quit", "Quit"),
-        Binding("/", "palette", "Command"),
-        Binding("ctrl+p", "palette", "Command"),
-        Binding("n", "create", "New"),
-        Binding("e", "edit", "Edit"),
-        Binding("space", "complete", "Complete"),
-        Binding("d", "delete", "Delete"),
-        Binding("r", "sync", "Sync"),
-        Binding("g", "jump", "Date"),
-        Binding("x", "mark", "Mark"),
-        Binding("v", "rsvp", "RSVP"),
-        Binding("u", "undo", "Undo"),
-        Binding("ctrl+r", "redo", "Redo"),
-        Binding("1", "surface('Tasks')", "Tasks", show=False),
-        Binding("2", "surface('Notes')", "Notes", show=False),
-        Binding("3", "surface('Agenda')", "Agenda", show=False),
-        Binding("4", "surface('Day')", "Day", show=False),
-        Binding("5", "surface('Week')", "Week", show=False),
-        Binding("6", "surface('Month')", "Month", show=False),
-        Binding("ctrl+alt+left", "resize_sidebar(-2)", "Narrow sidebar", show=False),
-        Binding("ctrl+alt+right", "resize_sidebar(2)", "Widen sidebar", show=False),
+        Binding("q", "quit", "Quit", id="quit"),
+        Binding("?", "help", "Help", id="help"),
+        Binding("/,ctrl+p", "palette", "Command", id="search"),
+        Binding("n", "create", "New", id="create"),
+        Binding("e", "edit", "Edit", id="edit"),
+        Binding("space", "complete", "Complete", id="complete"),
+        Binding("d", "delete", "Delete", id="delete"),
+        Binding("r", "sync", "Sync", id="sync"),
+        Binding("g", "jump", "Date", id="jump"),
+        Binding("x", "mark", "Mark", id="mark"),
+        Binding("v", "rsvp", "RSVP", id="rsvp"),
+        Binding("u", "undo", "Undo", id="undo"),
+        Binding("ctrl+r", "redo", "Redo", id="redo"),
+        Binding("1", "surface('Tasks')", "Tasks", show=False, id="tasks"),
+        Binding("2", "surface('Notes')", "Notes", show=False, id="notes"),
+        Binding("3", "surface('Agenda')", "Agenda", show=False, id="agenda"),
+        Binding("4", "surface('Day')", "Day", show=False, id="day"),
+        Binding("5", "surface('Week')", "Week", show=False, id="week"),
+        Binding("6", "surface('Month')", "Month", show=False, id="month"),
+        Binding("ctrl+alt+left", "resize_sidebar(-2)", "Narrow sidebar", show=False, id="resize_sidebar_narrower"),
+        Binding("ctrl+alt+right", "resize_sidebar(2)", "Widen sidebar", show=False, id="resize_sidebar_wider"),
     ]
 
     def __init__(
@@ -486,19 +487,35 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
         url_opener: UrlOpener | None = None,
         local_environment: LocalEnvironment | None = None,
     ) -> None:
-        super().__init__()
         self.runtime = runtime or Runtime()
+        stylesheet_error: str | None = None
+        css_paths: list[str | Path] = [Path(__file__).with_name("tui.tcss")]
+        stylesheet = self.runtime.config.theme.stylesheet
+        if stylesheet is not None:
+            stylesheet_path = Path(stylesheet).expanduser()
+            if not stylesheet_path.is_absolute():
+                stylesheet_path = self.runtime.paths.config_dir / stylesheet_path
+            try:
+                probe = Stylesheet()
+                probe.read(stylesheet_path)
+                probe.parse()
+            except Exception as exc:
+                stylesheet_error = f"Custom stylesheet not applied: {exc}"
+            else:
+                css_paths.append(stylesheet_path)
+        super().__init__(css_path=css_paths)
+        self._stylesheet_error = stylesheet_error
         self.explicit_account = account
         self.account_id: str | None = None
         self.selected_date = selected_date or self._present_date()
-        self.surface = "Tasks"
+        self.surface = self.runtime.config.tui.initial_surface
         self.cache = CachedWorkspace()
         self.selected: tuple[str, str] | None = None
         self.resource_filter: tuple[str, str] | None = None
         self.marked: set[str] = set()
         self.marked_events: set[str] = set()
         self._mini_month_days: dict[str, date] = {}
-        self.sidebar_width = 27
+        self.sidebar_width = self.runtime.config.tui.sidebar_width
         self._resize_target: Literal["sidebar"] | None = None
         self._resize_handle: Static | None = None
         self._resize_anchor_x = 0

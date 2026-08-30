@@ -71,7 +71,7 @@
         "warning": { "$ref": "#/$defs/color" }, "danger": { "$ref": "#/$defs/color" }
       }
     },
-    "keys": { "type": "object", "additionalProperties": false, "additionalProperties": { "type": "string", "minLength": 1 } },
+    "keys": { "type": "object", "additionalProperties": { "type": "string", "minLength": 1 } },
     "tui": {
       "type": "object", "additionalProperties": false,
       "properties": {

@@ -1442,7 +1442,8 @@ def capture(
         kind,  # type: ignore[arg-type]
         task_list_id=task_list or state.runtime.config.preferences.default_task_list_id,
         calendar_id=calendar or state.runtime.config.preferences.default_calendar_id,
-        time_zone=time_zone,
+        preferences=state.runtime.config.preferences.capture,
+        time_zone=time_zone or state.runtime.config.preferences.time_zone,
     )
     _emit(ctx, item, human=lambda value: f"Captured {value.id}")
 

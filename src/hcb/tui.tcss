@@ -65,6 +65,10 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
     background: $panel;
 }
 
+.sidebar-hidden #sidebar, .sidebar-hidden .column-resize-handle {
+    display: none;
+}
+
 .column-resize-handle {
     width: 1;
     min-width: 1;
@@ -169,6 +173,23 @@ ListView > ListItem.--highlight {
     text-style: bold underline;
 }
 
+#content > ListItem.hcb-completed {
+    background: $role-completed-background;
+    color: $role-completed;
+    text-style: $role-completed-style;
+}
+
+#content > ListItem.hcb-selected, #resources > ListItem.hcb-selected {
+    background: $role-selected-background;
+    color: $role-selected;
+    text-style: $role-selected-style;
+}
+
+#dialog-title {
+    color: $role-modal-title;
+    text-style: $role-modal-title-style;
+}
+
 Input, TextArea {
     background: $boost;
     color: $foreground;
@@ -245,9 +266,6 @@ Input.-invalid, TextArea.-invalid {
 }
 
 /* Keep the active workspace item visible after focus moves elsewhere. */
-#content > ListItem.hcb-selected, #resources > ListItem.hcb-selected {
-    text-style: bold reverse;
-}
 
 #palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
 #rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
