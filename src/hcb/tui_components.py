@@ -61,6 +61,7 @@ from .tui import (
     PALETTE_COMMANDS,
     PROFILE_OPTIONS,
     RECURRENCE_FREQUENCY_OPTIONS,
+    SURFACES,
     TIME_ZONE_OPTIONS,
     WEEK_START_OPTIONS,
     google_maps_url,
@@ -1565,6 +1566,153 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                     )
                 yield Label("Semantic colors (strict JSON object)", id="settings-colors-label")
                 yield TerminalTextArea(values["colors"], id="settings-colors")
+                yield Label("Semantic roles (strict JSON object)")
+                yield TerminalTextArea(values["roles"], id="settings-roles")
+                yield Input(
+                    value=values["stylesheet"],
+                    placeholder="Profile TCSS stylesheet path",
+                    id="setting-stylesheet",
+                )
+                yield Label("Behavior")
+                with Horizontal(classes="settings-pair"):
+                    yield Input(
+                        value=values["time_zone"],
+                        placeholder="IANA time zone",
+                        id="setting-time-zone",
+                    )
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["reminders_enabled"],
+                        allow_blank=False,
+                        prompt="Reminders",
+                        id="setting-reminders",
+                    )
+                    yield Input(
+                        value=values["reminder_poll_seconds"],
+                        placeholder="Reminder poll seconds",
+                        id="setting-reminder-poll",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Input(
+                        value=values["default_account_id"],
+                        placeholder="Default account",
+                        id="setting-default-account",
+                    )
+                    yield Input(
+                        value=values["default_task_list_id"],
+                        placeholder="Default task list",
+                        id="setting-default-list",
+                    )
+                    yield Input(
+                        value=values["default_calendar_id"],
+                        placeholder="Default calendar",
+                        id="setting-default-calendar",
+                    )
+                yield Label("Capture")
+                with Horizontal(classes="settings-pair"):
+                    yield Input(
+                        value=values["capture_duration"],
+                        placeholder="Event duration minutes",
+                        id="setting-capture-duration",
+                    )
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["capture_remove"],
+                        allow_blank=False,
+                        prompt="Remove recognized text",
+                        id="setting-capture-remove",
+                    )
+                for label, value, field_id in (
+                    (
+                        "Task aliases",
+                        values["capture_task_aliases"],
+                        "setting-capture-task-aliases",
+                    ),
+                    (
+                        "Event aliases",
+                        values["capture_event_aliases"],
+                        "setting-capture-event-aliases",
+                    ),
+                    (
+                        "High-priority aliases",
+                        values["capture_high_aliases"],
+                        "setting-capture-high-aliases",
+                    ),
+                    (
+                        "Medium-priority aliases",
+                        values["capture_medium_aliases"],
+                        "setting-capture-medium-aliases",
+                    ),
+                    (
+                        "Low-priority aliases",
+                        values["capture_low_aliases"],
+                        "setting-capture-low-aliases",
+                    ),
+                ):
+                    yield Input(value=value, placeholder=label, id=field_id)
+                yield Label("Keymap (strict JSON object)")
+                yield TerminalTextArea(values["keys"], id="settings-keys")
+                yield Label("Layout")
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        [(name, name) for name in SURFACES],
+                        value=values["initial_surface"],
+                        allow_blank=False,
+                        prompt="Initial view",
+                        id="setting-initial-surface",
+                    )
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["sidebar_visible"],
+                        allow_blank=False,
+                        prompt="Sidebar",
+                        id="setting-sidebar-visible",
+                    )
+                    yield Input(
+                        value=values["sidebar_width"],
+                        placeholder="Sidebar width",
+                        id="setting-sidebar-width",
+                    )
+                    yield Input(
+                        value=values["agenda_days"],
+                        placeholder="Agenda days",
+                        id="setting-agenda-days",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["task_show_due"],
+                        allow_blank=False,
+                        prompt="Show task due",
+                        id="setting-task-due",
+                    )
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["notes_show_preview"],
+                        allow_blank=False,
+                        prompt="Show note preview",
+                        id="setting-notes-preview",
+                    )
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["agenda_show_calendar"],
+                        allow_blank=False,
+                        prompt="Show event calendar",
+                        id="setting-agenda-calendar",
+                    )
+                    yield Select(
+                        BOOLEAN_OPTIONS,
+                        value=values["agenda_show_location"],
+                        allow_blank=False,
+                        prompt="Show event location",
+                        id="setting-agenda-location",
+                    )
+                yield Label("Profiles")
+                yield Input(
+                    value=values["active_profile"],
+                    placeholder="Active profile name",
+                    id="setting-active-profile",
+                )
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", variant="primary", id="settings-save")
                 yield Button("Edit config.json", id="settings-edit-config")
@@ -1597,6 +1745,65 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 "external_editor": self.query_one("#setting-external-editor", Input).value.strip(),
                 "loader": self._selected_loader(),
                 "colors": self.query_one("#settings-colors", TextArea).text.strip(),
+                "roles": self.query_one("#settings-roles", TextArea).text.strip(),
+                "stylesheet": self.query_one("#setting-stylesheet", Input).value.strip(),
+                "time_zone": self.query_one("#setting-time-zone", Input).value.strip(),
+                "reminders_enabled": self._selected_value(
+                    "#setting-reminders", "a reminders setting"
+                ),
+                "reminder_poll_seconds": self.query_one(
+                    "#setting-reminder-poll", Input
+                ).value.strip(),
+                "default_account_id": self.query_one(
+                    "#setting-default-account", Input
+                ).value.strip(),
+                "default_task_list_id": self.query_one(
+                    "#setting-default-list", Input
+                ).value.strip(),
+                "default_calendar_id": self.query_one(
+                    "#setting-default-calendar", Input
+                ).value.strip(),
+                "capture_duration": self.query_one(
+                    "#setting-capture-duration", Input
+                ).value.strip(),
+                "capture_remove": self._selected_value(
+                    "#setting-capture-remove", "a capture setting"
+                ),
+                "capture_task_aliases": self.query_one(
+                    "#setting-capture-task-aliases", Input
+                ).value,
+                "capture_event_aliases": self.query_one(
+                    "#setting-capture-event-aliases", Input
+                ).value,
+                "capture_high_aliases": self.query_one(
+                    "#setting-capture-high-aliases", Input
+                ).value,
+                "capture_medium_aliases": self.query_one(
+                    "#setting-capture-medium-aliases", Input
+                ).value,
+                "capture_low_aliases": self.query_one("#setting-capture-low-aliases", Input).value,
+                "keys": self.query_one("#settings-keys", TextArea).text.strip(),
+                "initial_surface": self._selected_value(
+                    "#setting-initial-surface", "an initial view"
+                ),
+                "sidebar_visible": self._selected_value(
+                    "#setting-sidebar-visible", "a sidebar setting"
+                ),
+                "sidebar_width": self.query_one("#setting-sidebar-width", Input).value.strip(),
+                "agenda_days": self.query_one("#setting-agenda-days", Input).value.strip(),
+                "task_show_due": self._selected_value(
+                    "#setting-task-due", "a task display setting"
+                ),
+                "notes_show_preview": self._selected_value(
+                    "#setting-notes-preview", "a notes display setting"
+                ),
+                "agenda_show_calendar": self._selected_value(
+                    "#setting-agenda-calendar", "an agenda display setting"
+                ),
+                "agenda_show_location": self._selected_value(
+                    "#setting-agenda-location", "an agenda display setting"
+                ),
+                "active_profile": self.query_one("#setting-active-profile", Input).value.strip(),
             }
         )
 

@@ -26,7 +26,7 @@ def test_defaults_are_terminal_minimal_and_valid(tmp_path: Path) -> None:
     assert config.theme.borders == "ascii"
     assert config.theme.colors.background == "transparent"
     assert config.theme.colors.control == "ansi_default"
-    assert config.keys.search == "/"
+    assert config.keys.search == "slash,ctrl+p"
     assert config.keys.external_editor == "ctrl+g"
     assert config.preferences.editor == "nvim"
     assert config.preferences.week_starts_on == 0
@@ -111,7 +111,7 @@ def test_json_round_trip(tmp_path: Path) -> None:
     assert save(expected, target) == target
     assert load(target) == expected
     document = json.loads(target.read_text())
-    assert document["schema_version"] == 1
+    assert document["schema_version"] == 2
     assert document["theme"]["colors"]["accent"] == "#88c0d0"
 
 

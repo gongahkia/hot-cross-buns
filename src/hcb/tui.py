@@ -6,6 +6,7 @@ import calendar
 import re
 from datetime import date
 from html.parser import HTMLParser
+from pathlib import Path, PurePath
 from threading import Event as ThreadEvent
 from threading import Lock
 from typing import ClassVar, Literal
@@ -17,8 +18,8 @@ from rich.style import Style
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.css.stylesheet import Stylesheet
 from textual.containers import Horizontal, Vertical
+from textual.css.stylesheet import Stylesheet
 from textual.widgets import (
     Button,
     Footer,
@@ -472,8 +473,20 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
         Binding("4", "surface('Day')", "Day", show=False, id="day"),
         Binding("5", "surface('Week')", "Week", show=False, id="week"),
         Binding("6", "surface('Month')", "Month", show=False, id="month"),
-        Binding("ctrl+alt+left", "resize_sidebar(-2)", "Narrow sidebar", show=False, id="resize_sidebar_narrower"),
-        Binding("ctrl+alt+right", "resize_sidebar(2)", "Widen sidebar", show=False, id="resize_sidebar_wider"),
+        Binding(
+            "ctrl+alt+left",
+            "resize_sidebar(-2)",
+            "Narrow sidebar",
+            show=False,
+            id="resize_sidebar_narrower",
+        ),
+        Binding(
+            "ctrl+alt+right",
+            "resize_sidebar(2)",
+            "Widen sidebar",
+            show=False,
+            id="resize_sidebar_wider",
+        ),
     ]
 
     def __init__(
@@ -489,7 +502,7 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
     ) -> None:
         self.runtime = runtime or Runtime()
         stylesheet_error: str | None = None
-        css_paths: list[str | Path] = [Path(__file__).with_name("tui.tcss")]
+        css_paths: list[str | PurePath] = [Path(__file__).with_name("tui.tcss")]
         stylesheet = self.runtime.config.theme.stylesheet
         if stylesheet is not None:
             stylesheet_path = Path(stylesheet).expanduser()

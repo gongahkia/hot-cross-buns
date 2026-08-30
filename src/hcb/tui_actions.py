@@ -17,10 +17,9 @@ from .application import (
     TimeSlot,
 )
 from .config import KeyBindings, RoleStyle, ThemeColors, ThemeRoles, TuiSettings
-from .models import CapturePreferences
 from .errors import HcbError
 from .loaders import LOADER_PRESETS
-from .models import DateTimeKind, Event, EventDateTime, Task, TaskStatus
+from .models import CapturePreferences, DateTimeKind, Event, EventDateTime, Task, TaskStatus
 from .storage import Storage
 from .themes import preset, presets
 from .tui import (

@@ -88,7 +88,6 @@ class LifecycleMixin:
     def _apply_visual_config(self: Any, config: Config) -> None:
         self._set_visual_state(config)
         colors = config.theme.colors
-        roles = config.theme.roles
         self._theme_revision += 1
         name = f"hcb-config-{self._theme_revision}"
         self.register_theme(
@@ -113,16 +112,6 @@ class LifecycleMixin:
                     "footer-background": colors.overlay,
                     "input-selection-background": colors.selection,
                     "screen-selection-background": colors.selection,
-                    "role-completed": roles.completed_item.color or colors.muted,
-                    "role-completed-background": roles.completed_item.background or "transparent",
-                    "role-completed-style": roles.completed_item.text_style,
-                    "role-selected": roles.selected_item.color or colors.text,
-                    "role-selected-background": roles.selected_item.background or "transparent",
-                    "role-selected-style": roles.selected_item.text_style,
-                    "role-link": roles.link.color or colors.accent,
-                    "role-link-style": roles.link.text_style,
-                    "role-modal-title": roles.modal_title.color or colors.text,
-                    "role-modal-title-style": roles.modal_title.text_style,
                 },
             )
         )

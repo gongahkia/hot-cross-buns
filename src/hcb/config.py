@@ -80,8 +80,12 @@ class ThemeRoles:
     selected_item: RoleStyle = field(
         default_factory=lambda: RoleStyle(color="ansi_default", text_style="bold reverse")
     )
-    link: RoleStyle = field(default_factory=lambda: RoleStyle(color="ansi_default", text_style="underline"))
-    modal_title: RoleStyle = field(default_factory=lambda: RoleStyle(color="ansi_default", text_style="bold"))
+    link: RoleStyle = field(
+        default_factory=lambda: RoleStyle(color="ansi_default", text_style="underline")
+    )
+    modal_title: RoleStyle = field(
+        default_factory=lambda: RoleStyle(color="ansi_default", text_style="bold")
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +149,7 @@ class KeyBindings:
 
     def __post_init__(self) -> None:
         for name, value in asdict(self).items():
-            if not value.strip():
+            if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"keys.{name} must not be empty")
 
 
@@ -227,6 +231,11 @@ def _matches_type(value: Any, expected: Any) -> bool:
         return value is None
     if expected in {str, bool}:
         return isinstance(value, expected)
+    if origin is tuple:
+        if not isinstance(value, tuple):
+            return False
+        members = get_args(expected)
+        return not members or all(_matches_type(item, members[0]) for item in value)
     return isinstance(value, expected)
 
 
@@ -334,7 +343,9 @@ _PROFILE_NAME = re.compile(r"[a-z0-9][a-z0-9_-]*")
 def profile_path(config_path: Path, name: str) -> Path:
     """Return the strict per-user overlay file for a safe profile name."""
     if not _PROFILE_NAME.fullmatch(name):
-        raise ConfigError("profile names must use lowercase letters, digits, underscores, or hyphens")
+        raise ConfigError(
+            "profile names must use lowercase letters, digits, underscores, or hyphens"
+        )
     return config_path.parent / "profiles" / f"{name}.json"
 
 
@@ -359,7 +370,9 @@ def load(
             base = loads(target.read_bytes())
         except OSError as exc:
             raise ConfigError(f"cannot read {target}: {exc}") from exc
-    selected = profile if profile is not None else (base.active_profile if resolve_profile else None)
+    selected = (
+        profile if profile is not None else (base.active_profile if resolve_profile else None)
+    )
     if selected is None:
         return base
     source = profile_path(target, selected)

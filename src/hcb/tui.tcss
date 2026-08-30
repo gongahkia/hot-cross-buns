@@ -173,23 +173,6 @@ ListView > ListItem.--highlight {
     text-style: bold underline;
 }
 
-#content > ListItem.hcb-completed {
-    background: $role-completed-background;
-    color: $role-completed;
-    text-style: $role-completed-style;
-}
-
-#content > ListItem.hcb-selected, #resources > ListItem.hcb-selected {
-    background: $role-selected-background;
-    color: $role-selected;
-    text-style: $role-selected-style;
-}
-
-#dialog-title {
-    color: $role-modal-title;
-    text-style: $role-modal-title-style;
-}
-
 Input, TextArea {
     background: $boost;
     color: $foreground;

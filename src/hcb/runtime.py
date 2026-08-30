@@ -11,8 +11,17 @@ from typing import Any
 
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
-from .config import Config, ConfigError, KeyBindings, Theme, ThemeColors, ThemeRoles, TuiSettings, load, save
-from .models import CapturePreferences
+from .config import (
+    Config,
+    ConfigError,
+    KeyBindings,
+    Theme,
+    ThemeColors,
+    ThemeRoles,
+    TuiSettings,
+    load,
+    save,
+)
 from .credentials import (
     CredentialFileError,
     EncryptedFileTokenStore,
@@ -22,7 +31,7 @@ from .credentials import (
 )
 from .errors import AuthenticationRequired, ConfigurationError, NotFoundError, StorageError
 from .google_client import GoogleApiClient, GoogleGateway
-from .models import Account
+from .models import Account, CapturePreferences
 from .paths import AppPaths
 from .storage import Storage
 from .sync import SyncEngine

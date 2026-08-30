@@ -268,12 +268,11 @@ class WorkspaceMixin:
                     else ""
                 )
                 label = Text(f"{marked} {indent}{status} ")
-                title_start = len(label)
                 label.append(task.title)
-                title_end = len(label)
                 label.append(f"{due}{notes}")
                 row = EntityRow(label, kind="task", item_id=task.id)
                 if task.status is TaskStatus.COMPLETED:
+                    label.stylize(Style(dim=True, strike=True))
                     row.add_class("hcb-completed")
                 content.append(row)
         else:
@@ -284,7 +283,8 @@ class WorkspaceMixin:
                 extras: list[str] = []
                 if self.runtime.config.tui.agenda_show_calendar:
                     calendar = next(
-                        (item for item in self.cache.calendars if item.id == event.calendar_id), None
+                        (item for item in self.cache.calendars if item.id == event.calendar_id),
+                        None,
                     )
                     if calendar is not None:
                         extras.append(calendar.summary)

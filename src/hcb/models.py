@@ -275,17 +275,8 @@ class CapturePreferences:
     low_priority_aliases: tuple[str, ...] = ("p3",)
 
     def __post_init__(self) -> None:
-        if not 1 <= self.default_event_duration_minutes <= 1_440:
-            raise ValueError("default_event_duration_minutes must be between 1 and 1440")
-        for name, aliases in (
-            ("task_aliases", self.task_aliases),
-            ("event_aliases", self.event_aliases),
-            ("high_priority_aliases", self.high_priority_aliases),
-            ("medium_priority_aliases", self.medium_priority_aliases),
-            ("low_priority_aliases", self.low_priority_aliases),
-        ):
-            if any(not alias.strip() for alias in aliases):
-                raise ValueError(f"{name} cannot contain an empty alias")
+        if not isinstance(self.default_event_duration_minutes, int):
+            raise ValueError("default_event_duration_minutes must be an integer")
 
 
 @dataclass(frozen=True, slots=True)

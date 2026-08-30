@@ -9,10 +9,10 @@ from .application import ImportApplyResult, Json, TaskEventLink
 from .application_events import EventServiceMixin
 from .application_tasks import TaskServiceMixin
 from .import_export import ImportedEvent, ImportedTask, ImportPreview, parse_import
+from .models import CapturePreferences as QuickCapturePreferences
 from .models import DateTimeKind, DriveFile, Event, EventDateTime, Task, TaskPriority, utc_now
 from .quick_capture import (
     QuickCaptureKind,
-    QuickCapturePreferences,
     QuickCaptureResult,
     parse_quick_capture,
 )
