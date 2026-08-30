@@ -336,7 +336,7 @@ def _theme(values: dict[str, Any]) -> Theme:
     return cast(Theme, _construct(Theme, theme_values, "theme"))
 
 
-def _preferences(values: dict[str, Any], *, migrate_v1: bool = False) -> Preferences:
+def _preferences(values: dict[str, Any]) -> Preferences:
     preference_values = dict(values)
     # These names were emitted by v1 and early v2 releases but never affected the
     # runtime. Keep accepting them so an existing config starts, then drop them
@@ -393,7 +393,7 @@ def loads(raw: bytes | str) -> Config:
     try:
         return Config(
             schema_version=CONFIG_SCHEMA_VERSION,
-            preferences=_preferences(_section(data, "preferences"), migrate_v1=schema_version == 1),
+            preferences=_preferences(_section(data, "preferences")),
             theme=_theme(_section(data, "theme")),
             keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
             tui=_construct(TuiSettings, _section(data, "tui"), "tui"),
