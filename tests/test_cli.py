@@ -491,6 +491,13 @@ def test_config_commands_and_account_environment(
         invoke(runner, ["--json", "config", "get", "preferences.capture.task_aliases"]),
         "config.get",
     )["value"] == ["todo"]
+    assert (
+        json_data(
+            invoke(runner, ["--json", "config", "explain", "theme.stylesheet"]),
+            "config.explain",
+        )["reload"]
+        == "restart required"
+    )
     invoke(runner, ["config", "profiles", "create", "work"])
     assert (
         json_data(

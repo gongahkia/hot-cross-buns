@@ -142,6 +142,7 @@ def test_legacy_toml_is_not_read_or_migrated(tmp_path: Path) -> None:
         '{"schema_version":2,"preferences":{"theme":"dark"}}',
         '{"preferences":{"capture":{"default_event_duration_minutes":0}}}',
         '{"preferences":{"capture":{"task_aliases":[""]}}}',
+        '{"active_profile":"Work"}',
     ),
 )
 def test_invalid_strict_json_config_is_rejected(raw: str) -> None:
@@ -156,6 +157,7 @@ def test_invalid_strict_json_config_is_rejected(raw: str) -> None:
         ('{"keys":{"help":"not-a-key"}}', "unknown key"),
         ('{"keys":{"sync":"ctrl+r"}}', "conflicts"),
         ('{"keys":{"modal_edit":"d"}}', "conflicts"),
+        ('{"keys":{"sync":"ctrl+ctrl+r"}}', "invalid shortcut"),
     ),
 )
 def test_keymap_validation_rejects_empty_unknown_and_conflicting_bindings(

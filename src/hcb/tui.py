@@ -445,6 +445,7 @@ from .tui_components import (  # noqa: E402, F401
     EventEditorScreen,
     FindTimeScreen,
     GoogleSetupScreen,
+    HelpScreen,
     ImportScreen,
     Input,
     ItemViewScreen,

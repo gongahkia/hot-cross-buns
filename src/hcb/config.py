@@ -178,7 +178,11 @@ class KeyBindings:
                 raise ValueError(f"keys.{name} cannot include an empty shortcut")
             parts = key.split("+")
             modifiers, actual = parts[:-1], parts[-1]
-            if not actual or any(modifier not in cls._modifiers for modifier in modifiers):
+            if (
+                not actual
+                or len(set(modifiers)) != len(modifiers)
+                or any(modifier not in cls._modifiers for modifier in modifiers)
+            ):
                 raise ValueError(f"keys.{name} has invalid shortcut {key!r}")
             if (
                 len(actual) != 1
@@ -384,14 +388,17 @@ def loads(raw: bytes | str) -> Config:
         raise ConfigError("schema_version must be an integer")
     if schema_version not in {1, CONFIG_SCHEMA_VERSION}:
         raise ConfigError(f"schema_version must be 1 or {CONFIG_SCHEMA_VERSION}")
-    return Config(
-        schema_version=CONFIG_SCHEMA_VERSION,
-        preferences=_preferences(_section(data, "preferences"), migrate_v1=schema_version == 1),
-        theme=_theme(_section(data, "theme")),
-        keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
-        tui=_construct(TuiSettings, _section(data, "tui"), "tui"),
-        active_profile=data.get("active_profile"),
-    )
+    try:
+        return Config(
+            schema_version=CONFIG_SCHEMA_VERSION,
+            preferences=_preferences(_section(data, "preferences"), migrate_v1=schema_version == 1),
+            theme=_theme(_section(data, "theme")),
+            keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
+            tui=_construct(TuiSettings, _section(data, "tui"), "tui"),
+            active_profile=data.get("active_profile"),
+        )
+    except ValueError as exc:
+        raise ConfigError(f"invalid configuration: {exc}") from exc
 
 
 def loads_theme(raw: bytes | str) -> Theme:

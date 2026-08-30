@@ -1839,9 +1839,22 @@ def config_explain(ctx: typer.Context, key: str) -> None:
             "key": key,
             "value": current,
             "default": default,
-            "reload": "live" if key.startswith(("theme.", "keys.", "tui.")) else "next start",
+            "reload": _config_reload_behavior(key),
         },
     )
+
+
+def _config_reload_behavior(key: str) -> str:
+    if key == "theme.stylesheet":
+        return "restart required"
+    if key.startswith(("theme.", "keys.", "tui.")) or key in {
+        "preferences.week_starts_on",
+        "preferences.date_time_format",
+        "preferences.time_zone",
+        "preferences.editor",
+    }:
+        return "live in the running TUI"
+    return "next command or daemon start"
 
 
 @config_profiles_app.command("list")

@@ -435,6 +435,15 @@ EmojiCompletion {
     height: 32;
 }
 
+#help-dialog {
+    width: 62;
+    height: 32;
+}
+
+#help-content {
+    padding: 0 1;
+}
+
 #item-view-content {
     padding: 0 1;
 }

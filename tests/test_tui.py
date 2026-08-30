@@ -16,7 +16,7 @@ from textual import events
 from textual.app import SuspendNotSupported
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
-from hcb.config import Config, Theme, ThemeColors, save
+from hcb.config import Config, KeyBindings, Theme, ThemeColors, save
 from hcb.environment import LocalEnvironment
 from hcb.models import (
     Account,
@@ -45,6 +45,7 @@ from hcb.tui import (
     FindTimeScreen,
     GoogleSetupScreen,
     HcbApp,
+    HelpScreen,
     ImportScreen,
     ItemViewScreen,
     LoadingScreen,
@@ -842,6 +843,41 @@ def test_palette_shows_commands_and_title_first_results(tmp_path: Path) -> None:
         await pilot.press("escape")  # type: ignore[attr-defined]
 
     app_test(app, assertions)
+
+
+def test_help_uses_the_configured_keymap_and_lists_all_actions(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    save(Config(keys=KeyBindings(help="f1")), runtime.paths.config_file)
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("f1")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, HelpScreen)
+        content = app.screen.query_one("#help-content").query_one(Static)
+        assert "Command palette" in str(content.render())
+        assert "External editor" in str(content.render())
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert not isinstance(app.screen, HelpScreen)
+
+    app_test(app, assertions)
+
+
+def test_custom_tcss_is_loaded_only_when_the_file_validates(tmp_path: Path) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    paths.config_dir.mkdir()
+    stylesheet = paths.config_dir / "custom.tcss"
+    stylesheet.write_text("#topbar { color: red; }\n", encoding="utf-8")
+    save(Config(theme=Theme(stylesheet="custom.tcss")), paths.config_file)
+    valid = HcbApp(Runtime(paths, environ={}))
+    assert valid._stylesheet_error is None
+    assert valid._loaded_stylesheet == "custom.tcss"
+
+    stylesheet.write_text("#topbar { color: ; }\n", encoding="utf-8")
+    invalid = HcbApp(Runtime(paths, environ={}))
+    assert invalid._stylesheet_error is not None
+    assert invalid._loaded_stylesheet is None
 
 
 def test_palette_searches_indexed_drive_files_and_opens_their_view(tmp_path: Path) -> None:

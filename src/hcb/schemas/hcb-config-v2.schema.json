@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": { "const": 2 },
-    "active_profile": { "type": ["string", "null"], "minLength": 1 },
+    "active_profile": { "type": ["string", "null"], "pattern": "^[a-z0-9][a-z0-9_-]*$" },
     "preferences": { "$ref": "#/$defs/preferences" },
     "theme": { "$ref": "#/$defs/theme" },
     "keys": { "$ref": "#/$defs/keys" },

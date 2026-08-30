@@ -258,6 +258,84 @@ class LoadingScreen(ModalScreen[None]):
             cast("HcbApp", self.app).cancel_sync()
 
 
+class HelpScreen(ModalScreen[None]):
+    """Show every active user-configurable binding in one read-only dialog."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, hcb: HcbApp) -> None:
+        super().__init__()
+        self.hcb = hcb
+
+    def compose(self) -> ComposeResult:
+        keys = self.hcb.runtime.config.keys
+        sections = (
+            (
+                "Workspace",
+                (
+                    ("Quit", keys.quit),
+                    ("Help", keys.help),
+                    ("Command palette", keys.search),
+                    ("Sync", keys.sync),
+                    ("Create", keys.create),
+                    ("Edit", keys.edit),
+                    ("Delete", keys.delete),
+                    ("Complete", keys.complete),
+                    ("Jump to date", keys.jump),
+                    ("Mark", keys.mark),
+                    ("RSVP", keys.rsvp),
+                    ("Undo", keys.undo),
+                    ("Redo", keys.redo),
+                ),
+            ),
+            (
+                "Views",
+                (
+                    ("Tasks", keys.tasks),
+                    ("Notes", keys.notes),
+                    ("Agenda", keys.agenda),
+                    ("Day", keys.day),
+                    ("Week", keys.week),
+                    ("Month", keys.month),
+                    ("Narrow sidebar", keys.resize_sidebar_narrower),
+                    ("Widen sidebar", keys.resize_sidebar_wider),
+                ),
+            ),
+            (
+                "Editors and dialogs",
+                (
+                    ("External editor", keys.external_editor),
+                    ("Edit", keys.modal_edit),
+                    ("Delete", keys.modal_delete),
+                    ("Confirm", keys.modal_confirm),
+                    ("Cancel", keys.modal_cancel),
+                ),
+            ),
+        )
+        lines = [
+            f"{heading}\n" + "\n".join(f"{key:<24} {value}" for key, value in entries)
+            for heading, entries in sections
+        ]
+        with Vertical(id="help-dialog"):
+            yield Label("Keyboard shortcuts", id="dialog-title")
+            with VerticalScroll(id="help-content"):
+                yield Static("\n\n".join(lines))
+                yield Static(
+                    "Escape always closes a dialog. Textual's Ctrl+Q safety quit remains "
+                    "available.",
+                    classes="item-view-section",
+                )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Close", id="help-close")
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "help-close":
+            self.action_close()
+
+
 class EditorScreen(ModalScreen[dict[str, str] | None]):
     """Keyboard-first task editor and date-jump prompt."""
 
