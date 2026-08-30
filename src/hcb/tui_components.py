@@ -209,7 +209,9 @@ class WorkspaceTable(DataTable[Text]):
         self._workspace_rows = rows
         self._selected_row_index = None
         self._selection_style = None
-        self.columns["item"].width = max((row.label.cell_len for row in rows), default=1)
+        next(iter(self.columns.values())).width = max(
+            (row.label.cell_len for row in rows), default=1
+        )
         with self.app.batch_update():
             self.clear()
             for row in rows:
@@ -1405,9 +1407,7 @@ class ItemViewScreen(ModalScreen[str | None]):
     class ContentReady(Message):
         """Deliver rich, non-essential detail content from the parser worker."""
 
-        def __init__(
-            self, screen: ItemViewScreen, sections: tuple[tuple[str, Text], ...]
-        ) -> None:
+        def __init__(self, screen: ItemViewScreen, sections: tuple[tuple[str, Text], ...]) -> None:
             self.screen = screen
             self.sections = sections
             super().__init__()

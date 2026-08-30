@@ -35,6 +35,11 @@ if TYPE_CHECKING:
 class WorkspaceMixin:
     loading_operation: str | None
     _loading_screen: LoadingScreen | None
+    selected: tuple[str, str] | None
+    resource_filter: tuple[str, str] | None
+    surface: str
+    _mini_month_render_key: tuple[date, int, str] | None
+    _instance_badge_cache: dict[tuple[object, ...], str | None]
 
     def refresh_workspace(self: Any) -> None:
         """Refresh the UI cache through the application controller boundary."""
@@ -280,11 +285,7 @@ class WorkspaceMixin:
             )
         content.replace_rows(tuple(rows), height=2 if self.density == "comfortable" else 1)
         selected_index = next(
-            (
-                index
-                for index, row in enumerate(rows)
-                if (row.kind, row.item_id) == self.selected
-            ),
+            (index for index, row in enumerate(rows) if (row.kind, row.item_id) == self.selected),
             0,
         )
         content.move_cursor(row=selected_index, animate=False)
@@ -312,9 +313,7 @@ class WorkspaceMixin:
         note_lines = (task.notes or "").splitlines()
         notes = (
             f" — {note_lines[0]}"
-            if self.surface == "Notes"
-            and note_lines
-            and self.runtime.config.tui.notes_show_preview
+            if self.surface == "Notes" and note_lines and self.runtime.config.tui.notes_show_preview
             else ""
         )
         label = Text(f"{marked} {indent}{status} ")
@@ -443,6 +442,7 @@ class WorkspaceMixin:
             self.resource_filter,
             calendar_ids,
             self.runtime.config.preferences.date_time_format,
+            self.runtime.config.preferences.time_zone,
         )
         if cache_key in self._instance_badge_cache:
             return cast(str | None, self._instance_badge_cache[cache_key])

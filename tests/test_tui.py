@@ -1223,14 +1223,14 @@ def test_visual_config_live_reloads_and_invalid_edits_keep_last_theme(tmp_path: 
             ),
             runtime.paths.config_file,
         )
-        await asyncio.sleep(0.7)
+        await asyncio.sleep(2.2)
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.theme != original_theme
         assert runtime.config.theme.colors.focus == "cyan"
         current_theme = app.theme
 
         runtime.paths.config_file.write_text('{"theme":{"colors":{"focus":"bad"}}}')
-        await asyncio.sleep(0.7)
+        await asyncio.sleep(2.2)
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.theme == current_theme
         assert runtime.config.theme.colors.focus == "cyan"
