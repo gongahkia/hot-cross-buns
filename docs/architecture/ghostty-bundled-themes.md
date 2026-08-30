@@ -2,7 +2,7 @@
 
 This is a name-for-name inventory of the Ghostty-compatible files from the iTerm2 Color Schemes upstream snapshot `75c93eebaca34a6194ba8bdb83d99b62e20f9aba` (2026-08-23). Ghostty documents that its built-in themes are sourced from that collection; this snapshot contains **606** theme files.
 
-HCB does not bundle all 606 palettes. Its [top-60 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
+HCB does not bundle all 606 palettes. Its [top-75 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
 
 Source: <https://github.com/mbadolato/iTerm2-Color-Schemes/tree/75c93eebaca34a6194ba8bdb83d99b62e20f9aba/ghostty>.
 
@@ -32,12 +32,18 @@ the canonical [Dracula](https://github.com/dracula/dracula-theme),
 [Cobalt2](https://github.com/wesbos/cobalt2-vscode),
 [Vesper](https://github.com/raunofreiberg/vesper),
 [Horizon](https://github.com/jolaleye/horizon-theme-vscode), and
-[Poimandres](https://github.com/drcmda/poimandres-theme) projects,
+[Poimandres](https://github.com/drcmda/poimandres-theme),
+[Everblush](https://github.com/Everblush/nvim),
+[Moonfly](https://github.com/bluz71/vim-moonfly-colors),
+[No Clown Fiesta](https://github.com/aktersnurra/no-clown-fiesta.nvim),
+[Zenbones](https://github.com/zenbones-theme/zenbones.nvim),
+[Modus](https://github.com/protesilaos/modus-themes), and
+[OneNord](https://github.com/Taren-Ko/onenord) projects,
 corroborated against the independent [Ratatui theme collection](https://github.com/ricardodantas/ratatui-themes).
 This avoids inventing a precise per-variant popularity number where the source
 projects do not publish one.
 
-HCB stores these 60 as a pinned semantic-token projection in
+HCB stores these 75 as a pinned semantic-token projection in
 [`hcb-theme-presets-v1.json`](../../src/hcb/schemas/hcb-theme-presets-v1.json).
 It uses the source foreground/background, cursor, selection, and ANSI palette
 colors for the equivalent HCB tokens; it does not modify the terminal emulator's
@@ -105,6 +111,21 @@ own palette.
 | 58 | Vesper | Vesper | Vesper |
 | 59 | Horizon | Horizon | Horizon |
 | 60 | Poimandres | Poimandres | Poimandres |
+| 61 | Everblush | Everblush | Everblush |
+| 62 | Moonfly | Moonfly | Moonfly |
+| 63 | No Clown Fiesta | No Clown Fiesta | No Clown Fiesta |
+| 64 | No Clown Fiesta Light | No Clown Fiesta Light | No Clown Fiesta |
+| 65 | Zenbones Dark | Zenbones Dark | Zenbones |
+| 66 | Zenbones Light | Zenbones Light | Zenbones |
+| 67 | Modus Vivendi | Modus Vivendi | Modus |
+| 68 | Modus Operandi | Modus Operandi | Modus |
+| 69 | Onenord | Onenord | OneNord |
+| 70 | Onenord Light | Onenord Light | OneNord |
+| 71 | Ayu Light | Ayu Light | Ayu |
+| 72 | One Half Light | One Half Light | One Half |
+| 73 | Iceberg Light | Iceberg Light | Iceberg |
+| 74 | Dark+ | Dark+ | VS Code Default |
+| 75 | Night Owlish Light | Night Owlish Light | Night Owl |
 
 ## Complete upstream name map
 

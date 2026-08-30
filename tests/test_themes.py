@@ -20,8 +20,8 @@ from hcb.themes import (
 def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     available = presets()
 
-    assert len(available) == BUNDLED_PRESET_COUNT == 60
-    assert [item.rank for item in available] == list(range(1, 61))
+    assert len(available) == BUNDLED_PRESET_COUNT == 75
+    assert [item.rank for item in available] == list(range(1, 76))
     assert available[0].name == "Dracula"
     assert available[0].colors.background == "#282a36"
     assert {item.name.casefold() for item in available} == {
@@ -44,6 +44,21 @@ def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     assert preset("Vesper").colors.danger == "#f5a191"
     assert preset("Horizon").colors.accent == "#26bbd9"
     assert preset("Poimandres").colors.text == "#a6accd"
+    assert preset("Everblush").colors.background == "#141b1e"
+    assert preset("Moonfly").colors.selection == "#b2ceee"
+    assert preset("No Clown Fiesta").colors.accent == "#bad7ff"
+    assert preset("No Clown Fiesta Light").profile == "light"
+    assert preset("Zenbones Dark").colors.focus == "#c4cacf"
+    assert preset("Zenbones Light").colors.warning == "#944927"
+    assert preset("Modus Vivendi").colors.accent == "#2fafff"
+    assert preset("Modus Operandi").profile == "light"
+    assert preset("Onenord").colors.background == "#2e3440"
+    assert preset("Onenord Light").colors.success == "#48a53d"
+    assert preset("Ayu Light").colors.focus == "#ffaa33"
+    assert preset("One Half Light").colors.selection == "#bfceff"
+    assert preset("Iceberg Light").colors.panel == "#dcdfe7"
+    assert preset("Dark+").colors.danger == "#cd3131"
+    assert preset("Night Owlish Light").colors.accent == "#4876d6"
 
 
 def test_applying_a_preset_preserves_user_interface_preferences() -> None:
