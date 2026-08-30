@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
 from importlib.resources import files
 from pathlib import Path
 from types import UnionType
 from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 
+from rich.errors import StyleSyntaxError
+from rich.style import Style
 from textual.color import Color, ColorParseError
+from textual.keys import Keys
 
 from .loaders import DEFAULT_LOADER, LOADER_PRESETS
 from .models import CapturePreferences, Preferences
@@ -70,6 +74,10 @@ class RoleStyle:
                 raise ValueError(f"theme.roles.{name} must be a valid color") from exc
         if not self.text_style.strip():
             raise ValueError("theme role text_style must not be empty")
+        try:
+            Style.parse(self.text_style)
+        except StyleSyntaxError as exc:
+            raise ValueError("theme role text_style must be valid Rich style syntax") from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,9 +156,44 @@ class KeyBindings:
     modal_cancel: str = "n"
 
     def __post_init__(self) -> None:
-        for name, value in asdict(self).items():
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"keys.{name} must not be empty")
+        bindings = asdict(self)
+        for name, value in bindings.items():
+            self._validate_binding(name, value)
+        self._validate_scope(
+            "global", bindings, set(bindings) - self._modal_keys - {"external_editor"}
+        )
+        self._validate_scope("modal", bindings, self._modal_keys)
+
+    _modal_keys = frozenset({"modal_edit", "modal_delete", "modal_confirm", "modal_cancel"})
+    _modifiers = frozenset({"ctrl", "alt", "shift", "meta", "super", "command"})
+    _named_keys = frozenset(key.value for key in Keys)
+
+    @classmethod
+    def _validate_binding(cls, name: str, value: object) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"keys.{name} must not be empty")
+        for key in value.split(","):
+            key = key.strip()
+            if not key:
+                raise ValueError(f"keys.{name} cannot include an empty shortcut")
+            parts = key.split("+")
+            modifiers, actual = parts[:-1], parts[-1]
+            if not actual or any(modifier not in cls._modifiers for modifier in modifiers):
+                raise ValueError(f"keys.{name} has invalid shortcut {key!r}")
+            if len(actual) != 1 and actual not in cls._named_keys:
+                raise ValueError(f"keys.{name} has unknown key {actual!r}")
+
+    @classmethod
+    def _validate_scope(cls, scope: str, bindings: dict[str, str], names: Collection[str]) -> None:
+        seen: dict[str, str] = {}
+        for name in names:
+            for key in bindings[name].split(","):
+                normalized = key.strip()
+                if previous := seen.get(normalized):
+                    raise ValueError(
+                        f"keys.{name} conflicts with keys.{previous} in the {scope} scope"
+                    )
+                seen[normalized] = name
 
 
 @dataclass(frozen=True, slots=True)
@@ -394,6 +437,32 @@ def save(config: Config, path: Path | None = None) -> Path:
     temporary.write_text(
         json.dumps(asdict(config), indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    temporary.replace(target)
+    return target
+
+
+def _profile_difference(base: object, configured: object) -> object | None:
+    if isinstance(base, dict) and isinstance(configured, dict):
+        difference = {
+            key: changed
+            for key, value in configured.items()
+            if (changed := _profile_difference(base.get(key), value)) is not None
+        }
+        return difference or None
+    return configured if base != configured else None
+
+
+def save_profile(config: Config, path: Path, name: str) -> Path:
+    """Persist only the resolved differences for one strict profile overlay."""
+    target = profile_path(path, name)
+    base = load(path, resolve_profile=False)
+    difference = _profile_difference(asdict(base), asdict(config))
+    overlay = cast(dict[str, Any], difference or {})
+    overlay.pop("schema_version", None)
+    overlay.pop("active_profile", None)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    temporary.write_text(json.dumps(overlay, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(target)
     return target
 

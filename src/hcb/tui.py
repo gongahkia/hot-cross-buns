@@ -27,6 +27,7 @@ from textual.widgets import (
     Static,
 )
 
+from .config import RoleStyle
 from .environment import LocalEnvironment
 from .runtime import Runtime
 
@@ -237,7 +238,7 @@ def recurrence_summary(recurrence: tuple[str, ...]) -> str:
     return summary
 
 
-def linkify_urls(value: str | Text) -> Text:
+def linkify_urls(value: str | Text, *, link_style: Style | None = None) -> Text:
     """Underline and attach click targets to every safe web URL in displayed text."""
     text = value.copy() if isinstance(value, Text) else Text(value)
     for match in _URL_PATTERN.finditer(text.plain):
@@ -245,8 +246,24 @@ def linkify_urls(value: str | Text) -> Text:
         while url.endswith(")") and url.count("(") < url.count(")"):
             url = url[:-1]
         if url and is_web_url(url):
-            text.stylize(Style(link=url, underline=True), match.start(), match.start() + len(url))
+            text.stylize(
+                Style.combine((Style(link=url, underline=True), link_style or Style())),
+                match.start(),
+                match.start() + len(url),
+            )
     return text
+
+
+def role_rich_style(role: RoleStyle, *, link: str | None = None) -> Style:
+    """Translate a serializable semantic role into a safe Rich display style."""
+    color = role.color if role.color not in {None, "ansi_default", "transparent"} else None
+    background = (
+        role.background if role.background not in {None, "ansi_default", "transparent"} else None
+    )
+    parts = [Style(color=color, bgcolor=background), Style.parse(role.text_style)]
+    if link is not None:
+        parts.append(Style(link=link, underline=True))
+    return Style.combine(parts)
 
 
 class _HtmlToMarkdownParser(HTMLParser):
@@ -383,7 +400,7 @@ def _render_markdown_inline(value: str) -> Text:
     return rendered
 
 
-def render_readonly_markup(value: str) -> Text:
+def render_readonly_markup(value: str, *, link_style: Style | None = None) -> Text:
     """Render the supported Markdown and HTML subset used by read-only item views."""
     source = _html_to_markdown(value)
     rendered = Text()
@@ -407,7 +424,7 @@ def render_readonly_markup(value: str) -> Text:
             rendered.append_text(_render_markdown_inline(line))
         if index < len(lines) - 1:
             rendered.append("\n")
-    return linkify_urls(rendered)
+    return linkify_urls(rendered, link_style=link_style)
 
 
 # Re-export the supported widgets and modal workflows from the stable TUI module.

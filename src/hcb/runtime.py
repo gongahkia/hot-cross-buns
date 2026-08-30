@@ -22,6 +22,7 @@ from .config import (
     load,
     profile_path,
     save,
+    save_profile,
 )
 from .credentials import (
     CredentialFileError,
@@ -160,10 +161,9 @@ class Runtime:
         template_created = (
             create_credential_template(credential_file) if credential_file is not None else False
         )
-        save(updated, self.paths.config_file)
+        self._persist_config(updated)
         with self.storage.transaction():
             self.storage.upsert_account(Account(account_id, email))
-        self.__dict__["config"] = updated
         return template_created
 
     def authenticator(self, account_id: str) -> GoogleAuthenticator:
@@ -263,21 +263,25 @@ class Runtime:
                 stylesheet=stylesheet,
             ),
         )
-        if active_profile is not None:
-            target = profile_path(self.paths.config_file, active_profile)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if not target.exists():
-                target.write_text("{}\n", encoding="utf-8")
-        save(updated, self.paths.config_file)
-        self.__dict__["config"] = updated
-        return updated
+        return self._persist_config(updated)
 
     def update_theme(self, theme: Theme) -> Config:
         """Persist a complete visual theme selected by the CLI or a custom file."""
         updated = replace(self.config, theme=theme)
-        save(updated, self.paths.config_file)
-        self.__dict__["config"] = updated
-        return updated
+        return self._persist_config(updated)
+
+    def _persist_config(self, updated: Config) -> Config:
+        """Write the base or active overlay without flattening a profile into the base."""
+        selected = self.environ.get("HCB_PROFILE") or updated.active_profile
+        if selected is None:
+            save(updated, self.paths.config_file)
+        else:
+            profile_path(self.paths.config_file, selected)
+            base = load(self.paths.config_file, resolve_profile=False)
+            save(replace(base, active_profile=updated.active_profile), self.paths.config_file)
+            save_profile(updated, self.paths.config_file, selected)
+        self.__dict__.pop("config", None)
+        return self.config
 
     def close(self) -> None:
         if "storage" in self.__dict__:

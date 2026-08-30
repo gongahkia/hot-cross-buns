@@ -71,6 +71,7 @@ from .tui import (
     recurrence_summary,
     recurrence_with_frequency,
     render_readonly_markup,
+    role_rich_style,
 )
 
 if TYPE_CHECKING:
@@ -1198,8 +1199,7 @@ class ItemViewScreen(ModalScreen[str | None]):
         self.hcb = hcb
         self.item = item
 
-    @staticmethod
-    def _append_attachment(text: Text, attachment: dict[str, object]) -> None:
+    def _append_attachment(self, text: Text, attachment: dict[str, object]) -> None:
         title = str(attachment.get("title") or attachment.get("fileId") or "Attachment")
         url = next(
             (
@@ -1214,7 +1214,11 @@ class ItemViewScreen(ModalScreen[str | None]):
         start = len(text)
         text.append(title)
         if url is not None:
-            text.stylize(Style(link=url, underline=True), start, len(text))
+            text.stylize(
+                role_rich_style(self.hcb.runtime.config.theme.roles.link, link=url),
+                start,
+                len(text),
+            )
         text.append("\n")
 
     def _task_details(self, task: Task) -> Text:
@@ -1226,11 +1230,12 @@ class ItemViewScreen(ModalScreen[str | None]):
             text.append(f"\nCompleted: {self.hcb.format_date_time(task.completed_at)}")
         return text
 
-    @staticmethod
-    def _task_title(task: Task) -> Text:
-        title = render_readonly_markup(task.title)
+    def _task_title(self, task: Task) -> Text:
+        title = render_readonly_markup(
+            task.title, link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link)
+        )
         if task.status is TaskStatus.COMPLETED:
-            title.stylize(Style(strike=True))
+            title.stylize(role_rich_style(self.hcb.runtime.config.theme.roles.completed_item))
         return title
 
     def _event_color(self, event: Event) -> str | None:
@@ -1295,7 +1300,11 @@ class ItemViewScreen(ModalScreen[str | None]):
             if url := self._conference_url(event.conference):
                 start = len(text)
                 text.append("Open meeting")
-                text.stylize(Style(link=url, underline=True), start, len(text))
+                text.stylize(
+                    role_rich_style(self.hcb.runtime.config.theme.roles.link, link=url),
+                    start,
+                    len(text),
+                )
             else:
                 text.append("available")
         permissions = tuple(
@@ -1342,23 +1351,47 @@ class ItemViewScreen(ModalScreen[str | None]):
                     yield Static(self._task_details(item), classes="item-view-section")
                     yield Label("Notes", classes="event-field-label")
                     yield Static(
-                        render_readonly_markup(item.notes or "No notes"),
+                        render_readonly_markup(
+                            item.notes or "No notes",
+                            link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link),
+                        ),
                         classes="item-view-section",
                     )
                 elif isinstance(item, Event):
-                    yield Static(render_readonly_markup(item.summary), id="item-view-title")
+                    yield Static(
+                        render_readonly_markup(
+                            item.summary,
+                            link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link),
+                        ),
+                        id="item-view-title",
+                    )
                     yield Static(self._event_details(item), classes="item-view-section")
                     if location := google_maps_url(item.location or ""):
                         text = Text(f"{LOCATION_MAP_ICON} {item.location}")
-                        text.stylize(Style(link=location, underline=True), 0, len(text))
+                        text.stylize(
+                            role_rich_style(
+                                self.hcb.runtime.config.theme.roles.link, link=location
+                            ),
+                            0,
+                            len(text),
+                        )
                         yield Static(text, classes="item-view-location")
                     yield Label("Description", classes="event-field-label")
                     yield Static(
-                        render_readonly_markup(item.description or "No description"),
+                        render_readonly_markup(
+                            item.description or "No description",
+                            link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link),
+                        ),
                         classes="item-view-section",
                     )
                 else:
-                    yield Static(render_readonly_markup(item.name), id="item-view-title")
+                    yield Static(
+                        render_readonly_markup(
+                            item.name,
+                            link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link),
+                        ),
+                        id="item-view-title",
+                    )
                     modified = (
                         self.hcb.format_date_time(item.modified_time) if item.modified_time else "—"
                     )
@@ -1367,12 +1400,29 @@ class ItemViewScreen(ModalScreen[str | None]):
                         classes="item-view-section",
                     )
                     if item.web_view_link:
-                        yield Static(linkify_urls(item.web_view_link), classes="item-view-section")
+                        yield Static(
+                            linkify_urls(
+                                item.web_view_link,
+                                link_style=role_rich_style(
+                                    self.hcb.runtime.config.theme.roles.link
+                                ),
+                            ),
+                            classes="item-view-section",
+                        )
             with Horizontal(classes="dialog-buttons"):
                 if not isinstance(item, DriveFile):
                     yield Button("Edit", variant="primary", id="item-view-edit")
                     yield Button("Delete", variant="error", id="item-view-delete")
                 yield Button("Close", id="item-view-close")
+
+    def on_mount(self) -> None:
+        role = self.hcb.runtime.config.theme.roles.modal_title
+        title = self.query_one("#dialog-title", Label)
+        if role.color not in {None, "ansi_default", "transparent"}:
+            title.styles.color = role.color
+        if role.background not in {None, "ansi_default", "transparent"}:
+            title.styles.background = role.background
+        title.styles.text_style = role.text_style
 
     def action_edit(self) -> None:
         if not isinstance(self.item, DriveFile):

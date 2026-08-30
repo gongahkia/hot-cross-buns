@@ -7,7 +7,6 @@ from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
-from rich.style import Style
 from rich.text import Text
 from textual.widgets import (
     Button,
@@ -19,6 +18,7 @@ from .application import (
     SearchResult,
 )
 from .models import DriveFile, Event, Task, TaskStatus
+from .tui import role_rich_style
 from .tui_components import (
     CachedWorkspace,
     EntityRow,
@@ -273,8 +273,9 @@ class WorkspaceMixin:
                 title_end = len(label)
                 label.append(f"{due}{notes}")
                 if task.status is TaskStatus.COMPLETED:
-                    label.stylize(Style(dim=True))
-                    label.stylize(Style(strike=True), title_start, title_end)
+                    style = role_rich_style(self.runtime.config.theme.roles.completed_item)
+                    label.stylize(style)
+                    label.stylize(style, title_start, title_end)
                 row = EntityRow(label, kind="task", item_id=task.id)
                 if task.status is TaskStatus.COMPLETED:
                     row.add_class("hcb-completed")
@@ -327,7 +328,9 @@ class WorkspaceMixin:
         """Keep the active workspace row visibly selected."""
         content = self.query_one("#content", ListView)
         for row in content.query(EntityRow):
-            row.set_class((row.kind, row.item_id) == self.selected, "hcb-selected")
+            selected = (row.kind, row.item_id) == self.selected
+            row.set_class(selected, "hcb-selected")
+            self._apply_selected_item_role(row, selected)
 
     def _update_resource_selection(self: Any) -> None:
         """Keep the active resource visible after focus moves to another pane."""
@@ -339,6 +342,20 @@ class WorkspaceMixin:
                 else (row.kind, row.item_id) == self.resource_filter
             )
             row.set_class(selected, "hcb-selected")
+            self._apply_selected_item_role(row, selected)
+
+    def _apply_selected_item_role(self: Any, row: EntityRow, selected: bool) -> None:
+        """Apply an optional semantic selection override without replacing base TCSS."""
+        for rule in ("color", "background", "text_style"):
+            row.styles.clear_rule(rule)
+        if not selected:
+            return
+        role = self.runtime.config.theme.roles.selected_item
+        if role.color not in {None, "ansi_default", "transparent"}:
+            row.styles.color = role.color
+        if role.background not in {None, "ansi_default", "transparent"}:
+            row.styles.background = role.background
+        row.styles.text_style = role.text_style
 
     def _event_surface_range(self: Any) -> tuple[date, date]:
         day = self.selected_date
