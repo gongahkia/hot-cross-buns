@@ -52,7 +52,7 @@ class Runtime:
     @cached_property
     def config(self) -> Config:
         try:
-            return load(self.paths.config_file)
+            return load(self.paths.config_file, profile=self.environ.get("HCB_PROFILE"))
         except ConfigError as exc:
             raise ConfigurationError(str(exc)) from exc
 

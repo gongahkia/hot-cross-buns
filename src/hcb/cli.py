@@ -1756,7 +1756,7 @@ def _coerce_config(current: Any, raw: str) -> Any:
 @config_app.command("set")
 def config_set(ctx: typer.Context, key: str, value: str) -> None:
     state = _state(ctx)
-    current = load(state.runtime.paths.config_file)
+    current = load(state.runtime.paths.config_file, resolve_profile=False)
     parts = key.split(".")
     if parts[:2] == ["theme", "colors"] and len(parts) == 3:
         color_name = parts[2]

@@ -24,6 +24,10 @@ class AppPaths:
         return self.config_dir / "config.json"
 
     @property
+    def profiles_dir(self) -> Path:
+        return self.config_dir / "profiles"
+
+    @property
     def database_file(self) -> Path:
         return self.data_dir / "hcb.sqlite3"
 

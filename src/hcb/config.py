@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from importlib.resources import files
 from pathlib import Path
@@ -12,11 +13,11 @@ from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 from textual.color import Color, ColorParseError
 
 from .loaders import DEFAULT_LOADER, LOADER_PRESETS
-from .models import Preferences
+from .models import CapturePreferences, Preferences
 from .paths import AppPaths
 
-CONFIG_SCHEMA_VERSION = 1
-CONFIG_SCHEMA_RESOURCE = "hcb-config-v1.schema.json"
+CONFIG_SCHEMA_VERSION = 2
+CONFIG_SCHEMA_RESOURCE = "hcb-config-v2.schema.json"
 
 
 class ConfigError(ValueError):
@@ -51,6 +52,39 @@ class ThemeColors:
 
 
 @dataclass(frozen=True, slots=True)
+class RoleStyle:
+    """Optional presentation override for a named HCB interface role."""
+
+    color: str | None = None
+    background: str | None = None
+    text_style: str = "none"
+
+    def __post_init__(self) -> None:
+        for name in ("color", "background"):
+            value = getattr(self, name)
+            if value is None:
+                continue
+            try:
+                Color.parse(value)
+            except ColorParseError as exc:
+                raise ValueError(f"theme.roles.{name} must be a valid color") from exc
+        if not self.text_style.strip():
+            raise ValueError("theme role text_style must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ThemeRoles:
+    completed_item: RoleStyle = field(
+        default_factory=lambda: RoleStyle(color="ansi_default", text_style="dim strike")
+    )
+    selected_item: RoleStyle = field(
+        default_factory=lambda: RoleStyle(color="ansi_default", text_style="bold reverse")
+    )
+    link: RoleStyle = field(default_factory=lambda: RoleStyle(color="ansi_default", text_style="underline"))
+    modal_title: RoleStyle = field(default_factory=lambda: RoleStyle(color="ansi_default", text_style="bold"))
+
+
+@dataclass(frozen=True, slots=True)
 class Theme:
     profile: str = "terminal"
     preset: str | None = None
@@ -60,6 +94,8 @@ class Theme:
     mouse: bool = True
     loader: str = DEFAULT_LOADER
     colors: ThemeColors = field(default_factory=ThemeColors)
+    roles: ThemeRoles = field(default_factory=ThemeRoles)
+    stylesheet: str | None = None
 
     def __post_init__(self) -> None:
         if self.profile not in {"terminal", "dark", "light"}:
@@ -74,23 +110,63 @@ class Theme:
             raise ValueError("theme.focus must be ascii, underline, or reverse")
         if self.loader not in LOADER_PRESETS:
             raise ValueError("theme.loader must name a bundled Rattles loader")
+        if self.stylesheet is not None and not self.stylesheet.strip():
+            raise ValueError("theme.stylesheet cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
 class KeyBindings:
     quit: str = "q"
-    help: str = "?"
-    search: str = "/"
+    help: str = "question_mark"
+    search: str = "slash,ctrl+p"
     sync: str = "r"
     create: str = "n"
     edit: str = "e"
     delete: str = "d"
     complete: str = "space"
+    jump: str = "g"
+    mark: str = "x"
+    rsvp: str = "v"
+    undo: str = "u"
+    redo: str = "ctrl+r"
+    tasks: str = "1"
+    notes: str = "2"
+    agenda: str = "3"
+    day: str = "4"
+    week: str = "5"
+    month: str = "6"
+    resize_sidebar_narrower: str = "ctrl+alt+left"
+    resize_sidebar_wider: str = "ctrl+alt+right"
     external_editor: str = "ctrl+g"
+    modal_edit: str = "e"
+    modal_delete: str = "d"
+    modal_confirm: str = "y"
+    modal_cancel: str = "n"
 
     def __post_init__(self) -> None:
-        if not self.external_editor.strip():
-            raise ValueError("external_editor must not be empty")
+        for name, value in asdict(self).items():
+            if not value.strip():
+                raise ValueError(f"keys.{name} must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class TuiSettings:
+    initial_surface: str = "Tasks"
+    sidebar_visible: bool = True
+    sidebar_width: int = 27
+    agenda_days: int = 14
+    task_show_due: bool = True
+    notes_show_preview: bool = True
+    agenda_show_calendar: bool = False
+    agenda_show_location: bool = False
+
+    def __post_init__(self) -> None:
+        if self.initial_surface not in {"Tasks", "Notes", "Agenda", "Day", "Week", "Month"}:
+            raise ValueError("tui.initial_surface must name a supported surface")
+        if not 22 <= self.sidebar_width <= 60:
+            raise ValueError("tui.sidebar_width must be between 22 and 60")
+        if not 1 <= self.agenda_days <= 31:
+            raise ValueError("tui.agenda_days must be between 1 and 31")
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,10 +175,14 @@ class Config:
     preferences: Preferences = field(default_factory=Preferences)
     theme: Theme = field(default_factory=Theme)
     keys: KeyBindings = field(default_factory=KeyBindings)
+    tui: TuiSettings = field(default_factory=TuiSettings)
+    active_profile: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != CONFIG_SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {CONFIG_SCHEMA_VERSION}")
+        if self.active_profile is not None and not self.active_profile.strip():
+            raise ValueError("active_profile cannot be empty")
 
 
 def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -180,22 +260,66 @@ def _theme(values: dict[str, Any]) -> Theme:
     if not isinstance(colors, dict):
         raise ConfigError("theme.colors must be an object")
     theme_values["colors"] = _construct(ThemeColors, colors, "theme.colors")
+    roles = values.get("roles", {})
+    if not isinstance(roles, dict):
+        raise ConfigError("theme.roles must be an object")
+    role_values: dict[str, RoleStyle] = {}
+    for name, value in roles.items():
+        if not isinstance(value, dict):
+            raise ConfigError(f"theme.roles.{name} must be an object")
+        role_values[name] = _construct(RoleStyle, value, f"theme.roles.{name}")
+    theme_values["roles"] = _construct(ThemeRoles, role_values, "theme.roles")
     return cast(Theme, _construct(Theme, theme_values, "theme"))
+
+
+def _preferences(values: dict[str, Any]) -> Preferences:
+    preference_values = dict(values)
+    capture = values.get("capture", {})
+    if not isinstance(capture, dict):
+        raise ConfigError("preferences.capture must be an object")
+    capture_values = dict(capture)
+    for name in (
+        "task_aliases",
+        "event_aliases",
+        "high_priority_aliases",
+        "medium_priority_aliases",
+        "low_priority_aliases",
+    ):
+        if name in capture_values:
+            value = capture_values[name]
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                raise ConfigError(f"preferences.capture.{name} must be an array of strings")
+            capture_values[name] = tuple(value)
+    preference_values["capture"] = _construct(
+        CapturePreferences, capture_values, "preferences.capture"
+    )
+    return cast(Preferences, _construct(Preferences, preference_values, "preferences"))
 
 
 def loads(raw: bytes | str) -> Config:
     data = _json_object(raw)
-    unknown = data.keys() - {"schema_version", "preferences", "theme", "keys"}
+    unknown = data.keys() - {
+        "schema_version",
+        "preferences",
+        "theme",
+        "keys",
+        "tui",
+        "active_profile",
+    }
     if unknown:
         raise ConfigError(f"unknown configuration section(s): {', '.join(sorted(unknown))}")
-    schema_version = data.get("schema_version", CONFIG_SCHEMA_VERSION)
+    schema_version = data.get("schema_version", 1)
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
         raise ConfigError("schema_version must be an integer")
+    if schema_version not in {1, CONFIG_SCHEMA_VERSION}:
+        raise ConfigError(f"schema_version must be 1 or {CONFIG_SCHEMA_VERSION}")
     return Config(
-        schema_version=schema_version,
-        preferences=_construct(Preferences, _section(data, "preferences"), "preferences"),
+        schema_version=CONFIG_SCHEMA_VERSION,
+        preferences=_preferences(_section(data, "preferences")),
         theme=_theme(_section(data, "theme")),
         keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
+        tui=_construct(TuiSettings, _section(data, "tui"), "tui"),
+        active_profile=data.get("active_profile"),
     )
 
 
@@ -204,14 +328,50 @@ def loads_theme(raw: bytes | str) -> Theme:
     return _theme(_json_object(raw))
 
 
-def load(path: Path | None = None) -> Config:
+_PROFILE_NAME = re.compile(r"[a-z0-9][a-z0-9_-]*")
+
+
+def profile_path(config_path: Path, name: str) -> Path:
+    """Return the strict per-user overlay file for a safe profile name."""
+    if not _PROFILE_NAME.fullmatch(name):
+        raise ConfigError("profile names must use lowercase letters, digits, underscores, or hyphens")
+    return config_path.parent / "profiles" / f"{name}.json"
+
+
+def _merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    result = dict(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _merge(cast(dict[str, Any], result[key]), value)
+        else:
+            result[key] = value
+    return result
+
+
+def load(
+    path: Path | None = None, *, profile: str | None = None, resolve_profile: bool = True
+) -> Config:
     target = path or AppPaths.discover().config_file
     if not target.exists():
-        return Config()
+        base = Config()
+    else:
+        try:
+            base = loads(target.read_bytes())
+        except OSError as exc:
+            raise ConfigError(f"cannot read {target}: {exc}") from exc
+    selected = profile if profile is not None else (base.active_profile if resolve_profile else None)
+    if selected is None:
+        return base
+    source = profile_path(target, selected)
     try:
-        return loads(target.read_bytes())
+        overlay = _json_object(source.read_bytes())
     except OSError as exc:
-        raise ConfigError(f"cannot read {target}: {exc}") from exc
+        raise ConfigError(f"cannot read profile {source}: {exc}") from exc
+    forbidden = {"schema_version", "active_profile"} & overlay.keys()
+    if forbidden:
+        raise ConfigError(f"profile cannot define: {', '.join(sorted(forbidden))}")
+    base_document = asdict(base)
+    return loads(json.dumps(_merge(base_document, overlay)))
 
 
 def save(config: Config, path: Path | None = None) -> Path:
