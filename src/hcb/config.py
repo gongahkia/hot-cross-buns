@@ -14,7 +14,7 @@ from typing import Any, Union, cast, get_args, get_origin, get_type_hints
 from rich.errors import StyleSyntaxError
 from rich.style import Style
 from textual.color import Color, ColorParseError
-from textual.keys import Keys
+from textual.keys import KEY_NAME_REPLACEMENTS, Keys, key_to_character
 
 from .loaders import DEFAULT_LOADER, LOADER_PRESETS
 from .models import CapturePreferences, Preferences
@@ -166,7 +166,7 @@ class KeyBindings:
 
     _modal_keys = frozenset({"modal_edit", "modal_delete", "modal_confirm", "modal_cancel"})
     _modifiers = frozenset({"ctrl", "alt", "shift", "meta", "super", "command"})
-    _named_keys = frozenset(key.value for key in Keys)
+    _named_keys = frozenset({*(key.value for key in Keys), *KEY_NAME_REPLACEMENTS.values()})
 
     @classmethod
     def _validate_binding(cls, name: str, value: object) -> None:
@@ -180,7 +180,11 @@ class KeyBindings:
             modifiers, actual = parts[:-1], parts[-1]
             if not actual or any(modifier not in cls._modifiers for modifier in modifiers):
                 raise ValueError(f"keys.{name} has invalid shortcut {key!r}")
-            if len(actual) != 1 and actual not in cls._named_keys:
+            if (
+                len(actual) != 1
+                and actual not in cls._named_keys
+                and key_to_character(actual) is None
+            ):
                 raise ValueError(f"keys.{name} has unknown key {actual!r}")
 
     @classmethod

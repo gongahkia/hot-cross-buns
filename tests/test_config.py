@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -14,11 +15,13 @@ from hcb.config import (
     loads,
     profile_path,
     save,
+    save_profile,
     schema,
 )
 from hcb.loaders import DEFAULT_LOADER, LOADER_NAMES, LOADER_PRESETS
 from hcb.models import Preferences
 from hcb.paths import AppPaths
+from hcb.runtime import Runtime
 
 
 def test_defaults_are_terminal_minimal_and_valid(tmp_path: Path) -> None:
@@ -106,7 +109,7 @@ def test_json_round_trip(tmp_path: Path) -> None:
             theme="dark", editor="hx", week_starts_on=6, reminders_enabled=False
         ),
         theme=Theme(profile="dark", colors=ThemeColors(accent="#88c0d0")),
-        keys=KeyBindings(sync="ctrl+r", external_editor="ctrl+g"),
+        keys=KeyBindings(sync="ctrl+s", external_editor="ctrl+g"),
     )
     target = tmp_path / "nested" / "config.json"
     assert save(expected, target) == target
@@ -145,6 +148,22 @@ def test_invalid_strict_json_config_is_rejected(raw: str) -> None:
         loads(raw)
 
 
+@pytest.mark.parametrize(
+    "bindings, message",
+    (
+        ('{"keys":{"quit":""}}', "must not be empty"),
+        ('{"keys":{"help":"not-a-key"}}', "unknown key"),
+        ('{"keys":{"sync":"ctrl+r"}}', "conflicts"),
+        ('{"keys":{"modal_edit":"d"}}', "conflicts"),
+    ),
+)
+def test_keymap_validation_rejects_empty_unknown_and_conflicting_bindings(
+    bindings: str, message: str
+) -> None:
+    with pytest.raises(ConfigError, match=message):
+        loads(bindings)
+
+
 def test_bundled_schema_accepts_saved_config_and_rejects_unknown_tokens(tmp_path: Path) -> None:
     target = save(Config(theme=Theme(preset="Dracula")), tmp_path / "config.json")
     validator = Draft202012Validator(schema())
@@ -170,3 +189,29 @@ def test_v1_configuration_migrates_and_a_profile_overlays_only_its_values(tmp_pa
     resolved = load(target)
     assert resolved.preferences.capture.task_aliases == ("todo",)
     assert resolved.tui.agenda_days == 21
+
+
+def test_profile_persistence_writes_only_the_overlay_and_runtime_keeps_the_base(
+    tmp_path: Path,
+) -> None:
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    base = Config(
+        active_profile="work",
+        preferences=Preferences(editor="nvim"),
+        theme=Theme(colors=ThemeColors(accent="blue")),
+    )
+    save(base, paths.config_file)
+    profile_path(paths.config_file, "work").parent.mkdir()
+    profile_path(paths.config_file, "work").write_text("{}\n", encoding="utf-8")
+    resolved = replace(load(paths.config_file), preferences=replace(base.preferences, editor="hx"))
+    save_profile(resolved, paths.config_file, "work")
+    assert json.loads(profile_path(paths.config_file, "work").read_text()) == {
+        "preferences": {"editor": "hx"}
+    }
+    assert load(paths.config_file).preferences.editor == "hx"
+    assert load(paths.config_file, resolve_profile=False).preferences.editor == "nvim"
+
+    runtime = Runtime(paths, environ={})
+    runtime.update_theme(Theme(colors=ThemeColors(accent="red")))
+    assert load(paths.config_file, resolve_profile=False).theme.colors.accent == "blue"
+    assert load(paths.config_file).theme.colors.accent == "red"
