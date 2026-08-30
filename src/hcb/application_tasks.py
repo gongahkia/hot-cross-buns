@@ -8,6 +8,7 @@ from datetime import date, datetime
 from .application import (
     BatchActionPreview,
     BatchMovePreview,
+    TaskCompletionResult,
     _ApplicationServiceBase,
     _dirty,
     _id,
@@ -337,13 +338,26 @@ class TaskServiceMixin(_ApplicationServiceBase):
     def complete_tasks(
         self, account_id: str, task_ids: list[str], *, completed: bool = True
     ) -> tuple[Task, ...]:
+        return self.complete_tasks_detailed(account_id, task_ids, completed=completed).tasks
+
+    def complete_tasks_detailed(
+        self, account_id: str, task_ids: list[str], *, completed: bool = True
+    ) -> TaskCompletionResult:
+        """Complete tasks and expose any managed recurrence successors to a local UI."""
         preview = self.preview_task_completion(account_id, task_ids, completed=completed)
+        completed_tasks: list[Task] = []
+        successors: list[Task] = []
         with self.storage.transaction():
-            return tuple(
-                self.complete_task(account_id, task.id, completed=completed)
-                for task in preview.items
-                if isinstance(task, Task)
-            )
+            for task in preview.items:
+                if not isinstance(task, Task):
+                    continue
+                completed_task = self.complete_task(account_id, task.id, completed=completed)
+                completed_tasks.append(completed_task)
+                if completed:
+                    successor = self._ensure_recurrence_successor(completed_task)
+                    if successor is not None and successor.id != completed_task.id:
+                        successors.append(successor)
+        return TaskCompletionResult(tuple(completed_tasks), tuple(successors))
 
     def delete_tasks(self, account_id: str, task_ids: list[str]) -> tuple[Task, ...]:
         preview = self.preview_task_deletion(account_id, task_ids)

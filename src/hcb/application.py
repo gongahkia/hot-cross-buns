@@ -122,6 +122,14 @@ class BatchActionPreview:
     response_status: ResponseStatus | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class TaskCompletionResult:
+    """Local task completion records, including recurring successors when present."""
+
+    tasks: tuple[Task, ...]
+    successors: tuple[Task, ...] = ()
+
+
 def _id() -> str:
     return uuid4().hex
 

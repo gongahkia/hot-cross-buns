@@ -24,12 +24,13 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.color import Color
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.coordinate import Coordinate
+from textual.geometry import Size
 from textual.message import Message
 from textual.screen import ModalScreen
+from textual.scroll_view import ScrollView
+from textual.strip import Strip
 from textual.widgets import (
     Button,
-    DataTable,
     Label,
     ListItem,
     ListView,
@@ -165,8 +166,14 @@ class WorkspaceRow:
     label: Text
 
 
-class WorkspaceTable(DataTable[Text]):
-    """A single-column, virtualized workspace list with stable entity identities."""
+class WorkspaceTable(ScrollView):
+    """A virtual, mutable workspace list with stable entity identities.
+
+    ``DataTable`` can efficiently paint large tables, but its public API has no
+    ordered insertion operation. This line-api widget keeps the same interaction
+    surface while allowing a local task or event mutation to repaint only the
+    affected visible lines.
+    """
 
     class LinkClicked(Message):
         """Posted when a safe Rich link in a workspace row is activated."""
@@ -184,60 +191,129 @@ class WorkspaceTable(DataTable[Text]):
             self.row = row
             super().__init__()
 
+    class RowHighlighted(Message):
+        """Posted after keyboard or mouse navigation changes the active row."""
+
+        def __init__(self, table: WorkspaceTable, row: WorkspaceRow, index: int) -> None:
+            self.table = table
+            self.row = row
+            self.index = index
+            super().__init__()
+
+    class RowSelected(Message):
+        """Posted after an active workspace row is opened."""
+
+        def __init__(self, table: WorkspaceTable, row: WorkspaceRow, index: int) -> None:
+            self.table = table
+            self.row = row
+            self.index = index
+            super().__init__()
+
+    BINDINGS = [
+        Binding("enter", "select_cursor", "Select", show=False),
+        Binding("up", "cursor_up", "Cursor up", show=False),
+        Binding("down", "cursor_down", "Cursor down", show=False),
+        Binding("pageup", "page_up", "Page up", show=False),
+        Binding("pagedown", "page_down", "Page down", show=False),
+        Binding("ctrl+home", "cursor_first", "First row", show=False),
+        Binding("ctrl+end", "cursor_last", "Last row", show=False),
+    ]
+
     def __init__(self, *, id: str = "content") -> None:
-        super().__init__(
-            id=id,
-            cursor_type="row",
-            show_header=False,
-            show_row_labels=False,
-            cell_padding=0,
-            cursor_foreground_priority="renderable",
-            cursor_background_priority="renderable",
-        )
-        self._workspace_rows: tuple[WorkspaceRow, ...] = ()
+        super().__init__(id=id, can_focus=True)
+        self._workspace_rows: list[WorkspaceRow] = []
+        self._row_indexes: dict[tuple[str, str], int] = {}
+        self._cursor_row = 0
         self._selected_row_index: int | None = None
         self._selection_style: Style | None = None
-        self._workspace_column_added = False
-
-    def on_mount(self) -> None:
-        if not self._workspace_column_added:
-            self.add_column("", key="item", width=1)
-            self._workspace_column_added = True
+        self._row_height = 1
+        self._content_width = 1
+        self.virtual_size = Size(1, 0)
 
     def replace_rows(self, rows: tuple[WorkspaceRow, ...], *, height: int = 1) -> None:
-        """Replace data rows in one paint batch without mounting child widgets."""
-        self._workspace_rows = rows
+        """Replace the projection after a deliberate full workspace refresh."""
+        self._workspace_rows = list(rows)
+        self._row_height = max(1, height)
         self._selected_row_index = None
         self._selection_style = None
-        next(iter(self.columns.values())).width = max(
-            (row.label.cell_len for row in rows), default=1
-        )
-        with self.app.batch_update():
-            self.clear()
-            for row in rows:
-                self.add_row(row.label, height=height)
+        self._cursor_row = min(self._cursor_row, max(0, len(rows) - 1))
+        self._reindex_rows()
+        self._recalculate_virtual_size()
+        self.refresh()
 
     @property
     def workspace_rows(self) -> tuple[WorkspaceRow, ...]:
         """The domain rows in their current visual order."""
-        return self._workspace_rows
+        return tuple(self._workspace_rows)
+
+    @property
+    def row_count(self) -> int:
+        """Return the number of logical workspace rows."""
+        return len(self._workspace_rows)
+
+    @property
+    def cursor_row(self) -> int:
+        """Return the current logical workspace-row index."""
+        return self._cursor_row
 
     def row_at(self, index: int) -> WorkspaceRow | None:
         if not 0 <= index < len(self._workspace_rows):
             return None
         return self._workspace_rows[index]
 
+    def index_of(self, kind: str, item_id: str) -> int | None:
+        """Return the current projection index for a domain identity."""
+        return self._row_indexes.get((kind, item_id))
+
     def update_workspace_row(self, index: int, row: WorkspaceRow) -> None:
-        """Patch one row without invalidating the table's virtual geometry."""
+        """Patch one row without invalidating the surrounding projection."""
         if not 0 <= index < len(self._workspace_rows):
             return
-        rows = list(self._workspace_rows)
-        rows[index] = row
-        self._workspace_rows = tuple(rows)
-        self.update_cell_at(Coordinate(index, 0), self._rendered_row_label(index))
+        previous = self._workspace_rows[index]
+        self._workspace_rows[index] = row
+        if (previous.kind, previous.item_id) != (row.kind, row.item_id):
+            self._reindex_rows()
+        self._refresh_width_after_change(previous, row)
+        self._refresh_workspace_row(index)
+
+    def insert_workspace_row(self, index: int, row: WorkspaceRow) -> None:
+        """Insert one row in visual order and refresh only the viewport."""
+        index = max(0, min(index, len(self._workspace_rows)))
+        self._workspace_rows.insert(index, row)
+        if index <= self._cursor_row:
+            self._cursor_row += 1
+        if self._selected_row_index is not None and index <= self._selected_row_index:
+            self._selected_row_index += 1
+        self._reindex_rows()
+        self._content_width = max(self._content_width, row.label.cell_len)
+        self._recalculate_virtual_size()
+        self.refresh()
+
+    def remove_workspace_row(self, index: int) -> WorkspaceRow | None:
+        """Remove one row in visual order and refresh only the viewport."""
+        if not 0 <= index < len(self._workspace_rows):
+            return None
+        removed = self._workspace_rows.pop(index)
+        if self._cursor_row > index:
+            self._cursor_row -= 1
+        self._cursor_row = min(self._cursor_row, max(0, len(self._workspace_rows) - 1))
+        if self._selected_row_index is not None:
+            if self._selected_row_index == index:
+                self._selected_row_index = None
+            elif self._selected_row_index > index:
+                self._selected_row_index -= 1
+        self._reindex_rows()
+        if removed.label.cell_len == self._content_width:
+            self._recalculate_virtual_size()
+        else:
+            self.virtual_size = Size(
+                self._content_width, len(self._workspace_rows) * self._row_height
+            )
+        self.refresh()
+        return removed
 
     def select_workspace_row(self, index: int, style: Style) -> None:
-        """Apply selection styling to only the outgoing and incoming virtual rows."""
+        """Apply selection styling to only the outgoing and incoming rows."""
         if not 0 <= index < len(self._workspace_rows):
             return
         previous = self._selected_row_index
@@ -246,26 +322,108 @@ class WorkspaceTable(DataTable[Text]):
         self._selected_row_index = index
         self._selection_style = style
         if previous is not None and previous < len(self._workspace_rows):
-            self.update_cell_at(Coordinate(previous, 0), self._rendered_row_label(previous))
-        self.update_cell_at(Coordinate(index, 0), self._rendered_row_label(index))
+            self._refresh_workspace_row(previous)
+        self._refresh_workspace_row(index)
+
+    def move_cursor(self, *, row: int, animate: bool = False) -> None:
+        """Move the logical cursor and bring it into the visible viewport."""
+        if not self._workspace_rows:
+            return
+        index = max(0, min(row, len(self._workspace_rows) - 1))
+        previous = self._cursor_row
+        self._cursor_row = index
+        self._scroll_cursor_into_view(animate=animate)
+        if previous != index:
+            self.post_message(self.RowHighlighted(self, self._workspace_rows[index], index))
+
+    def action_cursor_up(self) -> None:
+        self.move_cursor(row=self._cursor_row - 1, animate=False)
+
+    def action_cursor_down(self) -> None:
+        self.move_cursor(row=self._cursor_row + 1, animate=False)
+
+    def action_page_up(self) -> None:
+        self.move_cursor(row=self._cursor_row - self._page_row_count, animate=False)
+
+    def action_page_down(self) -> None:
+        self.move_cursor(row=self._cursor_row + self._page_row_count, animate=False)
+
+    def action_cursor_first(self) -> None:
+        self.move_cursor(row=0, animate=False)
+
+    def action_cursor_last(self) -> None:
+        self.move_cursor(row=len(self._workspace_rows) - 1, animate=False)
+
+    def action_select_cursor(self) -> None:
+        row = self.row_at(self._cursor_row)
+        if row is not None:
+            self.post_message(self.RowSelected(self, row, self._cursor_row))
+
+    @property
+    def _page_row_count(self) -> int:
+        return max(1, self.size.height // self._row_height)
+
+    def _reindex_rows(self) -> None:
+        self._row_indexes = {
+            (row.kind, row.item_id): index for index, row in enumerate(self._workspace_rows)
+        }
+
+    def _recalculate_virtual_size(self) -> None:
+        self._content_width = max((row.label.cell_len for row in self._workspace_rows), default=1)
+        self.virtual_size = Size(self._content_width, len(self._workspace_rows) * self._row_height)
+
+    def _refresh_width_after_change(self, previous: WorkspaceRow, row: WorkspaceRow) -> None:
+        if (
+            row.label.cell_len > self._content_width
+            or previous.label.cell_len == self._content_width
+        ):
+            self._recalculate_virtual_size()
+
+    def _refresh_workspace_row(self, index: int) -> None:
+        self.refresh_lines(index * self._row_height, self._row_height)
+
+    def _scroll_cursor_into_view(self, *, animate: bool) -> None:
+        y = self._cursor_row * self._row_height
+        scroll_y = int(self.scroll_offset.y)
+        if y < scroll_y:
+            self.scroll_to(y=y, animate=animate, immediate=True)
+        elif y + self._row_height > scroll_y + self.size.height:
+            self.scroll_to(
+                y=y + self._row_height - self.size.height,
+                animate=animate,
+                immediate=True,
+            )
 
     def _rendered_row_label(self, index: int) -> Text:
         label = self._workspace_rows[index].label.copy()
+        label.stylize(self.rich_style, 0, len(label))
         if index == self._selected_row_index and self._selection_style is not None:
             label.stylize(self._selection_style)
         return label
 
-    async def _on_click(self, event: events.Click) -> None:
+    def render_line(self, y: int) -> Strip:
+        """Render the requested viewport line without materializing other rows."""
+        y += int(self.scroll_offset.y)
+        if y < 0 or y >= self.virtual_size.height or y % self._row_height:
+            return Strip.blank(self.size.width, self.rich_style)
+        row_index = y // self._row_height
+        label = self._rendered_row_label(row_index)
+        return Strip(label.render(self.app.console)).crop_extend(
+            int(self.scroll_offset.x),
+            int(self.scroll_offset.x) + self.size.width,
+            self.rich_style,
+        )
+
+    def on_click(self, event: events.Click) -> None:
         url = event.style.link
         if isinstance(url, str) and is_web_url(url):
             self.post_message(self.LinkClicked(self, url))
             event.stop()
             event.prevent_default()
             return
-        row_index = event.style.meta.get("row")
+        row_index = int(event.offset.y + self.scroll_offset.y) // self._row_height
         if (
             (event.ctrl or event.meta)
-            and isinstance(row_index, int)
             and (row := self.row_at(row_index)) is not None
             and row.kind in {"task", "event"}
         ):
@@ -273,15 +431,13 @@ class WorkspaceTable(DataTable[Text]):
             event.stop()
             event.prevent_default()
             return
-        if isinstance(row_index, int) and self.row_at(row_index) is not None:
+        if self.row_at(row_index) is not None:
             self.move_cursor(row=row_index, animate=False)
-            self.post_message(
-                DataTable.RowSelected(self, row_index, self.ordered_rows[row_index].key)
-            )
+            row = self._workspace_rows[row_index]
+            self.post_message(self.RowSelected(self, row, row_index))
             event.stop()
             event.prevent_default()
             return
-        await super()._on_click(event)
 
 
 class TerminalTextArea(TextArea):

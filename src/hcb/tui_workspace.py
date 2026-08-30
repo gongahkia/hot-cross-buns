@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
@@ -10,7 +11,6 @@ from zoneinfo import ZoneInfo
 from rich.text import Text
 from textual.widgets import (
     Button,
-    DataTable,
     ListView,
     Static,
 )
@@ -248,24 +248,7 @@ class WorkspaceMixin:
         content = self.query_one("#content", WorkspaceTable)
         rows: list[WorkspaceRow] = []
         if self.surface in {"Tasks", "Notes"}:
-            tasks = self.cache.tasks
-            if self.resource_filter and self.resource_filter[0] == "task-list":
-                tasks = tuple(task for task in tasks if task.list_id == self.resource_filter[1])
-            projection = (
-                self.runtime.application.notes_projection(self.account_id)
-                if self.account_id
-                else None
-            )
-            if self.surface == "Notes":
-                tasks = (
-                    tuple(task for task in tasks if task.due is None and task.parent_id is None)
-                    if projection is not None and projection.value != "disabled"
-                    else ()
-                )
-            elif projection is not None and projection.value == "notes-only":
-                tasks = tuple(
-                    task for task in tasks if task.due is not None or task.parent_id is not None
-                )
+            tasks = self._surface_tasks()
             for task, indent in self._task_rows(tasks):
                 rows.append(self._workspace_task_row(task, indent))
         else:
@@ -294,6 +277,196 @@ class WorkspaceMixin:
         content.select_workspace_row(
             selected_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
         )
+
+    def _surface_tasks(self: Any) -> tuple[Task, ...]:
+        """Return the task projection for the active task-oriented surface."""
+        tasks = self.cache.tasks
+        if self.resource_filter and self.resource_filter[0] == "task-list":
+            tasks = tuple(task for task in tasks if task.list_id == self.resource_filter[1])
+        projection = (
+            self.runtime.application.notes_projection(self.account_id) if self.account_id else None
+        )
+        if self.surface == "Notes":
+            return (
+                tuple(task for task in tasks if task.due is None and task.parent_id is None)
+                if projection is not None and projection.value != "disabled"
+                else ()
+            )
+        if projection is not None and projection.value == "notes-only":
+            return tuple(
+                task for task in tasks if task.due is not None or task.parent_id is not None
+            )
+        return cast(tuple[Task, ...], tasks)
+
+    @staticmethod
+    def _task_cache_key(task: Task) -> tuple[str, bool, date, str]:
+        """Match SQLite's workspace task ordering while keeping null due dates first."""
+        return (task.status.value, task.due is not None, task.due or date.min, task.title)
+
+    @staticmethod
+    def _event_cache_key(event: Event) -> str:
+        """Match the cached event query's ISO-encoded start ordering."""
+        return event.start.value.isoformat()
+
+    def _replace_cached_task(self: Any, task: Task) -> None:
+        tasks = [item for item in self.cache.tasks if item.id != task.id]
+        tasks.append(task)
+        tasks.sort(key=self._task_cache_key)
+        self.cache = replace(self.cache, tasks=tuple(tasks))
+
+    def _replace_cached_event(self: Any, event: Event) -> None:
+        events = [item for item in self.cache.events if item.id != event.id]
+        events.append(event)
+        events.sort(key=self._event_cache_key)
+        self.cache = replace(self.cache, events=tuple(events))
+
+    def _remove_cached_item(self: Any, kind: str, item_id: str) -> None:
+        if kind == "task":
+            self.cache = replace(
+                self.cache, tasks=tuple(item for item in self.cache.tasks if item.id != item_id)
+            )
+        else:
+            self.cache = replace(
+                self.cache, events=tuple(item for item in self.cache.events if item.id != item_id)
+            )
+
+    def _refresh_mutation_chrome(self: Any, *, event_changed: bool = False) -> None:
+        """Refresh only small chrome values after a local, singleton mutation."""
+        if self.account_id is None:
+            return
+        cache_updates: dict[str, object] = {
+            "pending": len(self.runtime.storage.pending_mutations(self.account_id))
+        }
+        if event_changed:
+            cache_updates["instance_ranges"] = tuple(
+                self.runtime.storage.list_instance_ranges(self.account_id)
+            )
+        self.cache = replace(self.cache, **cache_updates)
+        self._instance_badge_cache.clear()
+        self._render_chrome(refresh_resources=False)
+
+    def _empty_workspace_row(self: Any) -> WorkspaceRow:
+        return WorkspaceRow("empty", "empty", Text(f"No {self.surface.lower()} in the local cache"))
+
+    def _ensure_workspace_row_presence(self: Any) -> None:
+        content = self.query_one("#content", WorkspaceTable)
+        if content.row_count == 0:
+            content.insert_workspace_row(0, self._empty_workspace_row())
+
+    def _remove_empty_workspace_row(self: Any) -> None:
+        content = self.query_one("#content", WorkspaceTable)
+        if content.row_count == 1 and (row := content.row_at(0)) and row.kind == "empty":
+            content.remove_workspace_row(0)
+
+    def _select_first_workspace_row(self: Any) -> None:
+        content = self.query_one("#content", WorkspaceTable)
+        if (row := content.row_at(0)) is None:
+            self.selected = None
+            return
+        self.selected = (row.kind, row.item_id)
+        content.move_cursor(row=0, animate=False)
+        content.select_workspace_row(
+            0, role_rich_style(self.runtime.config.theme.roles.selected_item)
+        )
+
+    def _reconcile_task_workspace_row(self: Any, task: Task) -> None:
+        """Update, insert, or reposition one task without rebuilding the surface."""
+        content = self.query_one("#content", WorkspaceTable)
+        current_index = content.index_of("task", task.id)
+        target: tuple[int, str] | None = None
+        if self.surface in {"Tasks", "Notes"}:
+            for index, (candidate, indent) in enumerate(self._task_rows(self._surface_tasks())):
+                if candidate.id == task.id:
+                    target = (index, indent)
+                    break
+        if target is None:
+            if current_index is not None:
+                content.remove_workspace_row(current_index)
+            if self.selected == ("task", task.id):
+                self._select_first_workspace_row()
+            self._ensure_workspace_row_presence()
+            self._update_surface_title()
+            return
+        target_index, indent = target
+        row = self._workspace_task_row(task, indent)
+        self._remove_empty_workspace_row()
+        if current_index is None:
+            content.insert_workspace_row(target_index, row)
+        elif current_index == target_index:
+            content.update_workspace_row(current_index, row)
+        else:
+            content.remove_workspace_row(current_index)
+            content.insert_workspace_row(target_index, row)
+        if self.selected == ("task", task.id):
+            content.move_cursor(row=target_index, animate=False)
+            content.select_workspace_row(
+                target_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
+            )
+        self._update_surface_title()
+
+    def _reconcile_event_workspace_row(self: Any, event: Event) -> None:
+        """Update, insert, or reposition one event without rebuilding the surface."""
+        content = self.query_one("#content", WorkspaceTable)
+        current_index = content.index_of("event", event.id)
+        target_index: int | None = None
+        if self.surface not in {"Tasks", "Notes"}:
+            target_index = next(
+                (
+                    index
+                    for index, candidate in enumerate(self._events_for_surface())
+                    if candidate.id == event.id
+                ),
+                None,
+            )
+        if target_index is None:
+            if current_index is not None:
+                content.remove_workspace_row(current_index)
+            if self.selected == ("event", event.id):
+                self._select_first_workspace_row()
+            self._ensure_workspace_row_presence()
+            self._update_surface_title()
+            return
+        calendar_titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
+        row = self._workspace_event_row(event, calendar_titles)
+        self._remove_empty_workspace_row()
+        if current_index is None:
+            content.insert_workspace_row(target_index, row)
+        elif current_index == target_index:
+            content.update_workspace_row(current_index, row)
+        else:
+            content.remove_workspace_row(current_index)
+            content.insert_workspace_row(target_index, row)
+        if self.selected == ("event", event.id):
+            content.move_cursor(row=target_index, animate=False)
+            content.select_workspace_row(
+                target_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
+            )
+        self._update_surface_title()
+
+    def apply_workspace_task_mutation(self: Any, task: Task) -> None:
+        """Apply one locally-written task to cache and the active virtual surface."""
+        self._replace_cached_task(task)
+        self._reconcile_task_workspace_row(task)
+        self._refresh_mutation_chrome()
+
+    def apply_workspace_event_mutation(self: Any, event: Event) -> None:
+        """Apply one locally-written event to cache and the active virtual surface."""
+        self._replace_cached_event(event)
+        self._reconcile_event_workspace_row(event)
+        self._refresh_mutation_chrome(event_changed=True)
+
+    def remove_workspace_item(self: Any, kind: str, item_id: str) -> None:
+        """Remove one local item from cache and the active virtual surface."""
+        self._remove_cached_item(kind, item_id)
+        content = self.query_one("#content", WorkspaceTable)
+        if (index := content.index_of(kind, item_id)) is not None:
+            content.remove_workspace_row(index)
+        if self.selected == (kind, item_id):
+            self.selected = None
+            self._select_first_workspace_row()
+        self._ensure_workspace_row_presence()
+        self._update_surface_title()
+        self._refresh_mutation_chrome(event_changed=kind == "event")
 
     def _update_surface_title(self: Any) -> None:
         """Refresh the small title label without disturbing the virtual workspace list."""
@@ -522,15 +695,12 @@ class WorkspaceMixin:
         elif button_id and button_id.startswith("surface-"):
             self.action_surface(button_id.removeprefix("surface-").title())
 
-    def on_data_table_row_highlighted(self: Any, event: DataTable.RowHighlighted) -> None:
-        if event.data_table.id != "content" or not isinstance(event.data_table, WorkspaceTable):
+    def on_workspace_table_row_highlighted(self: Any, event: WorkspaceTable.RowHighlighted) -> None:
+        if event.table.id != "content":
             return
-        row = event.data_table.row_at(event.cursor_row)
-        if row is None:
-            return
-        self.selected = (row.kind, row.item_id)
-        event.data_table.select_workspace_row(
-            event.cursor_row, role_rich_style(self.runtime.config.theme.roles.selected_item)
+        self.selected = (event.row.kind, event.row.item_id)
+        event.table.select_workspace_row(
+            event.index, role_rich_style(self.runtime.config.theme.roles.selected_item)
         )
 
     def on_list_view_selected(self: Any, event: ListView.Selected) -> None:
@@ -549,14 +719,11 @@ class WorkspaceMixin:
         self._render_chrome(refresh_resources=False)
         self._render_surface()
 
-    def on_data_table_row_selected(self: Any, event: DataTable.RowSelected) -> None:
-        if event.data_table.id != "content" or not isinstance(event.data_table, WorkspaceTable):
+    def on_workspace_table_row_selected(self: Any, event: WorkspaceTable.RowSelected) -> None:
+        if event.table.id != "content":
             return
-        row = event.data_table.row_at(event.cursor_row)
-        if row is None:
-            return
-        self.selected = (row.kind, row.item_id)
-        if row.kind in {"task", "event"}:
+        self.selected = (event.row.kind, event.row.item_id)
+        if event.row.kind in {"task", "event"}:
             self.action_view()
 
     def on_workspace_table_row_marked(self: Any, event: WorkspaceTable.RowMarked) -> None:

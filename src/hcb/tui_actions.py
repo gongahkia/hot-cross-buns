@@ -165,7 +165,7 @@ class ActionMixin:
         if not result or not result["title"] or self.account_id is None:
             return
         try:
-            self.runtime.application.create_task(
+            task = self.runtime.application.create_task(
                 self.account_id,
                 self.cache.task_lists[0][0],
                 result["title"],
@@ -175,7 +175,7 @@ class ActionMixin:
         except ValueError as exc:
             self.notify(str(exc), severity="error")
             return
-        self.refresh_workspace()
+        self.apply_workspace_task_mutation(task)
         self.notify("Task created")
 
     def action_edit(self: Any) -> None:
@@ -221,7 +221,7 @@ class ActionMixin:
         if not result["title"]:
             return
         try:
-            self.runtime.application.update_task(
+            task = self.runtime.application.update_task(
                 self.account_id,
                 task.id,
                 title=result["title"],
@@ -232,7 +232,7 @@ class ActionMixin:
         except ValueError as exc:
             self.notify(str(exc), severity="error")
             return
-        self.refresh_workspace()
+        self.apply_workspace_task_mutation(task)
         self.notify("Task updated")
 
     @staticmethod
@@ -248,7 +248,7 @@ class ActionMixin:
         if not result or not result["title"] or self.account_id is None:
             return
         try:
-            self.runtime.application.create_event(
+            event = self.runtime.application.create_event(
                 self.account_id,
                 result["calendar"],
                 result["title"],
@@ -263,7 +263,7 @@ class ActionMixin:
         except (ValueError, HcbError) as exc:
             self.notify(str(exc), severity="error")
             return
-        self.refresh_workspace()
+        self.apply_workspace_event_mutation(event)
         self.notify("Event created")
 
     def _event_edit_result(self: Any, result: dict[str, str] | None) -> None:
@@ -278,7 +278,7 @@ class ActionMixin:
         try:
             if result["calendar"] != event.calendar_id:
                 self.runtime.application.move_event(self.account_id, event.id, result["calendar"])
-            self.runtime.application.update_event(
+            event = self.runtime.application.update_event(
                 self.account_id,
                 event.id,
                 summary=result["title"],
@@ -293,7 +293,7 @@ class ActionMixin:
         except (ValueError, HcbError) as exc:
             self.notify(str(exc), severity="error")
             return
-        self.refresh_workspace()
+        self.apply_workspace_event_mutation(event)
         self.notify("Event updated")
 
     def _confirm_editor_delete(self: Any, kind: Literal["task", "event"], item_id: str) -> None:
@@ -317,9 +317,7 @@ class ActionMixin:
         else:
             self.runtime.application.delete_events(self.account_id, [item_id])
             self.marked_events.discard(item_id)
-        if self.selected == (kind, item_id):
-            self.selected = None
-        self.refresh_workspace()
+        self.remove_workspace_item(kind, item_id)
         self.notify(f"{kind.title()} deleted")
 
     def _batch_ids(
@@ -388,16 +386,17 @@ class ActionMixin:
         if self.account_id is None:
             return False
         item_ids = [item.id for item in preview.items]
+        incremental = len(item_ids) == 1
         try:
             if preview.entity_type == "task":
                 if preview.action in {"complete", "reopen"}:
-                    self.runtime.application.complete_tasks(
+                    completion = self.runtime.application.complete_tasks_detailed(
                         self.account_id,
                         item_ids,
                         completed=preview.action == "complete",
                     )
                 elif preview.action == "delete":
-                    self.runtime.application.delete_tasks(self.account_id, item_ids)
+                    deleted_tasks = self.runtime.application.delete_tasks(self.account_id, item_ids)
                     self.marked.difference_update(item_ids)
                 else:
                     raise ValueError("unsupported task batch action")
@@ -405,16 +404,29 @@ class ActionMixin:
                 response = preview.response_status
                 if response is None:
                     raise ValueError("batch RSVP has no response")
-                self.runtime.application.respond_events(self.account_id, item_ids, response)
+                responded_events = self.runtime.application.respond_events(
+                    self.account_id, item_ids, response
+                )
             elif preview.action == "delete":
-                self.runtime.application.delete_events(self.account_id, item_ids)
+                deleted_events = self.runtime.application.delete_events(self.account_id, item_ids)
                 self.marked_events.difference_update(item_ids)
             else:
                 raise ValueError("unsupported event batch action")
         except (ValueError, HcbError) as exc:
             self.notify(str(exc), severity="error")
             return False
-        self.refresh_workspace()
+        if incremental and preview.entity_type == "task":
+            if preview.action in {"complete", "reopen"}:
+                for task in (*completion.tasks, *completion.successors):
+                    self.apply_workspace_task_mutation(task)
+            else:
+                self.remove_workspace_item("task", deleted_tasks[0].id)
+        elif incremental and preview.action == "respond":
+            self.apply_workspace_event_mutation(responded_events[0])
+        elif incremental and preview.action == "delete":
+            self.remove_workspace_item("event", deleted_events[0].id)
+        else:
+            self.refresh_workspace()
         action = "RSVP" if preview.action == "respond" else preview.action
         self.notify(f"Queued {action} for {len(item_ids)} {preview.entity_type}(s)")
         return True
