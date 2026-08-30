@@ -404,9 +404,7 @@ class ActionMixin:
                 response = preview.response_status
                 if response is None:
                     raise ValueError("batch RSVP has no response")
-                responded_events = self.runtime.application.respond_events(
-                    self.account_id, item_ids, response
-                )
+                self.runtime.application.respond_events(self.account_id, item_ids, response)
             elif preview.action == "delete":
                 deleted_events = self.runtime.application.delete_events(self.account_id, item_ids)
                 self.marked_events.difference_update(item_ids)
@@ -422,7 +420,7 @@ class ActionMixin:
             else:
                 self.remove_workspace_item("task", deleted_tasks[0].id)
         elif incremental and preview.action == "respond":
-            self.apply_workspace_event_mutation(responded_events[0])
+            self._refresh_mutation_chrome()
         elif incremental and preview.action == "delete":
             self.remove_workspace_item("event", deleted_events[0].id)
         else:

@@ -1,9 +1,10 @@
 import asyncio
+from datetime import date
 from pathlib import Path
 from time import perf_counter
 
 from hcb.benchmarks import create_large_fixture, measure_large_fixture
-from hcb.models import Account, Task, TaskList
+from hcb.models import Account, Calendar, DateTimeKind, Event, EventDateTime, Task, TaskList
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
 from hcb.storage import Storage
@@ -60,3 +61,111 @@ def test_virtual_workspace_switches_ten_thousand_rows_without_row_widgets(tmp_pa
     # Generous CI tripwires: local development should be materially faster.
     assert to_agenda < 1.0
     assert to_tasks < 1.0
+
+
+def test_singleton_workspace_mutations_patch_ten_thousand_rows(tmp_path: Path) -> None:
+    """Keep editor-save equivalents off the full workspace-refresh path."""
+
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    with Storage(paths.database_file) as storage, storage.transaction():
+        storage.upsert_account(Account("work", "performance@example.test"))
+        storage.upsert_task_list(TaskList("inbox", "work", "Inbox"))
+        for index in range(10_000):
+            storage.upsert_task(Task(f"task-{index}", "work", "inbox", f"Task {index:05d}"))
+
+    async def scenario() -> tuple[float, float, float, int, int]:
+        app = HcbApp(Runtime(paths, environ={}))
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            content = app.query_one("#content", WorkspaceTable)
+            content.move_cursor(row=5_000, animate=False)
+            await pilot.pause()
+            selected = app._selected_task()
+            assert selected is not None
+
+            updated = app.runtime.application.update_task(
+                "work", selected.id, title="A updated performance task"
+            )
+            started = perf_counter()
+            app.apply_workspace_task_mutation(updated)
+            await pilot.pause()
+            update_seconds = perf_counter() - started
+            assert content.index_of("task", updated.id) is not None
+
+            created = app.runtime.application.create_task(
+                "work", "inbox", "A created performance task"
+            )
+            started = perf_counter()
+            app.apply_workspace_task_mutation(created)
+            await pilot.pause()
+            create_seconds = perf_counter() - started
+            assert content.index_of("task", created.id) is not None
+
+            completed = app.runtime.application.complete_task("work", created.id)
+            started = perf_counter()
+            app.apply_workspace_task_mutation(completed)
+            await pilot.pause()
+            complete_seconds = perf_counter() - started
+            return (
+                update_seconds,
+                create_seconds,
+                complete_seconds,
+                content.row_count,
+                len(tuple(content.walk_children())),
+            )
+
+    update_seconds, create_seconds, complete_seconds, row_count, mounted = asyncio.run(scenario())
+    assert row_count == 10_001
+    assert mounted < 20
+    # Regression tripwires, intentionally looser than an interactive local run.
+    assert update_seconds < 0.8
+    assert create_seconds < 0.8
+    assert complete_seconds < 0.8
+
+
+def test_singleton_event_workspace_mutations_patch_two_thousand_rows(tmp_path: Path) -> None:
+    """Keep event editor saves and creates on the same incremental path."""
+
+    paths = AppPaths(tmp_path / "config", tmp_path / "data", tmp_path / "cache")
+    start = EventDateTime(DateTimeKind.DATE, date(2026, 8, 30))
+    end = EventDateTime(DateTimeKind.DATE, date(2026, 8, 31))
+    with Storage(paths.database_file) as storage, storage.transaction():
+        storage.upsert_account(Account("work", "performance@example.test"))
+        storage.upsert_calendar(Calendar("calendar", "work", "Calendar"))
+        for index in range(2_000):
+            storage.upsert_event(
+                Event(f"event-{index}", "work", "calendar", f"Event {index:05d}", start, end)
+            )
+
+    async def scenario() -> tuple[float, float, int]:
+        app = HcbApp(Runtime(paths, environ={}), selected_date=date(2026, 8, 30))
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            app.action_surface("Agenda")
+            await pilot.pause()
+            content = app.query_one("#content", WorkspaceTable)
+            event = app.cache.events[1_000]
+
+            updated = app.runtime.application.update_event(
+                "work", event.id, summary="Updated performance event"
+            )
+            started = perf_counter()
+            app.apply_workspace_event_mutation(updated)
+            await pilot.pause()
+            update_seconds = perf_counter() - started
+            assert content.index_of("event", updated.id) is not None
+
+            created = app.runtime.application.create_event(
+                "work", "calendar", "Created performance event", start, end
+            )
+            started = perf_counter()
+            app.apply_workspace_event_mutation(created)
+            await pilot.pause()
+            create_seconds = perf_counter() - started
+            assert content.index_of("event", created.id) is not None
+            return update_seconds, create_seconds, content.row_count
+
+    update_seconds, create_seconds, row_count = asyncio.run(scenario())
+    assert row_count == 2_001
+    assert update_seconds < 0.8
+    assert create_seconds < 0.8

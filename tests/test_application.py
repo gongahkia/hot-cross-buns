@@ -461,7 +461,9 @@ def test_completed_recurring_task_creates_one_successor(app: ApplicationService)
     task = app.create_task(
         "a", "inbox", "Daily task", notes=notes, due=date(2026, 8, 21), due_time_zone="UTC"
     )
-    app.complete_task("a", task.id)
+    result = app.complete_tasks_detailed("a", [task.id])
+    assert [item.id for item in result.tasks] == [task.id]
+    assert len(result.successors) == 1
     app.reconcile_task_recurrence("a")
     occurrences = [
         parse_task_recurrence_notes(item.notes or "").marker

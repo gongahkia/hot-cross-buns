@@ -402,6 +402,8 @@ class WorkspaceMixin:
             content.select_workspace_row(
                 target_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
             )
+        elif self.selected is None or content.index_of(*self.selected) is None:
+            self._select_first_workspace_row()
         self._update_surface_title()
 
     def _reconcile_event_workspace_row(self: Any, event: Event) -> None:
@@ -441,6 +443,8 @@ class WorkspaceMixin:
             content.select_workspace_row(
                 target_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
             )
+        elif self.selected is None or content.index_of(*self.selected) is None:
+            self._select_first_workspace_row()
         self._update_surface_title()
 
     def apply_workspace_task_mutation(self: Any, task: Task) -> None:
