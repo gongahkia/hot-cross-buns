@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from rich.color import Color as RichColor
 from rich.style import Style
 from rich.text import Text
-from textual import events
+from textual import events, work
 from textual._text_area_theme import TextAreaTheme
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -1367,6 +1367,16 @@ class ItemViewScreen(ModalScreen[str | None]):
         Binding("escape", "close", "Close"),
     ]
 
+    class ContentReady(Message):
+        """Deliver rich, non-essential detail content from the parser worker."""
+
+        def __init__(
+            self, screen: ItemViewScreen, sections: tuple[tuple[str, Text], ...]
+        ) -> None:
+            self.screen = screen
+            self.sections = sections
+            super().__init__()
+
     def __init__(self, hcb: HcbApp, item: Task | Event | DriveFile) -> None:
         super().__init__()
         self.hcb = hcb
@@ -1449,7 +1459,7 @@ class ItemViewScreen(ModalScreen[str | None]):
             None,
         )
 
-    def _event_details(self, event: Event) -> Text:
+    def _event_core_details(self, event: Event) -> Text:
         reminders = (
             "Default reminders"
             if event.reminder_use_default
@@ -1494,6 +1504,10 @@ class ItemViewScreen(ModalScreen[str | None]):
             text.append(
                 ", ".join(f"{label}={'yes' if value else 'no'}" for label, value in permissions)
             )
+        return text
+
+    def _event_additional_details(self, event: Event) -> Text:
+        text = Text()
         if event.attendees:
             text.append("\n\nAttendees:")
             for attendee in event.attendees:
@@ -1513,6 +1527,39 @@ class ItemViewScreen(ModalScreen[str | None]):
             text.append(f"\nProperties:\n{json.dumps(properties, indent=2, sort_keys=True)}")
         return text
 
+    def _event_details(self, event: Event) -> Text:
+        """Return the complete event detail text for callers needing it synchronously."""
+        text = self._event_core_details(event)
+        text.append_text(self._event_additional_details(event))
+        return text
+
+    @work(thread=True, group="item-view-content", exit_on_error=False)
+    def _load_deferred_content(self) -> None:
+        """Parse potentially large Rich content after the read-only card is visible."""
+        link_style = role_rich_style(self.hcb.runtime.config.theme.roles.link)
+        item = self.item
+        sections: tuple[tuple[str, Text], ...]
+        if isinstance(item, Task):
+            sections = (
+                (
+                    "item-view-notes",
+                    render_readonly_markup(item.notes or "No notes", link_style=link_style),
+                ),
+            )
+        elif isinstance(item, Event):
+            sections = (
+                ("item-view-extra", self._event_additional_details(item)),
+                (
+                    "item-view-description",
+                    render_readonly_markup(
+                        item.description or "No description", link_style=link_style
+                    ),
+                ),
+            )
+        else:
+            return
+        self.post_message(self.ContentReady(self, sections))
+
     def compose(self) -> ComposeResult:
         item = self.item
         title = "Task" if isinstance(item, Task) else "Event" if isinstance(item, Event) else "File"
@@ -1524,11 +1571,7 @@ class ItemViewScreen(ModalScreen[str | None]):
                     yield Static(self._task_details(item), classes="item-view-section")
                     yield Label("Notes", classes="event-field-label")
                     yield Static(
-                        render_readonly_markup(
-                            item.notes or "No notes",
-                            link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link),
-                        ),
-                        classes="item-view-section",
+                        "Loading notes…", id="item-view-notes", classes="item-view-section"
                     )
                 elif isinstance(item, Event):
                     yield Static(
@@ -1538,7 +1581,8 @@ class ItemViewScreen(ModalScreen[str | None]):
                         ),
                         id="item-view-title",
                     )
-                    yield Static(self._event_details(item), classes="item-view-section")
+                    yield Static(self._event_core_details(item), classes="item-view-section")
+                    yield Static("Loading additional details…", id="item-view-extra")
                     if location := google_maps_url(item.location or ""):
                         text = Text(f"{LOCATION_MAP_ICON} {item.location}")
                         text.stylize(
@@ -1551,10 +1595,8 @@ class ItemViewScreen(ModalScreen[str | None]):
                         yield Static(text, classes="item-view-location")
                     yield Label("Description", classes="event-field-label")
                     yield Static(
-                        render_readonly_markup(
-                            item.description or "No description",
-                            link_style=role_rich_style(self.hcb.runtime.config.theme.roles.link),
-                        ),
+                        "Loading description…",
+                        id="item-view-description",
                         classes="item-view-section",
                     )
                 else:
@@ -1596,6 +1638,20 @@ class ItemViewScreen(ModalScreen[str | None]):
         if role.background not in {None, "ansi_default", "transparent"}:
             title.styles.background = role.background
         title.styles.text_style = role.text_style
+        if not isinstance(self.item, DriveFile):
+            self._load_deferred_content()
+
+    def on_item_view_screen_content_ready(self, event: ContentReady) -> None:
+        if event.screen is not self:
+            return
+        for section_id, content in event.sections:
+            self.query_one(f"#{section_id}", Static).update(content)
+        extra = self.query_one("#item-view-extra", Static) if isinstance(self.item, Event) else None
+        if extra is not None:
+            extra.display = bool(extra.content)
+
+    def on_unmount(self) -> None:
+        self.workers.cancel_group(self, "item-view-content")
 
     def action_edit(self) -> None:
         if not isinstance(self.item, DriveFile):
