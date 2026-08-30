@@ -263,6 +263,32 @@ class Conflict:
 
 
 @dataclass(frozen=True, slots=True)
+class CapturePreferences:
+    """User-customizable natural-language capture parsing preferences."""
+
+    default_event_duration_minutes: int = 30
+    remove_recognized_text: bool = True
+    task_aliases: tuple[str, ...] = ("task",)
+    event_aliases: tuple[str, ...] = ("event",)
+    high_priority_aliases: tuple[str, ...] = ("p1",)
+    medium_priority_aliases: tuple[str, ...] = ("p2",)
+    low_priority_aliases: tuple[str, ...] = ("p3",)
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.default_event_duration_minutes <= 1_440:
+            raise ValueError("default_event_duration_minutes must be between 1 and 1440")
+        for name, aliases in (
+            ("task_aliases", self.task_aliases),
+            ("event_aliases", self.event_aliases),
+            ("high_priority_aliases", self.high_priority_aliases),
+            ("medium_priority_aliases", self.medium_priority_aliases),
+            ("low_priority_aliases", self.low_priority_aliases),
+        ):
+            if any(not alias.strip() for alias in aliases):
+                raise ValueError(f"{name} cannot contain an empty alias")
+
+
+@dataclass(frozen=True, slots=True)
 class Preferences:
     theme: str = "system"
     keymap: str = "default"
@@ -279,6 +305,7 @@ class Preferences:
     reminder_sync_mode: str = "all"
     time_zone: str = "UTC"
     date_time_format: str = "friendly"
+    capture: CapturePreferences = field(default_factory=CapturePreferences)
 
     def __post_init__(self) -> None:
         if not self.editor.strip():

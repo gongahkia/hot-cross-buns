@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 
+from .models import CapturePreferences as QuickCapturePreferences
+
 QuickCaptureKind = Literal["task", "event"]
 TaskPriority = Literal["none", "low", "medium", "high"]
 RecurrenceFrequency = Literal["daily", "weekly", "monthly", "yearly"]
@@ -60,17 +62,6 @@ _FREQUENCIES: dict[str, RecurrenceFrequency] = {
     "month": "monthly",
     "year": "yearly",
 }
-
-
-@dataclass(frozen=True, slots=True)
-class QuickCapturePreferences:
-    default_event_duration_minutes: int = 30
-    remove_recognized_text: bool = True
-    task_aliases: tuple[str, ...] = ("task",)
-    event_aliases: tuple[str, ...] = ("event",)
-    high_priority_aliases: tuple[str, ...] = ("p1",)
-    medium_priority_aliases: tuple[str, ...] = ("p2",)
-    low_priority_aliases: tuple[str, ...] = ("p3",)
 
 
 @dataclass(frozen=True, slots=True)
