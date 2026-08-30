@@ -458,6 +458,8 @@ from .tui_components import (  # noqa: E402, F401
     SuspendContext,
     TerminalTextArea,
     UrlOpener,
+    WorkspaceRow,
+    WorkspaceTable,
     _open_url,
     _run_editor,
 )
@@ -594,7 +596,7 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
             yield Static(id="sidebar-resize", classes="column-resize-handle")
             with Vertical(id="center"):
                 yield Static(id="surface-title")
-                yield ListView(id="content")
+                yield WorkspaceTable()
         yield Footer()
 
 

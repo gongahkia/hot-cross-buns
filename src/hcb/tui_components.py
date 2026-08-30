@@ -23,9 +23,11 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.color import Color
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
+    DataTable,
     Label,
     ListItem,
     ListView,
@@ -150,6 +152,99 @@ class EntityRow(ListItem):
         self.kind = kind
         self.item_id = item_id
         self.palette_action = action
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceRow:
+    """A workspace record rendered by the virtual table."""
+
+    kind: str
+    item_id: str
+    label: Text
+
+
+class WorkspaceTable(DataTable[Text]):
+    """A single-column, virtualized workspace list with stable entity identities."""
+
+    class LinkClicked(Message):
+        """Posted when a safe Rich link in a workspace row is activated."""
+
+        def __init__(self, table: WorkspaceTable, url: str) -> None:
+            self.table = table
+            self.url = url
+            super().__init__()
+
+    class RowMarked(Message):
+        """Posted for Ctrl/Cmd-click selection without opening the item view."""
+
+        def __init__(self, table: WorkspaceTable, row: WorkspaceRow) -> None:
+            self.table = table
+            self.row = row
+            super().__init__()
+
+    def __init__(self, *, id: str = "content") -> None:
+        super().__init__(
+            id=id,
+            cursor_type="row",
+            show_header=False,
+            show_row_labels=False,
+            cell_padding=0,
+        )
+        self._workspace_rows: tuple[WorkspaceRow, ...] = ()
+        self._workspace_column_added = False
+
+    def on_mount(self) -> None:
+        if not self._workspace_column_added:
+            # A fixed display width avoids measuring every title to determine the
+            # table width. The table remains horizontally scrollable for long rows.
+            self.add_column("", key="item", width=4096)
+            self._workspace_column_added = True
+
+    def replace_rows(self, rows: tuple[WorkspaceRow, ...], *, height: int = 1) -> None:
+        """Replace data rows in one paint batch without mounting child widgets."""
+        self._workspace_rows = rows
+        with self.app.batch_update():
+            self.clear()
+            for row in rows:
+                self.add_row(row.label, height=height)
+
+    @property
+    def workspace_rows(self) -> tuple[WorkspaceRow, ...]:
+        """The domain rows in their current visual order."""
+        return self._workspace_rows
+
+    def row_at(self, index: int) -> WorkspaceRow | None:
+        if not 0 <= index < len(self._workspace_rows):
+            return None
+        return self._workspace_rows[index]
+
+    async def _on_click(self, event: events.Click) -> None:
+        url = event.style.link
+        if isinstance(url, str) and is_web_url(url):
+            self.post_message(self.LinkClicked(self, url))
+            event.stop()
+            event.prevent_default()
+            return
+        row_index = event.style.meta.get("row")
+        if (
+            (event.ctrl or event.meta)
+            and isinstance(row_index, int)
+            and (row := self.row_at(row_index)) is not None
+            and row.kind in {"task", "event"}
+        ):
+            self.post_message(self.RowMarked(self, row))
+            event.stop()
+            event.prevent_default()
+            return
+        if isinstance(row_index, int) and self.row_at(row_index) is not None:
+            self.move_cursor(row=row_index, animate=False)
+            self.post_message(
+                DataTable.RowSelected(self, row_index, self.ordered_rows[row_index].key)
+            )
+            event.stop()
+            event.prevent_default()
+            return
+        await super()._on_click(event)
 
 
 class TerminalTextArea(TextArea):

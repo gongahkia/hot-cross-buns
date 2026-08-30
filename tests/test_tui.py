@@ -55,6 +55,8 @@ from hcb.tui import (
     ScheduleScreen,
     SettingsScreen,
     TerminalTextArea,
+    WorkspaceRow,
+    WorkspaceTable,
     emoji_suggestions,
     google_maps_url,
     linkify_urls,
@@ -94,6 +96,10 @@ def app_test(
     run(scenario())
 
 
+def workspace_rows(app: HcbApp) -> tuple[WorkspaceRow, ...]:
+    return app.query_one("#content", WorkspaceTable).workspace_rows
+
+
 async def activate_palette(pilot: object, app: HcbApp, query_text: str) -> None:
     await pilot.press("/")  # type: ignore[attr-defined]
     await pilot.pause()  # type: ignore[attr-defined]
@@ -109,7 +115,7 @@ def test_startup_surface_switching_and_narrow_layout(tmp_path: Path) -> None:
 
     async def assertions(pilot: object) -> None:
         assert "Tasks" in str(app.query_one("#surface-title", Static).render())
-        assert len(app.query_one("#content", ListView).children) == 1
+        assert len(workspace_rows(app)) == 1
         await pilot.press("3")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.surface == "Agenda"
@@ -153,8 +159,7 @@ def test_notes_surface_handles_tasks_without_notes(tmp_path: Path) -> None:
     async def assertions(pilot: object) -> None:
         app.action_surface("Notes")
         await pilot.pause()  # type: ignore[attr-defined]
-        rows = app.query_one("#content", ListView).children
-        labels = [str(row.query_one("Label").render()) for row in rows]
+        labels = [str(row.label) for row in workspace_rows(app)]
         assert any("Untitled note" in label for label in labels)
 
     app_test(app, assertions)
@@ -179,8 +184,7 @@ def test_agenda_uses_the_configured_friendly_date_time_format(tmp_path: Path) ->
     async def assertions(pilot: object) -> None:
         await pilot.press("3")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
-        rows = app.query_one("#content", ListView).children
-        labels = [str(row.query_one("Label").render()) for row in rows]
+        labels = [str(row.label) for row in workspace_rows(app)]
         assert any("26 May 2026, 7:23pm" in label for label in labels), labels
         assert all("T11:23:00" not in label for label in labels)
 
@@ -202,8 +206,7 @@ def test_day_surface_includes_timed_events_ending_on_the_selected_day(tmp_path: 
     async def assertions(pilot: object) -> None:
         app.action_surface("Day")
         await pilot.pause()  # type: ignore[attr-defined]
-        content = app.query_one("#content", ListView)
-        assert event.id in {row.item_id for row in content.query(EntityRow)}
+        assert event.id in {row.item_id for row in workspace_rows(app)}
 
     app_test(app, assertions)
 
@@ -410,12 +413,8 @@ def test_completed_tasks_are_struck_through_in_detail_and_workspace(tmp_path: Pa
     assert any(isinstance(span.style, Style) and span.style.strike for span in title.spans)
 
     async def assertions(pilot: object) -> None:
-        row = next(
-            item
-            for item in app.query_one("#content", ListView).children
-            if isinstance(item, EntityRow) and item.item_id == task.id
-        )
-        label = row.query_one(Label).render()
+        row = next(item for item in workspace_rows(app) if item.item_id == task.id)
+        label = row.label
         spans = getattr(label, "spans", ())
         assert any(getattr(span.style, "dim", False) for span in spans)
         assert any(getattr(span.style, "strike", False) for span in spans)
@@ -430,19 +429,17 @@ def test_content_selection_persistently_marks_the_active_row(tmp_path: Path) -> 
     app = HcbApp(runtime)
 
     async def assertions(pilot: object) -> None:
-        content = app.query_one("#content", ListView)
-        rows = tuple(content.query(EntityRow))
+        content = app.query_one("#content", WorkspaceTable)
+        rows = workspace_rows(app)
 
-        content.index = 1
+        content.move_cursor(row=1, animate=False)
         await pilot.pause()  # type: ignore[attr-defined]
 
         assert app.selected == ("task", rows[1].item_id)
-        assert rows[1].has_class("hcb-selected")
-        assert not rows[0].has_class("hcb-selected")
 
         app.query_one("#resources", ListView).focus()
         await pilot.pause()  # type: ignore[attr-defined]
-        assert rows[1].has_class("hcb-selected")
+        assert content.row_at(content.cursor_row) == rows[1]
 
     app_test(app, assertions)
 
@@ -451,7 +448,7 @@ def test_content_enter_opens_a_readonly_view_and_e_opens_the_editor(tmp_path: Pa
     app = HcbApp(seeded_runtime(tmp_path))
 
     async def assertions(pilot: object) -> None:
-        content = app.query_one("#content", ListView)
+        content = app.query_one("#content", WorkspaceTable)
         content.focus()
         await pilot.press("enter")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
@@ -577,7 +574,7 @@ def test_content_rows_scroll_horizontally_for_long_titles(tmp_path: Path) -> Non
     app = HcbApp(runtime)
 
     async def assertions(pilot: object) -> None:
-        content = app.query_one("#content", ListView)
+        content = app.query_one("#content", WorkspaceTable)
         assert content.max_scroll_x > 0
         content.scroll_to(content.max_scroll_x, animate=False, immediate=True)
         await pilot.pause()  # type: ignore[attr-defined]
@@ -624,7 +621,7 @@ def test_resource_selection_persistently_marks_the_active_filter(tmp_path: Path)
 
         app.resource_filter = ("calendar", calendar.id)
         app._render_chrome(refresh_resources=False)
-        app.query_one("#content", ListView).focus()
+        app.query_one("#content", WorkspaceTable).focus()
         await pilot.pause()  # type: ignore[attr-defined]
         assert work.has_class("hcb-selected")
         assert not plans.has_class("hcb-selected")
@@ -963,8 +960,13 @@ def test_task_create_edit_complete_and_delete(tmp_path: Path) -> None:
         app.screen.query_one("#editor-title", Input).value = "Created in TUI"
         await pilot.click("#save")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
-        rows = app.query_one("#content", ListView)
-        rows.index = len(rows.children) - 1
+        rows = app.query_one("#content", WorkspaceTable)
+        created_index = next(
+            index
+            for index, row in enumerate(workspace_rows(app))
+            if "Created in TUI" in str(row.label)
+        )
+        rows.move_cursor(row=created_index, animate=False)
         await pilot.pause()  # type: ignore[attr-defined]
         await pilot.press("space")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
@@ -1064,8 +1066,7 @@ def test_no_account_onboarding_is_actionable_and_offline(
         assert app.screen.query_one("#onboard-connect", Button).display
         state = str(app.query_one("#sync-state", Static).render())
         assert "no network activity" in state
-        row = app.query_one("#content", ListView).children[0]
-        assert "hcb auth connect" in str(row.query_one("Label").render())
+        assert "hcb auth connect" in str(workspace_rows(app)[0].label)
         await pilot.press("escape")  # type: ignore[attr-defined]
 
     app_test(app, assertions, size=(58, 24))
@@ -1915,12 +1916,8 @@ def test_pointer_marking_and_batch_review_show_exact_task_change(tmp_path: Path)
 
     async def actions(pilot: object) -> None:
         task = app.cache.tasks[0]
-        row = next(
-            item
-            for item in app.query_one("#content", ListView).children
-            if isinstance(item, EntityRow) and item.item_id == task.id
-        )
-        await pilot.click(row, control=True)  # type: ignore[attr-defined]
+        content = app.query_one("#content", WorkspaceTable)
+        await pilot.click(content, offset=(4, 0), control=True)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert task.id in app.marked
         assert "selected: 1 task(s)" in str(app.query_one("#surface-title", Static).render())
@@ -1991,26 +1988,26 @@ def test_resize_preserves_unicode_selection_and_restores_sidebar(tmp_path: Path)
     app = HcbApp(runtime)
 
     async def assertions(pilot: object) -> None:
-        rows = app.query_one("#content", ListView)
-        rows.index = len(rows.children) - 1
+        rows = app.query_one("#content", WorkspaceTable)
+        rows.move_cursor(row=rows.row_count - 1, animate=False)
         await pilot.pause()  # type: ignore[attr-defined]
-        selected = rows.highlighted_child
+        selected = rows.row_at(rows.cursor_row)
         assert selected is not None
         selected_id = selected.item_id
-        assert "長い予定" in str(selected.query_one("Label").render())
+        assert "長い予定" in str(selected.label)
 
         await pilot.resize_terminal(44, 18)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("very-narrow")
-        assert rows.highlighted_child is not None
-        assert rows.highlighted_child.item_id == selected_id
+        assert rows.row_at(rows.cursor_row) is not None
+        assert rows.row_at(rows.cursor_row).item_id == selected_id
         assert app.query_one("#sidebar").display is False
 
         await pilot.resize_terminal(120, 38)  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert not app.has_class("narrow")
-        assert rows.highlighted_child is not None
-        assert rows.highlighted_child.item_id == selected_id
+        assert rows.row_at(rows.cursor_row) is not None
+        assert rows.row_at(rows.cursor_row).item_id == selected_id
         assert app.query_one("#sidebar").display is True
 
     app_test(app, assertions)

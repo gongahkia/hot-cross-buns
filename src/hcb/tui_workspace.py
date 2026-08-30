@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from rich.text import Text
 from textual.widgets import (
     Button,
+    DataTable,
     ListView,
     Static,
 )
@@ -18,11 +19,13 @@ from .application import (
     SearchResult,
 )
 from .models import DriveFile, Event, Task, TaskStatus
-from .tui import role_rich_style
+from .tui import linkify_urls, role_rich_style
 from .tui_components import (
     CachedWorkspace,
     EntityRow,
     LoadingScreen,
+    WorkspaceRow,
+    WorkspaceTable,
 )
 
 if TYPE_CHECKING:
@@ -66,13 +69,14 @@ class WorkspaceMixin:
         self.query_one("#resources", ListView).clear()
         self.query_one("#sync-state", Static).update("Not connected · no network activity")
         self.query_one("#surface-title", Static).update("Welcome")
-        content = self.query_one("#content", ListView)
-        content.clear()
-        content.append(
-            EntityRow(
-                "No account configured. Run: hcb auth connect ACCOUNT EMAIL",
-                kind="onboarding",
-                item_id="connect",
+        content = self.query_one("#content", WorkspaceTable)
+        content.replace_rows(
+            (
+                WorkspaceRow(
+                    "onboarding",
+                    "connect",
+                    Text("No account configured. Run: hcb auth connect ACCOUNT EMAIL"),
+                ),
             )
         )
 
@@ -230,8 +234,8 @@ class WorkspaceMixin:
         self.query_one("#surface-title", Static).update(
             f"{self.surface}  ·  {self.selected_date:%A, %d %B %Y}{selection}"
         )
-        content = self.query_one("#content", ListView)
-        content.clear()
+        content = self.query_one("#content", WorkspaceTable)
+        rows: list[WorkspaceRow] = []
         if self.surface in {"Tasks", "Notes"}:
             tasks = self.cache.tasks
             if self.resource_filter and self.resource_filter[0] == "task-list":
@@ -276,45 +280,50 @@ class WorkspaceMixin:
                     style = role_rich_style(self.runtime.config.theme.roles.completed_item)
                     label.stylize(style)
                     label.stylize(style, title_start, title_end)
-                row = EntityRow(label, kind="task", item_id=task.id)
-                if task.status is TaskStatus.COMPLETED:
-                    row.add_class("hcb-completed")
-                content.append(row)
+                rows.append(WorkspaceRow("task", task.id, linkify_urls(label)))
         else:
             events = self._events_for_surface()
+            calendar_titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
             for event in events:
                 when = self.format_date_time(event.start.value)
                 marked = "*" if event.id in self.marked_events else " "
                 extras: list[str] = []
-                if self.runtime.config.tui.agenda_show_calendar:
-                    calendar = next(
-                        (item for item in self.cache.calendars if item.id == event.calendar_id),
-                        None,
-                    )
-                    if calendar is not None:
-                        extras.append(calendar.summary)
+                if self.runtime.config.tui.agenda_show_calendar and (
+                    calendar := calendar_titles.get(event.calendar_id)
+                ):
+                    extras.append(calendar)
                 if self.runtime.config.tui.agenda_show_location and event.location:
                     extras.append(event.location)
                 suffix = f"  · {' · '.join(extras)}" if extras else ""
-                content.append(
-                    EntityRow(
-                        f"{marked} {when}  {event.summary}{suffix}",
-                        kind="event",
-                        item_id=event.id,
+                rows.append(
+                    WorkspaceRow(
+                        "event",
+                        event.id,
+                        linkify_urls(f"{marked} {when}  {event.summary}{suffix}"),
                     )
                 )
             if self.surface == "Month" and not events:
-                content.append(EntityRow("No events this month", kind="empty", item_id="month"))
-        if not content.children:
-            content.append(
-                EntityRow(
-                    f"No {self.surface.lower()} in the local cache",
-                    kind="empty",
-                    item_id="empty",
+                rows.append(WorkspaceRow("empty", "month", Text("No events this month")))
+        if not rows:
+            rows.append(
+                WorkspaceRow(
+                    "empty",
+                    "empty",
+                    Text(f"No {self.surface.lower()} in the local cache"),
                 )
             )
-        content.index = 0
-        self._update_content_selection()
+        content.replace_rows(tuple(rows), height=2 if self.density == "comfortable" else 1)
+        selected_index = next(
+            (
+                index
+                for index, row in enumerate(rows)
+                if (row.kind, row.item_id) == self.selected
+            ),
+            0,
+        )
+        content.move_cursor(row=selected_index, animate=False)
+        selected = rows[selected_index]
+        self.selected = (selected.kind, selected.item_id)
 
     def _selection_summary(self: Any) -> str:
         parts: list[str] = []
@@ -325,12 +334,15 @@ class WorkspaceMixin:
         return f"  ·  selected: {', '.join(parts)}" if parts else ""
 
     def _update_content_selection(self: Any) -> None:
-        """Keep the active workspace row visibly selected."""
-        content = self.query_one("#content", ListView)
-        for row in content.query(EntityRow):
-            selected = (row.kind, row.item_id) == self.selected
-            row.set_class(selected, "hcb-selected")
-            self._apply_selected_item_role(row, selected)
+        """Move the virtual-table cursor to the selected workspace identity."""
+        content = self.query_one("#content", WorkspaceTable)
+        if self.selected is None:
+            return
+        for index in range(content.row_count):
+            row = content.row_at(index)
+            if row is not None and (row.kind, row.item_id) == self.selected:
+                content.move_cursor(row=index, animate=False)
+                return
 
     def _update_resource_selection(self: Any) -> None:
         """Keep the active resource visible after focus moves to another pane."""
@@ -453,12 +465,13 @@ class WorkspaceMixin:
         elif button_id and button_id.startswith("surface-"):
             self.action_surface(button_id.removeprefix("surface-").title())
 
-    def on_list_view_highlighted(self: Any, event: ListView.Highlighted) -> None:
-        if event.list_view.id != "content" or not isinstance(event.item, EntityRow):
+    def on_data_table_row_highlighted(self: Any, event: DataTable.RowHighlighted) -> None:
+        if event.data_table.id != "content" or not isinstance(event.data_table, WorkspaceTable):
             return
-        row = event.item
+        row = event.data_table.row_at(event.cursor_row)
+        if row is None:
+            return
         self.selected = (row.kind, row.item_id)
-        self._update_content_selection()
 
     def on_list_view_selected(self: Any, event: ListView.Selected) -> None:
         if not isinstance(event.item, EntityRow):
@@ -475,6 +488,20 @@ class WorkspaceMixin:
         self.resource_filter = None if row.kind == "resource-all" else (row.kind, row.item_id)
         self._render_chrome(refresh_resources=False)
         self._render_surface()
+
+    def on_data_table_row_selected(self: Any, event: DataTable.RowSelected) -> None:
+        if event.data_table.id != "content" or not isinstance(event.data_table, WorkspaceTable):
+            return
+        row = event.data_table.row_at(event.cursor_row)
+        if row is None:
+            return
+        self.selected = (row.kind, row.item_id)
+        if row.kind in {"task", "event"}:
+            self.action_view()
+
+    def on_workspace_table_row_marked(self: Any, event: WorkspaceTable.RowMarked) -> None:
+        self.selected = (event.row.kind, event.row.item_id)
+        self.action_mark()
 
     def _selected_task(self: Any) -> Task | None:
         if not self.selected or self.selected[0] != "task":

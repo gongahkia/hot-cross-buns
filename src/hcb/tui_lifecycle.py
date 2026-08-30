@@ -43,6 +43,7 @@ from .tui_components import (
     Input,
     OnboardingScreen,
     TerminalTextArea,
+    WorkspaceTable,
 )
 
 if TYPE_CHECKING:
@@ -619,6 +620,18 @@ class LifecycleMixin:
         self.action_mark()
         event.stop()
         event.prevent_default()
+
+    def on_workspace_table_link_clicked(self: Any, event: WorkspaceTable.LinkClicked) -> None:
+        """Open a workspace link without letting a row click open its item view."""
+        if not self.mouse_enabled:
+            return
+        try:
+            opened = self._url_opener(event.url)
+        except (OSError, webbrowser.Error) as exc:
+            self.notify(f"Could not open link: {exc}", severity="error")
+            return
+        if not opened:
+            self.notify("Could not open link in your default browser", severity="error")
 
     def on_mouse_move(self: Any, event: events.MouseMove) -> None:
         if self._resize_target is None:
