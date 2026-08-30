@@ -24,6 +24,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.color import Color
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.coordinate import Coordinate
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import (
@@ -190,20 +191,25 @@ class WorkspaceTable(DataTable[Text]):
             show_header=False,
             show_row_labels=False,
             cell_padding=0,
+            cursor_foreground_priority="renderable",
+            cursor_background_priority="renderable",
         )
         self._workspace_rows: tuple[WorkspaceRow, ...] = ()
+        self._selected_row_index: int | None = None
+        self._selection_style: Style | None = None
         self._workspace_column_added = False
 
     def on_mount(self) -> None:
         if not self._workspace_column_added:
-            # A fixed display width avoids measuring every title to determine the
-            # table width. The table remains horizontally scrollable for long rows.
-            self.add_column("", key="item", width=4096)
+            self.add_column("", key="item", width=1)
             self._workspace_column_added = True
 
     def replace_rows(self, rows: tuple[WorkspaceRow, ...], *, height: int = 1) -> None:
         """Replace data rows in one paint batch without mounting child widgets."""
         self._workspace_rows = rows
+        self._selected_row_index = None
+        self._selection_style = None
+        self.columns["item"].width = max((row.label.cell_len for row in rows), default=1)
         with self.app.batch_update():
             self.clear()
             for row in rows:
@@ -218,6 +224,34 @@ class WorkspaceTable(DataTable[Text]):
         if not 0 <= index < len(self._workspace_rows):
             return None
         return self._workspace_rows[index]
+
+    def update_workspace_row(self, index: int, row: WorkspaceRow) -> None:
+        """Patch one row without invalidating the table's virtual geometry."""
+        if not 0 <= index < len(self._workspace_rows):
+            return
+        rows = list(self._workspace_rows)
+        rows[index] = row
+        self._workspace_rows = tuple(rows)
+        self.update_cell_at(Coordinate(index, 0), self._rendered_row_label(index))
+
+    def select_workspace_row(self, index: int, style: Style) -> None:
+        """Apply selection styling to only the outgoing and incoming virtual rows."""
+        if not 0 <= index < len(self._workspace_rows):
+            return
+        previous = self._selected_row_index
+        if previous == index and self._selection_style == style:
+            return
+        self._selected_row_index = index
+        self._selection_style = style
+        if previous is not None and previous < len(self._workspace_rows):
+            self.update_cell_at(Coordinate(previous, 0), self._rendered_row_label(previous))
+        self.update_cell_at(Coordinate(index, 0), self._rendered_row_label(index))
+
+    def _rendered_row_label(self, index: int) -> Text:
+        label = self._workspace_rows[index].label.copy()
+        if index == self._selected_row_index and self._selection_style is not None:
+            label.stylize(self._selection_style)
+        return label
 
     async def _on_click(self, event: events.Click) -> None:
         url = event.style.link
@@ -1545,7 +1579,14 @@ class ItemViewScreen(ModalScreen[str | None]):
             self.post_message(
                 self.ContentReady(
                     self,
-                    ((section_id, render_readonly_markup(value or "No description", link_style=link_style)),),
+                    (
+                        (
+                            section_id,
+                            render_readonly_markup(
+                                value or "No description", link_style=link_style
+                            ),
+                        ),
+                    ),
                 )
             )
             return
@@ -1554,7 +1595,8 @@ class ItemViewScreen(ModalScreen[str | None]):
         for start in range(0, len(lines), 64):
             chunk = "".join(lines[start : start + 64])
             rendered.append_text(render_readonly_markup(chunk, link_style=link_style))
-            self.post_message(self.ContentReady(self, ((section_id, rendered.copy()),)))
+            if (start // 64 + 1) % 4 == 0 or start + 64 >= len(lines):
+                self.post_message(self.ContentReady(self, ((section_id, rendered.copy()),)))
             await asyncio.sleep(0)
 
     @work(group="item-view-content", exit_on_error=False)
@@ -1568,7 +1610,9 @@ class ItemViewScreen(ModalScreen[str | None]):
             )
         elif isinstance(item, Event):
             self.post_message(
-                self.ContentReady(self, (("item-view-extra", self._event_additional_details(item)),))
+                self.ContentReady(
+                    self, (("item-view-extra", self._event_additional_details(item)),)
+                )
             )
             await self._load_markup_progressively(
                 "item-view-description", item.description or "No description", link_style

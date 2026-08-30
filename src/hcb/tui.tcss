@@ -160,6 +160,11 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
     text-wrap: nowrap;
 }
 
+WorkspaceTable {
+    background: transparent;
+    color: $foreground;
+}
+
 ListView > ListItem {
     padding: 0 1;
     background: transparent;

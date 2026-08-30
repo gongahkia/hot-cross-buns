@@ -549,6 +549,8 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
         self.marked: set[str] = set()
         self.marked_events: set[str] = set()
         self._mini_month_days: dict[str, date] = {}
+        self._mini_month_render_key: tuple[date, int, str] | None = None
+        self._instance_badge_cache: dict[tuple[object, ...], str | None] = {}
         self.sidebar_width = self.runtime.config.tui.sidebar_width
         self._resize_target: Literal["sidebar"] | None = None
         self._resize_handle: Static | None = None

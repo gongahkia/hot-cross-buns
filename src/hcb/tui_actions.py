@@ -487,7 +487,7 @@ class ActionMixin:
                 self.marked_events.remove(event.id)
             else:
                 self.marked_events.add(event.id)
-        self._render_surface()
+        self._refresh_marked_workspace_row()
 
     def action_delete(self: Any) -> None:
         ids = self._batch_ids("task")

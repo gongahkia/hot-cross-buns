@@ -61,7 +61,9 @@ class LifecycleMixin:
     def on_mount(self: Any) -> None:
         self._apply_visual_config(self.runtime.config)
         self._observed_config_marker = self._config_marker()
-        self.set_interval(0.5, self._reload_visual_config)
+        # Config files are normally edited deliberately; polling twice per second
+        # creates needless filesystem work on every interactive frame sequence.
+        self.set_interval(2.0, self._reload_visual_config)
         self._apply_configured_keys(self.runtime.config)
         if self._stylesheet_error is not None:
             self.notify(self._stylesheet_error, severity="error", timeout=15)

@@ -58,6 +58,7 @@ class WorkspaceMixin:
             instance_ranges=tuple(self.runtime.storage.list_instance_ranges(self.account_id)),
             pending=snapshot.pending,
         )
+        self._instance_badge_cache.clear()
         self.marked.intersection_update(task.id for task in self.cache.tasks)
         self.marked_events.intersection_update(event.id for event in self.cache.events)
         self._render_chrome()
@@ -138,6 +139,14 @@ class WorkspaceMixin:
 
     def _render_mini_month(self: Any) -> None:
         """Render date controls for the sidebar's current calendar month."""
+        render_key = (
+            self.selected_date,
+            self.runtime.config.preferences.week_starts_on,
+            self.border_style,
+        )
+        if render_key == self._mini_month_render_key:
+            return
+        self._mini_month_render_key = render_key
         cal = calendar.TextCalendar(self.runtime.config.preferences.week_starts_on)
         self.query_one("#mini-month-title", Static).update(f"{self.selected_date:%B %Y}")
         weekdays = cal.formatweekheader(2)
@@ -230,10 +239,7 @@ class WorkspaceMixin:
         return rows
 
     def _render_surface(self: Any) -> None:
-        selection = self._selection_summary()
-        self.query_one("#surface-title", Static).update(
-            f"{self.surface}  ·  {self.selected_date:%A, %d %B %Y}{selection}"
-        )
+        self._update_surface_title()
         content = self.query_one("#content", WorkspaceTable)
         rows: list[WorkspaceRow] = []
         if self.surface in {"Tasks", "Notes"}:
@@ -256,52 +262,12 @@ class WorkspaceMixin:
                     task for task in tasks if task.due is not None or task.parent_id is not None
                 )
             for task, indent in self._task_rows(tasks):
-                marked = "*" if task.id in self.marked else " "
-                status = "✓" if task.status is TaskStatus.COMPLETED else "·"
-                due = (
-                    f"  {self.format_date(task.due)}"
-                    if task.due and self.runtime.config.tui.task_show_due
-                    else ""
-                )
-                note_lines = (task.notes or "").splitlines()
-                notes = (
-                    f" — {note_lines[0]}"
-                    if self.surface == "Notes"
-                    and note_lines
-                    and self.runtime.config.tui.notes_show_preview
-                    else ""
-                )
-                label = Text(f"{marked} {indent}{status} ")
-                title_start = len(label)
-                label.append(task.title)
-                title_end = len(label)
-                label.append(f"{due}{notes}")
-                if task.status is TaskStatus.COMPLETED:
-                    style = role_rich_style(self.runtime.config.theme.roles.completed_item)
-                    label.stylize(style)
-                    label.stylize(style, title_start, title_end)
-                rows.append(WorkspaceRow("task", task.id, linkify_urls(label)))
+                rows.append(self._workspace_task_row(task, indent))
         else:
             events = self._events_for_surface()
             calendar_titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
             for event in events:
-                when = self.format_date_time(event.start.value)
-                marked = "*" if event.id in self.marked_events else " "
-                extras: list[str] = []
-                if self.runtime.config.tui.agenda_show_calendar and (
-                    calendar := calendar_titles.get(event.calendar_id)
-                ):
-                    extras.append(calendar)
-                if self.runtime.config.tui.agenda_show_location and event.location:
-                    extras.append(event.location)
-                suffix = f"  · {' · '.join(extras)}" if extras else ""
-                rows.append(
-                    WorkspaceRow(
-                        "event",
-                        event.id,
-                        linkify_urls(f"{marked} {when}  {event.summary}{suffix}"),
-                    )
-                )
+                rows.append(self._workspace_event_row(event, calendar_titles))
             if self.surface == "Month" and not events:
                 rows.append(WorkspaceRow("empty", "month", Text("No events this month")))
         if not rows:
@@ -324,6 +290,80 @@ class WorkspaceMixin:
         content.move_cursor(row=selected_index, animate=False)
         selected = rows[selected_index]
         self.selected = (selected.kind, selected.item_id)
+        content.select_workspace_row(
+            selected_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
+        )
+
+    def _update_surface_title(self: Any) -> None:
+        """Refresh the small title label without disturbing the virtual workspace list."""
+        selection = self._selection_summary()
+        self.query_one("#surface-title", Static).update(
+            f"{self.surface}  ·  {self.selected_date:%A, %d %B %Y}{selection}"
+        )
+
+    def _workspace_task_row(self: Any, task: Task, indent: str) -> WorkspaceRow:
+        marked = "*" if task.id in self.marked else " "
+        status = "✓" if task.status is TaskStatus.COMPLETED else "·"
+        due = (
+            f"  {self.format_date(task.due)}"
+            if task.due and self.runtime.config.tui.task_show_due
+            else ""
+        )
+        note_lines = (task.notes or "").splitlines()
+        notes = (
+            f" — {note_lines[0]}"
+            if self.surface == "Notes"
+            and note_lines
+            and self.runtime.config.tui.notes_show_preview
+            else ""
+        )
+        label = Text(f"{marked} {indent}{status} ")
+        title_start = len(label)
+        label.append(task.title)
+        title_end = len(label)
+        label.append(f"{due}{notes}")
+        if task.status is TaskStatus.COMPLETED:
+            style = role_rich_style(self.runtime.config.theme.roles.completed_item)
+            label.stylize(style)
+            label.stylize(style, title_start, title_end)
+        return WorkspaceRow("task", task.id, linkify_urls(label))
+
+    def _workspace_event_row(
+        self: Any, event: Event, calendar_titles: dict[str, str]
+    ) -> WorkspaceRow:
+        when = self.format_date_time(event.start.value)
+        marked = "*" if event.id in self.marked_events else " "
+        extras: list[str] = []
+        if self.runtime.config.tui.agenda_show_calendar and (
+            calendar := calendar_titles.get(event.calendar_id)
+        ):
+            extras.append(calendar)
+        if self.runtime.config.tui.agenda_show_location and event.location:
+            extras.append(event.location)
+        suffix = f"  · {' · '.join(extras)}" if extras else ""
+        return WorkspaceRow(
+            "event", event.id, linkify_urls(f"{marked} {when}  {event.summary}{suffix}")
+        )
+
+    def _refresh_marked_workspace_row(self: Any) -> None:
+        """Patch only the marker and title summary after a local mark toggle."""
+        self._update_surface_title()
+        if self.selected is None:
+            return
+        content = self.query_one("#content", WorkspaceTable)
+        for index, row in enumerate(content.workspace_rows):
+            if (row.kind, row.item_id) != self.selected:
+                continue
+            marked = (
+                row.item_id in self.marked
+                if row.kind == "task"
+                else row.item_id in self.marked_events
+            )
+            marker = "*" if marked else " "
+            label = Text(f"{marker} ")
+            label.append_text(row.label[2:])
+            content.update_workspace_row(index, WorkspaceRow(row.kind, row.item_id, label))
+            return
 
     def _selection_summary(self: Any) -> str:
         parts: list[str] = []
@@ -342,6 +382,9 @@ class WorkspaceMixin:
             row = content.row_at(index)
             if row is not None and (row.kind, row.item_id) == self.selected:
                 content.move_cursor(row=index, animate=False)
+                content.select_workspace_row(
+                    index, role_rich_style(self.runtime.config.theme.roles.selected_item)
+                )
                 return
 
     def _update_resource_selection(self: Any) -> None:
@@ -392,7 +435,19 @@ class WorkspaceMixin:
             if self.resource_filter and self.resource_filter[0] == "calendar"
             else tuple(item_id for item_id, _title, selected in self.cache.calendars if selected)
         )
+        cache_key = (
+            self.account_id,
+            self.surface,
+            start,
+            end,
+            self.resource_filter,
+            calendar_ids,
+            self.runtime.config.preferences.date_time_format,
+        )
+        if cache_key in self._instance_badge_cache:
+            return cast(str | None, self._instance_badge_cache[cache_key])
         if not calendar_ids:
+            self._instance_badge_cache[cache_key] = "instances: missing"
             return "instances: missing"
         statuses = [
             self.runtime.storage.instance_cache_status(self.account_id, item_id, start, end)
@@ -420,7 +475,9 @@ class WorkspaceMixin:
             details += f", refreshed {self.format_date_time(datetime.fromisoformat(refreshed))}"
         if stale_reason:
             details += f", {stale_reason.replace('-', ' ')}"
-        return f"instances: {state} ({details})"
+        result = f"instances: {state} ({details})"
+        self._instance_badge_cache[cache_key] = result
+        return result
 
     def _events_for_surface(self: Any) -> tuple[Event, ...]:
         start, end = self._event_surface_range()
@@ -472,6 +529,9 @@ class WorkspaceMixin:
         if row is None:
             return
         self.selected = (row.kind, row.item_id)
+        event.data_table.select_workspace_row(
+            event.cursor_row, role_rich_style(self.runtime.config.theme.roles.selected_item)
+        )
 
     def on_list_view_selected(self: Any, event: ListView.Selected) -> None:
         if not isinstance(event.item, EntityRow):
