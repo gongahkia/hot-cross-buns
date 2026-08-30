@@ -11,7 +11,8 @@ from typing import Any
 
 from .application import ApplicationService
 from .auth import GoogleAuthenticator, TokenStore
-from .config import Config, ConfigError, Theme, ThemeColors, load, save
+from .config import Config, ConfigError, KeyBindings, Theme, ThemeColors, ThemeRoles, TuiSettings, load, save
+from .models import CapturePreferences
 from .credentials import (
     CredentialFileError,
     EncryptedFileTokenStore,
@@ -198,6 +199,18 @@ class Runtime:
         editor: str,
         external_editor: str,
         colors: ThemeColors,
+        roles: ThemeRoles,
+        stylesheet: str | None,
+        time_zone: str,
+        default_account_id: str | None,
+        default_task_list_id: str | None,
+        default_calendar_id: str | None,
+        reminders_enabled: bool,
+        reminder_poll_seconds: int,
+        capture: CapturePreferences,
+        keys: KeyBindings,
+        tui: TuiSettings,
+        active_profile: str | None,
     ) -> Config:
         """Persist interactive presentation settings through the runtime boundary."""
         current = self.config
@@ -215,8 +228,17 @@ class Runtime:
                 week_starts_on=week_starts_on,
                 date_time_format=date_time_format,
                 editor=editor,
+                time_zone=time_zone,
+                default_account_id=default_account_id,
+                default_task_list_id=default_task_list_id,
+                default_calendar_id=default_calendar_id,
+                reminders_enabled=reminders_enabled,
+                reminder_poll_seconds=reminder_poll_seconds,
+                capture=capture,
             ),
-            keys=replace(current.keys, external_editor=external_editor),
+            keys=replace(keys, external_editor=external_editor),
+            tui=tui,
+            active_profile=active_profile,
             theme=replace(
                 selected_theme,
                 profile=profile,
@@ -227,6 +249,8 @@ class Runtime:
                 mouse=mouse,
                 loader=loader,
                 colors=colors,
+                roles=roles,
+                stylesheet=stylesheet,
             ),
         )
         save(updated, self.paths.config_file)

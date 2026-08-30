@@ -16,7 +16,8 @@ from .application import (
     ResponseStatus,
     TimeSlot,
 )
-from .config import ThemeColors
+from .config import KeyBindings, RoleStyle, ThemeColors, ThemeRoles, TuiSettings
+from .models import CapturePreferences
 from .errors import HcbError
 from .loaders import LOADER_PRESETS
 from .models import DateTimeKind, Event, EventDateTime, Task, TaskStatus
@@ -599,6 +600,31 @@ class ActionMixin:
             "editor": config.preferences.editor,
             "external_editor": config.keys.external_editor,
             "colors": json.dumps(asdict(config.theme.colors), indent=2, sort_keys=True),
+            "roles": json.dumps(asdict(config.theme.roles), indent=2, sort_keys=True),
+            "stylesheet": config.theme.stylesheet or "",
+            "time_zone": config.preferences.time_zone,
+            "default_account_id": config.preferences.default_account_id or "",
+            "default_task_list_id": config.preferences.default_task_list_id or "",
+            "default_calendar_id": config.preferences.default_calendar_id or "",
+            "reminders_enabled": str(config.preferences.reminders_enabled).lower(),
+            "reminder_poll_seconds": str(config.preferences.reminder_poll_seconds),
+            "capture_duration": str(config.preferences.capture.default_event_duration_minutes),
+            "capture_remove": str(config.preferences.capture.remove_recognized_text).lower(),
+            "capture_task_aliases": ", ".join(config.preferences.capture.task_aliases),
+            "capture_event_aliases": ", ".join(config.preferences.capture.event_aliases),
+            "capture_high_aliases": ", ".join(config.preferences.capture.high_priority_aliases),
+            "capture_medium_aliases": ", ".join(config.preferences.capture.medium_priority_aliases),
+            "capture_low_aliases": ", ".join(config.preferences.capture.low_priority_aliases),
+            "keys": json.dumps(asdict(config.keys), indent=2, sort_keys=True),
+            "initial_surface": config.tui.initial_surface,
+            "sidebar_visible": str(config.tui.sidebar_visible).lower(),
+            "sidebar_width": str(config.tui.sidebar_width),
+            "agenda_days": str(config.tui.agenda_days),
+            "task_show_due": str(config.tui.task_show_due).lower(),
+            "notes_show_preview": str(config.tui.notes_show_preview).lower(),
+            "agenda_show_calendar": str(config.tui.agenda_show_calendar).lower(),
+            "agenda_show_location": str(config.tui.agenda_show_location).lower(),
+            "active_profile": config.active_profile or "",
         }
 
     def settings_theme_options(self: Any) -> tuple[tuple[str, str], ...]:
@@ -654,6 +680,40 @@ class ActionMixin:
             if not isinstance(colors_data, dict):
                 raise ValueError("semantic colors must be a JSON object")
             colors = ThemeColors(**colors_data)
+            roles_data = json.loads(result["roles"])
+            if not isinstance(roles_data, dict):
+                raise ValueError("semantic roles must be a JSON object")
+            roles = ThemeRoles(
+                **{
+                    name: RoleStyle(**value)
+                    for name, value in roles_data.items()
+                    if isinstance(value, dict)
+                }
+            )
+            if len(roles_data) != len(asdict(roles)):
+                raise ValueError("semantic roles must define valid role objects")
+            keys_data = json.loads(result["keys"])
+            if not isinstance(keys_data, dict):
+                raise ValueError("keymap must be a JSON object")
+            capture = CapturePreferences(
+                default_event_duration_minutes=int(result["capture_duration"]),
+                remove_recognized_text=result["capture_remove"].casefold() == "true",
+                task_aliases=self._aliases(result["capture_task_aliases"]),
+                event_aliases=self._aliases(result["capture_event_aliases"]),
+                high_priority_aliases=self._aliases(result["capture_high_aliases"]),
+                medium_priority_aliases=self._aliases(result["capture_medium_aliases"]),
+                low_priority_aliases=self._aliases(result["capture_low_aliases"]),
+            )
+            tui = TuiSettings(
+                initial_surface=result["initial_surface"],
+                sidebar_visible=result["sidebar_visible"].casefold() == "true",
+                sidebar_width=int(result["sidebar_width"]),
+                agenda_days=int(result["agenda_days"]),
+                task_show_due=result["task_show_due"].casefold() == "true",
+                notes_show_preview=result["notes_show_preview"].casefold() == "true",
+                agenda_show_calendar=result["agenda_show_calendar"].casefold() == "true",
+                agenda_show_location=result["agenda_show_location"].casefold() == "true",
+            )
             theme_preset: str | None = result["theme_preset"]
             if theme_preset is None or theme_preset == CURRENT_THEME_VALUE:
                 theme_preset = None
@@ -674,6 +734,18 @@ class ActionMixin:
                 editor=result["editor"],
                 external_editor=result["external_editor"],
                 colors=colors,
+                roles=roles,
+                stylesheet=result["stylesheet"] or None,
+                time_zone=result["time_zone"],
+                default_account_id=result["default_account_id"] or None,
+                default_task_list_id=result["default_task_list_id"] or None,
+                default_calendar_id=result["default_calendar_id"] or None,
+                reminders_enabled=result["reminders_enabled"].casefold() == "true",
+                reminder_poll_seconds=int(result["reminder_poll_seconds"]),
+                capture=capture,
+                keys=KeyBindings(**keys_data),
+                tui=tui,
+                active_profile=result["active_profile"] or None,
             )
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             self.notify(str(exc), severity="error")
@@ -683,6 +755,10 @@ class ActionMixin:
         self._render_chrome(refresh_resources=False)
         self._render_surface()
         self.notify("Settings saved and applied")
+
+    @staticmethod
+    def _aliases(value: str) -> tuple[str, ...]:
+        return tuple(alias.strip() for alias in value.split(",") if alias.strip())
 
     def find_time_local(
         self: Any, raw_day: str, raw_duration: str, raw_start: str, raw_end: str
