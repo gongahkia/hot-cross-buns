@@ -2,7 +2,7 @@
 
 This is a name-for-name inventory of the Ghostty-compatible files from the iTerm2 Color Schemes upstream snapshot `75c93eebaca34a6194ba8bdb83d99b62e20f9aba` (2026-08-23). Ghostty documents that its built-in themes are sourced from that collection; this snapshot contains **606** theme files.
 
-HCB does not bundle all 606 palettes. Its [top-75 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
+HCB does not bundle all 606 palettes. Its [top-100 preset data](../../src/hcb/schemas/hcb-theme-presets-v1.json) maps the selected source palettes into HCB semantic UI tokens. The upstream collection is MIT-licensed, while rights to individual theme assets remain with their authors; see the source repository before redistributing a palette.
 
 Source: <https://github.com/mbadolato/iTerm2-Color-Schemes/tree/75c93eebaca34a6194ba8bdb83d99b62e20f9aba/ghostty>.
 
@@ -38,12 +38,19 @@ the canonical [Dracula](https://github.com/dracula/dracula-theme),
 [No Clown Fiesta](https://github.com/aktersnurra/no-clown-fiesta.nvim),
 [Zenbones](https://github.com/zenbones-theme/zenbones.nvim),
 [Modus](https://github.com/protesilaos/modus-themes), and
-[OneNord](https://github.com/Taren-Ko/onenord) projects,
+[OneNord](https://github.com/Taren-Ko/onenord),
+[Selenized](https://github.com/jan-warchol/selenized),
+[Melange](https://github.com/savq/melange-nvim),
+[Bluloco](https://github.com/uloco/bluloco.nvim),
+[Oceanic Next](https://github.com/mhartington/oceanic-next),
+[Vague](https://github.com/vague2k/vague.nvim),
+[Kanso](https://github.com/webhooked/kanso.nvim), and
+[Srcery](https://github.com/srcery-colors/srcery-vim) projects,
 corroborated against the independent [Ratatui theme collection](https://github.com/ricardodantas/ratatui-themes).
 This avoids inventing a precise per-variant popularity number where the source
 projects do not publish one.
 
-HCB stores these 75 as a pinned semantic-token projection in
+HCB stores these 100 as a pinned semantic-token projection in
 [`hcb-theme-presets-v1.json`](../../src/hcb/schemas/hcb-theme-presets-v1.json).
 It uses the source foreground/background, cursor, selection, and ANSI palette
 colors for the equivalent HCB tokens; it does not modify the terminal emulator's
@@ -126,6 +133,31 @@ own palette.
 | 73 | Iceberg Light | Iceberg Light | Iceberg |
 | 74 | Dark+ | Dark+ | VS Code Default |
 | 75 | Night Owlish Light | Night Owlish Light | Night Owl |
+| 76 | Selenized Black | Selenized Black | Selenized |
+| 77 | Selenized Dark | Selenized Dark | Selenized |
+| 78 | Selenized Light | Selenized Light | Selenized |
+| 79 | Melange Dark | Melange Dark | Melange |
+| 80 | Melange Light | Melange Light | Melange |
+| 81 | Bluloco Dark | Bluloco Dark | Bluloco |
+| 82 | Bluloco Light | Bluloco Light | Bluloco |
+| 83 | Oceanic Next | Oceanic Next | Oceanic Next |
+| 84 | Challenger Deep | Challenger Deep | Challenger Deep |
+| 85 | Miasma | Miasma | Miasma |
+| 86 | Vague | Vague | Vague |
+| 87 | Kanso Ink | Kanso Ink | Kanso |
+| 88 | Kanso Pearl | Kanso Pearl | Kanso |
+| 89 | Jellybeans | Jellybeans | Jellybeans |
+| 90 | Molokai | Molokai | Molokai |
+| 91 | Srcery | Srcery | Srcery |
+| 92 | Spacegray | Spacegray | Spacegray |
+| 93 | Spacegray Eighties | Spacegray Eighties | Spacegray |
+| 94 | JetBrains Darcula | JetBrains Darcula | JetBrains |
+| 95 | Alabaster | Alabaster | Alabaster |
+| 96 | Fairyfloss | Fairyfloss | Fairyfloss |
+| 97 | Firefox Dev | Firefox Dev | Firefox Dev |
+| 98 | Seoulbones Dark | Seoulbones Dark | Seoulbones |
+| 99 | Seoulbones Light | Seoulbones Light | Seoulbones |
+| 100 | Xcode Light | Xcode Light | Xcode |
 
 ## Complete upstream name map
 
