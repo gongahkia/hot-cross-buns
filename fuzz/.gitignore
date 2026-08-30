@@ -1,8 +1,0 @@
-/artifacts/
-/target/
-/corpus/manifest/*
-/corpus/lockfile/*
-/corpus/archive/*
-!/corpus/manifest/*.toml
-!/corpus/lockfile/*.toml
-!/corpus/archive/*.txt

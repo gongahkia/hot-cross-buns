@@ -1,7 +1,0 @@
-schema = 1
-
-[[package]]
-name = "catalog-addon"
-[package.git]
-url = "https://example.test/catalog-addon.git"
-root = "../outside"

@@ -1,219 +1,62 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
-  merge_group:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  test:
-    name: test (${{ matrix.os }}, Rust ${{ matrix.toolchain }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-15, windows-2025]
-        toolchain: [1.85.0]
+  python:
+    name: Python checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Install Rust
-        run: |
-          rustup toolchain install ${{ matrix.toolchain }} --profile minimal --component clippy --component rustfmt
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+        with:
+          version: "0.8.13"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+
       - name: Check formatting
-        run: cargo +${{ matrix.toolchain }} fmt --all -- --check
-      - name: Build workspace
-        run: cargo +${{ matrix.toolchain }} build --locked --workspace
-      - name: Test workspace
-        shell: bash
-        run: |
-          mkdir -p test-results
-          set -o pipefail
-          cargo +${{ matrix.toolchain }} test --locked --workspace 2>&1 | tee test-results/workspace-test.log
-      - name: Retain failed native test log
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: native-test-log-${{ matrix.os }}-rust-${{ matrix.toolchain }}
-          path: test-results/workspace-test.log
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Lint workspace
-        run: cargo +${{ matrix.toolchain }} clippy --locked --workspace --all-targets --all-features -- -D warnings
+        run: uv run ruff format --check src tests tools/benchmark_python.py
 
-  audit:
-    name: audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Install compatible cargo-audit
-        run: cargo +1.85.0 install cargo-audit --version 0.22.1 --locked
-      - name: Audit locked dependencies
-        run: cargo +1.85.0 audit --file Cargo.lock
+      - name: Lint
+        run: uv run ruff check src tests tools/benchmark_python.py
 
-  release-smoke:
-    name: release-smoke
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Install Rust
-        run: |
-          rustup toolchain install 1.85.0 --profile minimal
-          rustup default 1.85.0
-      - name: Build release workspace
-        run: cargo build --workspace --release
+      - name: Type check
+        run: uv run mypy src
 
-  godot-matrix:
-    name: Godot support matrix
-    runs-on: ubuntu-latest
-    outputs:
-      branches: ${{ steps.matrix.outputs.branches }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - id: matrix
-        name: Read reviewed matrix
-        shell: python
-        run: |
-          import json
-          import tomllib
-          with open("config/godot-support.toml", "rb") as source:
-              matrix = tomllib.load(source)
-          branches = [
-              {"series": branch["series"], "version": branch["version"]}
-              for branch in matrix["branch"]
-          ]
-          with open("$GITHUB_OUTPUT", "a", encoding="utf-8") as output:
-              output.write(f"branches={json.dumps(branches, separators=(',', ':'))}\n")
-
-  godot-validate:
-    name: Godot validation (${{ matrix.branch.series }} ${{ matrix.branch.version }})
-    needs: godot-matrix
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        branch: ${{ fromJSON(needs.godot-matrix.outputs.branches) }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Install Rust
-        run: rustup toolchain install 1.85.0 --profile minimal
-      - name: Provision reviewed Godot release
+      - name: Test
         env:
-          GODOT_VERSION: ${{ matrix.branch.version }}
-        run: |
-          archive="Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          curl --fail --location --retry 3 --retry-delay 2 --output "$archive" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/$archive"
-          unzip -q "$archive" -d .godot-bin
-          chmod +x ".godot-bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
-      - name: Validate package-free fixture in recovery mode
-        env:
-          GODOT_VERSION: ${{ matrix.branch.version }}
-        run: |
-          cargo +1.85.0 run -p wukong-cli -- validate --project fixtures/validation/minimal --godot-executable ".godot-bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --timeout-seconds 60
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run pytest
 
-  native-transactions:
-    name: native transactions (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-15, windows-2025]
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Install Rust
-        run: rustup toolchain install 1.85.0 --profile minimal
-      - name: Run native transaction fixtures
-        run: cargo +1.85.0 test -p wukong-core --test native_transaction_fixtures -- --test-threads=1
+      - name: Build distributions
+        run: uv build
 
-  release-artifacts:
-    name: release artifact (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            binary: wukong
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            binary: wukong
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            binary: wukong
-          - os: windows-latest
-            target: x86_64-pc-windows-gnu
-            binary: wukong.exe
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Install Rust target
-        shell: bash
+      - name: Test isolated wheel install and entrypoint
         run: |
-          rustup toolchain install 1.85.0 --profile minimal
-          rustup target add ${{ matrix.target }} --toolchain 1.85.0
-      - name: Configure Windows GNU linker
-        if: matrix.target == 'x86_64-pc-windows-gnu'
-        shell: pwsh
-        run: |
-          $linker = (Get-Command gcc -ErrorAction Stop).Source
-          if ((& $linker -dumpmachine) -ne 'x86_64-w64-mingw32') {
-            throw "Windows runner gcc is not an x86_64 MinGW linker: $linker"
-          }
-          "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$linker" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Build native release archive
-        shell: bash
-        run: |
-          version="$(cargo +1.85.0 run --quiet --package wukong-cli -- --version | sed -n 's/^wukong //p')"
-          test -n "$version"
-          scripts/package-release.sh "$version" "${{ matrix.target }}" release-artifacts
-      - name: Verify archive contents, checksum, and native executable
-        shell: bash
-        run: |
-          version="$(cargo +1.85.0 run --quiet --package wukong-cli -- --version | sed -n 's/^wukong //p')"
-          archive="release-artifacts/wukong-$version-${{ matrix.target }}.zip"
-          test -s "$archive"
-          stage="$(mktemp -d)"
-          python_bin="$(command -v python3 || command -v python || true)"
-          test -n "$python_bin"
-          "$python_bin" - "$archive" "$archive.sha256" "${{ matrix.binary }}" "$stage" <<'PY'
-          import hashlib
-          import pathlib
-          import sys
-          import zipfile
-
-          archive, checksum, expected_entry, destination = map(pathlib.Path, sys.argv[1:])
-          expected_checksum = checksum.read_text(encoding="utf-8").split()[0]
-          actual_checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
-          if actual_checksum != expected_checksum:
-              raise SystemExit("archive checksum does not match sibling checksum file")
-          with zipfile.ZipFile(archive) as source:
-              if source.namelist() != [expected_entry.as_posix()]:
-                  raise SystemExit(f"unexpected archive entries: {source.namelist()!r}")
-              if source.testzip() is not None:
-                  raise SystemExit("archive integrity check failed")
-              source.extractall(destination)
-          PY
-          test "$("$stage/${{ matrix.binary }}" --version)" = "wukong $version"
-      - name: Upload verified archive
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: wukong-${{ matrix.target }}
-          path: |
-            release-artifacts/wukong-*.zip
-            release-artifacts/wukong-*.zip.sha256
-          if-no-files-found: error
-          retention-days: 7
+          uv venv --python 3.12 "$RUNNER_TEMP/hcb-wheel"
+          uv pip install --python "$RUNNER_TEMP/hcb-wheel/bin/python" dist/*.whl
+          test "$("$RUNNER_TEMP/hcb-wheel/bin/hcb" --json-schema-version)" = "1"
+          TERM=dumb NO_COLOR=1 "$RUNNER_TEMP/hcb-wheel/bin/hcb" --help > /dev/null

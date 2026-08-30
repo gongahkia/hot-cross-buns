@@ -1,6 +1,0 @@
-[project]
-name = "fixture"
-godot = ">=4.0,<5"
-
-[dev-dependencies]
-addon = { path = "addons/addon" }

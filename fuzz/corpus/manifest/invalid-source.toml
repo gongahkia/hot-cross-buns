@@ -1,6 +1,0 @@
-[project]
-name = "fixture"
-godot = "4"
-
-[dependencies]
-addon = { git = "https://example.test/addon.git", path = "addons/addon" }
