@@ -112,8 +112,8 @@ or the process-only `HCB_PROFILE` variable. Use `hcb config profiles list`,
 `create`, `select`, and `delete` to manage profile files. `hcb config get KEY`,
 `set KEY VALUE`, `set --json KEY JSON`, `unset KEY`, and `explain KEY` expose
 the resolved values, defaults, and reload behavior. Profile TCSS stylesheets
-are loaded after HCB's base TCSS and an invalid stylesheet falls back to the
-base UI with an error notification.
+are loaded after HCB's base TCSS at startup. Restart HCB after changing a
+stylesheet path; an invalid stylesheet falls back to the base UI.
 
 `preferences.date_time_format` accepts `friendly` (default), `friendly_24h`,
 or `iso`; it controls the dates and times displayed by the TUI.

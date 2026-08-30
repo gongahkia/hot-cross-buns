@@ -281,8 +281,6 @@ class CapturePreferences:
 
 @dataclass(frozen=True, slots=True)
 class Preferences:
-    theme: str = "system"
-    keymap: str = "default"
     editor: str = "nvim"
     week_starts_on: int = 0
     default_account_id: str | None = None

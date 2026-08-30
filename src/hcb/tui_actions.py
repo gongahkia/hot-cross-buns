@@ -607,6 +607,12 @@ class ActionMixin:
             "default_calendar_id": config.preferences.default_calendar_id or "",
             "reminders_enabled": str(config.preferences.reminders_enabled).lower(),
             "reminder_poll_seconds": str(config.preferences.reminder_poll_seconds),
+            "reminder_catch_up_minutes": str(config.preferences.reminder_catch_up_minutes),
+            "reminder_jitter_seconds": str(config.preferences.reminder_jitter_seconds),
+            "reminder_sync_interval_minutes": str(
+                config.preferences.reminder_sync_interval_minutes
+            ),
+            "reminder_sync_mode": config.preferences.reminder_sync_mode,
             "capture_duration": str(config.preferences.capture.default_event_duration_minutes),
             "capture_remove": str(config.preferences.capture.remove_recognized_text).lower(),
             "capture_task_aliases": ", ".join(config.preferences.capture.task_aliases),
@@ -649,6 +655,7 @@ class ActionMixin:
     def _settings_result(self: Any, result: dict[str, str] | None) -> None:
         if result is None:
             return
+        previous_stylesheet = self.runtime.config.theme.stylesheet
         try:
             profile = result["profile"]
             density = result["density"]
@@ -703,6 +710,11 @@ class ActionMixin:
                 medium_priority_aliases=self._aliases(result["capture_medium_aliases"]),
                 low_priority_aliases=self._aliases(result["capture_low_aliases"]),
             )
+            if not 1 <= capture.default_event_duration_minutes <= 1440:
+                raise ValueError("event duration must be between 1 and 1440 minutes")
+            reminder_sync_mode = result["reminder_sync_mode"]
+            if reminder_sync_mode not in {"all", "pull", "off"}:
+                raise ValueError("choose a supported reminder sync mode")
             tui = TuiSettings(
                 initial_surface=result["initial_surface"],
                 sidebar_visible=result["sidebar_visible"].casefold() == "true",
@@ -741,6 +753,10 @@ class ActionMixin:
                 default_calendar_id=result["default_calendar_id"] or None,
                 reminders_enabled=result["reminders_enabled"].casefold() == "true",
                 reminder_poll_seconds=int(result["reminder_poll_seconds"]),
+                reminder_catch_up_minutes=int(result["reminder_catch_up_minutes"]),
+                reminder_jitter_seconds=int(result["reminder_jitter_seconds"]),
+                reminder_sync_interval_minutes=int(result["reminder_sync_interval_minutes"]),
+                reminder_sync_mode=reminder_sync_mode,
                 capture=capture,
                 keys=KeyBindings(**keys_data),
                 tui=tui,
@@ -753,7 +769,10 @@ class ActionMixin:
         self._observed_config_marker = self._config_marker()
         self._render_chrome(refresh_resources=False)
         self._render_surface()
-        self.notify("Settings saved and applied")
+        message = "Settings saved and applied"
+        if config.theme.stylesheet != previous_stylesheet:
+            message += "; restart HCB to apply the stylesheet change"
+        self.notify(message)
 
     @staticmethod
     def _aliases(value: str) -> tuple[str, ...]:

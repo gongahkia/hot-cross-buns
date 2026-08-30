@@ -5,6 +5,7 @@ from __future__ import annotations
 import shlex
 import tempfile
 import webbrowser
+from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -21,7 +22,7 @@ from textual.widgets import (
     TextArea,
 )
 
-from .config import Config, ConfigError, load, save
+from .config import Config, ConfigError, load, profile_path, save
 from .credentials import create_credential_template
 from .environment import LocalEnvironment, detect_local_environment
 from .errors import AuthenticationRequired, ConfigurationError, HcbError
@@ -147,12 +148,21 @@ class LifecycleMixin:
     def _apply_configured_keys(self: Any, config: Config) -> None:
         self.set_keymap(asdict(config.keys))
 
-    def _config_marker(self: Any) -> tuple[int, int] | None:
-        try:
-            stat = self.runtime.paths.config_file.stat()
-        except FileNotFoundError:
-            return None
-        return (stat.st_mtime_ns, stat.st_size)
+    def _config_marker(self: Any) -> tuple[tuple[int, int] | None, ...]:
+        paths = [self.runtime.paths.config_file]
+        selected = self.runtime.environ.get("HCB_PROFILE") or self.runtime.config.active_profile
+        if selected is not None:
+            with suppress(ConfigError):
+                paths.append(profile_path(self.runtime.paths.config_file, selected))
+        marker: list[tuple[int, int] | None] = []
+        for path in paths:
+            try:
+                stat = path.stat()
+            except FileNotFoundError:
+                marker.append(None)
+            else:
+                marker.append((stat.st_mtime_ns, stat.st_size))
+        return tuple(marker)
 
     def _reload_visual_config(self: Any) -> None:
         marker = self._config_marker()
@@ -160,7 +170,10 @@ class LifecycleMixin:
             return
         self._observed_config_marker = marker
         try:
-            config = load(self.runtime.paths.config_file)
+            config = load(
+                self.runtime.paths.config_file,
+                profile=self.runtime.environ.get("HCB_PROFILE"),
+            )
         except ConfigError as exc:
             self.notify(f"config.json not applied: {exc}", severity="error")
             return
@@ -169,7 +182,10 @@ class LifecycleMixin:
         self._apply_configured_keys(config)
         self._render_chrome(refresh_resources=False)
         self._render_surface()
-        self.notify("config.json settings reloaded")
+        message = "config.json settings reloaded"
+        if config.theme.stylesheet != self._loaded_stylesheet:
+            message += "; restart HCB to apply the stylesheet change"
+        self.notify(message)
 
     def _onboarding_result(self: Any, result: dict[str, str] | None) -> None:
         if result is None:

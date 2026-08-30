@@ -1644,6 +1644,33 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                     )
                 with Horizontal(classes="settings-pair"):
                     yield Input(
+                        value=values["reminder_catch_up_minutes"],
+                        placeholder="Reminder catch-up minutes",
+                        id="setting-reminder-catch-up",
+                    )
+                    yield Input(
+                        value=values["reminder_jitter_seconds"],
+                        placeholder="Reminder jitter seconds",
+                        id="setting-reminder-jitter",
+                    )
+                    yield Input(
+                        value=values["reminder_sync_interval_minutes"],
+                        placeholder="Reminder sync interval minutes",
+                        id="setting-reminder-sync-interval",
+                    )
+                    yield Select(
+                        (
+                            ("Sync all", "all"),
+                            ("Pull only", "pull"),
+                            ("Do not sync", "off"),
+                        ),
+                        value=values["reminder_sync_mode"],
+                        allow_blank=False,
+                        prompt="Reminder sync mode",
+                        id="setting-reminder-sync-mode",
+                    )
+                with Horizontal(classes="settings-pair"):
+                    yield Input(
                         value=values["default_account_id"],
                         placeholder="Default account",
                         id="setting-default-account",
@@ -1804,6 +1831,18 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 "reminder_poll_seconds": self.query_one(
                     "#setting-reminder-poll", Input
                 ).value.strip(),
+                "reminder_catch_up_minutes": self.query_one(
+                    "#setting-reminder-catch-up", Input
+                ).value.strip(),
+                "reminder_jitter_seconds": self.query_one(
+                    "#setting-reminder-jitter", Input
+                ).value.strip(),
+                "reminder_sync_interval_minutes": self.query_one(
+                    "#setting-reminder-sync-interval", Input
+                ).value.strip(),
+                "reminder_sync_mode": self._selected_value(
+                    "#setting-reminder-sync-mode", "a reminder sync mode"
+                ),
                 "default_account_id": self.query_one(
                     "#setting-default-account", Input
                 ).value.strip(),

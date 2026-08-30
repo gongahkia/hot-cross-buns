@@ -535,6 +535,7 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
                 css_paths.append(stylesheet_path)
         super().__init__(css_path=css_paths)
         self._stylesheet_error = stylesheet_error
+        self._loaded_stylesheet = stylesheet if stylesheet_error is None else None
         self.explicit_account = account
         self.account_id: str | None = None
         self.selected_date = selected_date or self._present_date()

@@ -1291,6 +1291,10 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
         app.screen.query_one("#setting-editor", Input).value = "hx"
         app.screen.query_one("#setting-external-editor", Input).value = "ctrl+o"
         app.screen.query_one("#setting-loader", Select).value = "emoji.weather"
+        app.screen.query_one("#setting-reminder-catch-up", Input).value = "90"
+        app.screen.query_one("#setting-reminder-jitter", Input).value = "3"
+        app.screen.query_one("#setting-reminder-sync-interval", Input).value = "15"
+        app.screen.query_one("#setting-reminder-sync-mode", Select).value = "pull"
         await pilot.click("#settings-save")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         assert app.has_class("density-compact", "ascii", "no-mouse")
@@ -1305,6 +1309,10 @@ def test_palette_calendar_and_settings_workflows(tmp_path: Path) -> None:
     assert saved.preferences.date_time_format == "friendly_24h"
     assert saved.preferences.editor == "hx"
     assert saved.keys.external_editor == "ctrl+o"
+    assert saved.preferences.reminder_catch_up_minutes == 90
+    assert saved.preferences.reminder_jitter_seconds == 3
+    assert saved.preferences.reminder_sync_interval_minutes == 15
+    assert saved.preferences.reminder_sync_mode == "pull"
 
 
 def test_settings_theme_selector_offers_and_applies_detected_theme(tmp_path: Path) -> None:

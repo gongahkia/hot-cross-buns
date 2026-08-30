@@ -88,8 +88,8 @@ profile from `profiles/NAME.json`. Use `hcb config profiles create NAME` and
 `hcb config get`, `set`, `set --json`, `unset`, and `explain` make every saved
 setting inspectable and scriptable. The terminal Settings screen exposes
 appearance, behavior, capture aliases, keymap, layout, profile, and advanced
-stylesheet controls; an optional per-profile TCSS file is loaded after HCB's
-built-in stylesheet and is rejected without changing the active UI if invalid.
+stylesheet controls. An optional per-profile TCSS file is validated and loaded
+after HCB's built-in stylesheet at startup; changing its path requires restart.
 
 `HCB_EDITOR` overrides `preferences.editor` for the current process. It is a
 normal environment variable, separate from HCB's account `.env` credential

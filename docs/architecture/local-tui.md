@@ -71,11 +71,12 @@ The renderer honors `NO_COLOR`, `TERM=dumb`, narrow terminals, Unicode width,
 and an ASCII line-art fallback. Every core TUI operation has a non-TUI command.
 
 Themes and keymaps use semantic names rather than widget-specific colors. The
-sole configuration file is strict JSON `config.json`; its complete semantic token
-set covers background, surfaces, panels, controls, text, borders, focus,
-selection, and status colors. The default terminal profile uses terminal-default
-colors, ASCII borders, and outline focus. Valid visual edits reload while the TUI
-is running; nonvisual preferences and key bindings apply on the next start.
+base configuration file is strict JSON `config.json`; an optional named profile
+overlay lives in `profiles/NAME.json`. Its complete semantic token set covers
+background, surfaces, panels, controls, text, borders, focus, selection, and
+status colors. The default terminal profile uses terminal-default colors, ASCII
+borders, and outline focus. Valid visual edits and key bindings reload while the
+TUI is running; a TCSS stylesheet change requires restart.
 `preferences.editor` and `keys.external_editor` configure the text-field
 external-editor command and shortcut; `HCB_EDITOR` is a process-only override.
 The credential `.env` remains restricted to OAuth credentials.

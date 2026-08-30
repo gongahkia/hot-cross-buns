@@ -234,6 +234,10 @@ class Config:
             raise ValueError(f"schema_version must be {CONFIG_SCHEMA_VERSION}")
         if self.active_profile is not None and not self.active_profile.strip():
             raise ValueError("active_profile cannot be empty")
+        if self.active_profile is not None and not re.fullmatch(
+            r"[a-z0-9][a-z0-9_-]*", self.active_profile
+        ):
+            raise ValueError("active_profile must be a valid profile name")
 
 
 def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -328,8 +332,11 @@ def _theme(values: dict[str, Any]) -> Theme:
     return cast(Theme, _construct(Theme, theme_values, "theme"))
 
 
-def _preferences(values: dict[str, Any]) -> Preferences:
+def _preferences(values: dict[str, Any], *, migrate_v1: bool = False) -> Preferences:
     preference_values = dict(values)
+    if migrate_v1:
+        preference_values.pop("theme", None)
+        preference_values.pop("keymap", None)
     capture = values.get("capture", {})
     if not isinstance(capture, dict):
         raise ConfigError("preferences.capture must be an object")
@@ -343,9 +350,17 @@ def _preferences(values: dict[str, Any]) -> Preferences:
     ):
         if name in capture_values:
             value = capture_values[name]
-            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            if not isinstance(value, list) or not all(
+                isinstance(item, str) and item.strip() for item in value
+            ):
                 raise ConfigError(f"preferences.capture.{name} must be an array of strings")
             capture_values[name] = tuple(value)
+    if "default_event_duration_minutes" in capture_values:
+        duration = capture_values["default_event_duration_minutes"]
+        if not isinstance(duration, int) or isinstance(duration, bool) or not 1 <= duration <= 1440:
+            raise ConfigError(
+                "preferences.capture.default_event_duration_minutes must be between 1 and 1440"
+            )
     preference_values["capture"] = _construct(
         CapturePreferences, capture_values, "preferences.capture"
     )
@@ -371,7 +386,7 @@ def loads(raw: bytes | str) -> Config:
         raise ConfigError(f"schema_version must be 1 or {CONFIG_SCHEMA_VERSION}")
     return Config(
         schema_version=CONFIG_SCHEMA_VERSION,
-        preferences=_preferences(_section(data, "preferences")),
+        preferences=_preferences(_section(data, "preferences"), migrate_v1=schema_version == 1),
         theme=_theme(_section(data, "theme")),
         keys=_construct(KeyBindings, _section(data, "keys"), "keys"),
         tui=_construct(TuiSettings, _section(data, "tui"), "tui"),
@@ -437,6 +452,7 @@ def load(
 def save(config: Config, path: Path | None = None) -> Path:
     target = path or AppPaths.discover().config_file
     target.parent.mkdir(parents=True, exist_ok=True)
+    config = loads(json.dumps(asdict(config)))
     temporary = target.with_suffix(target.suffix + ".tmp")
     temporary.write_text(
         json.dumps(asdict(config), indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -459,6 +475,7 @@ def _profile_difference(base: object, configured: object) -> object | None:
 def save_profile(config: Config, path: Path, name: str) -> Path:
     """Persist only the resolved differences for one strict profile overlay."""
     target = profile_path(path, name)
+    config = loads(json.dumps(asdict(config)))
     base = load(path, resolve_profile=False)
     difference = _profile_difference(asdict(base), asdict(config))
     overlay = cast(dict[str, Any], difference or {})

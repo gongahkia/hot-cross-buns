@@ -105,9 +105,7 @@ def test_rattles_loader_catalog_is_complete_and_preserves_source_timing() -> Non
 
 def test_json_round_trip(tmp_path: Path) -> None:
     expected = Config(
-        preferences=Preferences(
-            theme="dark", editor="hx", week_starts_on=6, reminders_enabled=False
-        ),
+        preferences=Preferences(editor="hx", week_starts_on=6, reminders_enabled=False),
         theme=Theme(profile="dark", colors=ThemeColors(accent="#88c0d0")),
         keys=KeyBindings(sync="ctrl+s", external_editor="ctrl+g"),
     )
@@ -141,6 +139,9 @@ def test_legacy_toml_is_not_read_or_migrated(tmp_path: Path) -> None:
         '{"theme":{"colors":{"accent":"not-a-color"}}}',
         '{"theme":{"loader":"not-a-loader"}}',
         '{"theme":{"colors":{"accent":"red","accent":"blue"}}}',
+        '{"schema_version":2,"preferences":{"theme":"dark"}}',
+        '{"preferences":{"capture":{"default_event_duration_minutes":0}}}',
+        '{"preferences":{"capture":{"task_aliases":[""]}}}',
     ),
 )
 def test_invalid_strict_json_config_is_rejected(raw: str) -> None:
@@ -170,14 +171,24 @@ def test_bundled_schema_accepts_saved_config_and_rejects_unknown_tokens(tmp_path
     assert list(validator.iter_errors(json.loads(target.read_text()))) == []
     invalid = {"theme": {"colors": {"unexpected": "red"}}}
     assert list(validator.iter_errors(invalid))
+    assert list(validator.iter_errors({"keys": {"unrecognized_action": "x"}}))
 
 
 def test_v1_configuration_migrates_and_a_profile_overlays_only_its_values(tmp_path: Path) -> None:
     target = tmp_path / "config.json"
-    target.write_text('{"schema_version":1,"keys":{"quit":"ctrl+q"}}', encoding="utf-8")
+    target.write_text(
+        '{"schema_version":1,"preferences":{"theme":"dark","keymap":"vim","editor":"hx"},'
+        '"keys":{"quit":"ctrl+q"}}',
+        encoding="utf-8",
+    )
     migrated = load(target)
     assert migrated.schema_version == 2
     assert migrated.keys.quit == "ctrl+q"
+    assert migrated.preferences.editor == "hx"
+    assert not hasattr(migrated.preferences, "theme")
+    save(migrated, target)
+    assert "theme" not in json.loads(target.read_text())["preferences"]
+    assert "keymap" not in json.loads(target.read_text())["preferences"]
 
     save(Config(active_profile="work"), target)
     overlay = profile_path(target, "work")
