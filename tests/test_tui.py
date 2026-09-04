@@ -610,6 +610,7 @@ def test_event_editor_builds_custom_recurrence_with_contextual_controls(tmp_path
         assert not app.screen.query_one("#recurrence-weekdays", Horizontal).display
         assert app.screen.query_one("#recurrence-monthly", Horizontal).display
         app.screen.query_one("#recurrence-unit", Select).value = "weekly"
+        await pilot.pause()  # type: ignore[attr-defined]
         app.screen.query_one("#recurrence-interval", Input).value = "2"
         await pilot.click("#recurrence-weekday-sa")  # type: ignore[attr-defined]
         await pilot.click("#recurrence-weekday-mo")  # type: ignore[attr-defined]
