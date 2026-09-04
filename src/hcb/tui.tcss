@@ -7,6 +7,7 @@ Screen {
 /* Keep recovery and confirmation overlays centered at every terminal size. */
 ModalScreen {
     align: center middle;
+    background: $footer-background;
 }
 
 #topbar {
@@ -30,21 +31,54 @@ Button {
     height: 3;
     padding: 0 1;
     background: $boost;
-    color: $foreground;
+    color: auto 87%;
     border: ascii $border;
 }
 
-Button.-primary, Button.-success, Button.-warning, Button.-error {
-    background: $boost;
-    color: $foreground;
-    border: ascii $border;
+Button.-primary {
+    background: $primary;
+    color: auto 87%;
+    border: ascii $primary;
 }
 
-Button:hover, Button.-primary:hover, Button.-success:hover, Button.-warning:hover, Button.-error:hover {
+Button.-success {
+    background: $success;
+    color: auto 87%;
+    border: ascii $success;
+}
+
+Button.-warning {
+    background: $warning;
+    color: auto 87%;
+    border: ascii $warning;
+}
+
+Button.-error {
+    background: $error;
+    color: auto 87%;
+    border: ascii $error;
+}
+
+Button:hover {
     background: $boost;
-    color: $foreground;
     border: ascii $primary;
     text-style: bold underline;
+}
+
+Button.-primary:hover {
+    background: $primary;
+}
+
+Button.-success:hover {
+    background: $success;
+}
+
+Button.-warning:hover {
+    background: $warning;
+}
+
+Button.-error:hover {
+    background: $error;
 }
 
 Button:focus, Input:focus, TextArea:focus, ListView:focus {
@@ -63,6 +97,7 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
     width: 27;
     min-width: 22;
     background: $panel;
+    color: auto 87%;
 }
 
 .sidebar-hidden #sidebar, .sidebar-hidden .column-resize-handle {
@@ -113,7 +148,7 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 }
 
 #mini-month Button.mini-day.mini-day-selected {
-    color: $foreground;
+    color: auto 87%;
     text-style: bold reverse;
 }
 
@@ -122,7 +157,14 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
     text-style: underline;
 }
 
-.section-title, #surface-title {
+.section-title {
+    height: 3;
+    padding: 1;
+    text-style: bold;
+    color: auto 87%;
+}
+
+#surface-title {
     height: 3;
     padding: 1;
     text-style: bold;
@@ -131,6 +173,8 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 
 #resources {
     height: 1fr;
+    background: $panel;
+    color: auto 87%;
 }
 
 #sync-state {
@@ -142,12 +186,14 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 #center {
     width: 1fr;
     min-width: 28;
+    background: $background;
 }
 
 #content {
     height: 1fr;
     padding: 0 1;
     overflow-x: auto;
+    background: $background;
 }
 
 #content > ListItem {
@@ -161,26 +207,31 @@ Button:focus, Input:focus, TextArea:focus, ListView:focus {
 }
 
 WorkspaceTable {
-    background: transparent;
+    background: $background;
     color: $foreground;
 }
 
 ListView > ListItem {
     padding: 0 1;
     background: transparent;
-    color: $foreground;
+    color: auto 87%;
+}
+
+#resources > ListItem {
+    background: transparent;
+    color: auto 87%;
 }
 
 ListView > ListItem.--highlight {
     background: transparent;
-    color: $foreground;
+    color: auto 87%;
     outline: ascii $primary;
     text-style: bold underline;
 }
 
 Input, TextArea {
     background: $boost;
-    color: $foreground;
+    color: auto 87%;
     border: ascii $border;
 }
 
@@ -201,7 +252,7 @@ Input, TextArea {
 
 Input.-invalid, TextArea.-invalid {
     background: $boost;
-    color: $foreground;
+    color: auto 87%;
     border: ascii $error;
 }
 
@@ -255,9 +306,10 @@ Input.-invalid, TextArea.-invalid {
 
 /* Keep the active workspace item visible after focus moves elsewhere. */
 
-#palette-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
+#palette-dialog, #help-dialog, #editor-dialog, #confirm-dialog, #event-dialog,
 #rsvp-dialog, #calendar-dialog, #settings-dialog, #find-time-dialog, #loading-dialog,
-#onboarding-dialog, #google-setup-dialog, #batch-move-dialog, #batch-action-dialog,
+#onboarding-dialog, #google-setup-dialog, #schedule-dialog, #bulk-dialog,
+#batch-move-dialog, #batch-action-dialog, #import-dialog, #conflict-dialog,
 #item-view-dialog {
     width: 70;
     max-width: 90%;
@@ -480,13 +532,6 @@ EmojiCompletion {
 
 .dialog-buttons Button {
     margin-left: 1;
-}
-
-PaletteScreen, EditorScreen, ConfirmScreen, EventEditorScreen, RsvpScreen,
-CalendarScreen, SettingsScreen, FindTimeScreen, OnboardingScreen, LoadingScreen,
-BatchMoveScreen {
-    align: center middle;
-    background: $footer-background;
 }
 
 Footer {

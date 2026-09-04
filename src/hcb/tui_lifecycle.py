@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from textual import events, work
 from textual.app import SuspendNotSupported
 from textual.containers import Vertical
-from textual.theme import Theme as TextualTheme
 from textual.widgets import (
     Input as TextualInput,
 )
@@ -45,6 +44,7 @@ from .tui_components import (
     TerminalTextArea,
     WorkspaceTable,
 )
+from .tui_theme import build_textual_theme
 
 if TYPE_CHECKING:
     pass
@@ -94,31 +94,7 @@ class LifecycleMixin:
         colors = config.theme.colors
         self._theme_revision += 1
         name = f"hcb-config-{self._theme_revision}"
-        self.register_theme(
-            TextualTheme(
-                name=name,
-                primary=colors.focus,
-                secondary=colors.accent,
-                accent=colors.accent,
-                foreground=colors.text,
-                background=colors.background,
-                surface=colors.surface,
-                panel=colors.panel,
-                boost=colors.control,
-                success=colors.success,
-                warning=colors.warning,
-                error=colors.danger,
-                dark=self.theme_mode != "light",
-                variables={
-                    "text-muted": colors.muted,
-                    "border": colors.border,
-                    "border-blurred": colors.border,
-                    "footer-background": colors.overlay,
-                    "input-selection-background": colors.selection,
-                    "screen-selection-background": colors.selection,
-                },
-            )
-        )
+        self.register_theme(build_textual_theme(name, colors, dark=self.theme_mode != "light"))
         self.theme = name
         self.remove_class(
             "theme-terminal",

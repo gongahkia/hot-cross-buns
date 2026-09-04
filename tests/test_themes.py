@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import pytest
+from textual.color import Color
 
 from hcb.config import ConfigError, Theme, ThemeColors
 from hcb.themes import (
@@ -15,6 +16,7 @@ from hcb.themes import (
     presets,
     source,
 )
+from hcb.tui_theme import build_textual_theme
 
 
 def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
@@ -84,6 +86,54 @@ def test_bundled_presets_are_complete_and_pinned_to_ghostty_snapshot() -> None:
     assert preset("Seoulbones Dark").colors.accent == "#97bdde"
     assert preset("Seoulbones Light").profile == "light"
     assert preset("Xcode Light").colors.panel == "#b4d8fd"
+
+
+def test_bundled_presets_expose_every_semantic_color_to_textual() -> None:
+    theme_tokens = {
+        "background": "background",
+        "surface": "surface",
+        "panel": "panel",
+        "control": "boost",
+        "text": "foreground",
+        "muted": "text-muted",
+        "border": "border",
+        "focus": "primary",
+        "accent": "accent",
+        "success": "success",
+        "warning": "warning",
+        "danger": "error",
+        "overlay": "footer-background",
+        "selection": "input-selection-background",
+    }
+    for item in presets():
+        generated = (
+            build_textual_theme(item.name, item.colors, dark=item.profile != "light")
+            .to_color_system()
+            .generate()
+        )
+        for semantic_name, textual_name in theme_tokens.items():
+            rendered = Color.parse(generated[textual_name])
+            expected = Color.parse(getattr(item.colors, semantic_name))
+            assert (
+                max(
+                    abs(rendered.r - expected.r),
+                    abs(rendered.g - expected.g),
+                    abs(rendered.b - expected.b),
+                    abs(rendered.a - expected.a),
+                )
+                <= 1
+            ), item.name
+        rendered_selection = Color.parse(generated["screen-selection-background"])
+        expected_selection = Color.parse(item.colors.selection)
+        assert (
+            max(
+                abs(rendered_selection.r - expected_selection.r),
+                abs(rendered_selection.g - expected_selection.g),
+                abs(rendered_selection.b - expected_selection.b),
+                abs(rendered_selection.a - expected_selection.a),
+            )
+            <= 1
+        ), item.name
 
 
 def test_applying_a_preset_preserves_user_interface_preferences() -> None:

@@ -4,16 +4,19 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from threading import Event as ThreadEvent
 from time import sleep
 
 import pytest
+from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 from textual import events
 from textual.app import SuspendNotSupported
+from textual.color import Color
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
 from hcb.config import Config, KeyBindings, Theme, ThemeColors, save
@@ -31,7 +34,7 @@ from hcb.models import (
 from hcb.paths import AppPaths
 from hcb.runtime import Runtime
 from hcb.storage import Storage
-from hcb.themes import preset
+from hcb.themes import apply_preset, preset
 from hcb.tui import (
     PALETTE_COMMANDS,
     BatchActionScreen,
@@ -187,6 +190,62 @@ def test_agenda_uses_the_configured_friendly_date_time_format(tmp_path: Path) ->
         labels = [str(row.label) for row in workspace_rows(app)]
         assert any("26 May 2026, 7:23pm" in label for label in labels), labels
         assert all("T11:23:00" not in label for label in labels)
+
+    app_test(app, assertions)
+
+
+def test_workspace_rows_place_colored_indicators_between_dates_and_titles(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    theme = apply_preset(Theme(), "Flexoki Light")
+    theme = replace(
+        theme,
+        roles=replace(
+            theme.roles,
+            completed_item=replace(theme.roles.completed_item, color="#d14d41"),
+        ),
+    )
+    save(Config(theme=theme), runtime.paths.config_file)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    dated_task = runtime.application.create_task(
+        "work", task_list.id, "Dated task", due=date(2026, 8, 24)
+    )
+    runtime.application.complete_task("work", dated_task.id)
+    note = runtime.application.create_task("work", task_list.id, "Undated note")
+    calendar = runtime.application.create_calendar("work", "Color calendar", color="#123456")
+    event = runtime.application.create_event(
+        "work",
+        calendar.id,
+        "Colored event",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 10, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    def indicator_color(row: WorkspaceRow) -> str:
+        offset = row.label.plain.index("●")
+        style = row.label.get_style_at_offset(Console(), offset)
+        assert style.color is not None
+        return style.color.get_truecolor().hex
+
+    async def assertions(pilot: object) -> None:
+        dated_row = next(row for row in workspace_rows(app) if row.item_id == dated_task.id)
+        assert f"{app.format_date(dated_task.due)}  ●  {dated_task.title}" in dated_row.label.plain
+        assert indicator_color(dated_row) == theme.colors.accent
+
+        app.action_surface("Notes")
+        await pilot.pause()  # type: ignore[attr-defined]
+        note_row = next(row for row in workspace_rows(app) if row.item_id == note.id)
+        assert f"●  {note.title}" in note_row.label.plain
+        assert indicator_color(note_row) == theme.colors.accent
+
+        app.action_surface("Agenda")
+        await pilot.pause()  # type: ignore[attr-defined]
+        event_row = next(row for row in workspace_rows(app) if row.item_id == event.id)
+        assert (
+            f"{app.format_date_time(event.start.value)}  ●  {event.summary}"
+            in event_row.label.plain
+        )
+        assert indicator_color(event_row) == "#123456"
 
     app_test(app, assertions)
 
@@ -1199,6 +1258,31 @@ def test_no_color_forces_mono_ascii_and_disables_mouse(tmp_path: Path) -> None:
         assert app.border_style == "ascii"
         assert not app.mouse_enabled
         assert app.has_class("theme-mono", "ascii", "no-mouse")
+
+    app_test(app, assertions)
+
+
+def test_visual_config_colors_controls_and_surfaces_from_semantic_tokens(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    theme = apply_preset(Theme(), "Flexoki Light")
+    save(Config(theme=theme), runtime.paths.config_file)
+    app = HcbApp(runtime)
+
+    async def assertions(pilot: object) -> None:
+        colors = theme.colors
+        assert app.query_one("#surface-tasks", Button).styles.background == Color.parse(
+            colors.control
+        )
+        assert app.query_one("#surface-tasks", Button).styles.auto_color
+        assert app.query_one("#resources", ListView).styles.background == Color.parse(colors.panel)
+        assert app.query_one("#resources", ListView).styles.auto_color
+        assert app.query_one("#content", WorkspaceTable).styles.background == Color.parse(
+            colors.background
+        )
+        app.push_screen(HelpScreen(app))
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen.styles.background == Color.parse(colors.overlay)
+        assert app.screen.query_one("#help-dialog").styles.background == Color.parse(colors.surface)
 
     app_test(app, assertions)
 

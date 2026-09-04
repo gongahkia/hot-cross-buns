@@ -46,6 +46,7 @@ from .application import (
     BatchActionPreview,
     BatchMovePreview,
 )
+from .config import ThemeColors
 from .environment import LocalEnvironment
 from .errors import HcbError
 from .import_export import ImportPreview
@@ -62,6 +63,7 @@ from .tui import (
     DUE_DAY_OPTIONS,
     DUE_MONTH_OPTIONS,
     FOCUS_OPTIONS,
+    GOOGLE_EVENT_COLORS,
     LOCATION_MAP_ICON,
     PALETTE_COMMANDS,
     PROFILE_OPTIONS,
@@ -81,21 +83,6 @@ from .tui import (
 
 if TYPE_CHECKING:
     from .tui import HcbApp
-
-
-GOOGLE_EVENT_COLORS = {
-    "1": "#7986cb",  # Lavender
-    "2": "#33b679",  # Sage
-    "3": "#8e24aa",  # Grape
-    "4": "#e67c73",  # Flamingo
-    "5": "#f6c026",  # Banana
-    "6": "#f5511d",  # Tangerine
-    "7": "#039be5",  # Peacock
-    "8": "#616161",  # Graphite
-    "9": "#3f51b5",  # Blueberry
-    "10": "#0b8043",  # Basil
-    "11": "#d60000",  # Tomato
-}
 
 
 class EmojiCompletion(Static):
@@ -465,7 +452,7 @@ class TerminalTextArea(TextArea):
             TextAreaTheme(
                 "hcb-terminal",
                 base_style=Style(
-                    color=self._rich_color(colors.text),
+                    color=self._rich_color(self._control_foreground(colors)),
                     bgcolor=self._rich_color(colors.control),
                 ),
             )
@@ -478,6 +465,12 @@ class TerminalTextArea(TextArea):
         if value in {"transparent", "ansi_default"}:
             return "default"
         return Color.parse(value).rich_color
+
+    @staticmethod
+    def _control_foreground(colors: ThemeColors) -> str:
+        if colors.control in {"transparent", "ansi_default"}:
+            return colors.text
+        return Color.parse(colors.control).get_contrast_text(1.0).hex
 
 
 type EmojiTarget = Input | TerminalTextArea

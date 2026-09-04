@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
+from rich.style import Style
 from rich.text import Text
 from textual.widgets import (
     Button,
@@ -19,7 +20,7 @@ from .application import (
     SearchResult,
 )
 from .models import DriveFile, Event, Task, TaskStatus
-from .tui import linkify_urls, role_rich_style
+from .tui import GOOGLE_EVENT_COLORS, linkify_urls, role_rich_style
 from .tui_components import (
     CachedWorkspace,
     EntityRow,
@@ -483,7 +484,7 @@ class WorkspaceMixin:
         marked = "*" if task.id in self.marked else " "
         status = "✓" if task.status is TaskStatus.COMPLETED else "·"
         due = (
-            f"  {self.format_date(task.due)}"
+            f"{self.format_date(task.due)}  "
             if task.due and self.runtime.config.tui.task_show_due
             else ""
         )
@@ -493,16 +494,27 @@ class WorkspaceMixin:
             if self.surface == "Notes" and note_lines and self.runtime.config.tui.notes_show_preview
             else ""
         )
-        label = Text(f"{marked} {indent}{status} ")
+        dot_style = self._workspace_dot_style(self.runtime.config.theme.colors.accent)
+        label = Text(f"{marked} {indent}{status} {due}")
+        dot_start = len(label)
+        label.append("●", style=dot_style)
+        dot_end = len(label)
+        label.append("  ")
         title_start = len(label)
         label.append(task.title)
         title_end = len(label)
-        label.append(f"{due}{notes}")
+        label.append(notes)
         if task.status is TaskStatus.COMPLETED:
             style = role_rich_style(self.runtime.config.theme.roles.completed_item)
             label.stylize(style)
             label.stylize(style, title_start, title_end)
+            label.stylize(dot_style, dot_start, dot_end)
         return WorkspaceRow("task", task.id, linkify_urls(label))
+
+    @staticmethod
+    def _workspace_dot_style(color: str) -> Style:
+        """Translate Textual's terminal-default tokens for Rich text rendering."""
+        return Style(color="default" if color in {"ansi_default", "transparent"} else color)
 
     def _workspace_event_row(
         self: Any, event: Event, calendar_titles: dict[str, str]
@@ -517,9 +529,20 @@ class WorkspaceMixin:
         if self.runtime.config.tui.agenda_show_location and event.location:
             extras.append(event.location)
         suffix = f"  · {' · '.join(extras)}" if extras else ""
-        return WorkspaceRow(
-            "event", event.id, linkify_urls(f"{marked} {when}  {event.summary}{suffix}")
+        color = event.color_id
+        if color is None:
+            calendar = self.runtime.storage.get_calendar(event.account_id, event.calendar_id)
+            color = calendar.color if calendar is not None else None
+        dot_color = (GOOGLE_EVENT_COLORS.get(color) if color is not None else None) or (
+            color if color is not None and color.startswith("#") else None
         )
+        label = Text(f"{marked} {when}  ")
+        label.append(
+            "●",
+            style=self._workspace_dot_style(dot_color or self.runtime.config.theme.colors.accent),
+        )
+        label.append(f"  {event.summary}{suffix}")
+        return WorkspaceRow("event", event.id, linkify_urls(label))
 
     def _refresh_marked_workspace_row(self: Any) -> None:
         """Patch only the marker and title summary after a local mark toggle."""

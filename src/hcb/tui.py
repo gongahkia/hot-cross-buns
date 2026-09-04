@@ -35,6 +35,19 @@ SURFACES = ("Tasks", "Notes", "Agenda", "Day", "Week", "Month")
 MIN_SIDEBAR_WIDTH = 22
 MIN_CENTER_WIDTH = 28
 SPLITTER_WIDTH = 1
+GOOGLE_EVENT_COLORS = {
+    "1": "#7986cb",  # Lavender
+    "2": "#33b679",  # Sage
+    "3": "#8e24aa",  # Grape
+    "4": "#e67c73",  # Flamingo
+    "5": "#f6c026",  # Banana
+    "6": "#f5511d",  # Tangerine
+    "7": "#039be5",  # Peacock
+    "8": "#616161",  # Graphite
+    "9": "#3f51b5",  # Blueberry
+    "10": "#0b8043",  # Basil
+    "11": "#d60000",  # Tomato
+}
 PALETTE_COMMANDS = (
     ("Create item", "create"),
     ("Sync now", "sync"),
