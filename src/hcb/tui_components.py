@@ -1796,7 +1796,16 @@ class RecurringEditScopeScreen(ModalScreen[Literal["this", "following", "series"
         self.dismiss(mapping.get(event.button.id or ""))
 
 
-class CalendarOverflowScreen(ModalScreen[tuple[str, str] | None]):
+@dataclass(frozen=True, slots=True)
+class CalendarOverflowResult:
+    """A deliberate Month-overflow action returned to the workspace."""
+
+    action: Literal["view", "day"]
+    day: date
+    item: tuple[str, str] | None = None
+
+
+class CalendarOverflowScreen(ModalScreen[CalendarOverflowResult | None]):
     """List the calendar chips hidden behind a Month ``+ N more`` indicator."""
 
     BINDINGS = [Binding("escape", "close", "Close")]
@@ -1821,6 +1830,7 @@ class CalendarOverflowScreen(ModalScreen[tuple[str, str] | None]):
                 id="calendar-overflow-items",
             )
             with Horizontal(classes="dialog-buttons"):
+                yield Button("Open day", variant="primary", id="calendar-overflow-day")
                 yield Button("Close", id="calendar-overflow-close")
 
     @staticmethod
@@ -1833,14 +1843,17 @@ class CalendarOverflowScreen(ModalScreen[tuple[str, str] | None]):
         return "✓" if item.completed else "□" if item.kind == "task" else "●"
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        if event.list_view.id == "calendar-overflow-items":
-            self.dismiss(self._result(event))
+        if event.list_view.id == "calendar-overflow-items" and (item := self._result(event)):
+            self.dismiss(CalendarOverflowResult("view", self.day, item))
 
     def action_close(self) -> None:
         self.dismiss(None)
 
-    def on_button_pressed(self, _: Button.Pressed) -> None:
-        self.dismiss(None)
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "calendar-overflow-day":
+            self.dismiss(CalendarOverflowResult("day", self.day))
+        else:
+            self.dismiss(None)
 
 
 class OnboardingScreen(ModalScreen[dict[str, str] | None]):

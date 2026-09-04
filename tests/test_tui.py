@@ -533,6 +533,10 @@ def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> 
         assert len(app.screen.query_one("#calendar-overflow-items", ListView).children) == len(
             hidden
         )
+        await pilot.click("#calendar-overflow-day")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.surface == "Day"
+        assert app.selected_date == date(2026, 8, 24)
 
     app_test(app, assertions, size=(130, 34))
 

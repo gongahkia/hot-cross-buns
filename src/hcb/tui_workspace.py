@@ -26,6 +26,7 @@ from .tui_calendar import CalendarSurface, calendar_range
 from .tui_components import (
     CachedWorkspace,
     CalendarGrid,
+    CalendarOverflowResult,
     CalendarOverflowScreen,
     EntityRow,
     LoadingScreen,
@@ -915,10 +916,16 @@ class WorkspaceMixin:
             CalendarOverflowScreen(event.day, event.items), self._calendar_overflow_result
         )
 
-    def _calendar_overflow_result(self: Any, result: tuple[str, str] | None) -> None:
+    def _calendar_overflow_result(self: Any, result: CalendarOverflowResult | None) -> None:
         if result is None:
             return
-        self.selected = result
+        if result.action == "day":
+            self.selected_date = result.day
+            self.action_surface("Day")
+            return
+        if result.item is None:
+            return
+        self.selected = result.item
         self.action_view()
 
     def on_calendar_grid_item_changed(self: Any, event: CalendarGrid.ItemChanged) -> None:
