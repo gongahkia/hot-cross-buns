@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from .application import (
@@ -15,6 +14,7 @@ from .application import (
     _Unset,
 )
 from .application_calendars import CalendarServiceMixin
+from .ical_recurrence import split_recurrence_lines
 from .models import (
     EntityType,
     Event,
@@ -25,7 +25,6 @@ from .models import (
     PendingMutation,
     ReminderOverride,
 )
-from .task_recurrence import _matches_rule, _parse_rule
 
 _UNSET = _Unset()
 
@@ -607,41 +606,15 @@ class EventServiceMixin(CalendarServiceMixin):
         series = self.storage.get_event_by_remote(account_id, occurrence.canonical_id)
         if series is None or not series.recurrence:
             raise ValueError("the canonical recurring series is not cached")
-        rule = next((line for line in series.recurrence if line.startswith("RRULE:")), None)
-        if rule is None:
-            raise ValueError("the recurring series has no supported RRULE")
         split_value = occurrence.start.value
-        if isinstance(split_value, datetime):
-            cutoff = (split_value.astimezone(UTC) - timedelta(seconds=1)).strftime("%Y%m%dT%H%M%SZ")
-        else:
-            cutoff = (split_value - timedelta(days=1)).strftime("%Y%m%d")
-        prefix, _separator, body = rule.partition(":")
-        clauses = body.split(";")
-        count: int | None = None
-        for clause in clauses:
-            key, _separator, value = clause.partition("=")
-            if key != "COUNT":
-                continue
-            try:
-                count = int(value)
-            except ValueError as exc:
-                raise ValueError("the recurring series has an invalid COUNT") from exc
-            break
-        unbounded = [part for part in clauses if not part.startswith(("UNTIL=", "COUNT="))]
-        old_rule = f"{prefix}:{';'.join((*unbounded, f'UNTIL={cutoff}'))}"
-        new_clauses = list(unbounded)
-        if count is not None:
-            preceding = self._recurrence_occurrences_through(series, split_value, unbounded)
-            remaining = count - preceding + 1
-            if preceding < 1 or remaining < 1:
-                raise ValueError("the selected occurrence is outside the recurring series")
-            new_clauses.append(f"COUNT={remaining}")
-        new_rule = f"{prefix}:{';'.join(new_clauses)}"
+        old_recurrence, new_recurrence = split_recurrence_lines(
+            series.recurrence, series.start.value, split_value
+        )
         with self.storage.transaction():
             old = self.update_event(
                 account_id,
                 series.id,
-                recurrence=tuple(old_rule if line == rule else line for line in series.recurrence),
+                recurrence=old_recurrence,
                 send_updates=send_updates,
                 scope="series",
             )
@@ -653,36 +626,10 @@ class EventServiceMixin(CalendarServiceMixin):
                 occurrence.end,
                 description=occurrence.description,
                 location=occurrence.location,
-                recurrence=tuple(new_rule if line == rule else line for line in series.recurrence),
+                recurrence=new_recurrence,
                 attendees=occurrence.attendees,
                 reminder_use_default=occurrence.reminder_use_default,
                 reminder_overrides=occurrence.reminder_overrides,
                 send_updates=send_updates,
             )
         return old, new
-
-    @staticmethod
-    def _recurrence_occurrences_through(
-        series: Event, split_value: date | datetime, clauses: list[str]
-    ) -> int:
-        """Count supported RRULE occurrences up to an instance selected for a split.
-
-        The same bounded date-only matcher powers HCB task recurrence.  It
-        covers the RRULE subset exposed by the event editor (daily/weekly/
-        monthly/yearly, interval and BY* controls) without requiring a second
-        recurrence dependency merely to split a finite series.
-        """
-        anchor_value = series.start.value
-        anchor = anchor_value.date() if isinstance(anchor_value, datetime) else anchor_value
-        target = split_value.date() if isinstance(split_value, datetime) else split_value
-        raw_rule = ";".join(part for part in clauses if not part.startswith("WKST="))
-        parsed = _parse_rule(raw_rule)
-        if parsed is None:
-            raise ValueError("this COUNT recurrence uses unsupported split rules")
-        occurrences = 0
-        current = anchor
-        while current <= target:
-            if _matches_rule(current, anchor, parsed):
-                occurrences += 1
-            current += timedelta(days=1)
-        return occurrences

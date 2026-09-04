@@ -17,13 +17,14 @@ dependencies = [
   "google-auth",
   "google-auth-oauthlib",
   "google-api-python-client",
+  "python-dateutil>=2.9.0.post0",
 ]
 
 [project.scripts]
 hcb = "hcb.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "mypy", "jsonschema"]
+dev = ["pytest", "ruff", "mypy", "jsonschema", "types-python-dateutil"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hcb"]

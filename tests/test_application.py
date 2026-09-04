@@ -107,6 +107,46 @@ def test_split_recurring_event_preserves_the_remaining_count(app: ApplicationSer
     assert new.recurrence == ("RRULE:FREQ=DAILY;COUNT=2",)
 
 
+def test_split_recurring_event_handles_bysetpos_and_date_exceptions(
+    app: ApplicationService,
+) -> None:
+    series = app.create_event(
+        "a",
+        "cal",
+        "Last weekday",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 1, 1, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 1, 1, 10, tzinfo=UTC)),
+        recurrence=(
+            "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=4",
+            "EXDATE:20260227T090000Z",
+            "RDATE:20260302T090000Z",
+        ),
+        id="series",
+    )
+    app.storage.upsert_event(replace(series, remote_id="series-remote"))
+    occurrence = Event(
+        "occurrence",
+        "a",
+        "cal",
+        "Last weekday",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 3, 31, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 3, 31, 10, tzinfo=UTC)),
+        remote_id="occurrence-remote",
+        canonical_id="series-remote",
+        derived=True,
+    )
+    app.storage.upsert_event(occurrence)
+
+    old, new = app.split_recurring_event("a", occurrence.id)
+
+    assert old.recurrence == (
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;UNTIL=20260331T085959Z",
+        "EXDATE:20260227T090000Z",
+        "RDATE:20260302T090000Z",
+    )
+    assert new.recurrence == ("RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=2",)
+
+
 def test_batch_task_move_preflights_hierarchies_and_queues_in_order(
     app: ApplicationService,
 ) -> None:
