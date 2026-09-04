@@ -56,3 +56,16 @@ cold database open, 10k local search, one-month agenda query, and interactive ca
 load. It also projects 5,000 timed events and 5,000 due tasks through Week and
 six-week Month geometry, with 2 and 3 second regression tripwires respectively.
 These broad limits are intended to be stable on shared CI, not to advertise latency.
+
+## Calendar terminal mouse smoke
+
+Run `make calendar-mouse-smoke` on Linux. It starts a real Textual terminal
+driver inside a pseudo-terminal, sends raw SGR left-button press/motion/release
+input, and verifies that a Day-grid event moves from 09:00 to 13:00. This covers
+the terminal input parser and captured drag path, unlike unit tests that post
+`MouseDown` and `MouseMove` objects directly.
+
+For a physical-pointer check in each supported terminal emulator, open Day view,
+drag an event by its centre from 09:00 to 13:00, then resize it from its lower
+edge. Confirm the live target preview follows the pointer, an invalid target is
+shown as invalid, and the persisted event has the expected start and end times.
