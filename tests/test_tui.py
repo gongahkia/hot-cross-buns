@@ -511,6 +511,29 @@ def test_calendar_day_cursor_advances_the_visible_date(tmp_path: Path) -> None:
     app_test(app, assertions, size=(130, 34))
 
 
+def test_calendar_current_time_rule_refreshes_day_and_month_timelines(tmp_path: Path) -> None:
+    today = date.today()
+    app = HcbApp(seeded_runtime(tmp_path), selected_date=today)
+    now = datetime.combine(today, datetime.min.time(), tzinfo=UTC).replace(hour=9, minute=15)
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        grid._refresh_clock(now)
+        assert "●" in grid._line(grid._timed_start + 18).plain
+
+        await pilot.press("6")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid._refresh_clock(now)
+        day_index = (today - grid._range.start).days
+        week = day_index // 7
+        y = 1 + week * grid._month_cell_height + 1 + grid._month_all_day_height + 9
+        assert "●" in grid._line(y).plain
+
+    app_test(app, assertions, size=(130, 34))
+
+
 def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]

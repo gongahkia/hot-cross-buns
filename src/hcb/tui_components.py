@@ -616,6 +616,7 @@ class CalendarGrid(ScrollView):
         self._calendar_colors: dict[str, str] = {}
         self._fallback_color = "ansi_default"
         self._zone = ZoneInfo("UTC")
+        self._now = datetime.now(self._zone)
         self._week_starts_on = 0
         self._display_month = date.today().month
         self._time_axis = 8
@@ -658,6 +659,7 @@ class CalendarGrid(ScrollView):
         self.surface = surface
         self._week_starts_on = week_starts_on
         self._zone = ZoneInfo(time_zone)
+        self._refresh_clock()
         self._calendar_colors = calendar_colors
         self._fallback_color = fallback_color
         self._range = calendar_range(surface, selected_date, week_starts_on)
@@ -691,6 +693,24 @@ class CalendarGrid(ScrollView):
         elif not self._range.start <= self._cursor[0] < self._range.end:
             self._cursor = (selected_date, 9 * 60, False)
         self._rebuild_geometry()
+
+    def on_mount(self) -> None:
+        self._refresh_clock()
+        # Refresh twice per minute so the current-time rule advances promptly
+        # without creating a terminal repaint loop.
+        self.set_interval(30, self._refresh_clock)
+
+    def _refresh_clock(self, now: datetime | None = None) -> None:
+        """Update the display-zone clock used by the live calendar time rule."""
+        current = (now or datetime.now(self._zone)).astimezone(self._zone)
+        previous = self._now
+        self._now = current
+        if self.is_mounted and (previous.date(), previous.hour, previous.minute // 30) != (
+            current.date(),
+            current.hour,
+            current.minute // 30,
+        ):
+            self.refresh()
 
     def select_item(self, selected: tuple[str, str] | None) -> None:
         self._selected = selected
@@ -887,7 +907,13 @@ class CalendarGrid(ScrollView):
 
     def _render_cursor(self, cells: list[str], spans: list[tuple[int, int, Style]], y: int) -> None:
         if (position := self._cursor_position()) is not None and position[1] == y:
-            self._paint(cells, spans, position[0], "›", Style(bold=True, reverse=True))
+            x = position[0]
+            current_minute = self._now.hour * 60 + self._now.minute
+            if self._cursor[0] == self._now.date() and self._cursor[1] is not None:
+                step = self._month_slot_minutes if self.surface == "Month" else 30
+                if self._cursor[1] <= current_minute < self._cursor[1] + step:
+                    x += 1
+            self._paint(cells, spans, x, "›", Style(bold=True, reverse=True))
 
     def _render_timed_line(
         self, cells: list[str], spans: list[tuple[int, int, Style]], y: int
@@ -898,7 +924,7 @@ class CalendarGrid(ScrollView):
             for day_index in range(days):
                 day = self._range.start + timedelta(days=day_index)
                 label = day.strftime("%a %d")
-                if day == date.today():
+                if day == self._now.date():
                     label = f"[{label}]"
                 self._paint(
                     cells,
@@ -936,6 +962,19 @@ class CalendarGrid(ScrollView):
             x = self._time_axis + day_index * self._cell_width
             if x < len(cells):
                 self._paint(cells, spans, x, "|", grid_style)
+        if self._range.start <= self._now.date() < self._range.end:
+            current_minute = self._now.hour * 60 + self._now.minute
+            if minute <= current_minute < minute + 30:
+                current_day = (self._now.date() - self._range.start).days
+                current_x = self._time_axis + current_day * self._cell_width
+                self._paint(
+                    cells,
+                    spans,
+                    self._time_axis,
+                    "─" * (len(cells) - self._time_axis),
+                    Style(dim=True),
+                )
+                self._paint(cells, spans, current_x, "●", Style(color="red", bold=True))
         for hit in self._hits:
             if not hit.y <= y < hit.y + hit.height or hit.block.item.all_day:
                 continue
@@ -987,6 +1026,16 @@ class CalendarGrid(ScrollView):
                     f"{minute // 60:02d}",
                     grid_style,
                 )
+            current = self._now
+            week_start = self._range.start + timedelta(days=week * 7)
+            if week_start <= current.date() < week_start + timedelta(days=7):
+                current_weekday = (current.date() - self._range.start).days % 7
+                if minute <= current.hour * 60 + current.minute < minute + self._month_slot_minutes:
+                    current_x = current_weekday * self._cell_width
+                    self._paint(
+                        cells, spans, current_x, "─" * (self._cell_width - 1), Style(dim=True)
+                    )
+                    self._paint(cells, spans, current_x, "●", Style(color="red", bold=True))
         for hit in self._hits:
             if not hit.y <= y < hit.y + hit.height:
                 continue
