@@ -95,6 +95,7 @@ def calendar_items(
     zone: ZoneInfo,
     calendar_colors: dict[str, str],
     fallback_color: str,
+    scheduled_tasks: dict[str, Event] | None = None,
 ) -> tuple[CalendarItem, ...]:
     """Normalize visible events and due tasks for one calendar grid.
 
@@ -103,7 +104,13 @@ def calendar_items(
     calculated, which keeps placement stable across DST boundaries.
     """
     result: list[CalendarItem] = []
+    schedules = scheduled_tasks or {}
+    scheduled_event_ids = {event.id for event in schedules.values()}
     for event in events:
+        # A scheduled task is represented by its task card at the event's
+        # geometry, rather than appearing twice as a task and a generic event.
+        if event.id in scheduled_event_ids:
+            continue
         if event.start.kind is DateTimeKind.DATE:
             start = event.start.value
             end = event.end.value
@@ -150,6 +157,51 @@ def calendar_items(
             )
         )
     for task in tasks:
+        if scheduled := schedules.get(task.id):
+            if scheduled.start.kind is DateTimeKind.DATE:
+                start = scheduled.start.value
+                end = scheduled.end.value
+                assert isinstance(start, date) and not isinstance(start, datetime)
+                assert isinstance(end, date) and not isinstance(end, datetime)
+                if end <= visible.start or start >= visible.end:
+                    continue
+                result.append(
+                    CalendarItem(
+                        "task",
+                        task.id,
+                        task.title,
+                        _event_color(scheduled, calendar_colors, fallback_color),
+                        True,
+                        start,
+                        end,
+                        None,
+                        None,
+                        completed=task.status is TaskStatus.COMPLETED,
+                    )
+                )
+                continue
+            start_value = scheduled.start.value
+            end_value = scheduled.end.value
+            assert isinstance(start_value, datetime) and isinstance(end_value, datetime)
+            start = _local_datetime(start_value, zone)
+            end = _local_datetime(end_value, zone)
+            if end.date() < visible.start or start.date() >= visible.end:
+                continue
+            result.append(
+                CalendarItem(
+                    "task",
+                    task.id,
+                    task.title,
+                    _event_color(scheduled, calendar_colors, fallback_color),
+                    False,
+                    start.date(),
+                    end.date(),
+                    start.hour * 60 + start.minute,
+                    end.hour * 60 + end.minute,
+                    completed=task.status is TaskStatus.COMPLETED,
+                )
+            )
+            continue
         if task.due is None or not visible.start <= task.due < visible.end:
             continue
         result.append(

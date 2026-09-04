@@ -263,7 +263,8 @@ class WorkspaceMixin:
             content.display = False
             calendar.display = True
             events = self._events_for_surface()
-            tasks = self._calendar_tasks_for_surface()
+            scheduled_tasks = self._calendar_task_schedules()
+            tasks = self._calendar_tasks_for_surface(scheduled_tasks)
             colors = {
                 item_id: stored.color
                 for item_id, _title, _selected in self.cache.calendars
@@ -280,6 +281,7 @@ class WorkspaceMixin:
                 calendar_colors=colors,
                 fallback_color=self.runtime.config.theme.colors.accent,
                 selected=self.selected,
+                scheduled_tasks=scheduled_tasks,
             )
             # Keep the list projection synchronized underneath the grid. This
             # gives resize fallback an immediate readable surface and preserves
@@ -305,7 +307,7 @@ class WorkspaceMixin:
             calendar_titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
             for event in events:
                 rows.append(self._workspace_event_row(event, calendar_titles))
-            for task in self._calendar_tasks_for_surface():
+            for task in self._calendar_tasks_for_surface(self._calendar_task_schedules()):
                 rows.append(self._workspace_task_row(task, ""))
             if self.surface == "Month" and not events:
                 rows.append(WorkspaceRow("empty", "month", Text("No events this month")))
@@ -337,14 +339,30 @@ class WorkspaceMixin:
             return False
         return center_width >= CalendarGrid.minimum_width(cast(CalendarSurface, self.surface))
 
-    def _calendar_tasks_for_surface(self: Any) -> tuple[Task, ...]:
+    def _calendar_task_schedules(self: Any) -> dict[str, Event]:
+        """Return task IDs with an active linked calendar block in the local cache."""
+        if self.account_id is None or (
+            self.resource_filter and self.resource_filter[0] == "calendar"
+        ):
+            return {}
+        events = {event.id: event for event in self.cache.events}
+        return {
+            link.task_id: event
+            for link in self.runtime.application.list_task_event_links(self.account_id)
+            if not link.orphaned and (event := events.get(link.event_id)) is not None
+        }
+
+    def _calendar_tasks_for_surface(
+        self: Any, scheduled_tasks: dict[str, Event] | None = None
+    ) -> tuple[Task, ...]:
         """Return due tasks for calendar surfaces without leaking calendar filters."""
         if self.resource_filter and self.resource_filter[0] == "calendar":
             return ()
         tasks = self.cache.tasks
         if self.resource_filter and self.resource_filter[0] == "task-list":
             tasks = tuple(task for task in tasks if task.list_id == self.resource_filter[1])
-        return tuple(task for task in tasks if task.due is not None)
+        scheduled_ids = set((scheduled_tasks or {}).keys())
+        return tuple(task for task in tasks if task.due is not None or task.id in scheduled_ids)
 
     def _surface_tasks(self: Any) -> tuple[Task, ...]:
         """Return the task projection for the active task-oriented surface."""

@@ -635,6 +635,7 @@ class CalendarGrid(ScrollView):
         calendar_colors: dict[str, str],
         fallback_color: str,
         selected: tuple[str, str] | None,
+        scheduled_tasks: dict[str, Event] | None = None,
     ) -> None:
         """Replace the visible projection after a deliberate workspace refresh."""
         self.surface = surface
@@ -651,6 +652,7 @@ class CalendarGrid(ScrollView):
             zone=self._zone,
             calendar_colors=calendar_colors,
             fallback_color=fallback_color,
+            scheduled_tasks=scheduled_tasks,
         )
         self._all_day = all_day_blocks(self._items, self._range)
         self._timed = timed_blocks(self._items, self._range)
@@ -964,7 +966,9 @@ class CalendarGrid(ScrollView):
         """Project the cursor into a visible, non-mutating drop target."""
         slot = self._slot(x, y)
         item = drag.hit.block.item
-        valid = slot is not None and slot[2] == item.all_day
+        valid = slot is not None and (
+            slot[2] == item.all_day or (item.kind == "task" and item.all_day and not slot[2])
+        )
         if not valid:
             return _CalendarDropPreview(
                 max(0, min(x, max(0, self.virtual_size.width - 1))),
@@ -1053,7 +1057,7 @@ class CalendarGrid(ScrollView):
         x, y = self._point(event)
         if (hit := self._hit(x, y)) is not None:
             mode: Literal["move", "resize-start", "resize-end"] = "move"
-            if not hit.block.item.all_day and hit.block.item.kind == "event":
+            if not hit.block.item.all_day and hit.block.item.kind in {"event", "task"}:
                 if y == hit.y:
                     mode = "resize-start"
                 elif y == hit.y + hit.height - 1:
@@ -1147,7 +1151,9 @@ class CalendarGrid(ScrollView):
         if (slot := self._slot(x, y)) is None:
             return
         day, minute, all_day = slot
-        if drag.hit.block.item.all_day != all_day:
+        if drag.hit.block.item.all_day != all_day and not (
+            drag.hit.block.item.kind == "task" and drag.hit.block.item.all_day and not all_day
+        ):
             return
         self.post_message(
             self.ItemChanged(
