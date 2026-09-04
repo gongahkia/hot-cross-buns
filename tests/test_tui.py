@@ -346,6 +346,45 @@ def test_calendar_grids_include_due_tasks_create_from_slots_and_fallback_when_na
     app_test(narrow, narrow_assertions, size=(80, 34))
 
 
+def test_calendar_drag_shows_live_valid_and_invalid_drop_feedback(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Drag preview",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 11, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        hit = next(hit for hit in grid._hits if hit.block.item.item_id == event.id)
+        grid.on_mouse_down(events.MouseDown(grid, hit.x, hit.y + 1, 0, 0, 1, False, False, False))
+
+        target_y = grid._timed_start + 13 * 2
+        grid.on_mouse_move(
+            events.MouseMove(grid, grid._time_axis, target_y, 0, 0, 0, False, False, False)
+        )
+        assert grid._drag_preview is not None
+        assert grid._drag_preview.valid
+        assert "→ Drag preview" in grid._line(grid._drag_preview.y).plain
+
+        grid.on_mouse_move(events.MouseMove(grid, 0, target_y, 0, 0, 0, False, False, False))
+        assert grid._drag_preview is not None
+        assert not grid._drag_preview.valid
+        assert "× invalid drop" in grid._line(grid._drag_preview.y).plain
+
+        grid.on_mouse_up(events.MouseUp(grid, 0, target_y, 0, 0, 1, False, False, False))
+        assert grid._drag is None
+        assert grid._drag_preview is None
+
+    app_test(app, assertions, size=(130, 34))
+
+
 def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]
