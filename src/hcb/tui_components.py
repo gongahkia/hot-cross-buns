@@ -67,16 +67,22 @@ from .tui import (
     LOCATION_MAP_ICON,
     PALETTE_COMMANDS,
     PROFILE_OPTIONS,
+    RECURRENCE_END_OPTIONS,
     RECURRENCE_FREQUENCY_OPTIONS,
+    RECURRENCE_UNIT_OPTIONS,
+    RECURRENCE_WEEKDAYS,
     SURFACES,
     TIME_ZONE_OPTIONS,
     WEEK_START_OPTIONS,
+    RecurrenceSpec,
     google_maps_url,
     is_web_url,
     linkify_urls,
     recurrence_frequency,
+    recurrence_spec,
     recurrence_summary,
     recurrence_with_frequency,
+    recurrence_with_spec,
     render_readonly_markup,
     role_rich_style,
 )
@@ -1438,6 +1444,192 @@ class ConflictScreen(ModalScreen[None]):
             self.hcb.notify("Conflict resolved")
 
 
+class CustomRecurrenceScreen(ModalScreen[tuple[str, ...] | None]):
+    """Build a common RRULE with contextual controls rather than raw syntax."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, recurrence: tuple[str, ...], start_date: date, *, all_day: bool) -> None:
+        super().__init__()
+        self.recurrence = recurrence
+        self.start_date = start_date
+        self.all_day = all_day
+        self.spec = recurrence_spec(recurrence, start_date)
+        self._weekdays = set(self.spec.weekdays)
+
+    def _select_value(self, selector: str, fallback: str) -> str:
+        value = self.query_one(selector, Select).value
+        return value if isinstance(value, str) else fallback
+
+    def _unit(self) -> str:
+        return self._select_value("#recurrence-unit", self.spec.frequency)
+
+    def _end(self) -> str:
+        return self._select_value("#recurrence-end", self.spec.end)
+
+    def _update_weekday_buttons(self) -> None:
+        for _label, code in RECURRENCE_WEEKDAYS:
+            self.query_one(f"#recurrence-weekday-{code.casefold()}", Button).set_class(
+                code in self._weekdays, "recurrence-weekday-selected"
+            )
+
+    def _update_context(self) -> None:
+        unit = self._unit()
+        self.query_one("#recurrence-weekdays", Horizontal).display = unit == "weekly"
+        self.query_one("#recurrence-monthly", Horizontal).display = unit == "monthly"
+        self.query_one("#recurrence-yearly", Horizontal).display = unit == "yearly"
+        end = self._end()
+        self.query_one("#recurrence-until", Input).display = end == "on"
+        self.query_one("#recurrence-count", Input).display = end == "after"
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="recurrence-dialog"):
+            yield Label("Custom recurrence", id="dialog-title")
+            with Horizontal(classes="recurrence-row"):
+                yield Label("Repeat every", classes="recurrence-label")
+                yield Input(value=str(self.spec.interval), id="recurrence-interval")
+                yield Select(
+                    RECURRENCE_UNIT_OPTIONS,
+                    value=self.spec.frequency,
+                    allow_blank=False,
+                    id="recurrence-unit",
+                )
+            yield Label("Repeat on", classes="recurrence-label")
+            with Horizontal(id="recurrence-weekdays"):
+                for label, code in RECURRENCE_WEEKDAYS:
+                    yield Button(
+                        label[:2],
+                        id=f"recurrence-weekday-{code.casefold()}",
+                        classes="recurrence-weekday",
+                    )
+            with Horizontal(id="recurrence-monthly", classes="recurrence-row"):
+                yield Label("On day", classes="recurrence-label")
+                yield Select(
+                    DUE_DAY_OPTIONS,
+                    value=str(self.spec.month_day or self.start_date.day),
+                    allow_blank=False,
+                    id="recurrence-month-day",
+                )
+            with Horizontal(id="recurrence-yearly", classes="recurrence-row"):
+                yield Label("On", classes="recurrence-label")
+                yield Select(
+                    DUE_MONTH_OPTIONS,
+                    value=str(self.spec.month or self.start_date.month),
+                    allow_blank=False,
+                    id="recurrence-month",
+                )
+                yield Select(
+                    DUE_DAY_OPTIONS,
+                    value=str(self.spec.month_day or self.start_date.day),
+                    allow_blank=False,
+                    id="recurrence-year-day",
+                )
+            with Horizontal(classes="recurrence-row"):
+                yield Label("Ends", classes="recurrence-label")
+                yield Select(
+                    RECURRENCE_END_OPTIONS,
+                    value=self.spec.end,
+                    allow_blank=False,
+                    id="recurrence-end",
+                )
+            yield Input(
+                value=self.spec.until.isoformat() if self.spec.until else "",
+                placeholder="End date: YYYY-MM-DD",
+                id="recurrence-until",
+            )
+            yield Input(
+                value=str(self.spec.count or ""),
+                placeholder="Number of occurrences",
+                id="recurrence-count",
+            )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Done", variant="primary", id="recurrence-done")
+                yield Button("Cancel", id="recurrence-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#recurrence-interval", Input).focus()
+        self._update_weekday_buttons()
+        self._update_context()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id in {"recurrence-unit", "recurrence-end"}:
+            self._update_context()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+        if button_id and button_id.startswith("recurrence-weekday-"):
+            code = button_id.removeprefix("recurrence-weekday-").upper()
+            if code in self._weekdays:
+                self._weekdays.remove(code)
+            else:
+                self._weekdays.add(code)
+            self._update_weekday_buttons()
+            return
+        if button_id == "recurrence-cancel":
+            self.dismiss(None)
+            return
+        if button_id != "recurrence-done":
+            return
+        try:
+            interval = int(self.query_one("#recurrence-interval", Input).value)
+            if interval < 1:
+                raise ValueError("Repeat interval must be at least 1")
+            unit = self._unit()
+            if unit not in {"daily", "weekly", "monthly", "yearly"}:
+                raise ValueError("Choose a repeat unit")
+            end = self._end()
+            if end not in {"never", "on", "after"}:
+                raise ValueError("Choose when the recurrence ends")
+            until = (
+                date.fromisoformat(self.query_one("#recurrence-until", Input).value)
+                if end == "on"
+                else None
+            )
+            count = (
+                int(self.query_one("#recurrence-count", Input).value) if end == "after" else None
+            )
+            if count is not None and count < 1:
+                raise ValueError("Occurrence count must be at least 1")
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+            return
+        month_day = (
+            int(self._select_value("#recurrence-month-day", str(self.start_date.day)))
+            if unit == "monthly"
+            else (
+                int(self._select_value("#recurrence-year-day", str(self.start_date.day)))
+                if unit == "yearly"
+                else None
+            )
+        )
+        month = (
+            int(self._select_value("#recurrence-month", str(self.start_date.month)))
+            if unit == "yearly"
+            else None
+        )
+        self.dismiss(
+            recurrence_with_spec(
+                self.recurrence,
+                RecurrenceSpec(
+                    frequency=cast(Literal["daily", "weekly", "monthly", "yearly"], unit),
+                    interval=interval,
+                    weekdays=tuple(
+                        code for _label, code in RECURRENCE_WEEKDAYS if code in self._weekdays
+                    ),
+                    month_day=month_day,
+                    month=month,
+                    end=cast(Literal["never", "on", "after"], end),
+                    until=until,
+                    count=count,
+                ),
+                all_day=self.all_day,
+            )
+        )
+
+
 class EventEditorScreen(ModalScreen[dict[str, str] | None]):
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
@@ -1445,18 +1637,14 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
         super().__init__()
         self.event = event
         self.calendar_id = event.calendar_id if event else calendar_id
-        self._initial_recurrence = event.recurrence if event else ()
+        self._recurrence_rules = event.recurrence if event else ()
 
     def _frequency(self) -> str:
         value = self.query_one("#event-frequency", Select).value
         return str(value) if isinstance(value, str) else "none"
 
     def _recurrence(self) -> tuple[str, ...]:
-        frequency = self._frequency()
-        if frequency == "custom":
-            raw = self.query_one("#event-recurrence", Input).value
-            return tuple(item.strip() for item in raw.split("|") if item.strip())
-        return recurrence_with_frequency(self._initial_recurrence, frequency)
+        return self._recurrence_rules
 
     def _update_recurrence_fields(self) -> None:
         frequency = self._frequency()
@@ -1464,7 +1652,36 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
         self.query_one("#event-recurrence-summary", Static).update(
             f"Recurrence: {recurrence_summary(recurrence)}"
         )
-        self.query_one("#event-recurrence", Input).display = frequency == "custom"
+        self.query_one("#event-custom-recurrence", Button).display = frequency != "none"
+
+    def _recurrence_start_date(self) -> date:
+        raw = self.query_one("#event-start", Input).value.strip()
+        try:
+            return date.fromisoformat(raw[:10])
+        except ValueError:
+            return date.today()
+
+    def _open_custom_recurrence(self) -> None:
+        start = self._recurrence_start_date()
+        self.app.push_screen(
+            CustomRecurrenceScreen(
+                self._recurrence_rules,
+                start,
+                all_day="T" not in self.query_one("#event-start", Input).value,
+            ),
+            self._custom_recurrence_result,
+        )
+
+    def _custom_recurrence_result(self, recurrence: tuple[str, ...] | None) -> None:
+        frequency = (
+            recurrence_frequency(self._recurrence_rules)
+            if recurrence is None
+            else recurrence_frequency(recurrence)
+        )
+        if recurrence is not None:
+            self._recurrence_rules = recurrence
+        self.query_one("#event-frequency", Select).value = frequency
+        self._update_recurrence_fields()
 
     def _update_location_map(self) -> None:
         location = self.query_one("#event-location", Input).value
@@ -1505,15 +1722,11 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                 yield Label("Frequency", classes="event-field-label")
                 yield Select(
                     RECURRENCE_FREQUENCY_OPTIONS,
-                    value=recurrence_frequency(self._initial_recurrence),
+                    value=recurrence_frequency(self._recurrence_rules),
                     id="event-frequency",
                 )
                 yield Static(id="event-recurrence-summary")
-                yield Input(
-                    value=" | ".join(self._initial_recurrence),
-                    placeholder="Custom recurrence rules, separated by |",
-                    id="event-recurrence",
-                )
+                yield Button("Customise recurrence…", id="event-custom-recurrence")
                 yield Label("Description", classes="event-field-label")
                 yield TerminalTextArea(
                     event.description or "" if event else "", id="event-description"
@@ -1530,8 +1743,13 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
         self._update_location_map()
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        if event.select.id == "event-frequency":
-            self._update_recurrence_fields()
+        if event.select.id != "event-frequency" or not isinstance(event.value, str):
+            return
+        if event.value == "custom":
+            self._open_custom_recurrence()
+            return
+        self._recurrence_rules = recurrence_with_frequency(self._recurrence_rules, event.value)
+        self._update_recurrence_fields()
 
     def on_input_changed(self, event: TextualInput.Changed) -> None:
         if event.input.id == "event-location":
@@ -1543,6 +1761,9 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "event-delete":
             self.dismiss({"action": "delete"})
+            return
+        if event.button.id == "event-custom-recurrence":
+            self._open_custom_recurrence()
             return
         if event.button.id != "event-save":
             self.dismiss(None)

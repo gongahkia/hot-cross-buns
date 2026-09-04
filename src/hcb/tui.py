@@ -287,7 +287,8 @@ def recurrence_spec(recurrence: tuple[str, ...], start_date: date) -> Recurrence
     return RecurrenceSpec(
         frequency=frequency,  # type: ignore[arg-type]
         interval=_positive_int(fields.get("INTERVAL"), 1),
-        weekdays=by_day or ((RECURRENCE_WEEKDAYS[start_date.weekday()][1],) if frequency == "weekly" else ()),
+        weekdays=by_day
+        or ((RECURRENCE_WEEKDAYS[start_date.weekday()][1],) if frequency == "weekly" else ()),
         month_day=month_day if frequency in {"monthly", "yearly"} else None,
         month=month if frequency == "yearly" else None,
         end="after" if count is not None else "on" if until is not None else "never",
@@ -312,9 +313,7 @@ def recurrence_with_spec(
     if index is not None:
         _prefix, _separator, rule = recurrence[index].strip().partition(":")
         preserved = [
-            clause
-            for clause in rule.split(";")
-            if clause.partition("=")[0].upper() not in managed
+            clause for clause in rule.split(";") if clause.partition("=")[0].upper() not in managed
         ]
     clauses = [f"FREQ={spec.frequency.upper()}"]
     if spec.interval != 1:

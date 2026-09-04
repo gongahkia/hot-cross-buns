@@ -268,6 +268,7 @@ Input.-invalid, TextArea.-invalid {
 .borders-unicode Button, .borders-unicode Input, .borders-unicode TextArea,
 .borders-unicode #palette-dialog, .borders-unicode #editor-dialog,
 .borders-unicode #confirm-dialog, .borders-unicode #event-dialog,
+.borders-unicode #recurrence-dialog,
 .borders-unicode #rsvp-dialog, .borders-unicode #calendar-dialog,
 .borders-unicode #settings-dialog, .borders-unicode #find-time-dialog,
 .borders-unicode #google-setup-dialog, .borders-unicode #batch-move-dialog,
@@ -328,6 +329,12 @@ Input.-invalid, TextArea.-invalid {
     height: 30;
 }
 
+#recurrence-dialog {
+    width: 52;
+    height: 24;
+    max-height: 90%;
+}
+
 #event-fields, #item-view-content {
     height: 1fr;
 }
@@ -343,6 +350,38 @@ Input.-invalid, TextArea.-invalid {
 
 #event-recurrence-summary {
     padding: 0 1;
+}
+
+.recurrence-row {
+    height: 3;
+    align: left middle;
+}
+
+.recurrence-label {
+    width: 14;
+    min-width: 14;
+}
+
+.recurrence-row Input {
+    width: 7;
+    min-width: 7;
+    margin-right: 1;
+}
+
+#recurrence-weekdays {
+    height: 3;
+}
+
+#recurrence-weekdays Button {
+    width: 1fr;
+    min-width: 4;
+    padding: 0;
+}
+
+#recurrence-weekdays Button.recurrence-weekday-selected {
+    background: $primary;
+    color: auto 87%;
+    border: ascii $primary;
 }
 
 #event-location-map {

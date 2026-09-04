@@ -17,6 +17,7 @@ from rich.text import Text
 from textual import events
 from textual.app import SuspendNotSupported
 from textual.color import Color
+from textual.containers import Horizontal
 from textual.widgets import Button, Input, Label, ListView, Select, Static
 
 from hcb.config import Config, KeyBindings, Theme, ThemeColors, save
@@ -568,7 +569,7 @@ def test_event_editor_uses_readable_frequency_and_preserves_rrule_details(tmp_pa
         assert "Every year · 3 times" in str(
             app.screen.query_one("#event-recurrence-summary", Static).render()
         )
-        assert app.screen.query_one("#event-recurrence", Input).display is False
+        assert app.screen.query_one("#event-custom-recurrence", Button).display
 
         app.screen.query_one("#event-frequency", Select).value = "weekly"
         await pilot.pause()  # type: ignore[attr-defined]
@@ -580,6 +581,55 @@ def test_event_editor_uses_readable_frequency_and_preserves_rrule_details(tmp_pa
         updated = runtime.storage.get_event("work", event.id)
         assert updated is not None
         assert updated.recurrence == ("RRULE:FREQ=WEEKLY;COUNT=3",)
+
+    app_test(app, assertions)
+
+
+def test_event_editor_builds_custom_recurrence_with_contextual_controls(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Custom interval",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 1)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 2)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 1))
+
+    async def assertions(pilot: object) -> None:
+        app.selected = ("event", event.id)
+        app.action_edit()
+        await pilot.pause()  # type: ignore[attr-defined]
+        app.screen.query_one("#event-frequency", Select).value = "custom"
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        assert app.screen.query_one("#recurrence-weekdays", Horizontal).display
+        app.screen.query_one("#recurrence-unit", Select).value = "monthly"
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert not app.screen.query_one("#recurrence-weekdays", Horizontal).display
+        assert app.screen.query_one("#recurrence-monthly", Horizontal).display
+        app.screen.query_one("#recurrence-unit", Select).value = "weekly"
+        app.screen.query_one("#recurrence-interval", Input).value = "2"
+        await pilot.click("#recurrence-weekday-sa")  # type: ignore[attr-defined]
+        await pilot.click("#recurrence-weekday-mo")  # type: ignore[attr-defined]
+        await pilot.click("#recurrence-weekday-we")  # type: ignore[attr-defined]
+        app.screen.query_one("#recurrence-end", Select).value = "after"
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.screen.query_one("#recurrence-count", Input).display
+        app.screen.query_one("#recurrence-count", Input).value = "8"
+        await pilot.click("#recurrence-done")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        assert isinstance(app.screen, EventEditorScreen)
+        assert "Every 2 weeks on Monday, Wednesday · 8 times" in str(
+            app.screen.query_one("#event-recurrence-summary", Static).render()
+        )
+        await pilot.click("#event-save")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        updated = runtime.storage.get_event("work", event.id)
+        assert updated is not None
+        assert updated.recurrence == ("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=8",)
 
     app_test(app, assertions)
 
