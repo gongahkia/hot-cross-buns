@@ -383,9 +383,21 @@ class WorkspaceTable(ScrollView):
 
     def _rendered_row_label(self, index: int) -> Text:
         label = self._workspace_rows[index].label.copy()
-        label.stylize(self.rich_style, 0, len(label))
+        base_style = self.rich_style
         if index == self._selected_row_index and self._selection_style is not None:
-            label.stylize(self._selection_style)
+            base_style = base_style + self._selection_style
+            if base_style.reverse:
+                # ``reverse`` swaps every foreground colour, including an event's
+                # colour indicator. Materialize the reversal in the base style so
+                # inline spans retain their intended foreground colour.
+                base_style = base_style.without_color + Style(
+                    color=base_style.bgcolor,
+                    bgcolor=base_style.color,
+                    reverse=False,
+                )
+        # A Text base style is applied before its inline spans. This keeps event
+        # and task indicator colours above the workspace and selection styling.
+        label.style = base_style
         return label
 
     def render_line(self, y: int) -> Strip:
