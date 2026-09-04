@@ -576,6 +576,7 @@ from .tui_components import (  # noqa: E402, F401
     BatchMoveScreen,
     BulkScreen,
     CachedWorkspace,
+    CalendarGrid,
     CalendarScreen,
     ConfirmScreen,
     ConflictScreen,
@@ -594,6 +595,7 @@ from .tui_components import (  # noqa: E402, F401
     LoadingScreen,
     OnboardingScreen,
     PaletteScreen,
+    RecurringEditScopeScreen,
     RsvpScreen,
     ScheduleScreen,
     SettingsScreen,
@@ -741,6 +743,7 @@ class HcbApp(LifecycleMixin, WorkspaceMixin, ActionMixin, App[None]):
             with Vertical(id="center"):
                 yield Static(id="surface-title")
                 yield WorkspaceTable()
+                yield CalendarGrid()
         yield Footer()
 
 

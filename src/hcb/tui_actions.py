@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Literal, cast
+from zoneinfo import ZoneInfo
 
 from textual import work
 
@@ -26,6 +27,7 @@ from .tui import (
     CURRENT_THEME_VALUE,
     SURFACES,
 )
+from .tui_calendar import CalendarItem
 from .tui_components import (
     BatchActionScreen,
     BatchMoveScreen,
@@ -40,6 +42,7 @@ from .tui_components import (
     ImportScreen,
     ItemViewScreen,
     PaletteScreen,
+    RecurringEditScopeScreen,
     RsvpScreen,
     ScheduleScreen,
     SettingsScreen,
@@ -157,6 +160,151 @@ class ActionMixin:
                 )
                 return
             self.push_screen(EditorScreen(), self._create_result)
+
+    def action_create_calendar_slot(
+        self: Any, day: date, minute: int | None, *, all_day: bool
+    ) -> None:
+        """Open the normal event editor with a calendar cell's date/time filled in."""
+        if self.account_id is None:
+            self.notify("Connect an account first", severity="warning")
+            return
+        calendar_id = (
+            self.resource_filter[1]
+            if self.resource_filter and self.resource_filter[0] == "calendar"
+            else (self.cache.calendars[0][0] if self.cache.calendars else None)
+        )
+        if calendar_id is None:
+            self.notify("Create a calendar first", severity="warning")
+            return
+        if all_day:
+            start = day.isoformat()
+            end = (day + timedelta(days=1)).isoformat()
+        else:
+            zone = ZoneInfo(self.runtime.config.preferences.time_zone)
+            start_at = datetime.combine(
+                day,
+                datetime.min.time(),
+                tzinfo=zone,
+            ) + timedelta(minutes=minute or 0)
+            end_at = start_at + timedelta(
+                minutes=self.runtime.config.tui.default_event_duration_minutes
+            )
+            start, end = start_at.isoformat(), end_at.isoformat()
+        self.push_screen(
+            EventEditorScreen(None, calendar_id, start=start, end=end), self._event_create_result
+        )
+
+    def apply_calendar_item_change(
+        self: Any,
+        item: CalendarItem,
+        *,
+        day: date,
+        minute: int | None,
+        operation: Literal["move", "resize-start", "resize-end"],
+        scope: Literal["this", "following", "series"] | None = None,
+    ) -> None:
+        """Translate a grid coordinate change into the existing local mutation API."""
+        if self.account_id is None:
+            return
+        if item.kind == "task":
+            task = next(
+                (candidate for candidate in self.cache.tasks if candidate.id == item.item_id), None
+            )
+            if task is None:
+                return
+            try:
+                updated_task = self.runtime.application.update_task(
+                    self.account_id, task.id, due=day, clear_due=False
+                )
+            except (ValueError, HcbError) as exc:
+                self.notify(str(exc), severity="error")
+                return
+            self.apply_workspace_task_mutation(updated_task)
+            self.notify("Task due date updated")
+            return
+        event = next(
+            (candidate for candidate in self.cache.events if candidate.id == item.item_id), None
+        )
+        if event is None:
+            return
+        if scope is None and item.recurring:
+            self.push_screen(
+                RecurringEditScopeScreen(),
+                lambda result: (
+                    self.apply_calendar_item_change(
+                        item, day=day, minute=minute, operation=operation, scope=result
+                    )
+                    if result is not None
+                    else None
+                ),
+            )
+            return
+        zone = ZoneInfo(self.runtime.config.preferences.time_zone)
+        try:
+            points, target_scope = self._calendar_event_target(event, day, minute, operation, zone)
+            target_event = event
+            if scope == "following":
+                old, target_event = self.runtime.application.split_recurring_event(
+                    self.account_id, event.id
+                )
+                self._replace_cached_event(old)
+                target_scope = "series"
+            elif scope == "series":
+                target_scope = "series"
+            updated_event = self.runtime.application.update_event(
+                self.account_id,
+                target_event.id,
+                start=points[0],
+                end=points[1],
+                scope=target_scope,
+            )
+        except (ValueError, HcbError) as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self.apply_workspace_event_mutation(updated_event)
+        self.notify("Event updated")
+
+    def _calendar_event_target(
+        self: Any,
+        event: Event,
+        day: date,
+        minute: int | None,
+        operation: Literal["move", "resize-start", "resize-end"],
+        zone: ZoneInfo,
+    ) -> tuple[tuple[EventDateTime, EventDateTime], Literal["this", "series"]]:
+        """Build a validated date/time pair without changing event metadata."""
+        if event.start.kind is DateTimeKind.DATE:
+            start_value, end_value = event.start.value, event.end.value
+            assert isinstance(start_value, date) and not isinstance(start_value, datetime)
+            assert isinstance(end_value, date) and not isinstance(end_value, datetime)
+            duration = end_value - start_value
+            return (
+                (
+                    EventDateTime(DateTimeKind.DATE, day),
+                    EventDateTime(DateTimeKind.DATE, day + duration),
+                ),
+                "this",
+            )
+        start_value, end_value = event.start.value, event.end.value
+        assert isinstance(start_value, datetime) and isinstance(end_value, datetime)
+        local_start = start_value.astimezone(zone)
+        local_end = end_value.astimezone(zone)
+        target = datetime.combine(day, datetime.min.time(), tzinfo=zone) + timedelta(
+            minutes=minute or 0
+        )
+        if operation == "move":
+            next_start, next_end = target, target + (local_end - local_start)
+        elif operation == "resize-start":
+            next_start, next_end = min(target, local_end - timedelta(minutes=30)), local_end
+        else:
+            next_start, next_end = local_start, max(target, local_start + timedelta(minutes=30))
+        return (
+            (
+                EventDateTime(DateTimeKind.DATETIME, next_start, zone.key),
+                EventDateTime(DateTimeKind.DATETIME, next_end, zone.key),
+            ),
+            "this",
+        )
 
     def _create_result(self: Any, result: dict[str, str] | None) -> None:
         if not result or not result["title"] or self.account_id is None:
@@ -625,6 +773,7 @@ class ActionMixin:
             "notes_show_preview": str(config.tui.notes_show_preview).lower(),
             "agenda_show_calendar": str(config.tui.agenda_show_calendar).lower(),
             "agenda_show_location": str(config.tui.agenda_show_location).lower(),
+            "default_event_duration_minutes": str(config.tui.default_event_duration_minutes),
             "active_profile": config.active_profile or "",
         }
 
@@ -720,6 +869,7 @@ class ActionMixin:
                 notes_show_preview=result["notes_show_preview"].casefold() == "true",
                 agenda_show_calendar=result["agenda_show_calendar"].casefold() == "true",
                 agenda_show_location=result["agenda_show_location"].casefold() == "true",
+                default_event_duration_minutes=int(result["default_event_duration_minutes"]),
             )
             theme_preset: str | None = result["theme_preset"]
             if theme_preset is None or theme_preset == CURRENT_THEME_VALUE:

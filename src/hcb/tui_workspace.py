@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from rich.style import Style
 from rich.text import Text
+from textual import events
 from textual.widgets import (
     Button,
     ListView,
@@ -21,8 +22,10 @@ from .application import (
 )
 from .models import DriveFile, Event, Task, TaskStatus
 from .tui import GOOGLE_EVENT_COLORS, linkify_urls, role_rich_style
+from .tui_calendar import CalendarSurface, calendar_range
 from .tui_components import (
     CachedWorkspace,
+    CalendarGrid,
     EntityRow,
     LoadingScreen,
     WorkspaceRow,
@@ -41,6 +44,11 @@ class WorkspaceMixin:
     surface: str
     _mini_month_render_key: tuple[date, int, str] | None
     _instance_badge_cache: dict[tuple[object, ...], str | None]
+
+    def on_resize(self: Any, _: events.Resize) -> None:
+        """Swap between grid and list projection when terminal width changes."""
+        if self.surface in {"Day", "Week", "Month"}:
+            self.call_after_refresh(self._render_surface)
 
     def refresh_workspace(self: Any) -> None:
         """Refresh the UI cache through the application controller boundary."""
@@ -77,6 +85,8 @@ class WorkspaceMixin:
         self.query_one("#sync-state", Static).update("Not connected · no network activity")
         self.query_one("#surface-title", Static).update("Welcome")
         content = self.query_one("#content", WorkspaceTable)
+        self.query_one("#calendar-content", CalendarGrid).display = False
+        content.display = True
         content.replace_rows(
             (
                 WorkspaceRow(
@@ -247,6 +257,43 @@ class WorkspaceMixin:
     def _render_surface(self: Any) -> None:
         self._update_surface_title()
         content = self.query_one("#content", WorkspaceTable)
+        calendar = self.query_one("#calendar-content", CalendarGrid)
+        if self._calendar_grid_available():
+            content.display = False
+            calendar.display = True
+            events = self._events_for_surface()
+            tasks = self._calendar_tasks_for_surface()
+            colors = {
+                item_id: stored.color
+                for item_id, _title, _selected in self.cache.calendars
+                if (stored := self.runtime.storage.get_calendar(self.account_id or "", item_id))
+                if stored.color and stored.color.startswith("#")
+            }
+            calendar.set_calendar(
+                cast(CalendarSurface, self.surface),
+                self.selected_date,
+                events,
+                tasks,
+                week_starts_on=self.runtime.config.preferences.week_starts_on,
+                time_zone=self.runtime.config.preferences.time_zone,
+                calendar_colors=colors,
+                fallback_color=self.runtime.config.theme.colors.accent,
+                selected=self.selected,
+            )
+            # Keep the list projection synchronized underneath the grid. This
+            # gives resize fallback an immediate readable surface and preserves
+            # the existing programmatic WorkspaceTable integration.
+            titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
+            fallback_rows = [self._workspace_event_row(event, titles) for event in events]
+            fallback_rows.extend(self._workspace_task_row(task, "") for task in tasks)
+            content.replace_rows(
+                tuple(fallback_rows)
+                or (WorkspaceRow("empty", "empty", Text("No calendar items in this range")),),
+                height=2 if self.density == "comfortable" else 1,
+            )
+            return
+        calendar.display = False
+        content.display = True
         rows: list[WorkspaceRow] = []
         if self.surface in {"Tasks", "Notes"}:
             tasks = self._surface_tasks()
@@ -257,6 +304,8 @@ class WorkspaceMixin:
             calendar_titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
             for event in events:
                 rows.append(self._workspace_event_row(event, calendar_titles))
+            for task in self._calendar_tasks_for_surface():
+                rows.append(self._workspace_task_row(task, ""))
             if self.surface == "Month" and not events:
                 rows.append(WorkspaceRow("empty", "month", Text("No events this month")))
         if not rows:
@@ -278,6 +327,23 @@ class WorkspaceMixin:
         content.select_workspace_row(
             selected_index, role_rich_style(self.runtime.config.theme.roles.selected_item)
         )
+
+    def _calendar_grid_available(self: Any) -> bool:
+        if self.surface not in {"Day", "Week", "Month"}:
+            return False
+        center_width = self.query_one("#center").size.width
+        if not isinstance(center_width, int):
+            return False
+        return center_width >= CalendarGrid.minimum_width(cast(CalendarSurface, self.surface))
+
+    def _calendar_tasks_for_surface(self: Any) -> tuple[Task, ...]:
+        """Return due tasks for calendar surfaces without leaking calendar filters."""
+        if self.resource_filter and self.resource_filter[0] == "calendar":
+            return ()
+        tasks = self.cache.tasks
+        if self.resource_filter and self.resource_filter[0] == "task-list":
+            tasks = tuple(task for task in tasks if task.list_id == self.resource_filter[1])
+        return tuple(task for task in tasks if task.due is not None)
 
     def _surface_tasks(self: Any) -> tuple[Task, ...]:
         """Return the task projection for the active task-oriented surface."""
@@ -451,18 +517,32 @@ class WorkspaceMixin:
     def apply_workspace_task_mutation(self: Any, task: Task) -> None:
         """Apply one locally-written task to cache and the active virtual surface."""
         self._replace_cached_task(task)
+        if self._calendar_grid_available():
+            self._render_surface()
+            self._refresh_mutation_chrome()
+            return
         self._reconcile_task_workspace_row(task)
         self._refresh_mutation_chrome()
 
     def apply_workspace_event_mutation(self: Any, event: Event) -> None:
         """Apply one locally-written event to cache and the active virtual surface."""
         self._replace_cached_event(event)
+        if self._calendar_grid_available():
+            self._render_surface()
+            self._refresh_mutation_chrome(event_changed=True)
+            return
         self._reconcile_event_workspace_row(event)
         self._refresh_mutation_chrome(event_changed=True)
 
     def remove_workspace_item(self: Any, kind: str, item_id: str) -> None:
         """Remove one local item from cache and the active virtual surface."""
         self._remove_cached_item(kind, item_id)
+        if self._calendar_grid_available():
+            if self.selected == (kind, item_id):
+                self.selected = None
+            self._render_surface()
+            self._refresh_mutation_chrome(event_changed=kind == "event")
+            return
         content = self.query_one("#content", WorkspaceTable)
         if (index := content.index_of(kind, item_id)) is not None:
             content.remove_workspace_row(index)
@@ -613,6 +693,13 @@ class WorkspaceMixin:
 
     def _event_surface_range(self: Any) -> tuple[date, date]:
         day = self.selected_date
+        if self.surface in {"Day", "Week", "Month"}:
+            visible = calendar_range(
+                cast(CalendarSurface, self.surface),
+                day,
+                self.runtime.config.preferences.week_starts_on,
+            )
+            return visible.start, visible.end
         if self.surface == "Day":
             return day, day + timedelta(days=1)
         if self.surface == "Week":
@@ -756,6 +843,35 @@ class WorkspaceMixin:
     def on_workspace_table_row_marked(self: Any, event: WorkspaceTable.RowMarked) -> None:
         self.selected = (event.row.kind, event.row.item_id)
         self.action_mark()
+
+    def on_calendar_grid_item_selected(self: Any, event: CalendarGrid.ItemSelected) -> None:
+        if event.grid.id != "calendar-content":
+            return
+        self.selected = (event.item.kind, event.item.item_id)
+        event.grid.select_item(self.selected)
+
+    def on_calendar_grid_item_activated(self: Any, event: CalendarGrid.ItemActivated) -> None:
+        if event.grid.id != "calendar-content":
+            return
+        self.selected = (event.item.kind, event.item.item_id)
+        event.grid.select_item(self.selected)
+        self.action_view()
+
+    def on_calendar_grid_slot_selected(self: Any, event: CalendarGrid.SlotSelected) -> None:
+        if event.grid.id != "calendar-content":
+            return
+        self.action_create_calendar_slot(event.day, event.minute, all_day=event.all_day)
+
+    def on_calendar_grid_item_changed(self: Any, event: CalendarGrid.ItemChanged) -> None:
+        if event.grid.id != "calendar-content":
+            return
+        self.selected = (event.item.kind, event.item.item_id)
+        self.apply_calendar_item_change(
+            event.item,
+            day=event.day,
+            minute=event.minute,
+            operation=event.operation,
+        )
 
     def _selected_task(self: Any) -> Task | None:
         if not self.selected or self.selected[0] != "task":

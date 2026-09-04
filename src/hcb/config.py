@@ -214,6 +214,7 @@ class TuiSettings:
     notes_show_preview: bool = True
     agenda_show_calendar: bool = False
     agenda_show_location: bool = False
+    default_event_duration_minutes: int = 60
 
     def __post_init__(self) -> None:
         if self.initial_surface not in {"Tasks", "Notes", "Agenda", "Day", "Week", "Month"}:
@@ -222,6 +223,8 @@ class TuiSettings:
             raise ValueError("tui.sidebar_width must be between 22 and 60")
         if not 1 <= self.agenda_days <= 31:
             raise ValueError("tui.agenda_days must be between 1 and 31")
+        if not 5 <= self.default_event_duration_minutes <= 1440:
+            raise ValueError("tui.default_event_duration_minutes must be between 5 and 1440")
 
 
 @dataclass(frozen=True, slots=True)

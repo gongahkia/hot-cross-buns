@@ -10,10 +10,11 @@ import webbrowser
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Literal, cast
+from zoneinfo import ZoneInfo
 
 from rich.color import Color as RichColor
 from rich.style import Style
@@ -85,6 +86,17 @@ from .tui import (
     recurrence_with_spec,
     render_readonly_markup,
     role_rich_style,
+)
+from .tui_calendar import (
+    CalendarBlock,
+    CalendarItem,
+    CalendarRange,
+    CalendarSurface,
+    all_day_blocks,
+    calendar_items,
+    calendar_range,
+    month_label,
+    timed_blocks,
 )
 
 if TYPE_CHECKING:
@@ -449,6 +461,448 @@ class WorkspaceTable(ScrollView):
             return
 
 
+@dataclass(frozen=True, slots=True)
+class _CalendarHitBox:
+    """A render-coordinate rectangle associated with a visible calendar item."""
+
+    block: CalendarBlock
+    x: int
+    y: int
+    width: int
+    height: int
+
+    def contains(self, x: int, y: int) -> bool:
+        return self.x <= x < self.x + self.width and self.y <= y < self.y + self.height
+
+
+class CalendarGrid(ScrollView):
+    """A mouse-aware terminal Day, Week, or Month calendar projection.
+
+    Textual has no calendar widget because terminals need application-specific
+    choices about density, overlap packing, and date navigation.  This widget
+    draws one virtual canvas, while the pure geometry in :mod:`tui_calendar`
+    makes all placement decisions independently testable.
+    """
+
+    class ItemSelected(Message):
+        def __init__(self, grid: CalendarGrid, item: CalendarItem) -> None:
+            self.grid = grid
+            self.item = item
+            super().__init__()
+
+    class ItemActivated(Message):
+        def __init__(self, grid: CalendarGrid, item: CalendarItem) -> None:
+            self.grid = grid
+            self.item = item
+            super().__init__()
+
+    class SlotSelected(Message):
+        def __init__(
+            self, grid: CalendarGrid, day: date, minute: int | None, *, all_day: bool
+        ) -> None:
+            self.grid = grid
+            self.day = day
+            self.minute = minute
+            self.all_day = all_day
+            super().__init__()
+
+    class ItemChanged(Message):
+        def __init__(
+            self,
+            grid: CalendarGrid,
+            item: CalendarItem,
+            *,
+            day: date,
+            minute: int | None,
+            operation: Literal["move", "resize-start", "resize-end"],
+        ) -> None:
+            self.grid = grid
+            self.item = item
+            self.day = day
+            self.minute = minute
+            self.operation = operation
+            super().__init__()
+
+    BINDINGS = [
+        Binding("left,up", "previous_item", "Previous item", show=False),
+        Binding("right,down", "next_item", "Next item", show=False),
+        Binding("enter", "open_item", "Open item", show=False),
+    ]
+
+    def __init__(self, *, id: str = "calendar-content") -> None:
+        super().__init__(id=id, can_focus=True)
+        self.surface: CalendarSurface = "Day"
+        self._range = CalendarRange(date.today(), date.today(), 1)
+        self._items: tuple[CalendarItem, ...] = ()
+        self._all_day: tuple[CalendarBlock, ...] = ()
+        self._timed: tuple[CalendarBlock, ...] = ()
+        self._hits: tuple[_CalendarHitBox, ...] = ()
+        self._selected: tuple[str, str] | None = None
+        self._drag: (
+            tuple[
+                _CalendarHitBox,
+                int,
+                int,
+                Literal["move", "resize-start", "resize-end"],
+            ]
+            | None
+        ) = None
+        self._calendar_colors: dict[str, str] = {}
+        self._fallback_color = "ansi_default"
+        self._zone = ZoneInfo("UTC")
+        self._week_starts_on = 0
+        self._time_axis = 8
+        self._cell_width = 12
+        self._header_height = 2
+        self._all_day_height = 1
+        self._timed_start = 4
+        self._month_cell_height = 4
+        self.virtual_size = Size(1, 1)
+
+    @property
+    def selected(self) -> tuple[str, str] | None:
+        return self._selected
+
+    @property
+    def items(self) -> tuple[CalendarItem, ...]:
+        return self._items
+
+    @staticmethod
+    def minimum_width(surface: CalendarSurface) -> int:
+        return {"Day": 48, "Week": 92, "Month": 84}[surface]
+
+    def set_calendar(
+        self,
+        surface: CalendarSurface,
+        selected_date: date,
+        events: tuple[Event, ...],
+        tasks: tuple[Task, ...],
+        *,
+        week_starts_on: int,
+        time_zone: str,
+        calendar_colors: dict[str, str],
+        fallback_color: str,
+        selected: tuple[str, str] | None,
+    ) -> None:
+        """Replace the visible projection after a deliberate workspace refresh."""
+        self.surface = surface
+        self._week_starts_on = week_starts_on
+        self._zone = ZoneInfo(time_zone)
+        self._calendar_colors = calendar_colors
+        self._fallback_color = fallback_color
+        self._range = calendar_range(surface, selected_date, week_starts_on)
+        self._items = calendar_items(
+            events,
+            tasks,
+            visible=self._range,
+            zone=self._zone,
+            calendar_colors=calendar_colors,
+            fallback_color=fallback_color,
+        )
+        self._all_day = all_day_blocks(self._items, self._range)
+        self._timed = timed_blocks(self._items, self._range)
+        self._selected = selected
+        self._rebuild_geometry()
+
+    def select_item(self, selected: tuple[str, str] | None) -> None:
+        self._selected = selected
+        self.refresh()
+
+    def on_resize(self, _: events.Resize) -> None:
+        self._rebuild_geometry()
+
+    def _rebuild_geometry(self) -> None:
+        days = self._range.days
+        width = max(self.size.width, self.minimum_width(self.surface))
+        self._cell_width = max(12, (width - self._time_axis) // days)
+        canvas_width = self._time_axis + self._cell_width * days
+        hits: list[_CalendarHitBox] = []
+        if self.surface == "Month":
+            self._month_cell_height = max(4, (max(self.size.height, 25) - 1) // 6)
+            for block in self._all_day:
+                first_week = block.start_day // 7
+                last_week = (block.end_day - 1) // 7
+                for week in range(first_week, last_week + 1):
+                    start_day = max(block.start_day, week * 7)
+                    end_day = min(block.end_day, (week + 1) * 7)
+                    hits.append(
+                        _CalendarHitBox(
+                            block,
+                            (start_day % 7) * self._cell_width,
+                            1 + week * self._month_cell_height + 1 + block.lane,
+                            max(1, (end_day - start_day) * self._cell_width - 1),
+                            1,
+                        )
+                    )
+            self._hits = tuple(hits)
+            self.virtual_size = Size(canvas_width, 1 + self._month_cell_height * 6)
+            self.refresh()
+            return
+        self._all_day_height = max(1, max((block.lane for block in self._all_day), default=-1) + 1)
+        self._timed_start = self._header_height + self._all_day_height + 1
+        for block in self._all_day:
+            hits.append(
+                _CalendarHitBox(
+                    block,
+                    self._time_axis + block.start_day * self._cell_width,
+                    self._header_height + block.lane,
+                    max(1, (block.end_day - block.start_day) * self._cell_width - 1),
+                    1,
+                )
+            )
+        for block in self._timed:
+            assert block.start_minute is not None and block.end_minute is not None
+            unit = max(1, (self._cell_width - 1) // block.column_count)
+            x = self._time_axis + block.start_day * self._cell_width + block.column * unit
+            y = self._timed_start + block.start_minute // 30
+            height = max(1, (block.end_minute - block.start_minute + 29) // 30)
+            hits.append(_CalendarHitBox(block, x, y, max(3, unit - 1), height))
+        self._hits = tuple(hits)
+        self.virtual_size = Size(canvas_width, self._timed_start + 48)
+        self.refresh()
+
+    @staticmethod
+    def _style_color(color: str) -> str:
+        return "default" if color in {"ansi_default", "transparent"} else color
+
+    def _paint(
+        self,
+        cells: list[str],
+        spans: list[tuple[int, int, Style]],
+        x: int,
+        value: str,
+        style: Style,
+    ) -> None:
+        if x >= len(cells):
+            return
+        value = value[: max(0, len(cells) - x)]
+        for index, char in enumerate(value):
+            cells[x + index] = char
+        if value:
+            spans.append((x, x + len(value), style))
+
+    def _line(self, y: int) -> Text:
+        width = self.virtual_size.width
+        cells = [" "] * width
+        spans: list[tuple[int, int, Style]] = []
+        if self.surface == "Month":
+            self._render_month_line(cells, spans, y)
+        else:
+            self._render_timed_line(cells, spans, y)
+        line = Text("".join(cells))
+        # Textual's monochrome filter expects every segment to carry a Style.
+        # A full-width base span also preserves terminal/NO_COLOR rendering.
+        line.stylize(self.rich_style)
+        for start, end, style in spans:
+            line.stylize(style, start, end)
+        return line
+
+    def _chip(self, block: CalendarBlock, width: int, *, timed: bool = False) -> tuple[str, Style]:
+        item = block.item
+        marker = (
+            "✓" if item.kind == "task" and item.completed else "□" if item.kind == "task" else "●"
+        )
+        title = f"{marker} {item.title}"
+        if timed and block.start_minute is not None:
+            title = f"{block.start_minute // 60:02d}:{block.start_minute % 60:02d} {title}"
+        if width >= 2 and len(title) > width:
+            title = title[: width - 1] + "…"
+        style = Style(color=self._style_color(item.color), bold=not item.completed)
+        if item.completed:
+            style += Style(dim=True, strike=True)
+        if self._selected == (item.kind, item.item_id):
+            style += Style(reverse=True)
+        return title, style
+
+    def _render_timed_line(
+        self, cells: list[str], spans: list[tuple[int, int, Style]], y: int
+    ) -> None:
+        days = self._range.days
+        grid_style = Style(dim=True)
+        if y == 0:
+            for day_index in range(days):
+                day = self._range.start + timedelta(days=day_index)
+                label = day.strftime("%a %d")
+                if day == date.today():
+                    label = f"[{label}]"
+                self._paint(
+                    cells,
+                    spans,
+                    self._time_axis + day_index * self._cell_width + 1,
+                    label,
+                    Style(bold=True),
+                )
+            return
+        if y == 1:
+            self._paint(cells, spans, 0, "all-day", Style(dim=True))
+        if self._header_height <= y < self._header_height + self._all_day_height:
+            lane = y - self._header_height
+            for block in self._all_day:
+                if block.lane != lane:
+                    continue
+                x = self._time_axis + block.start_day * self._cell_width
+                width = max(1, (block.end_day - block.start_day) * self._cell_width - 1)
+                label, style = self._chip(block, width)
+                self._paint(cells, spans, x, label, style)
+            return
+        if y < self._timed_start:
+            self._paint(cells, spans, 0, "-" * len(cells), grid_style)
+            return
+        minute = (y - self._timed_start) * 30
+        if minute >= 24 * 60:
+            return
+        if minute % 60 == 0:
+            self._paint(cells, spans, 0, f"{minute // 60:02d}:00", Style(dim=True))
+        for day_index in range(days + 1):
+            x = self._time_axis + day_index * self._cell_width
+            if x < len(cells):
+                self._paint(cells, spans, x, "|", grid_style)
+        for hit in self._hits:
+            if not hit.y <= y < hit.y + hit.height or hit.block.item.all_day:
+                continue
+            label, style = self._chip(hit.block, hit.width, timed=y == hit.y)
+            self._paint(cells, spans, hit.x, label if y == hit.y else "·" * hit.width, style)
+
+    def _render_month_line(
+        self, cells: list[str], spans: list[tuple[int, int, Style]], y: int
+    ) -> None:
+        grid_style = Style(dim=True)
+        if y == 0:
+            for weekday in range(7):
+                label = (self._range.start + timedelta(days=weekday)).strftime("%a")
+                self._paint(cells, spans, weekday * self._cell_width + 1, label, Style(bold=True))
+            return
+        relative = y - 1
+        week = relative // self._month_cell_height
+        row = relative % self._month_cell_height
+        if not 0 <= week < 6:
+            return
+        for day_index in range(8):
+            x = day_index * self._cell_width
+            if x < len(cells):
+                self._paint(cells, spans, x, "|", grid_style)
+        if row == 0:
+            for weekday in range(7):
+                day = self._range.start + timedelta(days=week * 7 + weekday)
+                label = month_label(day)
+                selected_month = self._range.start.replace(day=15).month
+                style = Style(bold=True) if day.month == selected_month else Style(dim=True)
+                self._paint(cells, spans, weekday * self._cell_width + 1, label, style)
+            return
+        for hit in self._hits:
+            if hit.y != y:
+                continue
+            label, style = self._chip(hit.block, hit.width)
+            self._paint(cells, spans, hit.x, label, style)
+
+    def render_line(self, y: int) -> Strip:
+        y += int(self.scroll_offset.y)
+        if not 0 <= y < self.virtual_size.height:
+            return Strip.blank(self.size.width, self.rich_style)
+        return Strip(self._line(y).render(self.app.console)).crop_extend(
+            int(self.scroll_offset.x), int(self.scroll_offset.x) + self.size.width, self.rich_style
+        )
+
+    def _point(self, event: events.MouseEvent) -> tuple[int, int]:
+        return (
+            int(event.offset.x + self.scroll_offset.x),
+            int(event.offset.y + self.scroll_offset.y),
+        )
+
+    def _hit(self, x: int, y: int) -> _CalendarHitBox | None:
+        return next((hit for hit in reversed(self._hits) if hit.contains(x, y)), None)
+
+    def _slot(self, x: int, y: int) -> tuple[date, int | None, bool] | None:
+        if self.surface == "Month":
+            if y < 1:
+                return None
+            week = (y - 1) // self._month_cell_height
+            weekday = x // self._cell_width
+            if not 0 <= week < 6 or not 0 <= weekday < 7:
+                return None
+            return self._range.start + timedelta(days=week * 7 + weekday), None, True
+        if x < self._time_axis:
+            return None
+        day_index = (x - self._time_axis) // self._cell_width
+        if not 0 <= day_index < self._range.days:
+            return None
+        day = self._range.start + timedelta(days=day_index)
+        if self._header_height <= y < self._timed_start:
+            return day, None, True
+        minute = max(0, min(23 * 60 + 30, (y - self._timed_start) * 30))
+        return day, minute, False
+
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        x, y = self._point(event)
+        if (hit := self._hit(x, y)) is not None:
+            mode: Literal["move", "resize-start", "resize-end"] = "move"
+            if not hit.block.item.all_day and hit.block.item.kind == "event":
+                if y == hit.y:
+                    mode = "resize-start"
+                elif y == hit.y + hit.height - 1:
+                    mode = "resize-end"
+            self._drag = (hit, x, y, mode)
+            self._selected = (hit.block.item.kind, hit.block.item.item_id)
+            self.post_message(self.ItemSelected(self, hit.block.item))
+            self.capture_mouse()
+            event.stop()
+            return
+        self._drag = None
+
+    def on_mouse_up(self, event: events.MouseUp) -> None:
+        x, y = self._point(event)
+        drag = self._drag
+        self._drag = None
+        self.capture_mouse(False)
+        if drag is None:
+            if (slot := self._slot(x, y)) is not None:
+                self.post_message(self.SlotSelected(self, *slot[:2], all_day=slot[2]))
+            return
+        hit, start_x, start_y, mode = drag
+        if (x, y) == (start_x, start_y):
+            self.post_message(self.ItemActivated(self, hit.block.item))
+            return
+        if (slot := self._slot(x, y)) is None:
+            return
+        day, minute, all_day = slot
+        if hit.block.item.all_day != all_day:
+            return
+        self.post_message(
+            self.ItemChanged(self, hit.block.item, day=day, minute=minute, operation=mode)
+        )
+
+    def action_previous_item(self) -> None:
+        identities = tuple(dict.fromkeys((item.kind, item.item_id) for item in self._items))
+        if not identities:
+            return
+        try:
+            index = identities.index(self._selected) - 1
+        except ValueError:
+            index = 0
+        self._selected = identities[index % len(identities)]
+        self.refresh()
+
+    def action_next_item(self) -> None:
+        identities = tuple(dict.fromkeys((item.kind, item.item_id) for item in self._items))
+        if not identities:
+            return
+        try:
+            index = identities.index(self._selected) + 1
+        except ValueError:
+            index = 0
+        self._selected = identities[index % len(identities)]
+        self.refresh()
+
+    def action_open_item(self) -> None:
+        if self._selected is None:
+            return
+        item = next(
+            (item for item in self._items if (item.kind, item.item_id) == self._selected), None
+        )
+        if item is not None:
+            self.post_message(self.ItemActivated(self, item))
+
+
 class TerminalTextArea(TextArea):
     """Use terminal-default Rich colors where Textual itself needs an opaque base style."""
 
@@ -796,6 +1250,34 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "confirm")
+
+
+class RecurringEditScopeScreen(ModalScreen[Literal["this", "following", "series"] | None]):
+    """Choose the recurrence scope before a spatial calendar edit is written."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-dialog", classes="recurrence-scope-dialog"):
+            yield Label("Edit recurring event", id="dialog-title")
+            yield Label("Choose which events this calendar change applies to.")
+            with Vertical(classes="recurrence-scope-options"):
+                yield Button("This event", id="recurrence-this", variant="primary")
+                yield Button("This and following events", id="recurrence-following")
+                yield Button("All events", id="recurrence-series")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Cancel", id="recurrence-cancel")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        mapping: dict[str, Literal["this", "following", "series"]] = {
+            "recurrence-this": "this",
+            "recurrence-following": "following",
+            "recurrence-series": "series",
+        }
+        self.dismiss(mapping.get(event.button.id or ""))
 
 
 class OnboardingScreen(ModalScreen[dict[str, str] | None]):
@@ -1633,11 +2115,20 @@ class CustomRecurrenceScreen(ModalScreen[tuple[str, ...] | None]):
 class EventEditorScreen(ModalScreen[dict[str, str] | None]):
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, event: Event | None, calendar_id: str) -> None:
+    def __init__(
+        self,
+        event: Event | None,
+        calendar_id: str,
+        *,
+        start: str = "",
+        end: str = "",
+    ) -> None:
         super().__init__()
         self.event = event
         self.calendar_id = event.calendar_id if event else calendar_id
         self._recurrence_rules = event.recurrence if event else ()
+        self._initial_start = start
+        self._initial_end = end
 
     def _frequency(self) -> str:
         value = self.query_one("#event-frequency", Select).value
@@ -1703,12 +2194,12 @@ class EventEditorScreen(ModalScreen[dict[str, str] | None]):
                     value=event.summary if event else "", placeholder="Title", id="event-title"
                 )
                 yield Input(
-                    value=event.start.value.isoformat() if event else "",
+                    value=event.start.value.isoformat() if event else self._initial_start,
                     placeholder="Start: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
                     id="event-start",
                 )
                 yield Input(
-                    value=event.end.value.isoformat() if event else "",
+                    value=event.end.value.isoformat() if event else self._initial_end,
                     placeholder="End: YYYY-MM-DD or YYYY-MM-DDTHH:MM",
                     id="event-end",
                 )
@@ -2430,6 +2921,11 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                         placeholder="Agenda days",
                         id="setting-agenda-days",
                     )
+                    yield Input(
+                        value=values["default_event_duration_minutes"],
+                        placeholder="Calendar click duration (minutes)",
+                        id="setting-calendar-duration",
+                    )
                 with Horizontal(classes="settings-pair"):
                     yield Select(
                         BOOLEAN_OPTIONS,
@@ -2555,6 +3051,9 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
                 ),
                 "sidebar_width": self.query_one("#setting-sidebar-width", Input).value.strip(),
                 "agenda_days": self.query_one("#setting-agenda-days", Input).value.strip(),
+                "default_event_duration_minutes": self.query_one(
+                    "#setting-calendar-duration", Input
+                ).value.strip(),
                 "task_show_due": self._selected_value(
                     "#setting-task-due", "a task display setting"
                 ),

@@ -89,7 +89,8 @@
       "properties": {
         "initial_surface": { "enum": ["Tasks", "Notes", "Agenda", "Day", "Week", "Month"] }, "sidebar_visible": { "type": "boolean" }, "sidebar_width": { "type": "integer", "minimum": 22, "maximum": 60 },
         "agenda_days": { "type": "integer", "minimum": 1, "maximum": 31 }, "task_show_due": { "type": "boolean" }, "notes_show_preview": { "type": "boolean" },
-        "agenda_show_calendar": { "type": "boolean" }, "agenda_show_location": { "type": "boolean" }
+        "agenda_show_calendar": { "type": "boolean" }, "agenda_show_location": { "type": "boolean" },
+        "default_event_duration_minutes": { "type": "integer", "minimum": 5, "maximum": 1440 }
       }
     }
   }
