@@ -361,8 +361,21 @@ class ActionMixin:
         zone = ZoneInfo(self.runtime.config.preferences.time_zone)
         try:
             points, target_scope = self._calendar_event_target(event, day, minute, operation, zone)
+            if scope == "this" and not event.is_occurrence and event.recurrence:
+                updated_master, override = (
+                    self.runtime.application.override_unexpanded_event_occurrence(
+                        self.account_id,
+                        event.id,
+                        start=points[0],
+                        end=points[1],
+                    )
+                )
+                self._replace_cached_event(updated_master)
+                self.apply_workspace_event_mutation(override)
+                self.notify("Event occurrence overridden")
+                return
             target_event = event
-            if scope == "following":
+            if scope == "following" and event.is_occurrence:
                 old, target_event = self.runtime.application.split_recurring_event(
                     self.account_id, event.id
                 )

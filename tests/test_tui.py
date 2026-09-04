@@ -534,6 +534,47 @@ def test_calendar_current_time_rule_refreshes_day_and_month_timelines(tmp_path: 
     app_test(app, assertions, size=(130, 34))
 
 
+def test_calendar_can_override_an_unexpanded_master_occurrence(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    master = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Unexpanded daily",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 10, tzinfo=UTC)),
+        recurrence=("RRULE:FREQ=DAILY",),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        item = next(item for item in grid.items if item.item_id == master.id)
+        app.apply_calendar_item_change(
+            item,
+            day=date(2026, 8, 24),
+            minute=11 * 60,
+            operation="move",
+            scope="this",
+        )
+        await pilot.pause()  # type: ignore[attr-defined]
+        updated = runtime.storage.get_event("work", master.id)
+        assert updated is not None
+        assert updated.recurrence[-1] == "EXDATE:20260824T090000Z"
+        override = next(
+            event
+            for event in app.cache.events
+            if event.id != master.id and event.summary == "Unexpanded daily"
+        )
+        assert override.start.value == datetime(2026, 8, 24, 11, tzinfo=UTC)
+        assert master.id not in {item.item_id for item in grid.items}
+        assert override.id in {item.item_id for item in grid.items}
+
+    app_test(app, assertions, size=(130, 34))
+
+
 def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]

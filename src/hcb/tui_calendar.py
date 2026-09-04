@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+from .ical_recurrence import recurrence_excludes_start
 from .models import DateTimeKind, Event, Task, TaskStatus
 
 CalendarSurface = Literal["Day", "Week", "Month"]
@@ -110,6 +111,12 @@ def calendar_items(
         # A scheduled task is represented by its task card at the event's
         # geometry, rather than appearing twice as a task and a generic event.
         if event.id in scheduled_event_ids:
+            continue
+        if (
+            event.recurrence
+            and not event.is_occurrence
+            and recurrence_excludes_start(event.recurrence, event.start.value)
+        ):
             continue
         if event.start.kind is DateTimeKind.DATE:
             start = event.start.value

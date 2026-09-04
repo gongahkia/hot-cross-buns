@@ -147,6 +147,32 @@ def test_split_recurring_event_handles_bysetpos_and_date_exceptions(
     assert new.recurrence == ("RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=2",)
 
 
+def test_unexpanded_master_occurrence_can_be_overridden(app: ApplicationService) -> None:
+    master = app.create_event(
+        "a",
+        "cal",
+        "Daily standup",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 1, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 1, 10, tzinfo=UTC)),
+        recurrence=("RRULE:FREQ=DAILY",),
+    )
+
+    updated, override = app.override_unexpanded_event_occurrence(
+        "a",
+        master.id,
+        start=EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 1, 11, tzinfo=UTC)),
+        end=EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 1, 12, tzinfo=UTC)),
+    )
+
+    assert updated.recurrence == ("RRULE:FREQ=DAILY", "EXDATE:20260801T090000Z")
+    assert override.recurrence == ()
+    assert override.start.value == datetime(2026, 8, 1, 11, tzinfo=UTC)
+    assert [item.operation.value for item in app.storage.pending_mutations("a")[-2:]] == [
+        "update",
+        "create",
+    ]
+
+
 def test_batch_task_move_preflights_hierarchies_and_queues_in_order(
     app: ApplicationService,
 ) -> None:

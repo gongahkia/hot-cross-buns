@@ -59,6 +59,33 @@ def split_recurrence_lines(
     return tuple(old), tuple(new)
 
 
+def recurrence_with_exdate(
+    recurrence: tuple[str, ...], occurrence_start: date | datetime
+) -> tuple[str, ...]:
+    """Append a provider-compatible exclusion for one concrete occurrence."""
+    if isinstance(occurrence_start, datetime):
+        value = occurrence_start.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    else:
+        value = occurrence_start.strftime("%Y%m%d")
+    return (*recurrence, f"EXDATE:{value}")
+
+
+def recurrence_excludes_start(recurrence: tuple[str, ...], start: date | datetime) -> bool:
+    """Return whether an explicit EXDATE suppresses an unexpanded master start."""
+    anchor = _as_datetime(start)
+    try:
+        return any(
+            value == anchor
+            for line in recurrence
+            if line.startswith("EXDATE")
+            for _token, value in _date_line_values(line, anchor)[1]
+        )
+    except ValueError:
+        # Cached provider content must remain visible even if a malformed
+        # exception line cannot be understood by the local display helper.
+        return False
+
+
 def _recurrence_set(recurrence: tuple[str, ...], anchor: datetime) -> rruleset:
     """Parse one RFC recurrence set, including timezone-qualified exception lines."""
     result = rruleset(cache=True)

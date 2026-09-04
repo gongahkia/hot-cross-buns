@@ -1827,7 +1827,7 @@ class RecurringEditScopeScreen(ModalScreen[Literal["this", "following", "series"
             yield Label("Edit recurring event", id="dialog-title")
             yield Label("Choose which events this calendar change applies to.")
             with Vertical(classes="recurrence-scope-options"):
-                yield Button("This event", id="recurrence-this", variant="primary")
+                yield Button("This occurrence", id="recurrence-this", variant="primary")
                 yield Button("This and following events", id="recurrence-following")
                 yield Button("All events", id="recurrence-series")
             with Horizontal(classes="dialog-buttons"):

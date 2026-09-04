@@ -14,7 +14,7 @@ from .application import (
     _Unset,
 )
 from .application_calendars import CalendarServiceMixin
-from .ical_recurrence import split_recurrence_lines
+from .ical_recurrence import recurrence_with_exdate, split_recurrence_lines
 from .models import (
     EntityType,
     Event,
@@ -633,3 +633,61 @@ class EventServiceMixin(CalendarServiceMixin):
                 send_updates=send_updates,
             )
         return old, new
+
+    def override_unexpanded_event_occurrence(
+        self,
+        account_id: str,
+        event_id: str,
+        *,
+        start: EventDateTime,
+        end: EventDateTime,
+        send_updates: str = "none",
+    ) -> tuple[Event, Event]:
+        """Detach one master-start occurrence without requiring an instance cache.
+
+        Google Calendar has no cached occurrence ID until HCB refreshes a series. For
+        an unexpanded master, HCB records the equivalent provider operations:
+        exclude the original start from the master and create a standalone
+        replacement event with the requested geometry.
+        """
+        master = self._require_event(account_id, event_id)
+        if master.is_occurrence or not master.recurrence:
+            raise ValueError("an unexpanded recurring master is required")
+        self._validate_event_times(start, end)
+        recurrence = recurrence_with_exdate(master.recurrence, master.start.value)
+        with self.storage.transaction():
+            updated_master = self.update_event(
+                account_id,
+                master.id,
+                recurrence=recurrence,
+                send_updates=send_updates,
+                scope="series",
+            )
+            override = self.create_event(
+                account_id,
+                master.calendar_id,
+                master.summary,
+                start,
+                end,
+                description=master.description,
+                location=master.location,
+                reminder_use_default=master.reminder_use_default,
+                reminder_overrides=master.reminder_overrides,
+                attendees=master.attendees,
+                event_type=master.event_type,
+                transparency=master.transparency,
+                visibility=master.visibility,
+                color_id=master.color_id,
+                attachments=master.attachments,
+                conference=master.conference,
+                guests_can_invite_others=master.guests_can_invite_others,
+                guests_can_modify=master.guests_can_modify,
+                guests_can_see_other_guests=master.guests_can_see_other_guests,
+                anyone_can_add_self=master.anyone_can_add_self,
+                focus_time_properties=master.focus_time_properties,
+                out_of_office_properties=master.out_of_office_properties,
+                working_location_properties=master.working_location_properties,
+                send_updates=send_updates,
+                supports_attachments=bool(master.attachments),
+            )
+        return updated_master, override
