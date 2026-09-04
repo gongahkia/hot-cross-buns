@@ -65,8 +65,10 @@ from hcb.tui import (
     google_maps_url,
     linkify_urls,
     recurrence_frequency,
+    recurrence_spec,
     recurrence_summary,
     recurrence_with_frequency,
+    recurrence_with_spec,
     render_readonly_markup,
 )
 
@@ -633,6 +635,29 @@ def test_event_editor_builds_custom_recurrence_with_contextual_controls(tmp_path
         assert updated.recurrence == ("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=8",)
 
     app_test(app, assertions)
+
+
+def test_structured_recurrence_preserves_unmodeled_rrule_and_exdate_lines() -> None:
+    original = (
+        "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=3;WKST=MO",
+        "EXDATE:20260805",
+    )
+    spec = recurrence_spec(original, date(2026, 8, 3))
+
+    assert spec.interval == 2
+    assert spec.weekdays == ("MO", "WE")
+    assert spec.count == 3
+
+    updated = recurrence_with_spec(
+        original,
+        replace(spec, interval=4, weekdays=("TU",), end="on", until=date(2026, 12, 31)),
+        all_day=False,
+    )
+
+    assert updated == (
+        "RRULE:FREQ=WEEKLY;INTERVAL=4;BYDAY=TU;UNTIL=20261231T235959Z;WKST=MO",
+        "EXDATE:20260805",
+    )
 
 
 def test_event_view_location_uses_a_clickable_google_maps_link(tmp_path: Path) -> None:
