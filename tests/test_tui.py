@@ -411,6 +411,39 @@ def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> 
     app_test(app, assertions, size=(130, 34))
 
 
+def test_month_grid_places_timed_events_on_a_per_day_timeline(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    morning = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Morning",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 10, tzinfo=UTC)),
+    )
+    afternoon = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Afternoon",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 14, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 15, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("6")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        morning_hit = next(hit for hit in grid._hits if hit.block.item.item_id == morning.id)
+        afternoon_hit = next(hit for hit in grid._hits if hit.block.item.item_id == afternoon.id)
+        assert afternoon_hit.y - morning_hit.y == 5
+        assert grid._slot(morning_hit.x, morning_hit.y) == (date(2026, 8, 24), 9 * 60, False)
+        assert grid._line(morning_hit.y).plain.startswith("09:00 ● M")
+        assert grid._line(afternoon_hit.y).plain.startswith("14:00 ● A")
+
+    app_test(app, assertions, size=(130, 34))
+
+
 def test_links_in_workspace_text_open_only_safe_web_urls(tmp_path: Path) -> None:
     url = "https://example.test/guide"
     linked = linkify_urls(f"Read {url}.")

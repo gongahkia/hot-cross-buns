@@ -95,7 +95,6 @@ from .tui_calendar import (
     all_day_blocks,
     calendar_items,
     calendar_range,
-    month_blocks,
     month_label,
     timed_blocks,
 )
@@ -574,12 +573,15 @@ class CalendarGrid(ScrollView):
         self._fallback_color = "ansi_default"
         self._zone = ZoneInfo("UTC")
         self._week_starts_on = 0
+        self._display_month = date.today().month
         self._time_axis = 8
         self._cell_width = 12
         self._header_height = 2
         self._all_day_height = 1
         self._timed_start = 4
         self._month_cell_height = 4
+        self._month_all_day_height = 1
+        self._month_slot_minutes = 60
         self.virtual_size = Size(1, 1)
 
     @property
@@ -614,6 +616,7 @@ class CalendarGrid(ScrollView):
         self._calendar_colors = calendar_colors
         self._fallback_color = fallback_color
         self._range = calendar_range(surface, selected_date, week_starts_on)
+        self._display_month = selected_date.month
         self._items = calendar_items(
             events,
             tasks,
@@ -622,11 +625,7 @@ class CalendarGrid(ScrollView):
             calendar_colors=calendar_colors,
             fallback_color=fallback_color,
         )
-        self._all_day = (
-            month_blocks(self._items, self._range)
-            if surface == "Month"
-            else all_day_blocks(self._items, self._range)
-        )
+        self._all_day = all_day_blocks(self._items, self._range)
         self._timed = timed_blocks(self._items, self._range)
         self._selected = selected
         self._rebuild_geometry()
@@ -645,8 +644,16 @@ class CalendarGrid(ScrollView):
         canvas_width = self._time_axis + self._cell_width * days
         hits: list[_CalendarHitBox] = []
         if self.surface == "Month":
-            self._month_cell_height = max(4, (max(self.size.height, 25) - 1) // 6)
-            visible_lanes = self._month_cell_height - 2
+            # Month uses a compact hourly timeline in every date cell. Unlike
+            # chip-only month grids, a 09:00 event and a 14:00 event occupy
+            # different vertical positions; the ScrollView keeps all six weeks
+            # accessible in a normal terminal height.
+            self._month_all_day_height = min(
+                3, max(1, max((block.lane for block in self._all_day), default=-1) + 1)
+            )
+            timed_rows = 24 * 60 // self._month_slot_minutes
+            self._month_cell_height = 1 + self._month_all_day_height + timed_rows
+            visible_lanes = self._month_all_day_height
             overflow: dict[date, list[CalendarItem]] = {}
             for block in self._all_day:
                 first_week = block.start_day // 7
@@ -668,6 +675,20 @@ class CalendarGrid(ScrollView):
                             1,
                         )
                     )
+            for block in self._timed:
+                assert block.start_minute is not None and block.end_minute is not None
+                week = block.start_day // 7
+                weekday = block.start_day % 7
+                unit = max(1, (self._cell_width - 1) // block.column_count)
+                x = weekday * self._cell_width + block.column * unit
+                row = block.start_minute // self._month_slot_minutes
+                y = 1 + week * self._month_cell_height + 1 + visible_lanes + row
+                height = max(
+                    1,
+                    (block.end_minute - block.start_minute + self._month_slot_minutes - 1)
+                    // self._month_slot_minutes,
+                )
+                hits.append(_CalendarHitBox(block, x, y, max(3, unit - 1), height))
             self._hits = tuple(hits)
             self._overflow = {day: tuple(items) for day, items in overflow.items()}
             self.virtual_size = Size(canvas_width, 1 + self._month_cell_height * 6)
@@ -840,27 +861,34 @@ class CalendarGrid(ScrollView):
             for weekday in range(7):
                 day = self._range.start + timedelta(days=week * 7 + weekday)
                 label = month_label(day)
-                selected_month = self._range.start.replace(day=15).month
-                style = Style(bold=True) if day.month == selected_month else Style(dim=True)
+                style = Style(bold=True) if day.month == self._display_month else Style(dim=True)
                 self._paint(cells, spans, weekday * self._cell_width + 1, label, style)
-            return
-        for hit in self._hits:
-            if hit.y != y:
-                continue
-            label, style = self._chip(hit.block, hit.width)
-            self._paint(cells, spans, hit.x, label, style)
-        if row == self._month_cell_height - 1:
-            for weekday in range(7):
-                day = self._range.start + timedelta(days=week * 7 + weekday)
-                hidden = self._overflow.get(day, ())
-                if hidden:
+                if hidden := self._overflow.get(day):
                     self._paint(
                         cells,
                         spans,
-                        weekday * self._cell_width + 1,
-                        f"+{len(hidden)} more",
+                        weekday * self._cell_width + len(label) + 2,
+                        f"+{len(hidden)}",
                         Style(underline=True, bold=True),
                     )
+            return
+        if row > self._month_all_day_height:
+            minute = (row - 1 - self._month_all_day_height) * self._month_slot_minutes
+            for weekday in range(7):
+                self._paint(
+                    cells,
+                    spans,
+                    weekday * self._cell_width + 1,
+                    f"{minute // 60:02d}",
+                    grid_style,
+                )
+        for hit in self._hits:
+            if not hit.y <= y < hit.y + hit.height:
+                continue
+            label, style = self._chip(
+                hit.block, hit.width, timed=not hit.block.item.all_day and y == hit.y
+            )
+            self._paint(cells, spans, hit.x, label if y == hit.y else "·" * hit.width, style)
         self._render_drag_preview(cells, spans, y)
 
     def render_line(self, y: int) -> Strip:
@@ -888,7 +916,12 @@ class CalendarGrid(ScrollView):
             weekday = x // self._cell_width
             if not 0 <= week < 6 or not 0 <= weekday < 7:
                 return None
-            return self._range.start + timedelta(days=week * 7 + weekday), None, True
+            row = (y - 1) % self._month_cell_height
+            day = self._range.start + timedelta(days=week * 7 + weekday)
+            if row <= self._month_all_day_height:
+                return day, None, True
+            minute = (row - 1 - self._month_all_day_height) * self._month_slot_minutes
+            return day, minute, False
         if x < self._time_axis:
             return None
         day_index = (x - self._time_axis) // self._cell_width
@@ -919,7 +952,17 @@ class CalendarGrid(ScrollView):
         if self.surface == "Month":
             week = day_index // 7
             x = (day_index % 7) * self._cell_width
-            y = 1 + week * self._month_cell_height + 1
+            if all_day:
+                y = 1 + week * self._month_cell_height + 1
+            else:
+                assert minute is not None
+                y = (
+                    1
+                    + week * self._month_cell_height
+                    + 1
+                    + self._month_all_day_height
+                    + minute // self._month_slot_minutes
+                )
         elif all_day:
             x = self._time_axis + day_index * self._cell_width
             y = self._header_height
