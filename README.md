@@ -46,6 +46,13 @@ scriptable commands.
 In a wide terminal, drag the vertical divider to resize the sidebar for the
 current session. `Ctrl+Alt+←` / `Ctrl+Alt+→` resize the sidebar.
 
+Day, Week, and Month grids accept keyboard input: arrow keys move the calendar
+cursor, `Enter` opens an item or creates one in an empty slot, `c` creates an
+event, and `m` moves the selected item to the cursor. For timed events and
+scheduled task blocks, `Shift+↑` / `Shift+↓` resize the end and `Ctrl+↑` /
+`Ctrl+↓` resize the start. A timed task block is a linked Calendar event, so it
+continues to respect Google Tasks' date-only due-date model.
+
 Click a task, note, or event—or select one and press `Enter`—to open its
 read-only detail view. Press `e` there to edit it.
 
