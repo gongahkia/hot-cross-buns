@@ -283,6 +283,7 @@ class WorkspaceMixin:
                 selected=self.selected,
                 scheduled_tasks=scheduled_tasks,
             )
+            calendar.focus()
             # Keep the list projection synchronized underneath the grid. This
             # gives resize fallback an immediate readable surface and preserves
             # the existing programmatic WorkspaceTable integration.
@@ -897,6 +898,13 @@ class WorkspaceMixin:
             event.end_day,
             event.end_minute,
         )
+
+    def on_calendar_grid_date_requested(self: Any, event: CalendarGrid.DateRequested) -> None:
+        if event.grid.id != "calendar-content":
+            return
+        self.selected_date = event.day
+        self._render_chrome(refresh_resources=False)
+        self._render_surface()
 
     def on_calendar_grid_overflow_requested(
         self: Any, event: CalendarGrid.OverflowRequested

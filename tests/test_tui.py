@@ -311,7 +311,7 @@ def test_calendar_grids_include_due_tasks_create_from_slots_and_fallback_when_na
     app = HcbApp(runtime, selected_date=date(2026, 8, 24))
 
     async def assertions(pilot: object) -> None:
-        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.press("5")  # type: ignore[attr-defined]
         await pilot.pause()  # type: ignore[attr-defined]
         grid = app.query_one("#calendar-content", CalendarGrid)
         assert grid.display
@@ -451,6 +451,51 @@ def test_calendar_can_schedule_and_resize_task_blocks(tmp_path: Path) -> None:
         resized = runtime.storage.get_event("work", link.event_id)
         assert resized is not None
         assert resized.end.value == datetime(2026, 8, 24, 11, tzinfo=UTC)
+
+    app_test(app, assertions, size=(130, 34))
+
+
+def test_calendar_keyboard_cursor_creates_moves_and_resizes(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Keyboard event",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 10, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        assert grid.has_focus
+
+        await pilot.press("right", "down", "c")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EventEditorScreen)
+        assert app.screen.query_one("#event-start", Input).value.startswith("2026-08-25T09:30")
+        app.pop_screen()
+        await pilot.pause()  # type: ignore[attr-defined]
+
+        grid.select_item(("event", event.id))
+        grid._cursor = (date(2026, 8, 25), 11 * 60, False)
+        grid.focus()
+        await pilot.press("m")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        moved = runtime.storage.get_event("work", event.id)
+        assert moved is not None
+        assert moved.start.value == datetime(2026, 8, 25, 11, tzinfo=UTC)
+
+        grid.select_item(("event", event.id))
+        grid.focus()
+        await pilot.press("shift+down")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        resized = runtime.storage.get_event("work", event.id)
+        assert resized is not None
+        assert resized.end.value == datetime(2026, 8, 25, 12, 30, tzinfo=UTC)
 
     app_test(app, assertions, size=(130, 34))
 

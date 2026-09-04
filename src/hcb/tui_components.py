@@ -553,6 +553,12 @@ class CalendarGrid(ScrollView):
             self.end_minute = end_minute
             super().__init__()
 
+    class DateRequested(Message):
+        def __init__(self, grid: CalendarGrid, day: date) -> None:
+            self.grid = grid
+            self.day = day
+            super().__init__()
+
     class OverflowRequested(Message):
         def __init__(self, grid: CalendarGrid, day: date, items: tuple[CalendarItem, ...]) -> None:
             self.grid = grid
@@ -578,9 +584,19 @@ class CalendarGrid(ScrollView):
             super().__init__()
 
     BINDINGS = [
-        Binding("left,up", "previous_item", "Previous item", show=False),
-        Binding("right,down", "next_item", "Next item", show=False),
-        Binding("enter", "open_item", "Open item", show=False),
+        Binding("left", "cursor_left", "Previous day", show=False),
+        Binding("right", "cursor_right", "Next day", show=False),
+        Binding("up", "cursor_up", "Earlier slot", show=False),
+        Binding("down", "cursor_down", "Later slot", show=False),
+        Binding("enter", "open_cursor", "Open or create", show=False),
+        Binding("c", "create_cursor", "Create event", show=False),
+        Binding("m", "move_selected", "Move selected", show=False),
+        Binding("shift+up", "resize_end_earlier", "Shorten event", show=False),
+        Binding("shift+down", "resize_end_later", "Lengthen event", show=False),
+        Binding("ctrl+up", "resize_start_later", "Move start later", show=False),
+        Binding("ctrl+down", "resize_start_earlier", "Move start earlier", show=False),
+        Binding("shift+tab", "previous_item", "Previous item", show=False),
+        Binding("tab", "next_item", "Next item", show=False),
     ]
 
     def __init__(self, *, id: str = "calendar-content") -> None:
@@ -593,6 +609,7 @@ class CalendarGrid(ScrollView):
         self._hits: tuple[_CalendarHitBox, ...] = ()
         self._overflow: dict[date, tuple[CalendarItem, ...]] = {}
         self._selected: tuple[str, str] | None = None
+        self._cursor: tuple[date, int | None, bool] = (date.today(), 9 * 60, False)
         self._drag: _CalendarDrag | None = None
         self._slot_drag: _CalendarSlotDrag | None = None
         self._drag_preview: _CalendarDropPreview | None = None
@@ -657,10 +674,36 @@ class CalendarGrid(ScrollView):
         self._all_day = all_day_blocks(self._items, self._range)
         self._timed = timed_blocks(self._items, self._range)
         self._selected = selected
+        if (
+            selected is not None
+            and (
+                selected_item := next(
+                    (item for item in self._items if (item.kind, item.item_id) == selected), None
+                )
+            )
+            is not None
+        ):
+            self._cursor = (
+                selected_item.start_date,
+                selected_item.start_minute,
+                selected_item.all_day,
+            )
+        elif not self._range.start <= self._cursor[0] < self._range.end:
+            self._cursor = (selected_date, 9 * 60, False)
         self._rebuild_geometry()
 
     def select_item(self, selected: tuple[str, str] | None) -> None:
         self._selected = selected
+        if (
+            selected is not None
+            and (
+                item := next(
+                    (item for item in self._items if (item.kind, item.item_id) == selected), None
+                )
+            )
+            is not None
+        ):
+            self._cursor = (item.start_date, item.start_minute, item.all_day)
         self.refresh()
 
     def on_resize(self, _: events.Resize) -> None:
@@ -816,6 +859,36 @@ class CalendarGrid(ScrollView):
         )
         self._paint(cells, spans, preview.x, preview.label[: preview.width], style)
 
+    def _cursor_position(self) -> tuple[int, int] | None:
+        """Return the terminal coordinate for the keyboard calendar cursor."""
+        day, minute, all_day = self._cursor
+        if not self._range.start <= day < self._range.end:
+            return None
+        day_index = (day - self._range.start).days
+        if self.surface == "Month":
+            week = day_index // 7
+            x = (day_index % 7) * self._cell_width
+            if all_day:
+                return x, 1 + week * self._month_cell_height + 1
+            assert minute is not None
+            return (
+                x,
+                1
+                + week * self._month_cell_height
+                + 1
+                + self._month_all_day_height
+                + minute // self._month_slot_minutes,
+            )
+        x = self._time_axis + day_index * self._cell_width
+        if all_day:
+            return x, self._header_height
+        assert minute is not None
+        return x, self._timed_start + minute // 30
+
+    def _render_cursor(self, cells: list[str], spans: list[tuple[int, int, Style]], y: int) -> None:
+        if (position := self._cursor_position()) is not None and position[1] == y:
+            self._paint(cells, spans, position[0], "›", Style(bold=True, reverse=True))
+
     def _render_timed_line(
         self, cells: list[str], spans: list[tuple[int, int, Style]], y: int
     ) -> None:
@@ -847,10 +920,12 @@ class CalendarGrid(ScrollView):
                 label, style = self._chip(block, width)
                 self._paint(cells, spans, x, label, style)
             self._render_drag_preview(cells, spans, y)
+            self._render_cursor(cells, spans, y)
             return
         if y < self._timed_start:
             self._paint(cells, spans, 0, "-" * len(cells), grid_style)
             self._render_drag_preview(cells, spans, y)
+            self._render_cursor(cells, spans, y)
             return
         minute = (y - self._timed_start) * 30
         if minute >= 24 * 60:
@@ -867,6 +942,7 @@ class CalendarGrid(ScrollView):
             label, style = self._chip(hit.block, hit.width, timed=y == hit.y)
             self._paint(cells, spans, hit.x, label if y == hit.y else "·" * hit.width, style)
         self._render_drag_preview(cells, spans, y)
+        self._render_cursor(cells, spans, y)
 
     def _render_month_line(
         self, cells: list[str], spans: list[tuple[int, int, Style]], y: int
@@ -919,6 +995,7 @@ class CalendarGrid(ScrollView):
             )
             self._paint(cells, spans, hit.x, label if y == hit.y else "·" * hit.width, style)
         self._render_drag_preview(cells, spans, y)
+        self._render_cursor(cells, spans, y)
 
     def render_line(self, y: int) -> Strip:
         y += int(self.scroll_offset.y)
@@ -1164,6 +1241,151 @@ class CalendarGrid(ScrollView):
                 operation=drag.operation,
             )
         )
+
+    def _move_cursor(self, *, days: int = 0, slots: int = 0) -> None:
+        day, minute, all_day = self._cursor
+        if days:
+            target_day = day + timedelta(days=days)
+            if not self._range.start <= target_day < self._range.end:
+                self.post_message(self.DateRequested(self, target_day))
+                return
+            day = target_day
+        if slots:
+            step = self._month_slot_minutes if self.surface == "Month" else 30
+            if all_day:
+                if slots < 0:
+                    self._cursor = (day, None, True)
+                    self.refresh()
+                    return
+                minute, all_day = 0, False
+                slots -= 1
+            assert minute is not None
+            point = datetime.combine(day, datetime.min.time()) + timedelta(
+                minutes=minute + slots * step
+            )
+            day = min(max(self._range.start, point.date()), self._range.end - timedelta(days=1))
+            minute = point.hour * 60 + point.minute
+            if point.date() < self._range.start:
+                minute = 0
+            elif point.date() >= self._range.end:
+                minute = 24 * 60 - step
+            if slots < 0 and minute < 0:
+                minute = 0
+        self._cursor = (day, minute, all_day)
+        self.refresh()
+
+    def action_cursor_left(self) -> None:
+        self._move_cursor(days=-1)
+
+    def action_cursor_right(self) -> None:
+        self._move_cursor(days=1)
+
+    def action_cursor_up(self) -> None:
+        day, minute, all_day = self._cursor
+        if all_day:
+            self.refresh()
+            return
+        assert minute is not None
+        if minute == 0:
+            self._cursor = (day, None, True)
+            self.refresh()
+            return
+        self._move_cursor(slots=-1)
+
+    def action_cursor_down(self) -> None:
+        self._move_cursor(slots=1)
+
+    def _cursor_item(self) -> CalendarItem | None:
+        day, minute, all_day = self._cursor
+        if all_day:
+            return next(
+                (
+                    item
+                    for item in self._items
+                    if item.all_day and item.start_date <= day < item.end_date
+                ),
+                None,
+            )
+        assert minute is not None
+        day_index = (day - self._range.start).days
+        block = next(
+            (
+                candidate
+                for candidate in self._timed
+                if candidate.start_day == day_index
+                and candidate.start_minute is not None
+                and candidate.end_minute is not None
+                and candidate.start_minute <= minute < candidate.end_minute
+            ),
+            None,
+        )
+        return block.item if block is not None else None
+
+    def action_open_cursor(self) -> None:
+        if (item := self._cursor_item()) is not None:
+            self._selected = (item.kind, item.item_id)
+            self.post_message(self.ItemActivated(self, item))
+            return
+        self.action_create_cursor()
+
+    def action_create_cursor(self) -> None:
+        day, minute, all_day = self._cursor
+        self.post_message(self.SlotSelected(self, day, minute, all_day=all_day))
+
+    def action_move_selected(self) -> None:
+        if self._selected is None:
+            return
+        item = next(
+            (item for item in self._items if (item.kind, item.item_id) == self._selected), None
+        )
+        if item is None:
+            return
+        day, minute, all_day = self._cursor
+        if item.all_day != all_day and not (item.kind == "task" and item.all_day and not all_day):
+            return
+        self.post_message(self.ItemChanged(self, item, day=day, minute=minute, operation="move"))
+
+    def _resize_selected(
+        self, operation: Literal["resize-start", "resize-end"], direction: int
+    ) -> None:
+        if self._selected is None:
+            return
+        item = next(
+            (item for item in self._items if (item.kind, item.item_id) == self._selected), None
+        )
+        if item is None or item.all_day or item.start_minute is None or item.end_minute is None:
+            return
+        step = self._month_slot_minutes if self.surface == "Month" else 30
+        if operation == "resize-start":
+            day, minute = item.start_date, item.start_minute
+        else:
+            day, minute = item.end_date, item.end_minute
+        point = datetime.combine(day, datetime.min.time()) + timedelta(
+            minutes=minute + direction * step
+        )
+        self._cursor = (point.date(), point.hour * 60 + point.minute, False)
+        self.post_message(
+            self.ItemChanged(
+                self,
+                item,
+                day=point.date(),
+                minute=point.hour * 60 + point.minute,
+                operation=operation,
+            )
+        )
+        self.refresh()
+
+    def action_resize_end_earlier(self) -> None:
+        self._resize_selected("resize-end", -1)
+
+    def action_resize_end_later(self) -> None:
+        self._resize_selected("resize-end", 1)
+
+    def action_resize_start_later(self) -> None:
+        self._resize_selected("resize-start", 1)
+
+    def action_resize_start_earlier(self) -> None:
+        self._resize_selected("resize-start", -1)
 
     def action_previous_item(self) -> None:
         identities = tuple(dict.fromkeys((item.kind, item.item_id) for item in self._items))
