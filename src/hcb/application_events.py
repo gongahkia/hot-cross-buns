@@ -617,10 +617,16 @@ class EventServiceMixin(CalendarServiceMixin):
             cutoff = (split_value - timedelta(days=1)).strftime("%Y%m%d")
         prefix, _separator, body = rule.partition(":")
         clauses = body.split(";")
-        count = next(
-            (int(value) for part in clauses if (key, _eq, value) := part.partition("=") if key == "COUNT"),
-            None,
-        )
+        count: int | None = None
+        for clause in clauses:
+            key, _separator, value = clause.partition("=")
+            if key != "COUNT":
+                continue
+            try:
+                count = int(value)
+            except ValueError as exc:
+                raise ValueError("the recurring series has an invalid COUNT") from exc
+            break
         unbounded = [part for part in clauses if not part.startswith(("UNTIL=", "COUNT="))]
         old_rule = f"{prefix}:{';'.join((*unbounded, f'UNTIL={cutoff}'))}"
         new_clauses = list(unbounded)
