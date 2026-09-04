@@ -20,6 +20,8 @@ def test_deterministic_large_fixture_local_performance(tmp_path: Path) -> None:
     assert result.agenda_results > 100
     assert result.cached_tasks == 10_000
     assert result.cached_events == 2_000
+    assert result.calendar_week_blocks > 1_000
+    assert result.calendar_month_blocks > 8_000
 
     # These are regression tripwires, not microbenchmarks. The generous limits
     # tolerate shared CI runners while still detecting accidental quadratic work.
@@ -27,6 +29,8 @@ def test_deterministic_large_fixture_local_performance(tmp_path: Path) -> None:
     assert result.search_10k_seconds < 0.25
     assert result.agenda_seconds < 5.0
     assert result.tui_cache_load_seconds < 5.0
+    assert result.calendar_week_layout_seconds < 2.0
+    assert result.calendar_month_layout_seconds < 3.0
 
 
 def test_virtual_workspace_switches_ten_thousand_rows_without_row_widgets(tmp_path: Path) -> None:

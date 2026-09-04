@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from time import perf_counter
+from zoneinfo import ZoneInfo
 
 from .application import ApplicationService
 from .models import (
@@ -18,6 +19,7 @@ from .models import (
     TaskList,
 )
 from .storage import Storage
+from .tui_calendar import all_day_blocks, calendar_items, calendar_range, timed_blocks
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +32,10 @@ class BenchmarkResult:
     agenda_results: int
     cached_tasks: int
     cached_events: int
+    calendar_week_layout_seconds: float
+    calendar_month_layout_seconds: float
+    calendar_week_blocks: int
+    calendar_month_blocks: int
 
     def as_dict(self) -> dict[str, float | int]:
         return asdict(self)
@@ -94,6 +100,7 @@ def measure_large_fixture(path: Path) -> BenchmarkResult:
         started = perf_counter()
         snapshot = application.workspace("benchmark")
         cache_elapsed = perf_counter() - started
+        calendar = measure_calendar_layout()
         return BenchmarkResult(
             cold_open,
             search_elapsed,
@@ -103,6 +110,90 @@ def measure_large_fixture(path: Path) -> BenchmarkResult:
             len(agenda),
             len(snapshot.tasks),
             len(snapshot.events),
+            calendar.week_seconds,
+            calendar.month_seconds,
+            calendar.week_blocks,
+            calendar.month_blocks,
         )
     finally:
         storage.close()
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarLayoutResult:
+    """Pure calendar-layout work measured without terminal repaint variance."""
+
+    week_seconds: float
+    month_seconds: float
+    week_blocks: int
+    month_blocks: int
+
+
+def measure_calendar_layout(
+    *, event_count: int = 5_000, task_count: int = 5_000
+) -> CalendarLayoutResult:
+    """Measure Day/Week/Month geometry with 10,000 calendar-visible records.
+
+    The fixture spreads due tasks and timed events over a complete six-week
+    Month while retaining overlapping timed events. It exercises normalisation,
+    all-day lane allocation, and timed collision packing without depending on
+    a terminal emulator's paint speed.
+    """
+    origin = date(2026, 8, 3)
+    zone = ZoneInfo("UTC")
+    events = tuple(
+        Event(
+            f"calendar-event-{index}",
+            "benchmark",
+            "primary",
+            f"Calendar fixture event {index}",
+            EventDateTime(
+                DateTimeKind.DATETIME,
+                datetime.combine(origin + timedelta(days=index % 42), datetime.min.time(), UTC)
+                + timedelta(minutes=(index * 30) % (24 * 60)),
+                "UTC",
+            ),
+            EventDateTime(
+                DateTimeKind.DATETIME,
+                datetime.combine(origin + timedelta(days=index % 42), datetime.min.time(), UTC)
+                + timedelta(minutes=(index * 30) % (24 * 60) + 45),
+                "UTC",
+            ),
+        )
+        for index in range(event_count)
+    )
+    tasks = tuple(
+        Task(
+            f"calendar-task-{index}",
+            "benchmark",
+            "inbox",
+            f"Calendar fixture task {index}",
+            due=origin + timedelta(days=index % 42),
+        )
+        for index in range(task_count)
+    )
+
+    def layout(surface: str) -> tuple[int, int]:
+        visible = calendar_range(surface, date(2026, 8, 24), 0)  # type: ignore[arg-type]
+        items = calendar_items(
+            events,
+            tasks,
+            visible=visible,
+            zone=zone,
+            calendar_colors={"primary": "#4285f4"},
+            fallback_color="#fbbc04",
+        )
+        return len(all_day_blocks(items, visible)), len(timed_blocks(items, visible))
+
+    started = perf_counter()
+    week_all_day, week_timed = layout("Week")
+    week_seconds = perf_counter() - started
+    started = perf_counter()
+    month_all_day, month_timed = layout("Month")
+    month_seconds = perf_counter() - started
+    return CalendarLayoutResult(
+        week_seconds,
+        month_seconds,
+        week_all_day + week_timed,
+        month_all_day + month_timed,
+    )
