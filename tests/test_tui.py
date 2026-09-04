@@ -988,6 +988,44 @@ def test_palette_searches_indexed_drive_files_and_opens_their_view(tmp_path: Pat
     app_test(app, assertions)
 
 
+def test_palette_click_opens_task_note_and_event_results_in_their_views(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    task = runtime.application.create_task("work", task_list.id, "Palette task target")
+    note = runtime.application.create_task("work", task_list.id, "Palette note target")
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    event = runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Palette event target",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 24)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 25)),
+    )
+    app = HcbApp(runtime)
+
+    async def open_result(pilot: object, query_text: str, expected_kind: str, item_id: str) -> None:
+        await pilot.press("/")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        query = app.screen.query_one("#palette-query", Input)
+        query.value = query_text
+        await pilot.pause()  # type: ignore[attr-defined]
+        results = app.screen.query_one("#palette-results", ListView)
+        assert len(results.children) == 1
+        await pilot.click(results.children[0])  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert app.selected == (expected_kind, item_id)
+        assert isinstance(app.screen, ItemViewScreen)
+        await pilot.press("escape")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+
+    async def assertions(pilot: object) -> None:
+        await open_result(pilot, task.title, "task", task.id)
+        await open_result(pilot, note.title, "task", note.id)
+        await open_result(pilot, event.summary, "event", event.id)
+
+    app_test(app, assertions)
+
+
 def test_palette_workspace_result_navigation_for_lists_calendars_saved_searches_and_conflicts(
     tmp_path: Path,
 ) -> None:

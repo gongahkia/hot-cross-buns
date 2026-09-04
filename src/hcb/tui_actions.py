@@ -101,11 +101,8 @@ class ActionMixin:
         elif kind == "onboarding":
             self.push_screen(self._onboarding_screen(), self._onboarding_result)
         elif kind in {"task", "event"}:
-            self.surface = "Tasks" if kind == "task" else "Agenda"
-            self.resource_filter = None
             self.selected = (kind, value)
-            self._render_chrome(refresh_resources=False)
-            self._render_surface()
+            self.action_view()
         elif kind == "task-list":
             self.surface = "Tasks"
             self.resource_filter = ("task-list", value)
