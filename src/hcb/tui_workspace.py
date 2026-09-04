@@ -863,6 +863,18 @@ class WorkspaceMixin:
             return
         self.action_create_calendar_slot(event.day, event.minute, all_day=event.all_day)
 
+    def on_calendar_grid_slot_range_selected(
+        self: Any, event: CalendarGrid.SlotRangeSelected
+    ) -> None:
+        if event.grid.id != "calendar-content":
+            return
+        self.action_create_calendar_range(
+            event.start_day,
+            event.start_minute,
+            event.end_day,
+            event.end_minute,
+        )
+
     def on_calendar_grid_overflow_requested(
         self: Any, event: CalendarGrid.OverflowRequested
     ) -> None:

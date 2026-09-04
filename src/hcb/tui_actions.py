@@ -194,6 +194,40 @@ class ActionMixin:
             EventEditorScreen(None, calendar_id, start=start, end=end), self._event_create_result
         )
 
+    def action_create_calendar_range(
+        self: Any,
+        start_day: date,
+        start_minute: int,
+        end_day: date,
+        end_minute: int,
+    ) -> None:
+        """Open the normal event editor with an empty-grid drag's exact interval."""
+        if self.account_id is None:
+            self.notify("Connect an account first", severity="warning")
+            return
+        calendar_id = (
+            self.resource_filter[1]
+            if self.resource_filter and self.resource_filter[0] == "calendar"
+            else (self.cache.calendars[0][0] if self.cache.calendars else None)
+        )
+        if calendar_id is None:
+            self.notify("Create a calendar first", severity="warning")
+            return
+        zone = ZoneInfo(self.runtime.config.preferences.time_zone)
+        start = datetime.combine(start_day, datetime.min.time(), tzinfo=zone) + timedelta(
+            minutes=start_minute
+        )
+        end = datetime.combine(end_day, datetime.min.time(), tzinfo=zone) + timedelta(
+            minutes=end_minute
+        )
+        if end <= start:
+            self.notify("The selected event range must end after it starts", severity="warning")
+            return
+        self.push_screen(
+            EventEditorScreen(None, calendar_id, start=start.isoformat(), end=end.isoformat()),
+            self._event_create_result,
+        )
+
     def apply_calendar_item_change(
         self: Any,
         item: CalendarItem,

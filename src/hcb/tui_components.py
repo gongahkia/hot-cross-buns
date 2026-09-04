@@ -10,7 +10,7 @@ import webbrowser
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Literal, cast
@@ -496,6 +496,16 @@ class _CalendarDropPreview:
     valid: bool
 
 
+@dataclass(frozen=True, slots=True)
+class _CalendarSlotDrag:
+    """The timed empty slot from which a new-event range selection began."""
+
+    day: date
+    minute: int
+    start_x: int
+    start_y: int
+
+
 class CalendarGrid(ScrollView):
     """A mouse-aware terminal Day, Week, or Month calendar projection.
 
@@ -525,6 +535,22 @@ class CalendarGrid(ScrollView):
             self.day = day
             self.minute = minute
             self.all_day = all_day
+            super().__init__()
+
+    class SlotRangeSelected(Message):
+        def __init__(
+            self,
+            grid: CalendarGrid,
+            start_day: date,
+            start_minute: int,
+            end_day: date,
+            end_minute: int,
+        ) -> None:
+            self.grid = grid
+            self.start_day = start_day
+            self.start_minute = start_minute
+            self.end_day = end_day
+            self.end_minute = end_minute
             super().__init__()
 
     class OverflowRequested(Message):
@@ -568,6 +594,7 @@ class CalendarGrid(ScrollView):
         self._overflow: dict[date, tuple[CalendarItem, ...]] = {}
         self._selected: tuple[str, str] | None = None
         self._drag: _CalendarDrag | None = None
+        self._slot_drag: _CalendarSlotDrag | None = None
         self._drag_preview: _CalendarDropPreview | None = None
         self._calendar_colors: dict[str, str] = {}
         self._fallback_color = "ansi_default"
@@ -974,6 +1001,54 @@ class CalendarGrid(ScrollView):
         title = f"{verb} {item.title}"
         return _CalendarDropPreview(x, y, self._cell_width - 1, title, True)
 
+    def _slot_range_preview(self, drag: _CalendarSlotDrag, x: int, y: int) -> _CalendarDropPreview:
+        """Render the prospective event interval while selecting an empty range."""
+        slot = self._slot(x, y)
+        if slot is None:
+            return _CalendarDropPreview(
+                max(0, min(x, max(0, self.virtual_size.width - 1))),
+                max(0, min(y, max(0, self.virtual_size.height - 1))),
+                max(1, min(18, max(1, self.virtual_size.width - max(0, x)))),
+                "× select a timed slot",
+                False,
+            )
+        day, minute, _all_day = slot
+        if minute is None or _all_day:
+            return _CalendarDropPreview(
+                max(0, min(x, max(0, self.virtual_size.width - 1))),
+                max(0, min(y, max(0, self.virtual_size.height - 1))),
+                max(1, min(18, max(1, self.virtual_size.width - max(0, x)))),
+                "× select a timed slot",
+                False,
+            )
+        start = datetime.combine(drag.day, datetime.min.time()) + timedelta(minutes=drag.minute)
+        end = datetime.combine(day, datetime.min.time()) + timedelta(minutes=minute + 30)
+        if end <= start:
+            start, end = (
+                datetime.combine(day, datetime.min.time()) + timedelta(minutes=minute),
+                datetime.combine(drag.day, datetime.min.time())
+                + timedelta(minutes=drag.minute + 30),
+            )
+        duration = int((end - start).total_seconds() // 60)
+        start_day = start.date()
+        start_minute = start.hour * 60 + start.minute
+        start_index = (start_day - self._range.start).days
+        if self.surface == "Month":
+            week = start_index // 7
+            preview_x = (start_index % 7) * self._cell_width
+            preview_y = (
+                1
+                + week * self._month_cell_height
+                + 1
+                + self._month_all_day_height
+                + start_minute // self._month_slot_minutes
+            )
+        else:
+            preview_x = self._time_axis + start_index * self._cell_width
+            preview_y = self._timed_start + start_minute // 30
+        label = f"+ {start:%H:%M}–{end:%H:%M} ({duration}m)"
+        return _CalendarDropPreview(preview_x, preview_y, self._cell_width - 1, label, True)
+
     def on_mouse_down(self, event: events.MouseDown) -> None:
         x, y = self._point(event)
         if (hit := self._hit(x, y)) is not None:
@@ -984,6 +1059,7 @@ class CalendarGrid(ScrollView):
                 elif y == hit.y + hit.height - 1:
                     mode = "resize-end"
             self._drag = _CalendarDrag(hit, x, y, mode)
+            self._slot_drag = None
             self._drag_preview = None
             self._selected = (hit.block.item.kind, hit.block.item.item_id)
             self.post_message(self.ItemSelected(self, hit.block.item))
@@ -992,13 +1068,23 @@ class CalendarGrid(ScrollView):
             return
         self._drag = None
         self._drag_preview = None
+        if (slot := self._slot(x, y)) is not None and slot[1] is not None and not slot[2]:
+            self._slot_drag = _CalendarSlotDrag(slot[0], slot[1], x, y)
+            self.capture_mouse()
+            event.stop()
+            return
+        self._slot_drag = None
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
         """Update the ghost target while capture keeps a drag coherent off-widget."""
-        if self._drag is None:
+        if self._drag is None and self._slot_drag is None:
             return
         x, y = self._point(event)
-        preview = self._drop_preview(self._drag, x, y)
+        if self._drag is not None:
+            preview = self._drop_preview(self._drag, x, y)
+        else:
+            assert self._slot_drag is not None
+            preview = self._slot_range_preview(self._slot_drag, x, y)
         if preview != self._drag_preview:
             self._drag_preview = preview
             self.refresh()
@@ -1007,9 +1093,45 @@ class CalendarGrid(ScrollView):
     def on_mouse_up(self, event: events.MouseUp) -> None:
         x, y = self._point(event)
         drag = self._drag
+        slot_drag = self._slot_drag
         self._drag = None
+        self._slot_drag = None
         self._drag_preview = None
         self.capture_mouse(False)
+        if slot_drag is not None:
+            if (x, y) == (slot_drag.start_x, slot_drag.start_y):
+                self.post_message(
+                    self.SlotSelected(self, slot_drag.day, slot_drag.minute, all_day=False)
+                )
+                return
+            slot = self._slot(x, y)
+            if slot is None:
+                return
+            end_day, end_minute, _all_day = slot
+            if end_minute is None or _all_day:
+                return
+            start = datetime.combine(slot_drag.day, datetime.min.time()) + timedelta(
+                minutes=slot_drag.minute
+            )
+            end = datetime.combine(end_day, datetime.min.time()) + timedelta(
+                minutes=end_minute + 30
+            )
+            if end <= start:
+                start, end = (
+                    datetime.combine(end_day, datetime.min.time()) + timedelta(minutes=end_minute),
+                    datetime.combine(slot_drag.day, datetime.min.time())
+                    + timedelta(minutes=slot_drag.minute + 30),
+                )
+            self.post_message(
+                self.SlotRangeSelected(
+                    self,
+                    start.date(),
+                    start.hour * 60 + start.minute,
+                    end.date(),
+                    end.hour * 60 + end.minute,
+                )
+            )
+            return
         if drag is None:
             if self.surface == "Month":
                 slot = self._slot(x, y)

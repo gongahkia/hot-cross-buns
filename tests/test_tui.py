@@ -385,6 +385,32 @@ def test_calendar_drag_shows_live_valid_and_invalid_drop_feedback(tmp_path: Path
     app_test(app, assertions, size=(130, 34))
 
 
+def test_calendar_empty_slot_drag_creates_an_exact_event_range(tmp_path: Path) -> None:
+    app = HcbApp(seeded_runtime(tmp_path), selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        start_y = grid._timed_start + 9 * 2
+        end_y = grid._timed_start + 10 * 2
+        grid.on_mouse_down(
+            events.MouseDown(grid, grid._time_axis, start_y, 0, 0, 1, False, False, False)
+        )
+        grid.on_mouse_move(
+            events.MouseMove(grid, grid._time_axis, end_y, 0, 0, 0, False, False, False)
+        )
+        assert grid._drag_preview is not None
+        assert grid._drag_preview.label == "+ 09:00–10:30 (90m)"
+        grid.on_mouse_up(events.MouseUp(grid, grid._time_axis, end_y, 0, 0, 1, False, False, False))
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EventEditorScreen)
+        assert app.screen.query_one("#event-start", Input).value.startswith("2026-08-24T09:00")
+        assert app.screen.query_one("#event-end", Input).value.startswith("2026-08-24T10:30")
+
+    app_test(app, assertions, size=(130, 34))
+
+
 def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]
