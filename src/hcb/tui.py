@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import re
+from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path, PurePath
@@ -109,7 +110,27 @@ RECURRENCE_FREQUENCY_OPTIONS = (
     ("Weekly", "weekly"),
     ("Monthly", "monthly"),
     ("Yearly", "yearly"),
-    ("Custom rule", "custom"),
+    ("Custom…", "custom"),
+)
+RECURRENCE_UNIT_OPTIONS = (
+    ("day", "daily"),
+    ("week", "weekly"),
+    ("month", "monthly"),
+    ("year", "yearly"),
+)
+RECURRENCE_END_OPTIONS = (
+    ("Never", "never"),
+    ("On date", "on"),
+    ("After occurrences", "after"),
+)
+RECURRENCE_WEEKDAYS = (
+    ("Monday", "MO"),
+    ("Tuesday", "TU"),
+    ("Wednesday", "WE"),
+    ("Thursday", "TH"),
+    ("Friday", "FR"),
+    ("Saturday", "SA"),
+    ("Sunday", "SU"),
 )
 LOCATION_MAP_ICON = "󰖟"
 
@@ -207,6 +228,115 @@ def recurrence_with_frequency(recurrence: tuple[str, ...], frequency: str) -> tu
             updated.insert(0, replacement)
         return (*recurrence[:index], f"RRULE:{';'.join(updated)}", *recurrence[index + 1 :])
     return (*recurrence, f"RRULE:{replacement}")
+
+
+@dataclass(frozen=True, slots=True)
+class RecurrenceSpec:
+    """The user-editable subset of a Google Calendar RRULE."""
+
+    frequency: Literal["daily", "weekly", "monthly", "yearly"]
+    interval: int = 1
+    weekdays: tuple[str, ...] = ()
+    month_day: int | None = None
+    month: int | None = None
+    end: Literal["never", "on", "after"] = "never"
+    until: date | None = None
+    count: int | None = None
+
+
+def _recurrence_rule_index(recurrence: tuple[str, ...]) -> tuple[int | None, dict[str, str]]:
+    for index, line in enumerate(recurrence):
+        prefix, separator, rule = line.strip().partition(":")
+        if prefix.upper() == "RRULE" and separator:
+            return index, _rrule_fields(rule)
+    return None, {}
+
+
+def _positive_int(value: str | None, fallback: int) -> int:
+    try:
+        parsed = int(value or "")
+    except ValueError:
+        return fallback
+    return parsed if parsed > 0 else fallback
+
+
+def _rrule_date(value: str | None) -> date | None:
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value[:8])
+    except ValueError:
+        return None
+
+
+def recurrence_spec(recurrence: tuple[str, ...], start_date: date) -> RecurrenceSpec:
+    """Read the common RRULE controls, defaulting contextual choices from the event start."""
+    _, fields = _recurrence_rule_index(recurrence)
+    frequency = fields.get("FREQ", "WEEKLY").casefold()
+    if frequency not in {"daily", "weekly", "monthly", "yearly"}:
+        frequency = "weekly"
+    by_day = tuple(
+        code
+        for _label, code in RECURRENCE_WEEKDAYS
+        if code in {value[-2:] for value in fields.get("BYDAY", "").split(",")}
+    )
+    month_day = _positive_int(fields.get("BYMONTHDAY"), start_date.day)
+    month = _positive_int(fields.get("BYMONTH"), start_date.month)
+    count = _positive_int(fields.get("COUNT"), 0) or None
+    until = _rrule_date(fields.get("UNTIL"))
+    return RecurrenceSpec(
+        frequency=frequency,  # type: ignore[arg-type]
+        interval=_positive_int(fields.get("INTERVAL"), 1),
+        weekdays=by_day or ((RECURRENCE_WEEKDAYS[start_date.weekday()][1],) if frequency == "weekly" else ()),
+        month_day=month_day if frequency in {"monthly", "yearly"} else None,
+        month=month if frequency == "yearly" else None,
+        end="after" if count is not None else "on" if until is not None else "never",
+        until=until,
+        count=count,
+    )
+
+
+def recurrence_with_spec(
+    recurrence: tuple[str, ...], spec: RecurrenceSpec, *, all_day: bool
+) -> tuple[str, ...]:
+    """Replace the editable RRULE clauses while retaining unmodeled recurrence data."""
+    index, fields = _recurrence_rule_index(recurrence)
+    managed = {"FREQ", "INTERVAL", "COUNT", "UNTIL"}
+    if spec.frequency == "weekly":
+        managed.add("BYDAY")
+    elif spec.frequency == "monthly":
+        managed.add("BYMONTHDAY")
+    elif spec.frequency == "yearly":
+        managed.update({"BYMONTH", "BYMONTHDAY"})
+    preserved: list[str] = []
+    if index is not None:
+        _prefix, _separator, rule = recurrence[index].strip().partition(":")
+        preserved = [
+            clause
+            for clause in rule.split(";")
+            if clause.partition("=")[0].upper() not in managed
+        ]
+    clauses = [f"FREQ={spec.frequency.upper()}"]
+    if spec.interval != 1:
+        clauses.append(f"INTERVAL={spec.interval}")
+    if spec.frequency == "weekly" and spec.weekdays:
+        clauses.append(f"BYDAY={','.join(spec.weekdays)}")
+    elif spec.frequency == "monthly" and spec.month_day is not None:
+        clauses.append(f"BYMONTHDAY={spec.month_day}")
+    elif spec.frequency == "yearly":
+        if spec.month is not None:
+            clauses.append(f"BYMONTH={spec.month}")
+        if spec.month_day is not None:
+            clauses.append(f"BYMONTHDAY={spec.month_day}")
+    if spec.end == "after" and spec.count is not None:
+        clauses.append(f"COUNT={spec.count}")
+    elif spec.end == "on" and spec.until is not None:
+        until = spec.until.strftime("%Y%m%d")
+        clauses.append(f"UNTIL={until if all_day else f'{until}T235959Z'}")
+    rule = f"RRULE:{';'.join((*clauses, *preserved))}"
+    if index is None:
+        return (*recurrence, rule)
+    return (*recurrence[:index], rule, *recurrence[index + 1 :])
 
 
 def recurrence_summary(recurrence: tuple[str, ...]) -> str:
