@@ -246,6 +246,91 @@ class ActionMixin:
             )
             if task is None:
                 return
+            linked_events = {
+                link.task_id: event
+                for link in self.runtime.application.list_task_event_links(self.account_id)
+                if not link.orphaned
+                and (
+                    event := next(
+                        (
+                            candidate
+                            for candidate in self.cache.events
+                            if candidate.id == link.event_id
+                        ),
+                        None,
+                    )
+                )
+                is not None
+            }
+            if (scheduled := linked_events.get(task.id)) is not None:
+                zone = ZoneInfo(self.runtime.config.preferences.time_zone)
+                try:
+                    points, target_scope = self._calendar_event_target(
+                        scheduled, day, minute, operation, zone
+                    )
+                    updated_event = self.runtime.application.update_event(
+                        self.account_id,
+                        scheduled.id,
+                        start=points[0],
+                        end=points[1],
+                        scope=target_scope,
+                    )
+                    scheduled_day = points[0].value
+                    due = (
+                        scheduled_day.date()
+                        if isinstance(scheduled_day, datetime)
+                        else scheduled_day
+                    )
+                    if task.due != due:
+                        task = self.runtime.application.update_task(
+                            self.account_id, task.id, due=due, clear_due=False
+                        )
+                        self.apply_workspace_task_mutation(task)
+                except (ValueError, HcbError) as exc:
+                    self.notify(str(exc), severity="error")
+                    return
+                self.apply_workspace_event_mutation(updated_event)
+                self.notify("Task schedule updated")
+                return
+            if minute is not None:
+                calendar_id = (
+                    self.resource_filter[1]
+                    if self.resource_filter and self.resource_filter[0] == "calendar"
+                    else (self.cache.calendars[0][0] if self.cache.calendars else None)
+                )
+                if calendar_id is None:
+                    self.notify("Create a calendar first", severity="warning")
+                    return
+                zone = ZoneInfo(self.runtime.config.preferences.time_zone)
+                start = datetime.combine(day, datetime.min.time(), tzinfo=zone) + timedelta(
+                    minutes=minute
+                )
+                try:
+                    event, _link = self.runtime.application.schedule_task(
+                        self.account_id,
+                        task.id,
+                        calendar_id,
+                        EventDateTime(DateTimeKind.DATETIME, start, zone.key),
+                        EventDateTime(
+                            DateTimeKind.DATETIME,
+                            start
+                            + timedelta(
+                                minutes=self.runtime.config.tui.default_event_duration_minutes
+                            ),
+                            zone.key,
+                        ),
+                    )
+                    if task.due != day:
+                        task = self.runtime.application.update_task(
+                            self.account_id, task.id, due=day, clear_due=False
+                        )
+                        self.apply_workspace_task_mutation(task)
+                except (ValueError, HcbError) as exc:
+                    self.notify(str(exc), severity="error")
+                    return
+                self.apply_workspace_event_mutation(event)
+                self.notify("Task scheduled")
+                return
             try:
                 updated_task = self.runtime.application.update_task(
                     self.account_id, task.id, due=day, clear_due=False

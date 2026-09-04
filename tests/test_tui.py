@@ -411,6 +411,50 @@ def test_calendar_empty_slot_drag_creates_an_exact_event_range(tmp_path: Path) -
     app_test(app, assertions, size=(130, 34))
 
 
+def test_calendar_can_schedule_and_resize_task_blocks(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    task = runtime.application.create_task(
+        "work", task_list.id, "Scheduled task", due=date(2026, 8, 24)
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        due_item = next(item for item in grid.items if item.item_id == task.id)
+        app.apply_calendar_item_change(
+            due_item, day=date(2026, 8, 24), minute=9 * 60, operation="move"
+        )
+        await pilot.pause()  # type: ignore[attr-defined]
+        link = next(
+            link
+            for link in runtime.application.list_task_event_links("work")
+            if link.task_id == task.id
+        )
+        scheduled = runtime.storage.get_event("work", link.event_id)
+        assert scheduled is not None
+        assert scheduled.start.value == datetime(2026, 8, 24, 9, tzinfo=UTC)
+        assert scheduled.end.value == datetime(2026, 8, 24, 10, tzinfo=UTC)
+
+        timed_task = next(
+            item for item in grid.items if item.item_id == task.id and not item.all_day
+        )
+        assert not any(
+            item.kind == "event" and item.item_id == link.event_id for item in grid.items
+        )
+        app.apply_calendar_item_change(
+            timed_task, day=date(2026, 8, 24), minute=11 * 60, operation="resize-end"
+        )
+        await pilot.pause()  # type: ignore[attr-defined]
+        resized = runtime.storage.get_event("work", link.event_id)
+        assert resized is not None
+        assert resized.end.value == datetime(2026, 8, 24, 11, tzinfo=UTC)
+
+    app_test(app, assertions, size=(130, 34))
+
+
 def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> None:
     runtime = seeded_runtime(tmp_path)
     task_list = runtime.storage.list_task_lists("work")[0]

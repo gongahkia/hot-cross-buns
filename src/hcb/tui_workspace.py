@@ -287,7 +287,12 @@ class WorkspaceMixin:
             # gives resize fallback an immediate readable surface and preserves
             # the existing programmatic WorkspaceTable integration.
             titles = {item_id: title for item_id, title, _selected in self.cache.calendars}
-            fallback_rows = [self._workspace_event_row(event, titles) for event in events]
+            scheduled_event_ids = {event.id for event in scheduled_tasks.values()}
+            fallback_rows = [
+                self._workspace_event_row(event, titles)
+                for event in events
+                if event.id not in scheduled_event_ids
+            ]
             fallback_rows.extend(self._workspace_task_row(task, "") for task in tasks)
             content.replace_rows(
                 tuple(fallback_rows)
