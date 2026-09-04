@@ -248,9 +248,16 @@ class ActionMixin:
                     self.account_id, event.id
                 )
                 self._replace_cached_event(old)
-                target_scope = "series"
-            elif scope == "series":
-                target_scope = "series"
+            elif scope == "series" and event.is_occurrence:
+                if not event.canonical_id:
+                    raise ValueError("the occurrence has no canonical recurring series")
+                target_event = self.runtime.storage.get_event_by_remote(
+                    self.account_id, event.canonical_id
+                )
+                if target_event is None:
+                    raise ValueError("the canonical recurring series is not cached")
+                points = self._calendar_points_with_delta(event, target_event, points)
+                target_scope = "this"
             updated_event = self.runtime.application.update_event(
                 self.account_id,
                 target_event.id,
@@ -263,6 +270,37 @@ class ActionMixin:
             return
         self.apply_workspace_event_mutation(updated_event)
         self.notify("Event updated")
+
+    @staticmethod
+    def _calendar_points_with_delta(
+        source: Event,
+        target: Event,
+        points: tuple[EventDateTime, EventDateTime],
+    ) -> tuple[EventDateTime, EventDateTime]:
+        """Apply an occurrence's drag/resize delta to its canonical series."""
+        source_start, source_end = source.start.value, source.end.value
+        desired_start, desired_end = points[0].value, points[1].value
+        target_start, target_end = target.start.value, target.end.value
+        if isinstance(source_start, datetime):
+            if not all(
+                isinstance(value, datetime)
+                for value in (source_end, desired_start, desired_end, target_start, target_end)
+            ):
+                raise ValueError("the recurring series has incompatible date boundaries")
+            start_delta = cast(datetime, desired_start) - source_start
+            end_delta = cast(datetime, desired_end) - cast(datetime, source_end)
+        else:
+            if any(
+                isinstance(value, datetime) or not isinstance(value, date)
+                for value in (source_end, desired_start, desired_end, target_start, target_end)
+            ):
+                raise ValueError("the recurring series has incompatible date boundaries")
+            start_delta = timedelta(days=desired_start.toordinal() - source_start.toordinal())
+            end_delta = timedelta(days=desired_end.toordinal() - source_end.toordinal())
+        return (
+            EventDateTime(target.start.kind, target_start + start_delta, target.start.time_zone),
+            EventDateTime(target.end.kind, target_end + end_delta, target.end.time_zone),
+        )
 
     def _calendar_event_target(
         self: Any,
@@ -290,7 +328,7 @@ class ActionMixin:
         local_start = start_value.astimezone(zone)
         local_end = end_value.astimezone(zone)
         target = datetime.combine(day, datetime.min.time(), tzinfo=zone) + timedelta(
-            minutes=minute or 0
+            minutes=(minute if minute is not None else local_start.hour * 60 + local_start.minute)
         )
         if operation == "move":
             next_start, next_end = target, target + (local_end - local_start)

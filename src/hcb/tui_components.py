@@ -95,6 +95,7 @@ from .tui_calendar import (
     all_day_blocks,
     calendar_items,
     calendar_range,
+    month_blocks,
     month_label,
     timed_blocks,
 )
@@ -506,6 +507,13 @@ class CalendarGrid(ScrollView):
             self.all_day = all_day
             super().__init__()
 
+    class OverflowRequested(Message):
+        def __init__(self, grid: CalendarGrid, day: date, items: tuple[CalendarItem, ...]) -> None:
+            self.grid = grid
+            self.day = day
+            self.items = items
+            super().__init__()
+
     class ItemChanged(Message):
         def __init__(
             self,
@@ -537,6 +545,7 @@ class CalendarGrid(ScrollView):
         self._all_day: tuple[CalendarBlock, ...] = ()
         self._timed: tuple[CalendarBlock, ...] = ()
         self._hits: tuple[_CalendarHitBox, ...] = ()
+        self._overflow: dict[date, tuple[CalendarItem, ...]] = {}
         self._selected: tuple[str, str] | None = None
         self._drag: (
             tuple[
@@ -599,7 +608,11 @@ class CalendarGrid(ScrollView):
             calendar_colors=calendar_colors,
             fallback_color=fallback_color,
         )
-        self._all_day = all_day_blocks(self._items, self._range)
+        self._all_day = (
+            month_blocks(self._items, self._range)
+            if surface == "Month"
+            else all_day_blocks(self._items, self._range)
+        )
         self._timed = timed_blocks(self._items, self._range)
         self._selected = selected
         self._rebuild_geometry()
@@ -619,12 +632,19 @@ class CalendarGrid(ScrollView):
         hits: list[_CalendarHitBox] = []
         if self.surface == "Month":
             self._month_cell_height = max(4, (max(self.size.height, 25) - 1) // 6)
+            visible_lanes = self._month_cell_height - 2
+            overflow: dict[date, list[CalendarItem]] = {}
             for block in self._all_day:
                 first_week = block.start_day // 7
                 last_week = (block.end_day - 1) // 7
                 for week in range(first_week, last_week + 1):
                     start_day = max(block.start_day, week * 7)
                     end_day = min(block.end_day, (week + 1) * 7)
+                    if block.lane >= visible_lanes:
+                        for day_index in range(start_day, end_day):
+                            day = self._range.start + timedelta(days=day_index)
+                            overflow.setdefault(day, []).append(block.item)
+                        continue
                     hits.append(
                         _CalendarHitBox(
                             block,
@@ -635,6 +655,7 @@ class CalendarGrid(ScrollView):
                         )
                     )
             self._hits = tuple(hits)
+            self._overflow = {day: tuple(items) for day, items in overflow.items()}
             self.virtual_size = Size(canvas_width, 1 + self._month_cell_height * 6)
             self.refresh()
             return
@@ -658,6 +679,7 @@ class CalendarGrid(ScrollView):
             height = max(1, (block.end_minute - block.start_minute + 29) // 30)
             hits.append(_CalendarHitBox(block, x, y, max(3, unit - 1), height))
         self._hits = tuple(hits)
+        self._overflow = {}
         self.virtual_size = Size(canvas_width, self._timed_start + 48)
         self.refresh()
 
@@ -794,6 +816,18 @@ class CalendarGrid(ScrollView):
                 continue
             label, style = self._chip(hit.block, hit.width)
             self._paint(cells, spans, hit.x, label, style)
+        if row == self._month_cell_height - 1:
+            for weekday in range(7):
+                day = self._range.start + timedelta(days=week * 7 + weekday)
+                hidden = self._overflow.get(day, ())
+                if hidden:
+                    self._paint(
+                        cells,
+                        spans,
+                        weekday * self._cell_width + 1,
+                        f"+{len(hidden)} more",
+                        Style(underline=True, bold=True),
+                    )
 
     def render_line(self, y: int) -> Strip:
         y += int(self.scroll_offset.y)
@@ -855,6 +889,11 @@ class CalendarGrid(ScrollView):
         self._drag = None
         self.capture_mouse(False)
         if drag is None:
+            if self.surface == "Month":
+                slot = self._slot(x, y)
+                if slot is not None and (hidden := self._overflow.get(slot[0])):
+                    self.post_message(self.OverflowRequested(self, slot[0], hidden))
+                    return
             if (slot := self._slot(x, y)) is not None:
                 self.post_message(self.SlotSelected(self, *slot[:2], all_day=slot[2]))
             return
@@ -1278,6 +1317,53 @@ class RecurringEditScopeScreen(ModalScreen[Literal["this", "following", "series"
             "recurrence-series": "series",
         }
         self.dismiss(mapping.get(event.button.id or ""))
+
+
+class CalendarOverflowScreen(ModalScreen[tuple[str, str] | None]):
+    """List the calendar chips hidden behind a Month ``+ N more`` indicator."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    def __init__(self, day: date, items: tuple[CalendarItem, ...]) -> None:
+        super().__init__()
+        self.day = day
+        self.items = items
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-dialog", classes="calendar-overflow-dialog"):
+            yield Label(f"{self.day:%A, %d %B %Y} · more items", id="dialog-title")
+            yield ListView(
+                *[
+                    EntityRow(
+                        f"{self._marker(item)} {item.title}",
+                        kind=item.kind,
+                        item_id=item.item_id,
+                    )
+                    for item in self.items
+                ],
+                id="calendar-overflow-items",
+            )
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Close", id="calendar-overflow-close")
+
+    @staticmethod
+    def _result(event: ListView.Selected) -> tuple[str, str] | None:
+        item = event.item
+        return (item.kind, item.item_id) if isinstance(item, EntityRow) else None
+
+    @staticmethod
+    def _marker(item: CalendarItem) -> str:
+        return "✓" if item.completed else "□" if item.kind == "task" else "●"
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "calendar-overflow-items":
+            self.dismiss(self._result(event))
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, _: Button.Pressed) -> None:
+        self.dismiss(None)
 
 
 class OnboardingScreen(ModalScreen[dict[str, str] | None]):

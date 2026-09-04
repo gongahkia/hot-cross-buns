@@ -334,6 +334,14 @@ Input.-invalid, TextArea.-invalid {
     height: 25;
 }
 
+.calendar-overflow-dialog {
+    height: 20;
+}
+
+#calendar-overflow-items {
+    height: 1fr;
+}
+
 #event-dialog, #calendar-dialog, #find-time-dialog {
     height: 30;
 }

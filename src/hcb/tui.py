@@ -577,6 +577,7 @@ from .tui_components import (  # noqa: E402, F401
     BulkScreen,
     CachedWorkspace,
     CalendarGrid,
+    CalendarOverflowScreen,
     CalendarScreen,
     ConfirmScreen,
     ConflictScreen,

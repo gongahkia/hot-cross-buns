@@ -13,6 +13,7 @@ from hcb.models import (
     DateTimeKind,
     DriveFile,
     EntityType,
+    Event,
     EventDateTime,
     NotesProjection,
     ReminderOverride,
@@ -73,6 +74,37 @@ def test_notes_projection_and_date_only_constraint(app: ApplicationService) -> N
     assert "notes" not in app.storage.pending_mutations("a")[-1].payload["body"]
     with pytest.raises(ValueError, match="date-only"):
         app.create_task("a", "inbox", "Bad due", due=datetime.now(UTC))  # type: ignore[arg-type]
+
+
+def test_split_recurring_event_preserves_the_remaining_count(app: ApplicationService) -> None:
+    series = app.create_event(
+        "a",
+        "cal",
+        "Finite standup",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 1)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 2)),
+        recurrence=("RRULE:FREQ=DAILY;COUNT=3",),
+        id="series",
+    )
+    app.storage.upsert_event(replace(series, remote_id="series-remote"))
+    occurrence = Event(
+        "occurrence",
+        "a",
+        "cal",
+        "Finite standup",
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 2)),
+        EventDateTime(DateTimeKind.DATE, date(2026, 8, 3)),
+        remote_id="occurrence-remote",
+        canonical_id="series-remote",
+        derived=True,
+    )
+    app.storage.upsert_event(occurrence)
+
+    old, new = app.split_recurring_event("a", occurrence.id)
+
+    assert old.recurrence == ("RRULE:FREQ=DAILY;UNTIL=20260801",)
+    assert new.start.value == date(2026, 8, 2)
+    assert new.recurrence == ("RRULE:FREQ=DAILY;COUNT=2",)
 
 
 def test_batch_task_move_preflights_hierarchies_and_queues_in_order(

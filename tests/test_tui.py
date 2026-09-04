@@ -40,6 +40,8 @@ from hcb.tui import (
     PALETTE_COMMANDS,
     BatchActionScreen,
     BatchMoveScreen,
+    CalendarGrid,
+    CalendarOverflowScreen,
     CalendarScreen,
     ConfirmScreen,
     ConflictScreen,
@@ -288,6 +290,86 @@ def test_day_surface_includes_timed_events_ending_on_the_selected_day(tmp_path: 
         assert event.id in {row.item_id for row in workspace_rows(app)}
 
     app_test(app, assertions)
+
+
+def test_calendar_grids_include_due_tasks_create_from_slots_and_fallback_when_narrow(
+    tmp_path: Path,
+) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    due_task = runtime.application.create_task(
+        "work", task_list.id, "Calendar task", due=date(2026, 8, 24)
+    )
+    calendar_id = runtime.storage.list_calendars("work")[0].id
+    runtime.application.create_event(
+        "work",
+        calendar_id,
+        "Calendar event",
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 9, tzinfo=UTC)),
+        EventDateTime(DateTimeKind.DATETIME, datetime(2026, 8, 24, 10, tzinfo=UTC)),
+    )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("4")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        assert grid.display
+        assert {item.item_id for item in grid.items} >= {due_task.id}
+
+        app.action_create_calendar_slot(date(2026, 8, 24), 9 * 60, all_day=False)
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, EventEditorScreen)
+        assert app.screen.query_one("#event-start", Input).value.startswith("2026-08-24T09:00")
+        assert app.screen.query_one("#event-end", Input).value.startswith("2026-08-24T10:00")
+        app.pop_screen()
+
+        app.apply_calendar_item_change(
+            next(item for item in grid.items if item.item_id == due_task.id),
+            day=date(2026, 8, 25),
+            minute=None,
+            operation="move",
+        )
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert runtime.storage.get_task("work", due_task.id).due == date(2026, 8, 25)  # type: ignore[union-attr]
+
+    app_test(app, assertions, size=(130, 34))
+
+    narrow = HcbApp(Runtime(runtime.paths, environ={}), selected_date=date(2026, 8, 24))
+
+    async def narrow_assertions(pilot: object) -> None:
+        await pilot.press("6")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert not narrow.query_one("#calendar-content", CalendarGrid).display
+        assert narrow.query_one("#content", WorkspaceTable).display
+
+    app_test(narrow, narrow_assertions, size=(80, 34))
+
+
+def test_month_grid_exposes_hidden_items_through_more_dialog(tmp_path: Path) -> None:
+    runtime = seeded_runtime(tmp_path)
+    task_list = runtime.storage.list_task_lists("work")[0]
+    for index in range(4):
+        runtime.application.create_task(
+            "work", task_list.id, f"Dense task {index}", due=date(2026, 8, 24)
+        )
+    app = HcbApp(runtime, selected_date=date(2026, 8, 24))
+
+    async def assertions(pilot: object) -> None:
+        await pilot.press("6")  # type: ignore[attr-defined]
+        await pilot.pause()  # type: ignore[attr-defined]
+        grid = app.query_one("#calendar-content", CalendarGrid)
+        hidden = grid._overflow[date(2026, 8, 24)]
+        app.on_calendar_grid_overflow_requested(
+            CalendarGrid.OverflowRequested(grid, date(2026, 8, 24), hidden)
+        )
+        await pilot.pause()  # type: ignore[attr-defined]
+        assert isinstance(app.screen, CalendarOverflowScreen)
+        assert len(app.screen.query_one("#calendar-overflow-items", ListView).children) == len(
+            hidden
+        )
+
+    app_test(app, assertions, size=(130, 34))
 
 
 def test_links_in_workspace_text_open_only_safe_web_urls(tmp_path: Path) -> None:

@@ -8,7 +8,7 @@ render loop makes the behaviour testable without a terminal.
 from __future__ import annotations
 
 import calendar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -291,6 +291,30 @@ def timed_blocks(
                 for block in placed
             )
     return tuple(result)
+
+
+def month_blocks(
+    items: tuple[CalendarItem, ...], visible: CalendarRange
+) -> tuple[CalendarBlock, ...]:
+    """Return date-cell chips for all-day, due-task, and timed event fragments."""
+    display_items: list[CalendarItem] = []
+    for item in items:
+        if item.all_day:
+            display_items.append(item)
+            continue
+        for fragment in _split_timed(item, visible):
+            day = visible.start + timedelta(days=fragment.start_day)
+            minute = fragment.start_minute or 0
+            display_items.append(
+                replace(
+                    item,
+                    all_day=True,
+                    title=f"{minute // 60:02d}:{minute % 60:02d} {item.title}",
+                    start_date=day,
+                    end_date=day + timedelta(days=1),
+                )
+            )
+    return all_day_blocks(tuple(display_items), visible)
 
 
 def month_label(day: date) -> str:

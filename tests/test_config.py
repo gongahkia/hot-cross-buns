@@ -11,6 +11,7 @@ from hcb.config import (
     KeyBindings,
     Theme,
     ThemeColors,
+    TuiSettings,
     load,
     loads,
     profile_path,
@@ -36,6 +37,13 @@ def test_defaults_are_terminal_minimal_and_valid(tmp_path: Path) -> None:
     assert config.preferences.week_starts_on == 0
     assert config.preferences.date_time_format == "friendly"
     assert config.theme.loader == DEFAULT_LOADER
+    assert config.tui.default_event_duration_minutes == 60
+
+
+def test_calendar_click_duration_is_bounded() -> None:
+    assert TuiSettings(default_event_duration_minutes=5).default_event_duration_minutes == 5
+    with pytest.raises(ValueError, match="default_event_duration_minutes"):
+        TuiSettings(default_event_duration_minutes=4)
 
 
 def test_rattles_loader_catalog_is_complete_and_preserves_source_timing() -> None:
