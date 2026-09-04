@@ -221,16 +221,19 @@ def test_workspace_rows_place_colored_indicators_between_dates_and_titles(tmp_pa
     )
     app = HcbApp(runtime, selected_date=date(2026, 8, 24))
 
-    def indicator_color(item_id: str) -> str:
+    def indicator_style(item_id: str) -> Style:
         content = app.query_one("#content", WorkspaceTable)
         index = next(
             index for index, row in enumerate(content.workspace_rows) if row.item_id == item_id
         )
         label = content._rendered_row_label(index)
         offset = label.plain.index("●")
-        style = label.get_style_at_offset(Console(), offset)
-        assert style.color is not None
-        return style.color.get_truecolor().hex
+        return label.get_style_at_offset(Console(), offset)
+
+    def indicator_color(item_id: str) -> str:
+        color = indicator_style(item_id).color
+        assert color is not None
+        return color.get_truecolor().hex
 
     async def assertions(pilot: object) -> None:
         dated_row = next(row for row in workspace_rows(app) if row.item_id == dated_task.id)
@@ -256,6 +259,10 @@ def test_workspace_rows_place_colored_indicators_between_dates_and_titles(tmp_pa
         )
         content.select_workspace_row(event_index, Style(bold=True, reverse=True))
         assert indicator_color(event.id) == "#123456"
+        selected_indicator = indicator_style(event.id)
+        assert not selected_indicator.reverse
+        assert selected_indicator.bgcolor is not None
+        assert selected_indicator.bgcolor.get_truecolor().hex == theme.colors.text
 
     app_test(app, assertions)
 

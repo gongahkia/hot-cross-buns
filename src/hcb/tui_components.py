@@ -383,6 +383,8 @@ class WorkspaceTable(ScrollView):
 
     def _rendered_row_label(self, index: int) -> Text:
         label = self._workspace_rows[index].label.copy()
+        inline_spans = label.spans[:]
+        label.spans = []
         base_style = self.rich_style
         if index == self._selected_row_index and self._selection_style is not None:
             base_style = base_style + self._selection_style
@@ -395,9 +397,11 @@ class WorkspaceTable(ScrollView):
                     bgcolor=base_style.color,
                     reverse=False,
                 )
-        # A Text base style is applied before its inline spans. This keeps event
-        # and task indicator colours above the workspace and selection styling.
-        label.style = base_style
+        # Insert the base layer before existing Rich spans. A Text's ``style``
+        # attribute is not emitted for unstyled segments, which breaks Textual's
+        # monochrome filter, so use a full-width span instead.
+        label.stylize(base_style)
+        label.spans.extend(inline_spans)
         return label
 
     def render_line(self, y: int) -> Strip:
