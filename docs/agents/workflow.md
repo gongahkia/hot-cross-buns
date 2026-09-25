@@ -15,6 +15,7 @@ Read:
 5. the subsystem spec for the requested work
 6. the relevant `docs/performance/` guide when touching startup, renderer surfaces, IPC, SQLite, sync, search, packaging, or tests
 7. the relevant `docs/ports/` guide when touching platform adapters, packaging, tray, shortcuts, notifications, paths, credentials, deep links, or updater behavior
+8. `docs/live-google-testing.md` before running any test against a signed-in Google profile
 
 If the requested work conflicts with these docs, update or propose a doc change before implementing code.
 
@@ -49,6 +50,8 @@ Not allowed without explicit approval:
 - Update docs when behavior or architecture changes.
 - Preserve the performance budgets and measurement strategy in `docs/performance/performance-strategy.md`.
 - Preserve the port order in `docs/ports/cross-platform-porting.md`: macOS first, Linux second, Windows third.
+- Never run live Google tests by default. Personal or production accounts use `read-only` mode only; `mutating` mode requires a user-designated disposable account, dedicated resources, and the exact acknowledgement described in `docs/live-google-testing.md`.
+- Never request or handle Google passwords, OAuth secrets, access/refresh tokens, browser cookies, or Keychain exports. Live tests use an existing signed-in Electron profile.
 
 ## Work Selection
 

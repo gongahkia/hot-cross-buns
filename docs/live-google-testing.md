@@ -4,6 +4,16 @@
 
 Quit every HCB instance using the selected profile before running either mode. Start and sync HCB normally once first so the profile has completed setup and can access the desired Google account.
 
+## Agent decision rule
+
+| Situation | Allowed suite | Agent action |
+| --- | --- | --- |
+| No signed-in profile, no explicit request to run live tests, or account type is unclear | None | Do not run live tests. Ask the user to choose a mode. |
+| Personal, production, or otherwise-used Google account | `read-only` only | Run only the read-only command. Never substitute mutating mode, even if test resources exist. |
+| Disposable Google account the user explicitly authorizes for mutation testing | `mutating` | Require the exact acknowledgement plus dedicated Task-list and Calendar names before running. |
+
+Never request, paste, log, or accept a Google password, OAuth client secret, refresh token, access token, browser cookie, or Keychain export. The test uses the existing signed-in Electron profile only.
+
 ## Read-only mode — use for your real account
 
 This mode runs a Google pull with `readOnly: true`, reads Task/Calendar data through HCB, and checks that the connected account renders in Settings. It blocks Task/Calendar mutations, OAuth lifecycle actions, full syncs, and ordinary syncs at the main-process IPC boundary. Automatic startup/background sync is also disabled.

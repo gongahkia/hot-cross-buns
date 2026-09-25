@@ -77,6 +77,15 @@ Use mocked Google transport for:
 
 Tests should assert local database outcomes, not only mock call counts.
 
+## Opt-in Live Google Smoke Tests
+
+Run `pnpm test:live-google` only when a user explicitly requests live-account validation and supplies an existing signed-in HCB profile. Follow `docs/live-google-testing.md` exactly:
+
+- personal, production, or used accounts: read-only mode only;
+- disposable accounts: mutating mode only after the exact acknowledgement and dedicated Task-list/Calendar names are supplied;
+- no account credentials, browser cookies, OAuth secrets, access tokens, refresh tokens, or Keychain exports may be requested or handled;
+- live tests are never part of default unit, smoke, performance, or CI commands.
+
 ## IPC Contract Tests
 
 Every preload API must have tests for:
