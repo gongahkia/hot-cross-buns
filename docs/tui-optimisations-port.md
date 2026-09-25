@@ -25,6 +25,7 @@ the terminal presentation.
 | Backoff and conflict visibility | Retryable failures use bounded exponential backoff; non-retryable outcomes remain visible as conflicts | Implemented |
 | Bounded reads for large workspaces | Title-first local search, 1–200 item pages, and revisioned opaque cursors | Implemented |
 | Safe local persistence | One in-process writer queue plus atomic write-then-rename files in a `0700` directory and `0600` data files | Implemented |
+| User-editable preferences | Versioned `settings-v1.json` stores color scheme and startup workspace; Settings exposes only validated read/write IPC and shows both local file paths | Implemented |
 | Secrets excluded from state, output, and diagnostics | Planner state has no credential fields; renderer has only a narrow validated API | Implemented |
 | SQLite WAL, migrations, and cross-process locking | Requires the planned Electron SQLite adapter; an atomic file store is deliberately not represented as a substitute | Deferred |
 | OAuth PKCE, encrypted refresh tokens, Google Tasks/Calendar cursors and ETags | Requires user-supplied OAuth configuration and a Google transport adapter | Deferred |
@@ -36,6 +37,11 @@ The Electron renderer never opens the local data file. It may request a
 workspace summary, a bounded task page, an optimistic task save/completion, or
 sync status through the preload bridge. The main process owns validation,
 storage, data revision, idempotency, and the outbox.
+
+The Settings screen separately reads and writes `settings-v1.json`, which
+currently contains the color-scheme preference and start page. It shows the
+settings and planner-file paths but cannot access either file directly; manual
+edits must be made while the app is closed.
 
 The outbox is intentionally transport-neutral today. It is ready for a Google
 adapter but does not claim that local tasks have been synchronized remotely.

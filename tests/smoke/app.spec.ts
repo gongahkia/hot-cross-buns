@@ -22,6 +22,10 @@ test("launches and renders the planner shell", async () => {
       await expect(page.getByRole("button", { name: new RegExp(label) })).toBeVisible();
     }
 
+    await page.getByRole("button", { name: /^Settings/ }).click();
+    await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
+
     const health = await page.evaluate(async () => globalThis.window.hcb?.diagnostics.health());
     expect(health?.ok).toBe(true);
   } finally {

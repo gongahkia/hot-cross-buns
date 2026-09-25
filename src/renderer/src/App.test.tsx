@@ -38,15 +38,18 @@ describe("App shell", () => {
 
   it("persists appearance and startup preferences from Settings", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const view = render(<App />);
+    const app = within(view.container);
 
-    await user.click(screen.getByRole("button", { name: /Settings/ }));
+    await user.click(app.getByRole("button", { name: /^Settings/ }));
 
-    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
-    expect(screen.getByText("/tmp/hcb/settings-v1.json")).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: /Light/ }));
-    await user.selectOptions(screen.getByLabelText("Open on startup"), "tasks");
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => {
+      expect(app.getByText("/tmp/hcb/settings-v1.json")).toBeInTheDocument();
+    });
+    expect(app.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+    await user.click(app.getByRole("radio", { name: /Light/ }));
+    await user.selectOptions(app.getByLabelText("Open on startup"), "tasks");
+    await user.click(app.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(window.hcb?.settings.save).toHaveBeenCalledWith({
@@ -55,6 +58,6 @@ describe("App shell", () => {
       });
     });
     expect(document.documentElement.dataset.theme).toBe("light");
-    expect(screen.getByRole("status")).toHaveTextContent("Saved to settings-v1.json.");
+    expect(app.getByRole("status")).toHaveTextContent("Saved to settings-v1.json.");
   });
 });

@@ -110,6 +110,7 @@ export function SettingsPanel({
               </span>
             </label>
             <select
+              aria-label="Open on startup"
               className="rounded-hcbMd border border-border bg-bg-primary px-3 py-2 text-[var(--text-sm)] text-text-primary focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-accent"
               id="start-page"
               onChange={(event) =>
