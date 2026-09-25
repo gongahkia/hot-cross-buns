@@ -12,7 +12,7 @@ import {
   resolveEffectiveThemeMode,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
-import { Bell, Brush, Copy, Info, Keyboard, Search, Users } from "lucide-react";
+import { Bell, Brush, Copy, Info, Keyboard, Search, SlidersHorizontal, Users } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button, Input, Panel, StatusBanner } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
@@ -26,6 +26,7 @@ import { AppearanceSettingsTab } from "./AppearanceSettingsTab";
 import { AboutSettingsTab } from "./AboutSettingsTab";
 import { AlertsSettingsTab } from "./AlertsSettingsTab";
 import { HotkeysSettingsTab } from "./HotkeysSettingsTab";
+import { GeneralSettingsTab } from "./GeneralSettingsTab";
 import { ProfileSettingsTab } from "./ProfileSettingsTab";
 import {
   SettingsSearchProvider,
@@ -34,7 +35,7 @@ import {
 } from "./SettingsPrimitives";
 import { recoveryPhrase } from "./settingsUtils";
 
-type SettingsTabId = "profile" | "appearance" | "hotkeys" | "alerts" | "about";
+type SettingsTabId = "profile" | "general" | "appearance" | "hotkeys" | "alerts" | "about";
 type AutoTagBackgroundNotice = {
   title: string;
   description: string;
@@ -80,6 +81,15 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Global hotkey",
     "Global quick-add hotkey",
     "Shortcut"
+  ].join(" "),
+  general: [
+    "General",
+    "Sync",
+    "Retention",
+    "Refresh",
+    "Force full resync",
+    "Setup assistant",
+    "Run setup again"
   ].join(" "),
   appearance: [
     "Appearance",
@@ -587,6 +597,12 @@ export function SettingsView({
           onClick={() => setSelectedSettingsTab("profile")}
         />
         <SettingsTabButton
+          active={selectedSettingsTab === "general"}
+          icon={SlidersHorizontal}
+          label="General"
+          onClick={() => setSelectedSettingsTab("general")}
+        />
+        <SettingsTabButton
           active={selectedSettingsTab === "appearance"}
           icon={Brush}
           label="Appearance"
@@ -701,6 +717,20 @@ export function SettingsView({
             taskLists={source.taskLists}
             updateSelectedCalendar={updateSelectedCalendar}
             updateSelectedTaskList={updateSelectedTaskList}
+          />
+        ) : null}
+
+        {selectedSettingsTab === "general" ? (
+          <GeneralSettingsTab
+            beginRecoveryAction={beginRecoveryAction}
+            customRetentionAmount={customRetentionAmount}
+            customRetentionUnit={customRetentionUnit}
+            openDiagnosticsDetails={openDiagnosticsDetails}
+            setCustomRetentionAmount={setCustomRetentionAmount}
+            setCustomRetentionUnit={setCustomRetentionUnit}
+            settings={settings}
+            settingsMutationPending={source.settingsMutationPending}
+            updateSettings={updateSettings}
           />
         ) : null}
 

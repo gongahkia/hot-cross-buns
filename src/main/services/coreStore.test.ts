@@ -123,6 +123,26 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual(updated.loadingIndicators);
   });
 
+  it("keeps setup skip distinct from completion and restores pending setup safely", () => {
+    const store = createStore();
+
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      onboardingStatus: "pending",
+      setupCompletedAt: null,
+      uiFontName: null,
+      uiMonoFontName: null
+    });
+
+    store.dispatch("settings", "update", { onboardingStatus: "skipped" });
+    expect(store.dispatch("settings", "get", {}).onboardingStatus).toBe("skipped");
+
+    store.dispatch("settings", "recoveryAction", { action: "resetOnboarding" });
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      onboardingStatus: "pending",
+      setupCompletedAt: null
+    });
+  });
+
   it("round-trips Calendar conferencing, Drive attachment metadata, RSVP, and status-event data", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });

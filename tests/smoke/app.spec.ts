@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+test.setTimeout(60_000);
+
 test("launches and renders the planner shell", async () => {
   let electronApp: ElectronApplication | undefined;
   const profileDir = mkdtempSync(join(tmpdir(), "hcb-smoke-"));
@@ -24,8 +26,7 @@ test("launches and renders the planner shell", async () => {
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const onboarding = page.getByRole("dialog", { name: "First-run setup" });
     await expect(onboarding).toBeVisible();
-    const finishSetup = page.getByRole("button", { name: "Finish setup" });
-    await finishSetup.click();
+    await page.getByRole("button", { name: "Skip setup for now" }).click();
     await expect(onboarding).toBeHidden();
 
     for (const label of ["Tasks", "Calendar", "Notes"]) {
@@ -34,6 +35,11 @@ test("launches and renders the planner shell", async () => {
 
     await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "General", exact: true }).click();
+    await page.getByRole("button", { name: "Run setup again", exact: true }).click();
+    await expect(onboarding).toBeVisible();
+    await page.getByRole("button", { name: "Finish setup" }).click();
+    await expect(onboarding).toBeHidden();
     await page.getByRole("button", { name: "Appearance", exact: true }).click();
     await page.getByLabel("Theme", { exact: true }).selectOption("dark");
     const themePicker = page.getByRole("list", { name: "Color themes" });
@@ -53,6 +59,7 @@ test("launches and renders the planner shell", async () => {
     await expect(searchLoader).toHaveValue("blocks");
     await searchLoader.selectOption("wave");
     await expect(page.locator(".ld-wave").first()).toBeVisible();
+    await expect(page.getByLabel("Monospace and buffer font family")).toHaveValue("");
     await page.getByRole("button", { name: "Close settings" }).click();
 
     const title = `smoke task ${Date.now()}`;

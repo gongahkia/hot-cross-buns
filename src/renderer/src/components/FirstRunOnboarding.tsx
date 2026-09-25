@@ -172,7 +172,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     <div
       aria-labelledby="first-run-title"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-primary/80 p-3 sm:p-6"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary/80 p-3 sm:p-6"
       role="dialog"
     >
       <div className="hcb-raised flex max-h-[calc(100vh-48px)] w-full max-w-5xl flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
