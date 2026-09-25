@@ -6,11 +6,15 @@ import { dirname, join } from "node:path";
 import { safeStorage, shell } from "electron";
 import { CoreStore, CoreStoreError } from "./coreStore";
 
-interface SecretPayload {
-  clientSecret?: string;
+interface AccountSecretPayload {
   refreshToken?: string;
   accessToken?: string;
   expiresAt?: number;
+}
+
+interface SecretPayload {
+  clientSecret?: string;
+  accounts?: Record<string, AccountSecretPayload>;
 }
 
 /**
@@ -45,17 +49,17 @@ export class GoogleOAuthController {
     return () => this.events.off("connection-change", listener);
   }
 
-  async googleFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
+  async googleFetch(accountId: string, url: string | URL, init: RequestInit = {}): Promise<Response> {
     let response = await fetch(url, {
       ...init,
-      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(false)) }
+      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(accountId, false)) }
     });
 
     if (response.status !== 401) return response;
 
     response = await fetch(url, {
       ...init,
-      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(true)) }
+      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(accountId, true)) }
     });
     return response;
   }
@@ -72,16 +76,10 @@ export class GoogleOAuthController {
 
     this.connecting = true;
     void this.runAuthorization(clientId)
-      .catch((error: unknown) => {
-        this.store.setGoogleAccount({
-          id: "google-account",
-          email: null,
-          displayName: "Google account",
-          connectionState: "error",
-          missingScopes: [],
-          message: error instanceof Error ? error.message : "Google authorization failed."
-        });
-      })
+      // No account id exists until userinfo returns. Do not mark an unrelated,
+      // already-connected account as failed when an "Add account" browser flow
+      // is cancelled before identity exchange.
+      .catch(() => undefined)
       .finally(() => {
         this.connecting = false;
         this.events.emit("connection-change");
@@ -89,11 +87,21 @@ export class GoogleOAuthController {
     return { message: "Opening Google authorization in your browser." };
   }
 
-  async disconnect(): Promise<Record<string, unknown>> {
+  async disconnect(input: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    const accountId = optionalString(input.accountId);
     const secrets = await this.readSecrets();
-    await this.writeSecrets({ clientSecret: secrets.clientSecret });
-    this.store.setGoogleAccount(null);
-    this.store.resetGoogleSyncTokens();
+    const accounts = { ...(secrets.accounts ?? {}) };
+    if (accountId) {
+      delete accounts[accountId];
+      this.store.removeGoogleAccount(accountId);
+    } else {
+      for (const account of this.store.googleAccounts()) {
+        if (account.accountId === "local") continue;
+        delete accounts[account.accountId];
+        this.store.removeGoogleAccount(account.accountId);
+      }
+    }
+    await this.writeSecrets({ clientSecret: secrets.clientSecret, accounts });
     this.events.emit("connection-change");
     return this.store.dispatch("google", "status");
   }
@@ -120,51 +128,36 @@ export class GoogleOAuthController {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        grant_type: "authorization_code",
-        code_verifier: verifier,
+        code, client_id: clientId, redirect_uri: redirectUri, grant_type: "authorization_code", code_verifier: verifier,
         ...(secrets.clientSecret ? { client_secret: secrets.clientSecret } : {})
       })
     });
-
-    if (!tokenResponse.ok) {
-      throw new CoreStoreError("Google declined the authorization exchange. Check the OAuth client configuration.");
-    }
-
+    if (!tokenResponse.ok) throw new CoreStoreError("Google declined the authorization exchange. Check the OAuth client configuration.");
     const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number };
-    if (!token.access_token || !token.refresh_token) {
-      throw new CoreStoreError("Google did not return a reusable authorization token.");
-    }
-
-    const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { authorization: `Bearer ${token.access_token}` }
-    });
-    const identity = identityResponse.ok
-      ? await identityResponse.json() as { id?: string; email?: string; name?: string }
-      : {};
-    await this.writeSecrets({
-      ...secrets,
-      accessToken: token.access_token,
-      refreshToken: token.refresh_token,
-      expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000
-    });
-    this.store.setGoogleAccount({
-      id: identity.id ?? "google-account",
+    if (!token.access_token || !token.refresh_token) throw new CoreStoreError("Google did not return a reusable authorization token.");
+    const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } });
+    const identity = identityResponse.ok ? await identityResponse.json() as { id?: string; email?: string; name?: string; picture?: string } : {};
+    const account = this.store.upsertGoogleAccount({
+      googleAccountId: identity.id ?? `unknown-${randomBytes(8).toString("hex")}`,
       email: identity.email ?? null,
       displayName: identity.name ?? identity.email ?? "Google account",
+      avatarUrl: identity.picture ?? null,
       connectionState: "connected",
       missingScopes: []
     });
+    await this.writeSecrets({ ...secrets, accounts: {
+      ...(secrets.accounts ?? {}),
+      [account.accountId]: { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 }
+    } });
     this.events.emit("connection-change");
   }
 
-  private async accessToken(forceRefresh: boolean): Promise<string> {
+  private async accessToken(accountId: string, forceRefresh: boolean): Promise<string> {
     const secrets = await this.readSecrets();
-    const expiresSoon = !secrets.expiresAt || secrets.expiresAt <= Date.now() + 60_000;
-    if (!forceRefresh && secrets.accessToken && !expiresSoon) return secrets.accessToken;
-    if (!secrets.refreshToken) throw new CoreStoreError("Google is not connected. Connect an account before syncing.");
+    const accountSecrets = secrets.accounts?.[accountId];
+    const expiresSoon = !accountSecrets?.expiresAt || accountSecrets.expiresAt <= Date.now() + 60_000;
+    if (!forceRefresh && accountSecrets?.accessToken && !expiresSoon) return accountSecrets.accessToken;
+    if (!accountSecrets?.refreshToken) throw new CoreStoreError("Google is not connected. Connect an account before syncing.");
     const clientId = this.store.oauthClientId();
     if (!clientId) throw new CoreStoreError("Google OAuth client configuration is missing.");
     const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -172,15 +165,13 @@ export class GoogleOAuthController {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: clientId,
-        refresh_token: secrets.refreshToken,
+        refresh_token: accountSecrets.refreshToken,
         grant_type: "refresh_token",
         ...(secrets.clientSecret ? { client_secret: secrets.clientSecret } : {})
       })
     });
     if (!response.ok) {
-      this.store.setGoogleAccount({
-        id: "google-account", email: null, displayName: "Google account", connectionState: "reauth_required", missingScopes: []
-      });
+      this.store.updateGoogleAccountState(accountId, "reauth_required", "Google authorization expired or was revoked.");
       this.events.emit("connection-change");
       throw new CoreStoreError("Google authorization expired or was revoked. Reconnect the account.");
     }
@@ -188,8 +179,7 @@ export class GoogleOAuthController {
     if (!token.access_token) throw new CoreStoreError("Google did not return an access token.");
     await this.writeSecrets({
       ...secrets,
-      accessToken: token.access_token,
-      expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000
+      accounts: { ...(secrets.accounts ?? {}), [accountId]: { ...accountSecrets, accessToken: token.access_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } }
     });
     return token.access_token;
   }

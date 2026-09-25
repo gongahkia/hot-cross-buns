@@ -96,7 +96,7 @@ export function updateCapabilityReportStatus(
 ): NativeCapabilityReport {
   return {
     ...report,
-    capabilities: report.capabilities.map((capability) =>
+    capabilities: report.capabilities.map((capability: { key: NativeCapabilityKey; supported: boolean; state: NativeFeatureState; message: string }) =>
       capability.key === key
         ? {
             ...capability,

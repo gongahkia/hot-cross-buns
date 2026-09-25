@@ -21,6 +21,8 @@ export function nativeAdapterKindForPlatform(platform: NodeJS.Platform | string)
       return "electron-windows-preview";
     case "unknown":
       return "noop";
+    default:
+      return "noop";
   }
 }
 
@@ -45,6 +47,10 @@ export async function createNativeAdapter(
     case "noop": {
       const { createNoopNativeAdapter } = await import("./noopAdapter");
       return createNoopNativeAdapter(normalizedPlatform);
+    }
+    default: {
+      const { createNoopNativeAdapter } = await import("./noopAdapter");
+      return createNoopNativeAdapter("unknown");
     }
   }
 }

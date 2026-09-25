@@ -11,6 +11,7 @@ import {
   CacheStatePanel,
   scheduledBlockByTaskId
 } from "../../coreScreenShared";
+import type { TaskViewModel } from "../../coreViewModels";
 import type { TaskDraft } from "../../inspectors/TaskInspectorBody";
 import {
   TaskMutationErrorBanner,
@@ -186,6 +187,19 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     void source.moveTask({ id: taskId, listId, parentId: null });
   }
 
+  function scheduleTask(task: TaskViewModel): void {
+    const calendar = source.calendarSources.find((item) => item.selected) ?? source.calendarSources[0];
+    if (!calendar || source.taskMutationPending) return;
+    const durationMinutes = Math.max(5, Math.min(24 * 60, task.durationMinutes ?? 30));
+    const startsAt = new Date(Math.ceil((Date.now() + 60_000) / (30 * 60_000)) * 30 * 60_000).toISOString();
+    const existing = scheduledBlocksByTask.get(task.id);
+    if (existing) {
+      void source.moveScheduledTaskBlock({ id: existing.id, calendarId: calendar.id, startsAt, durationMinutes });
+      return;
+    }
+    void source.scheduleTaskBlock({ taskId: task.id, calendarId: calendar.id, startsAt, durationMinutes });
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <TaskMutationErrorBanner source={source} />
@@ -205,6 +219,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
           onMoveTaskRequest={(request) => { void source.moveTask(request); }}
           onOpenTask={selectTask}
           onRenameList={promptRenameTaskList}
+          onScheduleTask={scheduleTask}
           onSetListSort={setListSort}
           onToggleStar={toggleTaskStar}
           onToggleTask={(taskId) => void toggleTask(taskId)}

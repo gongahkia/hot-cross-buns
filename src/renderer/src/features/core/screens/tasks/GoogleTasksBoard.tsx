@@ -55,6 +55,7 @@ interface GoogleTasksBoardProps {
   onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
   onRenameList: (list: TaskListSummary) => void;
+  onScheduleTask: (task: TaskViewModel) => void;
   onSetListSort: (listId: string, sort: TaskListSort) => void;
   onToggleStar: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
@@ -155,6 +156,7 @@ export function GoogleTasksBoard({
   onMoveTaskRequest,
   onOpenTask,
   onRenameList,
+  onScheduleTask,
   onSetListSort,
   onToggleStar,
   onToggleTask,
@@ -304,6 +306,7 @@ export function GoogleTasksBoard({
                 onMoveTaskRequest={onMoveTaskRequest}
                 onOpenTask={onOpenTask}
                 onRenameList={onRenameList}
+                onScheduleTask={onScheduleTask}
                 onSetListSort={onSetListSort}
                 onStartBulkSelect={() => setBulkModeActive(true)}
                 onToggleStar={onToggleStar}
@@ -609,6 +612,7 @@ function TaskListColumn({
   onMoveTaskRequest,
   onOpenTask,
   onRenameList,
+  onScheduleTask,
   onSetListSort,
   onStartBulkSelect,
   onToggleStar,
@@ -636,6 +640,7 @@ function TaskListColumn({
   onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
   onRenameList: (list: TaskListSummary) => void;
+  onScheduleTask: (task: TaskViewModel) => void;
   onSetListSort: (listId: string, sort: TaskListSort) => void;
   onStartBulkSelect: () => void;
   onToggleStar: (taskId: string) => void;
@@ -743,6 +748,7 @@ function TaskListColumn({
               onMoveTask={onMoveTask}
               onMoveTaskRequest={onMoveTaskRequest}
               onOpenTask={onOpenTask}
+              onScheduleTask={onScheduleTask}
               onToggleStar={onToggleStar}
               onToggleTask={onToggleTask}
               onAddSubtask={onAddSubtask}
@@ -785,6 +791,7 @@ function TaskListColumn({
                     onMoveTask={onMoveTask}
                     onMoveTaskRequest={onMoveTaskRequest}
                     onOpenTask={onOpenTask}
+                    onScheduleTask={onScheduleTask}
                     onToggleStar={onToggleStar}
                     onToggleTask={onToggleTask}
                     onAddSubtask={onAddSubtask}
@@ -870,6 +877,7 @@ function GoogleTaskRow({
   onMoveTask,
   onMoveTaskRequest,
   onOpenTask,
+  onScheduleTask,
   onToggleStar,
   onToggleTask,
   onAddSubtask,
@@ -891,6 +899,7 @@ function GoogleTaskRow({
   onMoveTask: (taskId: string, listId: string) => void;
   onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
+  onScheduleTask: (task: TaskViewModel) => void;
   onToggleStar: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
   onAddSubtask: (task: TaskViewModel) => void;
@@ -996,6 +1005,13 @@ function GoogleTaskRow({
             icon={Star}
             label={starred ? `Unstar ${task.title}` : `Star ${task.title}`}
             onClick={() => onToggleStar(task.id)}
+            variant="ghost"
+          />
+          <IconButton
+            className="size-9 rounded-full"
+            icon={CalendarClock}
+            label={scheduledBlock ? `Reschedule ${task.title}` : `Schedule ${task.title}`}
+            onClick={() => onScheduleTask(task)}
             variant="ghost"
           />
           {menuOpen ? (

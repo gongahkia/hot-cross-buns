@@ -35,8 +35,5 @@
     "vitest.config.ts",
     "vitest.setup.ts"
   ],
-  "exclude": [
-    "src/main/native/**",
-    "src/renderer/src/test/**"
-  ]
+  "exclude": ["src/renderer/src/test/**"]
 }

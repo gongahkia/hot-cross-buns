@@ -20,7 +20,6 @@ export type PlannerActionId =
   | "sync.forceFullResync"
   | "undo.perform"
   | "redo.perform"
-  | "mcp.toggle"
   | "diagnostics.copy"
   | "diagnostics.history"
   | "diagnostics.sync";
@@ -32,7 +31,6 @@ export type PlannerActionCategory =
   | "Calendar"
   | "Sync"
   | "Edit"
-  | "Agent"
   | "Diagnostics";
 
 export interface PlannerAction {
@@ -220,14 +218,6 @@ export const plannerActions: PlannerAction[] = [
     description: "Reset checkpoints in the future sync service",
     category: "Sync",
     keywords: ["sync", "reset", "checkpoint"],
-    sectionId: "settings"
-  },
-  {
-    id: "mcp.toggle",
-    label: "Toggle MCP server",
-    description: "Switch future local agent access",
-    category: "Agent",
-    keywords: ["mcp", "agent", "server"],
     sectionId: "settings"
   },
   {

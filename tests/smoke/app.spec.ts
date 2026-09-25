@@ -1,12 +1,15 @@
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 test("launches and renders the planner shell", async () => {
   let electronApp: ElectronApplication | undefined;
+  const profileDir = mkdtempSync(join(tmpdir(), "hcb-smoke-"));
 
   try {
     electronApp = await electron.launch({
-      args: [resolve(__dirname, "../..")],
+      args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`],
       env: {
         ...process.env,
         NODE_ENV: "test"
@@ -73,6 +76,20 @@ test("launches and renders the planner shell", async () => {
     expect(scheduledBlock.data.taskId).toBe(mutation.task?.ok ? mutation.task.data.id : "");
     expect(scheduledBlock.data.calendarEventId).toBeTruthy();
 
+    const availability = await page.evaluate(async () => globalThis.window.hcb?.calendar.exportAvailability({
+      calendarIds: ["primary"], start: "2026-10-02T08:00:00.000Z", end: "2026-10-02T11:00:00.000Z", format: "text"
+    }));
+    expect(availability?.ok).toBe(true);
+    if (!availability?.ok) throw new Error("Availability export failed.");
+    expect(availability.data.busyBlockCount).toBeGreaterThan(0);
+
+    const undoneBlock = await page.evaluate(async () => globalThis.window.hcb?.undo.undo());
+    expect(undoneBlock?.ok).toBe(true);
+    expect(undoneBlock?.ok && undoneBlock.data.applied).toBe(true);
+    const redoneBlock = await page.evaluate(async () => globalThis.window.hcb?.undo.redo());
+    expect(redoneBlock?.ok).toBe(true);
+    expect(redoneBlock?.ok && redoneBlock.data.applied).toBe(true);
+
     const search = await page.evaluate(async (query) => globalThis.window.hcb?.search.query({ query, limit: 10 }), title);
     expect(search?.ok).toBe(true);
     if (!search?.ok) {
@@ -91,5 +108,6 @@ test("launches and renders the planner shell", async () => {
     expect(health?.ok).toBe(true);
   } finally {
     await electronApp?.close();
+    rmSync(profileDir, { recursive: true, force: true });
   }
 });

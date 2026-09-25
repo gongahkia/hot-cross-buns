@@ -13,7 +13,7 @@ import {
   resolveEffectiveThemeMode,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
-import { Bell, Brush, Copy, Info, Keyboard, Search, Settings2, SlidersHorizontal, Users } from "lucide-react";
+import { Bell, Brush, Copy, Info, Keyboard, Search, Users } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button, Input, Panel, StatusBanner } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
@@ -25,9 +25,7 @@ import {
 import { hotkeyDefinitions } from "../../hotkeys";
 import { AppearanceSettingsTab } from "./AppearanceSettingsTab";
 import { AboutSettingsTab } from "./AboutSettingsTab";
-import { AdvancedSettingsTab } from "./AdvancedSettingsTab";
 import { AlertsSettingsTab } from "./AlertsSettingsTab";
-import { GeneralSettingsTab } from "./GeneralSettingsTab";
 import { HotkeysSettingsTab } from "./HotkeysSettingsTab";
 import { ProfileSettingsTab } from "./ProfileSettingsTab";
 import {
@@ -37,7 +35,7 @@ import {
 } from "./SettingsPrimitives";
 import { recoveryPhrase } from "./settingsUtils";
 
-type SettingsTabId = "general" | "profile" | "appearance" | "hotkeys" | "alerts" | "advanced" | "about";
+type SettingsTabId = "profile" | "appearance" | "hotkeys" | "alerts" | "about";
 type AutoTagBackgroundNotice = {
   title: string;
   description: string;
@@ -59,60 +57,6 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Build",
     "Bundle ID",
     "Copy version info"
-  ].join(" "),
-  advanced: [
-    "Advanced",
-    "Calendars",
-    "Read calendars",
-    "Show hidden calendars",
-    "Task lists",
-    "Read tasks",
-    "Per-tab list filters",
-    "Tasks tab",
-    "Notes tab",
-    "Calendar tab",
-    "Data control",
-    "Mutation history",
-    "Sync queue",
-    "Portable export",
-    "Portable archive",
-    "Include attachments metadata",
-    "Include diagnostics summary",
-    "Include local settings",
-    "Import portable archive",
-    "Local backups",
-    "Automatic local backups",
-    "Keep backups",
-    "Backup folder",
-    "History",
-    "Visible entries",
-    "Storage cap",
-    "History categories",
-    "Duplicate detection",
-    "Title similarity threshold",
-    "Custom filters",
-    "Pinned filters",
-    "Boolean filters",
-    "Tags",
-    "Tag catalog",
-    "Tag colors",
-    "Merge tags",
-    "Auto tags",
-    "Background reapply",
-    "Rules",
-    "Prefix",
-    "Contains",
-    "Regex",
-    "Task templates",
-    "Event templates",
-    "Note templates",
-    "Customization",
-    "CSS snippets",
-    "settings.json",
-    "keymap.json",
-    "Sandboxed extensions",
-    "ICS import subscriptions",
-    "Local reports"
   ].join(" "),
   alerts: [
     "Alerts",
@@ -164,37 +108,6 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Calendar day start",
     "Calendar day end"
   ].join(" "),
-  general: [
-    "General",
-    "Language",
-    "App language",
-    "System Default follows your macOS language order",
-    "Startup",
-    "Open Hot Cross Buns at login",
-    "Diagnostics",
-    "Inspect logs mutation history sync queues support bundles",
-    "Include performance diagnostics",
-    "Include field-redacted Google payloads in local logs",
-    "Agent access",
-    "Local MCP server",
-    "Permission mode",
-    "MCP clients must follow this write policy before changes apply",
-    "Port",
-    "Running",
-    "Stopped",
-    "Reset token",
-    "Sync",
-    "Mode",
-    "Refresh cadence for launch foreground periodic app activity",
-    "Keep past events",
-    "Keep completed tasks",
-    "Custom",
-    "Refresh",
-    "Force full resync",
-    "Setup",
-    "Setup assistant",
-    "Run setup again"
-  ].join(" "),
   hotkeys: [
     "Hotkeys",
     "Shortcuts",
@@ -230,7 +143,7 @@ export function SettingsView({
   const [confirmationInput, setConfirmationInput] = useState("");
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const [autoTagBackgroundNotice, setAutoTagBackgroundNotice] = useState<AutoTagBackgroundNotice | null>(null);
-  const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTabId>("general");
+  const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTabId>("profile");
   const [settingsQuery, setSettingsQuery] = useState("");
   const [customRetentionAmount, setCustomRetentionAmount] = useState("60");
   const [customRetentionUnit, setCustomRetentionUnit] = useState<"days" | "months" | "years">("days");
@@ -295,11 +208,6 @@ export function SettingsView({
   const settingsSearchTexts = useMemo<Record<SettingsTabId, string>>(
     () => ({
       ...settingsSearchTextByTab,
-      advanced: [
-        settingsSearchTextByTab.advanced,
-        source.taskLists.map((taskList) => taskList.title).join(" "),
-        source.calendarSources.map((calendar) => `${calendar.title} ${calendar.timeZone ?? ""}`).join(" ")
-      ].join(" "),
       profile: [
         settingsSearchTextByTab.profile,
         googleStatus.account?.displayName ?? "",
@@ -674,12 +582,6 @@ export function SettingsView({
     <div className="grid min-h-0 gap-3">
       <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-b border-border pb-2">
         <SettingsTabButton
-          active={selectedSettingsTab === "general"}
-          icon={Settings2}
-          label="General"
-          onClick={() => setSelectedSettingsTab("general")}
-        />
-        <SettingsTabButton
           active={selectedSettingsTab === "profile"}
           icon={Users}
           label="Profile"
@@ -702,13 +604,6 @@ export function SettingsView({
           icon={Bell}
           label="Alerts"
           onClick={() => setSelectedSettingsTab("alerts")}
-        />
-        <SettingsTabButton
-          active={selectedSettingsTab === "advanced"}
-          alertCount={autoTagRuleErrorCount}
-          icon={SlidersHorizontal}
-          label="Advanced"
-          onClick={() => setSelectedSettingsTab("advanced")}
         />
         <SettingsTabButton
           active={selectedSettingsTab === "about"}
@@ -790,20 +685,6 @@ export function SettingsView({
       ) : null}
 
       <SettingsSearchProvider query={settingsQuery}>
-        {selectedSettingsTab === "general" ? (
-          <GeneralSettingsTab
-            beginRecoveryAction={beginRecoveryAction}
-            customRetentionAmount={customRetentionAmount}
-            customRetentionUnit={customRetentionUnit}
-            openDiagnosticsDetails={openDiagnosticsDetails}
-            setCustomRetentionAmount={setCustomRetentionAmount}
-            setCustomRetentionUnit={setCustomRetentionUnit}
-            settings={settings}
-            settingsMutationPending={source.settingsMutationPending}
-            updateSettings={updateSettings}
-          />
-        ) : null}
-
         {selectedSettingsTab === "profile" ? (
           <ProfileSettingsTab
             beginGoogleOAuth={beginGoogleOAuth}
@@ -844,26 +725,6 @@ export function SettingsView({
 
         {selectedSettingsTab === "alerts" ? (
           <AlertsSettingsTab settings={settings} updateSettings={updateSettings} />
-        ) : null}
-
-        {selectedSettingsTab === "advanced" ? (
-          <AdvancedSettingsTab
-            autoTagBulkCounts={autoTagBulkCounts}
-            beginRecoveryAction={beginRecoveryAction}
-            calendarSources={source.calendarSources}
-            createTag={source.createTag}
-            defaultTagColor={activeColorTheme.ember}
-            deleteTag={source.deleteTag}
-            mergeTags={source.mergeTags}
-            onReapplyAutoTags={(kind) => void reapplyAutoTags(kind)}
-            settings={settings}
-            tags={source.tags}
-            taskLists={source.taskLists}
-            updateTag={source.updateTag}
-            updateSelectedCalendar={updateSelectedCalendar}
-            updateSelectedTaskList={updateSelectedTaskList}
-            updateSettings={updateSettings}
-          />
         ) : null}
 
         {selectedSettingsTab === "about" ? (

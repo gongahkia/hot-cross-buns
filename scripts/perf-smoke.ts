@@ -1,33 +1,148 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
+const TASK_COUNT = 1_000;
+const EVENT_COUNT = 1_000;
 const artifactDir = join(process.cwd(), "artifacts", "perf");
-mkdirSync(artifactDir, { recursive: true });
+const profileDir = mkdtempSync(join(tmpdir(), "hcb-perf-"));
 
-const generatedAt = new Date().toISOString();
-const report = {
-  generatedAt,
-  status: "placeholder",
-  measurements: [],
-  artifactConvention: {
-    json: "artifacts/perf/latest.json",
-    markdown: "artifacts/perf/latest.md"
-  },
-  note: "Performance smoke scaffolding is in place. Add deterministic local fixtures before turning budgets into gates."
-};
+interface Measurement {
+  name: string;
+  durationMs: number;
+  itemCount?: number;
+}
 
-writeFileSync(join(artifactDir, "latest.json"), `${JSON.stringify(report, null, 2)}\n`);
-writeFileSync(
-  join(artifactDir, "latest.md"),
-  [
-    "# Performance Smoke",
-    "",
-    `Generated: ${generatedAt}`,
-    "",
-    "Status: placeholder",
-    "",
-    "No measurements are collected until deterministic local fixtures exist."
-  ].join("\n")
-);
+interface PerfReport {
+  generatedAt: string;
+  status: "passed";
+  fixture: { tasks: number; events: number };
+  measurements: Measurement[];
+}
 
-console.log("Wrote performance smoke placeholders to artifacts/perf/latest.json and latest.md");
+function elapsed(startedAt: number): number {
+  return Math.round((performance.now() - startedAt) * 100) / 100;
+}
+
+async function measure<T>(
+  measurements: Measurement[], name: string, action: () => Promise<T>, itemCount?: number
+): Promise<T> {
+  const startedAt = performance.now();
+  const result = await action();
+  measurements.push({ name, durationMs: elapsed(startedAt), ...(itemCount === undefined ? {} : { itemCount }) });
+  return result;
+}
+
+async function requireSuccess<T extends { ok: boolean; data?: unknown; error?: { message?: string } }>(
+  result: T | undefined, label: string
+): Promise<T & { ok: true; data: NonNullable<T["data"]> }> {
+  if (!result?.ok) throw new Error(`${label} failed: ${result?.error?.message ?? "No result returned"}`);
+  return result as T & { ok: true; data: NonNullable<T["data"]> };
+}
+
+async function finishOnboarding(page: Page): Promise<void> {
+  const finishSetup = page.getByRole("button", { name: "Finish setup" });
+  if (await finishSetup.isVisible()) {
+    await finishSetup.click();
+    await finishSetup.waitFor({ state: "hidden" });
+  }
+}
+
+async function run(): Promise<void> {
+  let app: ElectronApplication | undefined;
+  const measurements: Measurement[] = [];
+
+  try {
+    app = await electron.launch({
+      args: [resolve(process.cwd()), `--user-data-dir=${profileDir}`],
+      env: { ...process.env, NODE_ENV: "test" }
+    });
+    const page = await app.firstWindow();
+    await page.getByTestId("app-shell").waitFor({ state: "visible" });
+    await finishOnboarding(page);
+
+    await measure(measurements, "create-local-tasks", async () => {
+      for (let index = 0; index < TASK_COUNT; index += 1) {
+        const result = await page.evaluate(async ({ index }) => window.hcb?.tasks.create({
+          listId: "inbox",
+          title: `Performance task ${index.toString().padStart(4, "0")}`,
+          notes: "Deterministic local performance fixture."
+        }), { index });
+        await requireSuccess(result, `Create task ${index}`);
+      }
+    }, TASK_COUNT);
+
+    await measure(measurements, "create-local-events", async () => {
+      for (let index = 0; index < EVENT_COUNT; index += 1) {
+        const startsAt = new Date(Date.UTC(2027, 0, 1, 8, index)).toISOString();
+        const endsAt = new Date(Date.UTC(2027, 0, 1, 8, index + 30)).toISOString();
+        const result = await page.evaluate(async ({ index, startsAt, endsAt }) => window.hcb?.calendar.create({
+          calendarId: "primary",
+          title: `Performance event ${index.toString().padStart(4, "0")}`,
+          startsAt,
+          endsAt,
+          allDay: false
+        }), { index, startsAt, endsAt });
+        await requireSuccess(result, `Create event ${index}`);
+      }
+    }, EVENT_COUNT);
+
+    const search = await measure(measurements, "fts-search-1000-tasks", async () =>
+      requireSuccess(await page.evaluate(async () => window.hcb?.search.query({
+        query: "Performance task", limit: 100
+      })), "FTS query"));
+    const searchData = search.data as { items?: unknown[] };
+    if ((searchData.items?.length ?? 0) === 0) throw new Error("FTS returned no generated tasks.");
+
+    const bootstrap = await measure(measurements, "bootstrap-1000-events", async () =>
+      requireSuccess(await page.evaluate(async () => window.hcb?.bootstrap.get({
+        calendarRange: {
+          start: "2027-01-01T00:00:00.000Z",
+          end: "2027-01-02T12:00:00.000Z",
+          limit: 1_000
+        }
+      })), "Bootstrap range"));
+    const bootstrapData = bootstrap.data as { events?: { items?: unknown[] } };
+    const bootstrapEvents = bootstrapData.events?.items ?? [];
+    if (bootstrapEvents.length !== EVENT_COUNT) {
+      throw new Error(`Bootstrap returned ${bootstrapEvents.length} events; expected ${EVENT_COUNT}.`);
+    }
+
+    const report: PerfReport = {
+      generatedAt: new Date().toISOString(),
+      status: "passed",
+      fixture: { tasks: TASK_COUNT, events: EVENT_COUNT },
+      measurements
+    };
+    writeReport(report);
+    console.table(measurements);
+  } finally {
+    await app?.close();
+    rmSync(profileDir, { recursive: true, force: true });
+  }
+}
+
+function writeReport(report: PerfReport): void {
+  mkdirSync(artifactDir, { recursive: true });
+  writeFileSync(join(artifactDir, "latest.json"), `${JSON.stringify(report, null, 2)}\n`);
+  writeFileSync(
+    join(artifactDir, "latest.md"),
+    [
+      "# HCB Electron Performance Smoke",
+      "",
+      `Generated: ${report.generatedAt}`,
+      "",
+      `Fixture: ${report.fixture.tasks} local tasks and ${report.fixture.events} local calendar events.`,
+      "",
+      "| Measurement | Duration | Items |",
+      "| --- | ---: | ---: |",
+      ...report.measurements.map((item) => `| ${item.name} | ${item.durationMs.toFixed(2)} ms | ${item.itemCount ?? "—"} |`)
+    ].join("\n")
+  );
+}
+
+void run().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});

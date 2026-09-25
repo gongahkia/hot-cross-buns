@@ -134,9 +134,9 @@ function menuBarPinnedFilterItems(
 
   const pinnedIds = new Set(settings.pinnedSavedSearchViewIds);
   return settings.savedSearchViews
-    .filter((filter) => pinnedIds.has(filter.id))
+    .filter((filter: { id: string; query: string }) => pinnedIds.has(filter.id))
     .slice(0, 6)
-    .map((filter) => {
+    .map((filter: { id: string; query: string; title?: string; name?: string }) => {
       let count = 0;
 
       try {
@@ -146,7 +146,7 @@ function menuBarPinnedFilterItems(
       }
 
       return {
-        label: truncateMenuLabel(filter.name),
+        label: truncateMenuLabel(filter.name ?? filter.title ?? filter.id),
         detail: `${count} match${count === 1 ? "" : "es"}`,
         route: { kind: "search", query: filter.query.slice(0, 200) } as const
       };

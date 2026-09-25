@@ -247,9 +247,9 @@ export function SyncTab({
                       <Badge tone={mutation.status === "failed" ? "danger" : "warning"}>{mutation.status}</Badge>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <IconButton icon={RefreshCw} label="Retry pending mutation" onClick={() => void retryMutation(mutation.id)} variant="ghost" />
+                      <IconButton icon={RefreshCw} label={mutation.status === "failed" ? "Keep local version" : "Retry pending mutation"} onClick={() => void retryMutation(mutation.id)} variant="ghost" />
                       <IconButton icon={ClipboardCopy} label="Copy pending mutation" onClick={() => void navigator.clipboard?.writeText(JSON.stringify(mutation, null, 2))} variant="ghost" />
-                      <IconButton icon={X} label="Cancel pending mutation" onClick={() => void cancelMutation(mutation.id)} variant="ghost" />
+                      <IconButton icon={X} label={mutation.status === "failed" ? "Keep Google version" : "Cancel pending mutation"} onClick={() => void cancelMutation(mutation.id)} variant="ghost" />
                     </div>
                   </div>
                 ))}

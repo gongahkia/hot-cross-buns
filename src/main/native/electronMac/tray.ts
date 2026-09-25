@@ -120,7 +120,7 @@ function trayIconDefinition(snapshot: NativeMenuBarSnapshot): TrayIconDefinition
     return "none";
   }
 
-  const customIcon = snapshot.customMenuBarIcons.find((icon) => icon.id === snapshot.calendarIconId);
+  const customIcon = snapshot.customMenuBarIcons.find((icon: { id: string; fileName: string }) => icon.id === snapshot.calendarIconId);
   if (customIcon) {
     return { path: customMenuBarIconPath(customIcon.fileName) };
   }

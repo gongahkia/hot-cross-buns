@@ -33,7 +33,12 @@ export type CalendarListResponse = any;
 export type CalendarListSummary = any;
 export type CalendarRangeRequest = any;
 export type CalendarRangeResponse = any;
-export type CalendarScheduleSuggestResponse = any;
+export interface CalendarScheduleSuggestResponse {
+  slots: Array<{ startsAt: string; endsAt: string; eventId?: string; taskId?: string; locked: boolean; conflict: boolean }>;
+  unscheduled: TaskSummary[];
+  overloadMinutes: number;
+  availableMinutes?: number;
+}
 export type CustomizationExtension = any;
 export type CustomizationStatusResponse = any;
 export type DiagnosticsHealthResponse = any;
@@ -45,7 +50,24 @@ export type DiagnosticsPendingMutation = any;
 export type DiagnosticsSummaryResponse = any;
 export type EventTemplate = any;
 export type GoogleCalendarEventColorId = string;
-export type GoogleStatusResponse = any;
+export interface GoogleAccountStatus {
+  accountId: string;
+  googleAccountId?: string;
+  email: string | null;
+  displayName: string | null;
+  avatarUrl?: string | null;
+  timeZone?: string | null;
+  connectionState: "connected" | "disconnected" | "error" | "reauth_required" | "local" | string;
+  missingScopes: string[];
+  updatedAt?: string;
+}
+export interface GoogleStatusResponse {
+  oauthClientConfigured: boolean;
+  clientId: string | null;
+  hasClientSecret: boolean;
+  account?: GoogleAccountStatus | null;
+  accounts: GoogleAccountStatus[];
+}
 export type HotkeyActionId = string;
 export type IcsSubscriptionsResponse = any;
 export type LocalPointerListResponse = any;
@@ -88,9 +110,23 @@ export interface SettingsSnapshot {
   perSurfaceFontOverrides: Record<string, any>;
 }
 export type SettingsUpdateRequest = any;
-export type SmartRescheduleResponse = any;
+export interface SmartRescheduleResponse {
+  suggestions: Array<{ taskId: string; calendarId: string; startsAt: string; endsAt: string; action: "schedule" | "move"; reason: string }>;
+  skipped: Array<{ taskId: string; reason: string }>;
+  applied: boolean;
+  calendarId: string;
+  generatedAt: string;
+}
 export type SyncRunNowRequest = any;
-export type SyncStatusResponse = any;
+export interface SyncStatusResponse {
+  state: "idle" | "pending" | "syncing" | "error" | string;
+  pendingMutationCount: number;
+  offline: boolean;
+  stale: boolean;
+  lastCompletedAt?: string;
+  lastErrorCode?: string | null;
+  message?: string;
+}
 export type TagAnalyticsResponse = any;
 export type TagBulkApplyRequest = any;
 export type TagCreateRequest = any;
@@ -108,15 +144,34 @@ export type TaskListCreateRequest = any;
 export type TaskListRenameRequest = any;
 export type TaskListRequest = any;
 export type TaskListResponse = any;
-export type TaskListSummary = any;
+export interface TaskListSummary {
+  id: string;
+  accountId?: string;
+  title: string;
+  taskCount?: number;
+  activeTaskCount?: number;
+  updatedAt?: string;
+}
 export type TaskListsRequest = any;
 export type TaskListsResponse = any;
 export type TaskMoveRequest = any;
-export type TaskSummary = any;
+export interface TaskSummary {
+  id: string;
+  accountId?: string;
+  listId: string;
+  title: string;
+  notes?: string;
+  status?: string;
+  priority?: "none" | "low" | "medium" | "high";
+  dueAt?: string | null;
+  durationMinutes?: number | null;
+  lockedSchedule?: boolean;
+  [key: string]: any;
+}
 export type TaskTemplate = any;
 export type TaskUpdateRequest = any;
-export type UndoApplyResponse = any;
-export type UndoStackStatusResponse = any;
+export interface UndoApplyResponse { action: "undo" | "redo"; applied: boolean; label?: string; canUndo: boolean; canRedo: boolean; }
+export interface UndoStackStatusResponse { canUndo: boolean; canRedo: boolean; }
 
 export const defaultHistoryCategoryVisibility = {};
 export const defaultKeybindings = {};

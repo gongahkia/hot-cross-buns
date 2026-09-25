@@ -33,6 +33,8 @@ class GoogleApiError extends Error {
 export class GoogleSyncService {
   private inFlight: Promise<JsonRecord> | null = null;
   private readonly events = new EventEmitter();
+  private interval: NodeJS.Timeout | null = null;
+  private writeDebounce: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly store: CoreStore,
@@ -56,15 +58,39 @@ export class GoogleSyncService {
     return () => this.events.off("status", listener);
   }
 
-  async forceFullResync(): Promise<JsonRecord> {
-    this.store.resetGoogleSyncTokens();
-    return this.runNow({ reason: "force-full" });
+  startBackgroundSync(intervalMs = 5 * 60_000): void {
+    if (this.interval) return;
+    this.interval = setInterval(() => void this.runNow({ reason: "interval" }).catch(() => undefined), intervalMs);
+    this.interval.unref?.();
+  }
+
+  stopBackgroundSync(): void {
+    if (this.interval) clearInterval(this.interval);
+    if (this.writeDebounce) clearTimeout(this.writeDebounce);
+    this.interval = null;
+    this.writeDebounce = null;
+  }
+
+  scheduleAfterLocalMutation(): void {
+    if (this.writeDebounce) clearTimeout(this.writeDebounce);
+    this.writeDebounce = setTimeout(() => {
+      this.writeDebounce = null;
+      void this.runNow({ reason: "local-mutation" }).catch(() => undefined);
+    }, 500);
+  }
+
+  async forceFullResync(input: JsonRecord = {}): Promise<JsonRecord> {
+    const accountId = typeof input.accountId === "string" ? input.accountId : undefined;
+    this.store.resetGoogleSyncTokens(accountId);
+    return this.runNow({ reason: "force-full", ...(accountId ? { accountId } : {}) });
   }
 
   private async sync(_input: JsonRecord): Promise<JsonRecord> {
-    const google = this.store.dispatch("google", "status") as JsonRecord;
-    const connectionState = google.account?.connectionState;
-    if (!google.account || connectionState !== "connected") {
+    const requestedAccountId = typeof _input.accountId === "string" ? _input.accountId : undefined;
+    const accounts = this.store.googleAccounts().filter((account) =>
+      account.accountId !== "local" && account.connectionState === "connected" && (!requestedAccountId || account.accountId === requestedAccountId)
+    );
+    if (accounts.length === 0) {
       const status = {
         state: "idle",
         pendingMutationCount: this.store.pendingSyncMutations().length,
@@ -78,13 +104,21 @@ export class GoogleSyncService {
 
     this.publishStatus({ state: "syncing", pendingMutationCount: this.store.pendingSyncMutations().length, offline: false, stale: false });
     try {
-      await this.pullGoogleTasks();
-      await this.pullGoogleCalendars();
-      await this.deliverOutbox();
-      // Pull once more so remote canonical values, including generated ids and
-      // server-normalised recurrence, are reflected after a write batch.
-      await this.pullGoogleTasks();
-      await this.pullGoogleCalendars();
+      const failures: Error[] = [];
+      for (const account of accounts) {
+        try {
+          await this.pullGoogleTasks(account.accountId);
+          await this.pullGoogleCalendars(account.accountId);
+          await this.deliverOutbox(account.accountId);
+          // Pull once more so remote canonical values, including generated ids
+          // and server-normalised recurrence, are reflected after a write batch.
+          await this.pullGoogleTasks(account.accountId);
+          await this.pullGoogleCalendars(account.accountId);
+        } catch (error: unknown) {
+          failures.push(error instanceof Error ? error : new Error("Google sync failed."));
+        }
+      }
+      if (failures.length) throw failures[0];
       const status = {
         state: "idle",
         pendingMutationCount: this.store.pendingSyncMutations().length,
@@ -109,11 +143,12 @@ export class GoogleSyncService {
     }
   }
 
-  private async pullGoogleTasks(): Promise<void> {
-    const taskLists = await this.allPages("https://tasks.googleapis.com/tasks/v1/users/@me/lists", { maxResults: "100" });
+  private async pullGoogleTasks(accountId: string): Promise<void> {
+    const taskLists = await this.allPages(accountId, "https://tasks.googleapis.com/tasks/v1/users/@me/lists", { maxResults: "100" });
     for (const remoteList of taskLists) {
-      const localList = this.store.upsertGoogleTaskList(remoteList);
-      const remoteTasks = await this.allPages(
+      const localList = this.store.upsertGoogleTaskList(remoteList, accountId);
+      if (!this.store.isSelectedTaskList(localList.id)) continue;
+      const remoteTasks = await this.allPages(accountId,
         `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(remoteList.id)}/tasks`,
         { maxResults: "100", showCompleted: "true", showHidden: "true", showDeleted: "true" }
       );
@@ -131,22 +166,22 @@ export class GoogleSyncService {
     this.events.emit("status", { ...status, pendingMutationCount: this.store.pendingSyncMutations().length });
   }
 
-  private async pullGoogleCalendars(): Promise<void> {
-    const remoteCalendars = await this.allPages("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+  private async pullGoogleCalendars(accountId: string): Promise<void> {
+    const remoteCalendars = await this.allPages(accountId, "https://www.googleapis.com/calendar/v3/users/me/calendarList", {
       maxResults: "250", showDeleted: "true"
     });
     for (const remoteCalendar of remoteCalendars) {
       if (remoteCalendar.deleted) continue;
-      const localCalendar = this.store.upsertGoogleCalendar(remoteCalendar);
-      await this.pullGoogleEvents(localCalendar);
+      const localCalendar = this.store.upsertGoogleCalendar(remoteCalendar, accountId);
+      if (this.store.isSelectedCalendar(localCalendar.id)) await this.pullGoogleEvents(accountId, localCalendar);
     }
   }
 
-  private async pullGoogleEvents(localCalendar: JsonRecord, retriedAfterReset = false): Promise<void> {
+  private async pullGoogleEvents(accountId: string, localCalendar: JsonRecord, retriedAfterReset = false): Promise<void> {
     const googleId = localCalendar.googleId;
     if (!googleId) return;
     const tokenKey = `events:${googleId}`;
-    const syncToken = this.store.googleSyncToken(tokenKey);
+    const syncToken = this.store.googleSyncToken(accountId, tokenKey);
     const query: Record<string, string> = {
       maxResults: "2500",
       showDeleted: "true",
@@ -155,29 +190,34 @@ export class GoogleSyncService {
     if (syncToken) query.syncToken = syncToken;
 
     try {
-      const page = await this.allPagesWithSyncToken(
+      const page = await this.allPagesWithSyncToken(accountId,
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(googleId)}/events`,
         query
       );
       for (const event of page.items) this.store.upsertGoogleEvent(event, localCalendar.id);
-      if (page.nextSyncToken) this.store.setGoogleSyncToken(tokenKey, page.nextSyncToken);
+      if (page.nextSyncToken) this.store.setGoogleSyncToken(accountId, tokenKey, page.nextSyncToken);
     } catch (error: unknown) {
       if (error instanceof GoogleApiError && error.status === 410 && !retriedAfterReset) {
-        this.store.setGoogleSyncToken(tokenKey, null);
-        await this.pullGoogleEvents(localCalendar, true);
+        this.store.setGoogleSyncToken(accountId, tokenKey, null);
+        await this.pullGoogleEvents(accountId, localCalendar, true);
         return;
       }
       throw error;
     }
   }
 
-  private async deliverOutbox(): Promise<void> {
-    for (const mutation of this.store.pendingSyncMutations()) {
+  private async deliverOutbox(accountId: string): Promise<void> {
+    for (const mutation of this.store.pendingSyncMutations(100, accountId)) {
       try {
-        await this.deliverMutation(mutation);
+        await this.deliverMutation(accountId, mutation);
         this.store.completeSyncMutation(mutation.id);
       } catch (error: unknown) {
-        const retryable = error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError);
+        // Tasks does not accept client-generated ids. Retrying a create after a
+        // lost response can duplicate a user task, so preserve it as an
+        // explicit conflict instead of guessing. Calendar creates are
+        // idempotent below through a deterministic event id.
+        const ambiguousTaskCreate = mutation.kind === "task.create" && error instanceof GoogleApiError && error.status === 0;
+        const retryable = !ambiguousTaskCreate && (error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError));
         this.store.deferSyncMutation(mutation.id, safeError(error), retryable);
         // Preserve causal order: later writes may depend on this one.
         break;
@@ -185,25 +225,28 @@ export class GoogleSyncService {
     }
   }
 
-  private async deliverMutation(mutation: PendingSyncMutation): Promise<void> {
+  private async deliverMutation(accountId: string, mutation: PendingSyncMutation): Promise<void> {
     switch (mutation.kind) {
       case "taskList.create":
       case "taskList.update":
-        await this.pushTaskList(mutation.entityId);
+        await this.pushTaskList(accountId, mutation.entityId);
         return;
       case "taskList.delete":
-        await this.deleteTaskList(mutation.payload);
+        await this.deleteTaskList(accountId, mutation.payload);
         return;
       case "task.create":
       case "task.update":
-        await this.pushTask(mutation.entityId);
+        await this.pushTask(accountId, mutation.entityId, mutation.payload);
         return;
       case "event.create":
       case "event.update":
-        await this.pushEvent(mutation.entityId);
+        await this.pushEvent(accountId, mutation.entityId);
+        return;
+      case "event.move":
+        await this.moveEvent(accountId, mutation.entityId, mutation.payload);
         return;
       case "event.delete":
-        await this.deleteEvent(mutation.payload);
+        await this.deleteEvent(accountId, mutation.payload);
         return;
       default:
         // Notes/tags are intentionally local features, not silently exported
@@ -212,35 +255,35 @@ export class GoogleSyncService {
     }
   }
 
-  private async pushTaskList(localId: string): Promise<void> {
+  private async pushTaskList(accountId: string, localId: string): Promise<void> {
     const list = this.store.googleTaskListForSync(localId);
     if (!list) return;
     const remote = list.googleId
-      ? await this.requestJson<JsonRecord>(
+      ? await this.requestJson<JsonRecord>(accountId,
           `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(list.googleId)}`,
           { method: "PATCH", body: json({ title: list.title }), headers: conditionalHeaders(list.googleEtag) }
         )
-      : await this.requestJson<JsonRecord>("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
+      : await this.requestJson<JsonRecord>(accountId, "https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
           method: "POST", body: json({ title: list.title })
         });
     this.store.bindGoogleTaskList(localId, remote);
   }
 
-  private async deleteTaskList(list: JsonRecord): Promise<void> {
+  private async deleteTaskList(accountId: string, list: JsonRecord): Promise<void> {
     if (!list.googleId) return;
-    await this.requestJson<void>(
+    await this.requestJson<void>(accountId,
       `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(list.googleId)}`,
       { method: "DELETE", headers: conditionalHeaders(list.googleEtag) }
     );
   }
 
-  private async pushTask(localId: string): Promise<void> {
+  private async pushTask(accountId: string, localId: string, mutationPayload: JsonRecord): Promise<void> {
     let task = this.store.googleTaskForSync(localId);
     if (!task) return;
     if (!task.listGoogleId) throw new CoreStoreError("This task list has not been created in Google yet.");
     if (task.status === "deleted") {
       if (task.googleId) {
-        await this.requestJson<void>(taskUrl(task.googleListId ?? task.listGoogleId, task.googleId), {
+        await this.requestJson<void>(accountId, taskUrl(task.googleListId ?? task.listGoogleId, task.googleId), {
           method: "DELETE", headers: conditionalHeaders(task.googleEtag)
         });
       }
@@ -249,7 +292,7 @@ export class GoogleSyncService {
     const parent = task.parentId ? await this.remoteParentId(task.parentId) : undefined;
     const body = googleTaskBody(task);
     if (!task.googleId) {
-      const remote = await this.requestJson<JsonRecord>(taskCollectionUrl(task.listGoogleId), {
+      const remote = await this.requestJson<JsonRecord>(accountId, taskCollectionUrl(task.listGoogleId), {
         method: "POST", body: json(body),
         ...(parent ? { query: { parent } } : {})
       });
@@ -257,26 +300,27 @@ export class GoogleSyncService {
       return;
     }
     if (task.googleListId && task.googleListId !== task.listGoogleId) {
-      // Google Tasks does not move between task lists. Create the destination
-      // copy first, bind the stable local id to it, then delete the source.
-      const remote = await this.requestJson<JsonRecord>(taskCollectionUrl(task.listGoogleId), {
-        method: "POST", body: json(body)
-      });
-      await this.requestJson<void>(taskUrl(task.googleListId, task.googleId), {
-        method: "DELETE", headers: conditionalHeaders(task.googleEtag)
+      const previous = typeof mutationPayload.previousTaskId === "string"
+        ? await this.remoteParentId(mutationPayload.previousTaskId)
+        : undefined;
+      const remote = await this.requestJson<JsonRecord>(accountId, `${taskUrl(task.googleListId, task.googleId)}/move`, {
+        method: "POST", query: { destinationTasklist: task.listGoogleId, ...(parent ? { parent } : {}), ...(previous ? { previous } : {}) }
       });
       this.store.bindGoogleTask(localId, remote);
       return;
     }
     if ((task.googleParentId ?? undefined) !== parent) {
-      const moved = await this.requestJson<JsonRecord>(`${taskUrl(task.listGoogleId, task.googleId)}/move`, {
-        method: "POST", ...(parent ? { query: { parent } } : {})
+      const previous = typeof mutationPayload.previousTaskId === "string"
+        ? await this.remoteParentId(mutationPayload.previousTaskId)
+        : undefined;
+      const moved = await this.requestJson<JsonRecord>(accountId, `${taskUrl(task.listGoogleId, task.googleId)}/move`, {
+        method: "POST", ...(parent || previous ? { query: { ...(parent ? { parent } : {}), ...(previous ? { previous } : {}) } } : {})
       });
       this.store.bindGoogleTask(localId, moved);
       task = this.store.googleTaskForSync(localId);
       if (!task) throw new CoreStoreError("Task no longer exists");
     }
-    const remote = await this.requestJson<JsonRecord>(taskUrl(task.listGoogleId, task.googleId), {
+    const remote = await this.requestJson<JsonRecord>(accountId, taskUrl(task.listGoogleId, task.googleId), {
       method: "PATCH", body: json(body), headers: conditionalHeaders(task.googleEtag)
     });
     this.store.bindGoogleTask(localId, remote);
@@ -286,38 +330,82 @@ export class GoogleSyncService {
     return this.store.googleTaskForSync(localParentId)?.googleId ?? undefined;
   }
 
-  private async pushEvent(localId: string): Promise<void> {
+  private async pushEvent(accountId: string, localId: string): Promise<void> {
     const event = this.store.googleEventForSync(localId);
     if (!event) return;
     if (!event.calendarGoogleId) throw new CoreStoreError("This calendar has not been discovered in Google yet.");
-    const body = googleEventBody(event);
+    const body = googleEventBody(event, event.googleId ? undefined : deterministicGoogleEventId(event.id));
     const collection = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarGoogleId)}/events`;
-    const remote = event.googleId
-      ? await this.requestJson<JsonRecord>(`${collection}/${encodeURIComponent(event.googleId)}`, {
-          method: "PATCH", body: json(body), headers: conditionalHeaders(event.googleEtag)
-        })
-      : await this.requestJson<JsonRecord>(collection, { method: "POST", body: json(body) });
+    let remote: JsonRecord;
+    if (event.googleId) {
+      remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(event.googleId)}`, {
+        method: "PATCH", body: json(body), headers: conditionalHeaders(event.googleEtag)
+      });
+    } else {
+      try {
+        remote = await this.requestJson<JsonRecord>(accountId, collection, { method: "POST", body: json(body) });
+      } catch (error: unknown) {
+        if (!(error instanceof GoogleApiError) || error.status !== 409) throw error;
+        // A previous POST reached Google but HCB stopped before persisting the
+        // response. Fetching the deterministic id makes the retry safe.
+        remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${deterministicGoogleEventId(event.id)}`);
+      }
+    }
     this.store.bindGoogleEvent(localId, remote);
   }
 
-  private async deleteEvent(event: JsonRecord): Promise<void> {
+  private async moveEvent(accountId: string, localId: string, payload: JsonRecord): Promise<void> {
+    const event = this.store.googleEventForSync(localId);
+    if (!event?.googleId) return;
+    const sourceCalendarId = typeof payload.sourceCalendarId === "string" ? payload.sourceCalendarId : null;
+    const destinationCalendarId = typeof payload.destinationCalendarId === "string" ? payload.destinationCalendarId : null;
+    if (!sourceCalendarId || !destinationCalendarId) {
+      throw new CoreStoreError("Calendar move is missing its source or destination.");
+    }
+    const source = this.store.googleCalendarForSync(sourceCalendarId);
+    const destination = this.store.googleCalendarForSync(destinationCalendarId);
+    if (!source?.googleId || !destination?.googleId) {
+      throw new CoreStoreError("The source or destination calendar has not been discovered in Google yet.");
+    }
+    if (source.accountId !== accountId || destination.accountId !== accountId) {
+      throw new CoreStoreError("Calendar events can only move within the same connected Google account.");
+    }
+
+    let remote = await this.requestJson<JsonRecord>(accountId,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(source.googleId)}/events/${encodeURIComponent(event.googleId)}/move`,
+      { method: "POST", query: { destination: destination.googleId }, headers: conditionalHeaders(event.googleEtag) }
+    );
+    this.store.bindGoogleEvent(localId, remote);
+
+    // An edit can be queued after more than one local calendar move. Apply the
+    // current event body only at its final destination; an intermediate move
+    // merely preserves causal order for Google's single-source move endpoint.
+    if (event.calendarId !== destinationCalendarId) return;
+    remote = await this.requestJson<JsonRecord>(accountId,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.googleId)}/events/${encodeURIComponent(remote.id)}`,
+      { method: "PATCH", body: json(googleEventBody(event)), headers: conditionalHeaders(remote.etag) }
+    );
+    this.store.bindGoogleEvent(localId, remote);
+  }
+
+  private async deleteEvent(accountId: string, event: JsonRecord): Promise<void> {
     if (!event.googleId || !event.calendarGoogleId) return;
-    await this.requestJson<void>(
+    await this.requestJson<void>(accountId,
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarGoogleId)}/events/${encodeURIComponent(event.googleId)}`,
       { method: "DELETE", headers: conditionalHeaders(event.googleEtag) }
     );
   }
 
-  private async allPages(url: string, query: Record<string, string>): Promise<JsonRecord[]> {
-    return (await this.allPagesWithSyncToken(url, query)).items;
+  private async allPages(accountId: string, url: string, query: Record<string, string>): Promise<JsonRecord[]> {
+    return (await this.allPagesWithSyncToken(accountId, url, query)).items;
   }
 
-  private async allPagesWithSyncToken(url: string, query: Record<string, string>): Promise<{ items: JsonRecord[]; nextSyncToken?: string }> {
+  private async allPagesWithSyncToken(accountId: string, url: string, query: Record<string, string>): Promise<{ items: JsonRecord[]; nextSyncToken?: string }> {
     const items: JsonRecord[] = [];
     let pageToken: string | undefined;
     let nextSyncToken: string | undefined;
     do {
-      const page = await this.requestJson<GooglePage>(url, { query: { ...query, ...(pageToken ? { pageToken } : {}) } });
+      const page = await this.requestJson<GooglePage>(accountId, url, { query: { ...query, ...(pageToken ? { pageToken } : {}) } });
       items.push(...(page.items ?? []));
       pageToken = page.nextPageToken;
       nextSyncToken = page.nextSyncToken ?? nextSyncToken;
@@ -325,13 +413,13 @@ export class GoogleSyncService {
     return { items, ...(nextSyncToken ? { nextSyncToken } : {}) };
   }
 
-  private async requestJson<T>(url: string, init: RequestInit & { query?: Record<string, string> } = {}): Promise<T> {
+  private async requestJson<T>(accountId: string, url: string, init: RequestInit & { query?: Record<string, string> } = {}): Promise<T> {
     const target = new URL(url);
     for (const [key, value] of Object.entries(init.query ?? {})) target.searchParams.set(key, value);
     const { query: _query, ...requestInit } = init;
     let response: Response;
     try {
-      response = await this.oauth.googleFetch(target, requestInit);
+      response = await this.oauth.googleFetch(accountId, target, requestInit);
     } catch (error: unknown) {
       throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
     }
@@ -361,9 +449,10 @@ function googleTaskBody(task: JsonRecord): JsonRecord {
   };
 }
 
-function googleEventBody(event: JsonRecord): JsonRecord {
+function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
   const recurrence = googleRecurrence(event.recurrence);
   return {
+    ...(createId ? { id: createId, extendedProperties: { private: { hcbLocalEventId: event.id } } } : {}),
     summary: event.title,
     description: event.description || undefined,
     location: event.location || undefined,
@@ -379,6 +468,13 @@ function googleEventBody(event: JsonRecord): JsonRecord {
     transparency: event.transparency || "opaque",
     visibility: event.visibility || "default"
   };
+}
+
+function deterministicGoogleEventId(localId: string): string {
+  // Google Calendar event ids use lower-case base32hex. UUID hex is a valid
+  // subset; the prefix makes app-created ids recognisable without exposing
+  // credentials or account identity.
+  return `hcb${String(localId).replace(/[^a-f0-9]/gi, "").toLowerCase()}`.slice(0, 1024);
 }
 
 function googleEventTime(value: string, allDay: boolean, timeZone: unknown): JsonRecord {
