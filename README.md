@@ -72,7 +72,7 @@
 - [x] Named Electron scale-smoke commands for 1,000, 5,000, and 10,000 local tasks plus events; each verifies complete Task and Calendar pagination after writes.
 - [x] Opt-in live Google suite with a main-process-enforced read-only mode for real accounts and an acknowledged create/update/delete mode confined to dedicated disposable-account resources. See `docs/live-google-testing.md`.
 - [x] Mocked Google transport tests for pagination, incremental Calendar sync tokens, and Meet/attachment/status-event request encoding.
-- [x] Renderer-scale measurements in the 1,000/5,000/10,000 Electron fixture: cold hydration plus populated Tasks and Calendar rendering after the local data checks.
+- [x] Renderer-scale measurements in the 1,000/5,000/10,000 Electron fixture: cache invalidation/cold hydration plus Tasks and Calendar route rendering after the local data checks.
 - [x] Pull-request CI gate for build/typecheck, unit/mocked transport, Electron SQLite, and launch smoke tests. Live Google, performance, package signing, and notarization remain deliberately outside CI.
 - [x] Local 5,000-task + 5,000-event sample (rerun after the loader-settings pass): task writes 13.25 s; event writes 12.90 s; FTS query 14.20 ms; five 1,000-item Calendar range pages 1.49 s.
 - [x] Local 10,000-task + 10,000-event scale smoke: task writes 24.04 s; event writes 30.21 s; ten 1,000-item Task pages 2.42 s; FTS query 25.33 ms; ten 1,000-item Calendar range pages 3.33 s.

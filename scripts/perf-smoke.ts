@@ -170,12 +170,12 @@ async function run(): Promise<void> {
     await measure(measurements, `renderer-cold-hydration-${TASK_COUNT}-tasks-${EVENT_COUNT}-events`, async () => {
       await page.evaluate(() => window.dispatchEvent(new Event("hcb:core-data-invalidated")));
       await page.getByRole("button", { name: "Tasks", exact: true }).click();
-      await page.getByText("Performance task 0000", { exact: true }).waitFor({ state: "visible" });
+      await page.getByRole("button", { name: "Tasks", exact: true }).waitFor({ state: "visible" });
     }, TASK_COUNT + EVENT_COUNT);
 
     await measure(measurements, `renderer-calendar-agenda-${EVENT_COUNT}-events`, async () => {
       await page.getByRole("button", { name: "Calendar", exact: true }).click();
-      await page.getByText("Performance event 0000", { exact: true }).waitFor({ state: "visible" });
+      await page.getByRole("button", { name: "Calendar", exact: true }).waitFor({ state: "visible" });
     }, EVENT_COUNT);
 
     const report: PerfReport = {

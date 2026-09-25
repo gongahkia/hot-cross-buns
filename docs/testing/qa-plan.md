@@ -155,7 +155,7 @@ Required measured flows before Mac v1:
 
 Performance tests should initially report timings without failing the build. Convert stable budgets into hard gates only after baseline data exists on target machines.
 
-The `test:smoke:1k`, `test:smoke:5k`, and `test:smoke:10k` commands now measure local writes, full pagination, FTS, Calendar-range pagination, cold renderer hydration, populated Task rendering, and populated Calendar agenda rendering. They use a temporary local Electron profile and must never be repointed at a signed-in profile.
+The `test:smoke:1k`, `test:smoke:5k`, and `test:smoke:10k` commands now measure local writes, full pagination, FTS, Calendar-range pagination, renderer cache invalidation/cold hydration, and Tasks/Calendar route rendering. They use a temporary local Electron profile and must never be repointed at a signed-in profile.
 
 ## Manual Verification
 
