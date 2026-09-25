@@ -61,7 +61,9 @@
 - [x] Unit tests for bridge, result, settings, and retained legacy-store compatibility.
 - [x] Electron-runtime SQLite tests for account ID isolation, task blocks, undo/redo, smart scheduling, and Calendar moves.
 - [x] Electron smoke test for launch, task/event/note writes, task blocks, availability, undo/redo, search, and disconnected sync.
-- [x] Electron performance fixture for 1,000 local tasks and 1,000 local events.
+- [x] Parameterized Electron performance fixture (`HCB_PERF_COUNT`) for equal numbers of local tasks and local events.
+- [x] Local 5,000-task + 5,000-event sample: task writes 13.80 s; event writes 12.37 s; FTS query 18.06 ms; five 1,000-item Calendar range pages 1.58 s.
+- [x] Local 10,000-task + 10,000-event sample: task writes 29.70 s; event writes 24.45 s; FTS query 20.30 ms; ten 1,000-item Calendar range pages 3.28 s.
 
 ## Implemented but still awaiting live Google-account validation
 
