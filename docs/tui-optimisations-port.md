@@ -8,7 +8,7 @@ The active Electron backend is local-first SQLite in WAL mode. It owns data, cre
 
 Implemented foundations:
 
-- SQLite migrations, FTS5 local search, local task/event/note persistence, and bounded renderer reads.
+- SQLite migrations, FTS5 local search, local task/event/note persistence, and renderer request limits.
 - Encrypted OAuth credential envelope through Electron `safeStorage`; SQLite stores only non-secret account metadata.
 - Desktop OAuth PKCE with a loopback callback and refresh-token renewal.
 - Google Tasks task-list/task pull and durable task-list/task create, update, completion, delete, parent move, and cross-list copy/delete delivery.
