@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { createServer } from "node:http";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -21,6 +22,7 @@ interface SecretPayload {
 export class GoogleOAuthController {
   private readonly credentialPath: string;
   private connecting = false;
+  private readonly events = new EventEmitter();
 
   constructor(
     userDataDirectory: string,
@@ -35,7 +37,27 @@ export class GoogleOAuthController {
     const clientSecret = optionalString(input.clientSecret);
     await this.writeSecrets({ ...existing, ...(clientSecret ? { clientSecret } : {}) });
     this.store.setOAuthClientId(clientId);
-    return this.store.dispatch("google", "status");
+    return { ...this.store.dispatch("google", "status"), hasClientSecret: Boolean(clientSecret ?? existing.clientSecret) };
+  }
+
+  onConnectionChange(listener: () => void): () => void {
+    this.events.on("connection-change", listener);
+    return () => this.events.off("connection-change", listener);
+  }
+
+  async googleFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
+    let response = await fetch(url, {
+      ...init,
+      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(false)) }
+    });
+
+    if (response.status !== 401) return response;
+
+    response = await fetch(url, {
+      ...init,
+      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(true)) }
+    });
+    return response;
   }
 
   async begin(): Promise<Record<string, unknown>> {
@@ -49,9 +71,21 @@ export class GoogleOAuthController {
     }
 
     this.connecting = true;
-    void this.runAuthorization(clientId).finally(() => {
-      this.connecting = false;
-    });
+    void this.runAuthorization(clientId)
+      .catch((error: unknown) => {
+        this.store.setGoogleAccount({
+          id: "google-account",
+          email: null,
+          displayName: "Google account",
+          connectionState: "error",
+          missingScopes: [],
+          message: error instanceof Error ? error.message : "Google authorization failed."
+        });
+      })
+      .finally(() => {
+        this.connecting = false;
+        this.events.emit("connection-change");
+      });
     return { message: "Opening Google authorization in your browser." };
   }
 
@@ -59,6 +93,8 @@ export class GoogleOAuthController {
     const secrets = await this.readSecrets();
     await this.writeSecrets({ clientSecret: secrets.clientSecret });
     this.store.setGoogleAccount(null);
+    this.store.resetGoogleSyncTokens();
+    this.events.emit("connection-change");
     return this.store.dispatch("google", "status");
   }
 
@@ -71,7 +107,7 @@ export class GoogleOAuthController {
     authorizationUrl.searchParams.set("client_id", clientId);
     authorizationUrl.searchParams.set("redirect_uri", redirectUri);
     authorizationUrl.searchParams.set("response_type", "code");
-    authorizationUrl.searchParams.set("scope", "https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar");
+    authorizationUrl.searchParams.set("scope", "openid email profile https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar");
     authorizationUrl.searchParams.set("code_challenge", challenge);
     authorizationUrl.searchParams.set("code_challenge_method", "S256");
     authorizationUrl.searchParams.set("access_type", "offline");
@@ -121,6 +157,41 @@ export class GoogleOAuthController {
       connectionState: "connected",
       missingScopes: []
     });
+    this.events.emit("connection-change");
+  }
+
+  private async accessToken(forceRefresh: boolean): Promise<string> {
+    const secrets = await this.readSecrets();
+    const expiresSoon = !secrets.expiresAt || secrets.expiresAt <= Date.now() + 60_000;
+    if (!forceRefresh && secrets.accessToken && !expiresSoon) return secrets.accessToken;
+    if (!secrets.refreshToken) throw new CoreStoreError("Google is not connected. Connect an account before syncing.");
+    const clientId = this.store.oauthClientId();
+    if (!clientId) throw new CoreStoreError("Google OAuth client configuration is missing.");
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        refresh_token: secrets.refreshToken,
+        grant_type: "refresh_token",
+        ...(secrets.clientSecret ? { client_secret: secrets.clientSecret } : {})
+      })
+    });
+    if (!response.ok) {
+      this.store.setGoogleAccount({
+        id: "google-account", email: null, displayName: "Google account", connectionState: "reauth_required", missingScopes: []
+      });
+      this.events.emit("connection-change");
+      throw new CoreStoreError("Google authorization expired or was revoked. Reconnect the account.");
+    }
+    const token = await response.json() as { access_token?: string; expires_in?: number };
+    if (!token.access_token) throw new CoreStoreError("Google did not return an access token.");
+    await this.writeSecrets({
+      ...secrets,
+      accessToken: token.access_token,
+      expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000
+    });
+    return token.access_token;
   }
 
   private async readSecrets(): Promise<SecretPayload> {
@@ -152,6 +223,20 @@ export class GoogleOAuthController {
 function createLoopbackCallback(): Promise<{ port: number; waitForCode: () => Promise<string> }> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let listening = false;
+    let resolveCode!: (code: string) => void;
+    let rejectCode!: (error: Error) => void;
+    const codePromise = new Promise<string>((resolveWait, rejectWait) => {
+      resolveCode = resolveWait;
+      rejectCode = rejectWait;
+    });
+    const fail = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      server.close();
+      if (listening) rejectCode(error);
+      else reject(error);
+    };
     const server = createServer((request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
       const code = url.searchParams.get("code");
@@ -161,30 +246,31 @@ function createLoopbackCallback(): Promise<{ port: number; waitForCode: () => Pr
       if (!settled) {
         settled = true;
         server.close();
-        error || !code ? reject(new CoreStoreError("Google authorization was cancelled or denied.")) : resolveWait(code);
+        error || !code ? rejectCode(new CoreStoreError("Google authorization was cancelled or denied.")) : resolveCode(code);
       }
     });
-    let resolveWait: (code: string) => void;
-    const codePromise = new Promise<string>((resolveCode) => { resolveWait = resolveCode; });
-    server.once("error", reject);
+    server.once("error", (error) => fail(error));
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       if (!address || typeof address === "string") {
         server.close();
-        reject(new CoreStoreError("Could not open the local OAuth callback port."));
+        fail(new CoreStoreError("Could not open the local OAuth callback port."));
         return;
       }
+      listening = true;
       const timeout = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          server.close();
-          reject(new CoreStoreError("Google authorization timed out."));
-        }
+        fail(new CoreStoreError("Google authorization timed out."));
       }, 5 * 60_000);
       codePromise.finally(() => clearTimeout(timeout)).catch(() => undefined);
       resolve({ port: address.port, waitForCode: () => codePromise });
     });
   });
+}
+
+function headersWithAuthorization(headers: HeadersInit | undefined, accessToken: string): Headers {
+  const result = new Headers(headers);
+  result.set("authorization", `Bearer ${accessToken}`);
+  return result;
 }
 
 function base64Url(value: Buffer): string {

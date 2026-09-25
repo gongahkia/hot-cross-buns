@@ -5,7 +5,16 @@ import { dirname } from "node:path";
 
 type JsonRecord = Record<string, any>;
 
-const schemaVersion = 1;
+export interface PendingSyncMutation {
+  id: string;
+  kind: string;
+  entityId: string;
+  payload: JsonRecord;
+  attempts: number;
+  createdAt: string;
+}
+
+const schemaVersion = 2;
 
 const defaultSettings: JsonRecord = {
   theme: "system",
@@ -140,6 +149,187 @@ export class CoreStore {
     }
 
     this.db.prepare("DELETE FROM sync_meta WHERE key='google-account'").run();
+  }
+
+  /**
+   * The sync service is deliberately the only code which reads these records.
+   * Renderer DTOs never contain a Google identifier, ETag, sync token, or
+   * credential. Local ids stay stable while a remote create is in flight.
+   */
+  pendingSyncMutations(limit = 100): PendingSyncMutation[] {
+    return (this.db.prepare(`SELECT id,kind,entity_id AS entityId,payload_json AS payload,
+      attempts,created_at AS createdAt FROM outbox WHERE state='pending' AND next_attempt_at <= ?
+      ORDER BY created_at,id LIMIT ?`).all(timestamp(), Math.max(1, Math.min(500, limit))) as any[])
+      .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
+  }
+
+  completeSyncMutation(id: string): void {
+    this.db.prepare("UPDATE outbox SET state='delivered',updated_at=?,last_error=NULL WHERE id=?")
+      .run(timestamp(), id);
+  }
+
+  deferSyncMutation(id: string, error: string, retryable: boolean): void {
+    const row = this.db.prepare("SELECT attempts FROM outbox WHERE id=?").get(id) as { attempts?: number } | undefined;
+    const attempts = Number(row?.attempts ?? 0) + 1;
+    const delayMs = retryable
+      ? Math.min(15 * 60_000, 1_000 * (2 ** Math.min(attempts, 8)) + Math.floor(Math.random() * 500))
+      : 0;
+    this.db.prepare("UPDATE outbox SET state=?,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
+      .run(retryable ? "pending" : "conflict", attempts,
+        new Date(Date.now() + delayMs).toISOString(), sanitizeSyncError(error), timestamp(), id);
+  }
+
+  resetGoogleSyncTokens(): void {
+    this.db.prepare("DELETE FROM sync_meta WHERE key LIKE 'google-sync-token:%'").run();
+  }
+
+  googleSyncToken(key: string): string | null {
+    const row = this.db.prepare("SELECT value FROM sync_meta WHERE key=?").get(`google-sync-token:${key}`) as { value?: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  setGoogleSyncToken(key: string, token: string | null): void {
+    const metaKey = `google-sync-token:${key}`;
+    if (!token) {
+      this.db.prepare("DELETE FROM sync_meta WHERE key=?").run(metaKey);
+      return;
+    }
+    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(metaKey, token);
+  }
+
+  setSyncRuntime(status: JsonRecord): void {
+    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run("google-sync-runtime", JSON.stringify({ ...status, updatedAt: timestamp() }));
+  }
+
+  googleTaskListForSync(id: string): JsonRecord | null {
+    return (this.db.prepare("SELECT id,title,google_id AS googleId,google_etag AS googleEtag FROM task_lists WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
+  }
+
+  googleTaskForSync(id: string): JsonRecord | null {
+    return (this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.due_at AS dueAt,
+      task.parent_id AS parentId,task.sort_order AS sortOrder,task.google_id AS googleId,task.google_etag AS googleEtag,
+      task.google_list_id AS googleListId,
+      list.google_id AS listGoogleId FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.id=?`)
+      .get(id) as JsonRecord | undefined) ?? null;
+  }
+
+  googleCalendarForSync(id: string): JsonRecord | null {
+    return (this.db.prepare("SELECT id,title,color,google_id AS googleId,google_etag AS googleEtag FROM calendars WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
+  }
+
+  googleEventForSync(id: string): JsonRecord | null {
+    return (this.db.prepare(`SELECT event.id,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,
+      event.ends_at AS endsAt,event.all_day AS allDay,event.color_id AS colorId,event.location,event.recurrence_json AS recurrence,
+      event.attendees_json AS attendees,event.reminders_json AS reminders,event.reminders_use_default AS remindersUseDefault,
+      event.transparency,event.visibility,event.google_id AS googleId,event.google_etag AS googleEtag,
+      calendar.google_id AS calendarGoogleId FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.id=?`)
+      .get(id) as JsonRecord | undefined) ?? null;
+  }
+
+  bindGoogleTask(localId: string, remote: JsonRecord): JsonRecord {
+    const list = this.googleTaskForSync(localId);
+    if (!list) throw new CoreStoreError("Task no longer exists");
+    this.db.prepare(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,sort_order=?,updated_at=? WHERE id=?`)
+      .run(requiredText(remote.id, "Google task id"), remote.etag ?? null, list.listGoogleId ?? null,
+        remote.position ?? null, remote.updated ?? timestamp(), localId);
+    return this.requireTask(localId);
+  }
+
+  bindGoogleEvent(localId: string, remote: JsonRecord): JsonRecord {
+    const event = this.googleEventForSync(localId);
+    if (!event) throw new CoreStoreError("Calendar event no longer exists");
+    this.db.prepare("UPDATE events SET google_id=?,google_etag=?,updated_at=? WHERE id=?")
+      .run(requiredText(remote.id, "Google event id"), remote.etag ?? null, remote.updated ?? timestamp(), localId);
+    return this.requireEvent(localId);
+  }
+
+  upsertGoogleTaskList(remote: JsonRecord): JsonRecord {
+    const googleId = requiredText(remote.id, "Google task-list id");
+    const title = requiredText(remote.title, "Google task-list title");
+    const existing = this.db.prepare("SELECT id FROM task_lists WHERE google_id=?").get(googleId) as { id: string } | undefined;
+    const seed = !existing
+      ? this.db.prepare("SELECT id FROM task_lists WHERE id='inbox' AND google_id IS NULL AND NOT EXISTS (SELECT 1 FROM tasks WHERE list_id='inbox')").get() as { id: string } | undefined
+      : undefined;
+    const id = existing?.id ?? seed?.id ?? randomUUID();
+    const now = timestamp();
+    this.db.prepare(`INSERT INTO task_lists(id,title,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title,google_id=excluded.google_id,google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
+      .run(id, title, googleId, remote.etag ?? null, now, remote.updated ?? now);
+    return this.googleTaskListForSync(id)!;
+  }
+
+  upsertGoogleTask(remote: JsonRecord, localListId: string): JsonRecord | null {
+    const googleId = requiredText(remote.id, "Google task id");
+    const existing = this.db.prepare("SELECT id FROM tasks WHERE google_id=?").get(googleId) as { id: string } | undefined;
+    const localId = existing?.id ?? randomUUID();
+    if (this.hasPendingEntityMutation("task", localId)) return null;
+    const parentId = remote.parent
+      ? (this.db.prepare("SELECT id FROM tasks WHERE google_id=?").get(remote.parent) as { id?: string } | undefined)?.id ?? null
+      : null;
+    const previous = existing ? this.requireTask(localId) : null;
+    const now = timestamp();
+    this.db.prepare(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,
+      locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET list_id=excluded.list_id,title=excluded.title,notes=excluded.notes,status=excluded.status,
+      due_at=excluded.due_at,parent_id=excluded.parent_id,sort_order=excluded.sort_order,google_id=excluded.google_id,
+      google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
+      .run(localId, localListId, remote.title ?? "Untitled task", remote.notes ?? "",
+        remote.deleted ? "deleted" : remote.status === "completed" ? "completed" : "active",
+        previous?.priority ?? "none", remote.due ?? null, parentId, previous?.plannedStart ?? null,
+        previous?.plannedEnd ?? null, previous?.durationMinutes ?? null, previous?.lockedSchedule ? 1 : 0,
+        previous?.snoozeUntil ?? null, JSON.stringify(previous?.tags ?? []), remote.position ?? null,
+        googleId, remote.etag ?? null, now, remote.updated ?? now);
+    this.db.prepare("UPDATE tasks SET google_list_id=? WHERE id=?")
+      .run((this.googleTaskListForSync(localListId) ?? {}).googleId ?? null, localId);
+    return this.requireTask(localId);
+  }
+
+  upsertGoogleCalendar(remote: JsonRecord): JsonRecord {
+    const googleId = requiredText(remote.id, "Google calendar id");
+    const title = requiredText(remote.summary ?? remote.title, "Google calendar title");
+    const existing = this.db.prepare("SELECT id FROM calendars WHERE google_id=?").get(googleId) as { id: string } | undefined;
+    const seed = !existing && remote.primary
+      ? this.db.prepare("SELECT id FROM calendars WHERE id='primary' AND google_id IS NULL AND NOT EXISTS (SELECT 1 FROM events WHERE calendar_id='primary')").get() as { id: string } | undefined
+      : undefined;
+    const id = existing?.id ?? seed?.id ?? randomUUID();
+    const now = timestamp();
+    this.db.prepare(`INSERT INTO calendars(id,title,color,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title,color=excluded.color,google_id=excluded.google_id,
+      google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
+      .run(id, title, remote.backgroundColor ?? remote.color ?? null, googleId, remote.etag ?? null, now, now);
+    return this.googleCalendarForSync(id)!;
+  }
+
+  upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
+    const googleId = requiredText(remote.id, "Google event id");
+    const existing = this.db.prepare("SELECT id FROM events WHERE google_id=?").get(googleId) as { id: string } | undefined;
+    const localId = existing?.id ?? randomUUID();
+    if (this.hasPendingEntityMutation("event", localId)) return null;
+    if (remote.status === "cancelled") {
+      if (existing) this.db.prepare("DELETE FROM events WHERE id=?").run(localId);
+      return null;
+    }
+    const previous = existing ? this.requireEvent(localId) : null;
+    const start = eventTimeFromGoogle(remote.start, "Event start");
+    const end = eventTimeFromGoogle(remote.end, "Event end");
+    const now = timestamp();
+    this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,
+      attendees_json,reminders_json,reminders_use_default,transparency,visibility,google_id,google_etag,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET calendar_id=excluded.calendar_id,title=excluded.title,description=excluded.description,
+      starts_at=excluded.starts_at,ends_at=excluded.ends_at,all_day=excluded.all_day,color_id=excluded.color_id,location=excluded.location,
+      recurrence_json=excluded.recurrence_json,attendees_json=excluded.attendees_json,reminders_json=excluded.reminders_json,
+      reminders_use_default=excluded.reminders_use_default,transparency=excluded.transparency,visibility=excluded.visibility,
+      google_id=excluded.google_id,google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
+      .run(localId, localCalendarId, remote.summary ?? "Untitled event", remote.description ?? "", start.value, end.value,
+        start.allDay ? 1 : 0, previous?.completed ? 1 : 0, remote.colorId ?? null, remote.location ?? null,
+        JSON.stringify(recurrenceFromGoogle(remote.recurrence)), JSON.stringify(remote.attendees ?? []),
+        JSON.stringify(remote.reminders?.overrides ?? []), remote.reminders?.useDefault === false ? 0 : 1,
+        remote.transparency ?? "opaque", remote.visibility ?? "default", googleId, remote.etag ?? null, now, remote.updated ?? now);
+    return this.requireEvent(localId);
   }
 
   dispatch(namespace: string, action: string, input: JsonRecord = {}): any {
@@ -325,7 +515,37 @@ export class CoreStore {
       CREATE INDEX IF NOT EXISTS outbox_delivery_idx ON outbox(state, next_attempt_at, id);
       CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `);
+    this.addColumn("task_lists", "google_id TEXT");
+    this.addColumn("task_lists", "google_etag TEXT");
+    this.addColumn("tasks", "sort_order TEXT");
+    this.addColumn("tasks", "google_id TEXT");
+    this.addColumn("tasks", "google_etag TEXT");
+    this.addColumn("tasks", "google_list_id TEXT");
+    this.addColumn("calendars", "google_id TEXT");
+    this.addColumn("calendars", "google_etag TEXT");
+    this.addColumn("events", "attendees_json TEXT NOT NULL DEFAULT '[]'");
+    this.addColumn("events", "reminders_json TEXT NOT NULL DEFAULT '[]'");
+    this.addColumn("events", "reminders_use_default INTEGER NOT NULL DEFAULT 1");
+    this.addColumn("events", "transparency TEXT NOT NULL DEFAULT 'opaque'");
+    this.addColumn("events", "visibility TEXT NOT NULL DEFAULT 'default'");
+    this.addColumn("events", "google_id TEXT");
+    this.addColumn("events", "google_etag TEXT");
+    this.addColumn("outbox", "last_error TEXT");
+    this.db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS task_lists_google_id_idx ON task_lists(google_id) WHERE google_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS tasks_google_id_idx ON tasks(google_id) WHERE google_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS calendars_google_id_idx ON calendars(google_id) WHERE google_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS events_google_id_idx ON events(google_id) WHERE google_id IS NOT NULL;
+    `);
     this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
+  }
+
+  private addColumn(table: "task_lists" | "tasks" | "calendars" | "events" | "outbox", definition: string): void {
+    const column = definition.split(/\s+/, 1)[0];
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((item) => item.name === column)) {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+    }
   }
 
   private seed(): void {
@@ -386,7 +606,7 @@ export class CoreStore {
       SELECT id, list_id AS listId, title, notes, status, priority, due_at AS dueAt,
         parent_id AS parentId, planned_start AS plannedStart, planned_end AS plannedEnd,
         duration_minutes AS durationMinutes, locked_schedule AS lockedSchedule,
-        snooze_until AS snoozeUntil, tags_json AS tags, updated_at AS updatedAt
+        snooze_until AS snoozeUntil, tags_json AS tags, sort_order AS sortOrder, updated_at AS updatedAt
       FROM tasks WHERE status IN (${statuses.map(() => "?").join(",")})
       ORDER BY CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at, title COLLATE NOCASE, id
     `).all(...statuses) as any[];
@@ -396,7 +616,7 @@ export class CoreStore {
   private requireTask(id: string): JsonRecord {
     const row = this.db.prepare(`SELECT id, list_id AS listId, title, notes, status, priority, due_at AS dueAt,
       parent_id AS parentId, planned_start AS plannedStart, planned_end AS plannedEnd, duration_minutes AS durationMinutes,
-      locked_schedule AS lockedSchedule, snooze_until AS snoozeUntil, tags_json AS tags, updated_at AS updatedAt
+      locked_schedule AS lockedSchedule, snooze_until AS snoozeUntil, tags_json AS tags, sort_order AS sortOrder, updated_at AS updatedAt
       FROM tasks WHERE id = ?`).get(id);
     if (!row) throw new CoreStoreError("Task no longer exists");
     return taskFromRow(row);
@@ -451,6 +671,7 @@ export class CoreStore {
     const now = timestamp();
     const item = { id: randomUUID(), title: requiredText(input.title, "List title"), updatedAt: now, taskCount: 0, activeTaskCount: 0 };
     this.db.prepare("INSERT INTO task_lists(id,title,created_at,updated_at) VALUES (?,?,?,?)").run(item.id, item.title, now, now);
+    this.enqueue("taskList.create", item.id, {});
     return item;
   }
 
@@ -459,6 +680,7 @@ export class CoreStore {
     const now = timestamp();
     const result = this.db.prepare("UPDATE task_lists SET title=?, updated_at=? WHERE id=?").run(requiredText(input.title, "List title"), now, id);
     if (result.changes === 0) throw new CoreStoreError("Task list no longer exists");
+    this.enqueue("taskList.update", id, {});
     return this.taskLists().find((item) => item.id === id) ?? (() => { throw new CoreStoreError("Task list no longer exists"); })();
   }
 
@@ -466,8 +688,12 @@ export class CoreStore {
     const id = requiredText(input.id, "List id");
     if (id === "inbox") throw new CoreStoreError("Inbox cannot be deleted");
     this.db.transaction(() => {
+      const previous = this.googleTaskListForSync(id);
+      const tasks = this.db.prepare("SELECT id FROM tasks WHERE list_id=?").all(id) as Array<{ id: string }>;
       this.db.prepare("UPDATE tasks SET list_id='inbox', updated_at=? WHERE list_id=?").run(timestamp(), id);
+      for (const task of tasks) this.enqueue("task.update", task.id, {});
       this.db.prepare("DELETE FROM task_lists WHERE id=?").run(id);
+      this.enqueue("taskList.delete", id, previous ?? {});
     })();
     return { id, deleted: true };
   }
@@ -488,14 +714,18 @@ export class CoreStore {
     const start = input.start ?? "0000-01-01T00:00:00.000Z";
     const end = input.end ?? "9999-12-31T23:59:59.999Z";
     const rows = this.db.prepare(`SELECT id,calendar_id AS calendarId,title,description,starts_at AS startsAt,ends_at AS endsAt,
-      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,updated_at AS updatedAt
+      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,
+      attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
+      transparency,visibility,updated_at AS updatedAt
       FROM events WHERE starts_at < ? AND ends_at > ? ORDER BY starts_at,id`).all(end, start);
     return this.page((rows as any[]).map(eventFromRow), input);
   }
 
   private requireEvent(id: string): JsonRecord {
     const row = this.db.prepare(`SELECT id,calendar_id AS calendarId,title,description,starts_at AS startsAt,ends_at AS endsAt,
-      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,updated_at AS updatedAt FROM events WHERE id=?`).get(id);
+      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,
+      attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
+      transparency,visibility,updated_at AS updatedAt FROM events WHERE id=?`).get(id);
     if (!row) throw new CoreStoreError("Calendar event no longer exists");
     return eventFromRow(row);
   }
@@ -506,13 +736,16 @@ export class CoreStore {
     const calendarId = input.calendarId ?? "primary";
     if (!this.db.prepare("SELECT 1 FROM calendars WHERE id=?").get(calendarId)) throw new CoreStoreError("Calendar no longer exists");
     this.db.transaction(() => {
-      this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-        id, calendarId, requiredText(input.title, "Event title"), stringValue(input.description), requiredText(input.startsAt, "Event start"),
+      this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,
+        attendees_json,reminders_json,reminders_use_default,transparency,visibility,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        id, calendarId, requiredText(input.title, "Event title"), stringValue(input.description ?? input.notes), requiredText(input.startsAt, "Event start"),
         requiredText(input.endsAt, "Event end"), input.allDay ? 1 : 0, 0, input.colorId ?? null, input.location ?? null,
-        JSON.stringify(input.recurrence ?? null), now, now
+        JSON.stringify(input.recurrence ?? null), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
+        JSON.stringify(input.reminders ?? []), input.remindersUseDefault === false ? 0 : 1,
+        input.transparency ?? "opaque", input.visibility ?? "default", now, now
       );
-      this.enqueue("event.create", id, input);
+      this.enqueue("event.create", id, {});
     })();
     return this.requireEvent(id);
   }
@@ -521,15 +754,20 @@ export class CoreStore {
     const previous = this.requireEvent(requiredText(input.id, "Event id"));
     const now = timestamp();
     this.db.transaction(() => {
-      this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,updated_at=? WHERE id=?`).run(
-        input.calendarId ?? previous.calendarId, input.title ?? previous.title, input.description ?? previous.description,
+      this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,
+        attendees_json=?,reminders_json=?,reminders_use_default=?,transparency=?,visibility=?,updated_at=? WHERE id=?`).run(
+        input.calendarId ?? previous.calendarId, input.title ?? previous.title, input.description ?? input.notes ?? previous.description,
         input.startsAt ?? previous.startsAt, input.endsAt ?? previous.endsAt,
         input.allDay === undefined ? Number(previous.allDay) : input.allDay ? 1 : 0,
         input.completed === undefined ? Number(previous.completed) : input.completed ? 1 : 0,
         input.colorId ?? previous.colorId ?? null, input.location ?? previous.location ?? null,
-        JSON.stringify(input.recurrence ?? previous.recurrence ?? null), now, previous.id
+        JSON.stringify(input.recurrence ?? previous.recurrence ?? null),
+        JSON.stringify(input.attendees ?? input.guestEmails ?? previous.attendees ?? []),
+        JSON.stringify(input.reminders ?? previous.reminders ?? []),
+        input.remindersUseDefault === undefined ? (previous.remindersUseDefault ? 1 : 0) : input.remindersUseDefault ? 1 : 0,
+        input.transparency ?? previous.transparency ?? "opaque", input.visibility ?? previous.visibility ?? "default", now, previous.id
       );
-      this.enqueue("event.update", previous.id, input);
+      this.enqueue("event.update", previous.id, {});
     })();
     return this.requireEvent(previous.id);
   }
@@ -538,8 +776,9 @@ export class CoreStore {
     const id = requiredText(input.id, "Event id");
     this.db.transaction(() => {
       this.requireEvent(id);
+      const previous = this.googleEventForSync(id);
       this.db.prepare("DELETE FROM events WHERE id=?").run(id);
-      this.enqueue("event.delete", id, input);
+      this.enqueue("event.delete", id, previous ?? {});
     })();
     return { id, deleted: true };
   }
@@ -698,6 +937,11 @@ export class CoreStore {
       VALUES(?,?,?,?,?,?,?,?)`).run(randomUUID(), kind, entityId, JSON.stringify(payload), "pending", now, now, now);
   }
 
+  private hasPendingEntityMutation(entity: "task" | "event", entityId: string): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM outbox WHERE entity_id=? AND kind LIKE ? AND state='pending' LIMIT 1")
+      .get(entityId, `${entity}.%`));
+  }
+
   private requireList(id: string): void {
     if (!this.db.prepare("SELECT 1 FROM task_lists WHERE id=?").get(id)) throw new CoreStoreError("Task list no longer exists");
   }
@@ -722,11 +966,67 @@ function taskFromRow(row: JsonRecord): JsonRecord {
 }
 
 function eventFromRow(row: JsonRecord): JsonRecord {
-  return { ...row, allDay: Boolean(row.allDay), completed: Boolean(row.completed), recurrence: safeJson(row.recurrence, null) };
+  const reminders = safeJson(row.reminders, []);
+  return {
+    ...row,
+    allDay: Boolean(row.allDay),
+    completed: Boolean(row.completed),
+    recurrence: safeJson(row.recurrence, null),
+    attendees: safeJson(row.attendees, []),
+    reminders,
+    reminderMinutes: reminders
+      .map((item: JsonRecord) => item.minutes)
+      .filter((value: unknown) => Number.isInteger(value)),
+    remindersUseDefault: row.remindersUseDefault === undefined ? true : Boolean(row.remindersUseDefault),
+    transparency: row.transparency ?? "opaque",
+    visibility: row.visibility ?? "default"
+  };
 }
 
 function safeJson(value: string, fallback: any): any {
   try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function sanitizeSyncError(error: string): string {
+  return String(error).replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]").slice(0, 500);
+}
+
+function eventTimeFromGoogle(value: unknown, label: string): { value: string; allDay: boolean } {
+  if (!value || typeof value !== "object") throw new CoreStoreError(`${label} is missing from Google.`);
+  const record = value as JsonRecord;
+  if (typeof record.date === "string") {
+    const date = new Date(`${record.date}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) throw new CoreStoreError(`${label} is invalid.`);
+    return { value: date.toISOString(), allDay: true };
+  }
+  if (typeof record.dateTime === "string" && Number.isFinite(Date.parse(record.dateTime))) {
+    return { value: new Date(record.dateTime).toISOString(), allDay: false };
+  }
+  throw new CoreStoreError(`${label} is invalid.`);
+}
+
+function recurrenceFromGoogle(value: unknown): JsonRecord | null {
+  if (!Array.isArray(value)) return null;
+  const rule = value.find((entry): entry is string => typeof entry === "string" && entry.startsWith("RRULE:"));
+  if (!rule) return null;
+  const fields = Object.fromEntries(rule.slice("RRULE:".length).split(";").map((field) => {
+    const [key, ...rest] = field.split("=");
+    return [key, rest.join("=")];
+  }));
+  const frequencyByGoogle: Record<string, string> = {
+    DAILY: "daily", WEEKLY: "weekly", MONTHLY: "monthly", YEARLY: "yearly"
+  };
+  const frequency = frequencyByGoogle[fields.FREQ];
+  if (!frequency) return null;
+  return {
+    frequency,
+    interval: Math.max(1, Number.parseInt(fields.INTERVAL ?? "1", 10) || 1),
+    ...(fields.BYDAY ? { byDay: fields.BYDAY.split(",").filter(Boolean) } : {}),
+    ...(fields.BYMONTHDAY ? { byMonthDay: Number.parseInt(fields.BYMONTHDAY, 10) || undefined } : {}),
+    ...(fields.BYSETPOS ? { bySetPos: Number.parseInt(fields.BYSETPOS, 10) || undefined } : {}),
+    ...(fields.UNTIL ? { endsOn: fields.UNTIL } : {}),
+    ...(fields.COUNT ? { count: Number.parseInt(fields.COUNT, 10) || undefined } : {})
+  };
 }
 
 function timestamp(): string { return new Date().toISOString(); }
