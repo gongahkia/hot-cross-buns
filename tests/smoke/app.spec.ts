@@ -22,7 +22,7 @@ test("launches and renders the planner shell", async () => {
     });
 
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    const onboarding = page.getByRole("dialog", { name: "Welcome to Hot Cross Buns" });
+    const onboarding = page.getByRole("dialog", { name: "First-run setup" });
     await expect(onboarding).toBeVisible();
     const finishSetup = page.getByRole("button", { name: "Finish setup" });
     await finishSetup.click();

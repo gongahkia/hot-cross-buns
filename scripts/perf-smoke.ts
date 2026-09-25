@@ -69,11 +69,11 @@ async function requireSuccess<T extends { ok: boolean; data?: unknown; error?: {
 }
 
 async function finishOnboarding(page: Page): Promise<void> {
+  const onboarding = page.getByRole("dialog", { name: "First-run setup" });
+  await onboarding.waitFor({ state: "visible" });
   const finishSetup = page.getByRole("button", { name: "Finish setup" });
-  if (await finishSetup.isVisible()) {
-    await finishSetup.click();
-    await finishSetup.waitFor({ state: "hidden" });
-  }
+  await finishSetup.click();
+  await onboarding.waitFor({ state: "hidden" });
 }
 
 async function run(): Promise<void> {

@@ -8,6 +8,7 @@
 - [x] Split-pane workspace, tab dragging, nested splits up to four panes, and adjustable split dividers.
 - [x] Embedded browser panes for web URLs.
 - [x] Theme selection, including the imported Ghostty-inspired themes.
+- [x] Settings-controlled `loading-dev` indicators for planner data/refreshes, command-palette search, and Mermaid previews; every surface defaults to Blocks and respects Disable animations.
 - [x] Local Notes and Tags.
 - [x] Local full-text search across tasks, events, and notes.
 - [x] Undo/redo for task, event, and scheduled-task-block mutations.
@@ -62,7 +63,7 @@
 - [x] Electron-runtime SQLite tests for account ID isolation, task blocks, undo/redo, smart scheduling, and Calendar moves.
 - [x] Electron smoke test for launch, task/event/note writes, task blocks, availability, undo/redo, search, and disconnected sync.
 - [x] Parameterized Electron performance fixture (`HCB_PERF_COUNT`) for equal numbers of local tasks and local events.
-- [x] Local 5,000-task + 5,000-event sample (rerun after the interface pass): task writes 14.76 s; event writes 12.78 s; FTS query 16.58 ms; five 1,000-item Calendar range pages 1.74 s.
+- [x] Local 5,000-task + 5,000-event sample (rerun after the loader-settings pass): task writes 13.25 s; event writes 12.90 s; FTS query 14.20 ms; five 1,000-item Calendar range pages 1.49 s.
 - [x] Local 10,000-task + 10,000-event sample (rerun after the interface pass): task writes 25.70 s; event writes 25.69 s; FTS query 23.61 ms; ten 1,000-item Calendar range pages 3.63 s.
 
 ## Implemented but still awaiting live Google-account validation
