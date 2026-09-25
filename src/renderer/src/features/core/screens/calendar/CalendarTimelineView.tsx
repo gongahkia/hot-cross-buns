@@ -553,7 +553,7 @@ function CalendarTimelineView({
                   <div
                     className={cx(
                       "mx-auto mt-1 flex size-8 items-center justify-center rounded-full text-[var(--text-md)] font-semibold text-text-primary",
-                      day.isToday && "bg-accent text-bg-tertiary"
+                      day.isToday && "bg-accent text-[var(--color-accent-foreground)]"
                     )}
                   >
                     {day.dateLabel}

@@ -1,4 +1,5 @@
 import {
+  calendarEventColorForTheme,
   resolveCalendarEventDisplayColor,
   type CalendarEventSummary,
   type ScheduledTaskBlockMoveRequest,
@@ -144,6 +145,7 @@ export function stableCalendarEventViewModel(
 export function stableTaskCalendarEventViewModel(
   task: TaskViewModel & { dueDate: string },
   defaultTimeZone: string,
+  colorTheme: ColorThemeDefinition,
   cache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>
 ): CalendarEventViewModel {
   const startsAt = `${task.dueDate}T00:00:00.000Z`;
@@ -161,7 +163,8 @@ export function stableTaskCalendarEventViewModel(
     task.mutationState ?? "",
     (task.tags ?? []).join("\u001f"),
     task.list,
-    defaultTimeZone
+    defaultTimeZone,
+    colorTheme.id
   ].join("\u001c");
   const cached = cache.get(id);
 
@@ -169,6 +172,7 @@ export function stableTaskCalendarEventViewModel(
     return cached.viewModel;
   }
 
+  const displayColor = taskCalendarDisplayColor(colorTheme, completed);
   const viewModel: CalendarEventViewModel = {
     id,
     eventId: id,
@@ -180,10 +184,10 @@ export function stableTaskCalendarEventViewModel(
     colorId: null,
     title: task.title,
     calendar: task.list,
-    calendarBackgroundColor: completed ? "#e5e7eb" : "#f9a8d4",
-    calendarForegroundColor: completed ? "#6b7280" : "#3f0f24",
-    displayBackgroundColor: completed ? "#f3f4f6" : "#fce7f3",
-    displayForegroundColor: completed ? "#6b7280" : "#3f0f24",
+    calendarBackgroundColor: displayColor.background,
+    calendarForegroundColor: displayColor.foreground,
+    displayBackgroundColor: displayColor.background,
+    displayForegroundColor: displayColor.foreground,
     timeLabel: completed ? "Done" : "Due",
     rangeLabel: completed ? "Completed task" : "Task due",
     startsAt,
@@ -220,6 +224,7 @@ export function stableProjectedTaskCalendarEventViewModel(
   event: CalendarEventSummary & { linkedTaskId: string },
   task: TaskViewModel,
   defaultTimeZone: string,
+  colorTheme: ColorThemeDefinition,
   cache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>
 ): CalendarEventViewModel {
   const timeZone = event.timeZone?.trim() || defaultTimeZone || "UTC";
@@ -241,7 +246,8 @@ export function stableProjectedTaskCalendarEventViewModel(
     task.mutationState ?? "",
     (task.tags ?? []).join("\u001f"),
     task.list,
-    timeZone
+    timeZone,
+    colorTheme.id
   ].join("\u001c");
   const cached = cache.get(event.id);
 
@@ -249,6 +255,7 @@ export function stableProjectedTaskCalendarEventViewModel(
     return cached.viewModel;
   }
 
+  const displayColor = taskCalendarDisplayColor(colorTheme, completed);
   const viewModel: CalendarEventViewModel = {
     id: event.id,
     eventId: event.eventId ?? event.id,
@@ -260,10 +267,10 @@ export function stableProjectedTaskCalendarEventViewModel(
     colorId: null,
     title: task.title,
     calendar: task.list,
-    calendarBackgroundColor: completed ? "#e5e7eb" : "#f9a8d4",
-    calendarForegroundColor: completed ? "#6b7280" : "#3f0f24",
-    displayBackgroundColor: completed ? "#f3f4f6" : "#fce7f3",
-    displayForegroundColor: completed ? "#6b7280" : "#3f0f24",
+    calendarBackgroundColor: displayColor.background,
+    calendarForegroundColor: displayColor.foreground,
+    displayBackgroundColor: displayColor.background,
+    displayForegroundColor: displayColor.foreground,
     timeLabel: event.allDay ? (completed ? "Done" : "Due") : timeLabel(event.startsAt, timeZone),
     rangeLabel: event.allDay
       ? completed ? "Completed task" : "Task due"
@@ -296,6 +303,20 @@ export function stableProjectedTaskCalendarEventViewModel(
 
   cache.set(event.id, { signature, viewModel });
   return viewModel;
+}
+
+function taskCalendarDisplayColor(
+  colorTheme: ColorThemeDefinition,
+  completed: boolean
+): { background: string; foreground: string } {
+  if (completed) {
+    return calendarEventColorForTheme(colorTheme, "default");
+  }
+
+  return {
+    background: colorTheme.colors.warning,
+    foreground: colorTheme.colors.background
+  };
 }
 
 function taskCalendarEndIso(dueDate: string): string {

@@ -367,7 +367,7 @@ export function LogsTab({
               <button
                 className={cx(
                   "h-7 px-2.5 text-[var(--text-sm)] font-semibold transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                  logLevel === level ? "bg-accent text-bg-tertiary" : "text-text-secondary hover:bg-surface-1"
+                  logLevel === level ? "bg-accent text-[var(--color-accent-foreground)]" : "text-text-secondary hover:bg-surface-1"
                 )}
                 key={level}
                 onClick={() => setLogLevel(level)}

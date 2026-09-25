@@ -106,7 +106,7 @@ function NoteSidebarCheckbox({
         aria-hidden="true"
         className={cx(
           "flex size-4 items-center justify-center rounded-[4px] border",
-          checked ? "border-accent bg-accent text-bg-primary" : "border-text-muted bg-transparent"
+          checked ? "border-accent bg-accent text-[var(--color-accent-foreground)]" : "border-text-muted bg-transparent"
         )}
       >
         {checked ? <Check size={12} strokeWidth={3} /> : null}

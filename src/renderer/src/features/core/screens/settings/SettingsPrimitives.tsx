@@ -250,7 +250,7 @@ export function SegmentedControl({
             aria-pressed={active}
             className={cx(
               "inline-flex min-h-10 min-w-20 items-center justify-center gap-2 rounded-hcbSm px-3 text-[var(--text-sm)] font-semibold transition-[background-color,color] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              active ? "bg-accent text-bg-tertiary" : "text-text-secondary hover:bg-surface-1 hover:text-text-primary"
+              active ? "bg-accent text-[var(--color-accent-foreground)]" : "text-text-secondary hover:bg-surface-1 hover:text-text-primary"
             )}
             key={option.value}
             onClick={() => onChange(option.value)}

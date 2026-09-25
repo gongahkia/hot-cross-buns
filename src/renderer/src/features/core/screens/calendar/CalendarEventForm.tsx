@@ -849,7 +849,7 @@ function CalendarCreateModeTabs({
             aria-selected={active}
             className={cx(
               "inline-flex min-h-8 items-center justify-center gap-2 rounded-hcbSm px-2 text-[var(--text-sm)] font-medium transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              active ? "bg-accent text-bg-tertiary" : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"
+              active ? "bg-accent text-[var(--color-accent-foreground)]" : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"
             )}
             key={item.id}
             onClick={() => onChange(item.id)}
@@ -1338,7 +1338,7 @@ export function CalendarEventForm({
                         aria-pressed={selected}
                         className={cx(
                           "flex size-8 items-center justify-center rounded-full text-[var(--text-sm)] font-semibold transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                          selected ? "bg-accent text-bg-tertiary" : "bg-bg-tertiary text-text-secondary hover:bg-surface-1"
+                          selected ? "bg-accent text-[var(--color-accent-foreground)]" : "bg-bg-tertiary text-text-secondary hover:bg-surface-1"
                         )}
                         key={weekday.id}
                         onClick={() => toggleRepeatWeekday(weekday.id)}

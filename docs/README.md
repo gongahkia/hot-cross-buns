@@ -44,6 +44,7 @@ Subsystem specs:
 - [Platform Strategy](specs/platforms.md)
 - [Native Parity](specs/native-parity.md)
 - [Design System](design/design-system.md)
+- [Theme Catalogue](design/theme-catalog.md)
 - [Legacy Hot Cross Buns Context](reference/legacy-hot-cross-buns-context.md)
 
 Performance:

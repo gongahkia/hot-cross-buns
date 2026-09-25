@@ -39,6 +39,13 @@ export interface ColorThemeDefinition {
 
 export type AppColorThemeDefinition = ColorThemeDefinition;
 
+type ThemeSettings = Record<string, unknown> & {
+  theme?: string | null;
+  colorTheme?: string | null;
+  customBackground?: { palette?: unknown } | null;
+  useInferredBackgroundTheme?: boolean;
+};
+
 interface ThemeSeed {
   id: AppColorThemeId;
   label: string;
@@ -132,7 +139,8 @@ const themeSeeds: readonly ThemeSeed[] = [
   light("everforest-light", "Everforest Light", "everforest", ["#efebd4", "#5c6a72", "#e67e80", "#9ab373", "#c1a266", "#7fbbb3", "#83c092"]),
   dark("atom-one-dark", "Atom One Dark", "one-dark", ["#21252b", "#abb2bf", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#56b6c2"]),
   light("atom-one-light", "Atom One Light", "one-dark", ["#f9f9f9", "#2a2c33", "#de3e35", "#3f953a", "#d2b67c", "#2f5af3", "#3f953a"]),
-  dark("oxocarbon", "Oxocarbon", "oxocarbon", ["#161616", "#f2f4f8", "#00dfdb", "#00b4ff", "#ff4297", "#00c15a", "#ff74b8"])
+  dark("oxocarbon", "Oxocarbon", "oxocarbon", ["#161616", "#f2f4f8", "#00dfdb", "#00b4ff", "#ff4297", "#00c15a", "#ff74b8"]),
+  dark("vesper", "Vesper", "vesper", ["#101010", "#ffffff", "#f5a191", "#90b99f", "#e6b99d", "#aca1cf", "#ea83a5"])
 ];
 
 export const colorThemeDefinitions: readonly ColorThemeDefinition[] = themeSeeds.map(defineTheme);
@@ -152,16 +160,12 @@ export function resolveAppThemeMode(theme: "system" | ThemeMode | string | null 
   return theme === "dark" || (theme === "system" && prefersDark) ? "dark" : "light";
 }
 
-export function resolveEffectiveThemeMode(settings: { theme?: string | null } | null | undefined, prefersDark: boolean): ThemeMode {
+export function resolveEffectiveThemeMode(settings: ThemeSettings | null | undefined, prefersDark: boolean): ThemeMode {
   return resolveAppThemeMode(settings?.theme, prefersDark);
 }
 
 export function resolveEffectiveColorTheme(
-  settings: {
-    colorTheme?: string | null;
-    customBackground?: { palette?: unknown } | null;
-    useInferredBackgroundTheme?: boolean;
-  } | null | undefined,
+  settings: ThemeSettings | null | undefined,
   mode: ThemeMode
 ): ColorThemeDefinition {
   if (settings?.useInferredBackgroundTheme && settings.customBackground?.palette) {

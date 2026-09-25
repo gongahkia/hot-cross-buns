@@ -33,7 +33,7 @@ const localAccountId = "local";
 
 const defaultSettings: JsonRecord = {
   theme: "system",
-  colorTheme: "notion",
+  colorTheme: "catppuccin-mocha",
   customBackground: null,
   useInferredBackgroundTheme: true,
   appLanguage: "system",

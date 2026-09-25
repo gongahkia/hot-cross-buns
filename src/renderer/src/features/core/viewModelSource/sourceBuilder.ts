@@ -84,6 +84,7 @@ export function buildCoreViewModelSource(
           { ...event, linkedTaskId: event.linkedTaskId },
           linkedTask,
           snapshot.settings.defaultTimeZone,
+          activeColorTheme,
           options.calendarEventViewModelCache
         )
       ];
@@ -148,6 +149,7 @@ export function buildCoreViewModelSource(
       stableTaskCalendarEventViewModel(
         task,
         snapshot.settings.defaultTimeZone,
+        activeColorTheme,
         options.calendarEventViewModelCache
       )
     );

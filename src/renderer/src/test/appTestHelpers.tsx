@@ -117,7 +117,7 @@ export function installHcb(api: HcbApi | undefined): void {
 export function testSettings(overrides: Partial<SettingsSnapshot> = {}): SettingsSnapshot {
   return {
     theme: "system",
-    colorTheme: "notion",
+    colorTheme: "catppuccin-mocha",
     customBackground: null,
     useInferredBackgroundTheme: true,
     appLanguage: "system",

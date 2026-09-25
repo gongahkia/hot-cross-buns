@@ -3,7 +3,7 @@
 - [x] Command palette and keyboard-first navigation.
 - [x] Split-pane workspace, tab dragging, nested splits up to four panes, and adjustable split dividers.
 - [x] Embedded browser panes for web URLs.
-- [x] Theme selection, including the imported Ghostty-inspired themes.
+- [x] Theme selection with 50 curated VS Code and Ghostty-compatible palettes (34 dark, 16 light), semantic coverage across app and Calendar surfaces, paired light/dark families, and custom-background inference. See `docs/design/theme-catalog.md`.
 - [x] Settings-controlled `loading-dev` indicators for planner data/refreshes, command-palette search, and Mermaid previews; every surface defaults to Blocks and respects Disable animations.
 - [x] Local Notes and Tags.
 - [x] Local full-text search across tasks, events, and notes.

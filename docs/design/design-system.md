@@ -14,6 +14,8 @@ Hot Cross Buns 2 inherits the compact, keyboard-first design direction from the 
 
 Use semantic CSS variables in components. Palette variables may exist in global CSS, but component code should consume semantic tokens.
 
+The values below are the Catppuccin fallback tokens used before settings hydrate. Runtime palette selection replaces every semantic colour with one of the 50 entries in the [Theme Catalogue](theme-catalog.md), including the accent foreground and selection tokens.
+
 Dark theme:
 
 | Token | Value | Usage |
@@ -133,4 +135,3 @@ The original repository has app icons, logo files, onboarding images, and demo m
 ```
 
 Agents may reference these assets when designing Hot Cross Buns 2. Copy assets into this repository only when an implementation or design task actually needs them.
-

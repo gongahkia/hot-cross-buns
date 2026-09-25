@@ -35,7 +35,7 @@ export const emptyUndoStatus: UndoStackStatusResponse = {
 
 export const emptySettings: SettingsSnapshot = {
   theme: "system",
-  colorTheme: "notion",
+  colorTheme: "catppuccin-mocha",
   customBackground: null,
   useInferredBackgroundTheme: true,
   appLanguage: "system",
