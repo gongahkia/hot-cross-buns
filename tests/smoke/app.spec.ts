@@ -22,11 +22,11 @@ test("launches and renders the planner shell", async () => {
     });
 
     await expect(page.getByTestId("app-shell")).toBeVisible();
+    const onboarding = page.getByRole("dialog", { name: "Welcome to Hot Cross Buns" });
+    await expect(onboarding).toBeVisible();
     const finishSetup = page.getByRole("button", { name: "Finish setup" });
-    if (await finishSetup.isVisible()) {
-      await finishSetup.click();
-      await expect(finishSetup).toBeHidden();
-    }
+    await finishSetup.click();
+    await expect(onboarding).toBeHidden();
 
     for (const label of ["Tasks", "Calendar", "Notes"]) {
       await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
