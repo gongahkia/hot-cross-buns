@@ -7,7 +7,6 @@ import type {
 import { previewAutoTagRules, validateAutoTagRule, type AutoTagTargetKind } from "@shared/ipc/autoTags";
 import {
   appColorThemes,
-  defaultAppColorTheme,
   resolveAppColorTheme,
   resolveEffectiveColorTheme,
   resolveEffectiveThemeMode,
@@ -153,7 +152,7 @@ export function SettingsView({
   const baseThemeMode = resolveAppThemeMode(settings.theme, currentSystemPrefersDark());
   const effectiveThemeMode = resolveEffectiveThemeMode(settings, currentSystemPrefersDark());
   const matchingColorThemes = appColorThemes.filter(
-    (theme) => theme.isDark === (effectiveThemeMode === "dark")
+    (theme) => theme.mode === effectiveThemeMode
   );
   const activeColorTheme = resolveEffectiveColorTheme(settings, effectiveThemeMode);
   const autoTagBulkCounts = useMemo(() => ({
@@ -411,10 +410,10 @@ export function SettingsView({
 
   function updateBaseTheme(theme: SettingsSnapshot["theme"]): void {
     const nextMode = resolveAppThemeMode(theme, currentSystemPrefersDark());
-    const currentColorTheme = resolveAppColorTheme(settings.colorTheme, baseThemeMode);
-    const nextColorTheme = currentColorTheme.isDark === (nextMode === "dark")
+    const currentColorTheme = resolveAppColorTheme(settings, baseThemeMode);
+    const nextColorTheme = currentColorTheme.mode === nextMode
       ? currentColorTheme
-      : defaultAppColorTheme(nextMode);
+      : resolveAppColorTheme({ colorTheme: settings.colorTheme }, nextMode);
 
     updateSettings({
       theme,

@@ -12,7 +12,7 @@ import type {
   ColorThemeDefinition
 } from "@shared/ipc/themeCatalog";
 import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
-import { ArrowDown, ArrowUp, PanelLeft, PanelRight, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, PanelLeft, PanelRight, RotateCcw, Search } from "lucide-react";
 import {
   LoadingIndicator,
   defaultLoadingIndicatorPreferences,
@@ -86,10 +86,18 @@ export function AppearanceSettingsTab({
   const [cropZoom, setCropZoom] = useState(1);
   const [cropX, setCropX] = useState(50);
   const [cropY, setCropY] = useState(50);
+  const [themeQuery, setThemeQuery] = useState("");
   const inferredThemeActive = activeColorTheme.id === customBackgroundThemeId;
   const customBackgroundPreviewUrl = customBackgroundPreview(settings);
   const cropAspectValue = useMemo(() => cropAspectNumber(cropAspect), [cropAspect]);
   const loadingIndicators = resolveLoadingIndicatorPreferences(settings.loadingIndicators);
+  const visibleColorThemes = useMemo(() => {
+    const normalized = themeQuery.trim().toLocaleLowerCase();
+
+    return matchingColorThemes.filter((theme) =>
+      normalized.length === 0 || `${theme.label} ${theme.family} ${theme.source}`.toLocaleLowerCase().includes(normalized)
+    );
+  }, [matchingColorThemes, themeQuery]);
 
   useEffect(() => {
     return () => {
@@ -301,26 +309,49 @@ export function AppearanceSettingsTab({
             <option value="dark">Dark</option>
           </select>
         </SettingsControlRow>
-        <SettingsControlRow
-          description="Palette used by cards, text, and app surfaces."
-          label="Theme"
-        >
-          <select
-            aria-label="Color theme"
-            className={settingsSelectClass}
-            onChange={(event) => updateColorTheme(event.target.value)}
-            value={activeColorTheme.id}
-          >
+        <div className="grid gap-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <div>
+              <p className="text-[var(--text-sm)] font-semibold text-text-primary">Colour theme</p>
+              <p className="hcb-copy text-[var(--text-xs)] text-text-muted">{matchingColorThemes.length} curated {effectiveThemeLabel(activeColorTheme.mode)} palettes for every app surface.</p>
+            </div>
+            <span className="text-[var(--text-xs)] font-medium text-text-secondary">{activeColorTheme.label}</span>
+          </div>
+          <label className="relative block">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+            <Input
+              aria-label="Search color themes"
+              className="pl-9"
+              onChange={(event) => setThemeQuery(event.currentTarget.value)}
+              placeholder="Filter themes"
+              value={themeQuery}
+            />
+          </label>
+          <div aria-label="Color themes" className="grid max-h-96 grid-cols-1 gap-2 overflow-y-auto rounded-hcbMd border border-border bg-bg-tertiary p-2 sm:grid-cols-2" role="list">
             {settings.customBackground ? (
-              <option value={customBackgroundThemeId}>Inferred from background</option>
+              <ThemeCard
+                active={activeColorTheme.id === customBackgroundThemeId}
+                description="Use colours inferred from the background image."
+                label="Inferred from background"
+                onSelect={() => updateColorTheme(customBackgroundThemeId)}
+                theme={activeColorTheme.id === customBackgroundThemeId ? activeColorTheme : null}
+              />
             ) : null}
-            {matchingColorThemes.map((theme) => (
-              <option key={theme.id} value={theme.id}>
-                {theme.title}
-              </option>
+            {visibleColorThemes.map((theme) => (
+              <ThemeCard
+                active={theme.id === activeColorTheme.id}
+                description={`${theme.source} · ${theme.mode}`}
+                key={theme.id}
+                label={theme.label}
+                onSelect={() => updateColorTheme(theme.id)}
+                theme={theme}
+              />
             ))}
-          </select>
-        </SettingsControlRow>
+            {visibleColorThemes.length === 0 ? (
+              <p className="col-span-full px-2 py-5 text-center text-[var(--text-sm)] text-text-muted">No themes match “{themeQuery}”.</p>
+            ) : null}
+          </div>
+        </div>
         <SettingsControlRow
           description="Use a local image as the app backdrop and infer the palette from its pixels."
           label="Custom background"

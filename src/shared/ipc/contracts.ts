@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ColorThemeDefinition } from "./themeCatalog";
 
 /**
  * Versioned renderer DTO boundary. The restored Electron renderer defines the
@@ -49,7 +50,7 @@ export type DiagnosticsLogsResponse = any;
 export type DiagnosticsPendingMutation = any;
 export type DiagnosticsSummaryResponse = any;
 export type EventTemplate = any;
-export type GoogleCalendarEventColorId = string;
+export type GoogleCalendarEventColorId = "default" | "blue" | "green" | "red";
 export interface GoogleAccountStatus {
   accountId: string;
   googleAccountId?: string;
@@ -180,23 +181,90 @@ export const defaultLeaderKey = "CmdOrCtrl+K";
 export const defaultLeaderKeybindings = {};
 export const defaultSemanticSearchModels: any[] = [];
 
-export const googleCalendarEventColors: any[] = [
-  { id: "default", label: "Default", value: "#5f6368" },
-  { id: "blue", label: "Blue", value: "#4285f4" },
-  { id: "green", label: "Green", value: "#34a853" },
-  { id: "red", label: "Red", value: "#ea4335" }
+export interface GoogleCalendarEventColor {
+  id: GoogleCalendarEventColorId;
+  label: string;
+  value: string;
+  background: string;
+  foreground: string;
+}
+
+export const googleCalendarEventColors: readonly GoogleCalendarEventColor[] = [
+  { id: "default", label: "Default", value: "#5f6368", background: "#5f6368", foreground: "#ffffff" },
+  { id: "blue", label: "Blue", value: "#4285f4", background: "#4285f4", foreground: "#ffffff" },
+  { id: "green", label: "Green", value: "#34a853", background: "#34a853", foreground: "#ffffff" },
+  { id: "red", label: "Red", value: "#ea4335", background: "#ea4335", foreground: "#ffffff" }
 ] as const;
 
-export function googleCalendarEventColor(id: string | null | undefined): any {
+export function googleCalendarEventColor(id: string | null | undefined): GoogleCalendarEventColor {
   return googleCalendarEventColors.find((color) => color.id === id) ?? googleCalendarEventColors[0];
 }
 
-export function calendarEventColorForTheme(..._args: any[]): any {
-  return googleCalendarEventColors[0];
+export function calendarEventColorForTheme(
+  theme: ColorThemeDefinition,
+  id: GoogleCalendarEventColorId | string | null | undefined
+): Pick<GoogleCalendarEventColor, "background" | "foreground"> {
+  const colors = theme.colors;
+
+  if (id === "blue") {
+    return { background: colors.accent, foreground: colors.accentForeground };
+  }
+
+  if (id === "green") {
+    return { background: colors.success, foreground: colors.background };
+  }
+
+  if (id === "red") {
+    return { background: colors.danger, foreground: colors.background };
+  }
+
+  return { background: colors.surface1, foreground: colors.text };
 }
 
-export function resolveCalendarEventDisplayColor(..._args: any[]): any {
-  return googleCalendarEventColors[0];
+export function resolveCalendarEventDisplayColor(input: {
+  colorId?: string | null;
+  colorTheme: ColorThemeDefinition;
+  overrides?: Record<string, { background?: string; foreground?: string } | undefined> | null;
+  calendarBackgroundColor?: string | null;
+  calendarForegroundColor?: string | null;
+}): { background: string; foreground: string } {
+  const override = input.colorId ? input.overrides?.[input.colorId] : undefined;
+
+  if (isHexColor(override?.background)) {
+    return {
+      background: override.background,
+      foreground: isHexColor(override.foreground) ? override.foreground : readableForeground(override.background)
+    };
+  }
+
+  if (input.colorId) {
+    return calendarEventColorForTheme(input.colorTheme, input.colorId);
+  }
+
+  if (isHexColor(input.calendarBackgroundColor)) {
+    return {
+      background: input.calendarBackgroundColor,
+      foreground: isHexColor(input.calendarForegroundColor)
+        ? input.calendarForegroundColor
+        : readableForeground(input.calendarBackgroundColor)
+    };
+  }
+
+  return calendarEventColorForTheme(input.colorTheme, "default");
+}
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+function readableForeground(background: string): string {
+  const channels = [
+    Number.parseInt(background.slice(1, 3), 16),
+    Number.parseInt(background.slice(3, 5), 16),
+    Number.parseInt(background.slice(5, 7), 16)
+  ];
+  const luminance = 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+  return luminance > 145 ? "#111318" : "#ffffff";
 }
 
 export const nativeActionSchema = z.object({ type: z.string() }).passthrough();
