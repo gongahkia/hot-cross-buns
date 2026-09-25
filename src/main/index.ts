@@ -6,6 +6,7 @@ import { configureNavigationLockdown, configureSessionHardening } from "./securi
 import { createServiceContainer } from "./services/serviceContainer";
 import { markStartupTiming } from "./startupTiming";
 import { createNativeAdapter, NativeShellService } from "./native";
+import { isLiveGoogleReadOnlyTest, isLiveGoogleTest } from "./liveGoogleTestMode";
 
 let mainWindow: BrowserWindow | null = null;
 const pendingDeepLinks: string[] = [];
@@ -63,12 +64,15 @@ function createMainWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   markStartupTiming("appReadyMs");
+  const liveGoogleTest = isLiveGoogleTest();
   configureSessionHardening(session.defaultSession);
   registerDiagnosticsIpc();
   const services = await createServiceContainer(app.getPath("userData"));
   registerCoreIpc(services.core, services.googleOAuth, services.googleSync);
-  services.googleSync.startBackgroundSync();
-  void services.googleSync.runNow({ reason: "startup" }).catch(() => undefined);
+  if (!liveGoogleTest) {
+    services.googleSync.startBackgroundSync();
+    void services.googleSync.runNow({ reason: "startup" }).catch(() => undefined);
+  }
   mainWindow = createMainWindow();
   const nativeShell = new NativeShellService({
     adapter: await createNativeAdapter(),
@@ -91,11 +95,17 @@ app.whenReady().then(async () => {
       quit: () => app.quit(),
       dispatchAction: (action) => mainWindow?.webContents.send("hcb:native-action", action)
     },
-    sync: { runNow: (request) => services.googleSync.runNow(request) },
+    sync: {
+      runNow: (request) => services.googleSync.runNow(
+        isLiveGoogleReadOnlyTest() ? { ...request, readOnly: true } : request
+      )
+    },
     recordUpdateCheck: (checkedAt) => services.core.dispatch("settings", "update", { lastUpdateCheckAt: checkedAt })
   });
   nativeShell.installAppMenu();
-  nativeShell.startDeferredStartup();
+  if (!liveGoogleTest) {
+    nativeShell.startDeferredStartup();
+  }
   routeDeepLink = (url) => { nativeShell.handleDeepLink(url); };
   for (const url of pendingDeepLinks.splice(0)) routeDeepLink(url);
   services.core.attachNativeBridge({
@@ -107,7 +117,9 @@ app.whenReady().then(async () => {
   });
 
   app.on("activate", () => {
-    void services.googleSync.runNow({ reason: "application-activated" }).catch(() => undefined);
+    if (!liveGoogleTest) {
+      void services.googleSync.runNow({ reason: "application-activated" }).catch(() => undefined);
+    }
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();
     }

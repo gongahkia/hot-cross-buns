@@ -87,6 +87,7 @@ export class GoogleSyncService {
 
   private async sync(_input: JsonRecord): Promise<JsonRecord> {
     const requestedAccountId = typeof _input.accountId === "string" ? _input.accountId : undefined;
+    const readOnly = _input.readOnly === true;
     const accounts = this.store.googleAccounts().filter((account) =>
       account.accountId !== "local" && account.connectionState === "connected" && (!requestedAccountId || account.accountId === requestedAccountId)
     );
@@ -109,11 +110,13 @@ export class GoogleSyncService {
         try {
           await this.pullGoogleTasks(account.accountId);
           await this.pullGoogleCalendars(account.accountId);
-          await this.deliverOutbox(account.accountId);
-          // Pull once more so remote canonical values, including generated ids
-          // and server-normalised recurrence, are reflected after a write batch.
-          await this.pullGoogleTasks(account.accountId);
-          await this.pullGoogleCalendars(account.accountId);
+          if (!readOnly) {
+            await this.deliverOutbox(account.accountId);
+            // Pull once more so remote canonical values, including generated ids
+            // and server-normalised recurrence, are reflected after a write batch.
+            await this.pullGoogleTasks(account.accountId);
+            await this.pullGoogleCalendars(account.accountId);
+          }
         } catch (error: unknown) {
           failures.push(error instanceof Error ? error : new Error("Google sync failed."));
         }

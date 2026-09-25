@@ -4,6 +4,7 @@ import { CoreStore, CoreStoreError } from "../services/coreStore";
 import { GoogleOAuthController } from "../services/googleOAuth";
 import { GoogleSyncService } from "../services/googleSync";
 import { appLogger } from "../diagnostics/appLogger";
+import { isLiveGoogleReadOnlyTest, isLiveGoogleTest } from "../liveGoogleTestMode";
 import { conflictError, internalError, ok, validationError } from "@shared/result";
 import { IPC_CHANNELS } from "@shared/ipc";
 
@@ -80,6 +81,9 @@ export function registerCoreIpc(
     if (!payloadIsValid(request.data.namespace, request.data.action, request.data.payload)) {
       return validationError("Unsupported or malformed application request");
     }
+    if (isLiveGoogleReadOnlyRequest(request.data.namespace, request.data.action, request.data.payload)) {
+      return validationError("Live Google read-only mode blocks mutations and non-read-only sync.");
+    }
 
     try {
       if (request.data.namespace === "google" && request.data.action === "saveOAuthClient") {
@@ -115,7 +119,9 @@ export function registerCoreIpc(
         (["tasks", "calendar"].includes(request.data.namespace) && isWriteAction(request.data.action)) ||
         (request.data.namespace === "diagnostics" && request.data.action === "retryPendingMutation")
       ) {
-        googleSync.scheduleAfterLocalMutation();
+        if (!isLiveGoogleTest()) {
+          googleSync.scheduleAfterLocalMutation();
+        }
       }
       return ok(response);
     } catch (error: unknown) {
@@ -139,4 +145,24 @@ function isWriteAction(action: string): boolean {
     "listTaskLists", "list", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
     "exportAvailability", "scheduleSuggest", "smartReschedule"
   ]).has(action);
+}
+
+function isLiveGoogleReadOnlyRequest(namespace: string, action: string, payload: Record<string, unknown>): boolean {
+  if (!isLiveGoogleReadOnlyTest()) {
+    return false;
+  }
+
+  if (namespace === "sync") {
+    return action !== "status" && !(action === "runNow" && payload.readOnly === true);
+  }
+
+  if (namespace === "google") {
+    return action !== "status";
+  }
+
+  if (namespace === "settings" && action === "recoveryAction" && payload.action === "forceFullResync") {
+    return true;
+  }
+
+  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action);
 }
