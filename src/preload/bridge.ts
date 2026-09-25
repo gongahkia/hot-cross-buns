@@ -11,7 +11,11 @@ import {
   plannerTaskListRequestSchema,
   plannerTaskMutationResultEnvelopeSchema,
   plannerTaskPageResultSchema,
-  plannerWorkspaceResultSchema
+  plannerWorkspaceResultSchema,
+  type PlannerSyncStatus,
+  type PlannerTaskMutationResult,
+  type PlannerTaskPage,
+  type PlannerWorkspace
 } from "@shared/planner";
 import { IPC_CHANNELS } from "@shared/ipc";
 import type { HcbApi } from "@shared/preloadApi";
@@ -80,49 +84,59 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       }
     },
     planner: {
-      workspace: async () =>
-        invokeValidated(ipc, IPC_CHANNELS.planner.workspace, {}, plannerWorkspaceResultSchema),
-      listTasks: async (payload) => {
+      workspace: async (): Promise<HcbResult<PlannerWorkspace>> =>
+        invokeValidated<PlannerWorkspace>(
+          ipc,
+          IPC_CHANNELS.planner.workspace,
+          {},
+          plannerWorkspaceResultSchema
+        ),
+      listTasks: async (payload): Promise<HcbResult<PlannerTaskPage>> => {
         const request = plannerTaskListRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid task list request");
         }
 
-        return invokeValidated(
+        return invokeValidated<PlannerTaskPage>(
           ipc,
           IPC_CHANNELS.planner.listTasks,
           request.data,
           plannerTaskPageResultSchema
         );
       },
-      saveTask: async (payload) => {
+      saveTask: async (payload): Promise<HcbResult<PlannerTaskMutationResult>> => {
         const request = plannerSaveTaskRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid task change request");
         }
 
-        return invokeValidated(
+        return invokeValidated<PlannerTaskMutationResult>(
           ipc,
           IPC_CHANNELS.planner.saveTask,
           request.data,
           plannerTaskMutationResultEnvelopeSchema
         );
       },
-      completeTask: async (payload) => {
+      completeTask: async (payload): Promise<HcbResult<PlannerTaskMutationResult>> => {
         const request = plannerCompleteTaskRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid task completion request");
         }
 
-        return invokeValidated(
+        return invokeValidated<PlannerTaskMutationResult>(
           ipc,
           IPC_CHANNELS.planner.completeTask,
           request.data,
           plannerTaskMutationResultEnvelopeSchema
         );
       },
-      syncStatus: async () =>
-        invokeValidated(ipc, IPC_CHANNELS.planner.syncStatus, {}, plannerSyncStatusResultSchema)
+      syncStatus: async (): Promise<HcbResult<PlannerSyncStatus>> =>
+        invokeValidated<PlannerSyncStatus>(
+          ipc,
+          IPC_CHANNELS.planner.syncStatus,
+          {},
+          plannerSyncStatusResultSchema
+        )
     }
   };
 }
@@ -131,11 +145,13 @@ async function invokeValidated<T>(
   ipc: IpcBridge,
   channel: string,
   payload: unknown,
-  schema: z.ZodType<HcbResult<T>>
+  schema: z.ZodTypeAny
 ): Promise<HcbResult<T>> {
   try {
     const parsed = schema.safeParse(await ipc.invoke(channel, payload));
-    return parsed.success ? parsed.data : validationResult("Invalid local planner response");
+    return parsed.success
+      ? (parsed.data as HcbResult<T>)
+      : validationResult("Invalid local planner response");
   } catch {
     return ipcFailure("Local planner request failed");
   }

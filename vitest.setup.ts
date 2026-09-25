@@ -23,6 +23,61 @@ const hcbApi: HcbApi = {
         shellVisibleMs: 1
       })
     )
+  },
+  planner: {
+    workspace: vi.fn(async () =>
+      ok({
+        revision: 0,
+        taskCount: 0,
+        openTaskCount: 0,
+        completedTaskCount: 0,
+        pendingMutationCount: 0,
+        conflictCount: 0,
+        searchIndexState: "ready" as const
+      })
+    ),
+    listTasks: vi.fn(async () => ok({ revision: 0, tasks: [], nextCursor: null })),
+    saveTask: vi.fn(async () =>
+      ok({
+        task: {
+          id: "test-task",
+          title: "Test task",
+          notes: "",
+          dueDate: null,
+          status: "open" as const,
+          createdAt: "2026-05-22T00:00:00.000Z",
+          updatedAt: "2026-05-22T00:00:00.000Z",
+          revision: 1
+        },
+        revision: 1,
+        queued: true
+      })
+    ),
+    completeTask: vi.fn(async () =>
+      ok({
+        task: {
+          id: "test-task",
+          title: "Test task",
+          notes: "",
+          dueDate: null,
+          status: "completed" as const,
+          createdAt: "2026-05-22T00:00:00.000Z",
+          updatedAt: "2026-05-22T00:00:00.000Z",
+          revision: 1
+        },
+        revision: 1,
+        queued: true
+      })
+    ),
+    syncStatus: vi.fn(async () =>
+      ok({
+        pendingMutationCount: 0,
+        conflictCount: 0,
+        nextAttemptAt: null,
+        lastSuccessfulDeliveryAt: null,
+        lastError: null
+      })
+    )
   }
 };
 
