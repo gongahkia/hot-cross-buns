@@ -584,7 +584,7 @@ export function GeneralSettingsTab({
 
       <SettingsGroup title="Setup">
         <SettingsControlRow
-          description="Clears onboarding completion so setup opens again."
+          description={settings.onboardingStatus === "skipped" ? "Setup was skipped. Open it any time to configure Google and sync preferences." : "Open setup again to change its first-run choices."}
           icon={Sparkles}
           label="Setup assistant"
         >

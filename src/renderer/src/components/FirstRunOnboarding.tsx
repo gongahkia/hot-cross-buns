@@ -95,8 +95,24 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       selectedCalendarIds: overrides.selectedCalendarIds ?? selectedCalendarIds,
       syncMode: overrides.syncMode ?? syncMode,
       notificationsEnabled: overrides.notificationsEnabled ?? notificationsEnabled,
+      onboardingStatus: "completed",
       setupCompletedAt: new Date().toISOString()
     });
+
+    if (!saved) {
+      setSubmitting(false);
+      setLocalError("Setup preferences were not saved.");
+    }
+  }
+
+  async function skipSetup(): Promise<void> {
+    setSubmitting(true);
+    setLocalError(null);
+
+    // Skipping must not make an implicit choice about sync, notifications, or
+    // selected Google resources. Those defaults remain untouched until setup
+    // is deliberately completed or re-opened from Settings.
+    const saved = await source.updateSettings({ onboardingStatus: "skipped" });
 
     if (!saved) {
       setSubmitting(false);
@@ -346,16 +362,25 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
         <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
           <p className="hcb-copy text-[var(--text-sm)] text-text-muted">
-            Google can be connected later from Settings → Profile.
+            You can configure Google and preferences later in Settings.
           </p>
-          <Button
-            disabled={submitting || source.settingsMutationPending}
-            onClick={() => void completeSetup()}
-            variant="primary"
-          >
-            <CheckCircle2 aria-hidden="true" size={15} />
-            Finish setup
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={submitting || source.settingsMutationPending}
+              onClick={() => void skipSetup()}
+              variant="ghost"
+            >
+              Skip setup for now
+            </Button>
+            <Button
+              disabled={submitting || source.settingsMutationPending}
+              onClick={() => void completeSetup()}
+              variant="primary"
+            >
+              <CheckCircle2 aria-hidden="true" size={15} />
+              Finish setup
+            </Button>
+          </div>
         </footer>
       </div>
     </div>

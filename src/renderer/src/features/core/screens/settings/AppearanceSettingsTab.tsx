@@ -578,6 +578,28 @@ export function AppearanceSettingsTab({
             ))}
           </select>
         </SettingsControlRow>
+        <SettingsControlRow
+          description="Used for notes and structured-text buffers, code, diagnostics, and keyboard shortcuts."
+          label="Monospace and buffer font"
+        >
+          <select
+            aria-label="Monospace and buffer font family"
+            className={settingsSelectClass}
+            onChange={(event) =>
+              updateSettings({
+                uiMonoFontName: event.target.value.trim() ? event.target.value : null
+              })
+            }
+            value={settings.uiMonoFontName ?? ""}
+          >
+            <option value="">System monospace</option>
+            {availableFontFamilies.map((fontName) => (
+              <option key={fontName} value={fontName}>
+                {fontName}
+              </option>
+            ))}
+          </select>
+        </SettingsControlRow>
       </SettingsGroup>
 
       <SettingsGroup title="Loading indicators">

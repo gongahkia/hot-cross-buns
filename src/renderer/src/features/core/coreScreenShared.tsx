@@ -81,10 +81,10 @@ export function currentSystemPrefersDark(): boolean {
     window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-export function fontFamilyOptions(fontFamilies: readonly string[], currentFontName: string | null): string[] {
+export function fontFamilyOptions(fontFamilies: readonly string[], ...currentFontNames: Array<string | null | undefined>): string[] {
   const unique = new Set<string>();
 
-  for (const fontName of [...fontFamilies, currentFontName ?? ""]) {
+  for (const fontName of [...fontFamilies, ...currentFontNames]) {
     const trimmed = fontName.trim();
 
     if (trimmed) {

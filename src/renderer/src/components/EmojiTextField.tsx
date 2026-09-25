@@ -240,7 +240,7 @@ export const EmojiTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHTMLAt
       <div className="relative min-w-0">
         <textarea
           className={cx(
-            "w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+            "w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 font-mono text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             className
           )}
           onChange={field.handleChange}

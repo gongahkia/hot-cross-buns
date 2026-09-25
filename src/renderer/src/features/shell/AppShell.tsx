@@ -145,7 +145,7 @@ export function AppShell(): JSX.Element {
   );
   const sidebarOnRight = source.settings.navigationPlacement === "right";
   const onboardingVisible =
-    source.settings.setupCompletedAt === null &&
+    source.settings.onboardingStatus === "pending" &&
     source.dataState !== "loading" &&
     source.dataState !== "offline" &&
     source.dataState !== "error";

@@ -111,7 +111,10 @@ export function OverviewTab({
           value={selectionText(summary?.selectedResources.calendars, source.calendarSources.length)}
         />
         <DiagnosticRow label="Local reminders" value={source.settings.notificationsEnabled ? "Enabled" : "Disabled"} />
-        <DiagnosticRow label="Onboarding" value={source.settings.setupCompletedAt ? "Completed" : "Not completed"} />
+          <DiagnosticRow
+            label="Onboarding"
+            value={source.settings.onboardingStatus === "completed" ? "Completed" : source.settings.onboardingStatus === "skipped" ? "Skipped" : "Not completed"}
+          />
       </DiagnosticSection>
 
       <DiagnosticSection title="Cache">

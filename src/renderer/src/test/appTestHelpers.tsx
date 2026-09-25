@@ -122,6 +122,7 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     useInferredBackgroundTheme: true,
     appLanguage: "system",
     uiFontName: null,
+    uiMonoFontName: null,
     uiTextSizePoints: 13,
     perSurfaceFontOverrides: {},
     calendarEventColorOverrides: {},
@@ -149,6 +150,7 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     startOnLogin: false,
     selectedTaskListIds: [],
     selectedCalendarIds: [],
+    onboardingStatus: "completed",
     setupCompletedAt: now,
     syncMode: "balanced",
     syncTasksEnabled: true,
@@ -1153,6 +1155,7 @@ export function onboardingHcb(
 ): { api: HcbApi; getSettings: () => SettingsSnapshot } {
   const api = seededHcb();
   let settings = testSettings({
+    onboardingStatus: "pending",
     setupCompletedAt: null,
     selectedTaskListIds: [],
     selectedCalendarIds: [],
@@ -1165,6 +1168,8 @@ export function onboardingHcb(
     settings = testSettings({
       ...settings,
       ...request,
+      onboardingStatus:
+        request.onboardingStatus === undefined ? settings.onboardingStatus : request.onboardingStatus,
       setupCompletedAt:
         request.setupCompletedAt === undefined ? settings.setupCompletedAt : request.setupCompletedAt
     });
@@ -1175,6 +1180,7 @@ export function onboardingHcb(
     if (request.action === "resetOnboarding") {
       settings = testSettings({
         ...settings,
+        onboardingStatus: "pending",
         setupCompletedAt: null
       });
     }

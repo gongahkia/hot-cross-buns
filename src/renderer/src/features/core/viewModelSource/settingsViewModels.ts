@@ -83,6 +83,11 @@ export function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionVie
           value: snapshot.settings.uiFontName ?? "System"
         },
         {
+          id: "mono-font",
+          label: "Monospace font",
+          value: snapshot.settings.uiMonoFontName ?? "System monospace"
+        },
+        {
           id: "text-size",
           label: "Text size",
           value: `${snapshot.settings.uiTextSizePoints} pt`

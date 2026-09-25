@@ -91,7 +91,7 @@ export function useAppliedTheme(settings: SettingsSnapshot): void {
     root.dataset.animations = settings.disableAnimations ? "disabled" : "enabled";
     root.lang = resolveAppLanguage(settings.appLanguage);
     root.style.setProperty("--font-family", cssFontFamily(settings.uiFontName));
-    root.style.setProperty("--font-family-mono", cssMonoFontFamily(settings.uiFontName));
+    root.style.setProperty("--font-family-mono", cssMonoFontFamily(settings.uiMonoFontName));
     root.style.setProperty("--font-family-sidebar", surfaceFontFamily(settings, "sidebar"));
     root.style.setProperty("--text-sidebar", surfaceTextSize(settings, "sidebar"));
     root.style.setProperty("--font-family-menu-bar", surfaceFontFamily(settings, "menuBar"));
@@ -115,6 +115,7 @@ export function useAppliedTheme(settings: SettingsSnapshot): void {
     settings.theme,
     settings.useInferredBackgroundTheme,
     settings.uiFontName,
+    settings.uiMonoFontName,
     settings.uiLayoutScale,
     settings.perSurfaceFontOverrides,
     settings.uiTextSizePoints

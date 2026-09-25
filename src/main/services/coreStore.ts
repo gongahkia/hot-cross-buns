@@ -38,6 +38,7 @@ const defaultSettings: JsonRecord = {
   useInferredBackgroundTheme: true,
   appLanguage: "system",
   uiFontName: null,
+  uiMonoFontName: null,
   uiTextSizePoints: 13,
   perSurfaceFontOverrides: {},
   calendarEventColorOverrides: {},
@@ -65,6 +66,7 @@ const defaultSettings: JsonRecord = {
   startOnLogin: false,
   selectedTaskListIds: [],
   selectedCalendarIds: [],
+  onboardingStatus: "pending",
   setupCompletedAt: null,
   syncMode: "balanced",
   syncTasksEnabled: true,
@@ -649,6 +651,10 @@ export class CoreStore {
       case "settings.update":
         return this.updateSettings(input);
       case "settings.recoveryAction":
+        if (input.action === "resetOnboarding") {
+          this.updateSettings({ onboardingStatus: "pending", setupCompletedAt: null });
+          return { completed: true, message: "Setup assistant will open again." };
+        }
         return { completed: true, message: "The requested local recovery action completed." };
       case "settings.customizationStatus":
         return { extensions: [], snippets: [] };
@@ -1555,7 +1561,11 @@ export class CoreStore {
 
   private settings(): JsonRecord {
     const row = this.db.prepare("SELECT value FROM settings WHERE key=?").get("app") as { value: string } | undefined;
-    return { ...defaultSettings, ...(row ? safeJson(row.value, {}) : {}) };
+    const stored = row ? safeJson(row.value, {}) : {};
+    // Earlier builds recorded only a completion timestamp. Preserve that
+    // information as an explicit state so skip and completion remain distinct.
+    const onboardingStatus = stored.onboardingStatus ?? (stored.setupCompletedAt ? "completed" : "pending");
+    return { ...defaultSettings, ...stored, onboardingStatus };
   }
 
   private updateSettings(input: JsonRecord): JsonRecord {

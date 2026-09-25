@@ -201,8 +201,8 @@ export function SettingsView({
   const [systemFontFamilies, setSystemFontFamilies] = useState<string[]>([]);
   const systemFontFamiliesRequested = useRef(false);
   const availableFontFamilies = useMemo(
-    () => fontFamilyOptions(systemFontFamilies, settings.uiFontName),
-    [settings.uiFontName, systemFontFamilies]
+    () => fontFamilyOptions(systemFontFamilies, settings.uiFontName, settings.uiMonoFontName),
+    [settings.uiFontName, settings.uiMonoFontName, systemFontFamilies]
   );
   const settingsSearchTexts = useMemo<Record<SettingsTabId, string>>(
     () => ({
