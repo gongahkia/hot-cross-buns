@@ -1,56 +1,43 @@
-# HCB TUI core improvements ported to Electron
+# HCB Electron core and Google-sync status
 
-This repository revives the HCB 2 Electron application. The HCB Python CLI/TUI
-implementation that followed it established a number of backend and safety
-properties worth retaining. This document distinguishes a behaviour that is
-implemented in Electron from one that requires a future Google/SQLite adapter;
-it does not treat a design note as shipped behaviour.
+The historical Electron snapshot at Gator commit `f0b6a711b8c821b06045f3f3a2d1baa7e7b1408c` contains the restored renderer and native-shell source, but not its tracked main-process entry point, preload bridge, or Google transport. It is therefore not evidence of a pre-existing functional Google backend.
 
-## Source evidence
+## Current implementation
 
-The comparison source is Gator commit `f0b6a711b8c821b06045f3f3a2d1baa7e7b1408c`,
-the final pre-retirement HCB tree. Its `docs/specs/local-data.md`,
-`docs/specs/google-sync.md`, `docs/architecture/desktop-bridge.md`, and
-`docs/testing/performance-baseline.md` describe the shared core rather than
-the terminal presentation.
+The active Electron backend is local-first SQLite in WAL mode. It owns data, credentials, and sync; the renderer only uses the context-isolated preload API.
 
-## Port ledger
+Implemented foundations:
 
-| HCB core behaviour | Electron implementation | Status |
-| --- | --- | --- |
-| Validate every frontend/core boundary | Strict Zod schemas in the preload and main-process IPC handlers | Implemented |
-| Local-first mutation before remote delivery | `PlannerStore` updates the local task snapshot and queues its outbox item in one serialized commit | Implemented |
-| No lost response on retry | Seven-day idempotency receipts bind a key to one exact operation and result | Implemented |
-| Ordered durable mutation delivery | A persisted outbox delivers the oldest pending mutation first; retryable failures retain it and stop later delivery | Implemented |
-| Backoff and conflict visibility | Retryable failures use bounded exponential backoff; non-retryable outcomes remain visible as conflicts | Implemented |
-| Bounded reads for large workspaces | Title-first local search, 1–200 item pages, and revisioned opaque cursors | Implemented |
-| Safe local persistence | One in-process writer queue plus atomic write-then-rename files in a `0700` directory and `0600` data files | Implemented |
-| User-editable preferences | Versioned `settings-v1.json` stores color scheme and startup workspace; Settings exposes only validated read/write IPC and shows both local file paths | Implemented |
-| Secrets excluded from state, output, and diagnostics | Planner state has no credential fields; renderer has only a narrow validated API | Implemented |
-| SQLite WAL, migrations, and cross-process locking | Requires the planned Electron SQLite adapter; an atomic file store is deliberately not represented as a substitute | Deferred |
-| OAuth PKCE, encrypted refresh tokens, Google Tasks/Calendar cursors and ETags | Requires user-supplied OAuth configuration and a Google transport adapter | Deferred |
-| Remote pull paging/prefetch and provider-specific `410` recovery | Requires that same transport adapter and integration fixtures | Deferred |
+- SQLite migrations, FTS5 local search, local task/event/note persistence, and bounded renderer reads.
+- Encrypted OAuth credential envelope through Electron `safeStorage`; SQLite stores only non-secret account metadata.
+- Desktop OAuth PKCE with a loopback callback and refresh-token renewal.
+- Google Tasks task-list/task pull and durable task-list/task create, update, completion, delete, parent move, and cross-list copy/delete delivery.
+- Google Calendar list/event pull, incremental event sync tokens, `410` token recovery, ETag-guarded event updates/deletes, and event create/update/delete delivery.
+- Ordered SQLite outbox delivery, bounded exponential retry, conflict retention, live renderer sync-status events, and diagnostics retry/cancel views.
+- Task time-blocks backed by real Calendar events rather than a mock response.
 
-## Current delivery contract
+Google Tasks does not provide an incremental collection cursor comparable to Calendar's event sync token, so task lists and tasks are paged on each sync. Calendar event collections persist provider sync tokens and re-run a full collection sync after an HTTP `410`, consistent with the Google Calendar incremental-sync contract.
 
-The Electron renderer never opens the local data file. It may request a
-workspace summary, a bounded task page, an optimistic task save/completion, or
-sync status through the preload bridge. The main process owns validation,
-storage, data revision, idempotency, and the outbox.
+## Local test setup
 
-The Settings screen separately reads and writes `settings-v1.json`, which
-currently contains the color-scheme preference and start page. It shows the
-settings and planner-file paths but cannot access either file directly; manual
-edits must be made while the app is closed.
+Run `corepack pnpm install`, then `corepack pnpm dev`.
 
-The outbox is intentionally transport-neutral today. It is ready for a Google
-adapter but does not claim that local tasks have been synchronized remotely.
-That prevents the previous class of UI behaviour where a successful local edit
-could be mistaken for a successful API call.
+In HCB Settings, enter the client ID for a Google Cloud **Desktop application** OAuth client. A client secret is optional for installed-app OAuth clients. The configured client must have the Google Tasks API and Google Calendar API enabled, and its consent screen must allow the account used for testing. HCB opens the browser for consent and receives the callback at an ephemeral `127.0.0.1` port.
 
-## Verification
+Run the available checks with:
 
-`src/main/services/plannerStore.test.ts` covers atomic optimistic writes,
-idempotency misuse, stale-page rejection, ordered retry behaviour, and visible
-delivery conflicts. Run `pnpm test:unit` and `pnpm typecheck` before treating a
-change to this layer as accepted.
+```sh
+corepack pnpm test:unit
+corepack pnpm test:smoke
+```
+
+The smoke test covers the Electron launch, SQLite migrations, local task/event/note writes, FTS search, scheduled task blocks, and the disconnected sync path. It does not authorize a real Google account; production sync still requires dedicated API-contract and account-isolated integration coverage.
+
+## Work still required for full product parity
+
+- Strong, per-operation Zod DTOs and removal of temporary `any` contracts.
+- Production recurrence-instance semantics, exceptions, and series/occurrence edit scopes.
+- Completing or removing the remaining restored placeholder surfaces: attachments, ICS subscriptions, portable archive, vault remote, extensions, semantic models, notifications, tray, updater, MCP, and agent actions.
+- Restore and compile the missing native service dependencies rather than excluding `src/main/native` from TypeScript.
+- Replace legacy JSON planner/settings initialization with a one-time migration or removal.
+- Add Google API fixture tests for pagination, refresh-token errors, `401`, `412`, `410`, outbox retries, and multi-account isolation.
