@@ -28,7 +28,7 @@ export interface PendingSyncMutation {
 // accounts unsafe (both can legitimately expose e.g. a `primary` calendar).
 // This branch has no released users, so a clean reset is safer than a lossy
 // inference migration.
-const schemaVersion = 3;
+const schemaVersion = 4;
 const localAccountId = "local";
 
 const defaultSettings: JsonRecord = {
@@ -306,10 +306,26 @@ export class CoreStore {
       event.attendees_json AS attendees,event.reminders_json AS reminders,event.reminders_use_default AS remindersUseDefault,
       event.transparency,event.visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_etag AS googleEtag,
       event.google_recurring_event_id AS googleRecurringEventId,event.google_original_start_time AS googleOriginalStartTime,
+      event.conference_json AS conference,event.conference_create_requested AS conferenceCreateRequested,
+      event.attachments_json AS attachments,event.attachments_managed AS attachmentsManaged,event.event_type AS eventType,
+      event.focus_time_properties_json AS focusTimeProperties,event.out_of_office_properties_json AS outOfOfficeProperties,
+      event.working_location_properties_json AS workingLocationProperties,event.self_response_status AS selfResponseStatus,
       calendar.google_id AS calendarGoogleId,calendar.account_id AS accountId FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.id=?`)
       .get(id) as JsonRecord | undefined;
     return record
-      ? { ...record, recurrence: safeJson(record.recurrence, null), attendees: safeJson(record.attendees, []), reminders: safeJson(record.reminders, []) }
+      ? {
+          ...record,
+          recurrence: safeJson(record.recurrence, null),
+          attendees: safeJson(record.attendees, []),
+          reminders: safeJson(record.reminders, []),
+          conference: safeJson(record.conference, null),
+          attachments: safeJson(record.attachments, []),
+          attachmentsManaged: Boolean(record.attachmentsManaged),
+          conferenceCreateRequested: Boolean(record.conferenceCreateRequested),
+          focusTimeProperties: safeJson(record.focusTimeProperties, null),
+          outOfOfficeProperties: safeJson(record.outOfOfficeProperties, null),
+          workingLocationProperties: safeJson(record.workingLocationProperties, null)
+        }
       : null;
   }
 
@@ -325,8 +341,21 @@ export class CoreStore {
   bindGoogleEvent(localId: string, remote: JsonRecord): JsonRecord {
     const event = this.googleEventForSync(localId);
     if (!event) throw new CoreStoreError("Calendar event no longer exists");
-    this.db.prepare("UPDATE events SET google_id=?,google_etag=?,updated_at=? WHERE id=?")
-      .run(requiredText(remote.id, "Google event id"), remote.etag ?? null, remote.updated ?? timestamp(), localId);
+    const remoteMetadata = googleEventMetadata(remote);
+    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,conference_json=?,conference_create_requested=0,
+      attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
+      working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
+      .run(
+        requiredText(remote.id, "Google event id"), remote.etag ?? null,
+        remoteMetadata.conference === undefined ? JSON.stringify(event.conference ?? null) : JSON.stringify(remoteMetadata.conference),
+        remoteMetadata.attachments === undefined ? JSON.stringify(event.attachments ?? []) : JSON.stringify(remoteMetadata.attachments),
+        remoteMetadata.eventType ?? event.eventType ?? "default",
+        JSON.stringify(remoteMetadata.focusTimeProperties ?? event.focusTimeProperties ?? null),
+        JSON.stringify(remoteMetadata.outOfOfficeProperties ?? event.outOfOfficeProperties ?? null),
+        JSON.stringify(remoteMetadata.workingLocationProperties ?? event.workingLocationProperties ?? null),
+        remoteMetadata.selfResponseStatus ?? event.selfResponseStatus ?? null,
+        remote.updated ?? timestamp(), localId
+      );
     return this.requireEvent(localId);
   }
 
@@ -398,23 +427,33 @@ export class CoreStore {
     const previous = existing ? this.requireEvent(localId) : null;
     const start = eventTimeFromGoogle(remote.start, "Event start");
     const end = eventTimeFromGoogle(remote.end, "Event end");
+    const metadata = googleEventMetadata(remote);
     const now = timestamp();
     this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,
-      attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,google_id,google_etag,google_recurring_event_id,google_original_start_time,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,google_id,google_etag,google_recurring_event_id,google_original_start_time,
+      conference_json,conference_create_requested,attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,
+      working_location_properties_json,self_response_status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET calendar_id=excluded.calendar_id,title=excluded.title,description=excluded.description,
       starts_at=excluded.starts_at,ends_at=excluded.ends_at,all_day=excluded.all_day,color_id=excluded.color_id,location=excluded.location,
       recurrence_json=excluded.recurrence_json,attendees_json=excluded.attendees_json,reminders_json=excluded.reminders_json,
       reminders_use_default=excluded.reminders_use_default,transparency=excluded.transparency,visibility=excluded.visibility,
       google_id=excluded.google_id,google_etag=excluded.google_etag,google_recurring_event_id=excluded.google_recurring_event_id,
-      google_original_start_time=excluded.google_original_start_time,updated_at=excluded.updated_at`)
+      google_original_start_time=excluded.google_original_start_time,conference_json=excluded.conference_json,
+      conference_create_requested=excluded.conference_create_requested,attachments_json=excluded.attachments_json,
+      event_type=excluded.event_type,focus_time_properties_json=excluded.focus_time_properties_json,
+      out_of_office_properties_json=excluded.out_of_office_properties_json,working_location_properties_json=excluded.working_location_properties_json,
+      self_response_status=excluded.self_response_status,updated_at=excluded.updated_at`)
       .run(localId, localCalendarId, remote.summary ?? "Untitled event", remote.description ?? "", start.value, end.value,
         start.allDay ? 1 : 0, previous?.completed ? 1 : 0, remote.colorId ?? null, remote.location ?? null,
         JSON.stringify(recurrenceFromGoogle(remote.recurrence)), JSON.stringify(remote.attendees ?? []),
         JSON.stringify(remote.reminders?.overrides ?? []), remote.reminders?.useDefault === false ? 0 : 1,
         remote.transparency ?? "opaque", remote.visibility ?? "default", remote.start?.timeZone ?? null,
         googleId, remote.etag ?? null, remote.recurringEventId ?? null,
-        remote.originalStartTime?.dateTime ?? remote.originalStartTime?.date ?? null, now, remote.updated ?? now);
+        remote.originalStartTime?.dateTime ?? remote.originalStartTime?.date ?? null,
+        JSON.stringify(metadata.conference ?? null), 0, JSON.stringify(metadata.attachments ?? []), previous?.attachmentsManaged ? 1 : 0,
+        metadata.eventType ?? "default", JSON.stringify(metadata.focusTimeProperties ?? null), JSON.stringify(metadata.outOfOfficeProperties ?? null),
+        JSON.stringify(metadata.workingLocationProperties ?? null), metadata.selfResponseStatus ?? null, now, remote.updated ?? now);
     return this.requireEvent(localId);
   }
 
@@ -573,7 +612,11 @@ export class CoreStore {
     const previousVersion = migrationTable
       ? Number((this.db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version?: number }).version ?? 0)
       : 0;
-    if (previousVersion > 0 && previousVersion < schemaVersion) {
+    // Schema v3 was the one intentional developer-cache reset: it changed
+    // Google resource identity from global ids to account-scoped ids. Later
+    // revisions are additive and must not make a routine upgrade erase a
+    // local cache or require an account to be reconnected.
+    if (previousVersion > 0 && previousVersion < 3) {
       // The user chose a developer reset. Drop only HCB's own local cache and
       // credential metadata; this does not touch source files or any Google
       // account. FTS triggers must go first because they reference these rows.
@@ -666,6 +709,15 @@ export class CoreStore {
     this.addColumn("events", "google_etag TEXT");
     this.addColumn("events", "google_recurring_event_id TEXT");
     this.addColumn("events", "google_original_start_time TEXT");
+    this.addColumn("events", "conference_json TEXT");
+    this.addColumn("events", "conference_create_requested INTEGER NOT NULL DEFAULT 0");
+    this.addColumn("events", "attachments_json TEXT NOT NULL DEFAULT '[]'");
+    this.addColumn("events", "attachments_managed INTEGER NOT NULL DEFAULT 0");
+    this.addColumn("events", "event_type TEXT NOT NULL DEFAULT 'default'");
+    this.addColumn("events", "focus_time_properties_json TEXT");
+    this.addColumn("events", "out_of_office_properties_json TEXT");
+    this.addColumn("events", "working_location_properties_json TEXT");
+    this.addColumn("events", "self_response_status TEXT");
     this.addColumn("outbox", "account_id TEXT");
     this.addColumn("outbox", "last_error TEXT");
     this.db.exec(`
@@ -942,7 +994,10 @@ export class CoreStore {
     const rows = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
-      transparency,visibility,event.time_zone AS timeZone,event.updated_at AS updatedAt
+      transparency,visibility,event.time_zone AS timeZone,event.conference_json AS conference,event.attachments_json AS attachments,
+      event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
+      event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
+      event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.starts_at < ? AND event.ends_at > ? ORDER BY event.starts_at,event.id`).all(end, start);
     return this.page((rows as any[]).map(eventFromRow), input);
   }
@@ -952,7 +1007,10 @@ export class CoreStore {
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       event.transparency,event.visibility,event.time_zone AS timeZone,event.google_recurring_event_id AS googleRecurringEventId,
-      event.google_original_start_time AS googleOriginalStartTime,event.updated_at AS updatedAt FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.id=?`).get(id);
+      event.google_original_start_time AS googleOriginalStartTime,event.conference_json AS conference,event.attachments_json AS attachments,
+      event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
+      event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
+      event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.id=?`).get(id);
     if (!row) throw new CoreStoreError("Calendar event no longer exists");
     return eventFromRow(row);
   }
@@ -962,15 +1020,24 @@ export class CoreStore {
     const id = typeof input.id === "string" ? input.id : randomUUID();
     const calendarId = input.calendarId ?? this.defaultWritableCalendarId();
     if (!this.db.prepare("SELECT 1 FROM calendars WHERE id=?").get(calendarId)) throw new CoreStoreError("Calendar no longer exists");
+    const eventType = normalizedEventType(input.eventType);
+    this.assertStatusEventCalendar(calendarId, eventType);
+    const statusProperties = normalizedStatusEventProperties(eventType, input);
     this.db.transaction(() => {
       this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,
-        attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,conference_json,conference_create_requested,
+        attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,working_location_properties_json,
+        self_response_status,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         id, calendarId, requiredText(input.title, "Event title"), stringValue(input.description ?? input.notes), requiredText(input.startsAt, "Event start"),
         requiredText(input.endsAt, "Event end"), input.allDay ? 1 : 0, 0, input.colorId ?? null, input.location ?? null,
         JSON.stringify(input.recurrence ?? null), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
         JSON.stringify(input.reminders ?? []), input.remindersUseDefault === false ? 0 : 1,
-        input.transparency ?? "opaque", input.visibility ?? "default", input.timeZone ?? null, now, now
+        statusEventTransparency(eventType, input.transparency), statusEventVisibility(eventType, input.visibility), input.timeZone ?? null,
+        JSON.stringify(null), input.conferenceCreateRequest ? 1 : 0,
+        JSON.stringify(normalizeCalendarAttachments(input.attachments)), Object.hasOwn(input, "attachments") ? 1 : 0,
+        eventType, JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
+        JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus), now, now
       );
       this.enqueue("event.create", id, {}, this.accountForCalendar(calendarId));
     })();
@@ -993,22 +1060,39 @@ export class CoreStore {
     if (nextAccountId !== previous.accountId) {
       throw new CoreStoreError("Calendar events cannot be moved between Google accounts.");
     }
+    const eventType = normalizedEventType(input.eventType ?? previous.eventType);
+    this.assertStatusEventCalendar(nextCalendarId, eventType);
+    const statusProperties = normalizedStatusEventProperties(eventType, {
+      focusTimeProperties: input.focusTimeProperties ?? previous.focusTimeProperties,
+      outOfOfficeProperties: input.outOfOfficeProperties ?? previous.outOfOfficeProperties,
+      workingLocationProperties: input.workingLocationProperties ?? previous.workingLocationProperties
+    });
+    const nextAttendees = responseStatusAttendees(
+      input.attendees ?? input.guestEmails ?? previous.attendees ?? [],
+      input.selfResponseStatus ?? previous.selfResponseStatus
+    );
     const previousForSync = this.googleEventForSync(previous.id);
     const now = timestamp();
     this.db.transaction(() => {
       this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,
-        attendees_json=?,reminders_json=?,reminders_use_default=?,transparency=?,visibility=?,time_zone=?,updated_at=? WHERE id=?`).run(
+        attendees_json=?,reminders_json=?,reminders_use_default=?,transparency=?,visibility=?,time_zone=?,conference_create_requested=?,
+        attachments_json=?,attachments_managed=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
+        working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`).run(
         nextCalendarId, input.title ?? previous.title, input.description ?? input.notes ?? previous.description,
         input.startsAt ?? previous.startsAt, input.endsAt ?? previous.endsAt,
         input.allDay === undefined ? Number(previous.allDay) : input.allDay ? 1 : 0,
         input.completed === undefined ? Number(previous.completed) : input.completed ? 1 : 0,
         input.colorId ?? previous.colorId ?? null, input.location ?? previous.location ?? null,
         JSON.stringify(input.recurrence ?? previous.recurrence ?? null),
-        JSON.stringify(input.attendees ?? input.guestEmails ?? previous.attendees ?? []),
+        JSON.stringify(nextAttendees),
         JSON.stringify(input.reminders ?? previous.reminders ?? []),
         input.remindersUseDefault === undefined ? (previous.remindersUseDefault ? 1 : 0) : input.remindersUseDefault ? 1 : 0,
-        input.transparency ?? previous.transparency ?? "opaque", input.visibility ?? previous.visibility ?? "default",
-        input.timeZone ?? previous.timeZone ?? null, now, previous.id
+        statusEventTransparency(eventType, input.transparency ?? previous.transparency), statusEventVisibility(eventType, input.visibility ?? previous.visibility),
+        input.timeZone ?? previous.timeZone ?? null, input.conferenceCreateRequest ? 1 : 0,
+        JSON.stringify(Object.hasOwn(input, "attachments") ? normalizeCalendarAttachments(input.attachments) : previous.attachments ?? []),
+        Object.hasOwn(input, "attachments") ? 1 : Number(previous.attachmentsManaged ?? 0), eventType,
+        JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
+        JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus ?? previous.selfResponseStatus), now, previous.id
       );
       const movedExistingRemoteEvent = nextCalendarId !== previous.calendarId && Boolean(previousForSync?.googleId);
       this.enqueue(
@@ -1054,7 +1138,12 @@ export class CoreStore {
       remindersUseDefault: input.remindersUseDefault ?? series.remindersUseDefault,
       transparency: input.transparency ?? series.transparency,
       visibility: input.visibility ?? series.visibility,
-      timeZone: input.timeZone ?? series.timeZone
+      timeZone: input.timeZone ?? series.timeZone,
+      attachments: input.attachments ?? series.attachments,
+      eventType: input.eventType ?? series.eventType,
+      focusTimeProperties: input.focusTimeProperties ?? series.focusTimeProperties,
+      outOfOfficeProperties: input.outOfOfficeProperties ?? series.outOfOfficeProperties,
+      workingLocationProperties: input.workingLocationProperties ?? series.workingLocationProperties
     });
     return { ...successor, splitFromEventId: series.id, recurrenceScope: "following" };
   }
@@ -1574,6 +1663,17 @@ export class CoreStore {
     return Number((this.db.prepare("SELECT COUNT(*) AS count FROM sync_meta WHERE key LIKE 'google-sync-token:%'").get() as { count: number }).count);
   }
 
+  private assertStatusEventCalendar(calendarId: string, eventType: string): void {
+    if (eventType === "default") return;
+    const calendar = this.googleCalendarForSync(calendarId);
+    if (!calendar?.googleId) {
+      throw new CoreStoreError("Focus time, out of office, and working location events require a connected Google primary calendar.");
+    }
+    if (calendar.googleId !== "primary") {
+      throw new CoreStoreError("Google only supports this Calendar status event type on the primary calendar.");
+    }
+  }
+
   private hasPendingEntityMutation(entity: "task" | "event", entityId: string): boolean {
     return Boolean(this.db.prepare("SELECT 1 FROM outbox WHERE entity_id=? AND kind LIKE ? AND state IN ('pending','conflict') LIMIT 1")
       .get(entityId, `${entity}.%`));
@@ -1644,6 +1744,8 @@ function eventFromRow(row: JsonRecord): JsonRecord {
   const reminders = safeJson(row.reminders, []);
   const recurrence = safeJson(row.recurrence, null);
   const attendees = safeJson(row.attendees, []);
+  const conference = safeJson(row.conference, null);
+  const attachments = safeJson(row.attachments, []);
   return {
     ...row,
     allDay: Boolean(row.allDay),
@@ -1654,6 +1756,13 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     recurrence,
     recurrenceRule: recurrenceRuleFromStored(recurrence),
     attendees,
+    conference,
+    attachments,
+    eventType: normalizedEventType(row.eventType),
+    focusTimeProperties: safeJson(row.focusTimeProperties, null),
+    outOfOfficeProperties: safeJson(row.outOfOfficeProperties, null),
+    workingLocationProperties: safeJson(row.workingLocationProperties, null),
+    selfResponseStatus: normalizedResponseStatus(row.selfResponseStatus),
     guestEmails: attendees
       .map((item: JsonRecord) => item.email)
       .filter((value: unknown): value is string => typeof value === "string"),
@@ -1810,7 +1919,10 @@ function eventCreatePayload(event: JsonRecord): JsonRecord {
     id: event.id, calendarId: event.calendarId, title: event.title, description: event.description ?? event.notes,
     startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay, completed: event.completed, colorId: event.colorId, location: event.location,
     recurrence: event.recurrence, attendees: event.attendees, reminders: event.reminders, remindersUseDefault: event.remindersUseDefault,
-    transparency: event.transparency, visibility: event.visibility, timeZone: event.timeZone
+    transparency: event.transparency, visibility: event.visibility, timeZone: event.timeZone,
+    attachments: event.attachments, eventType: event.eventType, focusTimeProperties: event.focusTimeProperties,
+    outOfOfficeProperties: event.outOfOfficeProperties, workingLocationProperties: event.workingLocationProperties,
+    selfResponseStatus: event.selfResponseStatus
   };
 }
 function eventUpdatePayload(event: JsonRecord): JsonRecord { return eventCreatePayload(event); }
