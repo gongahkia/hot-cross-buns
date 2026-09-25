@@ -11,11 +11,11 @@
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
     "dev": "electron-vite dev",
-    "build": "pnpm typecheck && electron-vite build",
+    "build": "corepack pnpm typecheck && corepack pnpm exec electron-vite build",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm test:unit",
+    "test": "corepack pnpm test:unit",
     "test:unit": "vitest run --config vitest.config.ts",
-    "test:smoke": "pnpm build && playwright test -c playwright.config.ts",
+    "test:smoke": "corepack pnpm build && corepack pnpm exec playwright test -c playwright.config.ts",
     "test:perf": "tsx scripts/perf-smoke.ts",
     "test:db": "vitest run --config vitest.config.ts src/main/services/**/*.test.ts",
     "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts"

@@ -1,5 +1,6 @@
 import { CoreStore, CoreStoreError, type PendingSyncMutation } from "./coreStore";
 import { GoogleOAuthController } from "./googleOAuth";
+import { EventEmitter } from "node:events";
 
 type JsonRecord = Record<string, any>;
 
@@ -31,6 +32,7 @@ class GoogleApiError extends Error {
  */
 export class GoogleSyncService {
   private inFlight: Promise<JsonRecord> | null = null;
+  private readonly events = new EventEmitter();
 
   constructor(
     private readonly store: CoreStore,
@@ -49,6 +51,11 @@ export class GoogleSyncService {
     return this.inFlight;
   }
 
+  onStatus(listener: (status: JsonRecord) => void): () => void {
+    this.events.on("status", listener);
+    return () => this.events.off("status", listener);
+  }
+
   async forceFullResync(): Promise<JsonRecord> {
     this.store.resetGoogleSyncTokens();
     return this.runNow({ reason: "force-full" });
@@ -65,11 +72,11 @@ export class GoogleSyncService {
         stale: false,
         message: "Connect Google before syncing."
       };
-      this.store.setSyncRuntime(status);
+      this.publishStatus(status);
       return status;
     }
 
-    this.store.setSyncRuntime({ state: "syncing", pendingMutationCount: this.store.pendingSyncMutations().length, offline: false, stale: false });
+    this.publishStatus({ state: "syncing", pendingMutationCount: this.store.pendingSyncMutations().length, offline: false, stale: false });
     try {
       await this.pullGoogleTasks();
       await this.pullGoogleCalendars();
@@ -83,9 +90,10 @@ export class GoogleSyncService {
         pendingMutationCount: this.store.pendingSyncMutations().length,
         offline: false,
         stale: false,
-        lastSuccessfulSyncAt: new Date().toISOString()
+        lastCompletedAt: new Date().toISOString(),
+        lastErrorCode: null
       };
-      this.store.setSyncRuntime(status);
+      this.publishStatus(status);
       return status;
     } catch (error: unknown) {
       const status = {
@@ -93,9 +101,10 @@ export class GoogleSyncService {
         pendingMutationCount: this.store.pendingSyncMutations().length,
         offline: error instanceof GoogleApiError && error.status === 0,
         stale: true,
-        message: safeError(error)
+        message: safeError(error),
+        lastErrorCode: error instanceof GoogleApiError ? String(error.status) : "LOCAL_ERROR"
       };
-      this.store.setSyncRuntime(status);
+      this.publishStatus(status);
       throw error;
     }
   }
@@ -115,6 +124,11 @@ export class GoogleSyncService {
         if (remoteTask.parent) this.store.upsertGoogleTask(remoteTask, localList.id);
       }
     }
+  }
+
+  private publishStatus(status: JsonRecord): void {
+    this.store.setSyncRuntime(status);
+    this.events.emit("status", { ...status, pendingMutationCount: this.store.pendingSyncMutations().length });
   }
 
   private async pullGoogleCalendars(): Promise<void> {
@@ -209,7 +223,7 @@ export class GoogleSyncService {
       : await this.requestJson<JsonRecord>("https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
           method: "POST", body: json({ title: list.title })
         });
-    this.store.upsertGoogleTaskList(remote);
+    this.store.bindGoogleTaskList(localId, remote);
   }
 
   private async deleteTaskList(list: JsonRecord): Promise<void> {
@@ -354,9 +368,9 @@ function googleEventBody(event: JsonRecord): JsonRecord {
     description: event.description || undefined,
     location: event.location || undefined,
     colorId: event.colorId || undefined,
-    start: googleEventTime(event.startsAt, Boolean(event.allDay)),
-    end: googleEventTime(event.endsAt, Boolean(event.allDay)),
-    ...(recurrence ? { recurrence } : {}),
+    start: googleEventTime(event.startsAt, Boolean(event.allDay), event.timeZone),
+    end: googleEventTime(event.endsAt, Boolean(event.allDay), event.timeZone),
+    recurrence: recurrence ?? [],
     attendees: normalizeAttendees(event.attendees),
     reminders: {
       useDefault: Boolean(event.remindersUseDefault),
@@ -367,8 +381,8 @@ function googleEventBody(event: JsonRecord): JsonRecord {
   };
 }
 
-function googleEventTime(value: string, allDay: boolean): JsonRecord {
-  if (!allDay) return { dateTime: value };
+function googleEventTime(value: string, allDay: boolean, timeZone: unknown): JsonRecord {
+  if (!allDay) return { dateTime: value, ...(typeof timeZone === "string" && timeZone ? { timeZone } : {}) };
   return { date: value.slice(0, 10) };
 }
 

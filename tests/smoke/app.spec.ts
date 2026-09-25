@@ -59,6 +59,34 @@ test("launches and renders the planner shell", async () => {
     }
     expect(mutation.tasks?.data.items.some((task: { title: string }) => task.title === title)).toBe(true);
 
+    const scheduledBlock = await page.evaluate(async ({ taskId, startsAt }) =>
+      globalThis.window.hcb?.calendar.scheduleTaskBlock({
+        taskId,
+        calendarId: "primary",
+        startsAt,
+        durationMinutes: 30
+      }), { taskId: mutation.task?.ok ? mutation.task.data.id : "", startsAt: "2026-10-02T09:00:00.000Z" });
+    expect(scheduledBlock?.ok).toBe(true);
+    if (!scheduledBlock?.ok) {
+      throw new Error("Scheduled task-block request failed.");
+    }
+    expect(scheduledBlock.data.taskId).toBe(mutation.task?.ok ? mutation.task.data.id : "");
+    expect(scheduledBlock.data.calendarEventId).toBeTruthy();
+
+    const search = await page.evaluate(async (query) => globalThis.window.hcb?.search.query({ query, limit: 10 }), title);
+    expect(search?.ok).toBe(true);
+    if (!search?.ok) {
+      throw new Error("Search request failed.");
+    }
+    expect(search.data.items.some((item: { title: string }) => item.title === title)).toBe(true);
+
+    const disconnectedSync = await page.evaluate(async () => globalThis.window.hcb?.sync.runNow({ reason: "smoke" }));
+    expect(disconnectedSync?.ok).toBe(true);
+    if (!disconnectedSync?.ok) {
+      throw new Error("Disconnected sync request failed.");
+    }
+    expect(disconnectedSync.data.state).toBe("idle");
+
     const health = await page.evaluate(async () => globalThis.window.hcb?.diagnostics.health());
     expect(health?.ok).toBe(true);
   } finally {

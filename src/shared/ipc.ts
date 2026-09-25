@@ -1,6 +1,7 @@
 export const IPC_CHANNELS = {
   core: {
-    invoke: "hcb:core:invoke"
+    invoke: "hcb:core:invoke",
+    syncStatus: "hcb:core:sync-status"
   },
   diagnostics: {
     health: "hcb:diagnostics:health",

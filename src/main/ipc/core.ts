@@ -1,9 +1,10 @@
-import { ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import { z } from "zod";
 import { CoreStore, CoreStoreError } from "../services/coreStore";
 import { GoogleOAuthController } from "../services/googleOAuth";
 import { GoogleSyncService } from "../services/googleSync";
 import { conflictError, internalError, ok, validationError } from "@shared/result";
+import { IPC_CHANNELS } from "@shared/ipc";
 
 const requestSchema = z.object({
   namespace: z.enum([
@@ -19,6 +20,12 @@ export function registerCoreIpc(
   googleOAuth: GoogleOAuthController,
   googleSync: GoogleSyncService
 ): void {
+  googleSync.onStatus((status) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(IPC_CHANNELS.core.syncStatus, status);
+    }
+  });
+
   ipcMain.handle("hcb:core:invoke", async (_event, payload: unknown) => {
     const request = requestSchema.safeParse(payload);
 
@@ -56,7 +63,10 @@ export function registerCoreIpc(
       }
 
       const response = store.dispatch(request.data.namespace, request.data.action, request.data.payload);
-      if (["tasks", "calendar"].includes(request.data.namespace) && isWriteAction(request.data.action)) {
+      if (
+        (["tasks", "calendar"].includes(request.data.namespace) && isWriteAction(request.data.action)) ||
+        (request.data.namespace === "diagnostics" && request.data.action === "retryPendingMutation")
+      ) {
         void googleSync.runNow({ reason: "local-mutation" }).catch(() => undefined);
       }
       return ok(response);

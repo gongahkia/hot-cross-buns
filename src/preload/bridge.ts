@@ -33,6 +33,7 @@ import type { z } from "zod";
 
 export interface IpcBridge {
   invoke: (channel: string, payload: unknown) => Promise<unknown>;
+  subscribe?: (channel: string, listener: (payload: unknown) => void) => () => void;
 }
 
 function validationResult<T>(message: string): HcbResult<T> {
@@ -234,7 +235,9 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       ...actions("sync", ["status", "runNow", "forceFullResync"]),
       subscribeStatus: (listener: (status: any) => void): (() => void) => {
         void core("sync", "status")({}).then((result) => { if (result.ok) listener(result.data); });
-        return () => undefined;
+        return ipc.subscribe?.(IPC_CHANNELS.core.syncStatus, (payload) => {
+          if (isPlainObject(payload)) listener(payload);
+        }) ?? (() => undefined);
       }
     },
     undo: actions("undo", ["status", "undo", "redo"]),
