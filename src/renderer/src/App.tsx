@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -8,6 +8,7 @@ import {
   Settings,
   StickyNote
 } from "lucide-react";
+import type { PlannerSyncStatus, PlannerTask, PlannerWorkspace } from "@shared/planner";
 
 type SectionId = "today" | "tasks" | "calendar" | "notes" | "search" | "settings";
 
@@ -85,10 +86,55 @@ function sectionById(id: SectionId): PlannerSection {
 export default function App(): JSX.Element {
   const [activeSectionId, setActiveSectionId] = useState<SectionId>("today");
   const [healthLabel, setHealthLabel] = useState("Starting");
+  const [workspace, setWorkspace] = useState<PlannerWorkspace | null>(null);
+  const [syncStatus, setSyncStatus] = useState<PlannerSyncStatus | null>(null);
+  const [tasks, setTasks] = useState<PlannerTask[]>([]);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [isSavingTask, setIsSavingTask] = useState(false);
   const shellVisibleReported = useRef(false);
 
   const activeSection = useMemo(() => sectionById(activeSectionId), [activeSectionId]);
   const ActiveIcon = activeSection.icon;
+  const metricFor = useCallback(
+    (section: SectionId, fallback: string) => {
+      if (!workspace) {
+        return fallback;
+      }
+
+      if (section === "today" || section === "tasks") {
+        return `${workspace.openTaskCount} open`;
+      }
+      if (section === "search") {
+        return workspace.searchIndexState;
+      }
+      return fallback;
+    },
+    [workspace]
+  );
+
+  const refreshPlanner = useCallback(async () => {
+    const planner = window.hcb?.planner;
+    if (!planner) {
+      return;
+    }
+
+    const [workspaceResult, taskResult, syncResult] = await Promise.all([
+      planner.workspace(),
+      planner.listTasks({ query: "", status: "open", limit: 50 }),
+      planner.syncStatus()
+    ]);
+
+    if (workspaceResult.ok) {
+      setWorkspace(workspaceResult.data);
+    }
+    if (taskResult.ok) {
+      setTasks(taskResult.data.tasks);
+    }
+    if (syncResult.ok) {
+      setSyncStatus(syncResult.data);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +163,71 @@ export default function App(): JSX.Element {
     });
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void refreshPlanner().catch(() => {
+      if (!cancelled) {
+        setTaskError("Local planner data is unavailable");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshPlanner]);
+
+  async function saveTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = newTaskTitle.trim();
+    const planner = window.hcb?.planner;
+    if (!title || !planner || isSavingTask) {
+      return;
+    }
+
+    setIsSavingTask(true);
+    setTaskError(null);
+    try {
+      const result = await planner.saveTask({
+        title,
+        notes: "",
+        dueDate: null,
+        idempotencyKey: requestKey("save-task")
+      });
+      if (!result.ok) {
+        setTaskError(result.error.message);
+        return;
+      }
+
+      setNewTaskTitle("");
+      await refreshPlanner();
+    } catch {
+      setTaskError("Task could not be saved locally");
+    } finally {
+      setIsSavingTask(false);
+    }
+  }
+
+  async function completeTask(task: PlannerTask) {
+    const planner = window.hcb?.planner;
+    if (!planner) {
+      return;
+    }
+
+    setTaskError(null);
+    const result = await planner.completeTask({
+      id: task.id,
+      completed: true,
+      idempotencyKey: requestKey("complete-task")
+    });
+    if (!result.ok) {
+      setTaskError(result.error.message);
+      return;
+    }
+
+    await refreshPlanner();
+  }
+
   return (
     <div
       className="grid h-screen min-h-[620px] grid-cols-[232px_minmax(0,1fr)] bg-bg-primary text-text-primary"
@@ -129,7 +240,11 @@ export default function App(): JSX.Element {
           </div>
           <div className="min-w-0">
             <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns 2</div>
-            <div className="text-[var(--text-xs)] text-text-muted">Sync idle</div>
+            <div className="text-[var(--text-xs)] text-text-muted">
+              {syncStatus?.pendingMutationCount
+                ? `${syncStatus.pendingMutationCount} change${syncStatus.pendingMutationCount === 1 ? "" : "s"} queued`
+                : "Local changes up to date"}
+            </div>
           </div>
         </div>
 
@@ -153,7 +268,9 @@ export default function App(): JSX.Element {
               >
                 <Icon aria-hidden="true" size={16} strokeWidth={2} />
                 <span className="min-w-0 flex-1 truncate">{section.label}</span>
-                <span className="text-[var(--text-xs)] text-text-muted">{section.metric}</span>
+                <span className="text-[var(--text-xs)] text-text-muted">
+                  {metricFor(section.id, section.metric)}
+                </span>
               </button>
             );
           })}
@@ -208,7 +325,7 @@ export default function App(): JSX.Element {
                   {activeSection.title}
                 </span>
                 <span className="font-mono text-[var(--text-xs)] text-text-muted">
-                  {activeSection.metric}
+                  {metricFor(activeSection.id, activeSection.metric)}
                 </span>
               </div>
               <div className="grid h-[calc(100%-2.5rem)] place-items-center px-6 text-center">
