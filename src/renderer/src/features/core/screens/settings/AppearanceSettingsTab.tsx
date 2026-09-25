@@ -13,6 +13,16 @@ import type {
 } from "@shared/ipc/themeCatalog";
 import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
 import { ArrowDown, ArrowUp, PanelLeft, PanelRight, RotateCcw } from "lucide-react";
+import {
+  LoadingIndicator,
+  defaultLoadingIndicatorPreferences,
+  loadingIndicatorLabel,
+  loadingIndicatorSurfaces,
+  loadingIndicatorVariants,
+  resolveLoadingIndicatorPreferences,
+  type LoadingIndicatorSurface,
+  type LoadingIndicatorVariant
+} from "../../../../components/LoadingIndicator";
 import { Button, Input, cx } from "../../../../components/primitives";
 import { useI18n } from "../../../../i18n";
 import { customBackgroundFromFile } from "./backgroundTheme";
@@ -79,6 +89,7 @@ export function AppearanceSettingsTab({
   const inferredThemeActive = activeColorTheme.id === customBackgroundThemeId;
   const customBackgroundPreviewUrl = customBackgroundPreview(settings);
   const cropAspectValue = useMemo(() => cropAspectNumber(cropAspect), [cropAspect]);
+  const loadingIndicators = resolveLoadingIndicatorPreferences(settings.loadingIndicators);
 
   useEffect(() => {
     return () => {
@@ -144,6 +155,15 @@ export function AppearanceSettingsTab({
     const next = { ...settings.perSurfaceFontOverrides };
     delete next[surface];
     updateSettings({ perSurfaceFontOverrides: next });
+  }
+
+  function updateLoadingIndicator(surface: LoadingIndicatorSurface, value: LoadingIndicatorVariant): void {
+    updateSettings({
+      loadingIndicators: {
+        ...loadingIndicators,
+        [surface]: value
+      }
+    });
   }
 
   function moveNavigationTab(tabId: NavigationTabId, direction: -1 | 1): void {
@@ -526,6 +546,53 @@ export function AppearanceSettingsTab({
               </option>
             ))}
           </select>
+        </SettingsControlRow>
+      </SettingsGroup>
+
+      <SettingsGroup title="Loading indicators">
+        {loadingIndicatorSurfaces.map((surface) => (
+          <SettingsControlRow
+            description={surface.description}
+            key={surface.id}
+            label={surface.label}
+          >
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
+              <span
+                aria-label={`${loadingIndicatorLabel(loadingIndicators[surface.id])} preview`}
+                className="grid size-10 place-items-center rounded-hcbMd border border-border bg-surface-0 text-accent"
+                role="img"
+              >
+                <LoadingIndicator size={18} surface={surface.id} />
+              </span>
+              <select
+                aria-label={`${surface.label} loading indicator`}
+                className={settingsSelectClass}
+                onChange={(event) =>
+                  updateLoadingIndicator(surface.id, event.currentTarget.value as LoadingIndicatorVariant)
+                }
+                value={loadingIndicators[surface.id]}
+              >
+                {loadingIndicatorVariants.map((variant) => (
+                  <option key={variant} value={variant}>{loadingIndicatorLabel(variant)}</option>
+                ))}
+              </select>
+            </div>
+          </SettingsControlRow>
+        ))}
+        <SettingsControlRow
+          description="Restore Blocks for every loading surface. Blocks is the default for new and legacy preferences."
+          label="Restore loading defaults"
+        >
+          <Button
+            disabled={loadingIndicatorSurfaces.every(
+              (surface) => loadingIndicators[surface.id] === defaultLoadingIndicatorPreferences[surface.id]
+            )}
+            onClick={() => updateSettings({ loadingIndicators: defaultLoadingIndicatorPreferences })}
+            variant="ghost"
+          >
+            <RotateCcw aria-hidden="true" size={14} />
+            Use Blocks
+          </Button>
         </SettingsControlRow>
       </SettingsGroup>
 
