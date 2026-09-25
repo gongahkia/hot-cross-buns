@@ -62,8 +62,8 @@
 - [x] Electron-runtime SQLite tests for account ID isolation, task blocks, undo/redo, smart scheduling, and Calendar moves.
 - [x] Electron smoke test for launch, task/event/note writes, task blocks, availability, undo/redo, search, and disconnected sync.
 - [x] Parameterized Electron performance fixture (`HCB_PERF_COUNT`) for equal numbers of local tasks and local events.
-- [x] Local 5,000-task + 5,000-event sample: task writes 13.80 s; event writes 12.37 s; FTS query 18.06 ms; five 1,000-item Calendar range pages 1.58 s.
-- [x] Local 10,000-task + 10,000-event sample: task writes 29.70 s; event writes 24.45 s; FTS query 20.30 ms; ten 1,000-item Calendar range pages 3.28 s.
+- [x] Local 5,000-task + 5,000-event sample (rerun after the interface pass): task writes 14.76 s; event writes 12.78 s; FTS query 16.58 ms; five 1,000-item Calendar range pages 1.74 s.
+- [x] Local 10,000-task + 10,000-event sample (rerun after the interface pass): task writes 25.70 s; event writes 25.69 s; FTS query 23.61 ms; ten 1,000-item Calendar range pages 3.63 s.
 
 ## Implemented but still awaiting live Google-account validation
 
