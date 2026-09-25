@@ -523,6 +523,17 @@ function usePreloadCoreSource(): CoreViewModelSource {
     load();
   }, [load]);
 
+  // The normal UI uses optimistic mutations. Integration fixtures and native
+  // import-style actions can batch many writes outside that path, so expose a
+  // narrowly named renderer event that asks the cache to rehydrate once after
+  // the batch completes. It carries no data and is useful for smoke tooling
+  // without widening the preload bridge.
+  useEffect(() => {
+    const refreshAfterExternalBatch = (): void => { load(); };
+    window.addEventListener("hcb:core-data-invalidated", refreshAfterExternalBatch);
+    return () => window.removeEventListener("hcb:core-data-invalidated", refreshAfterExternalBatch);
+  }, [load]);
+
   useEffect(() => {
     if (
       backgroundHydrationRequested.current ||

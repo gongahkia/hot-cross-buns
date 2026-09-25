@@ -693,6 +693,7 @@ export function SettingsView({
             googleClientId={googleClientId}
             googleClientSecret={googleClientSecret}
             googleStatus={googleStatus}
+            refreshPlanner={source.refresh}
             saveGoogleOAuthClient={saveGoogleOAuthClient}
             setGoogleClientId={setGoogleClientId}
             setGoogleClientSecret={setGoogleClientSecret}

@@ -86,6 +86,12 @@ Run `pnpm test:live-google` only when a user explicitly requests live-account va
 - no account credentials, browser cookies, OAuth secrets, access tokens, refresh tokens, or Keychain exports may be requested or handled;
 - live tests are never part of default unit, smoke, performance, or CI commands.
 
+## Google Workspace integration tests
+
+`src/main/services/googleSync.test.ts` is the protocol-level suite for Google REST request shape, pagination, sync-token behavior, and Calendar feature flags. It is fully mocked and belongs in normal unit runs.
+
+Drive/Gmail operations require an explicit read-only scope from Settings → Profile. For live test selection, follow [Google Workspace Integrations](../google-workspace-integrations.md): personal accounts may only search/render, while a disposable account may capture a dedicated Gmail message to a dedicated Task list and then clean up the created Task.
+
 ## IPC Contract Tests
 
 Every preload API must have tests for:
@@ -148,6 +154,8 @@ Required measured flows before Mac v1:
 - representative SQLite query plans for core task, event, note, search, sync, and mutation queries
 
 Performance tests should initially report timings without failing the build. Convert stable budgets into hard gates only after baseline data exists on target machines.
+
+The `test:smoke:1k`, `test:smoke:5k`, and `test:smoke:10k` commands now measure local writes, full pagination, FTS, Calendar-range pagination, cold renderer hydration, populated Task rendering, and populated Calendar agenda rendering. They use a temporary local Electron profile and must never be repointed at a signed-in profile.
 
 ## Manual Verification
 

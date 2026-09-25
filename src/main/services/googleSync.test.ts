@@ -93,7 +93,7 @@ describe("GoogleSyncService", () => {
   });
 
   it("sends the Calendar flags and body required for Meet, Drive attachments, and status events", async () => {
-    const googleFetch = vi.fn(async () => Response.json({ id: "remote-event", etag: "etag" }));
+    const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-event", etag: "etag" }));
     const store = {
       googleEventForSync: () => ({
         id: "event-local-id",

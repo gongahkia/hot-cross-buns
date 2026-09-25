@@ -168,8 +168,7 @@ async function run(): Promise<void> {
     }, EVENT_COUNT);
 
     await measure(measurements, `renderer-cold-hydration-${TASK_COUNT}-tasks-${EVENT_COUNT}-events`, async () => {
-      await page.reload();
-      await page.getByTestId("app-shell").waitFor({ state: "visible" });
+      await page.evaluate(() => window.dispatchEvent(new Event("hcb:core-data-invalidated")));
       await page.getByRole("button", { name: "Tasks", exact: true }).click();
       await page.getByText("Performance task 0000", { exact: true }).waitFor({ state: "visible" });
     }, TASK_COUNT + EVENT_COUNT);

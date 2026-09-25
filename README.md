@@ -55,6 +55,12 @@
 - [x] Availability export from opaque events.
 - [x] Preview-first smart scheduling that only creates or moves HCB task blocks after confirmation.
 - [x] Time-zone-aware scheduling ranges, including daylight-saving transitions.
+- [x] Google Meet creation requests, stored conference entry points, and join-link display for supported Google calendars.
+- [x] Self-RSVP editing and read-only Google free/busy lookup for event guests.
+- [x] Google Calendar status events: Focus Time, Out of Office, and Working Location on a connected primary calendar.
+- [x] Drive metadata search and Calendar Drive-link attachment selection after explicit read-only Drive authorization.
+- [x] Gmail metadata/snippet search and email-to-Task capture after explicit read-only Gmail authorization.
+- [x] Explicit cross-account copy preview and copy workflow. Source data is preserved; copied events intentionally omit guests, Meet links, Drive attachments, and status-event types.
 
 ## Verification currently in the repository
 
@@ -65,6 +71,9 @@
 - [x] Parameterized Electron performance fixture (`HCB_PERF_COUNT`) for equal numbers of local tasks and local events.
 - [x] Named Electron scale-smoke commands for 1,000, 5,000, and 10,000 local tasks plus events; each verifies complete Task and Calendar pagination after writes.
 - [x] Opt-in live Google suite with a main-process-enforced read-only mode for real accounts and an acknowledged create/update/delete mode confined to dedicated disposable-account resources. See `docs/live-google-testing.md`.
+- [x] Mocked Google transport tests for pagination, incremental Calendar sync tokens, and Meet/attachment/status-event request encoding.
+- [x] Renderer-scale measurements in the 1,000/5,000/10,000 Electron fixture: cold hydration plus populated Tasks and Calendar rendering after the local data checks.
+- [x] Pull-request CI gate for build/typecheck, unit/mocked transport, Electron SQLite, and launch smoke tests. Live Google, performance, package signing, and notarization remain deliberately outside CI.
 - [x] Local 5,000-task + 5,000-event sample (rerun after the loader-settings pass): task writes 13.25 s; event writes 12.90 s; FTS query 14.20 ms; five 1,000-item Calendar range pages 1.49 s.
 - [x] Local 10,000-task + 10,000-event scale smoke: task writes 24.04 s; event writes 30.21 s; ten 1,000-item Task pages 2.42 s; FTS query 25.33 ms; ten 1,000-item Calendar range pages 3.33 s.
 
@@ -80,19 +89,19 @@
 - [ ] HCB Vault/local remote sync — dormant shell only; no supported remote protocol, encryption lifecycle, or recovery UX.
 - [ ] MCP local server and agent actions — dormant shell only; no enabled listener, authentication flow, permission model, or audited tool implementation in the running app.
 - [ ] ICS import and calendar subscriptions — dormant shell only; no supported parser, subscription refresh policy, or conflict model.
-- [ ] Event/task attachments and local file pointers — dormant shell only; no supported file lifecycle, Google Drive integration, or safe sharing model.
+- [ ] Local event/task file attachments and local file pointers — dormant shell only; no supported local-file lifecycle or sharing model. This does not apply to the implemented Google Calendar Drive-link attachment flow.
 - [ ] Extensions and snippets — dormant shell only; no sandboxing, lifecycle, or compatibility contract.
 - [ ] Semantic-search model installation — dormant shell only; no model runtime, indexing policy, or data-retention controls.
 - [ ] Portable archive import/export — dormant shell only; no stable archive format, migration guarantees, or restore verification.
 
 ## Not implemented
 
-- [ ] Google Meet / Calendar conferencing creation, editing, or join-link management.
-- [ ] Calendar attendee RSVP workflow, response-status editing, or attendee availability lookup.
-- [ ] Google Calendar attachment management or Google Drive file-picker integration.
-- [ ] Calendar Focus Time, Goals, Out of Office, and Working Location event types.
-- [ ] Gmail integration, email-to-task capture, message linking, or email reminders.
-- [ ] Google Drive, Contacts, Chat, or other Google Workspace product integrations.
+- [ ] Google Meet conference removal, conference-provider selection beyond Google Meet, or Meet participant management.
+- [ ] Organizer-side attendee editing, room/resource booking, and arbitrary attendee-response editing. HCB supports only the signed-in attendee's RSVP and read-only free/busy lookup.
+- [ ] Drive binary upload/download, Drive permission changes, and attachment lifecycle management. HCB attaches existing Drive links only.
+- [ ] Calendar Goals. Google Calendar's API does not expose a supported Goal-creation workflow; Focus Time, Out of Office, and Working Location are supported.
+- [ ] Gmail send/reply/archive/label actions, mail reminders, attachment download, or background inbox synchronization. HCB only searches metadata/snippets and captures an explicit message as a Task.
+- [ ] Google Contacts, Chat, or other Google Workspace product integrations.
 - [ ] Google push-notification watches/webhooks; synchronization currently uses startup/manual/debounced/five-minute polling.
-- [ ] Cross-account Calendar event moves or account merging.
+- [ ] Cross-account event moves, account merging/deduplication, source deletion, or copying guests/conferences/Drive attachments. HCB provides a safe one-way copy only.
 - [ ] A production release, notarized installer, or end-user validation on macOS, Windows, and Linux.

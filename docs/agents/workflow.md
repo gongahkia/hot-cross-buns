@@ -16,6 +16,7 @@ Read:
 6. the relevant `docs/performance/` guide when touching startup, renderer surfaces, IPC, SQLite, sync, search, packaging, or tests
 7. the relevant `docs/ports/` guide when touching platform adapters, packaging, tray, shortcuts, notifications, paths, credentials, deep links, or updater behavior
 8. `docs/live-google-testing.md` before running any test against a signed-in Google profile
+9. `docs/google-workspace-integrations.md` before changing or testing Google Meet, RSVP, Drive, Gmail, status events, free/busy, cross-account copy, or push sync
 
 If the requested work conflicts with these docs, update or propose a doc change before implementing code.
 

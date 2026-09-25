@@ -21,6 +21,7 @@ interface ProfileSettingsTabProps {
   googleClientId: string;
   googleClientSecret: string;
   googleStatus: GoogleStatusResponse;
+  refreshPlanner: () => void;
   saveGoogleOAuthClient: () => Promise<void>;
   setGoogleClientId: (value: string) => void;
   setGoogleClientSecret: (value: string) => void;
@@ -38,6 +39,7 @@ export function ProfileSettingsTab({
   googleClientId,
   googleClientSecret,
   googleStatus,
+  refreshPlanner,
   saveGoogleOAuthClient,
   setGoogleClientId,
   setGoogleClientSecret,
@@ -230,6 +232,8 @@ export function ProfileSettingsTab({
         </div>
       </SettingsGroup>
 
+      {visibleAccounts.some((candidate) => candidate.connectionState === "connected") ? <GmailCapture accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected")} onCaptured={refreshPlanner} taskLists={taskLists} /> : null}
+
       {visibleAccounts.filter((candidate) => candidate.connectionState === "connected").length >= 2 ? (
         <CrossAccountCopy accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected")} calendarSources={calendarSources} />
       ) : null}
@@ -287,6 +291,65 @@ export function ProfileSettingsTab({
         ))}
       </SettingsGroup>
     </div>
+  );
+}
+
+function GmailCapture({
+  accounts,
+  onCaptured,
+  taskLists
+}: {
+  accounts: GoogleStatusResponse["accounts"];
+  onCaptured: () => void;
+  taskLists: TaskListSummary[];
+}): JSX.Element {
+  const [accountId, setAccountId] = useState(accounts[0]?.accountId ?? "");
+  const accountTaskLists = taskLists.filter((list) => list.accountId === accountId);
+  const [listId, setListId] = useState(accountTaskLists[0]?.id ?? "");
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<Array<{ id: string; threadId?: string | null; subject: string; from?: string | null; snippet?: string }>>([]);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next = taskLists.find((list) => list.accountId === accountId)?.id ?? "";
+    if (!accountTaskLists.some((list) => list.id === listId)) setListId(next);
+  }, [accountId, accountTaskLists, listId, taskLists]);
+
+  async function search(): Promise<void> {
+    setMessage("Searching Gmail…");
+    const result = await window.hcb?.google.searchGmailMessages({ accountId, query });
+    if (!result?.ok) {
+      setItems([]);
+      setMessage(result?.error.message ?? "Gmail search failed. Enable Gmail capture first.");
+      return;
+    }
+    setItems(result.data.items ?? []);
+    setMessage(result.data.items?.length ? null : "No matching messages.");
+  }
+
+  async function capture(item: typeof items[number]): Promise<void> {
+    const result = await window.hcb?.google.captureGmailMessage({ accountId, listId, messageId: item.id, threadId: item.threadId, subject: item.subject, from: item.from, snippet: item.snippet });
+    if (!result?.ok) {
+      setMessage(result?.error.message ?? "Could not create the Task.");
+      return;
+    }
+    setMessage(`Created Task: ${result.data.title}`);
+    onCaptured();
+  }
+
+  return (
+    <SettingsGroup title="Gmail capture">
+      <div className="grid gap-3 px-3 py-3">
+        <p className="text-[var(--text-sm)] text-text-secondary">Searches message metadata and snippets, then creates a Google Task with a Gmail link. HCB does not alter mail.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Google account</span><select aria-label="Gmail account" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" onChange={(event) => setAccountId(event.target.value)} value={accountId}>{accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.displayName || account.email || "Google account"}</option>)}</select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Task list</span><select aria-label="Gmail capture task list" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" disabled={accountTaskLists.length === 0} onChange={(event) => setListId(event.target.value)} value={listId}>{accountTaskLists.map((list) => <option key={list.id} value={list.id}>{list.title}</option>)}</select></label>
+        </div>
+        <div className="flex gap-2"><Input aria-label="Search Gmail messages" onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} placeholder="from:person@example.com or project" value={query} /><Button aria-label="Search Gmail" disabled={!accountId} onClick={() => void search()} size="sm" type="button" variant="secondary"><Mail aria-hidden="true" size={14} /></Button></div>
+        {items.length ? <div className="grid gap-1 rounded-hcbMd border border-border bg-surface-0 p-1">{items.map((item) => <div className="grid gap-1 rounded-hcbSm px-2 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={item.id}><div className="min-w-0"><p className="truncate text-[var(--text-sm)] font-medium text-text-primary">{item.subject}</p><p className="truncate text-[var(--text-xs)] text-text-muted">{[item.from, item.snippet].filter(Boolean).join(" · ")}</p></div><Button disabled={!listId} onClick={() => void capture(item)} size="sm" type="button" variant="secondary">Create Task</Button></div>)}</div> : null}
+        {message ? <p className="text-[var(--text-xs)] text-text-muted" role="status">{message}</p> : null}
+      </div>
+    </SettingsGroup>
   );
 }
 

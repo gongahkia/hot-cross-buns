@@ -1,0 +1,36 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build and typecheck
+        run: pnpm build
+      - name: Unit and mocked Google transport tests
+        run: pnpm test:unit
+      - name: Electron SQLite tests
+        run: pnpm test:db
+      - name: Electron launch smoke
+        run: xvfb-run -a pnpm exec playwright test -c playwright.config.ts
+
+# Live Google tests, performance scale tests, packaging, signing, and
+# notarization intentionally remain release/operator actions. They need a
+# user-owned signed-in profile, controlled hardware, or private credentials.

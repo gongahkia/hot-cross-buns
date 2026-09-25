@@ -89,7 +89,7 @@ Build metadata may include commit SHA in diagnostics but must not be required fo
 
 Each release must include:
 
-- passing automated test suite
+- passing `pnpm test:release-gate` (build/typecheck, unit/mocked Google transport, Electron SQLite, and launch smoke)
 - Playwright launch smoke test
 - migration test pass
 - release notes
@@ -97,6 +97,8 @@ Each release must include:
 - install instructions
 - known issues
 - manual platform checks for native behavior changed in the release
+
+The automated gate intentionally excludes live Google, 1k/5k/10k scale timing, packaging, signing, notarization, and updater publishing. Before a public release, the maintainer must perform those operator-owned steps, record the platform/machine used, and ensure Google Cloud consent configuration is appropriate for any enabled optional Drive/Gmail scopes.
 
 ## Rollback
 

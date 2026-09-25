@@ -64,6 +64,7 @@ Operational docs:
 - [Privacy And Threat Model](security/privacy-and-threat-model.md)
 - [QA Plan](testing/qa-plan.md)
 - [Live Google Testing](live-google-testing.md)
+- [Google Workspace Integrations](google-workspace-integrations.md)
 - [Distribution](release/distribution.md)
 - [Agent Workflow](agents/workflow.md)
 
