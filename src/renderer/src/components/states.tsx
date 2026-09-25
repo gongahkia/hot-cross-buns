@@ -1,5 +1,6 @@
-import { AlertTriangle, FolderSearch, Loader2, WifiOff } from "lucide-react";
+import { AlertTriangle, FolderSearch, WifiOff } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { LoadingIndicator } from "./LoadingIndicator";
 import { Button } from "./primitives";
 
 interface StateBlockProps {
@@ -8,6 +9,7 @@ interface StateBlockProps {
   description: string;
   role?: "alert" | "status";
   actionLabel?: string;
+  loading?: boolean;
   onAction?: () => void;
 }
 
@@ -15,6 +17,7 @@ function StateBlock({
   actionLabel,
   description,
   icon: Icon,
+  loading = false,
   onAction,
   role,
   title
@@ -27,7 +30,7 @@ function StateBlock({
     >
       <div className="max-w-sm">
         <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent">
-          <Icon aria-hidden="true" className={Icon === Loader2 ? "animate-spin" : undefined} size={20} />
+          {loading ? <LoadingIndicator size={20} /> : <Icon aria-hidden="true" size={20} />}
         </div>
         <h3 className="mt-3 text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
         <p className="mt-1 text-[var(--text-sm)] text-text-muted">{description}</p>
@@ -51,7 +54,8 @@ export function LoadingState({
   return (
     <StateBlock
       description={description}
-      icon={Loader2}
+      icon={FolderSearch}
+      loading
       role="status"
       title={title}
     />

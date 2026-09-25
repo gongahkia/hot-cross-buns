@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { EmptyState } from "../../components/states";
 import { cx } from "../../components/primitives";
 import {
@@ -227,10 +228,12 @@ function MermaidDiagram({
   if (state.kind === "loading") {
     return (
       <div
-        className="grid min-h-24 place-items-center rounded-hcbMd border border-border bg-bg-tertiary px-3 py-4 text-[var(--text-sm)] text-text-muted"
+        className="grid min-h-24 place-items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 py-4 text-[var(--text-sm)] text-text-muted"
         data-mermaid-diagram="true"
+        role="status"
       >
-        Rendering diagram...
+        <LoadingIndicator className="text-accent" size={20} surface="preview" />
+        <span>Rendering diagram...</span>
       </div>
     );
   }

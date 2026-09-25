@@ -11,6 +11,7 @@ import type { SectionId } from "../data/mockPlanner";
 import { useLocalSearch } from "../features/core/coreViewModelSource";
 import type { SearchResultViewModel, SearchSource } from "../features/core/coreViewModels";
 import { useI18n } from "../i18n";
+import { LoadingIndicator } from "./LoadingIndicator";
 import { IconButton, Input, cx } from "./primitives";
 
 interface CommandPaletteProps {
@@ -371,6 +372,7 @@ export function CommandPalette({
           ) : search.state === "loading" || search.state === "stale" ? (
             <div className="grid min-h-28 place-items-center text-center">
               <div>
+                <LoadingIndicator className="mx-auto text-accent" size={20} surface="search" />
                 <p className="text-[var(--text-md)] font-semibold text-text-primary">{t("command.loading.title")}</p>
                 <p className="mt-1 text-[var(--text-sm)] text-text-muted">{t("command.loading.detail")}</p>
               </div>

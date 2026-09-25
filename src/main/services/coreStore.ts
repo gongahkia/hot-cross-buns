@@ -44,6 +44,11 @@ const defaultSettings: JsonRecord = {
   autoTagRules: [],
   autoTagBackgroundReapplyMode: "preview",
   disableAnimations: false,
+  loadingIndicators: {
+    general: "blocks",
+    search: "blocks",
+    preview: "blocks"
+  },
   uiLayoutScale: 1,
   navigationPlacement: "left",
   hiddenNavigationTabs: [],

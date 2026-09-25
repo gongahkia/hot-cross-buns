@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
+import { LoadingIndicatorProvider } from "../../components/LoadingIndicator";
 import { cx } from "../../components/primitives";
 import { primaryPlannerSections, type SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
@@ -973,6 +974,10 @@ export function AppShell(): JSX.Element {
 
   return (
     <I18nProvider language={source.settings.appLanguage}>
+    <LoadingIndicatorProvider
+      animationsDisabled={source.settings.disableAnimations}
+      preferences={source.settings.loadingIndicators}
+    >
     <div
       className={cx(
         "grid h-dvh min-h-0 overflow-hidden text-text-primary",
@@ -1122,6 +1127,7 @@ export function AppShell(): JSX.Element {
         </div>
       ) : null}
     </div>
+    </LoadingIndicatorProvider>
     </I18nProvider>
   );
 }
