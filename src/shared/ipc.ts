@@ -9,5 +9,10 @@ export const IPC_CHANNELS = {
     saveTask: "hcb:planner:save-task",
     completeTask: "hcb:planner:complete-task",
     syncStatus: "hcb:planner:sync-status"
+  },
+  settings: {
+    get: "hcb:settings:get",
+    save: "hcb:settings:save",
+    dataInfo: "hcb:settings:data-info"
   }
 } as const;

@@ -103,4 +103,53 @@ describe("preload bridge", () => {
       })
     );
   });
+
+  it("validates and invokes the narrow settings API", async () => {
+    const ipc: IpcBridge = {
+      invoke: vi.fn(async (channel) => {
+        if (channel === IPC_CHANNELS.settings.dataInfo) {
+          return ok({
+            settingsFile: "/tmp/hcb/settings-v1.json",
+            plannerFile: "/tmp/hcb/planner-v1.json"
+          });
+        }
+
+        return ok({ colorScheme: "light" as const, startPage: "tasks" as const });
+      })
+    };
+    const api = createHcbApi(ipc);
+
+    await expect(api.settings.get()).resolves.toEqual(
+      ok({ colorScheme: "light", startPage: "tasks" })
+    );
+    await expect(api.settings.save({ colorScheme: "light", startPage: "tasks" })).resolves.toEqual(
+      ok({ colorScheme: "light", startPage: "tasks" })
+    );
+    await expect(api.settings.dataInfo()).resolves.toEqual(
+      ok({
+        settingsFile: "/tmp/hcb/settings-v1.json",
+        plannerFile: "/tmp/hcb/planner-v1.json"
+      })
+    );
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC_CHANNELS.settings.get, {});
+    expect(ipc.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.settings.save,
+      { colorScheme: "light", startPage: "tasks" }
+    );
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC_CHANNELS.settings.dataInfo, {});
+  });
+
+  it("rejects malformed settings before invoking IPC", async () => {
+    const ipc: IpcBridge = {
+      invoke: vi.fn()
+    };
+
+    const result = await createHcbApi(ipc).settings.save({
+      colorScheme: "dark",
+      startPage: "search" as "today"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(ipc.invoke).not.toHaveBeenCalled();
+  });
 });

@@ -35,4 +35,26 @@ describe("App shell", () => {
       );
     });
   });
+
+  it("persists appearance and startup preferences from Settings", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /Settings/ }));
+
+    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+    expect(screen.getByText("/tmp/hcb/settings-v1.json")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /Light/ }));
+    await user.selectOptions(screen.getByLabelText("Open on startup"), "tasks");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(window.hcb?.settings.save).toHaveBeenCalledWith({
+        colorScheme: "light",
+        startPage: "tasks"
+      });
+    });
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(screen.getByRole("status")).toHaveTextContent("Saved to settings-v1.json.");
+  });
 });

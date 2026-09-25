@@ -1,5 +1,6 @@
 import type { HcbResult } from "./result";
 import type { HealthCheckResponse, StartupTimingSnapshot } from "./diagnostics";
+import type { AppSettings, SettingsDataInfo } from "./settings";
 import type {
   PlannerCompleteTaskRequest,
   PlannerSaveTaskRequest,
@@ -23,5 +24,10 @@ export interface HcbApi {
       request: PlannerCompleteTaskRequest
     ) => Promise<HcbResult<PlannerTaskMutationResult>>;
     syncStatus: () => Promise<HcbResult<PlannerSyncStatus>>;
+  };
+  settings: {
+    get: () => Promise<HcbResult<AppSettings>>;
+    save: (settings: AppSettings) => Promise<HcbResult<AppSettings>>;
+    dataInfo: () => Promise<HcbResult<SettingsDataInfo>>;
   };
 }

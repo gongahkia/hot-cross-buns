@@ -8,7 +8,14 @@ import {
   Settings,
   StickyNote
 } from "lucide-react";
+import type { HealthCheckResponse } from "@shared/diagnostics";
 import type { PlannerSyncStatus, PlannerTask, PlannerWorkspace } from "@shared/planner";
+import {
+  defaultAppSettings,
+  type AppSettings,
+  type SettingsDataInfo
+} from "@shared/settings";
+import { SettingsPanel } from "./SettingsPanel";
 
 type SectionId = "today" | "tasks" | "calendar" | "notes" | "search" | "settings";
 
@@ -86,13 +93,21 @@ function sectionById(id: SectionId): PlannerSection {
 export default function App(): JSX.Element {
   const [activeSectionId, setActiveSectionId] = useState<SectionId>("today");
   const [healthLabel, setHealthLabel] = useState("Starting");
+  const [health, setHealth] = useState<HealthCheckResponse | null>(null);
   const [workspace, setWorkspace] = useState<PlannerWorkspace | null>(null);
   const [syncStatus, setSyncStatus] = useState<PlannerSyncStatus | null>(null);
   const [tasks, setTasks] = useState<PlannerTask[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [taskError, setTaskError] = useState<string | null>(null);
   const [isSavingTask, setIsSavingTask] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>(defaultAppSettings);
+  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(defaultAppSettings);
+  const [settingsDataInfo, setSettingsDataInfo] = useState<SettingsDataInfo | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsStatus, setSettingsStatus] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const shellVisibleReported = useRef(false);
+  const initialStartPageApplied = useRef(false);
 
   const activeSection = useMemo(() => sectionById(activeSectionId), [activeSectionId]);
   const ActiveIcon = activeSection.icon;
@@ -144,13 +159,78 @@ export default function App(): JSX.Element {
         return;
       }
 
-      setHealthLabel(result.ok ? "Ready" : "Diagnostics unavailable");
+      if (result.ok) {
+        setHealthLabel("Ready");
+        setHealth(result.data);
+      } else {
+        setHealthLabel("Diagnostics unavailable");
+      }
     });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const settingsApi = window.hcb?.settings;
+    if (!settingsApi) {
+      return;
+    }
+
+    void Promise.all([settingsApi.get(), settingsApi.dataInfo()])
+      .then(([settingsResult, dataInfoResult]) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (settingsResult.ok) {
+          setSettings(settingsResult.data);
+          setSettingsDraft(settingsResult.data);
+          if (!initialStartPageApplied.current) {
+            initialStartPageApplied.current = true;
+            setActiveSectionId(settingsResult.data.startPage);
+          }
+        } else {
+          setSettingsError(settingsResult.error.message);
+        }
+
+        if (dataInfoResult.ok) {
+          setSettingsDataInfo(dataInfoResult.data);
+        } else {
+          setSettingsError(dataInfoResult.error.message);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSettingsError("Settings are unavailable");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const preference = settings.colorScheme;
+    const mediaQuery = window.matchMedia?.("(prefers-color-scheme: light)");
+    const applyColorScheme = () => {
+      const resolved = preference === "system" ? (mediaQuery?.matches ? "light" : "dark") : preference;
+      document.documentElement.dataset.theme = resolved;
+    };
+
+    applyColorScheme();
+    if (preference !== "system" || !mediaQuery) {
+      return;
+    }
+
+    mediaQuery.addEventListener?.("change", applyColorScheme);
+    return () => {
+      mediaQuery.removeEventListener?.("change", applyColorScheme);
+    };
+  }, [settings.colorScheme]);
 
   useEffect(() => {
     if (shellVisibleReported.current) {
@@ -226,6 +306,32 @@ export default function App(): JSX.Element {
     }
 
     await refreshPlanner();
+  }
+
+  async function saveSettings() {
+    const settingsApi = window.hcb?.settings;
+    if (!settingsApi || isSavingSettings) {
+      return;
+    }
+
+    setIsSavingSettings(true);
+    setSettingsError(null);
+    setSettingsStatus(null);
+    try {
+      const result = await settingsApi.save(settingsDraft);
+      if (!result.ok) {
+        setSettingsError(result.error.message);
+        return;
+      }
+
+      setSettings(result.data);
+      setSettingsDraft(result.data);
+      setSettingsStatus("Saved to settings-v1.json.");
+    } catch {
+      setSettingsError("Settings could not be saved locally");
+    } finally {
+      setIsSavingSettings(false);
+    }
   }
 
   return (
@@ -306,7 +412,28 @@ export default function App(): JSX.Element {
         </header>
 
         <section className="min-h-0 flex-1 overflow-hidden p-5" aria-labelledby="planner-title">
-          <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-4">
+          {activeSectionId === "settings" ? (
+            <SettingsPanel
+              dataInfo={settingsDataInfo}
+              draft={settingsDraft}
+              error={settingsError}
+              health={health}
+              isSaving={isSavingSettings}
+              onChange={(nextSettings) => {
+                setSettingsDraft(nextSettings);
+                setSettingsError(null);
+                setSettingsStatus("Unsaved changes");
+              }}
+              onReset={() => {
+                setSettingsDraft(defaultAppSettings);
+                setSettingsError(null);
+                setSettingsStatus("Defaults are ready to save.");
+              }}
+              onSave={() => void saveSettings()}
+              status={settingsStatus}
+            />
+          ) : (
+            <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-4">
             <div className="grid grid-cols-3 gap-3">
               {activeSection.rows.map((row) => (
                 <div
@@ -397,7 +524,8 @@ export default function App(): JSX.Element {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          )}
         </section>
       </main>
     </div>

@@ -78,6 +78,16 @@ const hcbApi: HcbApi = {
         lastError: null
       })
     )
+  },
+  settings: {
+    get: vi.fn(async () => ok({ colorScheme: "system" as const, startPage: "today" as const })),
+    save: vi.fn(async (settings) => ok(settings)),
+    dataInfo: vi.fn(async () =>
+      ok({
+        settingsFile: "/tmp/hcb/settings-v1.json",
+        plannerFile: "/tmp/hcb/planner-v1.json"
+      })
+    )
   }
 };
 

@@ -18,6 +18,14 @@ import {
   type PlannerWorkspace
 } from "@shared/planner";
 import { IPC_CHANNELS } from "@shared/ipc";
+import {
+  settingsDataInfoResultSchema,
+  settingsGetResultSchema,
+  settingsSaveRequestSchema,
+  settingsSaveResultSchema,
+  type AppSettings,
+  type SettingsDataInfo
+} from "@shared/settings";
 import type { HcbApi } from "@shared/preloadApi";
 import type { HcbResult } from "@shared/result";
 import { ipcError, validationError } from "@shared/result";
@@ -136,6 +144,35 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           IPC_CHANNELS.planner.syncStatus,
           {},
           plannerSyncStatusResultSchema
+        )
+    },
+    settings: {
+      get: async (): Promise<HcbResult<AppSettings>> =>
+        invokeValidated<AppSettings>(
+          ipc,
+          IPC_CHANNELS.settings.get,
+          {},
+          settingsGetResultSchema
+        ),
+      save: async (payload): Promise<HcbResult<AppSettings>> => {
+        const request = settingsSaveRequestSchema.safeParse(payload);
+        if (!request.success) {
+          return validationResult("Invalid settings update");
+        }
+
+        return invokeValidated<AppSettings>(
+          ipc,
+          IPC_CHANNELS.settings.save,
+          request.data,
+          settingsSaveResultSchema
+        );
+      },
+      dataInfo: async (): Promise<HcbResult<SettingsDataInfo>> =>
+        invokeValidated<SettingsDataInfo>(
+          ipc,
+          IPC_CHANNELS.settings.dataInfo,
+          {},
+          settingsDataInfoResultSchema
         )
     }
   };

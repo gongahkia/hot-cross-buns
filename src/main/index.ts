@@ -2,6 +2,7 @@ import { app, BrowserWindow, session } from "electron";
 import { join } from "node:path";
 import { registerDiagnosticsIpc } from "./ipc/diagnostics";
 import { registerPlannerIpc } from "./ipc/planner";
+import { registerSettingsIpc } from "./ipc/settings";
 import { configureNavigationLockdown, configureSessionHardening } from "./security";
 import { createServiceContainer } from "./services/serviceContainer";
 import { markStartupTiming } from "./startupTiming";
@@ -58,6 +59,7 @@ app.whenReady().then(async () => {
   registerDiagnosticsIpc();
   const services = await createServiceContainer(app.getPath("userData"));
   registerPlannerIpc(services.planner);
+  registerSettingsIpc(services.settings, services.settingsDataInfo);
   mainWindow = createMainWindow();
 
   app.on("activate", () => {
