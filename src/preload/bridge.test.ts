@@ -104,7 +104,7 @@ describe("preload bridge", () => {
     );
   });
 
-  it("validates and invokes the narrow settings API", async () => {
+  it("routes restored settings reads through the validated core API", async () => {
     const ipc: IpcBridge = {
       invoke: vi.fn(async (channel) => {
         if (channel === IPC_CHANNELS.settings.dataInfo) {
@@ -131,7 +131,11 @@ describe("preload bridge", () => {
         plannerFile: "/tmp/hcb/planner-v1.json"
       })
     );
-    expect(ipc.invoke).toHaveBeenCalledWith(IPC_CHANNELS.settings.get, {});
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC_CHANNELS.core.invoke, {
+      namespace: "settings",
+      action: "get",
+      payload: {}
+    });
     expect(ipc.invoke).toHaveBeenCalledWith(
       IPC_CHANNELS.settings.save,
       { colorScheme: "light", startPage: "tasks" }

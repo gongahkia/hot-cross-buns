@@ -177,6 +177,8 @@ export class CoreStore {
         return { id: input.id ?? randomUUID() };
       case "calendar.exportAvailability":
         return { blocks: [], timezone: this.settings().defaultTimeZone };
+      case "calendar.scheduleSuggest":
+        return { slots: [], unscheduled: [], overloadMinutes: 0 };
       case "calendar.smartReschedule":
         return { moves: [], unscheduled: [], overloadMinutes: 0 };
       case "notes.list":
@@ -438,7 +440,7 @@ export class CoreStore {
     const now = timestamp();
     const result = this.db.prepare("UPDATE task_lists SET title=?, updated_at=? WHERE id=?").run(requiredText(input.title, "List title"), now, id);
     if (result.changes === 0) throw new CoreStoreError("Task list no longer exists");
-    return this.taskLists().find((item) => item.id === id);
+    return this.taskLists().find((item) => item.id === id) ?? (() => { throw new CoreStoreError("Task list no longer exists"); })();
   }
 
   private deleteTaskList(input: JsonRecord): JsonRecord {
@@ -452,7 +454,15 @@ export class CoreStore {
   }
 
   private calendars(): JsonRecord[] {
-    return this.db.prepare("SELECT id,title,color,updated_at AS updatedAt FROM calendars ORDER BY title COLLATE NOCASE").all() as JsonRecord[];
+    return this.db.prepare(`SELECT calendar.id,calendar.title,calendar.color,calendar.updated_at AS updatedAt,
+      (SELECT COUNT(*) FROM events WHERE events.calendar_id = calendar.id) AS eventCount
+      FROM calendars AS calendar ORDER BY calendar.title COLLATE NOCASE`).all().map((calendar: any) => ({
+      ...calendar,
+      selected: true,
+      timeZone: this.settings().defaultTimeZone,
+      backgroundColor: calendar.color,
+      foregroundColor: "#ffffff"
+    })) as JsonRecord[];
   }
 
   private listEvents(input: JsonRecord): JsonRecord {
@@ -560,7 +570,7 @@ export class CoreStore {
   private updateTag(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Tag id");
     this.db.prepare("UPDATE tags SET title=?,color=?,updated_at=? WHERE id=?").run(requiredText(input.title ?? input.name, "Tag title"), input.color ?? null, timestamp(), id);
-    return this.tags().find((tag) => tag.id === id);
+    return this.tags().find((tag) => tag.id === id) ?? (() => { throw new CoreStoreError("Tag no longer exists"); })();
   }
 
   private deleteTag(input: JsonRecord): JsonRecord {
@@ -635,10 +645,24 @@ export class CoreStore {
   }
 
   private diagnostics(): JsonRecord {
+    const taskCount = this.count("tasks");
+    const eventCount = this.count("events");
+    const noteCount = this.count("notes", "deleted_at IS NULL");
     return {
       database: { path: this.db.name, schemaVersion },
       sync: this.syncStatus(),
-      resourceCounts: { tasks: this.count("tasks"), events: this.count("events"), notes: this.count("notes", "deleted_at IS NULL") }
+      cache: { taskCount, eventCount, noteCount },
+      selectedResources: {
+        taskLists: this.taskLists().map((list) => ({ id: list.id, selected: true })),
+        calendars: this.calendars().map((calendar) => ({ id: calendar.id, selected: true }))
+      },
+      checkpoints: { totalCount: 0 },
+      pendingMutations: { totalCount: this.count("outbox", "state = 'pending'") },
+      mcp: { tokenState: "not_configured" },
+      account: { state: "signed_out" },
+      native: { flags: this.nativeCapabilities().capabilityReport.flags },
+      build: { version: "5.0.1", environment: "local", commit: "restored", buildDate: null, packageTool: "pnpm" },
+      resourceCounts: { tasks: taskCount, events: eventCount, notes: noteCount }
     };
   }
 

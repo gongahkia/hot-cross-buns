@@ -36,6 +36,25 @@ export function configureSessionHardening(session: Session): void {
 }
 
 export function configureNavigationLockdown(window: BrowserWindow): void {
+  window.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    const embeddedUrl = parseUrl(params.src ?? "");
+
+    if (
+      !embeddedUrl ||
+      !["http:", "https:"].includes(embeddedUrl.protocol) ||
+      !params.partition?.startsWith("persist:hcb-split-pane-")
+    ) {
+      event.preventDefault();
+      return;
+    }
+
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    webPreferences.webSecurity = true;
+  });
+
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isApprovedExternalUrl(url)) {
       void shell.openExternal(url);

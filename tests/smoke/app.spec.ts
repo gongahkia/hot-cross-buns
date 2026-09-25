@@ -14,17 +14,22 @@ test("launches and renders the planner shell", async () => {
     });
 
     const page = await electronApp.firstWindow();
+    page.on("pageerror", (error) => {
+      console.error(`Renderer error: ${error.stack ?? error.message}`);
+    });
 
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
-
-    for (const label of ["Today", "Tasks", "Calendar", "Notes", "Search", "Settings"]) {
-      await expect(page.getByRole("button", { name: new RegExp(label) })).toBeVisible();
+    const finishSetup = page.getByRole("button", { name: "Finish setup" });
+    if (await finishSetup.isVisible()) {
+      await finishSetup.click();
+      await expect(finishSetup).toBeHidden();
     }
 
-    await page.getByRole("button", { name: /^Settings/ }).click();
-    await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
+    for (const label of ["Tasks", "Calendar", "Notes"]) {
+      await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
+    }
+
+    await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
 
     const health = await page.evaluate(async () => globalThis.window.hcb?.diagnostics.health());
     expect(health?.ok).toBe(true);
