@@ -174,10 +174,12 @@ export class CoreStore {
 
   googleAccounts(): JsonRecord[] {
     return this.db.prepare(`SELECT id AS accountId,google_account_id AS googleAccountId,email,display_name AS displayName,
-      avatar_url AS avatarUrl,connection_state AS connectionState,missing_scopes_json AS missingScopes,updated_at AS updatedAt
+      avatar_url AS avatarUrl,connection_state AS connectionState,missing_scopes_json AS missingScopes,
+      granted_scopes_json AS grantedScopes,updated_at AS updatedAt
       FROM google_accounts ORDER BY created_at`).all().map((row: any) => ({
       ...row,
-      missingScopes: safeJson(row.missingScopes, [])
+      missingScopes: safeJson(row.missingScopes, []),
+      grantedScopes: safeJson(row.grantedScopes, [])
     })) as JsonRecord[];
   }
 
@@ -186,11 +188,12 @@ export class CoreStore {
     const existing = this.db.prepare("SELECT id FROM google_accounts WHERE google_account_id=?").get(googleAccountId) as { id: string } | undefined;
     const accountId = existing?.id ?? randomUUID();
     const now = timestamp();
-    this.db.prepare(`INSERT INTO google_accounts(id,google_account_id,email,display_name,avatar_url,connection_state,missing_scopes_json,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(google_account_id) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,
-      avatar_url=excluded.avatar_url,connection_state=excluded.connection_state,missing_scopes_json=excluded.missing_scopes_json,updated_at=excluded.updated_at`).run(
+    this.db.prepare(`INSERT INTO google_accounts(id,google_account_id,email,display_name,avatar_url,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(google_account_id) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,
+      avatar_url=excluded.avatar_url,connection_state=excluded.connection_state,missing_scopes_json=excluded.missing_scopes_json,
+      granted_scopes_json=excluded.granted_scopes_json,updated_at=excluded.updated_at`).run(
       accountId, googleAccountId, input.email ?? null, input.displayName ?? input.email ?? "Google account", input.avatarUrl ?? null,
-      input.connectionState ?? "connected", JSON.stringify(input.missingScopes ?? []), now, now
+      input.connectionState ?? "connected", JSON.stringify(input.missingScopes ?? []), JSON.stringify(input.grantedScopes ?? []), now, now
     );
     return this.googleAccount(accountId)!;
   }
@@ -636,7 +639,7 @@ export class CoreStore {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS google_accounts (
         id TEXT PRIMARY KEY, google_account_id TEXT NOT NULL UNIQUE, email TEXT, display_name TEXT NOT NULL,
-        avatar_url TEXT, connection_state TEXT NOT NULL, missing_scopes_json TEXT NOT NULL DEFAULT '[]', last_error TEXT,
+        avatar_url TEXT, connection_state TEXT NOT NULL, missing_scopes_json TEXT NOT NULL DEFAULT '[]', granted_scopes_json TEXT NOT NULL DEFAULT '[]', last_error TEXT,
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS task_lists (
@@ -687,6 +690,7 @@ export class CoreStore {
       CREATE INDEX IF NOT EXISTS undo_entries_state_idx ON undo_entries(state, created_at DESC);
       CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `);
+    this.addColumn("google_accounts", "granted_scopes_json TEXT NOT NULL DEFAULT '[]'");
     this.addColumn("task_lists", "account_id TEXT NOT NULL DEFAULT 'local'");
     this.addColumn("task_lists", "google_id TEXT");
     this.addColumn("task_lists", "google_etag TEXT");
@@ -732,7 +736,7 @@ export class CoreStore {
     this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
   }
 
-  private addColumn(table: "task_lists" | "tasks" | "calendars" | "events" | "outbox", definition: string): void {
+  private addColumn(table: "google_accounts" | "task_lists" | "tasks" | "calendars" | "events" | "outbox", definition: string): void {
     const column = definition.split(/\s+/, 1)[0];
     const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     if (!columns.some((item) => item.name === column)) {
@@ -803,8 +807,8 @@ export class CoreStore {
   private seed(): void {
     const now = timestamp();
     const transaction = this.db.transaction(() => {
-      this.db.prepare(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", now, now);
+      this.db.prepare(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", "[]", now, now);
       if (!this.db.prepare("SELECT 1 FROM task_lists LIMIT 1").get()) {
         this.db.prepare("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("inbox", localAccountId, "Inbox", now, now);
       }
@@ -1774,6 +1778,148 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     transparency: row.transparency ?? "opaque",
     visibility: row.visibility ?? "default"
   };
+}
+
+function hasOwn(record: JsonRecord, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function normalizedEventType(value: unknown): "default" | "focusTime" | "outOfOffice" | "workingLocation" {
+  return value === "focusTime" || value === "outOfOffice" || value === "workingLocation" ? value : "default";
+}
+
+function normalizedResponseStatus(value: unknown): "needsAction" | "declined" | "tentative" | "accepted" | null {
+  return value === "needsAction" || value === "declined" || value === "tentative" || value === "accepted" ? value : null;
+}
+
+function responseStatusAttendees(value: unknown, selfResponseStatus: unknown): JsonRecord[] {
+  const attendees = (Array.isArray(value) ? value : [])
+    .map((attendee) => typeof attendee === "string" ? { email: attendee } : attendee)
+    .filter((attendee): attendee is JsonRecord => Boolean(attendee) && typeof attendee === "object" && typeof attendee.email === "string")
+    .map((attendee) => ({ ...attendee }));
+  const response = normalizedResponseStatus(selfResponseStatus);
+  if (!response) return attendees;
+  const self = attendees.find((attendee) => attendee.self === true);
+  if (self) self.responseStatus = response;
+  return attendees;
+}
+
+function normalizeCalendarAttachments(value: unknown): JsonRecord[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: JsonRecord[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as JsonRecord;
+    const fileUrl = typeof candidate.fileUrl === "string" ? candidate.fileUrl : typeof candidate.alternateLink === "string" ? candidate.alternateLink : null;
+    if (!fileUrl || !/^https:\/\//i.test(fileUrl) || seen.has(fileUrl)) continue;
+    seen.add(fileUrl);
+    result.push({
+      fileUrl,
+      title: typeof candidate.title === "string" && candidate.title.trim() ? candidate.title.trim().slice(0, 500) : fileUrl,
+      ...(typeof candidate.mimeType === "string" ? { mimeType: candidate.mimeType.slice(0, 200) } : {}),
+      ...(typeof candidate.iconLink === "string" ? { iconLink: candidate.iconLink } : {}),
+      ...(typeof candidate.fileId === "string" ? { fileId: candidate.fileId } : {})
+    });
+    if (result.length === 25) break;
+  }
+  return result;
+}
+
+function conferenceFromGoogle(value: unknown): JsonRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const conference = value as JsonRecord;
+  const entryPoints = Array.isArray(conference.entryPoints) ? conference.entryPoints.filter((item): item is JsonRecord => Boolean(item) && typeof item === "object") : [];
+  const video = entryPoints.find((item) => item.entryPointType === "video");
+  const phone = entryPoints.find((item) => item.entryPointType === "phone");
+  const more = entryPoints.find((item) => item.entryPointType === "more");
+  return {
+    ...(typeof conference.conferenceSolution === "object" && conference.conferenceSolution && typeof (conference.conferenceSolution as JsonRecord).name === "string"
+      ? { solutionName: (conference.conferenceSolution as JsonRecord).name }
+      : {}),
+    ...(typeof video?.uri === "string" ? { videoUri: video.uri } : {}),
+    ...(typeof video?.label === "string" ? { videoLabel: video.label } : {}),
+    ...(typeof phone?.uri === "string" ? { phoneUri: phone.uri } : {}),
+    ...(typeof phone?.label === "string" ? { phoneLabel: phone.label } : {}),
+    ...(typeof phone?.pin === "string" ? { phonePin: phone.pin } : {}),
+    ...(typeof more?.uri === "string" ? { moreUri: more.uri } : {}),
+    ...(typeof more?.label === "string" ? { moreLabel: more.label } : {})
+  };
+}
+
+function googleEventMetadata(remote: JsonRecord): JsonRecord {
+  const attendees = Array.isArray(remote.attendees) ? remote.attendees : [];
+  const self = attendees.find((attendee): attendee is JsonRecord => Boolean(attendee) && typeof attendee === "object" && attendee.self === true);
+  return {
+    ...(hasOwn(remote, "conferenceData") ? { conference: conferenceFromGoogle(remote.conferenceData) } : {}),
+    ...(hasOwn(remote, "attachments") ? { attachments: normalizeCalendarAttachments(remote.attachments) } : {}),
+    ...(hasOwn(remote, "eventType") ? { eventType: normalizedEventType(remote.eventType) } : {}),
+    ...(hasOwn(remote, "focusTimeProperties") ? { focusTimeProperties: safeObject(remote.focusTimeProperties) } : {}),
+    ...(hasOwn(remote, "outOfOfficeProperties") ? { outOfOfficeProperties: safeObject(remote.outOfOfficeProperties) } : {}),
+    ...(hasOwn(remote, "workingLocationProperties") ? { workingLocationProperties: safeObject(remote.workingLocationProperties) } : {}),
+    ...(Array.isArray(remote.attendees) ? { selfResponseStatus: normalizedResponseStatus(self?.responseStatus) } : {})
+  };
+}
+
+function safeObject(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? structuredClone(value as JsonRecord) : null;
+}
+
+function normalizedStatusEventProperties(eventType: string, input: JsonRecord): JsonRecord {
+  if (eventType === "focusTime") {
+    const source = safeObject(input.focusTimeProperties) ?? {};
+    return {
+      focusTimeProperties: {
+        autoDeclineMode: new Set(["declineNone", "declineAllConflictingInvitations", "declineOnlyNewConflictingInvitations"]).has(source.autoDeclineMode)
+          ? source.autoDeclineMode
+          : "declineNone",
+        chatStatus: source.chatStatus === "doNotDisturb" ? "doNotDisturb" : "available"
+      },
+      outOfOfficeProperties: null,
+      workingLocationProperties: null
+    };
+  }
+  if (eventType === "outOfOffice") {
+    const source = safeObject(input.outOfOfficeProperties) ?? {};
+    return {
+      focusTimeProperties: null,
+      outOfOfficeProperties: {
+        autoDeclineMode: new Set(["declineNone", "declineAllConflictingInvitations", "declineOnlyNewConflictingInvitations"]).has(source.autoDeclineMode)
+          ? source.autoDeclineMode
+          : "declineNone"
+      },
+      workingLocationProperties: null
+    };
+  }
+  if (eventType === "workingLocation") {
+    const source = safeObject(input.workingLocationProperties) ?? {};
+    const type = source.type === "officeLocation" || source.type === "customLocation" ? source.type : "homeOffice";
+    const label = typeof source.customLocation === "object" && source.customLocation && typeof (source.customLocation as JsonRecord).label === "string"
+      ? (source.customLocation as JsonRecord).label.trim().slice(0, 500)
+      : "";
+    return {
+      focusTimeProperties: null,
+      outOfOfficeProperties: null,
+      workingLocationProperties: type === "customLocation"
+        ? { type, customLocation: { label: label || "Custom location" } }
+        : type === "officeLocation"
+          ? { type, officeLocation: safeObject(source.officeLocation) ?? {} }
+          : { type: "homeOffice" }
+    };
+  }
+  return { focusTimeProperties: null, outOfOfficeProperties: null, workingLocationProperties: null };
+}
+
+function statusEventTransparency(eventType: string, value: unknown): string {
+  if (eventType === "focusTime" || eventType === "outOfOffice") return "opaque";
+  if (eventType === "workingLocation") return "transparent";
+  return value === "transparent" ? "transparent" : "opaque";
+}
+
+function statusEventVisibility(eventType: string, value: unknown): string {
+  if (eventType === "focusTime") return "private";
+  if (eventType === "outOfOffice" || eventType === "workingLocation") return "public";
+  return value === "public" || value === "private" ? value : "default";
 }
 
 function safeJson(value: string, fallback: any): any {

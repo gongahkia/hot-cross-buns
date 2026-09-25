@@ -342,11 +342,11 @@ export class GoogleSyncService {
     let remote: JsonRecord;
     if (event.googleId) {
       remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(event.googleId)}`, {
-        method: "PATCH", body: json(body), headers: conditionalHeaders(event.googleEtag)
+        method: "PATCH", body: json(body), headers: conditionalHeaders(event.googleEtag), query: calendarEventWriteQuery(event)
       });
     } else {
       try {
-        remote = await this.requestJson<JsonRecord>(accountId, collection, { method: "POST", body: json(body) });
+        remote = await this.requestJson<JsonRecord>(accountId, collection, { method: "POST", body: json(body), query: calendarEventWriteQuery(event) });
       } catch (error: unknown) {
         if (!(error instanceof GoogleApiError) || error.status !== 409) throw error;
         // A previous POST reached Google but HCB stopped before persisting the
@@ -386,7 +386,7 @@ export class GoogleSyncService {
     if (event.calendarId !== destinationCalendarId) return;
     remote = await this.requestJson<JsonRecord>(accountId,
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.googleId)}/events/${encodeURIComponent(remote.id)}`,
-      { method: "PATCH", body: json(googleEventBody(event)), headers: conditionalHeaders(remote.etag) }
+      { method: "PATCH", body: json(googleEventBody(event)), headers: conditionalHeaders(remote.etag), query: calendarEventWriteQuery(event) }
     );
     this.store.bindGoogleEvent(localId, remote);
   }
@@ -454,6 +454,9 @@ function googleTaskBody(task: JsonRecord): JsonRecord {
 
 function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
   const recurrence = googleRecurrence(event.recurrence);
+  const eventType = event.eventType === "focusTime" || event.eventType === "outOfOffice" || event.eventType === "workingLocation"
+    ? event.eventType
+    : "default";
   return {
     ...(createId ? { id: createId, extendedProperties: { private: { hcbLocalEventId: event.id } } } : {}),
     summary: event.title,
@@ -469,8 +472,38 @@ function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
       ...(event.remindersUseDefault ? {} : { overrides: safeArray(event.reminders) })
     },
     transparency: event.transparency || "opaque",
-    visibility: event.visibility || "default"
+    visibility: event.visibility || "default",
+    ...(eventType !== "default" ? { eventType } : {}),
+    ...(eventType === "focusTime" && event.focusTimeProperties ? { focusTimeProperties: event.focusTimeProperties } : {}),
+    ...(eventType === "outOfOffice" && event.outOfOfficeProperties ? { outOfOfficeProperties: event.outOfOfficeProperties } : {}),
+    ...(eventType === "workingLocation" && event.workingLocationProperties ? { workingLocationProperties: event.workingLocationProperties } : {}),
+    ...(event.attachmentsManaged ? { attachments: calendarAttachments(event.attachments) } : {}),
+    ...(event.conferenceCreateRequested && !event.conference?.videoUri ? {
+      conferenceData: {
+        createRequest: {
+          requestId: `hcb-${String(event.id).replace(/[^a-zA-Z0-9-]/g, "").slice(0, 100)}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" }
+        }
+      }
+    } : {})
   };
+}
+
+function calendarEventWriteQuery(event: JsonRecord): Record<string, string> {
+  return {
+    supportsAttachments: "true",
+    ...(event.conferenceCreateRequested || event.conference ? { conferenceDataVersion: "1" } : {})
+  };
+}
+
+function calendarAttachments(value: unknown): JsonRecord[] {
+  return safeArray(value)
+    .filter((attachment) => typeof attachment.fileUrl === "string" && /^https:\/\//i.test(attachment.fileUrl))
+    .map((attachment) => ({
+      fileUrl: attachment.fileUrl,
+      title: typeof attachment.title === "string" && attachment.title ? attachment.title : attachment.fileUrl,
+      ...(typeof attachment.mimeType === "string" ? { mimeType: attachment.mimeType } : {})
+    }));
 }
 
 function deterministicGoogleEventId(localId: string): string {

@@ -17,6 +17,25 @@ interface SecretPayload {
   accounts?: Record<string, AccountSecretPayload>;
 }
 
+type OptionalWorkspaceService = "drive" | "gmail";
+
+const baseScopes = [
+  "openid",
+  "email",
+  "profile",
+  "https://www.googleapis.com/auth/tasks",
+  "https://www.googleapis.com/auth/calendar"
+] as const;
+
+const optionalWorkspaceScopes: Record<OptionalWorkspaceService, string> = {
+  // Drive metadata is sufficient to find a file and attach its alternateLink
+  // to Calendar; HCB never uploads or modifies Drive content.
+  drive: "https://www.googleapis.com/auth/drive.metadata.readonly",
+  // Gmail capture reads message metadata/snippets only; it never sends,
+  // archives, labels, or deletes mail.
+  gmail: "https://www.googleapis.com/auth/gmail.readonly"
+};
+
 /**
  * Desktop PKCE OAuth controller. Only non-sensitive connection metadata is
  * mirrored into SQLite; tokens and optional client secrets are encrypted with
@@ -64,7 +83,7 @@ export class GoogleOAuthController {
     return response;
   }
 
-  async begin(): Promise<Record<string, unknown>> {
+  async begin(input: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     if (this.connecting) {
       return { message: "Google authorization is already open in your browser." };
     }
@@ -74,8 +93,9 @@ export class GoogleOAuthController {
       throw new CoreStoreError("Add an OAuth client ID before connecting Google.");
     }
 
+    const requestedServices = optionalServices(input.requestedServices);
     this.connecting = true;
-    void this.runAuthorization(clientId)
+    void this.runAuthorization(clientId, requestedServices)
       // No account id exists until userinfo returns. Do not mark an unrelated,
       // already-connected account as failed when an "Add account" browser flow
       // is cancelled before identity exchange.
@@ -106,7 +126,7 @@ export class GoogleOAuthController {
     return this.store.dispatch("google", "status");
   }
 
-  private async runAuthorization(clientId: string): Promise<void> {
+  private async runAuthorization(clientId: string, requestedServices: OptionalWorkspaceService[]): Promise<void> {
     const verifier = base64Url(randomBytes(32));
     const challenge = base64Url(createHash("sha256").update(verifier).digest());
     const callback = await createLoopbackCallback();
@@ -115,11 +135,13 @@ export class GoogleOAuthController {
     authorizationUrl.searchParams.set("client_id", clientId);
     authorizationUrl.searchParams.set("redirect_uri", redirectUri);
     authorizationUrl.searchParams.set("response_type", "code");
-    authorizationUrl.searchParams.set("scope", "openid email profile https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar");
+    const requestedScopes = [...baseScopes, ...requestedServices.map((service) => optionalWorkspaceScopes[service])];
+    authorizationUrl.searchParams.set("scope", requestedScopes.join(" "));
     authorizationUrl.searchParams.set("code_challenge", challenge);
     authorizationUrl.searchParams.set("code_challenge_method", "S256");
     authorizationUrl.searchParams.set("access_type", "offline");
     authorizationUrl.searchParams.set("prompt", "consent");
+    authorizationUrl.searchParams.set("include_granted_scopes", "true");
 
     await shell.openExternal(authorizationUrl.toString());
     const code = await callback.waitForCode();
@@ -133,7 +155,7 @@ export class GoogleOAuthController {
       })
     });
     if (!tokenResponse.ok) throw new CoreStoreError("Google declined the authorization exchange. Check the OAuth client configuration.");
-    const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number };
+    const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
     if (!token.access_token || !token.refresh_token) throw new CoreStoreError("Google did not return a reusable authorization token.");
     const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } });
     const identity = identityResponse.ok ? await identityResponse.json() as { id?: string; email?: string; name?: string; picture?: string } : {};
@@ -143,7 +165,8 @@ export class GoogleOAuthController {
       displayName: identity.name ?? identity.email ?? "Google account",
       avatarUrl: identity.picture ?? null,
       connectionState: "connected",
-      missingScopes: []
+      missingScopes: [],
+      grantedScopes: token.scope?.split(/\s+/).filter(Boolean) ?? requestedScopes
     });
     await this.writeSecrets({ ...secrets, accounts: {
       ...(secrets.accounts ?? {}),
@@ -208,6 +231,11 @@ export class GoogleOAuthController {
     await writeFile(temporary, safeStorage.encryptString(JSON.stringify(payload)), { mode: 0o600 });
     await rename(temporary, this.credentialPath);
   }
+}
+
+function optionalServices(value: unknown): OptionalWorkspaceService[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((service): service is OptionalWorkspaceService => service === "drive" || service === "gmail"))];
 }
 
 function createLoopbackCallback(): Promise<{ port: number; waitForCode: () => Promise<string> }> {
