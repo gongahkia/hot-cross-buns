@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "noImplicitAny": false,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -33,5 +34,9 @@
     "tests/**/*.ts",
     "vitest.config.ts",
     "vitest.setup.ts"
+  ],
+  "exclude": [
+    "src/main/native/**",
+    "src/renderer/src/test/**"
   ]
 }

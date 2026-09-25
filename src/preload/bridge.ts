@@ -44,7 +44,7 @@ function ipcFailure<T>(message: string): HcbResult<T> {
 }
 
 export function createHcbApi(ipc: IpcBridge): HcbApi {
-  return {
+  const legacyApi = {
     diagnostics: {
       health: async () => {
         const request = healthCheckRequestSchema.safeParse({});
@@ -176,6 +176,75 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
         )
     }
   };
+
+  const core = (namespace: string, action: string) => async (payload: unknown = {}): Promise<HcbResult<any>> => {
+    if (!isPlainObject(payload)) {
+      return validationResult("Invalid restored application request");
+    }
+
+    try {
+      const result = await ipc.invoke(IPC_CHANNELS.core.invoke, { namespace, action, payload });
+      return isResultEnvelope(result)
+        ? result
+        : validationResult("Invalid restored application response");
+    } catch {
+      return ipcFailure("The restored application request failed");
+    }
+  };
+  const actions = (namespace: string, names: readonly string[]): Record<string, any> =>
+    Object.fromEntries(names.map((action) => [action, core(namespace, action)]));
+
+  return {
+    ...legacyApi,
+    bootstrap: actions("bootstrap", ["get"]),
+    tasks: actions("tasks", [
+      "listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete",
+      "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"
+    ]),
+    calendar: actions("calendar", [
+      "listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen",
+      "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock",
+      "exportAvailability", "smartReschedule"
+    ]),
+    notes: actions("notes", ["list", "get", "create", "update", "delete", "entityLinks", "listBrokenLinks", "linkSuggest"]),
+    tags: actions("tags", ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"]),
+    search: actions("search", ["query", "installModel", "uninstallModel", "rebuildIndex"]),
+    settings: {
+      ...legacyApi.settings,
+      ...actions("settings", [
+        "get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled",
+        "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment",
+        "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription",
+        "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport",
+        "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus",
+        "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials",
+        "pullHcbVaultRemote", "pushHcbVaultRemote"
+      ])
+    },
+    google: actions("google", ["status", "saveOAuthClient", "beginOAuth", "disconnect"]),
+    diagnostics: {
+      ...legacyApi.diagnostics,
+      ...actions("diagnostics", [
+        "summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation",
+        "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle",
+        "markCachedDataRendered", "recordTiming"
+      ])
+    },
+    sync: {
+      ...actions("sync", ["status"]),
+      subscribeStatus: (listener: (status: any) => void): (() => void) => {
+        void core("sync", "status")({}).then((result) => { if (result.ok) listener(result.data); });
+        return () => undefined;
+      }
+    },
+    undo: actions("undo", ["status", "undo", "redo"]),
+    native: {
+      ...actions("native", ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"]),
+      subscribeAction: (_listener: (action: any) => void): (() => void) => () => undefined
+    },
+    agent: actions("agent", ["listActions", "applyAction", "rejectAction"]),
+    duplicates: actions("duplicates", ["cleanup"])
+  } as HcbApi;
 }
 
 async function invokeValidated<T>(
@@ -192,4 +261,13 @@ async function invokeValidated<T>(
   } catch {
     return ipcFailure("Local planner request failed");
   }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isResultEnvelope(value: unknown): value is HcbResult<any> {
+  return isPlainObject(value) && typeof value.ok === "boolean" &&
+    (value.ok ? "data" in value : "error" in value);
 }

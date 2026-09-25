@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session } from "electron";
 import { join } from "node:path";
 import { registerDiagnosticsIpc } from "./ipc/diagnostics";
+import { registerCoreIpc } from "./ipc/core";
 import { registerPlannerIpc } from "./ipc/planner";
 import { registerSettingsIpc } from "./ipc/settings";
 import { configureNavigationLockdown, configureSessionHardening } from "./security";
@@ -27,7 +28,7 @@ function createMainWindow(): BrowserWindow {
       sandbox: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      webviewTag: false
+      webviewTag: true
     }
   });
 
@@ -58,6 +59,7 @@ app.whenReady().then(async () => {
   configureSessionHardening(session.defaultSession);
   registerDiagnosticsIpc();
   const services = await createServiceContainer(app.getPath("userData"));
+  registerCoreIpc(services.core);
   registerPlannerIpc(services.planner);
   registerSettingsIpc(services.settings, services.settingsDataInfo);
   mainWindow = createMainWindow();

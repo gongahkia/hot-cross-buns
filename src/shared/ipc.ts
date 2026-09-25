@@ -1,4 +1,7 @@
 export const IPC_CHANNELS = {
+  core: {
+    invoke: "hcb:core:invoke"
+  },
   diagnostics: {
     health: "hcb:diagnostics:health",
     markShellVisible: "hcb:diagnostics:mark-shell-visible"

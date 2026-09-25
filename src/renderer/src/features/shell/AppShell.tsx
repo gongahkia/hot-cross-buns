@@ -717,7 +717,7 @@ export function AppShell(): JSX.Element {
         return;
       }
 
-      if (actionId.startsWith("calendar.view.")) {
+      if (typeof actionId === "string" && actionId.startsWith("calendar.view.")) {
         const viewId = actionId.replace("calendar.view.", "");
         navigateToPrimarySection("calendar");
         window.dispatchEvent(new CustomEvent("hcb:calendar-command", { detail: { action: "set-view", viewId } }));

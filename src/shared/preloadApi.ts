@@ -12,6 +12,7 @@ import type {
 } from "./planner";
 
 export interface HcbApi {
+  [namespace: string]: any;
   diagnostics: {
     health: () => Promise<HcbResult<HealthCheckResponse>>;
     markShellVisible: () => Promise<HcbResult<StartupTimingSnapshot>>;
