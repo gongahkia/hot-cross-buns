@@ -128,6 +128,11 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     autoTagRules: [],
     autoTagBackgroundReapplyMode: "preview",
     disableAnimations: false,
+    loadingIndicators: {
+      general: "blocks",
+      preview: "blocks",
+      search: "blocks"
+    },
     uiLayoutScale: 1,
     navigationPlacement: "left",
     hiddenNavigationTabs: [],

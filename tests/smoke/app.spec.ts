@@ -33,6 +33,13 @@ test("launches and renders the planner shell", async () => {
     }
 
     await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Appearance", exact: true }).click();
+    const searchLoader = page.getByLabel("Command palette search loading indicator");
+    await expect(searchLoader).toHaveValue("blocks");
+    await searchLoader.selectOption("wave");
+    await expect(page.locator(".ld-wave").first()).toBeVisible();
+    await page.getByRole("button", { name: "Close settings" }).click();
 
     const title = `smoke task ${Date.now()}`;
     const mutation = await page.evaluate(async ({ title, startsAt, endsAt }) => {

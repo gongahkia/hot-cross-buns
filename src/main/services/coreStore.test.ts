@@ -97,4 +97,29 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(() => store.dispatch("calendar", "update", { id: event.id, calendarId: foreign.id }))
       .toThrow("Calendar events cannot be moved between Google accounts.");
   });
+
+  it("defaults loading indicators to Blocks and persists per-surface choices", () => {
+    const store = createStore();
+
+    expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual({
+      general: "blocks",
+      preview: "blocks",
+      search: "blocks"
+    });
+
+    const updated = store.dispatch("settings", "update", {
+      loadingIndicators: {
+        general: "orbit",
+        preview: "wave",
+        search: "linear-dots"
+      }
+    });
+
+    expect(updated.loadingIndicators).toEqual({
+      general: "orbit",
+      preview: "wave",
+      search: "linear-dots"
+    });
+    expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual(updated.loadingIndicators);
+  });
 });
