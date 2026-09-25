@@ -41,9 +41,9 @@ export function AgentActionTray({ enabled }: { enabled: boolean }): JSX.Element 
   }
 
   return (
-    <aside className="fixed bottom-3 right-3 z-50 grid max-h-80 w-[min(28rem,calc(100vw-1.5rem))] gap-2 overflow-auto rounded-hcbLg border border-border bg-bg-primary p-3 shadow-xl">
+    <aside className="hcb-raised fixed bottom-3 right-3 z-50 grid max-h-80 w-[min(28rem,calc(100vw-1.5rem))] gap-2 overflow-auto rounded-hcbLg border border-border bg-bg-primary p-3">
       <div className="flex items-center gap-2">
-        <h2 className="text-[var(--text-sm)] font-semibold text-text-primary">Pending agent actions</h2>
+        <h2 className="hcb-heading text-[var(--text-sm)] font-semibold text-text-primary">Pending agent actions</h2>
         <Button onClick={() => void refresh()} size="sm" variant="ghost">Refresh</Button>
       </div>
       {items.map((item) => (

@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { cx } from "../../../../components/primitives";
 
 export const settingsSelectClass =
-  "h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "min-h-10 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 interface SettingsSearchContextValue {
   groupTitleMatches: boolean;
@@ -112,7 +112,7 @@ export function SettingsTabButton({
     <button
       aria-pressed={active}
       className={cx(
-        "inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-[background-color,border-color,color] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         active
           ? "border-border bg-surface-0 text-text-primary"
           : "border-transparent text-text-muted hover:bg-surface-0 hover:text-text-primary"
@@ -156,7 +156,7 @@ export function SettingsGroup({
   return (
     <SettingsSearchContext.Provider value={{ groupTitleMatches, query: search.query }}>
       <section className="grid gap-1.5">
-        <h2 className="px-1 text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
+        <h2 className="hcb-heading px-1 text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
         <div className="overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
           {children}
         </div>
@@ -190,7 +190,7 @@ export function SettingsControlRow({
         <div className="min-w-0">
           <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{label}</div>
           {description ? (
-            <p className="mt-0.5 text-[var(--text-sm)] text-text-muted">{description}</p>
+            <p className="hcb-copy mt-0.5 text-[var(--text-sm)] text-text-muted">{description}</p>
           ) : null}
         </div>
       </div>
@@ -218,16 +218,15 @@ export function SettingsSwitch({
 }): JSX.Element | null {
   return (
     <SettingsControlRow description={description} icon={icon} label={label}>
-      <div className="flex items-center gap-3">
+      <label className="flex size-10 items-center justify-center" aria-label={label}>
         {trailing}
         <input
-          aria-label={label}
           checked={checked}
           className="h-5 w-9 accent-[var(--color-accent)]"
           onChange={(event) => onChange(event.target.checked)}
           type="checkbox"
         />
-      </div>
+      </label>
     </SettingsControlRow>
   );
 }
@@ -250,7 +249,7 @@ export function SegmentedControl({
           <button
             aria-pressed={active}
             className={cx(
-              "inline-flex h-7 min-w-20 items-center justify-center gap-2 rounded-hcbSm px-3 text-[var(--text-sm)] font-semibold transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "inline-flex min-h-10 min-w-20 items-center justify-center gap-2 rounded-hcbSm px-3 text-[var(--text-sm)] font-semibold transition-[background-color,color] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               active ? "bg-accent text-bg-tertiary" : "text-text-secondary hover:bg-surface-1 hover:text-text-primary"
             )}
             key={option.value}

@@ -431,13 +431,13 @@ export function QuickAddDialog({
       <section
         aria-labelledby="quick-add-title"
         aria-modal="true"
-        className="w-full max-w-[720px] overflow-hidden rounded-hcbLg border border-border bg-bg-primary shadow-2xl"
+        className="hcb-raised w-full max-w-[720px] overflow-hidden rounded-hcbLg border border-border bg-bg-primary"
         role="dialog"
       >
         <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-secondary px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <Search aria-hidden="true" className="text-accent" size={17} />
-            <h2 className="text-[var(--text-md)] font-semibold text-text-primary" id="quick-add-title">
+            <h2 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary" id="quick-add-title">
               Quick Add
             </h2>
           </div>
@@ -454,7 +454,7 @@ export function QuickAddDialog({
                 <button
                   aria-selected={selected}
                   className={cx(
-                    "inline-flex min-h-8 items-center gap-2 rounded-hcbSm px-3 text-[var(--text-sm)] font-medium transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    "inline-flex min-h-10 items-center gap-2 rounded-hcbSm px-3 text-[var(--text-sm)] font-medium transition-[background-color,color,box-shadow] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                     selected ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
                   )}
                   key={candidate.id}
@@ -495,7 +495,7 @@ export function QuickAddDialog({
           {mode === "task" && source.settings.taskTemplates.length > 0 ? (
             <select
               aria-label="Task template"
-              className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onChange={(event) => setSelectedTaskTemplateId(event.target.value)}
               value={selectedTaskTemplateId}
             >
@@ -511,7 +511,7 @@ export function QuickAddDialog({
           {mode === "event" && source.settings.eventTemplates.length > 0 ? (
             <select
               aria-label="Event template"
-              className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onChange={(event) => setSelectedEventTemplateId(event.target.value)}
               value={selectedEventTemplateId}
             >
@@ -530,7 +530,7 @@ export function QuickAddDialog({
                 <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary" key={label}>
                   <span>{label}</span>
                   <input
-                    className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="min-h-10 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     onChange={(event) => setTemplatePrompt(label, event.currentTarget.value)}
                     value={templatePromptValues[label] ?? ""}
                   />
@@ -571,7 +571,7 @@ export function QuickAddDialog({
             {mode === "event" || mode === "birthday" ? (
               <select
                 aria-label="Quick add calendar"
-                className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 onChange={(event) => setSelectedCalendarId(event.target.value)}
                 value={effectiveCalendarId}
               >
@@ -584,7 +584,7 @@ export function QuickAddDialog({
             ) : mode === "note" ? (
               <select
                 aria-label="Quick add note list"
-                className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 onChange={(event) => setSelectedNoteListId(event.target.value)}
                 value={effectiveNoteListId}
               >
@@ -598,7 +598,7 @@ export function QuickAddDialog({
             ) : (
               <select
                 aria-label="Quick add task list"
-                className="h-8 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 onChange={(event) => setSelectedTaskListId(event.target.value)}
                 value={effectiveTaskListId}
               >

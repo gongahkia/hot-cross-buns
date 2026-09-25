@@ -67,7 +67,7 @@ export function DiagnosticsOverlay({ initialTab = "overview", onClose }: Diagnos
       <section
         aria-labelledby="diagnostics-overlay-title"
         aria-modal="true"
-        className="flex max-h-[calc(100dvh-24px)] w-full max-w-[1180px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary shadow-2xl sm:max-h-[calc(100dvh-72px)]"
+        className="hcb-raised flex max-h-[calc(100dvh-24px)] w-full max-w-[1180px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary sm:max-h-[calc(100dvh-72px)]"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -78,10 +78,10 @@ export function DiagnosticsOverlay({ initialTab = "overview", onClose }: Diagnos
               <Gauge aria-hidden="true" size={14} strokeWidth={2} />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-[var(--text-md)] font-semibold text-text-primary" id="diagnostics-overlay-title">
+              <h2 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary" id="diagnostics-overlay-title">
                 Diagnostics
               </h2>
-              <p className="truncate text-[var(--text-xs)] text-text-muted">
+              <p className="hcb-copy truncate text-[var(--text-xs)] text-text-muted">
                 Runtime state, logs, sync queue, and support bundle
               </p>
             </div>
@@ -98,7 +98,7 @@ export function DiagnosticsOverlay({ initialTab = "overview", onClose }: Diagnos
               <button
                 aria-pressed={selected}
                 className={cx(
-                  "inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                  "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-[background-color,border-color,color] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                   selected
                     ? "border-border bg-surface-0 text-text-primary"
                     : "border-transparent text-text-muted hover:bg-surface-0 hover:text-text-primary"

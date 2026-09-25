@@ -266,12 +266,12 @@ export function CommandPalette({
       <div
         aria-labelledby="command-palette-title"
         aria-modal="true"
-        className="w-full max-w-[960px] overflow-hidden rounded-hcbLg border border-border bg-bg-secondary shadow-2xl"
+        className="hcb-raised w-full max-w-[960px] overflow-hidden rounded-hcbLg border border-border bg-bg-secondary"
         role="dialog"
       >
-        <div className="flex h-11 items-center gap-3 border-b border-border px-3">
+        <div className="flex min-h-12 items-center gap-3 border-b border-border px-3">
           <Command aria-hidden="true" className="text-accent" size={17} />
-          <h2 className="min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold" id="command-palette-title">
+          <h2 className="hcb-heading min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold" id="command-palette-title">
             {mode === "open" ? t("command.title") : "Action Palette"}
           </h2>
           <IconButton icon={X} label={t("command.close")} onClick={closePalette} variant="ghost" />
@@ -301,7 +301,7 @@ export function CommandPalette({
             <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Pinned filters">
               {pinnedFilters.map((filter) => (
                 <button
-                  className="max-w-full truncate rounded-hcbMd border border-border bg-surface-0 px-2 py-1 text-[var(--text-xs)] font-medium text-text-secondary hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  className="min-h-10 max-w-full truncate rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-xs)] font-medium text-text-secondary transition-[background-color,border-color,color] duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   key={filter.id}
                   onClick={() => setQuery(filter.query)}
                   title={filter.query}
