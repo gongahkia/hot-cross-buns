@@ -212,6 +212,8 @@ function writeReport(report: PerfReport): void {
 }
 
 void run().catch((error: unknown) => {
+  mkdirSync(artifactDir, { recursive: true });
+  writeFileSync(join(artifactDir, "latest-failure.txt"), `${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
   console.error(error);
   process.exitCode = 1;
 });

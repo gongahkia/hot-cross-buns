@@ -74,8 +74,9 @@
 - [x] Mocked Google transport tests for pagination, incremental Calendar sync tokens, and Meet/attachment/status-event request encoding.
 - [x] Renderer-scale measurements in the 1,000/5,000/10,000 Electron fixture: cache invalidation/cold hydration plus Tasks and Calendar route rendering after the local data checks.
 - [x] Pull-request CI gate for build/typecheck, unit/mocked transport, Electron SQLite, and launch smoke tests. Live Google, performance, package signing, and notarization remain deliberately outside CI.
-- [x] Local 5,000-task + 5,000-event sample (rerun after the loader-settings pass): task writes 13.25 s; event writes 12.90 s; FTS query 14.20 ms; five 1,000-item Calendar range pages 1.49 s.
-- [x] Local 10,000-task + 10,000-event scale smoke: task writes 24.04 s; event writes 30.21 s; ten 1,000-item Task pages 2.42 s; FTS query 25.33 ms; ten 1,000-item Calendar range pages 3.33 s.
+- [x] Local 1,000-task + 1,000-event scale smoke (2026-09-25): task writes 3.34 s; event writes 3.36 s; Task pagination 215.48 ms; FTS query 13.66 ms; Calendar pagination 533.28 ms; renderer hydration 800.88 ms; Calendar route 191.98 ms.
+- [x] Local 5,000-task + 5,000-event scale smoke (2026-09-25): task writes 16.56 s; event writes 18.17 s; Task pagination 1.28 s; FTS query 15.90 ms; Calendar pagination 2.11 s; renderer hydration 600.54 ms; Calendar route 443.22 ms.
+- [x] Local 10,000-task + 10,000-event scale smoke (2026-09-25): task writes 29.95 s; event writes 32.34 s; Task pagination 4.15 s; FTS query 33.00 ms; Calendar pagination 6.30 s; renderer hydration 1.22 s; Calendar route 220.64 ms.
 
 ## Implemented but still awaiting live Google-account validation
 
