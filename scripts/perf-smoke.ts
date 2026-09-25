@@ -3,10 +3,13 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-const TASK_COUNT = 1_000;
-const EVENT_COUNT = 1_000;
+const FIXTURE_COUNT = performanceFixtureCount();
+const TASK_COUNT = FIXTURE_COUNT;
+const EVENT_COUNT = FIXTURE_COUNT;
+const FIXTURE_START_MS = Date.UTC(2027, 0, 1, 8);
 const artifactDir = join(process.cwd(), "artifacts", "perf");
 const profileDir = mkdtempSync(join(tmpdir(), "hcb-perf-"));
+const debugPerformanceRun = process.env.HCB_PERF_DEBUG === "1";
 
 interface Measurement {
   name: string;
@@ -19,6 +22,30 @@ interface PerfReport {
   status: "passed";
   fixture: { tasks: number; events: number };
   measurements: Measurement[];
+}
+
+function performanceFixtureCount(): number {
+  const configured = process.env.HCB_PERF_COUNT;
+  if (configured === undefined) return 1_000;
+  const count = Number(configured);
+  if (!Number.isInteger(count) || count < 1 || count > 50_000) {
+    throw new Error("HCB_PERF_COUNT must be an integer between 1 and 50,000.");
+  }
+  return count;
+}
+
+function eventTime(index: number): { startsAt: string; endsAt: string } {
+  return {
+    startsAt: new Date(FIXTURE_START_MS + index * 60_000).toISOString(),
+    endsAt: new Date(FIXTURE_START_MS + (index + 30) * 60_000).toISOString()
+  };
+}
+
+function fixtureRange(): { start: string; end: string } {
+  return {
+    start: new Date(FIXTURE_START_MS - 60 * 60_000).toISOString(),
+    end: new Date(FIXTURE_START_MS + (EVENT_COUNT + 60) * 60_000).toISOString()
+  };
 }
 
 function elapsed(startedAt: number): number {
@@ -58,7 +85,15 @@ async function run(): Promise<void> {
       args: [resolve(process.cwd()), `--user-data-dir=${profileDir}`],
       env: { ...process.env, NODE_ENV: "test" }
     });
+    if (debugPerformanceRun) {
+      app.process().stderr?.on("data", (chunk: Buffer) => process.stderr.write(chunk));
+    }
     const page = await app.firstWindow();
+    if (debugPerformanceRun) {
+      page.on("close", () => console.error("Performance renderer closed."));
+      page.on("crash", () => console.error("Performance renderer crashed."));
+      page.on("pageerror", (error) => console.error(`Performance renderer error: ${error.message}`));
+    }
     await page.getByTestId("app-shell").waitFor({ state: "visible" });
     await finishOnboarding(page);
 
@@ -75,8 +110,7 @@ async function run(): Promise<void> {
 
     await measure(measurements, "create-local-events", async () => {
       for (let index = 0; index < EVENT_COUNT; index += 1) {
-        const startsAt = new Date(Date.UTC(2027, 0, 1, 8, index)).toISOString();
-        const endsAt = new Date(Date.UTC(2027, 0, 1, 8, index + 30)).toISOString();
+        const { startsAt, endsAt } = eventTime(index);
         const result = await page.evaluate(async ({ index, startsAt, endsAt }) => window.hcb?.calendar.create({
           calendarId: "primary",
           title: `Performance event ${index.toString().padStart(4, "0")}`,
@@ -88,26 +122,28 @@ async function run(): Promise<void> {
       }
     }, EVENT_COUNT);
 
-    const search = await measure(measurements, "fts-search-1000-tasks", async () =>
+    const search = await measure(measurements, `fts-search-${TASK_COUNT}-tasks`, async () =>
       requireSuccess(await page.evaluate(async () => window.hcb?.search.query({
         query: "Performance task", limit: 100
       })), "FTS query"));
     const searchData = search.data as { items?: unknown[] };
     if ((searchData.items?.length ?? 0) === 0) throw new Error("FTS returned no generated tasks.");
 
-    const bootstrap = await measure(measurements, "bootstrap-1000-events", async () =>
-      requireSuccess(await page.evaluate(async () => window.hcb?.bootstrap.get({
-        calendarRange: {
-          start: "2027-01-01T00:00:00.000Z",
-          end: "2027-01-02T12:00:00.000Z",
-          limit: 1_000
-        }
-      })), "Bootstrap range"));
-    const bootstrapData = bootstrap.data as { events?: { items?: unknown[] } };
-    const bootstrapEvents = bootstrapData.events?.items ?? [];
-    if (bootstrapEvents.length !== EVENT_COUNT) {
-      throw new Error(`Bootstrap returned ${bootstrapEvents.length} events; expected ${EVENT_COUNT}.`);
-    }
+    await measure(measurements, `calendar-range-pagination-${EVENT_COUNT}-events`, async () => {
+      const range = fixtureRange();
+      let cursor: string | undefined;
+      let eventCount = 0;
+      do {
+        const result = await requireSuccess(await page.evaluate(async (request) =>
+          window.hcb?.calendar.listEvents(request), { ...range, limit: 1_000, ...(cursor ? { cursor } : {}) }), "Calendar range page");
+        const response = result.data as { items?: unknown[]; page?: { nextCursor?: string } };
+        eventCount += response.items?.length ?? 0;
+        cursor = response.page?.nextCursor;
+      } while (cursor);
+      if (eventCount !== EVENT_COUNT) {
+        throw new Error(`Calendar pagination returned ${eventCount} events; expected ${EVENT_COUNT}.`);
+      }
+    }, EVENT_COUNT);
 
     const report: PerfReport = {
       generatedAt: new Date().toISOString(),
