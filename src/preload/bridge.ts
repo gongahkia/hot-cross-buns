@@ -205,7 +205,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     calendar: actions("calendar", [
       "listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen",
       "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock",
-      "exportAvailability", "scheduleSuggest", "smartReschedule"
+      "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"
     ]),
     notes: actions("notes", ["list", "get", "create", "update", "delete", "entityLinks", "listBrokenLinks", "linkSuggest"]),
     tags: actions("tags", ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"]),
@@ -222,7 +222,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
         "pullHcbVaultRemote", "pushHcbVaultRemote"
       ])
     },
-    google: actions("google", ["status", "saveOAuthClient", "beginOAuth", "disconnect"]),
+    google: actions("google", ["status", "saveOAuthClient", "beginOAuth", "disconnect", "searchDriveFiles", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"]),
     diagnostics: {
       ...legacyApi.diagnostics,
       ...actions("diagnostics", [

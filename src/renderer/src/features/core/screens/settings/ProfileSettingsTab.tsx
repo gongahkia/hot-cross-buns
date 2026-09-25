@@ -5,7 +5,7 @@ import type {
   TaskListSummary
 } from "@shared/ipc/contracts";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Save, ShieldCheck, Trash2, Users } from "lucide-react";
+import { Eye, EyeOff, Mail, Paperclip, Save, ShieldCheck, Trash2, Users } from "lucide-react";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import {
@@ -15,7 +15,7 @@ import {
 } from "./SettingsPrimitives";
 
 interface ProfileSettingsTabProps {
-  beginGoogleOAuth: () => Promise<void>;
+  beginGoogleOAuth: (requestedServices?: Array<"drive" | "gmail">) => Promise<void>;
   calendarSources: CalendarListSummary[];
   disconnectGoogle: (accountId?: string) => Promise<void>;
   googleClientId: string;
@@ -158,6 +158,13 @@ export function ProfileSettingsTab({
                     )}>
                       {candidateDetail}
                     </p>
+                    {candidateConnected ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <Badge tone="neutral">Calendar + Tasks</Badge>
+                        {candidate.grantedScopes?.includes("https://www.googleapis.com/auth/drive.metadata.readonly") ? <Badge tone="neutral">Drive metadata</Badge> : null}
+                        {candidate.grantedScopes?.includes("https://www.googleapis.com/auth/gmail.readonly") ? <Badge tone="neutral">Gmail read-only</Badge> : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2">
@@ -210,6 +217,22 @@ export function ProfileSettingsTab({
           </Button>
         </div>
       </SettingsGroup>
+
+      <SettingsGroup title="Optional Google Workspace access">
+        <div className="grid gap-1 px-3 pt-3 text-[var(--text-sm)] text-text-secondary">
+          <p>These are separate read-only scopes. They are requested only when you choose them; Drive file content and Gmail messages are never modified by HCB.</p>
+          <p className="text-[var(--text-xs)] text-text-muted">Reconnecting preserves the existing Calendar and Tasks grants for the selected Google account.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive"])} variant="secondary"><Paperclip aria-hidden="true" size={14} />Enable Drive attachments</Button>
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["gmail"])} variant="secondary"><Mail aria-hidden="true" size={14} />Enable Gmail capture</Button>
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "gmail"])} variant="secondary"><Users aria-hidden="true" size={14} />Enable both</Button>
+        </div>
+      </SettingsGroup>
+
+      {visibleAccounts.filter((candidate) => candidate.connectionState === "connected").length >= 2 ? (
+        <CrossAccountCopy accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected")} calendarSources={calendarSources} />
+      ) : null}
 
       <SettingsGroup title="Task lists">
         {visibleAccounts.length > 1 ? (
@@ -264,6 +287,70 @@ export function ProfileSettingsTab({
         ))}
       </SettingsGroup>
     </div>
+  );
+}
+
+function CrossAccountCopy({
+  accounts,
+  calendarSources
+}: {
+  accounts: GoogleStatusResponse["accounts"];
+  calendarSources: CalendarListSummary[];
+}): JSX.Element {
+  const [sourceAccountId, setSourceAccountId] = useState(accounts[0]?.accountId ?? "");
+  const [destinationAccountId, setDestinationAccountId] = useState(accounts[1]?.accountId ?? accounts[0]?.accountId ?? "");
+  const destinationCalendars = calendarSources.filter((calendar) => calendar.accountId === destinationAccountId);
+  const [destinationCalendarId, setDestinationCalendarId] = useState(destinationCalendars[0]?.id ?? "");
+  const [preview, setPreview] = useState<{ taskLists: number; tasks: number; events: number; skippedStatusEvents: number } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sourceAccountId === destinationAccountId) {
+      setDestinationAccountId(accounts.find((account) => account.accountId !== sourceAccountId)?.accountId ?? "");
+    }
+  }, [accounts, destinationAccountId, sourceAccountId]);
+
+  useEffect(() => {
+    const first = calendarSources.find((calendar) => calendar.accountId === destinationAccountId)?.id ?? "";
+    if (!destinationCalendars.some((calendar) => calendar.id === destinationCalendarId)) setDestinationCalendarId(first);
+  }, [calendarSources, destinationAccountId, destinationCalendarId, destinationCalendars]);
+
+  async function refreshPreview(): Promise<void> {
+    setMessage(null);
+    const result = await window.hcb?.google.previewAccountCopy({ sourceAccountId, destinationAccountId, destinationCalendarId });
+    if (!result?.ok) {
+      setPreview(null);
+      setMessage(result?.error.message ?? "Could not prepare the copy.");
+      return;
+    }
+    setPreview(result.data);
+  }
+
+  async function copy(): Promise<void> {
+    if (!window.confirm("Copy the shown Tasks and Calendar events into the destination account? The source will not be changed.")) return;
+    const result = await window.hcb?.google.copyAccountData({ sourceAccountId, destinationAccountId, destinationCalendarId, confirmation: "COPY" });
+    if (!result?.ok) {
+      setMessage(result?.error.message ?? "Cross-account copy failed.");
+      return;
+    }
+    setMessage(result.data.message);
+    setPreview(result.data);
+  }
+
+  return (
+    <SettingsGroup title="Cross-account copy">
+      <div className="grid gap-3 px-3 pt-3">
+        <p className="text-[var(--text-sm)] text-text-secondary">Creates independent copies in a second connected account. It never deletes or alters the source; copied events exclude guests, Meet links, Drive attachments, and Calendar status events.</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>From</span><select aria-label="Copy source account" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" onChange={(event) => setSourceAccountId(event.target.value)} value={sourceAccountId}>{accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.displayName || account.email || "Google account"}</option>)}</select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>To account</span><select aria-label="Copy destination account" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" onChange={(event) => setDestinationAccountId(event.target.value)} value={destinationAccountId}>{accounts.filter((account) => account.accountId !== sourceAccountId).map((account) => <option key={account.accountId} value={account.accountId}>{account.displayName || account.email || "Google account"}</option>)}</select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Event destination</span><select aria-label="Copy destination calendar" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" onChange={(event) => setDestinationCalendarId(event.target.value)} value={destinationCalendarId}>{destinationCalendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.title}</option>)}</select></label>
+        </div>
+        <div className="flex flex-wrap items-center gap-2"><Button disabled={!sourceAccountId || !destinationAccountId || !destinationCalendarId || sourceAccountId === destinationAccountId} onClick={() => void refreshPreview()} size="sm" type="button" variant="secondary">Preview copy</Button>{preview ? <Button onClick={() => void copy()} size="sm" type="button" variant="primary">Copy {preview.tasks} tasks and {preview.events} events</Button> : null}</div>
+        {preview ? <p className="text-[var(--text-xs)] text-text-muted">{preview.taskLists} task lists · {preview.tasks} tasks · {preview.events} events{preview.skippedStatusEvents ? ` · ${preview.skippedStatusEvents} status event(s) skipped` : ""}</p> : null}
+        {message ? <p className="text-[var(--text-xs)] text-text-muted" role="status">{message}</p> : null}
+      </div>
+    </SettingsGroup>
   );
 }
 

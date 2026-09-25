@@ -32,6 +32,12 @@ export interface CalendarEventDraft {
   addMeet: boolean;
   transparency: "opaque" | "transparent" | null;
   visibility: "default" | "public" | "private" | null;
+  eventType: "default" | "focusTime" | "outOfOffice" | "workingLocation";
+  focusTimeProperties: CalendarEventViewModel["focusTimeProperties"];
+  outOfOfficeProperties: CalendarEventViewModel["outOfOfficeProperties"];
+  workingLocationProperties: CalendarEventViewModel["workingLocationProperties"];
+  selfResponseStatus: CalendarEventViewModel["selfResponseStatus"];
+  attachments: CalendarEventViewModel["attachments"];
   conference: CalendarEventViewModel["conference"];
   repeatFrequency: CalendarRepeatFrequency;
   recurringEventId?: string | null;

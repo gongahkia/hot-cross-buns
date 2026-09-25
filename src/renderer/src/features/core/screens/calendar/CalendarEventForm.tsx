@@ -6,15 +6,14 @@ import {
   googleCalendarEventColors,
   type SettingsSnapshot
 } from "@shared/ipc/contracts";
-import { Bell, CalendarPlus, Clock3, ExternalLink, FileText, Gift, ListPlus, MapPin, Phone, Plus, RotateCcw, Tag, Trash2, Users, Video, type LucideIcon } from "lucide-react";
+import { Bell, BriefcaseBusiness, CalendarPlus, Check, Clock3, ExternalLink, FileText, Gift, ListPlus, MapPin, Paperclip, Phone, Plus, RotateCcw, Search, Tag, Trash2, Users, Video, X, type LucideIcon } from "lucide-react";
 import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField";
-import { Badge, Input, cx } from "../../../../components/primitives";
+import { Badge, Button, Input, cx } from "../../../../components/primitives";
 import { ErrorState } from "../../../../components/states";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import { MarkdownPreview } from "../../MarkdownPreview";
 import { TagBadges, TagInput } from "../../TagInput";
 import { AutoTagAudit } from "../../AutoTagAudit";
-import { AttachmentPanel } from "../../AttachmentPanel";
 import { EntityLinksPanel } from "../../EntityLinksPanel";
 import { plannerLinkTargets } from "../../plannerLinkTargets";
 import {
@@ -561,6 +560,136 @@ function AttendeeStatusPreview({ draft }: { draft: CalendarEventDraft }): JSX.El
   );
 }
 
+function RsvpControl({ draft, setDraft }: { draft: CalendarEventDraft; setDraft: (draft: CalendarEventDraft) => void }): JSX.Element | null {
+  const self = draft.attendees.find((attendee) => attendee.self);
+  if (!self) return null;
+  const value = draft.selfResponseStatus ?? self.responseStatus ?? "needsAction";
+  return (
+    <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+      <span className="inline-flex items-center gap-1"><Check aria-hidden="true" size={13} />Your RSVP</span>
+      <select
+        aria-label="Your RSVP"
+        className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        onChange={(event) => {
+          const responseStatus = event.target.value as NonNullable<CalendarEventDraft["selfResponseStatus"]>;
+          setDraft({
+            ...draft,
+            selfResponseStatus: responseStatus,
+            attendees: draft.attendees.map((attendee) => attendee.self ? { ...attendee, responseStatus } : attendee)
+          });
+        }}
+        value={value}
+      >
+        <option value="needsAction">Needs action</option>
+        <option value="accepted">Accept</option>
+        <option value="tentative">Tentative</option>
+        <option value="declined">Decline</option>
+      </select>
+    </label>
+  );
+}
+
+function EventTypeControl({ draft, setDraft }: { draft: CalendarEventDraft; setDraft: (draft: CalendarEventDraft) => void }): JSX.Element {
+  function setEventType(eventType: CalendarEventDraft["eventType"]): void {
+    if (eventType === "focusTime") {
+      setDraft({ ...draft, eventType, transparency: "opaque", visibility: "private", focusTimeProperties: draft.focusTimeProperties ?? { autoDeclineMode: "declineNone", chatStatus: "available" } });
+      return;
+    }
+    if (eventType === "outOfOffice") {
+      setDraft({ ...draft, eventType, transparency: "opaque", visibility: "public", outOfOfficeProperties: draft.outOfOfficeProperties ?? { autoDeclineMode: "declineNone" } });
+      return;
+    }
+    if (eventType === "workingLocation") {
+      setDraft({ ...draft, eventType, allDay: true, transparency: "transparent", visibility: "public", workingLocationProperties: draft.workingLocationProperties ?? { type: "homeOffice" } });
+      return;
+    }
+    setDraft({ ...draft, eventType });
+  }
+
+  const focus = draft.focusTimeProperties ?? { autoDeclineMode: "declineNone", chatStatus: "available" };
+  const outOfOffice = draft.outOfOfficeProperties ?? { autoDeclineMode: "declineNone" };
+  const workingLocation = draft.workingLocationProperties ?? { type: "homeOffice" };
+  const locationType = workingLocation.type === "officeLocation" || workingLocation.type === "customLocation" ? workingLocation.type : "homeOffice";
+
+  return (
+    <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+      <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Event type</legend>
+      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+        <span>Type</span>
+        <select aria-label="Calendar event type" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" onChange={(event) => setEventType(event.target.value as CalendarEventDraft["eventType"])} value={draft.eventType}>
+          <option value="default">Event</option>
+          <option value="focusTime">Focus time</option>
+          <option value="outOfOffice">Out of office</option>
+          <option value="workingLocation">Working location</option>
+        </select>
+      </label>
+      {draft.eventType !== "default" ? <p className="text-[var(--text-xs)] text-text-muted">Google supports status events only on a connected primary calendar. Their availability and visibility rules are applied automatically.</p> : null}
+      {draft.eventType === "focusTime" ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Decline conflicts</span><select aria-label="Focus time decline mode" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={focus.autoDeclineMode ?? "declineNone"} onChange={(event) => setDraft({ ...draft, focusTimeProperties: { ...focus, autoDeclineMode: event.target.value } })}><option value="declineNone">Do not decline</option><option value="declineAllConflictingInvitations">All conflicts</option><option value="declineOnlyNewConflictingInvitations">New conflicts</option></select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Google Chat</span><select aria-label="Focus time chat status" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={focus.chatStatus ?? "available"} onChange={(event) => setDraft({ ...draft, focusTimeProperties: { ...focus, chatStatus: event.target.value } })}><option value="available">Available</option><option value="doNotDisturb">Do not disturb</option></select></label>
+        </div>
+      ) : null}
+      {draft.eventType === "outOfOffice" ? <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Decline conflicts</span><select aria-label="Out of office decline mode" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={outOfOffice.autoDeclineMode ?? "declineNone"} onChange={(event) => setDraft({ ...draft, outOfOfficeProperties: { ...outOfOffice, autoDeclineMode: event.target.value } })}><option value="declineNone">Do not decline</option><option value="declineAllConflictingInvitations">All conflicts</option><option value="declineOnlyNewConflictingInvitations">New conflicts</option></select></label> : null}
+      {draft.eventType === "workingLocation" ? (
+        <div className="grid gap-2">
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Location</span><select aria-label="Working location type" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={locationType} onChange={(event) => setDraft({ ...draft, workingLocationProperties: { type: event.target.value } })}><option value="homeOffice">Home</option><option value="officeLocation">Office</option><option value="customLocation">Custom</option></select></label>
+          {locationType === "customLocation" ? <Input aria-label="Custom working location" onChange={(event) => setDraft({ ...draft, workingLocationProperties: { type: "customLocation", customLocation: { label: event.target.value } } })} placeholder="Custom location" value={workingLocation.customLocation?.label ?? ""} /> : null}
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
+function AvailabilityControl({ accountId, draft }: { accountId?: string; draft: CalendarEventDraft }): JSX.Element | null {
+  const [message, setMessage] = useState<string | null>(null);
+  const guests = draft.guests.split(",").map((guest) => guest.trim()).filter(Boolean);
+  if (guests.length === 0) return null;
+  async function check(): Promise<void> {
+    setMessage("Checking Google availability…");
+    const result = await window.hcb?.calendar.freeBusy({ accountId, calendarIds: guests, start: draft.startsAt, end: draft.endsAt });
+    if (!result?.ok) {
+      setMessage(result?.error.message ?? "Availability lookup failed.");
+      return;
+    }
+    const summaries = Object.entries(result.data.calendars as Record<string, { busy?: unknown[]; errors?: unknown[] }>)
+      .map(([email, calendar]) => calendar.errors?.length ? `${email}: unavailable` : `${email}: ${calendar.busy?.length ?? 0} busy`);
+    setMessage(summaries.join(" · "));
+  }
+  return <div className="grid gap-1"><Button onClick={() => void check()} size="sm" type="button" variant="secondary"><Users aria-hidden="true" size={14} />Check Google availability</Button>{message ? <p className="text-[var(--text-xs)] text-text-muted" role="status">{message}</p> : null}</div>;
+}
+
+function DriveAttachmentControl({ accountId, draft, setDraft }: { accountId?: string; draft: CalendarEventDraft; setDraft: (draft: CalendarEventDraft) => void }): JSX.Element | null {
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<Array<{ fileId?: string; fileUrl: string; title: string; mimeType?: string; iconLink?: string }>>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  if (!accountId || accountId === "local") return null;
+  async function search(): Promise<void> {
+    setMessage("Searching Drive…");
+    const result = await window.hcb?.google.searchDriveFiles({ accountId, query });
+    if (!result?.ok) {
+      setItems([]);
+      setMessage(result?.error.message ?? "Drive search failed. Reconnect with Drive attachment browsing enabled.");
+      return;
+    }
+    setItems(result.data.items ?? []);
+    setMessage(result.data.items?.length ? null : "No matching Drive files.");
+  }
+  function add(item: typeof items[number]): void {
+    if (draft.attachments.some((attachment) => attachment.fileUrl === item.fileUrl)) return;
+    setDraft({ ...draft, attachments: [...draft.attachments, item] });
+  }
+  return (
+    <div className="grid gap-2 border-t border-border pt-3">
+      <div className="flex items-center gap-2 text-[var(--text-sm)] font-medium text-text-secondary"><Paperclip aria-hidden="true" size={13} />Drive attachments</div>
+      <div className="flex gap-2"><Input aria-label="Search Drive files" onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} placeholder="Search files you can access" value={query} /><Button aria-label="Search Drive" onClick={() => void search()} size="sm" type="button" variant="secondary"><Search aria-hidden="true" size={14} /></Button></div>
+      {items.length ? <div className="grid gap-1 rounded-hcbMd border border-border bg-surface-0 p-1">{items.map((item) => <button className="flex min-w-0 items-center gap-2 rounded-hcbSm px-2 py-1.5 text-left text-[var(--text-sm)] text-text-secondary hover:bg-bg-tertiary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" key={item.fileUrl} onClick={() => add(item)} type="button"><BriefcaseBusiness aria-hidden="true" size={14} /><span className="min-w-0 flex-1 truncate">{item.title}</span><Plus aria-hidden="true" size={14} /></button>)}</div> : null}
+      {draft.attachments.length ? <div className="flex flex-wrap gap-1">{draft.attachments.map((attachment) => <Badge key={attachment.fileUrl} tone="neutral"><span className="max-w-40 truncate">{attachment.title}</span><button aria-label={`Remove ${attachment.title}`} className="ml-1 rounded text-text-muted hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => setDraft({ ...draft, attachments: draft.attachments.filter((item) => item.fileUrl !== attachment.fileUrl) })} type="button"><X aria-hidden="true" size={12} /></button></Badge>)}</div> : null}
+      {message ? <p className="text-[var(--text-xs)] text-text-muted" role="status">{message}</p> : null}
+    </div>
+  );
+}
+
 export function CalendarEventDetails({
   calendars,
   defaultTimeZone,
@@ -617,6 +746,7 @@ export function CalendarEventDetails({
             {eventDurationVisible(draft) ? <Badge tone="neutral">{calendarDraftDurationLabel(draft)}</Badge> : null}
             {selectedCalendar?.title ? <Badge tone="neutral">{selectedCalendar.title}</Badge> : null}
             {showSourceTimeZone ? <Badge tone="neutral">{sourceTimeZone}</Badge> : null}
+            {draft.eventType !== "default" ? <Badge tone="neutral">{draft.eventType === "focusTime" ? "Focus time" : draft.eventType === "outOfOffice" ? "Out of office" : "Working location"}</Badge> : null}
             <Badge tone="neutral">{draft.transparency === "transparent" ? "Free" : "Busy"}</Badge>
             <Badge tone="neutral">{draft.visibility === "private" ? "Private" : draft.visibility === "public" ? "Public" : "Default visibility"}</Badge>
           </div>
@@ -636,8 +766,6 @@ export function CalendarEventDetails({
         </DetailLine>
       ) : null}
 
-      {draft.id ? <AttachmentPanel entityId={draft.id} entityKind="event" /> : null}
-
       {showReminder ? (
         <DetailLine icon={Bell}>
           {reminderLabel}
@@ -651,6 +779,12 @@ export function CalendarEventDetails({
       ) : null}
 
       <CalendarConferenceDetails conference={draft.conference} />
+
+      {draft.attachments.length ? (
+        <DetailLine icon={Paperclip} label="Drive attachments">
+          <div className="grid gap-1">{draft.attachments.map((attachment) => <a className="inline-flex min-w-0 items-center gap-1 text-accent hover:underline" href={attachment.fileUrl} key={attachment.fileUrl} rel="noreferrer" target="_blank"><span className="truncate">{attachment.title}</span><ExternalLink aria-hidden="true" size={13} /></a>)}</div>
+        </DetailLine>
+      ) : null}
 
       {location ? (
         <DetailLine icon={MapPin}>
@@ -1054,6 +1188,7 @@ export function CalendarEventForm({
         />
         <PrivacyControls draft={draft} setDraft={setDraft} />
       </fieldset>
+      <EventTypeControl draft={draft} setDraft={setDraft} />
       <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Time</legend>
         <label className="flex min-h-8 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
@@ -1116,8 +1251,11 @@ export function CalendarEventForm({
           />
         </label>
         <AttendeeStatusPreview draft={draft} />
+        <RsvpControl draft={draft} setDraft={setDraft} />
+        <AvailabilityControl accountId={selectedCalendar?.accountId} draft={draft} />
         <ReminderControls draft={draft} setDraft={setDraft} />
         <MeetControl draft={draft} setDraft={setDraft} />
+        <DriveAttachmentControl accountId={selectedCalendar?.accountId} draft={draft} setDraft={setDraft} />
         <TagInput onChange={(tags) => setDraft({ ...draft, tags })} value={draft.tags} />
         <AutoTagAudit
           input={{
@@ -1132,7 +1270,6 @@ export function CalendarEventForm({
           rules={rules}
         />
       </fieldset>
-      {draft.id ? <AttachmentPanel editable entityId={draft.id} entityKind="event" /> : null}
       <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">
           <span className="inline-flex items-center gap-1">

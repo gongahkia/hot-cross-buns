@@ -309,6 +309,12 @@ function mockCalendarEvent({
     remindersUseDefault: false,
     transparency: null,
     visibility: null,
+    eventType: "default",
+    focusTimeProperties: null,
+    outOfOfficeProperties: null,
+    workingLocationProperties: null,
+    selfResponseStatus: null,
+    attachments: [],
     conference: null,
     recurrenceRule: null
   };

@@ -59,6 +59,7 @@ export interface GoogleAccountStatus {
   timeZone?: string | null;
   connectionState: "connected" | "disconnected" | "error" | "reauth_required" | "local" | string;
   missingScopes: string[];
+  grantedScopes?: string[];
   updatedAt?: string;
 }
 export interface GoogleStatusResponse {

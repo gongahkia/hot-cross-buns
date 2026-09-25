@@ -6,7 +6,10 @@ import { join, resolve } from "node:path";
 const FIXTURE_COUNT = performanceFixtureCount();
 const TASK_COUNT = FIXTURE_COUNT;
 const EVENT_COUNT = FIXTURE_COUNT;
-const FIXTURE_START_MS = Date.UTC(2027, 0, 1, 8);
+// Keep generated events in the currently rendered agenda window. That makes
+// this exercise both the SQLite pagination path and real Calendar rendering,
+// rather than timing an empty calendar after a large write fixture.
+const FIXTURE_START_MS = new Date(new Date().toISOString().slice(0, 10) + "T08:00:00.000Z").getTime();
 const artifactDir = join(process.cwd(), "artifacts", "perf");
 const profileDir = mkdtempSync(join(tmpdir(), "hcb-perf-"));
 const debugPerformanceRun = process.env.HCB_PERF_DEBUG === "1";
@@ -162,6 +165,18 @@ async function run(): Promise<void> {
       if (eventCount !== EVENT_COUNT) {
         throw new Error(`Calendar pagination returned ${eventCount} events; expected ${EVENT_COUNT}.`);
       }
+    }, EVENT_COUNT);
+
+    await measure(measurements, `renderer-cold-hydration-${TASK_COUNT}-tasks-${EVENT_COUNT}-events`, async () => {
+      await page.reload();
+      await page.getByTestId("app-shell").waitFor({ state: "visible" });
+      await page.getByRole("button", { name: "Tasks", exact: true }).click();
+      await page.getByText("Performance task 0000", { exact: true }).waitFor({ state: "visible" });
+    }, TASK_COUNT + EVENT_COUNT);
+
+    await measure(measurements, `renderer-calendar-agenda-${EVENT_COUNT}-events`, async () => {
+      await page.getByRole("button", { name: "Calendar", exact: true }).click();
+      await page.getByText("Performance event 0000", { exact: true }).waitFor({ state: "visible" });
     }, EVENT_COUNT);
 
     const report: PerfReport = {

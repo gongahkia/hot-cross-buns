@@ -82,6 +82,12 @@ export function newCalendarDraft(
     addMeet: false,
     transparency: "opaque",
     visibility: "default",
+    eventType: "default",
+    focusTimeProperties: null,
+    outOfOfficeProperties: null,
+    workingLocationProperties: null,
+    selfResponseStatus: null,
+    attachments: [],
     conference: null,
     recurringEventId: null,
     originalStartAt: null,
@@ -128,6 +134,12 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     addMeet: false,
     transparency: event.transparency ?? "opaque",
     visibility: event.visibility ?? "default",
+    eventType: event.eventType ?? "default",
+    focusTimeProperties: event.focusTimeProperties ?? null,
+    outOfOfficeProperties: event.outOfOfficeProperties ?? null,
+    workingLocationProperties: event.workingLocationProperties ?? null,
+    selfResponseStatus: event.selfResponseStatus ?? null,
+    attachments: event.attachments ?? [],
     conference: event.conference,
     recurringEventId: event.recurringEventId ?? null,
     originalStartAt: event.originalStartAt ?? null,
@@ -166,6 +178,12 @@ export function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCr
     conferenceCreateRequest: draft.addMeet ? { type: "hangoutsMeet" } : null,
     transparency: draft.transparency,
     visibility: draft.visibility,
+    eventType: draft.eventType,
+    focusTimeProperties: draft.focusTimeProperties,
+    outOfOfficeProperties: draft.outOfOfficeProperties,
+    workingLocationProperties: draft.workingLocationProperties,
+    selfResponseStatus: draft.selfResponseStatus,
+    attachments: draft.attachments,
     recurrence: calendarDraftRecurrence(draft),
     hcbKind: draft.hcbKind
   };
@@ -207,6 +225,12 @@ export function calendarEventDraftsEqual(
     left.addMeet === right.addMeet &&
     left.transparency === right.transparency &&
     left.visibility === right.visibility &&
+    left.eventType === right.eventType &&
+    JSON.stringify(left.focusTimeProperties ?? null) === JSON.stringify(right.focusTimeProperties ?? null) &&
+    JSON.stringify(left.outOfOfficeProperties ?? null) === JSON.stringify(right.outOfOfficeProperties ?? null) &&
+    JSON.stringify(left.workingLocationProperties ?? null) === JSON.stringify(right.workingLocationProperties ?? null) &&
+    left.selfResponseStatus === right.selfResponseStatus &&
+    JSON.stringify(left.attachments) === JSON.stringify(right.attachments) &&
     JSON.stringify(left.conference ?? null) === JSON.stringify(right.conference ?? null) &&
     left.recurringEventId === right.recurringEventId &&
     left.originalStartAt === right.originalStartAt &&

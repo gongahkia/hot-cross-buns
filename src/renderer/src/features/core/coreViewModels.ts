@@ -105,6 +105,12 @@ export interface CalendarEventViewModel {
   remindersUseDefault: boolean;
   transparency: "opaque" | "transparent" | null;
   visibility: "default" | "public" | "private" | null;
+  eventType: "default" | "focusTime" | "outOfOffice" | "workingLocation";
+  focusTimeProperties: { autoDeclineMode?: string; chatStatus?: string } | null;
+  outOfOfficeProperties: { autoDeclineMode?: string } | null;
+  workingLocationProperties: { type?: string; customLocation?: { label?: string }; officeLocation?: { label?: string } } | null;
+  selfResponseStatus: "needsAction" | "declined" | "tentative" | "accepted" | null;
+  attachments: Array<{ fileId?: string; fileUrl: string; title: string; mimeType?: string; iconLink?: string }>;
   tags?: string[];
   conference: {
     solutionName?: string;

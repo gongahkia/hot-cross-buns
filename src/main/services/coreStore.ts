@@ -215,6 +215,97 @@ export class CoreStore {
     this.resetGoogleSyncTokens(accountId);
   }
 
+  previewCrossAccountCopy(input: JsonRecord): JsonRecord {
+    const { sourceAccountId, destinationAccountId, destinationCalendarId } = this.crossAccountCopyTargets(input);
+    const taskListCount = Number((this.db.prepare("SELECT COUNT(*) AS count FROM task_lists WHERE account_id=?").get(sourceAccountId) as { count: number }).count);
+    const taskCount = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM tasks task JOIN task_lists list ON list.id=task.list_id
+      WHERE list.account_id=? AND task.status != 'deleted'`).get(sourceAccountId) as { count: number }).count);
+    const events = this.db.prepare("SELECT event_type AS eventType FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE calendar.account_id=?")
+      .all(sourceAccountId) as Array<{ eventType?: string }>;
+    return {
+      sourceAccountId,
+      destinationAccountId,
+      destinationCalendarId,
+      taskLists: taskListCount,
+      tasks: taskCount,
+      events: events.filter((event) => normalizedEventType(event.eventType) === "default").length,
+      skippedStatusEvents: events.filter((event) => normalizedEventType(event.eventType) !== "default").length,
+      safety: [
+        "Copies create new Google resources after the normal outbox sync.",
+        "The source account is never modified or deleted.",
+        "Copied events omit attendees, Meet conferences, Drive attachments, and status-event types to avoid invitations and access leaks."
+      ]
+    };
+  }
+
+  copyCrossAccountData(input: JsonRecord): JsonRecord {
+    if (input.confirmation !== "COPY") throw new CoreStoreError("Cross-account copy requires the explicit confirmation word COPY.");
+    const preview = this.previewCrossAccountCopy(input);
+    const { sourceAccountId, destinationAccountId, destinationCalendarId } = preview;
+    const sourceLists = this.db.prepare("SELECT id,title FROM task_lists WHERE account_id=? ORDER BY title COLLATE NOCASE,id").all(sourceAccountId) as Array<{ id: string; title: string }>;
+    const sourceTasks = this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.priority,task.due_at AS dueAt,
+      task.parent_id AS parentId,task.duration_minutes AS durationMinutes,task.locked_schedule AS lockedSchedule,task.snooze_until AS snoozeUntil,task.tags_json AS tags
+      FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE list.account_id=? AND task.status != 'deleted'
+      ORDER BY task.created_at,task.id`).all(sourceAccountId) as JsonRecord[];
+    const sourceEventIds = (this.db.prepare(`SELECT event.id FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
+      WHERE calendar.account_id=? AND event.event_type='default' ORDER BY event.starts_at,event.id`).all(sourceAccountId) as Array<{ id: string }>).map((row) => row.id);
+    const listMap = new Map<string, string>();
+    const taskMap = new Map<string, string>();
+
+    for (const list of sourceLists) {
+      const copied = this.createTaskList({ accountId: destinationAccountId, title: `${list.title} (copied)` });
+      listMap.set(list.id, copied.id);
+    }
+    for (const task of sourceTasks) {
+      const listId = listMap.get(task.listId);
+      if (!listId) continue;
+      const copied = this.createTask({
+        listId,
+        title: task.title,
+        notes: task.notes,
+        priority: task.priority,
+        dueDate: task.dueAt,
+        durationMinutes: task.durationMinutes,
+        lockedSchedule: Boolean(task.lockedSchedule),
+        snoozeUntil: task.snoozeUntil,
+        tags: safeJson(task.tags, [])
+      });
+      taskMap.set(task.id, copied.id);
+      if (task.status === "completed") this.updateTask({ id: copied.id, status: "completed" });
+    }
+    for (const task of sourceTasks) {
+      if (!task.parentId) continue;
+      const copiedId = taskMap.get(task.id);
+      const copiedParentId = taskMap.get(task.parentId);
+      if (copiedId && copiedParentId) this.updateTask({ id: copiedId, parentId: copiedParentId });
+    }
+    for (const eventId of sourceEventIds) {
+      const event = this.requireEvent(eventId);
+      this.createEvent({
+        calendarId: destinationCalendarId,
+        title: event.title,
+        description: event.description ?? event.notes,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+        allDay: event.allDay,
+        colorId: event.colorId,
+        location: event.location,
+        recurrence: event.recurrence,
+        reminders: event.reminders,
+        remindersUseDefault: event.remindersUseDefault,
+        transparency: event.transparency,
+        visibility: event.visibility,
+        timeZone: event.timeZone,
+        attachments: []
+      });
+    }
+    return {
+      ...preview,
+      copied: { taskLists: listMap.size, tasks: taskMap.size, events: sourceEventIds.length },
+      message: "Copies are queued locally. Run sync or wait for the normal debounced sync before checking the destination account."
+    };
+  }
+
   /**
    * The sync service is deliberately the only code which reads these records.
    * Renderer DTOs never contain a Google identifier, ETag, sync token, or
@@ -575,6 +666,10 @@ export class CoreStore {
         return this.beginOAuth();
       case "google.disconnect":
         return this.disconnectGoogle();
+      case "google.previewAccountCopy":
+        return this.previewCrossAccountCopy(input);
+      case "google.copyAccountData":
+        return this.copyCrossAccountData(input);
       case "undo.status":
         return this.undoStatus();
       case "undo.undo":
@@ -1676,6 +1771,20 @@ export class CoreStore {
     if (calendar.googleId !== "primary") {
       throw new CoreStoreError("Google only supports this Calendar status event type on the primary calendar.");
     }
+  }
+
+  private crossAccountCopyTargets(input: JsonRecord): { sourceAccountId: string; destinationAccountId: string; destinationCalendarId: string } {
+    const sourceAccountId = requiredText(input.sourceAccountId, "Source Google account id");
+    const destinationAccountId = requiredText(input.destinationAccountId, "Destination Google account id");
+    const destinationCalendarId = requiredText(input.destinationCalendarId, "Destination calendar id");
+    if (sourceAccountId === destinationAccountId) throw new CoreStoreError("Choose two different Google accounts for a cross-account copy.");
+    const source = this.googleAccount(sourceAccountId);
+    const destination = this.googleAccount(destinationAccountId);
+    if (!source || source.accountId === localAccountId || source.connectionState !== "connected") throw new CoreStoreError("Source account must be a connected Google account.");
+    if (!destination || destination.accountId === localAccountId || destination.connectionState !== "connected") throw new CoreStoreError("Destination account must be a connected Google account.");
+    const destinationCalendar = this.googleCalendarForSync(destinationCalendarId);
+    if (!destinationCalendar || destinationCalendar.accountId !== destinationAccountId) throw new CoreStoreError("Choose a Calendar belonging to the destination account.");
+    return { sourceAccountId, destinationAccountId, destinationCalendarId };
   }
 
   private hasPendingEntityMutation(entity: "task" | "event", entityId: string): boolean {

@@ -122,4 +122,64 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     });
     expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual(updated.loadingIndicators);
   });
+
+  it("round-trips Calendar conferencing, Drive attachment metadata, RSVP, and status-event data", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary" }, account.accountId);
+    const event = store.dispatch("calendar", "create", {
+      calendarId: calendar.id,
+      title: "Focus work",
+      startsAt: "2027-01-02T09:00:00.000Z",
+      endsAt: "2027-01-02T10:00:00.000Z",
+      eventType: "focusTime",
+      focusTimeProperties: { autoDeclineMode: "declineNone", chatStatus: "doNotDisturb" },
+      conferenceCreateRequest: { type: "hangoutsMeet" },
+      attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }],
+      attendees: [{ email: "a@example.test", self: true, responseStatus: "accepted" }],
+      selfResponseStatus: "tentative"
+    });
+    const local = store.googleEventForSync(event.id);
+    expect(local).toMatchObject({
+      eventType: "focusTime",
+      conferenceCreateRequested: true,
+      attachmentsManaged: true,
+      attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }],
+      selfResponseStatus: "tentative"
+    });
+
+    store.bindGoogleEvent(event.id, {
+      id: "remote-event", etag: "etag", eventType: "focusTime",
+      conferenceData: { conferenceSolution: { name: "Google Meet" }, entryPoints: [{ entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" }] },
+      attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief", mimeType: "application/pdf" }],
+      attendees: [{ email: "a@example.test", self: true, responseStatus: "tentative" }]
+    });
+    const bound = store.dispatch("calendar", "get", { id: event.id });
+    expect(bound.conference.videoUri).toBe("https://meet.google.com/abc-defg-hij");
+    expect(bound.attachments).toHaveLength(1);
+    expect(bound.selfResponseStatus).toBe("tentative");
+  });
+
+  it("makes a non-destructive cross-account copy and excludes guests and conferencing", () => {
+    const store = createStore();
+    const source = store.upsertGoogleAccount({ id: "source", email: "source@example.test", connectionState: "connected" });
+    const destination = store.upsertGoogleAccount({ id: "destination", email: "destination@example.test", connectionState: "connected" });
+    const sourceList = store.upsertGoogleTaskList({ id: "source-list", title: "Source list" }, source.accountId);
+    const destinationCalendar = store.upsertGoogleCalendar({ id: "primary", summary: "Destination" }, destination.accountId);
+    store.dispatch("tasks", "create", { listId: sourceList.id, title: "Copy task" });
+    store.dispatch("calendar", "create", {
+      calendarId: store.upsertGoogleCalendar({ id: "source-calendar", summary: "Source" }, source.accountId).id,
+      title: "Copy event", startsAt: "2027-01-02T09:00:00.000Z", endsAt: "2027-01-02T10:00:00.000Z",
+      guestEmails: ["guest@example.test"], conferenceCreateRequest: { type: "hangoutsMeet" }, attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }]
+    });
+    const preview = store.previewCrossAccountCopy({ sourceAccountId: source.accountId, destinationAccountId: destination.accountId, destinationCalendarId: destinationCalendar.id });
+    expect(preview).toMatchObject({ tasks: 1, events: 1 });
+    const copied = store.copyCrossAccountData({ sourceAccountId: source.accountId, destinationAccountId: destination.accountId, destinationCalendarId: destinationCalendar.id, confirmation: "COPY" });
+    expect(copied.copied).toMatchObject({ tasks: 1, events: 1 });
+    const destinationEvent = store.dispatch("calendar", "listEvents", { start: "2027-01-02T00:00:00.000Z", end: "2027-01-03T00:00:00.000Z", limit: 20 }).items
+      .find((item: { accountId: string; title: string }) => item.accountId === destination.accountId && item.title === "Copy event");
+    expect(destinationEvent.attendees).toEqual([]);
+    expect(destinationEvent.conference).toBeNull();
+    expect(destinationEvent.attachments).toEqual([]);
+  });
 });

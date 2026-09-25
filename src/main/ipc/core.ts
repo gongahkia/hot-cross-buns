@@ -20,13 +20,13 @@ const requestSchema = z.object({
 const actionMap: Record<string, readonly string[]> = {
   bootstrap: ["get"],
   tasks: ["listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
-  calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "scheduleSuggest", "smartReschedule"],
+  calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"],
   notes: ["list", "get", "create", "update", "delete", "entityLinks", "listBrokenLinks", "linkSuggest"],
   tags: ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"],
   search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
   settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
   sync: ["status", "runNow", "forceFullResync"],
-  google: ["status", "saveOAuthClient", "beginOAuth", "disconnect"],
+  google: ["status", "saveOAuthClient", "beginOAuth", "disconnect", "searchDriveFiles", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
   native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
   diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
@@ -56,7 +56,13 @@ function payloadIsValid(namespace: string, action: string, payload: Record<strin
   if (namespace === "calendar" && action === "scheduleTaskBlock") return z.object({ taskId: idSchema, calendarId: idSchema, startsAt: isoDateSchema, endsAt: isoDateSchema.optional(), durationMinutes: z.number().finite().min(5).max(1_440).optional() }).safeParse(payload).success;
   if (namespace === "calendar" && action === "exportAvailability") return z.object({ start: isoDateSchema, end: isoDateSchema, calendarIds: z.array(idSchema).max(100).optional(), format: z.literal("text").optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "saveOAuthClient") return z.object({ clientId: z.string().trim().min(10).max(500), clientSecret: z.string().max(1_000).optional() }).safeParse(payload).success;
+  if (namespace === "google" && action === "beginOAuth") return z.object({ requestedServices: z.array(z.enum(["drive", "gmail"])).max(2).optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "disconnect") return z.object({ accountId: idSchema.optional() }).safeParse(payload).success;
+  if (namespace === "google" && ["searchDriveFiles", "searchGmailMessages"].includes(action)) return z.object({ accountId: idSchema.optional(), query: z.string().max(500).optional() }).safeParse(payload).success;
+  if (namespace === "google" && action === "captureGmailMessage") return z.object({ accountId: idSchema.optional(), listId: idSchema.optional(), messageId: idSchema, threadId: idSchema.optional(), subject: z.string().max(10_000).optional(), from: z.string().max(10_000).optional(), snippet: z.string().max(100_000).optional() }).safeParse(payload).success;
+  if (namespace === "google" && action === "previewAccountCopy") return z.object({ sourceAccountId: idSchema, destinationAccountId: idSchema, destinationCalendarId: idSchema }).safeParse(payload).success;
+  if (namespace === "google" && action === "copyAccountData") return z.object({ sourceAccountId: idSchema, destinationAccountId: idSchema, destinationCalendarId: idSchema, confirmation: z.literal("COPY") }).safeParse(payload).success;
+  if (namespace === "calendar" && action === "freeBusy") return z.object({ accountId: idSchema.optional(), start: isoDateSchema, end: isoDateSchema, calendarIds: z.array(z.string().min(1).max(500)).min(1).max(50) }).safeParse(payload).success;
   if (namespace === "native" && action === "openExternalUrl") return z.object({ url: z.string().url().max(4_096) }).safeParse(payload).success;
   return true;
 }
@@ -91,11 +97,29 @@ export function registerCoreIpc(
       }
 
       if (request.data.namespace === "google" && request.data.action === "beginOAuth") {
-        return ok(await googleOAuth.begin());
+        return ok(await googleOAuth.begin(request.data.payload));
       }
 
       if (request.data.namespace === "google" && request.data.action === "disconnect") {
         return ok(await googleOAuth.disconnect(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "searchDriveFiles") {
+        return ok(await googleSync.searchDriveFiles(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "searchGmailMessages") {
+        return ok(await googleSync.searchGmailMessages(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "captureGmailMessage") {
+        const task = googleSync.captureGmailMessage(request.data.payload);
+        if (!isLiveGoogleTest()) googleSync.scheduleAfterLocalMutation();
+        return ok(task);
+      }
+
+      if (request.data.namespace === "calendar" && request.data.action === "freeBusy") {
+        return ok(await googleSync.queryFreeBusy(request.data.payload));
       }
 
       if (request.data.namespace === "sync" && request.data.action === "runNow") {
@@ -123,6 +147,9 @@ export function registerCoreIpc(
           googleSync.scheduleAfterLocalMutation();
         }
       }
+      if (request.data.namespace === "google" && request.data.action === "copyAccountData" && !isLiveGoogleTest()) {
+        googleSync.scheduleAfterLocalMutation();
+      }
       return ok(response);
     } catch (error: unknown) {
       if (error instanceof CoreStoreError) {
@@ -143,7 +170,7 @@ export function registerCoreIpc(
 function isWriteAction(action: string): boolean {
   return !new Set([
     "listTaskLists", "list", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
-    "exportAvailability", "scheduleSuggest", "smartReschedule"
+    "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"
   ]).has(action);
 }
 

@@ -543,10 +543,10 @@ export function SettingsView({
     setRecoveryMessage(result.error.message);
   }
 
-  async function beginGoogleOAuth(): Promise<void> {
+  async function beginGoogleOAuth(requestedServices: Array<"drive" | "gmail"> = []): Promise<void> {
     setRecoveryMessage(null);
 
-    const result = await window.hcb?.google.beginOAuth();
+    const result = await window.hcb?.google.beginOAuth({ requestedServices });
 
     if (result?.ok) {
       setRecoveryMessage(result.data.message);

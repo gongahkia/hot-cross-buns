@@ -85,6 +85,104 @@ export class GoogleSyncService {
     return this.runNow({ reason: "force-full", ...(accountId ? { accountId } : {}) });
   }
 
+  async queryFreeBusy(input: JsonRecord): Promise<JsonRecord> {
+    const accountId = this.workspaceAccountId(input.accountId);
+    const start = requiredIso(input.start, "Availability start");
+    const end = requiredIso(input.end, "Availability end");
+    if (Date.parse(end) <= Date.parse(start)) throw new CoreStoreError("Availability end must be after its start.");
+    const calendarIds = Array.isArray(input.calendarIds)
+      ? [...new Set(input.calendarIds.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map((value) => value.trim()))].slice(0, 50)
+      : [];
+    if (calendarIds.length === 0) throw new CoreStoreError("Add at least one calendar email or id to check availability.");
+    const response = await this.requestJson<JsonRecord>(accountId, "https://www.googleapis.com/calendar/v3/freeBusy", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: json({ timeMin: start, timeMax: end, items: calendarIds.map((id) => ({ id })) })
+    });
+    const calendars = response.calendars && typeof response.calendars === "object" ? response.calendars as JsonRecord : {};
+    return {
+      start,
+      end,
+      calendars: Object.fromEntries(Object.entries(calendars).map(([id, value]) => {
+        const calendar = value && typeof value === "object" ? value as JsonRecord : {};
+        const busy = Array.isArray(calendar.busy)
+          ? calendar.busy.filter((block): block is JsonRecord => Boolean(block) && typeof block === "object" && typeof block.start === "string" && typeof block.end === "string")
+          : [];
+        return [id, { busy, errors: Array.isArray(calendar.errors) ? calendar.errors : [] }];
+      }))
+    };
+  }
+
+  async searchDriveFiles(input: JsonRecord): Promise<JsonRecord> {
+    const accountId = this.workspaceAccountId(input.accountId, "drive");
+    const query = String(input.query ?? "").trim().replace(/[\\']/g, "\\$&").slice(0, 200);
+    const driveQuery = query ? `trashed = false and name contains '${query}'` : "trashed = false";
+    const page = await this.requestJson<GooglePage & { files?: JsonRecord[] }>(accountId, "https://www.googleapis.com/drive/v3/files", {
+      query: {
+        q: driveQuery,
+        pageSize: "20",
+        orderBy: "modifiedTime desc",
+        fields: "files(id,name,mimeType,webViewLink,iconLink,modifiedTime,size)"
+      }
+    });
+    return {
+      items: (page.files ?? []).flatMap((file) => {
+        if (typeof file.id !== "string" || typeof file.name !== "string" || typeof file.webViewLink !== "string") return [];
+        return [{
+          fileId: file.id,
+          title: file.name,
+          mimeType: typeof file.mimeType === "string" ? file.mimeType : "application/octet-stream",
+          fileUrl: file.webViewLink,
+          iconLink: typeof file.iconLink === "string" ? file.iconLink : undefined,
+          modifiedTime: typeof file.modifiedTime === "string" ? file.modifiedTime : undefined,
+          sizeBytes: typeof file.size === "string" && /^\d+$/.test(file.size) ? Number(file.size) : null
+        }];
+      })
+    };
+  }
+
+  async searchGmailMessages(input: JsonRecord): Promise<JsonRecord> {
+    const accountId = this.workspaceAccountId(input.accountId, "gmail");
+    const query = String(input.query ?? "").trim().slice(0, 500);
+    const page = await this.requestJson<{ messages?: Array<{ id?: string; threadId?: string }> }>(accountId,
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages", {
+        query: { ...(query ? { q: query } : {}), maxResults: "10" }
+      });
+    const messages = await Promise.all((page.messages ?? []).slice(0, 10).map(async (message) => {
+      if (!message.id) return null;
+      const item = await this.requestJson<JsonRecord>(accountId,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(message.id)}`, {
+          query: { format: "metadata", metadataHeaders: "Subject", fields: "id,threadId,snippet,payload(headers)" }
+        });
+      const headers = Array.isArray(item.payload?.headers) ? item.payload.headers : [];
+      const subject = headers.find((header: JsonRecord) => String(header.name).toLowerCase() === "subject")?.value;
+      const from = headers.find((header: JsonRecord) => String(header.name).toLowerCase() === "from")?.value;
+      return {
+        id: item.id ?? message.id,
+        threadId: item.threadId ?? message.threadId ?? null,
+        subject: typeof subject === "string" && subject.trim() ? subject.trim() : "Untitled email",
+        from: typeof from === "string" ? from : null,
+        snippet: typeof item.snippet === "string" ? item.snippet : ""
+      };
+    }));
+    return { items: messages.filter((message) => message !== null) };
+  }
+
+  captureGmailMessage(input: JsonRecord): JsonRecord {
+    const messageId = typeof input.messageId === "string" ? input.messageId.trim() : "";
+    if (!messageId) throw new CoreStoreError("Gmail message id is required.");
+    const subject = typeof input.subject === "string" && input.subject.trim() ? input.subject.trim() : "Untitled email";
+    const snippet = typeof input.snippet === "string" ? input.snippet.trim() : "";
+    const from = typeof input.from === "string" && input.from.trim() ? `From: ${input.from.trim()}` : "";
+    const threadId = typeof input.threadId === "string" && input.threadId.trim() ? input.threadId.trim() : messageId;
+    const url = `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(threadId)}`;
+    return this.store.dispatch("tasks", "create", {
+      listId: input.listId,
+      title: subject,
+      notes: [from, snippet, `[Open in Gmail](${url})`].filter(Boolean).join("\n\n")
+    });
+  }
+
   private async sync(_input: JsonRecord): Promise<JsonRecord> {
     const requestedAccountId = typeof _input.accountId === "string" ? _input.accountId : undefined;
     const readOnly = _input.readOnly === true;
@@ -433,6 +531,25 @@ export class GoogleSyncService {
     if (response.status === 204) return undefined as T;
     return await response.json() as T;
   }
+
+  private workspaceAccountId(value: unknown, requiredService?: "drive" | "gmail"): string {
+    const accountId = typeof value === "string" && value ? value : this.store.googleAccounts().find((account) => account.accountId !== "local" && account.connectionState === "connected")?.accountId;
+    if (!accountId) throw new CoreStoreError("Connect a Google account before using this feature.");
+    const account = this.store.googleAccount(accountId);
+    if (!account || account.connectionState !== "connected") throw new CoreStoreError("The selected Google account is not connected.");
+    if (requiredService) {
+      const scope = requiredService === "drive" ? "https://www.googleapis.com/auth/drive.metadata.readonly" : "https://www.googleapis.com/auth/gmail.readonly";
+      if (!Array.isArray(account.grantedScopes) || !account.grantedScopes.includes(scope)) {
+        throw new CoreStoreError(`Reconnect this Google account with ${requiredService === "drive" ? "Drive attachment browsing" : "Gmail capture"} enabled.`);
+      }
+    }
+    return accountId;
+  }
+}
+
+function requiredIso(value: unknown, label: string): string {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new CoreStoreError(`${label} is invalid.`);
+  return new Date(value).toISOString();
 }
 
 function taskCollectionUrl(taskListId: string): string {
