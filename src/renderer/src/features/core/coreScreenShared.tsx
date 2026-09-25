@@ -365,7 +365,7 @@ export function MetricTile({ label, value }: { label: string; value: string }): 
   return (
     <div className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary px-3 py-2">
       <div className="truncate text-[var(--text-xs)] text-text-muted">{label}</div>
-      <div className="mt-1 truncate text-[var(--text-lg)] font-semibold text-text-primary">{value}</div>
+      <div className="hcb-tabular mt-1 truncate text-[var(--text-lg)] font-semibold text-text-primary">{value}</div>
     </div>
   );
 }
@@ -384,7 +384,10 @@ export function CacheStatePanel({ title }: { title: string }): JSX.Element | nul
   if (source.dataState === "error" && !source.hasCachedData) {
     return (
       <Panel title={title} description="Planner data">
-        <ErrorState description={source.errorMessage ?? "The planner data request failed."} />
+        <ErrorState
+          description={source.errorMessage ?? "The planner data request failed."}
+          onRetry={() => source.refresh()}
+        />
       </Panel>
     );
   }

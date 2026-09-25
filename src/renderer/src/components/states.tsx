@@ -8,12 +8,14 @@ interface StateBlockProps {
   description: string;
   role?: "alert" | "status";
   actionLabel?: string;
+  onAction?: () => void;
 }
 
 function StateBlock({
   actionLabel,
   description,
   icon: Icon,
+  onAction,
   role,
   title
 }: StateBlockProps): JSX.Element {
@@ -29,8 +31,8 @@ function StateBlock({
         </div>
         <h3 className="mt-3 text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
         <p className="mt-1 text-[var(--text-sm)] text-text-muted">{description}</p>
-        {actionLabel ? (
-          <Button className="mt-4" size="sm" variant="secondary">
+        {actionLabel && onAction ? (
+          <Button className="mt-4" onClick={onAction} size="sm" variant="secondary">
             {actionLabel}
           </Button>
         ) : null}
@@ -68,16 +70,19 @@ export function EmptyState({
 
 export function OfflineState({
   description = "Google sync is disconnected.",
+  onRetry,
   title = "Offline"
 }: {
   title?: string;
   description?: string;
+  onRetry?: () => void;
 } = {}): JSX.Element {
   return (
     <StateBlock
       actionLabel="Retry later"
       description={description}
       icon={WifiOff}
+      onAction={onRetry}
       title={title}
     />
   );
@@ -86,17 +91,20 @@ export function OfflineState({
 export function ErrorState({
   actionLabel = "Retry",
   description = "The request did not complete. The app remains usable with cached state where available.",
+  onRetry,
   title = "Something went wrong"
 }: {
   title?: string;
   description?: string;
   actionLabel?: string;
+  onRetry?: () => void;
 } = {}): JSX.Element {
   return (
     <StateBlock
       actionLabel={actionLabel}
       description={description}
       icon={AlertTriangle}
+      onAction={onRetry}
       role="alert"
       title={title}
     />

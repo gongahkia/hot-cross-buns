@@ -163,6 +163,7 @@ function PaneNodeView({
       <PaneDivider
         direction={node.direction}
         onResize={(ratio) => onSetSplitRatio(node.id, ratio)}
+        value={node.ratio}
       />
       <div className="flex min-h-0 min-w-0 flex-1">
         <PaneNodeView
@@ -279,8 +280,7 @@ function PaneLeaf({
             event.dataTransfer.setData(paneDragDataType, leaf.id);
             event.dataTransfer.effectAllowed = "move";
           }}
-          role="button"
-          tabIndex={0}
+          role="group"
         >
           <GripVertical aria-hidden="true" className="shrink-0 text-text-muted" size={15} />
           <h2 className="truncate text-[var(--text-sm)] font-semibold text-text-primary">{title}</h2>
@@ -288,7 +288,7 @@ function PaneLeaf({
         <div className="flex shrink-0 items-center gap-1" role="toolbar" aria-label={`${title} pane actions`}>
           <Button
             aria-label={`Close ${title} pane`}
-            className="min-h-8 gap-2 px-2"
+            className="size-10 gap-2 px-0"
             onClick={() => onClosePane(leaf.id)}
             title="Close pane"
             variant="ghost"
@@ -469,36 +469,37 @@ function WebPaneContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-9 items-center gap-1 overflow-x-auto border-b border-border bg-bg-secondary px-2">
+      <div className="flex min-h-10 items-center gap-1 overflow-x-auto border-b border-border bg-bg-secondary px-2">
         {content.tabs.map((tab) => (
-          <button
-            aria-label={`Select ${tab.title}`}
+          <div
             className={cx(
-              "flex h-7 min-w-28 max-w-52 items-center gap-1 rounded-hcbSm px-2 text-left text-[var(--text-xs)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "flex min-h-10 min-w-28 max-w-52 items-center rounded-hcbSm",
               tab.id === activeTab.id ? "bg-surface-0 text-text-primary" : "text-text-muted hover:bg-surface-0"
             )}
             key={tab.id}
-            onClick={() => selectTab(tab.id)}
-            type="button"
           >
-            <span className="min-w-0 flex-1 truncate">{tab.title}</span>
-            <span
-              aria-label={`Close ${tab.title}`}
-              className="rounded-hcbSm p-0.5 hover:bg-bg-tertiary"
-              onClick={(event) => {
-                event.stopPropagation();
-                closeTab(tab.id);
-              }}
-              role="button"
-              tabIndex={-1}
+            <button
+              aria-label={`Select ${tab.title}`}
+              aria-pressed={tab.id === activeTab.id}
+              className="min-h-10 min-w-0 flex-1 truncate px-2 text-left text-[var(--text-xs)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={() => selectTab(tab.id)}
+              type="button"
             >
-              <X aria-hidden="true" size={12} />
-            </span>
-          </button>
+              {tab.title}
+            </button>
+            <button
+              aria-label={`Close ${tab.title}`}
+              className="flex size-10 shrink-0 items-center justify-center rounded-hcbSm text-text-muted transition-colors duration-fast ease-hcb hover:bg-bg-tertiary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={() => closeTab(tab.id)}
+              type="button"
+            >
+              <X aria-hidden="true" size={14} />
+            </button>
+          </div>
         ))}
         <Button
           aria-label="New web tab"
-          className="size-7 shrink-0 px-0"
+          className="size-10 shrink-0 px-0"
           onClick={newTab}
           title="New web tab"
           variant="ghost"
@@ -508,7 +509,7 @@ function WebPaneContent({
       </div>
       {activeTab.url ? (
         <>
-          <div className="flex min-h-8 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
+          <div className="flex min-h-10 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
             <ExternalLink aria-hidden="true" size={13} />
             <span className="truncate">{splitPaneUrlLabel(activeTab.url)}</span>
           </div>
@@ -531,7 +532,7 @@ function WebPaneContent({
               <input
                 aria-label="Webpage URL"
                 autoFocus
-                className="h-9 min-w-0 flex-1 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="min-h-10 min-w-0 flex-1 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 onChange={(event) => {
                   setWebPageUrl(event.target.value);
                   setWebPageError(null);
@@ -618,7 +619,7 @@ function PaneChooser({
               <div className="flex min-w-0 gap-2">
                 <input
                   aria-label="Webpage URL"
-                  className="h-9 min-w-0 flex-1 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="min-h-10 min-w-0 flex-1 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   onChange={(event) => {
                     setWebPageUrl(event.target.value);
                     setWebPageError(null);
@@ -629,7 +630,7 @@ function PaneChooser({
                 />
                 <Button
                   aria-label="Open webpage"
-                  className="h-9 px-4"
+                  className="min-h-10 px-4"
                   disabled={webPageUrl.trim().length === 0}
                   title="Open webpage"
                   type="submit"
@@ -649,10 +650,12 @@ function PaneChooser({
 
 function PaneDivider({
   direction,
-  onResize
+  onResize,
+  value
 }: {
   direction: PaneSplitDirection;
   onResize: (ratio: number) => void;
+  value: number;
 }): JSX.Element {
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
     const container = event.currentTarget.parentElement;
@@ -684,11 +687,33 @@ function PaneDivider({
   return (
     <div
       aria-orientation={direction === "row" ? "vertical" : "horizontal"}
+      aria-valuemax={85}
+      aria-valuemin={15}
+      aria-valuenow={Math.round(value * 100)}
+      aria-valuetext={`${Math.round(value * 100)}%`}
       className={cx(
-        "shrink-0 bg-border transition-colors duration-fast ease-hcb hover:bg-accent",
+        "shrink-0 bg-border transition-colors duration-fast ease-hcb hover:bg-accent focus-visible:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
         direction === "row" ? "w-1 cursor-col-resize" : "h-1 cursor-row-resize"
       )}
       data-testid="pane-divider"
+      onKeyDown={(event) => {
+        const decreaseKey = direction === "row" ? "ArrowLeft" : "ArrowUp";
+        const increaseKey = direction === "row" ? "ArrowRight" : "ArrowDown";
+
+        if (event.key === decreaseKey) {
+          event.preventDefault();
+          onResize(clampPaneRatio(value - 0.05));
+        } else if (event.key === increaseKey) {
+          event.preventDefault();
+          onResize(clampPaneRatio(value + 0.05));
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          onResize(0.15);
+        } else if (event.key === "End") {
+          event.preventDefault();
+          onResize(0.85);
+        }
+      }}
       onPointerDown={handlePointerDown}
       role="separator"
       tabIndex={0}

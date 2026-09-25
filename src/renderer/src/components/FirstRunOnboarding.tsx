@@ -174,7 +174,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
         </header>
 
         <div className="grid min-h-0 gap-3 overflow-y-auto p-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid items-start grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <SetupCard
               description={
                 googleConnected
