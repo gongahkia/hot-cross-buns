@@ -72,4 +72,35 @@ describe("preload bridge", () => {
     );
     expect(result.ok).toBe(true);
   });
+
+  it("only exposes validated planner workspace data", async () => {
+    const ipc: IpcBridge = {
+      invoke: vi.fn(async () =>
+        ok({
+          revision: 4,
+          taskCount: 8,
+          openTaskCount: 5,
+          completedTaskCount: 3,
+          pendingMutationCount: 1,
+          conflictCount: 0,
+          searchIndexState: "ready" as const
+        })
+      )
+    };
+
+    const result = await createHcbApi(ipc).planner.workspace();
+
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC_CHANNELS.planner.workspace, {});
+    expect(result).toEqual(
+      ok({
+        revision: 4,
+        taskCount: 8,
+        openTaskCount: 5,
+        completedTaskCount: 3,
+        pendingMutationCount: 1,
+        conflictCount: 0,
+        searchIndexState: "ready"
+      })
+    );
+  });
 });

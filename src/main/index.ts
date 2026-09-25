@@ -17,7 +17,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 620,
     show: false,
-    title: "Hot Cross Buns 2",
+    title: "Hot Cross Buns",
     backgroundColor: "#1e1e2e",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),

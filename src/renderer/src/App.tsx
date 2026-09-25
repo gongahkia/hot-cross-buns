@@ -239,7 +239,7 @@ export default function App(): JSX.Element {
             <CheckCircle2 aria-hidden="true" size={18} strokeWidth={2.2} />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns 2</div>
+            <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns</div>
             <div className="text-[var(--text-xs)] text-text-muted">
               {syncStatus?.pendingMutationCount
                 ? `${syncStatus.pendingMutationCount} change${syncStatus.pendingMutationCount === 1 ? "" : "s"} queued`
@@ -328,23 +328,82 @@ export default function App(): JSX.Element {
                   {metricFor(activeSection.id, activeSection.metric)}
                 </span>
               </div>
-              <div className="grid h-[calc(100%-2.5rem)] place-items-center px-6 text-center">
-                <div className="max-w-sm">
-                  <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent">
-                    <ActiveIcon aria-hidden="true" size={20} />
-                  </div>
-                  <p className="mt-3 text-[var(--text-md)] font-medium text-text-secondary">
-                    No local data loaded
-                  </p>
-                  <p className="mt-1 text-[var(--text-sm)] text-text-muted">
-                    {activeSection.status}
-                  </p>
+              {activeSectionId === "tasks" ? (
+                <div className="flex h-[calc(100%-2.5rem)] min-h-0 flex-col p-3">
+                  <form className="flex gap-2" onSubmit={saveTask}>
+                    <label className="sr-only" htmlFor="new-task-title">
+                      New task title
+                    </label>
+                    <input
+                      aria-label="New task title"
+                      className="min-w-0 flex-1 rounded-hcbMd border border-border bg-bg-primary px-3 py-2 text-[var(--text-sm)] text-text-primary placeholder:text-text-muted focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-accent"
+                      id="new-task-title"
+                      onChange={(event) => setNewTaskTitle(event.target.value)}
+                      placeholder="Add a local task"
+                      value={newTaskTitle}
+                    />
+                    <button
+                      className="rounded-hcbMd bg-accent px-3 py-2 text-[var(--text-sm)] font-medium text-bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={!newTaskTitle.trim() || isSavingTask}
+                      type="submit"
+                    >
+                      {isSavingTask ? "Saving" : "Add task"}
+                    </button>
+                  </form>
+                  {taskError ? (
+                    <p className="mt-2 text-[var(--text-sm)] text-danger" role="alert">
+                      {taskError}
+                    </p>
+                  ) : null}
+                  <ul aria-label="Open tasks" className="mt-3 min-h-0 divide-y divide-border overflow-y-auto">
+                    {tasks.map((task) => (
+                      <li className="flex items-center gap-3 py-3" key={task.id}>
+                        <button
+                          aria-label={`Complete ${task.title}`}
+                          className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-success hover:border-success focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-accent"
+                          onClick={() => void completeTask(task)}
+                          type="button"
+                        >
+                          <CheckCircle2 aria-hidden="true" size={13} />
+                        </button>
+                        <span className="min-w-0 flex-1 truncate text-[var(--text-sm)] text-text-primary">
+                          {task.title}
+                        </span>
+                        {task.dueDate ? (
+                          <span className="text-[var(--text-xs)] text-text-muted">{task.dueDate}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                    {tasks.length === 0 ? (
+                      <li className="py-8 text-center text-[var(--text-sm)] text-text-muted">
+                        Add a task to start a local, durable queue.
+                      </li>
+                    ) : null}
+                  </ul>
                 </div>
-              </div>
+              ) : (
+                <div className="grid h-[calc(100%-2.5rem)] place-items-center px-6 text-center">
+                  <div className="max-w-sm">
+                    <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent">
+                      <ActiveIcon aria-hidden="true" size={20} />
+                    </div>
+                    <p className="mt-3 text-[var(--text-md)] font-medium text-text-secondary">
+                      No local data loaded
+                    </p>
+                    <p className="mt-1 text-[var(--text-sm)] text-text-muted">
+                      {activeSection.status}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
       </main>
     </div>
   );
+}
+
+function requestKey(operation: string): string {
+  return `${operation}-${Date.now()}-${Math.random().toString(36).slice(2)}-electron`;
 }
