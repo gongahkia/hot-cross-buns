@@ -40,7 +40,7 @@ export function NotesView(): JSX.Element {
 
   return (
     <div
-      className={`grid h-full min-h-0 gap-3 ${effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[260px_minmax(0,1fr)]"}`}
+      className={`grid h-full min-h-0 gap-2 ${effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[244px_minmax(0,1fr)]"}`}
       ref={containerRef}
     >
       <NotesSidebar

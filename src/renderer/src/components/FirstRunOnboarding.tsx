@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
+import { Checkbox } from "./ui/checkbox";
 
 export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }): JSX.Element {
   const initialTaskListIds =
@@ -281,12 +282,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                     className="flex min-h-8 items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 text-[var(--text-sm)] text-text-secondary"
                     key={taskList.id}
                   >
-                    <input
+                    <Checkbox
                       aria-label={`Select task list ${taskList.title}`}
                       checked={selectedTaskLists.has(taskList.id)}
-                      className="accent-[var(--color-accent)]"
-                      onChange={(event) => toggleTaskList(taskList.id, event.target.checked)}
-                      type="checkbox"
+                      onCheckedChange={(checked) => toggleTaskList(taskList.id, checked === true)}
                     />
                     <span className="min-w-0 flex-1 truncate">{taskList.title}</span>
                     <Badge>{taskList.activeTaskCount ?? taskList.taskCount ?? 0}</Badge>
@@ -310,12 +309,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                     className="flex min-h-8 items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 text-[var(--text-sm)] text-text-secondary"
                     key={calendar.id}
                   >
-                    <input
+                    <Checkbox
                       aria-label={`Select calendar ${calendar.title}`}
                       checked={selectedCalendars.has(calendar.id)}
-                      className="accent-[var(--color-accent)]"
-                      onChange={(event) => toggleCalendar(calendar.id, event.target.checked)}
-                      type="checkbox"
+                      onCheckedChange={(checked) => toggleCalendar(calendar.id, checked === true)}
                     />
                     <span className="min-w-0 flex-1 truncate">{calendar.title}</span>
                     <Badge>{calendar.eventCount ?? 0}</Badge>
@@ -340,11 +337,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </SetupOption>
             <SetupOption title="5. Notifications" icon={Bell}>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
-                <input
+                <Checkbox
+                  aria-label="Local notifications"
                   checked={notificationsEnabled}
-                  className="accent-[var(--color-accent)]"
-                  onChange={(event) => setNotificationsEnabled(event.target.checked)}
-                  type="checkbox"
+                  onCheckedChange={(checked) => setNotificationsEnabled(checked === true)}
                 />
                 Local notifications
               </label>

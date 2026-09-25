@@ -23,6 +23,7 @@ import type { TaskListSummary, TaskMoveRequest } from "@shared/ipc/contracts";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
+import { MotionCollapse } from "../../../../components/animate-ui/MotionCollapse";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { ScheduledTaskBlockViewModel, TaskViewModel } from "../../coreViewModels";
 import {
@@ -915,6 +916,7 @@ function GoogleTaskRow({
 }): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const [childrenOpen, setChildrenOpen] = useState(true);
   const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
   const preview = taskPreview(task);
   const completed = task.status === "completed";
@@ -922,6 +924,8 @@ function GoogleTaskRow({
   const childTasks = task.subtasks
     .map((subtask) => source.getTaskById(subtask.id))
     .filter((subtask) => subtask.parentId === task.id);
+  const completedChildCount = childTasks.filter((child) => child.status === "completed").length;
+  const childrenId = `task-children-${task.id}`;
 
   function openContextMenu(event: MouseEvent): void {
     event.preventDefault();
@@ -956,15 +960,46 @@ function GoogleTaskRow({
           />
         ) : null}
         <TaskCompletionButton completed={completed} onToggle={onToggleTask} task={task} />
+        <div className="flex min-w-0 items-start gap-1">
+          {childTasks.length > 0 ? (
+            <button
+              aria-controls={childrenId}
+              aria-expanded={childrenOpen}
+              aria-label={`${childrenOpen ? "Collapse" : "Expand"} subtasks for ${task.title}`}
+              className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-muted hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+              onClick={() => setChildrenOpen((open) => !open)}
+              type="button"
+            >
+              {childrenOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
+            </button>
+          ) : null}
         <button
-          className="min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={() => onOpenTask(task.id)}
+          onKeyDown={(event) => {
+            if (childTasks.length === 0) return;
+            if (event.key === "ArrowRight") {
+              event.preventDefault();
+              setChildrenOpen(true);
+            }
+            if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              setChildrenOpen(false);
+            }
+          }}
           type="button"
         >
-          <div className={cx(
-            "line-clamp-2 text-[var(--text-md)] font-medium",
-            completed ? "text-text-muted line-through" : "text-text-primary"
-          )}>{task.title}</div>
+          <div className="flex min-w-0 items-start gap-1">
+            <span className={cx(
+              "line-clamp-2 min-w-0 text-[var(--text-md)] font-medium",
+              completed ? "text-text-muted line-through" : "text-text-primary"
+            )}>{task.title}</span>
+            {childTasks.length > 0 ? (
+              <span className="ml-auto shrink-0 text-[var(--text-xs)] tabular-nums text-text-muted">
+                {completedChildCount}/{childTasks.length}
+              </span>
+            ) : null}
+          </div>
           {preview ? (
             <p className={cx(
               "mt-0.5 line-clamp-2 text-[var(--text-sm)]",
@@ -997,6 +1032,7 @@ function GoogleTaskRow({
             </div>
           ) : null}
         </button>
+        </div>
         <div
           className="relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"
         >
@@ -1032,7 +1068,8 @@ function GoogleTaskRow({
         </div>
       </div>
       {childTasks.length > 0 ? (
-        <div className="ml-12 border-l border-border/70">
+        <MotionCollapse open={childrenOpen}>
+        <div aria-label={`Subtasks for ${task.title}`} className="ml-12 border-l border-border/70" id={childrenId} role="list">
           {childTasks.map((child) => (
             <TaskChildRow
               key={child.id}
@@ -1054,6 +1091,7 @@ function GoogleTaskRow({
             />
           ))}
         </div>
+        </MotionCollapse>
       ) : null}
     </div>
   );

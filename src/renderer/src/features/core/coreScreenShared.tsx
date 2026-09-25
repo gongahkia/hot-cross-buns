@@ -85,7 +85,7 @@ export function fontFamilyOptions(fontFamilies: readonly string[], ...currentFon
   const unique = new Set<string>();
 
   for (const fontName of [...fontFamilies, ...currentFontNames]) {
-    const trimmed = fontName.trim();
+    const trimmed = fontName?.trim() ?? "";
 
     if (trimmed) {
       unique.add(trimmed);

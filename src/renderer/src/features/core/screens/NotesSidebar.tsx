@@ -36,7 +36,7 @@ export function NotesSidebar({
   }
 
   return (
-    <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Notes navigation">
+    <aside className="min-h-0 rounded-hcbLg bg-bg-secondary/70 p-3" aria-label="Notes navigation">
       <div className="flex items-center gap-2">
         <Button
           aria-label="Create notes"

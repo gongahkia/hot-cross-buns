@@ -5,6 +5,7 @@ import { Badge, Button, IconButton, Input, Panel, cx } from "../../../../compone
 import { EmptyState, ErrorState } from "../../../../components/states";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 import type { CalendarSourceViewModel } from "../../coreScreenShared";
+import { MarkdownPreview } from "../../MarkdownPreview";
 import { CalendarSourceSwatch } from "./CalendarEventChips";
 import { calendarTimeBlockLabel, sortedCalendarTimeBlocks } from "./calendarGrid";
 import type { CalendarTimeBlock } from "./types";
@@ -142,8 +143,9 @@ export function CalendarContextPanel({
     >
       <div className="p-3" role="region" aria-label="Calendar context">
         {event ? (
+          <div className="overflow-hidden rounded-hcbMd border border-border bg-bg-tertiary">
           <button
-            className="grid w-full gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="grid w-full gap-2 p-3 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onClick={() => onOpen(event)}
             type="button"
           >
@@ -167,6 +169,17 @@ export function CalendarContextPanel({
               </span>
             ) : null}
           </button>
+          {event.notes.trim() ? (
+            <div className="border-t border-border px-3 py-3">
+              <MarkdownPreview
+                ariaLabel="Event description"
+                body={event.notes}
+                className="gap-1.5 text-[var(--text-sm)] leading-relaxed"
+                variant="plain"
+              />
+            </div>
+          ) : null}
+          </div>
         ) : (
           <EmptyState description="No events match the visible calendar sources." title="No context" />
         )}

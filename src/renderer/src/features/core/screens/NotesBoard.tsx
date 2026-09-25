@@ -35,9 +35,9 @@ export function NotesBoard({
   starredNoteIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
-    <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
+    <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-primary">
       <div
-        className="flex h-full min-h-[480px] min-w-0 gap-3 overflow-x-auto p-3"
+        className="flex h-full min-h-[480px] min-w-0 gap-2 overflow-x-auto p-2"
         role="list"
         aria-label="Note views"
       >
@@ -53,7 +53,7 @@ export function NotesBoard({
                   title={column.title}
                 />
               }
-              className="flex max-h-full w-[min(520px,calc(100vw-2rem))] shrink-0 flex-col overflow-hidden bg-bg-primary"
+              className="flex max-h-full w-[min(560px,calc(100vw-2rem))] shrink-0 flex-col overflow-hidden border-border/70 bg-bg-primary shadow-none"
               description={column.description}
               key={column.id}
               onDragLeave={() => undefined}
@@ -79,7 +79,7 @@ export function NotesBoard({
                       title={column.emptyTitle}
                     />
                   }
-                  estimateRowHeight={66}
+                  estimateRowHeight={58}
                   getKey={(note) => note.id}
                   items={column.notes}
                   performanceLabel={`notes.${column.id}.list`}
@@ -238,8 +238,8 @@ function NoteBoardRow({
   return (
     <div
       className={cx(
-        "group relative grid min-h-[66px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 transition-colors duration-fast ease-hcb",
-        selected ? "bg-surface-0" : "bg-transparent hover:bg-surface-0"
+        "group relative grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/70 px-4 py-2 last:border-b-0 transition-colors duration-fast ease-hcb",
+        selected ? "bg-accent/10" : "bg-transparent hover:bg-surface-0/70"
       )}
       draggable
       onContextMenu={(event) => {
@@ -268,7 +268,7 @@ function NoteBoardRow({
             {note.updatedLabel}
           </span>
         </div>
-        <p className="line-clamp-2 break-words text-[var(--text-sm)] text-text-muted">{note.preview}</p>
+        <p className="line-clamp-2 break-words text-[var(--text-sm)] leading-snug text-text-muted">{note.preview}</p>
       </button>
       <div
         className={cx(

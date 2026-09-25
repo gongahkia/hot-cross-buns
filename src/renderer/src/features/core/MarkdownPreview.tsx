@@ -376,8 +376,10 @@ export function MarkdownPreview({
     input(props) {
       return (
         <input
+          aria-readonly="true"
           checked={props.checked}
-          className="mr-2 align-middle accent-[var(--color-accent)]"
+          className="mr-2 cursor-default align-middle accent-[var(--color-accent)] disabled:opacity-100"
+          disabled
           readOnly
           type="checkbox"
         />

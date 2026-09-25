@@ -6,55 +6,15 @@ import type {
   ReactNode
 } from "react";
 import type { LucideIcon } from "lucide-react";
+import { cn } from "@renderer/lib/utils";
+import { Button as ShadcnButton, type ButtonProps } from "./ui/button";
 
 export function cx(...classes: Array<string | false | null | undefined>): string {
-  return classes.filter(Boolean).join(" ");
+  return cn(classes);
 }
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-type ButtonSize = "sm" | "md";
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  /** Use for controls whose visual position must remain fixed while pressed. */
-  static?: boolean;
-}
-
-const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "border-accent bg-accent text-[var(--color-accent-foreground)] hover:bg-info hover:border-info",
-  secondary: "border-border bg-surface-0 text-text-primary hover:bg-surface-1",
-  ghost: "border-transparent bg-transparent text-text-secondary hover:bg-surface-0 hover:text-text-primary",
-  danger: "border-danger bg-transparent text-danger ring-1 ring-danger/70 hover:bg-surface-0 hover:ring-danger"
-};
-
-const buttonSizes: Record<ButtonSize, string> = {
-  sm: "min-h-10 px-3 text-[var(--text-sm)]",
-  md: "min-h-10 px-3 text-[var(--text-base)]"
-};
-
-export function Button({
-  className,
-  size = "md",
-  static: isStatic = false,
-  type = "button",
-  variant = "secondary",
-  ...props
-}: ButtonProps): JSX.Element {
-  return (
-    <button
-      className={cx(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-hcbMd border font-medium leading-none transition-[background-color,border-color,color,box-shadow,transform] duration-fast ease-hcb disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        !isStatic && "active:scale-[0.96] motion-reduce:transform-none",
-        buttonVariants[variant],
-        buttonSizes[size],
-        className
-      )}
-      type={type}
-      {...props}
-    />
-  );
-}
+export type { ButtonProps } from "./ui/button";
+export const Button = ShadcnButton;
 
 export interface IconButtonProps extends Omit<ButtonProps, "children"> {
   icon: LucideIcon;

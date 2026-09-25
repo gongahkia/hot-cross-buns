@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 
 export function useAutoCollapsedSidebar(threshold = 760): {
   autoCollapsed: boolean;
-  containerRef: RefObject<HTMLDivElement>;
+  containerRef: RefObject<HTMLDivElement | null>;
 } {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoCollapsed, setAutoCollapsed] = useState(false);

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MotionConfig } from "motion/react";
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
@@ -974,6 +975,7 @@ export function AppShell(): JSX.Element {
 
   return (
     <I18nProvider language={source.settings.appLanguage}>
+    <MotionConfig reducedMotion={source.settings.disableAnimations ? "always" : "user"}>
     <LoadingIndicatorProvider
       animationsDisabled={source.settings.disableAnimations}
       preferences={source.settings.loadingIndicators}
@@ -1128,6 +1130,7 @@ export function AppShell(): JSX.Element {
       ) : null}
     </div>
     </LoadingIndicatorProvider>
+    </MotionConfig>
     </I18nProvider>
   );
 }

@@ -126,7 +126,7 @@ export function SettingsOverlay({
   onOpenDiagnostics,
   onClose
 }: {
-  dialogRef: RefObject<HTMLElement>;
+  dialogRef: RefObject<HTMLElement | null>;
   onOpenDiagnostics: () => void;
   onClose: () => void;
 }): JSX.Element {

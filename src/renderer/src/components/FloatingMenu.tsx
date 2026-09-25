@@ -18,7 +18,7 @@ export function FloatingMenu({
   width = 256
 }: {
   anchorPoint?: { x: number; y: number };
-  anchorRef?: RefObject<HTMLElement>;
+  anchorRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
   className?: string;
   onClose?: () => void;
