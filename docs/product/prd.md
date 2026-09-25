@@ -59,7 +59,8 @@ V1 does not include:
 
 - Hosted sync server
 - Multi-user collaboration beyond Google sharing behavior
-- Google Drive integration
+- Drive binary upload/download, permission management, or file lifecycle integration (existing Drive-link attachments are supported with explicit read-only authorization)
+- Gmail write actions or background mailbox synchronization (explicit metadata search and Gmail-to-Task capture are supported with explicit read-only authorization)
 - Mobile apps
 - Full Spotlight/App Intents/Share Extension parity
 - Public analytics SDK
@@ -82,4 +83,3 @@ These do not block docs or scaffold, but must be resolved before v1 release:
 - Whether local notes should remain local-only forever or eventually sync through a user-owned provider.
 - Whether Windows/Linux v1 should support feature parity or a smaller planner-only subset.
 - Whether public distribution should remain unsigned preview or move to signed/notarized releases before broad use.
-

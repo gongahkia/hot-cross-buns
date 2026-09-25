@@ -67,7 +67,7 @@ Tests worth studying for behavior:
 
 - Google Tasks and Google Calendar are the synced sources of truth.
 - Local SQLite is cache, settings, checkpoints, offline mutation queue, diagnostics metadata, and local-only notes.
-- Google Drive is out of scope.
+- This historical context predates the current optional Drive metadata/Gmail capture integrations. For current behavior, see `docs/google-workspace-integrations.md`; Drive remains out of scope for binary transfer, permissions, and file lifecycle management.
 - Renderer code in Hot Cross Buns 2 never gets direct filesystem, token, SQLite, or Google API access.
 - UI writes and MCP writes must use the same domain services.
 - MCP uses read-only, confirm-writes, and allow-writes modes.
@@ -90,4 +90,3 @@ Not allowed without explicit approval:
 - Reintroduce Xcode/XcodeGen as the active build path.
 - Make Hot Cross Buns 2 import or shell out to the old Swift app.
 - Expand scope to mobile apps before the desktop roadmap is stable.
-

@@ -4,6 +4,8 @@
 
 Hot Cross Buns 2 syncs with Google Tasks and Google Calendar. Google remains the synced source of truth for tasks and events. SQLite stores local mirrors, settings, checkpoints, and pending mutations.
 
+Drive and Gmail are optional, user-authorized helper integrations rather than sync sources: Drive is used only to search file metadata and attach an existing Drive link to a Calendar event; Gmail is used only to search selected message metadata/snippets and explicitly capture one message as a Task. Neither integration uploads, downloads, edits, sends, archives, labels, or deletes Google data.
+
 ## OAuth
 
 Use a desktop OAuth loopback flow. OAuth client configuration must support bring-your-own-client for preview builds.
@@ -22,7 +24,12 @@ Required Google scopes:
 - `https://www.googleapis.com/auth/tasks`
 - `https://www.googleapis.com/auth/calendar`
 
-Do not request Google Drive or broader account scopes in v1.
+Optional scopes are requested only after the user selects the corresponding control in **Settings → Profile**:
+
+- `https://www.googleapis.com/auth/drive.metadata.readonly` for Drive-link attachment browsing
+- `https://www.googleapis.com/auth/gmail.readonly` for Gmail-to-Task capture
+
+The client must not silently broaden an existing grant. See [Google Workspace integrations](../google-workspace-integrations.md) for consent, verification, and live-test requirements.
 
 ## Tasks Mapping
 
@@ -60,6 +67,8 @@ Google Calendar backs:
 - attendees/guests where supported by the API path
 
 Calendar incremental sync should use `nextSyncToken` after initial full sync. If Google invalidates a token, the app must perform a full resync for that calendar.
+
+For connected primary calendars, Calendar status events support Focus Time, Out of Office, and Working Location. HCB supports signed-in-user RSVP edits, read-only free/busy lookup, Google Meet creation requests, and existing Drive-link attachments. It does not support Calendar Goals, organizer-side guest or resource booking, conference removal, or Drive binary/file-permission lifecycle operations.
 
 ## Sync Modes
 
@@ -115,4 +124,3 @@ Required tests:
 - Calendar initial sync and incremental sync update checkpoints.
 - Invalid Calendar sync token triggers full resync for that calendar.
 - Offline mutation queue retries and reconciles a successful Google response.
-
