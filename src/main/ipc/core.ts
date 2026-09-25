@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { z } from "zod";
 import { CoreStore, CoreStoreError } from "../services/coreStore";
+import { GoogleOAuthController } from "../services/googleOAuth";
 import { conflictError, internalError, ok, validationError } from "@shared/result";
 
 const requestSchema = z.object({
@@ -12,7 +13,7 @@ const requestSchema = z.object({
   payload: z.object({}).catchall(z.unknown()).default({})
 }).strict();
 
-export function registerCoreIpc(store: CoreStore): void {
+export function registerCoreIpc(store: CoreStore, googleOAuth: GoogleOAuthController): void {
   ipcMain.handle("hcb:core:invoke", async (_event, payload: unknown) => {
     const request = requestSchema.safeParse(payload);
 
@@ -21,6 +22,18 @@ export function registerCoreIpc(store: CoreStore): void {
     }
 
     try {
+      if (request.data.namespace === "google" && request.data.action === "saveOAuthClient") {
+        return ok(await googleOAuth.saveClient(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "beginOAuth") {
+        return ok(await googleOAuth.begin());
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "disconnect") {
+        return ok(await googleOAuth.disconnect());
+      }
+
       return ok(store.dispatch(request.data.namespace, request.data.action, request.data.payload));
     } catch (error: unknown) {
       if (error instanceof CoreStoreError) {

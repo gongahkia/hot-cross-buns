@@ -2,10 +2,12 @@ import { join } from "node:path";
 import { FilePlannerPersistence, PlannerStore } from "./plannerStore";
 import { FileSettingsPersistence, SettingsStore } from "./settingsStore";
 import { CoreStore } from "./coreStore";
+import { GoogleOAuthController } from "./googleOAuth";
 import type { SettingsDataInfo } from "@shared/settings";
 
 export interface ServiceContainer {
   core: CoreStore;
+  googleOAuth: GoogleOAuthController;
   planner: PlannerStore;
   settings: SettingsStore;
   settingsDataInfo: SettingsDataInfo;
@@ -20,12 +22,14 @@ export async function createServiceContainer(userDataDirectory: string): Promise
   });
   const settings = new SettingsStore(new FileSettingsPersistence(settingsFile));
   const core = new CoreStore(databaseFile);
+  const googleOAuth = new GoogleOAuthController(userDataDirectory, core);
 
   // Validate existing local state before exposing any IPC surface.
   await Promise.all([planner.workspace(), settings.load()]);
 
   return {
     core,
+    googleOAuth,
     planner,
     settings,
     settingsDataInfo: { settingsFile, plannerFile }

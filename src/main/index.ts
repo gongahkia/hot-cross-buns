@@ -59,7 +59,7 @@ app.whenReady().then(async () => {
   configureSessionHardening(session.defaultSession);
   registerDiagnosticsIpc();
   const services = await createServiceContainer(app.getPath("userData"));
-  registerCoreIpc(services.core);
+  registerCoreIpc(services.core, services.googleOAuth);
   registerPlannerIpc(services.planner);
   registerSettingsIpc(services.settings, services.settingsDataInfo);
   mainWindow = createMainWindow();

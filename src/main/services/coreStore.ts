@@ -123,6 +123,25 @@ export class CoreStore {
     this.db.close();
   }
 
+  oauthClientId(): string | null {
+    return this.googleStatus().clientId;
+  }
+
+  setOAuthClientId(clientId: string): void {
+    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run("google-client", JSON.stringify({ clientId }));
+  }
+
+  setGoogleAccount(account: JsonRecord | null): void {
+    if (account) {
+      this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run("google-account", JSON.stringify(account));
+      return;
+    }
+
+    this.db.prepare("DELETE FROM sync_meta WHERE key='google-account'").run();
+  }
+
   dispatch(namespace: string, action: string, input: JsonRecord = {}): any {
     switch (`${namespace}.${action}`) {
       case "bootstrap.get":
@@ -607,12 +626,19 @@ export class CoreStore {
 
   private googleStatus(): JsonRecord {
     const client = safeJson((this.db.prepare("SELECT value FROM sync_meta WHERE key=?").get("google-client") as { value?: string } | undefined)?.value ?? "{}", {});
-    return { oauthClientConfigured: Boolean(client.clientId), clientId: client.clientId ?? null, hasClientSecret: Boolean(client.clientSecret), accounts: [] };
+    const account = safeJson((this.db.prepare("SELECT value FROM sync_meta WHERE key=?").get("google-account") as { value?: string } | undefined)?.value ?? "null", null);
+    return {
+      oauthClientConfigured: Boolean(client.clientId),
+      clientId: client.clientId ?? null,
+      hasClientSecret: false,
+      account,
+      accounts: account ? [account] : []
+    };
   }
 
   private saveGoogleClient(input: JsonRecord): JsonRecord {
     const clientId = requiredText(input.clientId, "OAuth client ID");
-    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("google-client", JSON.stringify({ clientId, clientSecret: input.clientSecret ? "[stored separately]" : null }));
+    this.setOAuthClientId(clientId);
     return this.googleStatus();
   }
 
