@@ -45,7 +45,7 @@ export function NotificationsOverlay({
       <section
         aria-labelledby="notifications-overlay-title"
         aria-modal="true"
-        className="flex max-h-[calc(100dvh-24px)] w-full max-w-[720px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary shadow-2xl sm:mt-12 sm:max-h-[calc(100dvh-96px)]"
+        className="hcb-raised flex max-h-[calc(100dvh-24px)] w-full max-w-[720px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary sm:mt-12 sm:max-h-[calc(100dvh-96px)]"
         role="dialog"
       >
         <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-bg-secondary px-4 py-3">
@@ -54,10 +54,10 @@ export function NotificationsOverlay({
               <Bell aria-hidden="true" size={18} />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-[var(--text-lg)] font-semibold" id="notifications-overlay-title">
+              <h2 className="hcb-heading truncate text-[var(--text-lg)] font-semibold" id="notifications-overlay-title">
                 Notifications
               </h2>
-              <p className="truncate text-[var(--text-sm)] text-text-muted">App notices</p>
+              <p className="hcb-copy truncate text-[var(--text-sm)] text-text-muted">App notices</p>
             </div>
           </div>
           <IconButton icon={X} label="Close notifications" onClick={onClose} variant="ghost" />
@@ -96,7 +96,7 @@ export function NotificationsOverlay({
                       <div className="flex shrink-0 items-center gap-2">
                         <Badge tone={notificationBadgeTone(notification.tone)}>{notification.status}</Badge>
                         <IconButton
-                          className="size-7"
+                          className="size-10"
                           icon={X}
                           label="Dismiss notification"
                           onClick={() => onDismiss(notification.id)}
@@ -142,7 +142,7 @@ export function SettingsOverlay({
       <section
         aria-labelledby="settings-overlay-title"
         aria-modal="true"
-        className="flex max-h-[calc(100dvh-24px)] w-full max-w-[1120px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary shadow-2xl sm:max-h-[calc(100dvh-72px)]"
+        className="hcb-raised flex max-h-[calc(100dvh-24px)] w-full max-w-[1120px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary sm:max-h-[calc(100dvh-72px)]"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -153,10 +153,10 @@ export function SettingsOverlay({
               <Settings2 aria-hidden="true" size={18} />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-[var(--text-lg)] font-semibold" id="settings-overlay-title">
+              <h2 className="hcb-heading truncate text-[var(--text-lg)] font-semibold" id="settings-overlay-title">
                 Settings
               </h2>
-              <p className="truncate text-[var(--text-sm)] text-text-muted">App preferences</p>
+              <p className="hcb-copy truncate text-[var(--text-sm)] text-text-muted">App preferences</p>
             </div>
           </div>
           <IconButton icon={X} label="Close settings" onClick={onClose} variant="ghost" />

@@ -17,6 +17,8 @@ type ButtonSize = "sm" | "md";
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Use for controls whose visual position must remain fixed while pressed. */
+  static?: boolean;
 }
 
 const buttonVariants: Record<ButtonVariant, string> = {
@@ -27,13 +29,14 @@ const buttonVariants: Record<ButtonVariant, string> = {
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
-  sm: "h-7 px-2 text-[var(--text-sm)]",
-  md: "h-8 px-3 text-[var(--text-base)]"
+  sm: "min-h-10 px-3 text-[var(--text-sm)]",
+  md: "min-h-10 px-3 text-[var(--text-base)]"
 };
 
 export function Button({
   className,
   size = "md",
+  static: isStatic = false,
   type = "button",
   variant = "secondary",
   ...props
@@ -41,7 +44,8 @@ export function Button({
   return (
     <button
       className={cx(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-hcbMd border font-medium leading-none transition-colors duration-fast ease-hcb disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "inline-flex shrink-0 items-center justify-center gap-2 rounded-hcbMd border font-medium leading-none transition-[background-color,border-color,color,box-shadow,transform] duration-fast ease-hcb disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        !isStatic && "active:scale-[0.96] motion-reduce:transform-none",
         buttonVariants[variant],
         buttonSizes[size],
         className
@@ -67,7 +71,7 @@ export function IconButton({
   return (
     <Button
       aria-label={label}
-      className={cx("size-8 px-0", className)}
+      className={cx("size-10 px-0", className)}
       title={title ?? label}
       {...props}
     >
@@ -87,7 +91,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const input = (
     <input
       className={cx(
-        "h-8 w-full rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "min-h-10 w-full rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-[background-color,border-color,color,box-shadow] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         className
       )}
       id={id}
@@ -208,9 +212,9 @@ export function Panel({
       {title ? (
         <div className="flex min-h-10 items-center justify-between gap-3 border-b border-border px-3 py-2">
           <div className="min-w-0">
-            <h2 className="truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
+            <h2 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
             {description ? (
-              <p className="truncate text-[var(--text-xs)] text-text-muted">{description}</p>
+              <p className="hcb-copy truncate text-[var(--text-xs)] text-text-muted">{description}</p>
             ) : null}
           </div>
           {action}

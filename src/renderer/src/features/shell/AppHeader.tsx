@@ -58,7 +58,7 @@ export function AppHeader({
         aria-expanded={commandPaletteOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["commandPalette.open"])}
         aria-label={t("action.commandPalette")}
-        className="min-w-8"
+        className="min-w-10"
         key="commandPalette"
         onClick={() => onOpenCommandPalette()}
         title={t("action.commandPalette")}
@@ -72,7 +72,7 @@ export function AppHeader({
         aria-expanded={notificationsOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.notifications.toggle"])}
         aria-label={`${t("action.notifications")}, ${appNotificationsCount} active`}
-        className="min-w-8"
+        className="min-w-10"
         key="notifications"
         onClick={onToggleNotifications}
         title={t("action.notifications")}
@@ -89,7 +89,7 @@ export function AppHeader({
         aria-expanded={diagnosticsOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.diagnostics.toggle"])}
         aria-label={t("action.diagnostics")}
-        className="min-w-8"
+        className="min-w-10"
         key="diagnostics"
         onClick={onToggleDiagnostics}
         title={t("action.diagnostics")}
@@ -102,7 +102,7 @@ export function AppHeader({
       <Button
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["pane.split.horizontal"])}
         aria-label={t("action.splitView")}
-        className="min-w-8"
+        className="min-w-10"
         key="splitPane"
         onClick={onOpenSplitPane}
         title={t("action.splitView")}
@@ -115,7 +115,7 @@ export function AppHeader({
       <Button
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["sync.refresh"])}
         aria-label={t("action.refresh")}
-        className="min-w-8"
+        className="min-w-10"
         data-action-id="sync.refresh"
         key="refresh"
         onClick={onRefresh}
@@ -130,7 +130,7 @@ export function AppHeader({
         aria-expanded={settingsOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.settings"])}
         aria-label={t("action.settings")}
-        className="min-w-8"
+        className="min-w-10"
         key="settings"
         onClick={onToggleSettings}
         title={t("action.settings")}
@@ -149,7 +149,7 @@ export function AppHeader({
           aria-expanded={sidebarOpen}
           aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
           aria-label={sidebarOpen ? t("nav.hideSidebar") : t("nav.showSidebar")}
-          className="min-w-8"
+          className="min-w-10"
           onClick={onToggleSidebar}
           title={sidebarOpen ? t("nav.hideSidebar") : t("nav.showSidebar")}
           variant="ghost"

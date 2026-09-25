@@ -181,7 +181,7 @@ export function AppSidebar({
         <img
           alt=""
           aria-hidden="true"
-          className="size-8 rounded-hcbMd object-cover"
+          className="hcb-media-outline size-8 rounded-hcbMd object-cover"
           draggable={false}
           src={appIconUrl}
         />
@@ -206,7 +206,7 @@ export function AppSidebar({
                 aria-keyshortcuts={shortcut}
                 aria-label={label}
                 className={cx(
-                  "flex h-9 w-auto min-w-9 items-center justify-center gap-3 rounded-hcbMd px-2 text-left text-[var(--text-base)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-full lg:justify-start lg:px-3",
+                  "flex min-h-10 w-auto min-w-10 items-center justify-center gap-3 rounded-hcbMd px-2 text-left text-[var(--text-base)] transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:w-full lg:justify-start lg:px-3",
                   selected
                     ? "bg-surface-0 text-text-primary"
                     : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"

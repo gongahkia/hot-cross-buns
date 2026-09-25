@@ -55,7 +55,7 @@ export function InspectorShell(): JSX.Element | null {
         aria-labelledby={showHeader ? titleId : undefined}
         aria-modal="true"
         className={cx(
-          "fixed left-1/2 top-1/2 z-50 flex max-h-[min(820px,calc(100dvh-32px))] w-[min(760px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-secondary shadow-hcbLg"
+          "hcb-raised fixed left-1/2 top-1/2 z-50 flex max-h-[min(820px,calc(100dvh-32px))] w-[min(760px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-secondary"
         )}
         data-inspector-kind={current.kind}
         data-inspector-id={current.id}
@@ -70,7 +70,7 @@ export function InspectorShell(): JSX.Element | null {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2
-                  className="min-w-0 whitespace-normal break-words text-[var(--text-lg)] font-semibold leading-snug text-text-primary"
+                  className="hcb-heading min-w-0 whitespace-normal break-words text-[var(--text-lg)] font-semibold leading-snug text-text-primary"
                   id={titleId}
                 >
                   {current.title}
@@ -78,7 +78,7 @@ export function InspectorShell(): JSX.Element | null {
                 {current.dirty ? <Badge tone="warning">Unsaved</Badge> : null}
               </div>
               {current.subtitle ? (
-                <p className="mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>
+                <p className="hcb-copy mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>
               ) : null}
             </div>
             <IconButton
