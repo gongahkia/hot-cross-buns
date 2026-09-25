@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session } from "electron";
 import { join } from "node:path";
 import { registerDiagnosticsIpc } from "./ipc/diagnostics";
+import { registerPlannerIpc } from "./ipc/planner";
 import { configureNavigationLockdown, configureSessionHardening } from "./security";
 import { createServiceContainer } from "./services/serviceContainer";
 import { markStartupTiming } from "./startupTiming";
@@ -51,11 +52,12 @@ function createMainWindow(): BrowserWindow {
   return window;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   markStartupTiming("appReadyMs");
   configureSessionHardening(session.defaultSession);
   registerDiagnosticsIpc();
-  void createServiceContainer();
+  const services = await createServiceContainer(app.getPath("userData"));
+  registerPlannerIpc(services.planner);
   mainWindow = createMainWindow();
 
   app.on("activate", () => {

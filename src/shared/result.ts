@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const hcbErrorCodeSchema = z.enum([
   "VALIDATION_ERROR",
+  "CONFLICT",
   "IPC_ERROR",
   "INTERNAL_ERROR",
   "NOT_IMPLEMENTED"
@@ -70,6 +71,14 @@ export function validationError(message = "Invalid request payload"): HcbResult<
 export function ipcError(message = "IPC request failed"): HcbResult<never> {
   return err({
     code: "IPC_ERROR",
+    message,
+    recoverable: true
+  });
+}
+
+export function conflictError(message = "The requested change conflicts with newer local data"): HcbResult<never> {
+  return err({
+    code: "CONFLICT",
     message,
     recoverable: true
   });
