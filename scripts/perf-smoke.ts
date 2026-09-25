@@ -122,6 +122,25 @@ async function run(): Promise<void> {
       }
     }, EVENT_COUNT);
 
+    await measure(measurements, `task-list-pagination-${TASK_COUNT}-tasks`, async () => {
+      let cursor: string | undefined;
+      let taskCount = 0;
+      do {
+        const result = await requireSuccess(await page.evaluate(async (request) =>
+          window.hcb?.tasks.list(request), {
+          status: "all",
+          limit: 1_000,
+          ...(cursor ? { cursor } : {})
+        }), "Task list page");
+        const response = result.data as { items?: unknown[]; page?: { nextCursor?: string } };
+        taskCount += response.items?.length ?? 0;
+        cursor = response.page?.nextCursor;
+      } while (cursor);
+      if (taskCount !== TASK_COUNT) {
+        throw new Error(`Task pagination returned ${taskCount} tasks; expected ${TASK_COUNT}.`);
+      }
+    }, TASK_COUNT);
+
     const search = await measure(measurements, `fts-search-${TASK_COUNT}-tasks`, async () =>
       requireSuccess(await page.evaluate(async () => window.hcb?.search.query({
         query: "Performance task", limit: 100

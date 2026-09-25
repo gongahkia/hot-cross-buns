@@ -17,6 +17,9 @@
     "test": "corepack pnpm test:unit",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:smoke": "corepack pnpm build && corepack pnpm exec playwright test -c playwright.config.ts",
+    "test:smoke:1k": "HCB_PERF_COUNT=1000 corepack pnpm test:perf",
+    "test:smoke:5k": "HCB_PERF_COUNT=5000 corepack pnpm test:perf",
+    "test:smoke:10k": "HCB_PERF_COUNT=10000 corepack pnpm test:perf",
     "test:perf": "corepack pnpm build && tsx scripts/perf-smoke.ts",
     "test:db": "ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/services/coreStore.test.ts",
     "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts"
