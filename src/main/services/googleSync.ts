@@ -35,7 +35,11 @@ export class GoogleSyncService {
   constructor(
     private readonly store: CoreStore,
     private readonly oauth: GoogleOAuthController
-  ) {}
+  ) {
+    oauth.onConnectionChange(() => {
+      void this.runNow({ reason: "connection-change" }).catch(() => undefined);
+    });
+  }
 
   runNow(input: JsonRecord = {}): Promise<JsonRecord> {
     if (this.inFlight) return this.inFlight;
@@ -217,7 +221,7 @@ export class GoogleSyncService {
   }
 
   private async pushTask(localId: string): Promise<void> {
-    const task = this.store.googleTaskForSync(localId);
+    let task = this.store.googleTaskForSync(localId);
     if (!task) return;
     if (!task.listGoogleId) throw new CoreStoreError("This task list has not been created in Google yet.");
     if (task.status === "deleted") {
@@ -228,9 +232,9 @@ export class GoogleSyncService {
       }
       return;
     }
+    const parent = task.parentId ? await this.remoteParentId(task.parentId) : undefined;
     const body = googleTaskBody(task);
     if (!task.googleId) {
-      const parent = task.parentId ? await this.remoteParentId(task.parentId) : undefined;
       const remote = await this.requestJson<JsonRecord>(taskCollectionUrl(task.listGoogleId), {
         method: "POST", body: json(body),
         ...(parent ? { query: { parent } } : {})
@@ -249,6 +253,14 @@ export class GoogleSyncService {
       });
       this.store.bindGoogleTask(localId, remote);
       return;
+    }
+    if ((task.googleParentId ?? undefined) !== parent) {
+      const moved = await this.requestJson<JsonRecord>(`${taskUrl(task.listGoogleId, task.googleId)}/move`, {
+        method: "POST", ...(parent ? { query: { parent } } : {})
+      });
+      this.store.bindGoogleTask(localId, moved);
+      task = this.store.googleTaskForSync(localId);
+      if (!task) throw new CoreStoreError("Task no longer exists");
     }
     const remote = await this.requestJson<JsonRecord>(taskUrl(task.listGoogleId, task.googleId), {
       method: "PATCH", body: json(body), headers: conditionalHeaders(task.googleEtag)

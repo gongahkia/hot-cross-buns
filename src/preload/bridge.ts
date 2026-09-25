@@ -231,7 +231,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       ])
     },
     sync: {
-      ...actions("sync", ["status"]),
+      ...actions("sync", ["status", "runNow", "forceFullResync"]),
       subscribeStatus: (listener: (status: any) => void): (() => void) => {
         void core("sync", "status")({}).then((result) => { if (result.ok) listener(result.data); });
         return () => undefined;

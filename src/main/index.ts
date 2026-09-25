@@ -59,7 +59,8 @@ app.whenReady().then(async () => {
   configureSessionHardening(session.defaultSession);
   registerDiagnosticsIpc();
   const services = await createServiceContainer(app.getPath("userData"));
-  registerCoreIpc(services.core, services.googleOAuth);
+  registerCoreIpc(services.core, services.googleOAuth, services.googleSync);
+  void services.googleSync.runNow({ reason: "startup" }).catch(() => undefined);
   registerPlannerIpc(services.planner);
   registerSettingsIpc(services.settings, services.settingsDataInfo);
   mainWindow = createMainWindow();

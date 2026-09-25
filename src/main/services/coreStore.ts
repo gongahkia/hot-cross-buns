@@ -210,7 +210,7 @@ export class CoreStore {
   googleTaskForSync(id: string): JsonRecord | null {
     return (this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.due_at AS dueAt,
       task.parent_id AS parentId,task.sort_order AS sortOrder,task.google_id AS googleId,task.google_etag AS googleEtag,
-      task.google_list_id AS googleListId,
+      task.google_list_id AS googleListId,task.google_parent_id AS googleParentId,
       list.google_id AS listGoogleId FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.id=?`)
       .get(id) as JsonRecord | undefined) ?? null;
   }
@@ -231,9 +231,9 @@ export class CoreStore {
   bindGoogleTask(localId: string, remote: JsonRecord): JsonRecord {
     const list = this.googleTaskForSync(localId);
     if (!list) throw new CoreStoreError("Task no longer exists");
-    this.db.prepare(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,sort_order=?,updated_at=? WHERE id=?`)
+    this.db.prepare(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,google_parent_id=?,sort_order=?,updated_at=? WHERE id=?`)
       .run(requiredText(remote.id, "Google task id"), remote.etag ?? null, list.listGoogleId ?? null,
-        remote.position ?? null, remote.updated ?? timestamp(), localId);
+        remote.parent ?? null, remote.position ?? null, remote.updated ?? timestamp(), localId);
     return this.requireTask(localId);
   }
 
@@ -250,7 +250,7 @@ export class CoreStore {
     const title = requiredText(remote.title, "Google task-list title");
     const existing = this.db.prepare("SELECT id FROM task_lists WHERE google_id=?").get(googleId) as { id: string } | undefined;
     const seed = !existing
-      ? this.db.prepare("SELECT id FROM task_lists WHERE id='inbox' AND google_id IS NULL AND NOT EXISTS (SELECT 1 FROM tasks WHERE list_id='inbox')").get() as { id: string } | undefined
+      ? this.db.prepare("SELECT id FROM task_lists WHERE id='inbox' AND google_id IS NULL").get() as { id: string } | undefined
       : undefined;
     const id = existing?.id ?? seed?.id ?? randomUUID();
     const now = timestamp();
@@ -271,17 +271,17 @@ export class CoreStore {
     const previous = existing ? this.requireTask(localId) : null;
     const now = timestamp();
     this.db.prepare(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,
-      locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,google_parent_id,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET list_id=excluded.list_id,title=excluded.title,notes=excluded.notes,status=excluded.status,
       due_at=excluded.due_at,parent_id=excluded.parent_id,sort_order=excluded.sort_order,google_id=excluded.google_id,
-      google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
+      google_etag=excluded.google_etag,google_parent_id=excluded.google_parent_id,updated_at=excluded.updated_at`)
       .run(localId, localListId, remote.title ?? "Untitled task", remote.notes ?? "",
         remote.deleted ? "deleted" : remote.status === "completed" ? "completed" : "active",
         previous?.priority ?? "none", remote.due ?? null, parentId, previous?.plannedStart ?? null,
         previous?.plannedEnd ?? null, previous?.durationMinutes ?? null, previous?.lockedSchedule ? 1 : 0,
         previous?.snoozeUntil ?? null, JSON.stringify(previous?.tags ?? []), remote.position ?? null,
-        googleId, remote.etag ?? null, now, remote.updated ?? now);
+        googleId, remote.etag ?? null, remote.parent ?? null, now, remote.updated ?? now);
     this.db.prepare("UPDATE tasks SET google_list_id=? WHERE id=?")
       .run((this.googleTaskListForSync(localListId) ?? {}).googleId ?? null, localId);
     return this.requireTask(localId);
@@ -292,7 +292,7 @@ export class CoreStore {
     const title = requiredText(remote.summary ?? remote.title, "Google calendar title");
     const existing = this.db.prepare("SELECT id FROM calendars WHERE google_id=?").get(googleId) as { id: string } | undefined;
     const seed = !existing && remote.primary
-      ? this.db.prepare("SELECT id FROM calendars WHERE id='primary' AND google_id IS NULL AND NOT EXISTS (SELECT 1 FROM events WHERE calendar_id='primary')").get() as { id: string } | undefined
+      ? this.db.prepare("SELECT id FROM calendars WHERE id='primary' AND google_id IS NULL").get() as { id: string } | undefined
       : undefined;
     const id = existing?.id ?? seed?.id ?? randomUUID();
     const now = timestamp();
@@ -521,6 +521,7 @@ export class CoreStore {
     this.addColumn("tasks", "google_id TEXT");
     this.addColumn("tasks", "google_etag TEXT");
     this.addColumn("tasks", "google_list_id TEXT");
+    this.addColumn("tasks", "google_parent_id TEXT");
     this.addColumn("calendars", "google_id TEXT");
     this.addColumn("calendars", "google_etag TEXT");
     this.addColumn("events", "attendees_json TEXT NOT NULL DEFAULT '[]'");
@@ -860,7 +861,16 @@ export class CoreStore {
 
   private syncStatus(): JsonRecord {
     const pending = this.count("outbox", "state = 'pending'");
-    return { state: pending ? "pending" : "idle", pendingMutationCount: pending, offline: false, stale: false };
+    const runtimeRow = this.db.prepare("SELECT value FROM sync_meta WHERE key='google-sync-runtime'").get() as { value?: string } | undefined;
+    const runtime = safeJson(runtimeRow?.value ?? "{}", {});
+    const { pendingMutationCount: _storedPendingMutationCount, ...runtimeWithoutPendingCount } = runtime;
+    return {
+      state: pending && !runtime.state ? "pending" : "idle",
+      pendingMutationCount: pending,
+      offline: false,
+      stale: false,
+      ...runtimeWithoutPendingCount
+    };
   }
 
   private googleStatus(): JsonRecord {

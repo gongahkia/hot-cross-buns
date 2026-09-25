@@ -281,6 +281,18 @@ export function AppShell(): JSX.Element {
     setSidebarOpen((open) => !open);
   }, []);
 
+  const syncThenRefresh = useCallback((reason: string): void => {
+    const runNow = window.hcb?.sync?.runNow;
+    if (!runNow) {
+      source.refresh();
+      return;
+    }
+    void runNow({ reason }).then(
+      () => source.refresh(),
+      () => source.refresh()
+    );
+  }, [source.refresh]);
+
   const triggerTaskCommand = useCallback(
     (id: TaskSurfaceCommand["id"]): void => {
       navigateToSection("tasks");
@@ -301,7 +313,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (action.type === "refresh") {
-        source.refresh();
+        syncThenRefresh("native-action");
         return;
       }
 
@@ -337,7 +349,7 @@ export function AppShell(): JSX.Element {
 
       navigateToSection("calendar");
     },
-    [navigateToSection, openCommandPalette, openQuickAdd, openSettingsPanel, source.refresh]
+    [navigateToSection, openCommandPalette, openQuickAdd, openSettingsPanel, syncThenRefresh]
   );
 
   const handlePaletteCommand = useCallback(
@@ -348,7 +360,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (command.id === "sync.refresh") {
-        source.refresh();
+        syncThenRefresh("command-palette");
         return true;
       }
 
@@ -392,7 +404,7 @@ export function AppShell(): JSX.Element {
       openQuickAdd,
       openSettingsPanel,
       source.redo,
-      source.refresh,
+      syncThenRefresh,
       source.undo,
       triggerTaskCommand
     ]
@@ -602,18 +614,12 @@ export function AppShell(): JSX.Element {
       }
 
       if (actionId === "sync.refresh") {
-        source.refresh();
+        syncThenRefresh("hotkey");
         return;
       }
 
       if (actionId === "sync.forceFullResync") {
-        void source.runRecoveryAction({
-          action: "forceFullResync",
-          confirmation: {
-            accepted: true,
-            phrase: "FULL RESYNC"
-          }
-        });
+        void window.hcb?.sync.forceFullResync({}).then(() => source.refresh());
         return;
       }
 
@@ -737,7 +743,7 @@ export function AppShell(): JSX.Element {
       paneWorkspace.splitPane,
       toggleDiagnosticsPanel,
       openSettingsPanel,
-      source.refresh,
+    syncThenRefresh,
       source.redo,
       source.runRecoveryAction,
       source.undo,
@@ -1004,7 +1010,7 @@ export function AppShell(): JSX.Element {
           notificationsOpen={notificationsOpen}
           onOpenCommandPalette={openCommandPalette}
           onOpenSplitPane={paneWorkspace.openChooser}
-          onRefresh={source.refresh}
+          onRefresh={() => syncThenRefresh("toolbar")}
           onToggleDiagnostics={toggleDiagnosticsPanel}
           onToggleNotifications={toggleNotificationsPanel}
           onToggleSettings={toggleSettingsPanel}
