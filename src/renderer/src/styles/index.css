@@ -126,6 +126,11 @@ select {
   font: inherit;
 }
 
+/* Text buffers are deliberately distinct from compact UI controls. */
+textarea {
+  font-family: var(--font-family-mono);
+}
+
 input:not([type="checkbox"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="radio"]):not([type="range"]),
 select {
   min-height: 40px;
