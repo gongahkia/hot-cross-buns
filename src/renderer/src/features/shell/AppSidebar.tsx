@@ -43,7 +43,7 @@ function SidebarCalendarDropdown({
       <button
         aria-controls="sidebar-calendar-sources"
         aria-expanded={open}
-        className="flex h-7 w-full items-center gap-2 rounded-hcbSm px-2 text-left text-[var(--text-xs)] font-semibold text-text-muted transition-colors duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="flex min-h-10 w-full items-center gap-2 rounded-hcbSm px-2 text-left text-[var(--text-xs)] font-semibold text-text-muted transition-colors duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => setOpen(!open)}
         type="button"
       >
@@ -90,7 +90,7 @@ function SidebarCalendarDropdown({
           })}
           {hiddenCount > 0 ? (
             <button
-              className="flex h-7 items-center gap-2 rounded-hcbSm px-2 text-left text-[var(--text-xs)] font-semibold text-text-muted transition-colors duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="flex min-h-10 items-center gap-2 rounded-hcbSm px-2 text-left text-[var(--text-xs)] font-semibold text-text-muted transition-colors duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onClick={onShowAll}
               type="button"
             >

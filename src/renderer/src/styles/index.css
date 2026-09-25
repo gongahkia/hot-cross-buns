@@ -121,6 +121,11 @@ select {
   font: inherit;
 }
 
+input:not([type="checkbox"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="radio"]):not([type="range"]),
+select {
+  min-height: 40px;
+}
+
 button {
   border: 0;
   background: transparent;
