@@ -98,10 +98,10 @@ function SidebarDrawerToggle({
   const edgeClass = sidebarOnRight
     ? sidebarOpen
       ? "right-[72px] rounded-l-hcbMd border-r-0 lg:right-[232px]"
-      : "right-0 rounded-l-hcbMd border-r-0"
+      : "right-[12px] rounded-l-hcbMd border-r-0"
     : sidebarOpen
       ? "left-[72px] rounded-r-hcbMd border-l-0 lg:left-[232px]"
-      : "left-0 rounded-r-hcbMd border-l-0";
+      : "left-[12px] rounded-r-hcbMd border-l-0";
 
   return (
     <button
@@ -110,7 +110,7 @@ function SidebarDrawerToggle({
       aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
       aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
       className={cx(
-        "absolute top-4 z-30 hidden h-11 w-7 items-center justify-center border border-border bg-bg-secondary text-text-muted shadow-sm transition-[background-color,color,box-shadow] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+        "absolute top-16 z-30 hidden h-12 w-7 items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
         edgeClass
       )}
       onClick={onToggle}
@@ -1071,7 +1071,9 @@ export function AppShell(): JSX.Element {
           ? sidebarOnRight
             ? "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_72px] md:grid-rows-none lg:grid-cols-[minmax(0,1fr)_232px]"
             : "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
-          : "grid-rows-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)] md:grid-rows-none"
+          : sidebarOnRight
+            ? "grid-rows-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_12px] md:grid-rows-none"
+            : "grid-rows-[minmax(0,1fr)] md:grid-cols-[12px_minmax(0,1fr)] md:grid-rows-none"
         )}
       >
         {sidebarOpen ? (
@@ -1084,6 +1086,15 @@ export function AppShell(): JSX.Element {
             source={source}
             visibleCalendarIds={visibleCalendarIdSet}
             visiblePrimarySections={visiblePrimarySections}
+          />
+        ) : null}
+        {!sidebarOpen ? (
+          <div
+            aria-hidden="true"
+            className={cx(
+              "hidden bg-bg-secondary md:block",
+              sidebarOnRight ? "md:order-2 md:border-l md:border-border" : "md:order-1 md:border-r md:border-border"
+            )}
           />
         ) : null}
 
