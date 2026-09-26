@@ -771,8 +771,8 @@ export function SettingsView({
   );
 }
 
-function previewDiffers(left: string, right: string): boolean {
-  return left.trim() !== right.trim();
+function previewDiffers(left: string | null | undefined, right: string | null | undefined): boolean {
+  return (left ?? "").trim() !== (right ?? "").trim();
 }
 
 function sameStringSet(left: readonly string[], right: readonly string[]): boolean {

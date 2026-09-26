@@ -86,6 +86,7 @@ test.describe.serial("live Google account smoke", () => {
   let accountId = "";
   let app: ElectronApplication | undefined;
   let page: Page;
+  let rendererErrors: string[] = [];
 
   test.beforeAll(async () => {
     app = await electron.launch({
@@ -97,6 +98,14 @@ test.describe.serial("live Google account smoke", () => {
       }
     });
     page = await app.firstWindow();
+    page.on("pageerror", (error) => {
+      rendererErrors.push(`page error: ${error.stack ?? error.message}`);
+    });
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        rendererErrors.push(`console error: ${message.text()}`);
+      }
+    });
     await expect(page.getByTestId("app-shell")).toBeVisible();
 
     const onboarding = page.getByRole("dialog", { name: "First-run setup" });
@@ -134,6 +143,8 @@ test.describe.serial("live Google account smoke", () => {
     for (const [label, result] of Object.entries(data)) requireSuccess(result as HcbResult, `Read ${label}`);
 
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.waitForTimeout(150);
+    expect(rendererErrors).toEqual([]);
     const settings = page.getByRole("dialog", { name: "Settings" });
     await expect(settings).toBeVisible();
     await expect(settings).toContainText(config.accountEmail);
