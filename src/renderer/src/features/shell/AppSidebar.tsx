@@ -9,6 +9,7 @@ import { ariaKeyShortcuts } from "../core/hotkeys";
 import type { CoreViewModelSource } from "../core/coreViewModelSource";
 import { CalendarSourceSwatch } from "../core/screens/calendar/CalendarEventChips";
 import { scheduleFrame, sectionMetric } from "./shellUtils";
+import { useSidebarDrawerDrag } from "./sidebarDrawerDrag";
 import type { VisiblePrimarySection } from "./types";
 
 function SidebarCalendarDropdown({
@@ -106,7 +107,7 @@ function SidebarCalendarDropdown({
 export function AppSidebar({
   activeSectionId,
   onShowAllCalendars,
-  onToggleDrawer,
+  onSetDrawerOpen,
   onToggleVisibleCalendar,
   onNavigateToSection,
   sidebarOnRight,
@@ -116,7 +117,7 @@ export function AppSidebar({
 }: {
   activeSectionId: SectionId;
   onShowAllCalendars: () => void;
-  onToggleDrawer: () => void;
+  onSetDrawerOpen: (open: boolean) => void;
   onToggleVisibleCalendar: (calendarId: string, visible: boolean) => void;
   onNavigateToSection: (sectionId: SectionId) => void;
   sidebarOnRight: boolean;
@@ -128,6 +129,11 @@ export function AppSidebar({
   const sectionButtonRefs = useRef(new Map<SectionId, HTMLButtonElement>());
   const [calendarDropdownOpen, setCalendarDropdownOpen] = useState(true);
   const DrawerToggleIcon = sidebarOnRight ? ChevronRight : ChevronLeft;
+  const drawerDrag = useSidebarDrawerDrag({
+    onSetOpen: onSetDrawerOpen,
+    sidebarOnRight,
+    sidebarOpen: true
+  });
 
   const setSectionButtonRef = useCallback(
     (sectionId: SectionId) =>
@@ -234,10 +240,11 @@ export function AppSidebar({
         aria-keyshortcuts={ariaKeyShortcuts(source.settings.keybindings["navigation.sidebar.toggle"])}
         aria-label={t("nav.hideSidebar")}
         className={cx(
-          "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+          "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
           sidebarOnRight ? "-left-[27px] rounded-l-hcbMd border-r-0" : "-right-[27px] rounded-r-hcbMd border-l-0"
         )}
-        onClick={onToggleDrawer}
+        onClick={drawerDrag.onClick}
+        onPointerDown={drawerDrag.onPointerDown}
         title={t("nav.hideSidebar")}
         type="button"
       >

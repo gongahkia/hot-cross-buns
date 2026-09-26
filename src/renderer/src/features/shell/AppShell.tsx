@@ -37,6 +37,7 @@ import {
   scheduleFrame,
   shellCanBeReported
 } from "./shellUtils";
+import { useSidebarDrawerDrag } from "./sidebarDrawerDrag";
 import { useAppliedTheme } from "./theme";
 import type { VisiblePrimarySection } from "./types";
 import { usePaneWorkspace } from "./usePaneWorkspace";
@@ -83,15 +84,16 @@ function closestAnchor(target: EventTarget | null): HTMLAnchorElement | null {
 
 function SidebarDrawerToggle({
   keybindings,
-  onToggle,
+  onSetOpen,
   sidebarOnRight,
   sidebarOpen
 }: {
   keybindings: SettingsSnapshot["keybindings"];
-  onToggle: () => void;
+  onSetOpen: (open: boolean) => void;
   sidebarOnRight: boolean;
   sidebarOpen: boolean;
 }): JSX.Element {
+  const drawerDrag = useSidebarDrawerDrag({ onSetOpen, sidebarOnRight, sidebarOpen });
   const ToggleIcon = sidebarOnRight
     ? sidebarOpen ? ChevronRight : ChevronLeft
     : sidebarOpen ? ChevronLeft : ChevronRight;
@@ -110,10 +112,11 @@ function SidebarDrawerToggle({
       aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
       aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
       className={cx(
-        "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+        "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
         edgeClass
       )}
-      onClick={onToggle}
+      onClick={drawerDrag.onClick}
+      onPointerDown={drawerDrag.onPointerDown}
       title={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
       type="button"
     >
@@ -1082,7 +1085,7 @@ export function AppShell(): JSX.Element {
           <AppSidebar
             activeSectionId={paneWorkspace.activeSectionId}
             onShowAllCalendars={showAllCalendars}
-            onToggleDrawer={toggleSidebar}
+            onSetDrawerOpen={setSidebarOpen}
             onToggleVisibleCalendar={toggleVisibleCalendar}
             onNavigateToSection={navigateToSection}
             sidebarOnRight={sidebarOnRight}
@@ -1125,7 +1128,7 @@ export function AppShell(): JSX.Element {
         {!sidebarOpen ? (
           <SidebarDrawerToggle
             keybindings={source.settings.keybindings}
-            onToggle={toggleSidebar}
+            onSetOpen={setSidebarOpen}
             sidebarOnRight={sidebarOnRight}
             sidebarOpen={sidebarOpen}
           />
