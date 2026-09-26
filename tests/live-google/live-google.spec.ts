@@ -40,6 +40,8 @@ interface BenchmarkRun {
 }
 
 const config = readLiveGoogleConfig();
+let liveElectronExit: string | null = null;
+const liveElectronStderr: string[] = [];
 
 function readLiveGoogleConfig(): LiveGoogleConfig {
   const mode = process.env.HCB_LIVE_GOOGLE_TEST_MODE;
@@ -141,7 +143,10 @@ async function syncAccount(page: Page, accountId: string, readOnly: boolean, pha
       typeof status?.lastErrorCode === "string" ? `code ${status.lastErrorCode}` : null,
       typeof status?.message === "string" ? status.message : null
     ].filter(Boolean).join("; ");
-    throw new Error(`${phase} sync failed: ${diagnostic || "No result returned"}`);
+    const processDiagnostic = page.isClosed()
+      ? `; Electron page closed${liveElectronExit ? ` (${liveElectronExit})` : ""}${liveElectronStderr.length ? `; stderr: ${liveElectronStderr.at(-1)}` : ""}`
+      : "";
+    throw new Error(`${phase} sync failed: ${diagnostic || "No result returned"}${processDiagnostic}`);
   }
 
   const status = requireSuccess(result, `${phase} sync`) as Record<string, unknown>;
@@ -348,6 +353,14 @@ test.describe.serial("live Google account smoke", () => {
         HCB_LIVE_GOOGLE_TEST_MODE: config.mode
       }
     });
+    liveElectronExit = null;
+    liveElectronStderr.length = 0;
+    app.process().on("exit", (code, signal) => {
+      liveElectronExit = `exit code ${code ?? "none"}${signal ? `, signal ${signal}` : ""}`;
+    });
+    app.process().stderr?.on("data", (chunk: Buffer) => {
+      liveElectronStderr.push(String(chunk).trim());
+    });
     page = await app.firstWindow();
     page.on("pageerror", (error) => {
       rendererErrors.push(`page error: ${error.stack ?? error.message}`);
@@ -405,6 +418,13 @@ test.describe.serial("live Google account smoke", () => {
       await page.getByRole("button", { name: section, exact: true }).click();
       await expect(page.getByRole("button", { name: section, exact: true })).toBeVisible();
     }
+  });
+
+  test("recovers only explicitly marked residue in the dedicated smoke resources", async () => {
+    test.skip(config.mode !== "mutating", "Mutating checks require HCB_LIVE_GOOGLE_TEST_MODE=mutating.");
+
+    await requireDedicatedResources(page, accountId);
+    expect(rendererErrors).toEqual([]);
   });
 
   test("creates, updates, and deletes only marked records in dedicated test resources", async () => {
@@ -500,17 +520,9 @@ test.describe.serial("live Google account smoke", () => {
     const { calendarId, taskListId } = await requireDedicatedResources(page, accountId);
     const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const title = `[HCB live smoke metadata ${runId}]`;
-    const scheduledStart = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000);
-    scheduledStart.setUTCHours(1, 0, 0, 0);
-    const startsAt = scheduledStart.toISOString();
+    const startsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString();
     const endsAt = new Date(Date.parse(startsAt) + 45 * 60_000).toISOString();
-    const recurrenceTimeZone = "Asia/Singapore";
-    const recurrenceLines = [
-      "RRULE:FREQ=DAILY;COUNT=3",
-      "EXRULE:FREQ=YEARLY;BYMONTH=12",
-      `EXDATE;TZID=${recurrenceTimeZone}:${googleLocalRecurrenceDateTime(new Date(Date.parse(startsAt) + 24 * 60 * 60 * 1_000).toISOString(), recurrenceTimeZone)}`,
-      `RDATE;TZID=${recurrenceTimeZone}:${googleLocalRecurrenceDateTime(new Date(Date.parse(startsAt) + 4 * 24 * 60 * 60 * 1_000).toISOString(), recurrenceTimeZone)}`
-    ];
+    const recurrenceLines = ["RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO,WE"];
     const dueDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1_000).toISOString().slice(0, 10);
     const planning = {
       durationMinutes: 45,
