@@ -38,7 +38,7 @@ export function useSidebarDrawerDrag({
 }): {
   onClick: () => void;
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
-  previewRef: RefObject<HTMLDivElement>;
+  previewRef: RefObject<HTMLDivElement | null>;
 } {
   const suppressClickRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
