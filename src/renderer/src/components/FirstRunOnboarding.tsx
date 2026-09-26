@@ -36,10 +36,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
   const selectedCalendars = useMemo(() => new Set(selectedCalendarIds), [selectedCalendarIds]);
   const accountState = source.diagnosticsSummary?.account.state ?? "signed_out";
-  const googleConnected =
-    source.googleStatus.account?.connectionState === "connected" || accountState === "connected";
+  const connectedGoogleAccount = source.googleStatus.accounts.find((account) => account.connectionState === "connected");
+  const googleConnected = Boolean(connectedGoogleAccount) || accountState === "connected";
   const googleAccountLabel =
-    source.googleStatus.account?.displayName ?? source.googleStatus.account?.email ?? "Google account";
+    connectedGoogleAccount?.displayName ?? connectedGoogleAccount?.email ?? source.googleStatus.account?.displayName ?? source.googleStatus.account?.email ?? "Google account";
   const nativeFlags = source.diagnosticsSummary?.native.flags ?? source.native.capabilityReport.flags;
   const oauthRuntimeReady =
     nativeFlags.supportsOAuthLoopback ??
@@ -70,14 +70,14 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   }, [googleConnecting, source.refreshGoogleStatus]);
 
   useEffect(() => {
-    const accountId = source.googleStatus.account?.accountId ?? null;
+    const accountId = connectedGoogleAccount?.accountId ?? source.googleStatus.account?.accountId ?? null;
     if (!googleConnected || !accountId || refreshedConnectedAccount.current === accountId) return;
 
     refreshedConnectedAccount.current = accountId;
     source.refresh();
     const timers = [1_500, 4_000, 8_000].map((delayMs) => window.setTimeout(() => source.refresh(), delayMs));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [googleConnected, source.googleStatus.account?.accountId, source.refresh]);
+  }, [connectedGoogleAccount?.accountId, googleConnected, source.googleStatus.account?.accountId, source.refresh]);
 
   useEffect(() => {
     if (!googleConnected) return;

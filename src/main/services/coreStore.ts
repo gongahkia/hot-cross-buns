@@ -1906,7 +1906,7 @@ export class CoreStore {
   }
 
   private defaultWritableTaskListId(): string {
-    const selected = new Set(this.selectedTaskListIds());
+    const selected = new Set(stringArray(this.settings().selectedTaskListIds));
     const connectedAccountIds = new Set(
       this.googleAccounts()
         .filter((account) => account.accountId !== localAccountId && account.connectionState === "connected")

@@ -41,6 +41,48 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(tasks.find((task: { title: string }) => task.title === "Second").accountId).toBe(second.accountId);
   });
 
+  it("retires only the starter workspace after Google connects and defaults new writes to Google", () => {
+    const store = createStore();
+    const localTask = store.dispatch("tasks", "create", { listId: "inbox", title: "Starter task" });
+    const localEvent = store.dispatch("calendar", "create", {
+      calendarId: "primary", title: "Starter event", startsAt: "2027-01-02T08:00:00.000Z", endsAt: "2027-01-02T09:00:00.000Z"
+    });
+    const note = store.dispatch("notes", "create", { title: "Keep this note", listId: "inbox" });
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const googleList = store.upsertGoogleTaskList({ id: "google-inbox", title: "Google Inbox" }, account.accountId);
+    const googleCalendar = store.upsertGoogleCalendar({ id: "primary", summary: "Google Primary" }, account.accountId);
+    const googleTask = store.dispatch("tasks", "create", { listId: googleList.id, title: "Google task" });
+    const googleEvent = store.dispatch("calendar", "create", {
+      calendarId: googleCalendar.id, title: "Google event", startsAt: "2027-01-02T10:00:00.000Z", endsAt: "2027-01-02T11:00:00.000Z"
+    });
+    store.dispatch("settings", "update", {
+      selectedTaskListIds: ["inbox"],
+      selectedCalendarIds: ["primary"],
+      perTabListFilters: { tasks: { useCustomFilter: true, selectedTaskListIds: ["inbox"] } }
+    });
+
+    store.retireLocalFallback();
+
+    expect(store.googleAccounts().map((item) => item.accountId)).not.toContain("local");
+    expect(store.dispatch("tasks", "list", { status: "all", limit: 20 }).items.map((item: { id: string }) => item.id))
+      .toEqual([googleTask.id]);
+    expect(store.dispatch("calendar", "listEvents", { start: "2027-01-02T00:00:00.000Z", end: "2027-01-03T00:00:00.000Z", limit: 20 }).items.map((item: { id: string }) => item.id))
+      .toEqual([googleEvent.id]);
+    expect(store.dispatch("notes", "get", { id: note.id }).listId).toBeNull();
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      selectedTaskListIds: [],
+      selectedCalendarIds: [],
+      perTabListFilters: { tasks: { selectedTaskListIds: [] } }
+    });
+
+    expect(store.dispatch("tasks", "create", { title: "New Google task" }).listId).toBe(googleList.id);
+    expect(store.dispatch("calendar", "create", {
+      title: "New Google event", startsAt: "2027-01-02T12:00:00.000Z", endsAt: "2027-01-02T13:00:00.000Z"
+    }).calendarId).toBe(googleCalendar.id);
+    expect(() => store.dispatch("tasks", "get", { id: localTask.id })).toThrow("Task no longer exists");
+    expect(() => store.dispatch("calendar", "get", { id: localEvent.id })).toThrow("Calendar event no longer exists");
+  });
+
   it("persists task blocks, availability, and reversible writes", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Write release notes", durationMinutes: 30 });

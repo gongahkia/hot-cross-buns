@@ -1,15 +1,21 @@
 import { get } from "node:http";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 const electronMocks = vi.hoisted(() => ({
+  decryptString: vi.fn<(value: Buffer) => string>(),
+  encryptString: vi.fn<(value: string) => Buffer>(),
+  isEncryptionAvailable: vi.fn<() => boolean>(),
   openExternal: vi.fn<(url: string) => Promise<void>>(async () => undefined)
 }));
 
 vi.mock("electron", () => ({
   safeStorage: {
-    decryptString: vi.fn(),
-    encryptString: vi.fn(),
-    isEncryptionAvailable: vi.fn()
+    decryptString: electronMocks.decryptString,
+    encryptString: electronMocks.encryptString,
+    isEncryptionAvailable: electronMocks.isEncryptionAvailable
   },
   shell: { openExternal: electronMocks.openExternal }
 }));
@@ -71,5 +77,48 @@ describe("GoogleOAuthController", () => {
 
     await expect(requestCallback(callbackUrl)).resolves.toBe(400);
     expect(tokenFetch).not.toHaveBeenCalled();
+  });
+
+  it("retires the starter workspace only after OAuth tokens are stored", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-test-"));
+    const retireLocalFallback = vi.fn();
+    const store = {
+      oauthClientId: () => "test-desktop-client-id",
+      retireLocalFallback,
+      upsertGoogleAccount: vi.fn(() => ({ accountId: "google-account" }))
+    };
+    electronMocks.isEncryptionAvailable.mockReturnValue(true);
+    electronMocks.encryptString.mockImplementation((value) => Buffer.from(value));
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ access_token: "access", refresh_token: "refresh", expires_in: 3600, scope: "openid email" }))
+      .mockResolvedValueOnce(Response.json({ id: "google-id", email: "person@example.test", name: "Person" }));
+    const controller = new GoogleOAuthController(directory, store as never);
+    const internals = controller as unknown as {
+      completeAuthorization: (
+        authorization: { callback: { waitForCode: () => Promise<string> }; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string },
+        attempt: { cancelled: boolean }
+      ) => Promise<void>;
+    };
+
+    try {
+      await internals.completeAuthorization({
+        callback: { waitForCode: async () => "authorization-code" },
+        clientId: "test-desktop-client-id",
+        redirectUri: "http://127.0.0.1:9999/oauth/callback",
+        requestedScopes: ["openid"],
+        verifier: "verifier"
+      }, { cancelled: false });
+
+      expect(store.upsertGoogleAccount).toHaveBeenCalledWith(expect.objectContaining({
+        googleAccountId: "google-id",
+        email: "person@example.test",
+        connectionState: "connected"
+      }));
+      expect(retireLocalFallback).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchSpy.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
