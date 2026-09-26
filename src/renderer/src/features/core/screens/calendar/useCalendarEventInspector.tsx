@@ -55,7 +55,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const [formError, setFormError] = useState<string | undefined>();
   const [calendarInspectorMode, setCalendarInspectorModeState] = useState<"view" | "edit">("edit");
   const [calendarActionError, setCalendarActionError] = useState<string | undefined>();
-  const [eventWriteScope, setEventWriteScopeState] = useState<CalendarEventCompletionScope>("seriesAll");
+  const [eventWriteScope, setEventWriteScopeState] = useState<CalendarEventCompletionScope>("series");
   const calendarDraftRef = useRef<CalendarEventDraft | null>(draft);
   const calendarDraftBaselineRef = useRef<CalendarEventDraft | null>(draft);
   const calendarInspectorDirtyRef = useRef(false);
@@ -63,7 +63,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const calendarInspectorModeRef = useRef<"view" | "edit">("edit");
   const createModeRef = useRef<CalendarCreateMode>("event");
   const createTaskListIdRef = useRef(createTaskListId);
-  const eventWriteScopeRef = useRef<CalendarEventCompletionScope>("seriesAll");
+  const eventWriteScopeRef = useRef<CalendarEventCompletionScope>("series");
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
     setDraftState((current) => {
@@ -243,8 +243,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         value={eventWriteScope}
       >
         <option value="occurrence">This occurrence</option>
-        <option value="seriesFuture">This and future</option>
-        <option value="seriesAll">Whole series</option>
+        <option value="following">This and future</option>
+        <option value="series">Whole series</option>
       </select>
     );
   }
@@ -618,7 +618,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     const result = await window.hcb?.calendar.delete({
       id: currentDraft.id,
-      ...(recurringDraft(currentDraft) ? { scope: eventWriteScopeRef.current } : {})
+      ...(recurringDraft(currentDraft) ? { scope: eventWriteScopeRef.current } : {}),
+      ...(currentDraft.originalStartAt ? { originalStartAt: currentDraft.originalStartAt } : {})
     });
 
     if (!result?.ok) {
@@ -635,7 +636,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   async function updateCalendarEventTime(
-    request: Pick<CalendarEventUpdateRequest, "id" | "startsAt" | "endsAt" | "allDay" | "scope">
+    request: Pick<CalendarEventUpdateRequest, "id" | "startsAt" | "endsAt" | "allDay" | "scope"> & { originalStartAt?: string | null }
   ): Promise<void> {
     const result = await window.hcb?.calendar.update(request);
 
@@ -661,10 +662,11 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       : new Date(Date.parse(startsAt) + durationMs).toISOString();
 
     void updateCalendarEventTime({
-      id: event.id,
+      id: event.eventId ?? event.id,
       startsAt,
       endsAt,
-      allDay
+      allDay,
+      ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {})
     });
   }
 
@@ -676,8 +678,9 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     }
 
     void updateCalendarEventTime({
-      id: event.id,
-      endsAt
+      id: event.eventId ?? event.id,
+      endsAt,
+      ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {})
     });
   }
 
@@ -715,5 +718,8 @@ function defaultEventWriteScope(
     return "seriesAll";
   }
 
-  return setting === "ask" ? "occurrence" : setting;
+  if (setting === "ask") return "occurrence";
+  if (setting === "seriesFuture") return "following";
+  if (setting === "seriesAll") return "series";
+  return setting;
 }

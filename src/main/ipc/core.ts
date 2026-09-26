@@ -46,7 +46,7 @@ const taskWriteSchema = z.object({
 const eventWriteSchema = z.object({
   id: idSchema.optional(), calendarId: idSchema.optional(), title: z.string().trim().min(1).max(10_000).optional(),
   startsAt: isoDateSchema.optional(), endsAt: isoDateSchema.optional(), allDay: z.boolean().optional(),
-  description: z.string().max(100_000).optional(), scope: z.enum(["series", "occurrence", "following", "thisAndFollowing", "future"]).optional()
+  description: z.string().max(100_000).optional(), scope: z.enum(["series", "seriesAll", "occurrence", "following", "seriesFuture", "thisAndFollowing", "future"]).optional()
 }).passthrough();
 
 export function payloadIsValid(namespace: string, action: string, payload: Record<string, unknown>): boolean {

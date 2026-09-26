@@ -3,6 +3,7 @@ import { GoogleOAuthController } from "./googleOAuth";
 import { EventEmitter } from "node:events";
 import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
 import { googleTaskNotesMaxLength, googleTaskTitleMaxLength, withHcbTaskMetadata } from "./hcbTaskMetadata";
+import { googleOriginalStartQueryValue } from "./googleRecurrence";
 
 type JsonRecord = Record<string, any>;
 
@@ -24,6 +25,9 @@ class GoogleApiError extends Error {
     return this.status === 0 || this.status === 408 || this.status === 429 || this.status >= 500;
   }
 }
+
+/** The remote split was compensated successfully, so retrying it would be wrong. */
+class SplitSeriesRolledBackError extends Error {}
 
 /**
  * Owns every Google API call. CoreStore remains a local, transactional cache;
@@ -315,6 +319,10 @@ export class GoogleSyncService {
         await this.deliverMutation(accountId, mutation);
         this.store.completeSyncMutation(mutation.id);
       } catch (error: unknown) {
+        if (error instanceof SplitSeriesRolledBackError) {
+          this.store.completeSyncMutation(mutation.id);
+          throw error;
+        }
         // Tasks does not accept client-generated ids. Retrying a create after a
         // lost response can duplicate a user task, so preserve it as an
         // explicit conflict instead of guessing. Calendar creates are
@@ -345,8 +353,14 @@ export class GoogleSyncService {
       case "event.update":
         await this.pushEvent(accountId, mutation.entityId);
         return;
+      case "event.updateOccurrence":
+        await this.updateGoogleOccurrence(accountId, mutation.entityId, mutation.payload);
+        return;
       case "event.move":
         await this.moveEvent(accountId, mutation.entityId, mutation.payload);
+        return;
+      case "event.splitSeries":
+        await this.splitGoogleSeries(accountId, mutation.payload);
         return;
       case "event.delete":
         await this.deleteEvent(accountId, mutation.payload);
@@ -438,6 +452,9 @@ export class GoogleSyncService {
     if (!event) return;
     if (!event.calendarGoogleId) throw new CoreStoreError("This calendar has not been discovered in Google yet.");
     const body = googleEventBody(event, event.googleId ? undefined : deterministicGoogleEventId(event.id));
+    // A Google exception is an instance, not a recurrence master. Calendar
+    // rejects recurrence data on the instance and the master already owns it.
+    if (event.googleRecurringEventId) delete body.recurrence;
     const collection = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarGoogleId)}/events`;
     let remote: JsonRecord;
     if (event.googleId) {
@@ -455,6 +472,255 @@ export class GoogleSyncService {
       }
     }
     this.store.bindGoogleEvent(localId, remote);
+  }
+
+  /** Materialize a local edit of a generated row as a Google Calendar exception. */
+  private async updateGoogleOccurrence(accountId: string, localId: string, payload: JsonRecord): Promise<void> {
+    const parentEventId = requiredText(payload.parentEventId, "Recurring occurrence parent event id");
+    const originalStartAt = requiredIso(payload.originalStartAt, "Recurring occurrence date");
+    const parent = this.store.googleEventForSync(parentEventId);
+    const occurrence = this.store.googleEventForSync(localId);
+    if (!parent?.googleId || !parent.calendarGoogleId || !occurrence) {
+      throw new CoreStoreError("The local state for this recurring occurrence edit is incomplete.");
+    }
+    if (parent.calendarGoogleId !== occurrence.calendarGoogleId) {
+      throw new CoreStoreError("A recurring occurrence cannot be moved to another Google calendar.");
+    }
+    const collection = calendarEventCollectionUrl(parent.calendarGoogleId);
+    const target = await this.successorInstanceAt(accountId, collection, { id: parent.googleId }, originalStartAt, Boolean(occurrence.allDay));
+    const body = googleEventBody(occurrence);
+    delete body.recurrence;
+    if (!target || target.status === "cancelled") {
+      // This can occur only when the rule was externally changed between the
+      // local projection and the write. Preserve the user edit as a standalone
+      // event rather than issuing a destructive guess against the master.
+      const remote = await this.requestJson<JsonRecord>(accountId, collection, {
+        method: "POST", body: json(body), query: calendarEventWriteQuery(occurrence)
+      });
+      this.store.bindGoogleEvent(localId, remote);
+      return;
+    }
+    const remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(requiredText(target.id, "Google occurrence id"))}`, {
+      method: "PATCH",
+      body: json(body),
+      headers: conditionalHeaders(target.etag),
+      query: calendarEventWriteQuery(occurrence)
+    });
+    this.store.bindGoogleEvent(localId, remote);
+  }
+
+  /**
+   * Google Calendar has no public "this and following" endpoint. Recreate its
+   * semantics with two masters and exception copies, compensating every
+   * completed remote step if a later one fails. The durable outbox gives the
+   * operation a single causal position relative to later local edits.
+   */
+  private async splitGoogleSeries(accountId: string, payload: JsonRecord): Promise<void> {
+    const parentEventId = requiredText(payload.parentEventId, "Recurring split parent event id");
+    const successorEventId = requiredText(payload.successorEventId, "Recurring split successor event id");
+    const splitAt = requiredIso(payload.splitAt, "Recurring split date");
+    const originalMaster = payload.originalMaster && typeof payload.originalMaster === "object"
+      ? payload.originalMaster as JsonRecord
+      : null;
+    const parent = this.store.googleEventForSync(parentEventId);
+    const successor = this.store.googleEventForSync(successorEventId);
+    if (!parent?.googleId || !parent.calendarGoogleId || !successor || !originalMaster) {
+      throw new CoreStoreError("The local state for this recurring-series split is incomplete.");
+    }
+    if (parent.calendarGoogleId !== successor.calendarGoogleId) {
+      throw new CoreStoreError("A recurring-series split cannot cross Google calendars.");
+    }
+
+    const collection = calendarEventCollectionUrl(parent.calendarGoogleId);
+    // Fetch before writing. Besides avoiding writes over an externally edited
+    // series, this provides the iCalUID needed to fetch every exception,
+    // including cancelled instances that are otherwise intentionally sparse.
+    const remoteMaster = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(parent.googleId)}`);
+    if (originalMaster.googleEtag && remoteMaster.etag && originalMaster.googleEtag !== remoteMaster.etag) {
+      throw new CoreStoreError("This recurring series changed in Google before HCB could split it. Refresh it, then try again.");
+    }
+    const remoteExceptions = await this.seriesExceptions(accountId, collection, remoteMaster);
+
+    let updatedParent: JsonRecord | null = null;
+    let createdSuccessor: JsonRecord | null = null;
+    try {
+      updatedParent = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(parent.googleId)}`, {
+        method: "PATCH",
+        body: json(googleEventBody(parent)),
+        headers: conditionalHeaders(remoteMaster.etag ?? parent.googleEtag),
+        query: calendarEventWriteQuery(parent)
+      });
+      this.store.bindGoogleEvent(parentEventId, updatedParent);
+
+      createdSuccessor = await this.insertSplitSuccessor(accountId, collection, successor);
+      this.store.bindGoogleEvent(successorEventId, createdSuccessor);
+
+      for (const exception of remoteExceptions) {
+        if (!exceptionIsOnOrAfter(exception, splitAt)) continue;
+        await this.copyFutureException({
+          accountId,
+          calendarLocalId: parent.calendarId,
+          collection,
+          exception,
+          splitAt,
+          successor,
+          successorRemote: createdSuccessor
+        });
+      }
+    } catch (error: unknown) {
+      const compensationError = await this.compensateGoogleSeriesSplit({
+        accountId,
+        collection,
+        originalMaster,
+        updatedParent,
+        createdSuccessor
+      });
+      if (!compensationError) {
+        this.store.restoreGoogleSplitSeries(payload, typeof createdSuccessor?.id === "string" ? createdSuccessor.id : undefined);
+        // Copying an exception replaces its cached old-parent row. The remote
+        // compensation leaves those old exceptions untouched, so restore their
+        // cache entries as well; otherwise an incremental pull might never
+        // re-send an unchanged exception after the failed split.
+        for (const exception of remoteExceptions) {
+          if (exception.status !== "cancelled") this.store.upsertGoogleEvent(exception, parent.calendarId);
+        }
+        throw new SplitSeriesRolledBackError(`Google could not complete the recurring-series split, so HCB restored the original series: ${safeError(error)}`);
+      }
+      throw new CoreStoreError(`Google could not complete the recurring-series split and automatic rollback also failed. No further writes were attempted: ${compensationError}`);
+    }
+  }
+
+  private async seriesExceptions(accountId: string, collection: string, master: JsonRecord): Promise<JsonRecord[]> {
+    if (typeof master.iCalUID !== "string" || !master.iCalUID) {
+      throw new CoreStoreError("Google did not return an iCalendar UID for this recurring series, so HCB cannot safely migrate its exceptions.");
+    }
+    const events = await this.allPages(accountId, collection, {
+      iCalUID: master.iCalUID,
+      maxResults: "2500",
+      showDeleted: "true",
+      singleEvents: "false"
+    });
+    return events.filter((event) => event.recurringEventId === master.id);
+  }
+
+  private async insertSplitSuccessor(accountId: string, collection: string, successor: JsonRecord): Promise<JsonRecord> {
+    const body = googleEventBody(successor, deterministicGoogleEventId(successor.id));
+    try {
+      return await this.requestJson<JsonRecord>(accountId, collection, {
+        method: "POST",
+        body: json(body),
+        query: calendarEventWriteQuery(successor)
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof GoogleApiError) || (error.status !== 409 && error.status !== 0)) throw error;
+      // A network loss can happen after Google's idempotent POST was accepted.
+      // The deterministic ID lets us distinguish that from a failed create
+      // without ever inserting a duplicate successor.
+      return await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(deterministicGoogleEventId(successor.id))}`);
+    }
+  }
+
+  private async copyFutureException(input: {
+    accountId: string;
+    calendarLocalId: string;
+    collection: string;
+    exception: JsonRecord;
+    splitAt: string;
+    successor: JsonRecord;
+    successorRemote: JsonRecord;
+  }): Promise<void> {
+    const { accountId, calendarLocalId, collection, exception, splitAt, successor, successorRemote } = input;
+    const oldGoogleId = requiredText(exception.id, "Google exception id");
+    const oldOriginalStart = googleExceptionOriginalStart(exception);
+    const allDay = Boolean(exception.originalStartTime?.date) || Boolean(successor.allDay);
+    const mappedOriginalStart = shiftedOriginalStart(oldOriginalStart, splitAt, successor.startsAt, allDay);
+    const target = await this.successorInstanceAt(accountId, collection, successorRemote, mappedOriginalStart, allDay);
+
+    if (exception.status === "cancelled") {
+      if (target && target.status !== "cancelled") {
+        await this.requestJson<void>(accountId, `${collection}/${encodeURIComponent(target.id)}`, {
+          method: "DELETE",
+          headers: conditionalHeaders(target.etag)
+        });
+      }
+      this.store.replaceGoogleSplitException(calendarLocalId, oldGoogleId, null);
+      return;
+    }
+
+    let copied: JsonRecord;
+    if (target && target.status !== "cancelled") {
+      copied = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(target.id)}`, {
+        method: "PATCH",
+        body: json(googleExceptionBody(exception)),
+        headers: conditionalHeaders(target.etag),
+        query: calendarEventWriteQuery(exception)
+      });
+    } else {
+      // A changed rule may legitimately no longer generate this original
+      // occurrence. Keep the user's modified exception as a standalone event
+      // rather than silently dropping its title, guests, notes, or reminders.
+      copied = await this.requestJson<JsonRecord>(accountId, collection, {
+        method: "POST",
+        body: json(googleExceptionBody(exception)),
+        query: calendarEventWriteQuery(exception)
+      });
+    }
+    this.store.replaceGoogleSplitException(calendarLocalId, oldGoogleId, copied);
+  }
+
+  private async successorInstanceAt(
+    accountId: string,
+    collection: string,
+    successor: JsonRecord,
+    originalStart: string,
+    allDay: boolean
+  ): Promise<JsonRecord | null> {
+    const successorId = requiredText(successor.id, "Google successor event id");
+    const response = await this.requestJson<GooglePage>(accountId,
+      `${collection}/${encodeURIComponent(successorId)}/instances`,
+      {
+        query: {
+          maxResults: "5",
+          originalStart: googleOriginalStartQueryValue(originalStart, allDay),
+          showDeleted: "true"
+        }
+      }
+    );
+    return response.items?.find((item) => item.status !== "cancelled") ?? null;
+  }
+
+  private async compensateGoogleSeriesSplit(input: {
+    accountId: string;
+    collection: string;
+    originalMaster: JsonRecord;
+    updatedParent: JsonRecord | null;
+    createdSuccessor: JsonRecord | null;
+  }): Promise<string | null> {
+    const errors: string[] = [];
+    const { accountId, collection, originalMaster, updatedParent, createdSuccessor } = input;
+    if (createdSuccessor?.id) {
+      try {
+        await this.requestJson<void>(accountId, `${collection}/${encodeURIComponent(createdSuccessor.id)}`, {
+          method: "DELETE",
+          headers: conditionalHeaders(createdSuccessor.etag)
+        });
+      } catch (error) {
+        errors.push(`delete successor: ${safeError(error)}`);
+      }
+    }
+    if (updatedParent?.id) {
+      try {
+        await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(updatedParent.id)}`, {
+          method: "PATCH",
+          body: json(googleEventBody(originalMaster)),
+          headers: conditionalHeaders(updatedParent.etag),
+          query: calendarEventWriteQuery(originalMaster)
+        });
+      } catch (error) {
+        errors.push(`restore parent: ${safeError(error)}`);
+      }
+    }
+    return errors.length ? errors.join("; ") : null;
   }
 
   private async moveEvent(accountId: string, localId: string, payload: JsonRecord): Promise<void> {
@@ -554,12 +820,64 @@ function requiredIso(value: unknown, label: string): string {
   return new Date(value).toISOString();
 }
 
+function requiredText(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) throw new CoreStoreError(`${label} is required.`);
+  return value.trim();
+}
+
 function taskCollectionUrl(taskListId: string): string {
   return `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(taskListId)}/tasks`;
 }
 
 function taskUrl(taskListId: string, taskId: string): string {
   return `${taskCollectionUrl(taskListId)}/${encodeURIComponent(taskId)}`;
+}
+
+function calendarEventCollectionUrl(calendarId: string): string {
+  return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+}
+
+function googleExceptionBody(exception: JsonRecord): JsonRecord {
+  const writable = [
+    "summary", "description", "location", "colorId", "start", "end", "attendees", "reminders",
+    "transparency", "visibility", "eventType", "focusTimeProperties", "outOfOfficeProperties",
+    "workingLocationProperties", "attachments", "conferenceData", "guestsCanInviteOthers",
+    "guestsCanModify", "guestsCanSeeOtherGuests", "extendedProperties"
+  ];
+  const body: JsonRecord = {};
+  for (const key of writable) {
+    if (Object.prototype.hasOwnProperty.call(exception, key)) body[key] = exception[key];
+  }
+  if (!body.start || !body.end) {
+    throw new CoreStoreError("Google returned an incomplete recurring exception, so HCB cannot safely preserve it during this split.");
+  }
+  // An exception is an instance: Calendar rejects recurrence data on it.
+  delete body.recurrence;
+  return body;
+}
+
+function googleExceptionOriginalStart(exception: JsonRecord): string {
+  const original = exception.originalStartTime;
+  if (!original || typeof original !== "object") throw new CoreStoreError("Google returned a recurring exception without originalStartTime.");
+  if (typeof original.dateTime === "string" && Number.isFinite(Date.parse(original.dateTime))) return new Date(original.dateTime).toISOString();
+  if (typeof original.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(original.date)) return `${original.date}T00:00:00.000Z`;
+  throw new CoreStoreError("Google returned a recurring exception with an invalid originalStartTime.");
+}
+
+function exceptionIsOnOrAfter(exception: JsonRecord, splitAt: string): boolean {
+  return Date.parse(googleExceptionOriginalStart(exception)) >= Date.parse(splitAt);
+}
+
+function shiftedOriginalStart(originalStart: string, splitAt: string, successorStartsAt: string, allDay: boolean): string {
+  const original = Date.parse(originalStart);
+  const split = Date.parse(splitAt);
+  const successor = Date.parse(successorStartsAt);
+  if (![original, split, successor].every(Number.isFinite)) throw new CoreStoreError("Recurring exception split date is invalid.");
+  if (allDay) {
+    const dayDelta = Math.round((successor - split) / (24 * 60 * 60 * 1_000));
+    return new Date(original + dayDelta * 24 * 60 * 60 * 1_000).toISOString();
+  }
+  return new Date(original + successor - split).toISOString();
 }
 
 function googleTaskBody(task: JsonRecord): JsonRecord {

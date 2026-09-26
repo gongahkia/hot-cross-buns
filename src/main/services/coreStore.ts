@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
+import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 
 type JsonRecord = Record<string, any>;
 
@@ -22,6 +23,11 @@ export interface PendingSyncMutation {
   payload: JsonRecord;
   attempts: number;
   createdAt: string;
+}
+
+interface EventWriteOptions {
+  enqueue?: boolean;
+  recordUndo?: boolean;
 }
 
 // v3 deliberately starts a new developer-only data set.  The previous
@@ -517,6 +523,58 @@ export class CoreStore {
         remote.updated ?? timestamp(), localId
       );
     return this.requireEvent(localId);
+  }
+
+  /**
+   * A Google exception cannot be re-parented. During a future-series split it
+   * is copied onto an instance of the new master, so replace its stale local
+   * representation with the response from that new instance.
+   */
+  replaceGoogleSplitException(localCalendarId: string, previousGoogleId: string, remote: JsonRecord | null): void {
+    this.db.transaction(() => {
+      this.db.prepare("DELETE FROM events WHERE calendar_id=? AND google_id=?").run(localCalendarId, previousGoogleId);
+      if (remote) this.upsertGoogleEvent(remote, localCalendarId);
+    })();
+  }
+
+  /** Restore local split state after GoogleSync successfully compensates a failed remote split. */
+  restoreGoogleSplitSeries(payload: JsonRecord, successorGoogleId?: string): void {
+    const parentEventId = typeof payload.parentEventId === "string" ? payload.parentEventId : null;
+    const successorEventId = typeof payload.successorEventId === "string" ? payload.successorEventId : null;
+    const original = payload.originalMaster && typeof payload.originalMaster === "object"
+      ? payload.originalMaster as JsonRecord
+      : null;
+    if (!parentEventId || !successorEventId || !original || !this.db.prepare("SELECT 1 FROM events WHERE id=?").get(parentEventId)) return;
+    this.db.transaction(() => {
+      this.updateEvent({
+        id: parentEventId,
+        calendarId: original.calendarId,
+        title: original.title,
+        description: original.description,
+        startsAt: original.startsAt,
+        endsAt: original.endsAt,
+        allDay: original.allDay,
+        completed: original.completed,
+        colorId: original.colorId,
+        location: original.location,
+        recurrenceLines: original.recurrenceLines,
+        attendees: original.attendees,
+        reminders: original.reminders,
+        remindersUseDefault: original.remindersUseDefault,
+        transparency: original.transparency,
+        visibility: original.visibility,
+        timeZone: original.timeZone,
+        attachments: original.attachments,
+        eventType: original.eventType,
+        focusTimeProperties: original.focusTimeProperties,
+        outOfOfficeProperties: original.outOfOfficeProperties,
+        workingLocationProperties: original.workingLocationProperties,
+        selfResponseStatus: original.selfResponseStatus
+      }, { enqueue: false, recordUndo: false });
+      this.db.prepare("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(successorEventId);
+      this.db.prepare("DELETE FROM events WHERE id=?").run(successorEventId);
+      if (successorGoogleId) this.db.prepare("DELETE FROM events WHERE google_recurring_event_id=?").run(successorGoogleId);
+    })();
   }
 
   upsertGoogleTaskList(remote: JsonRecord, accountId: string): JsonRecord {
@@ -1191,12 +1249,55 @@ export class CoreStore {
     const rows = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
-      transparency,visibility,event.time_zone AS timeZone,event.conference_json AS conference,event.attachments_json AS attachments,
+      transparency,visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_recurring_event_id AS recurringEventId,
+      event.google_original_start_time AS originalStartAt,event.conference_json AS conference,event.attachments_json AS attachments,
       event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt
-      FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.starts_at < ? AND event.ends_at > ? ORDER BY event.starts_at,event.id`).all(end, start);
-    return this.page((rows as any[]).map(eventFromRow), input);
+      FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
+      WHERE (event.starts_at < ? AND event.ends_at > ?)
+        OR (event.google_recurrence_json IS NOT NULL AND event.google_recurrence_json != 'null')
+        OR event.google_recurring_event_id IS NOT NULL
+      ORDER BY event.starts_at,event.id`).all(end, start);
+    const records = (rows as any[]).map(eventFromRow);
+    const masters = records.filter((event) => event.recurrenceLines.length > 0 && !event.recurringEventId);
+    const exceptions = records.filter((event) => Boolean(event.recurringEventId));
+    const exceptionOriginalStarts = new Map<string, Set<string>>();
+    for (const exception of exceptions) {
+      const key = String(exception.recurringEventId);
+      const starts = exceptionOriginalStarts.get(key) ?? new Set<string>();
+      if (typeof exception.originalStartAt === "string") starts.add(exception.originalStartAt);
+      exceptionOriginalStarts.set(key, starts);
+    }
+    const virtualOccurrences = masters.flatMap((master) => {
+      const excluded = exceptionOriginalStarts.get(String(master.googleId ?? master.id)) ?? new Set<string>();
+      return expandGoogleRecurrenceLines({
+        allDay: Boolean(master.allDay),
+        endsAt: master.endsAt,
+        lines: master.recurrenceLines,
+        rangeEnd: end,
+        rangeStart: start,
+        startsAt: master.startsAt,
+        timeZone: master.timeZone
+      })
+        .filter((occurrence) => !excluded.has(occurrence.originalStartAt))
+        .map((occurrence) => ({
+          ...master,
+          id: `recurrence:${master.id}:${occurrence.originalStartAt}`,
+          eventId: master.id,
+          recurringEventId: master.googleId ?? master.id,
+          originalStartAt: occurrence.originalStartAt,
+          startsAt: occurrence.startsAt,
+          endsAt: occurrence.endsAt
+        }));
+    });
+    const ordinary = records.filter((event) => {
+      if (event.recurrenceLines.length > 0 && !event.recurringEventId) return false;
+      return event.startsAt < end && event.endsAt > start;
+    });
+    return this.page([...ordinary, ...virtualOccurrences].sort((left, right) =>
+      left.startsAt.localeCompare(right.startsAt) || left.id.localeCompare(right.id)
+    ), input);
   }
 
   private requireEvent(id: string): JsonRecord {
@@ -1212,7 +1313,7 @@ export class CoreStore {
     return eventFromRow(row);
   }
 
-  private createEvent(input: JsonRecord): JsonRecord {
+  private createEvent(input: JsonRecord, options: EventWriteOptions = {}): JsonRecord {
     const now = timestamp();
     const id = typeof input.id === "string" ? input.id : randomUUID();
     const calendarId = input.calendarId ?? this.defaultWritableCalendarId();
@@ -1239,20 +1340,33 @@ export class CoreStore {
         eventType, JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
         JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus), now, now
       );
-      this.enqueue("event.create", id, {}, this.accountForCalendar(calendarId));
+      if (options.enqueue !== false) this.enqueue("event.create", id, {}, this.accountForCalendar(calendarId));
     })();
     const event = this.requireEvent(id);
-    this.recordUndo("Create event", { namespace: "calendar", action: "create", payload: eventCreatePayload(event) }, { namespace: "calendar", action: "delete", payload: { id } });
+    if (options.recordUndo !== false) {
+      this.recordUndo("Create event", { namespace: "calendar", action: "create", payload: eventCreatePayload(event) }, { namespace: "calendar", action: "delete", payload: { id } });
+    }
     return event;
   }
 
-  private updateEvent(input: JsonRecord): JsonRecord {
+  private updateEvent(input: JsonRecord, options: EventWriteOptions = {}): JsonRecord {
     const previous = this.requireEvent(requiredText(input.id, "Event id"));
-    if (input.scope === "series" && previous.googleRecurringEventId) {
+    if ((input.scope === "series" || input.scope === "seriesAll") && previous.googleRecurringEventId) {
       const series = this.findEventByGoogleId(previous.calendarId, previous.googleRecurringEventId);
       if (!series) throw new CoreStoreError("The recurring series is not available in the local cache.");
       const { scope: _scope, ...seriesInput } = input;
-      return this.updateEvent({ ...seriesInput, id: series.id });
+      return this.updateEvent({ ...seriesInput, id: series.id }, options);
+    }
+    const originalStartAt = typeof input.originalStartAt === "string" ? requiredIso(input.originalStartAt, "Recurring occurrence date") : null;
+    // Calendar rows generated from a master are virtual. Their visible ids are
+    // intentionally not database ids, so route writes through their master
+    // while retaining the exact originalStartTime Google uses to identify the
+    // chosen occurrence.
+    if (originalStartAt && !previous.googleRecurringEventId && isFollowingScope(input.scope)) {
+      return this.splitFutureSeries({ ...previous, googleOriginalStartTime: originalStartAt }, input);
+    }
+    if (originalStartAt && !previous.googleRecurringEventId && (input.scope === "occurrence" || input.scope === undefined)) {
+      return this.updateGeneratedOccurrence(previous, input, originalStartAt, options);
     }
     if (isFollowingScope(input.scope)) return this.splitFutureSeries(previous, input);
     const nextCalendarId = input.calendarId ?? previous.calendarId;
@@ -1306,16 +1420,68 @@ export class CoreStore {
         JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus ?? previous.selfResponseStatus), now, previous.id
       );
       const movedExistingRemoteEvent = nextCalendarId !== previous.calendarId && Boolean(previousForSync?.googleId);
-      this.enqueue(
-        movedExistingRemoteEvent ? "event.move" : "event.update",
-        previous.id,
-        movedExistingRemoteEvent ? { sourceCalendarId: previous.calendarId, destinationCalendarId: nextCalendarId } : {},
-        previous.accountId
-      );
+      if (options.enqueue !== false) {
+        this.enqueue(
+          movedExistingRemoteEvent ? "event.move" : "event.update",
+          previous.id,
+          movedExistingRemoteEvent ? { sourceCalendarId: previous.calendarId, destinationCalendarId: nextCalendarId } : {},
+          previous.accountId
+        );
+      }
     })();
     const event = this.requireEvent(previous.id);
-    this.recordUndo("Update event", { namespace: "calendar", action: "update", payload: eventUpdatePayload(event) }, { namespace: "calendar", action: "update", payload: eventUpdatePayload(previous) });
+    if (options.recordUndo !== false) {
+      this.recordUndo("Update event", { namespace: "calendar", action: "update", payload: eventUpdatePayload(event) }, { namespace: "calendar", action: "update", payload: eventUpdatePayload(previous) });
+    }
     return event;
+  }
+
+  /** Turn an edit of a projected recurrence row into a real Google exception. */
+  private updateGeneratedOccurrence(master: JsonRecord, input: JsonRecord, originalStartAt: string, options: EventWriteOptions): JsonRecord {
+    const masterRecurrence = recurrenceLinesFromStored(master.googleRecurrence, master.recurrence);
+    if (!masterRecurrence?.length) throw new CoreStoreError("This occurrence no longer belongs to a recurring series.");
+    const calendarId = input.calendarId ?? master.calendarId;
+    if (calendarId !== master.calendarId) throw new CoreStoreError("A recurring occurrence cannot be moved to another Google calendar.");
+    const startsAt = input.startsAt ?? originalStartAt;
+    const sourceDuration = Math.max(1, Date.parse(master.endsAt) - Date.parse(master.startsAt));
+    const occurrence = this.createEvent({
+      calendarId,
+      title: input.title ?? master.title,
+      description: input.description ?? input.notes ?? master.description,
+      startsAt,
+      endsAt: input.endsAt ?? new Date(Date.parse(startsAt) + sourceDuration).toISOString(),
+      allDay: input.allDay ?? master.allDay,
+      colorId: input.colorId ?? master.colorId,
+      location: input.location ?? master.location,
+      recurrenceLines: null,
+      attendees: input.attendees ?? input.guestEmails ?? master.attendees,
+      reminders: input.reminders ?? master.reminders,
+      remindersUseDefault: input.remindersUseDefault ?? master.remindersUseDefault,
+      transparency: input.transparency ?? master.transparency,
+      visibility: input.visibility ?? master.visibility,
+      timeZone: input.timeZone ?? master.timeZone,
+      attachments: input.attachments ?? master.attachments,
+      eventType: input.eventType ?? master.eventType,
+      focusTimeProperties: input.focusTimeProperties ?? master.focusTimeProperties,
+      outOfOfficeProperties: input.outOfOfficeProperties ?? master.outOfOfficeProperties,
+      workingLocationProperties: input.workingLocationProperties ?? master.workingLocationProperties,
+      selfResponseStatus: input.selfResponseStatus ?? master.selfResponseStatus
+    }, { enqueue: false, recordUndo: false });
+    this.db.transaction(() => {
+      this.db.prepare("UPDATE events SET google_recurring_event_id=?,google_original_start_time=?,updated_at=? WHERE id=?")
+        .run(master.googleId ?? master.id, originalStartAt, timestamp(), occurrence.id);
+      if (options.enqueue !== false) {
+        this.enqueue("event.updateOccurrence", occurrence.id, {
+          parentEventId: master.id,
+          originalStartAt
+        }, master.accountId);
+      }
+    })();
+    const result = this.requireEvent(occurrence.id);
+    if (options.recordUndo !== false) {
+      this.recordUndo("Edit recurring occurrence", { namespace: "calendar", action: "create", payload: eventCreatePayload(result) }, { namespace: "calendar", action: "delete", payload: { id: result.id } });
+    }
+    return result;
   }
 
   private splitFutureSeries(occurrence: JsonRecord, input: JsonRecord): JsonRecord {
@@ -1324,18 +1490,47 @@ export class CoreStore {
       : occurrence;
     const oldRecurrenceLines = recurrenceLinesFromStored(series.googleRecurrence, series.recurrence);
     if (!oldRecurrenceLines) throw new CoreStoreError("This event is not a recurring series.");
-    const splitAt = input.startsAt ?? occurrence.googleOriginalStartTime ?? occurrence.startsAt;
+    const splitAt = occurrence.googleOriginalStartTime ?? occurrence.startsAt;
     if (!Number.isFinite(Date.parse(splitAt))) throw new CoreStoreError("Recurring split date is invalid.");
-    const oldRecurrence = recurrenceFromGoogle(oldRecurrenceLines) ?? {};
-    const parentRecurrenceLines = truncateGoogleRecurrenceAt(oldRecurrenceLines, splitAt, Boolean(series.allDay));
-    // Keep existing completed/exception history with the old series, then make
-    // a successor that owns the selected and later occurrences. Google has no
-    // dedicated "this and following" endpoint, so this explicit split is the
-    // least surprising representation for both the cache and API.
-    this.updateEvent({ id: series.id, recurrenceLines: parentRecurrenceLines, scope: "series" });
-    const sourceDuration = Math.max(1, Date.parse(series.endsAt) - Date.parse(series.startsAt));
-    const successorStartsAt = input.startsAt ?? splitAt;
-    const successor = this.createEvent({
+    // Editing the first occurrence is a whole-series edit. Avoid creating an
+    // empty historical master (and avoid an unnecessary remote transaction).
+    if (Date.parse(splitAt) <= Date.parse(series.startsAt)) {
+      const { scope: _scope, ...wholeSeriesInput } = input;
+      return this.updateEvent({ ...wholeSeriesInput, id: series.id, scope: "series" });
+    }
+    if (input.calendarId && input.calendarId !== series.calendarId) {
+      throw new CoreStoreError("This-and-following edits must stay on the same Google calendar.");
+    }
+
+    let partitioned: ReturnType<typeof splitGoogleRecurrenceLines>;
+    try {
+      partitioned = splitGoogleRecurrenceLines({
+        allDay: Boolean(series.allDay),
+        lines: oldRecurrenceLines,
+        seriesStartsAt: series.startsAt,
+        splitAt,
+        timeZone: series.timeZone
+      });
+    } catch (error) {
+      throw new CoreStoreError(error instanceof Error ? error.message : "Could not split this Google recurrence.");
+    }
+    const parentRecurrenceLines = partitioned.parentLines;
+    const successorRecurrenceLines = hasOwn(input, "recurrenceLines") || hasOwn(input, "recurrence")
+      ? recurrenceLinesForInput(input)
+      : partitioned.successorLines;
+    const originalMaster = this.googleEventForSync(series.id);
+    const futureExceptionIds = originalMaster?.googleId
+      ? this.seriesExceptionIdsFrom(series.calendarId, originalMaster.googleId, splitAt)
+      : [];
+    const sourceDuration = Math.max(1, Date.parse(occurrence.endsAt) - Date.parse(occurrence.startsAt));
+    const successorStartsAt = input.startsAt ?? occurrence.startsAt;
+    let successor: JsonRecord;
+    this.db.transaction(() => {
+      // Google Calendar exposes no atomic "this and following" API. Keep the
+      // local projection and its one coordinating outbox mutation together so
+      // GoogleSync can make the remote steps transactional-with-compensation.
+      this.updateEvent({ id: series.id, recurrenceLines: parentRecurrenceLines, scope: "series" }, { enqueue: false, recordUndo: false });
+      successor = this.createEvent({
       calendarId: input.calendarId ?? series.calendarId,
       title: input.title ?? series.title,
       description: input.description ?? input.notes ?? series.description,
@@ -1344,10 +1539,7 @@ export class CoreStore {
       allDay: input.allDay ?? series.allDay,
       colorId: input.colorId ?? series.colorId,
       location: input.location ?? series.location,
-      recurrenceLines: hasOwn(input, "recurrenceLines")
-        ? input.recurrenceLines
-        : oldRecurrenceLines,
-      ...(hasOwn(input, "recurrence") ? { recurrence: input.recurrence } : {}),
+      recurrenceLines: successorRecurrenceLines,
       attendees: input.attendees ?? input.guestEmails ?? series.attendees,
       reminders: input.reminders ?? series.reminders,
       remindersUseDefault: input.remindersUseDefault ?? series.remindersUseDefault,
@@ -1359,8 +1551,33 @@ export class CoreStore {
       focusTimeProperties: input.focusTimeProperties ?? series.focusTimeProperties,
       outOfOfficeProperties: input.outOfOfficeProperties ?? series.outOfOfficeProperties,
       workingLocationProperties: input.workingLocationProperties ?? series.workingLocationProperties
-    });
-    return { ...successor, splitFromEventId: series.id, recurrenceScope: "following" };
+      }, { enqueue: false, recordUndo: false });
+
+      if (originalMaster?.googleId) {
+        this.enqueue("event.splitSeries", series.id, {
+          parentEventId: series.id,
+          successorEventId: successor.id,
+          splitAt,
+          originalMaster,
+          futureExceptionIds
+        }, series.accountId);
+      } else {
+        // A newly-created/offline series has no remote exceptions to migrate.
+        // Normal creates/updates preserve the usual offline behavior.
+        this.enqueue("event.update", series.id, {}, series.accountId);
+        this.enqueue("event.create", successor.id, {}, series.accountId);
+      }
+    })();
+    // A split changes two masters and may migrate remote exceptions. Do not
+    // offer the generic one-row undo action here; GoogleSync either completes
+    // the coordinated operation or compensates it as one unit.
+    return { ...successor!, splitFromEventId: series.id, recurrenceScope: "following" };
+  }
+
+  private seriesExceptionIdsFrom(calendarId: string, googleRecurringEventId: string, splitAt: string): string[] {
+    return (this.db.prepare(`SELECT id FROM events
+      WHERE calendar_id=? AND google_recurring_event_id=? AND google_original_start_time IS NOT NULL AND google_original_start_time>=?`)
+      .all(calendarId, googleRecurringEventId, splitAt) as Array<{ id: string }>).map((row) => row.id);
   }
 
   private findEventByGoogleId(calendarId: string, googleId: string): JsonRecord | null {
@@ -1371,6 +1588,19 @@ export class CoreStore {
   private deleteEvent(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Event id");
     const eventBeforeDelete = this.requireEvent(id);
+    const originalStartAt = typeof input.originalStartAt === "string" ? requiredIso(input.originalStartAt, "Recurring occurrence date") : null;
+    if (originalStartAt && !eventBeforeDelete.googleRecurringEventId && input.scope === "occurrence") {
+      const recurrenceLines = recurrenceLinesFromStored(eventBeforeDelete.googleRecurrence, eventBeforeDelete.recurrence);
+      if (!recurrenceLines?.length) throw new CoreStoreError("This occurrence no longer belongs to a recurring series.");
+      let nextLines: string[];
+      try {
+        nextLines = withGoogleExdate(recurrenceLines, originalStartAt, Boolean(eventBeforeDelete.allDay), eventBeforeDelete.timeZone);
+      } catch (error) {
+        throw new CoreStoreError(error instanceof Error ? error.message : "Could not cancel this recurring occurrence.");
+      }
+      this.updateEvent({ id, recurrenceLines: nextLines, scope: "series" });
+      return { id, originalStartAt, deleted: true, recurrenceScope: "occurrence" };
+    }
     if (input.scope === "series" && eventBeforeDelete.googleRecurringEventId) {
       const series = this.findEventByGoogleId(eventBeforeDelete.calendarId, eventBeforeDelete.googleRecurringEventId);
       if (!series) throw new CoreStoreError("The recurring series is not available in the local cache.");
@@ -2050,6 +2280,8 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     allDay: Boolean(row.allDay),
     completed: Boolean(row.completed),
     eventId: row.eventId ?? row.id,
+    recurringEventId: row.recurringEventId ?? row.googleRecurringEventId ?? null,
+    originalStartAt: row.originalStartAt ?? row.googleOriginalStartTime ?? null,
     status: row.status ?? "confirmed",
     notes: row.notes ?? row.description ?? "",
     recurrence,
@@ -2335,41 +2567,6 @@ function recurrenceRuleFromLines(lines: string[] | null): string | null {
   return lines?.find((line) => line.startsWith("RRULE:")) ?? null;
 }
 
-/**
- * Google has no "this and following" endpoint. Splitting therefore shortens
- * the old master then creates a new master. This transformation is safe for
- * RRULE/EXRULE/EXDATE sets, but an RDATE could add a later explicit instance
- * that cannot be partitioned without interpreting every RFC 5545 value. Refuse
- * that case rather than silently altering the Google recurrence set.
- */
-function truncateGoogleRecurrenceAt(lines: string[], splitAt: string, allDay: boolean): string[] {
-  if (lines.some((line) => line.startsWith("RDATE"))) {
-    throw new CoreStoreError("This recurring event has RDATE entries. To preserve every occurrence exactly, edit this-and-following in Google Calendar.");
-  }
-  const until = recurrenceUntilBefore(splitAt, allDay);
-  let changedRule = false;
-  const truncated = lines.map((line) => {
-    if (!line.startsWith("RRULE:")) return line;
-    changedRule = true;
-    const fields = line.slice("RRULE:".length).split(";")
-      .filter((field) => !field.startsWith("COUNT=") && !field.startsWith("UNTIL="));
-    fields.push(`UNTIL=${until}`);
-    return `RRULE:${fields.join(";")}`;
-  });
-  if (!changedRule) {
-    throw new CoreStoreError("This recurring event has no RRULE to split. Edit its explicit dates in Google Calendar.");
-  }
-  return truncated;
-}
-
-function recurrenceUntilBefore(splitAt: string, allDay: boolean): string {
-  const moment = Date.parse(splitAt);
-  if (!Number.isFinite(moment)) throw new CoreStoreError("Recurring split date is invalid.");
-  const previous = new Date(moment - 1_000);
-  if (allDay) return previous.toISOString().slice(0, 10).replace(/-/g, "");
-  return previous.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-}
-
 function ftsQuery(value: string): string | null {
   const terms = String(value)
     .trim()
@@ -2381,6 +2578,10 @@ function ftsQuery(value: string): string | null {
 }
 
 function timestamp(): string { return new Date().toISOString(); }
+function requiredIso(value: unknown, label: string): string {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new CoreStoreError(`${label} is invalid.`);
+  return new Date(value).toISOString();
+}
 function stringValue(value: unknown): string { return typeof value === "string" ? value : ""; }
 function nullableDate(value: unknown): string | null { return typeof value === "string" && value ? value : null; }
 function stringArray(value: unknown): string[] {
@@ -2438,7 +2639,7 @@ function formatAvailabilityTime(value: string, timeZone: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(value));
 }
 function isFollowingScope(scope: unknown): boolean {
-  return scope === "following" || scope === "thisAndFollowing" || scope === "future";
+  return scope === "following" || scope === "seriesFuture" || scope === "thisAndFollowing" || scope === "future";
 }
 function taskCreatePayload(task: JsonRecord): JsonRecord {
   return {

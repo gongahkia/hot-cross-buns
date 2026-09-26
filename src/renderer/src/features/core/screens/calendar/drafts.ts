@@ -111,8 +111,10 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
 
   return {
     mode: "edit",
-    id: event.id,
-    eventId: event.eventId,
+    // A projected recurrence row has a display id, but mutations must target
+    // the stored master and carry originalStartAt separately.
+    id: event.eventId ?? event.id,
+    eventId: event.eventId ?? event.id,
     hcbKind: event.hcbKind,
     mutationState: event.mutationState,
     completedAt: event.completedAt ?? null,
@@ -195,7 +197,8 @@ export function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCr
     recurrenceLines: draft.recurrenceEditor === "google"
       ? normalizeGoogleRecurrenceLines(draft.recurrenceLines)
       : calendarSimpleRecurrenceLines(draft),
-    hcbKind: draft.hcbKind
+    hcbKind: draft.hcbKind,
+    ...(draft.originalStartAt ? { originalStartAt: draft.originalStartAt } : {})
   };
 }
 

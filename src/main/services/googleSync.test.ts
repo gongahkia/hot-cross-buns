@@ -181,6 +181,203 @@ describe("GoogleSyncService", () => {
     expect(JSON.parse(String(init.body)).recurrence).toEqual(rawRecurrence);
   });
 
+  it("splits a Google series by updating both masters and copying future modified and cancelled exceptions", async () => {
+    const calls: Array<{ target: URL; init?: RequestInit }> = [];
+    const parent = {
+      id: "parent-local",
+      googleId: "parent-remote",
+      googleEtag: "parent-before",
+      calendarId: "calendar-local",
+      calendarGoogleId: "smoke-calendar",
+      title: "Weekly planning",
+      description: "Parent",
+      startsAt: "2026-03-01T01:00:00.000Z",
+      endsAt: "2026-03-01T02:00:00.000Z",
+      allDay: false,
+      recurrenceLines: ["RRULE:FREQ=DAILY;UNTIL=20260303T005959Z", "RDATE;TZID=Asia/Singapore:20260302T090000"],
+      attendees: [{ email: "owner@example.test" }],
+      remindersUseDefault: true,
+      reminders: [],
+      transparency: "opaque",
+      visibility: "default",
+      timeZone: "Asia/Singapore"
+    };
+    const successor = {
+      ...parent,
+      id: "successor-local",
+      googleId: null,
+      googleEtag: null,
+      title: "Future planning",
+      startsAt: "2026-03-03T01:00:00.000Z",
+      endsAt: "2026-03-03T02:00:00.000Z",
+      recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=3", "RDATE;TZID=Asia/Singapore:20260306T090000"]
+    };
+    const modifiedException = {
+      id: "modified-old",
+      recurringEventId: "parent-remote",
+      originalStartTime: { dateTime: "2026-03-04T01:00:00.000Z", timeZone: "Asia/Singapore" },
+      summary: "Moved planning",
+      description: "Keep this note",
+      start: { dateTime: "2026-03-04T03:00:00.000Z", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-04T04:00:00.000Z", timeZone: "Asia/Singapore" },
+      attendees: [{ email: "guest@example.test" }],
+      reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 15 }] },
+      status: "confirmed"
+    };
+    const cancelledException = {
+      id: "cancelled-old",
+      recurringEventId: "parent-remote",
+      originalStartTime: { dateTime: "2026-03-05T01:00:00.000Z", timeZone: "Asia/Singapore" },
+      status: "cancelled"
+    };
+    const googleFetch = vi.fn(async (_accountId: string, target: URL, init?: RequestInit) => {
+      calls.push({ target, init });
+      if (target.pathname.endsWith("/events/parent-remote") && !init?.method) {
+        return Response.json({ id: "parent-remote", etag: "parent-before", iCalUID: "series-ical" });
+      }
+      if (target.pathname.endsWith("/events") && target.searchParams.get("iCalUID") === "series-ical") {
+        return Response.json({ items: [{ id: "parent-remote", iCalUID: "series-ical" }, modifiedException, cancelledException] });
+      }
+      if (target.pathname.endsWith("/events/parent-remote") && init?.method === "PATCH") {
+        return Response.json({ id: "parent-remote", etag: "parent-after" });
+      }
+      if (target.pathname.endsWith("/events") && init?.method === "POST") {
+        return Response.json({ id: "successor-remote", etag: "successor-etag" });
+      }
+      if (target.pathname.endsWith("/events/successor-remote/instances")) {
+        const originalStart = target.searchParams.get("originalStart");
+        return Response.json({ items: originalStart === "2026-03-04T01:00:00.000Z"
+          ? [{ id: "modified-new", etag: "modified-etag", status: "confirmed" }]
+          : [{ id: "cancelled-new", etag: "cancelled-etag", status: "confirmed" }]
+        });
+      }
+      if (target.pathname.endsWith("/events/modified-new") && init?.method === "PATCH") {
+        return Response.json({ ...modifiedException, id: "modified-new", recurringEventId: "successor-remote" });
+      }
+      if (target.pathname.endsWith("/events/cancelled-new") && init?.method === "DELETE") return new Response(null, { status: 204 });
+      throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
+    });
+    const store = {
+      googleEventForSync: vi.fn((id: string) => id === "parent-local" ? parent : id === "successor-local" ? successor : null),
+      bindGoogleEvent: vi.fn(),
+      replaceGoogleSplitException: vi.fn()
+    };
+    const service = new GoogleSyncService(store as never, { onConnectionChange: vi.fn(), googleFetch } as never) as unknown as {
+      splitGoogleSeries: (accountId: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+
+    await service.splitGoogleSeries("test-account", {
+      parentEventId: "parent-local",
+      successorEventId: "successor-local",
+      splitAt: "2026-03-03T01:00:00.000Z",
+      originalMaster: {
+        ...parent,
+        recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=5", "RDATE;TZID=Asia/Singapore:20260302T090000,20260306T090000"]
+      }
+    });
+
+    const parentPatch = calls.find((call) => call.target.pathname.endsWith("/events/parent-remote") && call.init?.method === "PATCH");
+    const successorPost = calls.find((call) => call.target.pathname.endsWith("/events") && call.init?.method === "POST");
+    const exceptionPatch = calls.find((call) => call.target.pathname.endsWith("/events/modified-new") && call.init?.method === "PATCH");
+    expect(JSON.parse(String(parentPatch?.init?.body)).recurrence).toEqual(parent.recurrenceLines);
+    expect(JSON.parse(String(successorPost?.init?.body)).recurrence).toEqual(successor.recurrenceLines);
+    expect(JSON.parse(String(exceptionPatch?.init?.body))).toMatchObject({
+      summary: "Moved planning",
+      description: "Keep this note",
+      attendees: [{ email: "guest@example.test" }]
+    });
+    expect(JSON.parse(String(exceptionPatch?.init?.body))).not.toHaveProperty("recurrence");
+    expect(calls.some((call) => call.target.pathname.endsWith("/events/cancelled-new") && call.init?.method === "DELETE")).toBe(true);
+    expect(store.bindGoogleEvent).toHaveBeenCalledTimes(2);
+    expect(store.replaceGoogleSplitException).toHaveBeenCalledWith("calendar-local", "modified-old", expect.objectContaining({ id: "modified-new" }));
+    expect(store.replaceGoogleSplitException).toHaveBeenCalledWith("calendar-local", "cancelled-old", null);
+  });
+
+  it("restores the original master if successor creation fails after the parent update", async () => {
+    const parent = {
+      id: "parent-local", googleId: "parent-remote", googleEtag: "before", calendarId: "calendar-local", calendarGoogleId: "smoke-calendar",
+      title: "Parent", description: "", startsAt: "2026-03-01T01:00:00.000Z", endsAt: "2026-03-01T02:00:00.000Z", allDay: false,
+      recurrenceLines: ["RRULE:FREQ=DAILY;UNTIL=20260303T005959Z"], attendees: [], remindersUseDefault: true, reminders: [], transparency: "opaque", visibility: "default", timeZone: "Asia/Singapore"
+    };
+    const successor = { ...parent, id: "successor-local", googleId: null, googleEtag: null, startsAt: "2026-03-03T01:00:00.000Z", endsAt: "2026-03-03T02:00:00.000Z", recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=3"] };
+    const calls: Array<{ target: URL; init?: RequestInit }> = [];
+    const googleFetch = vi.fn(async (_accountId: string, target: URL, init?: RequestInit) => {
+      calls.push({ target, init });
+      if (target.pathname.endsWith("/events/parent-remote") && !init?.method) return Response.json({ id: "parent-remote", etag: "before", iCalUID: "series-ical" });
+      if (target.pathname.endsWith("/events") && target.searchParams.get("iCalUID") === "series-ical") return Response.json({ items: [] });
+      if (target.pathname.endsWith("/events/parent-remote") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body));
+        return Response.json({ id: "parent-remote", etag: body.recurrence?.[0]?.includes("UNTIL") ? "after-parent" : "restored-parent" });
+      }
+      if (target.pathname.endsWith("/events") && init?.method === "POST") return Response.json({ error: { message: "create failed" } }, { status: 500 });
+      throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
+    });
+    const store = {
+      googleEventForSync: vi.fn((id: string) => id === "parent-local" ? parent : id === "successor-local" ? successor : null),
+      bindGoogleEvent: vi.fn(),
+      restoreGoogleSplitSeries: vi.fn()
+    };
+    const service = new GoogleSyncService(store as never, { onConnectionChange: vi.fn(), googleFetch } as never) as unknown as {
+      splitGoogleSeries: (accountId: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+    const payload = {
+      parentEventId: "parent-local", successorEventId: "successor-local", splitAt: "2026-03-03T01:00:00.000Z",
+      originalMaster: { ...parent, recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=5"] }
+    };
+
+    await expect(service.splitGoogleSeries("test-account", payload)).rejects.toThrow("restored the original series");
+    const parentPatches = calls.filter((call) => call.target.pathname.endsWith("/events/parent-remote") && call.init?.method === "PATCH");
+    expect(parentPatches).toHaveLength(2);
+    expect(JSON.parse(String(parentPatches[1]?.init?.body)).recurrence).toEqual(["RRULE:FREQ=DAILY;COUNT=5"]);
+    expect(store.restoreGoogleSplitSeries).toHaveBeenCalledWith(payload, undefined);
+  });
+
+  it("deletes the successor and restores the parent when copying an exception fails", async () => {
+    const parent = {
+      id: "parent-local", googleId: "parent-remote", googleEtag: "before", calendarId: "calendar-local", calendarGoogleId: "smoke-calendar",
+      title: "Parent", description: "", startsAt: "2026-03-01T01:00:00.000Z", endsAt: "2026-03-01T02:00:00.000Z", allDay: false,
+      recurrenceLines: ["RRULE:FREQ=DAILY;UNTIL=20260303T005959Z"], attendees: [], remindersUseDefault: true, reminders: [], transparency: "opaque", visibility: "default", timeZone: "Asia/Singapore"
+    };
+    const successor = { ...parent, id: "successor-local", googleId: null, googleEtag: null, startsAt: "2026-03-03T01:00:00.000Z", endsAt: "2026-03-03T02:00:00.000Z", recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=3"] };
+    const exception = {
+      id: "old-exception", recurringEventId: "parent-remote", originalStartTime: { dateTime: "2026-03-04T01:00:00.000Z" },
+      summary: "Changed occurrence", start: { dateTime: "2026-03-04T02:00:00.000Z" }, end: { dateTime: "2026-03-04T03:00:00.000Z" }, status: "confirmed"
+    };
+    const calls: Array<{ target: URL; init?: RequestInit }> = [];
+    const googleFetch = vi.fn(async (_accountId: string, target: URL, init?: RequestInit) => {
+      calls.push({ target, init });
+      if (target.pathname.endsWith("/events/parent-remote") && !init?.method) return Response.json({ id: "parent-remote", etag: "before", iCalUID: "series-ical" });
+      if (target.pathname.endsWith("/events") && target.searchParams.get("iCalUID") === "series-ical") return Response.json({ items: [exception] });
+      if (target.pathname.endsWith("/events/parent-remote") && init?.method === "PATCH") return Response.json({ id: "parent-remote", etag: "after-parent" });
+      if (target.pathname.endsWith("/events") && init?.method === "POST") return Response.json({ id: "successor-remote", etag: "successor-etag" });
+      if (target.pathname.endsWith("/events/successor-remote/instances")) return Response.json({ items: [{ id: "new-exception", etag: "new-etag", status: "confirmed" }] });
+      if (target.pathname.endsWith("/events/new-exception") && init?.method === "PATCH") return Response.json({ error: { message: "exception write failed" } }, { status: 500 });
+      if (target.pathname.endsWith("/events/successor-remote") && init?.method === "DELETE") return new Response(null, { status: 204 });
+      throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
+    });
+    const store = {
+      googleEventForSync: vi.fn((id: string) => id === "parent-local" ? parent : id === "successor-local" ? successor : null),
+      bindGoogleEvent: vi.fn(),
+      replaceGoogleSplitException: vi.fn(),
+      restoreGoogleSplitSeries: vi.fn(),
+      upsertGoogleEvent: vi.fn()
+    };
+    const service = new GoogleSyncService(store as never, { onConnectionChange: vi.fn(), googleFetch } as never) as unknown as {
+      splitGoogleSeries: (accountId: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+    const payload = {
+      parentEventId: "parent-local", successorEventId: "successor-local", splitAt: "2026-03-03T01:00:00.000Z",
+      originalMaster: { ...parent, recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=5"] }
+    };
+
+    await expect(service.splitGoogleSeries("test-account", payload)).rejects.toThrow("restored the original series");
+    expect(calls.some((call) => call.target.pathname.endsWith("/events/successor-remote") && call.init?.method === "DELETE")).toBe(true);
+    const parentPatches = calls.filter((call) => call.target.pathname.endsWith("/events/parent-remote") && call.init?.method === "PATCH");
+    expect(parentPatches).toHaveLength(2);
+    expect(store.restoreGoogleSplitSeries).toHaveBeenCalledWith(payload, "successor-remote");
+    expect(store.upsertGoogleEvent).toHaveBeenCalledWith(exception, "calendar-local");
+  });
+
   it("sends Google Tasks a valid due timestamp and omits an absent due date", async () => {
     const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-task", etag: "etag" }));
     const task = {

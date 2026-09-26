@@ -102,6 +102,66 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     })).toThrow("Google recurrence lines must be RRULE, EXRULE, RDATE, or EXDATE properties");
   });
 
+  it("queues one coordinated future-series split and partitions advanced recurrence lines locally", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const master = store.upsertGoogleEvent({
+      id: "remote-master",
+      etag: "master-etag",
+      summary: "Daily planning",
+      start: { dateTime: "2026-03-01T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-01T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      recurrence: [
+        "RRULE:FREQ=DAILY;COUNT=5",
+        "RDATE;TZID=Asia/Singapore:20260302T090000,20260306T090000",
+        "EXDATE;TZID=Asia/Singapore:20260302T090000,20260305T090000"
+      ]
+    }, calendar.id)!;
+    const exception = store.upsertGoogleEvent({
+      id: "remote-exception",
+      etag: "exception-etag",
+      recurringEventId: "remote-master",
+      originalStartTime: { dateTime: "2026-03-03T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      summary: "Moved planning",
+      start: { dateTime: "2026-03-03T11:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-03T12:00:00+08:00", timeZone: "Asia/Singapore" }
+    }, calendar.id)!;
+
+    const successor = store.dispatch("calendar", "update", {
+      id: exception.id,
+      scope: "following",
+      title: "Future planning"
+    });
+
+    expect(store.dispatch("calendar", "get", { id: master.id }).recurrenceLines).toEqual([
+      "RRULE:FREQ=DAILY;UNTIL=20260303T005959Z",
+      "RDATE;TZID=Asia/Singapore:20260302T090000",
+      "EXDATE;TZID=Asia/Singapore:20260302T090000"
+    ]);
+    expect(successor).toMatchObject({
+      title: "Future planning",
+      startsAt: "2026-03-03T03:00:00.000Z",
+      recurrenceLines: [
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "RDATE;TZID=Asia/Singapore:20260306T090000",
+        "EXDATE;TZID=Asia/Singapore:20260305T090000"
+      ]
+    });
+    const mutations = store.pendingSyncMutations();
+    expect(mutations.filter((mutation) => mutation.kind === "event.splitSeries")).toEqual([
+      expect.objectContaining({
+        entityId: master.id,
+        payload: expect.objectContaining({
+          parentEventId: master.id,
+          successorEventId: successor.id,
+          futureExceptionIds: [exception.id]
+        })
+      })
+    ]);
+    expect(mutations.some((mutation) => mutation.kind === "event.create" || mutation.kind === "event.update")).toBe(false);
+  });
+
   it("restores HCB-only task planning metadata from Google notes and keeps it across ordinary pulls", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
