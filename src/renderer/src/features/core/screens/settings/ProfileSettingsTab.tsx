@@ -5,9 +5,13 @@ import type {
   TaskListSummary
 } from "@shared/ipc/contracts";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Mail, Paperclip, Save, ShieldCheck, Trash2, Users } from "lucide-react";
+import { Eye, EyeOff, Mail, Save, ShieldCheck, Trash2, Users } from "lucide-react";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
+import googleCalendarLogo from "../../../../assets/google-calendar.png";
+import googleDriveLogo from "../../../../assets/google-drive.png";
+import googleGmailLogo from "../../../../assets/google-gmail.png";
+import googleTasksLogo from "../../../../assets/google-tasks.png";
 import {
   SettingsControlRow,
   SettingsGroup,
@@ -161,8 +165,9 @@ export function ProfileSettingsTab({
                       {candidateDetail}
                     </p>
                     {candidateConnected ? (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        <Badge tone="neutral">Calendar + Tasks</Badge>
+                      <div aria-label="Google Calendar and Google Tasks connected" className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <img alt="Google Calendar" className="size-5 object-contain" src={googleCalendarLogo} />
+                        <img alt="Google Tasks" className="size-5 object-contain" src={googleTasksLogo} />
                         {candidate.grantedScopes?.includes("https://www.googleapis.com/auth/drive.metadata.readonly") ? <Badge tone="neutral">Drive metadata</Badge> : null}
                         {candidate.grantedScopes?.includes("https://www.googleapis.com/auth/gmail.readonly") ? <Badge tone="neutral">Gmail read-only</Badge> : null}
                       </div>
@@ -226,9 +231,21 @@ export function ProfileSettingsTab({
           <p className="text-[var(--text-xs)] text-text-muted">Reconnecting preserves the existing Calendar and Tasks grants for the selected Google account.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive"])} variant="secondary"><Paperclip aria-hidden="true" size={14} />Enable Drive attachments</Button>
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["gmail"])} variant="secondary"><Mail aria-hidden="true" size={14} />Enable Gmail capture</Button>
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "gmail"])} variant="secondary"><Users aria-hidden="true" size={14} />Enable both</Button>
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive"])} variant="secondary">
+            <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
+            Enable Drive attachments
+          </Button>
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["gmail"])} variant="secondary">
+            <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
+            Enable Gmail capture
+          </Button>
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "gmail"])} variant="secondary">
+            <span aria-hidden="true" className="flex items-center -space-x-0.5">
+              <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
+              <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
+            </span>
+            Enable both
+          </Button>
         </div>
       </SettingsGroup>
 

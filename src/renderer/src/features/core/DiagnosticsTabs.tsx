@@ -63,17 +63,17 @@ export function OverviewTab({
   const googleLabel =
     source.googleStatus.account?.displayName ??
     source.googleStatus.account?.email ??
-    summary?.account.state ??
+    summary?.account?.state ??
     "Unknown";
-  const credentialStatus = summary?.native.capabilities.find((item) => item.key === "credentialStorage");
+  const credentialStatus = summary?.native?.capabilities?.find((item) => item.key === "credentialStorage");
 
   return (
     <div className="grid gap-3">
       <DiagnosticSection title="Status">
         <DiagnosticRow label="Google" value={googleLabel} />
-        <DiagnosticRow label="Sync" value={summary?.sync.state ?? source.syncStatus.state} />
+        <DiagnosticRow label="Sync" value={summary?.sync?.state ?? source.syncStatus.state} />
         <DiagnosticRow label="Mode" value={source.settings.syncMode} />
-        <DiagnosticRow label="Last sync" value={formatDateTime(summary?.sync.lastCompletedAt)} />
+        <DiagnosticRow label="Last sync" value={formatDateTime(summary?.sync?.lastCompletedAt)} />
         <DiagnosticRow label="Keychain" value={credentialStatus?.state ?? "unknown"} />
       </DiagnosticSection>
 
@@ -93,22 +93,22 @@ export function OverviewTab({
       ) : null}
 
       <DiagnosticSection title="Local data">
-        <DiagnosticRow label="Task lists" value={String(summary?.cache.taskListCount ?? source.taskLists.length)} />
-        <DiagnosticRow label="Tasks" value={String(summary?.cache.taskCount ?? source.largeTaskWindow.length)} />
-        <DiagnosticRow label="Calendars" value={String(summary?.cache.calendarCount ?? source.calendarSources.length)} />
-        <DiagnosticRow label="Events" value={String(summary?.cache.eventCount ?? source.calendarAgendaEvents.length)} />
-        <DiagnosticRow label="Sync checkpoints" value={String(summary?.checkpoints.totalCount ?? 0)} />
-        <DiagnosticRow label="Pending writes" value={String(summary?.pendingMutations.totalCount ?? source.syncStatus.pendingMutationCount)} />
+        <DiagnosticRow label="Task lists" value={String(summary?.cache?.taskListCount ?? source.taskLists.length)} />
+        <DiagnosticRow label="Tasks" value={String(summary?.cache?.taskCount ?? source.largeTaskWindow.length)} />
+        <DiagnosticRow label="Calendars" value={String(summary?.cache?.calendarCount ?? source.calendarSources.length)} />
+        <DiagnosticRow label="Events" value={String(summary?.cache?.eventCount ?? source.calendarAgendaEvents.length)} />
+        <DiagnosticRow label="Sync checkpoints" value={String(summary?.checkpoints?.totalCount ?? 0)} />
+        <DiagnosticRow label="Pending writes" value={String(summary?.pendingMutations?.totalCount ?? source.syncStatus.pendingMutationCount)} />
       </DiagnosticSection>
 
       <DiagnosticSection title="Selections">
         <DiagnosticRow
           label="Selected task lists"
-          value={selectionText(summary?.selectedResources.taskLists, source.taskLists.length)}
+          value={selectionText(summary?.selectedResources?.taskLists, source.taskLists.length)}
         />
         <DiagnosticRow
           label="Selected calendars"
-          value={selectionText(summary?.selectedResources.calendars, source.calendarSources.length)}
+          value={selectionText(summary?.selectedResources?.calendars, source.calendarSources.length)}
         />
         <DiagnosticRow label="Local reminders" value={source.settings.notificationsEnabled ? "Enabled" : "Disabled"} />
           <DiagnosticRow
@@ -120,7 +120,7 @@ export function OverviewTab({
       <DiagnosticSection title="Cache">
         <DiagnosticRow
           label="Database"
-          value={summary?.native.paths.find((path) => path.role === "data")?.redactedPath ?? "Unavailable"}
+          value={summary?.native?.paths?.find((path) => path.role === "data")?.redactedPath ?? "Unavailable"}
           mono
         />
       </DiagnosticSection>
@@ -385,7 +385,7 @@ export function LogsTab({
             <ClipboardCopy aria-hidden="true" size={15} />
             Copy visible
           </Button>
-          <Button disabled={(logs?.entries.length ?? 0) === 0} onClick={() => void copyLogs()}>
+          <Button disabled={(logs?.entries?.length ?? 0) === 0} onClick={() => void copyLogs()}>
             <ClipboardCopy aria-hidden="true" size={15} />
             Copy all
           </Button>
@@ -407,10 +407,10 @@ export function LogsTab({
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 py-2">
         <span className="text-[var(--text-sm)] text-text-muted">
-          {filteredLogs.length} of {logs?.entries.length ?? 0} shown
+          {filteredLogs.length} of {logs?.entries?.length ?? 0} shown
         </span>
         <div className="flex-1" />
-        <Button disabled={(logs?.entries.length ?? 0) === 0} onClick={() => void copyLogs()}>
+        <Button disabled={(logs?.entries?.length ?? 0) === 0} onClick={() => void copyLogs()}>
           <ClipboardCopy aria-hidden="true" size={15} />
           Copy all logs
         </Button>
@@ -503,10 +503,10 @@ export function SupportTab({
         </div>
       </DiagnosticSection>
       <DiagnosticSection title="Redaction">
-        <DiagnosticRow label="Credentials" value={summary?.redaction.credentials ?? "redacted"} />
-        <DiagnosticRow label="Google payloads" value={summary?.redaction.googlePayloads ?? "omitted"} />
-        <DiagnosticRow label="MCP bearer tokens" value={summary?.redaction.mcpBearerTokens ?? "redacted"} />
-        <DiagnosticRow label="Sensitive bodies" value={summary?.redaction.sensitiveBodies ?? "omitted"} />
+        <DiagnosticRow label="Credentials" value={summary?.redaction?.credentials ?? "redacted"} />
+        <DiagnosticRow label="Google payloads" value={summary?.redaction?.googlePayloads ?? "omitted"} />
+        <DiagnosticRow label="MCP bearer tokens" value={summary?.redaction?.mcpBearerTokens ?? "redacted"} />
+        <DiagnosticRow label="Sensitive bodies" value={summary?.redaction?.sensitiveBodies ?? "omitted"} />
       </DiagnosticSection>
     </div>
   );

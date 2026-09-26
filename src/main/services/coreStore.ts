@@ -693,7 +693,7 @@ export class CoreStore {
       case "diagnostics.summary":
         return this.diagnostics();
       case "diagnostics.logs":
-        return { items: [] };
+        return { entries: [], persistedText: "" };
       case "diagnostics.history":
         return { entries: this.mutationHistory(input) };
       case "diagnostics.pendingMutations":
@@ -1642,12 +1642,15 @@ export class CoreStore {
 
   private diagnostics(): JsonRecord {
     const taskCount = this.count("tasks");
+    const taskListCount = this.taskLists().length;
     const eventCount = this.count("events");
+    const calendarCount = this.calendars().length;
     const noteCount = this.count("notes", "deleted_at IS NULL");
+    const capabilityReport = this.nativeCapabilities().capabilityReport ?? {};
     return {
       database: { path: this.db.name, schemaVersion },
       sync: this.syncStatus(),
-      cache: { taskCount, eventCount, noteCount },
+      cache: { taskListCount, taskCount, calendarCount, eventCount, noteCount },
       selectedResources: {
         taskLists: this.taskLists().map((list) => ({ id: list.id, selected: true })),
         calendars: this.calendars().map((calendar) => ({ id: calendar.id, selected: true }))
@@ -1656,7 +1659,17 @@ export class CoreStore {
       pendingMutations: { totalCount: this.count("outbox", "state IN ('pending','conflict')") },
       mcp: { tokenState: "not_configured" },
       account: { state: "signed_out" },
-      native: { flags: this.nativeCapabilities().capabilityReport.flags },
+      native: {
+        flags: capabilityReport.flags ?? {},
+        capabilities: Array.isArray(capabilityReport.capabilities) ? capabilityReport.capabilities : [],
+        paths: Array.isArray(capabilityReport.paths) ? capabilityReport.paths : []
+      },
+      redaction: {
+        credentials: "redacted",
+        googlePayloads: "omitted",
+        mcpBearerTokens: "redacted",
+        sensitiveBodies: "omitted"
+      },
       build: { version: "5.0.1", environment: "local", commit: "restored", buildDate: null, packageTool: "pnpm" },
       resourceCounts: { tasks: taskCount, events: eventCount, notes: noteCount }
     };

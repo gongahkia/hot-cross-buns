@@ -331,20 +331,16 @@ export function AppearanceSettingsTab({
             {settings.customBackground ? (
               <ThemeCard
                 active={activeColorTheme.id === customBackgroundThemeId}
-                description="Use colours inferred from the background image."
                 label="Inferred from background"
                 onSelect={() => updateColorTheme(customBackgroundThemeId)}
-                theme={activeColorTheme.id === customBackgroundThemeId ? activeColorTheme : null}
               />
             ) : null}
             {visibleColorThemes.map((theme) => (
               <ThemeCard
                 active={theme.id === activeColorTheme.id}
-                description={`${theme.source} · ${theme.mode}`}
                 key={theme.id}
                 label={theme.label}
                 onSelect={() => updateColorTheme(theme.id)}
-                theme={theme}
               />
             ))}
             {visibleColorThemes.length === 0 ? (
@@ -926,47 +922,27 @@ export function AppearanceSettingsTab({
 
 function ThemeCard({
   active,
-  description,
   label,
-  onSelect,
-  theme
+  onSelect
 }: {
   active: boolean;
-  description: string;
   label: string;
   onSelect: () => void;
-  theme: ColorThemeDefinition | null;
 }): JSX.Element {
-  const colors = theme?.colors;
-
   return (
     <div role="listitem">
       <button
         aria-pressed={active}
         className={cx(
-          "group flex min-h-20 w-full items-center gap-3 rounded-hcbSm border p-2 text-left transition-[border-color,box-shadow,transform] duration-fast ease-hcb hover:-translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
-          active ? "ring-2 ring-accent ring-offset-2 ring-offset-bg-tertiary" : "hover:shadow-sm"
+          "group flex min-h-12 w-full items-center rounded-hcbSm border px-3 py-2 text-left text-text-primary transition-[border-color,box-shadow,transform] duration-fast ease-hcb hover:-translate-y-px hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
+          active ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-bg-tertiary" : "border-border hover:shadow-sm"
         )}
         onClick={onSelect}
-        style={{
-          backgroundColor: colors?.surface0 ?? "var(--color-surface-0)",
-          borderColor: active ? (colors?.accent ?? "var(--color-accent)") : (colors?.border ?? "var(--color-border)"),
-          color: colors?.text ?? "var(--color-text-primary)"
-        }}
         type="button"
       >
-        <span aria-hidden="true" className="grid size-11 shrink-0 grid-cols-2 overflow-hidden rounded-[6px] border" style={{ borderColor: colors?.border ?? "var(--color-border)" }}>
-          <span style={{ backgroundColor: colors?.background ?? "var(--color-bg-primary)" }} />
-          <span style={{ backgroundColor: colors?.surface1 ?? "var(--color-surface-1)" }} />
-          <span style={{ backgroundColor: colors?.accent ?? "var(--color-accent)" }} />
-          <span style={{ backgroundColor: colors?.success ?? "var(--color-success)" }} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-[var(--text-sm)] font-semibold">
-            <span className="truncate">{label}</span>
-            {active ? <Check aria-label="Selected" className="shrink-0" size={14} strokeWidth={2} /> : null}
-          </span>
-          <span className="mt-0.5 block truncate text-[var(--text-xs)] opacity-70">{description}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--text-sm)] font-semibold">
+          <span className="truncate">{label}</span>
+          {active ? <Check aria-label="Selected" className="shrink-0 text-accent" size={14} strokeWidth={2} /> : null}
         </span>
       </button>
     </div>

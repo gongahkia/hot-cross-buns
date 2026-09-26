@@ -3,7 +3,7 @@ import type { CalendarEventRecurrence } from "@shared/ipc/contracts";
 export type QuickAddMode = "event" | "task" | "note" | "birthday";
 
 export interface MatchedToken {
-  kind: "date" | "list" | "time" | "duration" | "location" | "allDay" | "recurrence";
+  kind: "date" | "list" | "time" | "duration" | "location" | "allDay" | "recurrence" | "guests" | "timeZone";
   display: string;
 }
 
@@ -18,9 +18,11 @@ export interface ParsedQuickAddEvent {
   summary: string;
   startDate: Date | null;
   endDate: Date | null;
+  guestEmails: string[];
   location: string | null;
   isAllDay: boolean;
   recurrence: CalendarEventRecurrence | null;
+  timeZone: string | null;
   matchedTokens: MatchedToken[];
 }
 
@@ -235,7 +237,7 @@ function removeRange(value: string, index: number, length: number): string {
 }
 
 function extractHashHint(text: string): { hint: string; index: number; length: number } | null {
-  const match = /(^|\s)#([A-Za-z0-9][A-Za-z0-9_-]{0,119})(?=\s|$)/.exec(text);
+  const match = /(^|\s)#(?:"([^"\n]{1,120})"|([A-Za-z0-9][A-Za-z0-9_-]{0,119}))(?=\s|$)/.exec(text);
 
   if (!match || match.index === undefined) {
     return null;
@@ -243,7 +245,7 @@ function extractHashHint(text: string): { hint: string; index: number; length: n
 
   const prefix = match[1] ?? "";
   return {
-    hint: match[2] ?? "",
+    hint: (match[2] ?? match[3] ?? "").trim(),
     index: match.index + prefix.length,
     length: match[0].length - prefix.length
   };
@@ -271,7 +273,7 @@ function firstDateHit(text: string, now: Date, allowNextWeekday: boolean): DateH
     matchMonthNameDay,
     matchDayMonthName,
     matchIso,
-    matchNumericMonthDay
+    matchNumericDayMonth
   ];
 
   for (const check of checks) {
@@ -381,9 +383,11 @@ function firstDateHit(text: string, now: Date, allowNextWeekday: boolean): DateH
       : null;
   }
 
-  function matchNumericMonthDay(value: string): DateHit | null {
+  function matchNumericDayMonth(value: string): DateHit | null {
     const match = /\b(\d{1,2})[/./-](\d{1,2})\b/.exec(value);
-    const resolved = match ? resolveMonthDay(Number(match[1]), Number(match[2]), now) : null;
+    // HCB's default locale is Singapore-style day/month, so 04/03 is 4 March.
+    // ISO dates remain available for an unambiguous year-month-day form.
+    const resolved = match ? resolveMonthDay(Number(match[2]), Number(match[1]), now) : null;
     return match && resolved
       ? { date: resolved.date, display: resolved.display, index: match.index, length: match[0].length }
       : null;
@@ -748,13 +752,17 @@ function rawTime(match: RegExpExecArray, hourGroup: number, minuteGroup: number,
   return Number.isInteger(hour) && Number.isInteger(minute) ? { hour, minute, meridiem } : null;
 }
 
-function matchTimeExpression(text: string): TimeHit | null {
+function matchTimeExpression(text: string, excludedRange?: { index: number; length: number }): TimeHit | null {
   const lower = text.toLowerCase();
   const timeToken = String.raw`(\d{1,2})(?:[:.](\d{2}))?\s*((?:a|p)\.?m\.?)?`;
-  const rangePattern = new RegExp(String.raw`\b(?:from\s+|at\s+)?${timeToken}\s*(?:-|\u2013|\u2014|to|until|til|till)\s*${timeToken}\b`);
-  const range = rangePattern.exec(lower);
+  const rangePattern = new RegExp(String.raw`\b(?:from\s+|at\s+)?${timeToken}\s*(?:-|\u2013|\u2014|to|until|til|till)\s*${timeToken}\b`, "g");
+  let range: RegExpExecArray | null;
 
-  if (range) {
+  while ((range = rangePattern.exec(lower)) !== null) {
+    if (excludedRange && range.index < excludedRange.index + excludedRange.length && excludedRange.index < range.index + range[0].length) {
+      continue;
+    }
+
     const startRaw = rawTime(range, 1, 2, 3);
     const endRaw = rawTime(range, 4, 5, 6);
     const end = endRaw ? resolveTime(endRaw) : null;
@@ -773,12 +781,14 @@ function matchTimeExpression(text: string): TimeHit | null {
       };
     }
 
-    return start && end ? { start, end, index: range.index, length: range[0].length } : null;
+    if (start && end) {
+      return { start, end, index: range.index, length: range[0].length };
+    }
   }
 
   const keyword = /\b(?:at\s+)?(noon|midnight)\b/.exec(lower);
 
-  if (keyword) {
+  if (keyword && !overlapsExcludedRange(keyword.index, keyword[0].length, excludedRange)) {
     return {
       start: keyword[1] === "noon" ? { hour: 12, minute: 0 } : { hour: 0, minute: 0 },
       end: null,
@@ -789,26 +799,32 @@ function matchTimeExpression(text: string): TimeHit | null {
 
   const ampm = /\b(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(a|p)\.?m\.?\b/.exec(lower);
 
-  if (ampm) {
+  if (ampm && !overlapsExcludedRange(ampm.index, ampm[0].length, excludedRange)) {
     const start = resolveTime(rawTime(ampm, 1, 2, 3) ?? { hour: -1, minute: -1, meridiem: null });
     return start ? { start, end: null, index: ampm.index, length: ampm[0].length } : null;
   }
 
   const compact = /\b(?:at\s+)?(\d{1,2})([0-5]\d)\s*(a|p)\.?m\.?\b/.exec(lower);
 
-  if (compact) {
+  if (compact && !overlapsExcludedRange(compact.index, compact[0].length, excludedRange)) {
     const start = resolveTime(rawTime(compact, 1, 2, 3) ?? { hour: -1, minute: -1, meridiem: null });
     return start ? { start, end: null, index: compact.index, length: compact[0].length } : null;
   }
 
   const twentyFour = /\b(?:at\s+)?([01]?\d|2[0-3])[:.]([0-5]\d)\b/.exec(lower);
 
-  if (twentyFour) {
+  if (twentyFour && !overlapsExcludedRange(twentyFour.index, twentyFour[0].length, excludedRange)) {
     const start = resolveTime(rawTime(twentyFour, 1, 2) ?? { hour: -1, minute: -1, meridiem: null });
     return start ? { start, end: null, index: twentyFour.index, length: twentyFour[0].length } : null;
   }
 
   return null;
+}
+
+function overlapsExcludedRange(index: number, length: number, excludedRange?: { index: number; length: number }): boolean {
+  return Boolean(
+    excludedRange && index < excludedRange.index + excludedRange.length && excludedRange.index < index + length
+  );
 }
 
 function withTime(base: Date, time: ResolvedTime): Date {
@@ -871,6 +887,89 @@ function extractDuration(text: string): { minutes: number; display: string; inde
   return null;
 }
 
+const timeZoneAliases: Record<string, string> = {
+  utc: "UTC",
+  gmt: "UTC",
+  sgt: "Asia/Singapore",
+  jst: "Asia/Tokyo",
+  kst: "Asia/Seoul",
+  ist: "Asia/Kolkata",
+  pst: "America/Los_Angeles",
+  pdt: "America/Los_Angeles",
+  mst: "America/Denver",
+  mdt: "America/Denver",
+  est: "America/New_York",
+  edt: "America/New_York",
+  cet: "Europe/Paris",
+  cest: "Europe/Paris",
+  bst: "Europe/London",
+  aest: "Australia/Sydney",
+  aedt: "Australia/Sydney"
+};
+
+type TimeZoneHit = { timeZone: string; index: number; length: number };
+
+function supportedTimeZone(value: string): string | null {
+  const alias = timeZoneAliases[value.toLowerCase()];
+  const candidate = alias ?? value;
+
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: candidate });
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+function extractTimeZone(text: string): TimeZoneHit | null {
+  const ianaToken = "[A-Za-z]+(?:/[A-Za-z_+\\-]+)+";
+  const aliasToken = Object.keys(timeZoneAliases).join("|");
+  const checks = [
+    new RegExp(`\\b(?:tz|timezone|in)\\s+(${ianaToken})\\b`, "i"),
+    new RegExp(`\\b(${ianaToken})\\b`, "i"),
+    new RegExp(`\\b(?:tz|timezone|in)\\s+(${aliasToken})\\b`, "i"),
+    new RegExp(`\\b(${aliasToken})\\b`, "i")
+  ];
+
+  for (const pattern of checks) {
+    const match = pattern.exec(text);
+    const token = match?.[1];
+
+    if (!match || !token || match.index === undefined || text[match.index - 1] === "#") {
+      continue;
+    }
+
+    const timeZone = supportedTimeZone(token);
+
+    if (timeZone) {
+      return { timeZone, index: match.index, length: match[0].length };
+    }
+  }
+
+  return null;
+}
+
+type GuestHit = { emails: string[]; index: number; length: number };
+
+function extractGuests(text: string): GuestHit | null {
+  // A guest clause is deliberately email-only. This keeps ordinary titles such
+  // as "Lunch with Bob" intact while making invitees explicit and reviewable.
+  const email = "[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+";
+  const clause = new RegExp(`\\bwith\\s+(${email}(?:\\s*(?:,|;|and)\\s*${email})*)`, "i");
+  const match = clause.exec(text);
+
+  if (!match || match.index === undefined) {
+    return null;
+  }
+
+  const emails = (match[1]?.match(new RegExp(email, "gi")) ?? [])
+    .map((emailAddress) => emailAddress.toLowerCase())
+    .filter((emailAddress, index, all) => all.indexOf(emailAddress) === index)
+    .slice(0, 50);
+
+  return emails.length > 0 ? { emails, index: match.index, length: match[0].length } : null;
+}
+
 function extractLocation(text: string): { location: string; index: number; length: number } | null {
   const quoted = /\s(?:@|at\s+)(["“])([^"”]{1,200})["”]/.exec(text);
 
@@ -919,8 +1018,29 @@ export function parseQuickAddEvent(input: string, now = new Date()): ParsedQuick
     matchedTokens.push({ kind: "recurrence", display: recurrenceHit.display });
   }
 
+  const timeZoneHit = extractTimeZone(working);
+  let timeZone: string | null = null;
+
+  if (timeZoneHit) {
+    timeZone = timeZoneHit.timeZone;
+    working = removeRange(working, timeZoneHit.index, timeZoneHit.length);
+    matchedTokens.push({ kind: "timeZone", display: `TZ ${timeZone}` });
+  }
+
+  const guestHit = extractGuests(working);
+  let guestEmails: string[] = [];
+
+  if (guestHit) {
+    guestEmails = guestHit.emails;
+    working = removeRange(working, guestHit.index, guestHit.length);
+    matchedTokens.push({
+      kind: "guests",
+      display: `${guestEmails.length} guest${guestEmails.length === 1 ? "" : "s"}`
+    });
+  }
+
   const dateHit = firstDateHit(working, now, true);
-  const timeHit = matchTimeExpression(working);
+  const timeHit = matchTimeExpression(working, dateHit ?? undefined);
   let startDate: Date | null = null;
   let endDate: Date | null = null;
   let isAllDay = false;
@@ -976,9 +1096,11 @@ export function parseQuickAddEvent(input: string, now = new Date()): ParsedQuick
     summary: cleanSpaces(working),
     startDate,
     endDate,
+    guestEmails,
     location: locationValue,
     isAllDay,
     recurrence,
+    timeZone,
     matchedTokens
   };
 }
@@ -993,7 +1115,7 @@ export function stripHashToken(title: string, token: string | null): string {
   }
 
   const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const stripped = title.replace(new RegExp(`(^|\\s)#${escaped}(?=\\s|$)`, "i"), " ");
+  const stripped = title.replace(new RegExp(`(^|\\s)#(?:"${escaped}"|${escaped})(?=\\s|$)`, "i"), " ");
   return cleanSpaces(stripped) || title.trim();
 }
 

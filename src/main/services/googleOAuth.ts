@@ -83,14 +83,14 @@ export class GoogleOAuthController {
   async googleFetch(accountId: string, url: string | URL, init: RequestInit = {}): Promise<Response> {
     let response = await fetch(url, {
       ...init,
-      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(accountId, false)) }
+      headers: headersWithAuthorization(init.headers, await this.accessToken(accountId, false))
     });
 
     if (response.status !== 401) return response;
 
     response = await fetch(url, {
       ...init,
-      headers: { ...headersWithAuthorization(init.headers, await this.accessToken(accountId, true)) }
+      headers: headersWithAuthorization(init.headers, await this.accessToken(accountId, true))
     });
     return response;
   }

@@ -322,7 +322,7 @@ function draftDisplayColor(
   selectedCalendar: CalendarSource | undefined,
   eventColorOverrides: CalendarEventColorOverrides
 ): { background: string | null; foreground: string | null } {
-  const googleColor = googleCalendarEventColor(draft.colorId || null);
+  const googleColor = draft.colorId ? googleCalendarEventColor(draft.colorId) : undefined;
   const override = googleColor ? eventColorOverrides[googleColor.id] : undefined;
 
   if (override) {
@@ -371,7 +371,7 @@ function EventColorSelect({
           value={draft.colorId}
         >
           <option value="">Calendar default</option>
-          {googleCalendarEventColors.map((color) => (
+          {googleCalendarEventColors.filter((color) => color.id !== "default").map((color) => (
             <option key={color.id} value={color.id}>
               {eventColorOverrides[color.id] ? `${color.label} (custom)` : color.label}
             </option>
@@ -707,7 +707,7 @@ export function CalendarEventDetails({
 }): JSX.Element {
   const selectedCalendar = calendars.find((calendar) => calendar.id === draft.calendarId);
   const displayColor = draftDisplayColor(draft, selectedCalendar, eventColorOverrides);
-  const sourceTimeZone = selectedCalendar?.timeZone ?? defaultTimeZone;
+  const sourceTimeZone = draft.timeZone ?? selectedCalendar?.timeZone ?? defaultTimeZone;
   const guests = draft.guests
     .split(",")
     .map((guest) => guest.trim())
@@ -894,7 +894,7 @@ export function CalendarEventForm({
 }): JSX.Element {
   const selectedCalendar = calendars.find((calendar) => calendar.id === draft.calendarId);
   const displayColor = draftDisplayColor(draft, selectedCalendar, eventColorOverrides);
-  const sourceTimeZone = selectedCalendar?.timeZone ?? defaultTimeZone;
+  const sourceTimeZone = draft.timeZone ?? selectedCalendar?.timeZone ?? defaultTimeZone;
   const showSourceTimeZone = sourceTimeZone !== defaultTimeZone;
   const isBirthdayDraft = draft.hcbKind === "birthday" || (draft.mode === "create" && createMode === "birthday");
 

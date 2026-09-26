@@ -123,6 +123,27 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual(updated.loadingIndicators);
   });
 
+  it("returns a renderer-compatible diagnostics summary", () => {
+    const store = createStore();
+    const summary = store.dispatch("diagnostics", "summary", {});
+    const logs = store.dispatch("diagnostics", "logs", {});
+
+    expect(summary).toMatchObject({
+      cache: {
+        taskListCount: expect.any(Number),
+        calendarCount: expect.any(Number)
+      },
+      native: {
+        capabilities: expect.any(Array),
+        paths: expect.any(Array)
+      },
+      redaction: {
+        credentials: "redacted"
+      }
+    });
+    expect(logs).toEqual({ entries: [], persistedText: "" });
+  });
+
   it("keeps setup skip distinct from completion and restores pending setup safely", () => {
     const store = createStore();
 

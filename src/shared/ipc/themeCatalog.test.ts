@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calendarEventColorForTheme, resolveCalendarEventDisplayColor } from "./contracts";
+import {
+  calendarEventColorForTheme,
+  googleCalendarEventColor,
+  googleCalendarEventColorIdForApi,
+  googleCalendarEventColors,
+  resolveCalendarEventDisplayColor
+} from "./contracts";
 import {
   colorThemeDefinitions,
   customBackgroundThemeId,
@@ -61,6 +67,16 @@ describe("theme catalogue", () => {
       colorTheme: theme,
       overrides: { green: { background: "#123456", foreground: "#ffffff" } }
     })).toEqual({ background: "#123456", foreground: "#ffffff" });
+  });
+
+  it("maps every standard Google Calendar event colour and upgrades legacy aliases", () => {
+    expect(googleCalendarEventColors.map((color) => color.id)).toEqual([
+      "default", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"
+    ]);
+    expect(googleCalendarEventColor("11")).toMatchObject({ label: "Tomato", background: "#dc2127" });
+    expect(googleCalendarEventColorIdForApi("blue")).toBe("9");
+    expect(googleCalendarEventColorIdForApi("default")).toBeUndefined();
+    expect(googleCalendarEventColorIdForApi("not-a-google-colour")).toBeUndefined();
   });
 });
 

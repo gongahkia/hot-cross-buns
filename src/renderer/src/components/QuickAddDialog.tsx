@@ -12,6 +12,7 @@ import {
   type MatchedToken,
   type QuickAddMode
 } from "../features/core/quickAdd/naturalLanguage";
+import { zonedDateTimeIso } from "../features/core/screens/calendar/calendarDateUtils";
 import { Badge, Button, IconButton, cx } from "./primitives";
 
 export type QuickAddSubmitPayload =
@@ -38,6 +39,7 @@ export type QuickAddSubmitPayload =
       notes: string;
       recurrence: CalendarEventRecurrence | null;
       startsAt: string;
+      timeZone?: string;
       title: string;
     };
 
@@ -67,6 +69,30 @@ function addMinutes(value: Date, minutes: number): Date {
 
 function toUtcWallClockIso(value: Date): string {
   return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), value.getHours(), value.getMinutes())).toISOString();
+}
+
+function eventDateTimeIso(value: Date, timeZone: string | undefined): string {
+  return timeZone
+    ? zonedDateTimeIso(toDateInput(value), value.getHours(), value.getMinutes(), timeZone)
+    : toUtcWallClockIso(value);
+}
+
+function mergedGuestEmails(...groups: ReadonlyArray<readonly string[]>): string[] {
+  const seen = new Set<string>();
+  const guests: string[] = [];
+
+  for (const group of groups) {
+    for (const value of group) {
+      const email = value.trim().toLowerCase();
+
+      if (email && !seen.has(email)) {
+        seen.add(email);
+        guests.push(email);
+      }
+    }
+  }
+
+  return guests;
 }
 
 function dateOnlyFromDate(value: Date): string {
@@ -192,7 +218,7 @@ function tokenLabel(token: MatchedToken): string {
     return token.display;
   }
 
-  return "All-day";
+  return token.kind === "allDay" ? "All-day" : token.display;
 }
 
 function eventTimeLabel(startsAt: Date | null, endsAt: Date | null, allDay: boolean): string {
@@ -385,6 +411,7 @@ export function QuickAddDialog({
     const fallbackStart = new Date();
     const start = parsedEvent.startDate ?? templateEventStart ?? fallbackStart;
     const allDay = mode === "birthday" || parsedEvent.isAllDay;
+    const timeZone = allDay ? undefined : parsedEvent.timeZone ?? undefined;
     let end = allDay
       ? addDays(new Date(start.getFullYear(), start.getMonth(), start.getDate()), 1)
       : parsedEvent.endDate ?? templateEventEnd ?? addMinutes(start, 60);
@@ -397,13 +424,14 @@ export function QuickAddDialog({
       mode,
       title: effectiveEventTitle,
       calendarId: effectiveCalendarId,
-      startsAt: allDay ? `${toDateInput(start)}T00:00:00.000Z` : toUtcWallClockIso(start),
-      endsAt: allDay ? `${toDateInput(end)}T00:00:00.000Z` : toUtcWallClockIso(end),
+      startsAt: allDay ? `${toDateInput(start)}T00:00:00.000Z` : eventDateTimeIso(start, timeZone),
+      endsAt: allDay ? `${toDateInput(end)}T00:00:00.000Z` : eventDateTimeIso(end, timeZone),
       allDay,
-      guestEmails: activeEventTemplate?.attendeeEmails ?? [],
+      guestEmails: mergedGuestEmails(activeEventTemplate?.attendeeEmails ?? [], parsedEvent.guestEmails),
       location: mode === "birthday" ? "" : parsedEvent.location ?? templateEventLocation,
       notes: templateNotes,
-      recurrence: mode === "birthday" ? null : parsedEvent.recurrence
+      recurrence: mode === "birthday" ? null : parsedEvent.recurrence,
+      ...(timeZone ? { timeZone } : {})
     });
   }
 
@@ -486,7 +514,7 @@ export function QuickAddDialog({
                   ? "Follow up on pricing #Notes"
                   : mode === "birthday"
                     ? "Maya Apr 25"
-                    : "Lunch with Bob tomorrow 1pm at Philz #Product"
+                    : "Lunch tomorrow 1pm–2pm at Philz with bob@example.com tz America/Los_Angeles #Product"
             }
             ref={inputRef}
             value={input}

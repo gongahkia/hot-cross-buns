@@ -145,10 +145,19 @@ export function useDiagnosticsOverlay(onClose: () => void, initialTab: Diagnosti
   }
 
   async function refreshLogs(): Promise<void> {
-    const result = await window.hcb?.diagnostics.logs({ minimumLevel: logLevel, limit: 200 });
+    try {
+      const result = await window.hcb?.diagnostics.logs({ minimumLevel: logLevel, limit: 200 });
 
-    if (result?.ok) {
-      setLogs(result.data);
+      if (result?.ok) {
+        setLogs({
+          ...result.data,
+          entries: Array.isArray(result.data?.entries) ? result.data.entries : [],
+          persistedText: typeof result.data?.persistedText === "string" ? result.data.persistedText : ""
+        });
+      }
+    } catch {
+      // Diagnostics should remain open even when an optional log transport is unavailable.
+      setLogs({ entries: [], persistedText: "" });
     }
   }
 

@@ -1,6 +1,7 @@
 import { CoreStore, CoreStoreError, type PendingSyncMutation } from "./coreStore";
 import { GoogleOAuthController } from "./googleOAuth";
 import { EventEmitter } from "node:events";
+import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
 
 type JsonRecord = Record<string, any>;
 
@@ -579,7 +580,7 @@ function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
     summary: event.title,
     description: event.description || undefined,
     location: event.location || undefined,
-    colorId: event.colorId || undefined,
+    colorId: googleCalendarEventColorIdForApi(event.colorId),
     start: googleEventTime(event.startsAt, Boolean(event.allDay), event.timeZone),
     end: googleEventTime(event.endsAt, Boolean(event.allDay), event.timeZone),
     recurrence: recurrence ?? [],

@@ -26,6 +26,30 @@ function requestCallback(url: URL): Promise<number | undefined> {
 }
 
 describe("GoogleOAuthController", () => {
+  it("sends the OAuth bearer token without dropping existing headers", async () => {
+    const store = {
+      dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
+      oauthClientId: () => "test-desktop-client-id"
+    };
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+    const internals = controller as unknown as {
+      accessToken: ReturnType<typeof vi.fn>;
+    };
+    internals.accessToken = vi.fn(async () => "access-token");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+
+    await controller.googleFetch("test-account", "https://example.test/api", {
+      headers: { "x-hcb-test": "present" }
+    });
+
+    const requestInit = fetchSpy.mock.calls[0]?.[1];
+    const headers = new Headers(requestInit?.headers);
+    expect(headers.get("authorization")).toBe("Bearer access-token");
+    expect(headers.get("x-hcb-test")).toBe("present");
+    expect(internals.accessToken).toHaveBeenCalledWith("test-account", false);
+    fetchSpy.mockRestore();
+  });
+
   it("adds a one-time state value and rejects a callback with the wrong state", async () => {
     const store = {
       dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),

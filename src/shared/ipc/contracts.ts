@@ -50,7 +50,24 @@ export type DiagnosticsLogsResponse = any;
 export type DiagnosticsPendingMutation = any;
 export type DiagnosticsSummaryResponse = any;
 export type EventTemplate = any;
-export type GoogleCalendarEventColorId = "default" | "blue" | "green" | "red";
+export type GoogleCalendarEventColorId =
+  | "default"
+  | "1"
+  | "2"
+  | "3"
+  | "4"
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "11"
+  // Aliases emitted by earlier HCB versions. Keep accepting them when reading
+  // cached events and translate them before writing to Google.
+  | "blue"
+  | "green"
+  | "red";
 export interface GoogleAccountStatus {
   accountId: string;
   googleAccountId?: string;
@@ -193,13 +210,44 @@ export interface GoogleCalendarEventColor {
 
 export const googleCalendarEventColors: readonly GoogleCalendarEventColor[] = [
   { id: "default", label: "Default", value: "#5f6368", background: "#5f6368", foreground: "#ffffff" },
-  { id: "blue", label: "Blue", value: "#4285f4", background: "#4285f4", foreground: "#ffffff" },
-  { id: "green", label: "Green", value: "#34a853", background: "#34a853", foreground: "#ffffff" },
-  { id: "red", label: "Red", value: "#ea4335", background: "#ea4335", foreground: "#ffffff" }
+  { id: "1", label: "Lavender", value: "#a4bdfc", background: "#a4bdfc", foreground: "#1d1d1d" },
+  { id: "2", label: "Sage", value: "#7ae7bf", background: "#7ae7bf", foreground: "#1d1d1d" },
+  { id: "3", label: "Grape", value: "#dbadff", background: "#dbadff", foreground: "#1d1d1d" },
+  { id: "4", label: "Flamingo", value: "#ff887c", background: "#ff887c", foreground: "#1d1d1d" },
+  { id: "5", label: "Banana", value: "#fbd75b", background: "#fbd75b", foreground: "#1d1d1d" },
+  { id: "6", label: "Tangerine", value: "#ffb878", background: "#ffb878", foreground: "#1d1d1d" },
+  { id: "7", label: "Peacock", value: "#46d6db", background: "#46d6db", foreground: "#1d1d1d" },
+  { id: "8", label: "Graphite", value: "#e1e1e1", background: "#e1e1e1", foreground: "#1d1d1d" },
+  { id: "9", label: "Blueberry", value: "#5484ed", background: "#5484ed", foreground: "#ffffff" },
+  { id: "10", label: "Basil", value: "#51b749", background: "#51b749", foreground: "#ffffff" },
+  { id: "11", label: "Tomato", value: "#dc2127", background: "#dc2127", foreground: "#ffffff" }
 ] as const;
 
+const legacyCalendarEventColorIds: Record<"blue" | "green" | "red", GoogleCalendarEventColorId> = {
+  blue: "9",
+  green: "10",
+  red: "11"
+};
+
 export function googleCalendarEventColor(id: string | null | undefined): GoogleCalendarEventColor {
-  return googleCalendarEventColors.find((color) => color.id === id) ?? googleCalendarEventColors[0];
+  const mappedId = id && id in legacyCalendarEventColorIds
+    ? legacyCalendarEventColorIds[id as keyof typeof legacyCalendarEventColorIds]
+    : id;
+  return googleCalendarEventColors.find((color) => color.id === mappedId) ?? googleCalendarEventColors[0];
+}
+
+export function googleCalendarEventColorIdForApi(id: string | null | undefined): string | undefined {
+  if (!id || id === "default") {
+    return undefined;
+  }
+
+  const mappedId = id in legacyCalendarEventColorIds
+    ? legacyCalendarEventColorIds[id as keyof typeof legacyCalendarEventColorIds]
+    : id;
+
+  return googleCalendarEventColors.some((color) => color.id === mappedId && color.id !== "default")
+    ? mappedId
+    : undefined;
 }
 
 export function calendarEventColorForTheme(
@@ -207,6 +255,11 @@ export function calendarEventColorForTheme(
   id: GoogleCalendarEventColorId | string | null | undefined
 ): Pick<GoogleCalendarEventColor, "background" | "foreground"> {
   const colors = theme.colors;
+  const googleColor = googleCalendarEventColors.find((color) => color.id === id && color.id !== "default");
+
+  if (googleColor) {
+    return googleColor;
+  }
 
   if (id === "blue") {
     return { background: colors.accent, foreground: colors.accentForeground };

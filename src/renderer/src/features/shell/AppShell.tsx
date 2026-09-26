@@ -458,6 +458,7 @@ export function AppShell(): JSX.Element {
               calendarId: payload.calendarId,
               startsAt: payload.startsAt,
               endsAt: payload.endsAt,
+              timeZone: payload.timeZone,
               allDay: payload.allDay,
               location: payload.location,
               notes: payload.notes,

@@ -194,7 +194,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
   function eventInspectorSubtitle(nextDraft: CalendarEventDraft): string {
     const calendar = source.calendarSources.find((calendarSource) => calendarSource.id === nextDraft.calendarId);
-    return `${calendar?.title ?? "Calendar"} · ${calendarDraftRangeLabel(nextDraft, calendar?.timeZone ?? source.settings.defaultTimeZone)}`;
+    return `${calendar?.title ?? "Calendar"} · ${calendarDraftRangeLabel(nextDraft, nextDraft.timeZone ?? calendar?.timeZone ?? source.settings.defaultTimeZone)}`;
   }
 
   function eventInspectorBody(
