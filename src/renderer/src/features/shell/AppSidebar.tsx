@@ -234,13 +234,18 @@ export function AppSidebar({
         })}
       </nav>
 
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 z-40 w-1 -translate-x-1/2 bg-accent opacity-0"
+        ref={drawerDrag.previewRef}
+      />
       <button
         aria-controls="app-sidebar"
         aria-expanded="true"
         aria-keyshortcuts={ariaKeyShortcuts(source.settings.keybindings["navigation.sidebar.toggle"])}
         aria-label={t("nav.hideSidebar")}
         className={cx(
-          "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+          "absolute top-1/2 z-50 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
           sidebarOnRight ? "-left-[27px] rounded-l-hcbMd border-r-0" : "-right-[27px] rounded-r-hcbMd border-l-0"
         )}
         onClick={drawerDrag.onClick}

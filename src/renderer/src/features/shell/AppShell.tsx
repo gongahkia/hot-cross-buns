@@ -106,24 +106,31 @@ function SidebarDrawerToggle({
       : "left-[12px] rounded-r-hcbMd border-l-0";
 
   return (
-    <button
-      aria-controls="app-sidebar"
-      aria-expanded={sidebarOpen}
-      aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
-      aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
-      className={cx(
-        "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
-        edgeClass
-      )}
-      onClick={drawerDrag.onClick}
-      onPointerDown={drawerDrag.onPointerDown}
-      title={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
-      type="button"
-    >
-      <span className="flex h-8 w-5 items-center justify-center rounded-hcbSm border border-border bg-surface-0">
-        <ToggleIcon aria-hidden="true" size={14} />
-      </span>
-    </button>
+    <>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 z-40 w-1 -translate-x-1/2 bg-accent opacity-0"
+        ref={drawerDrag.previewRef}
+      />
+      <button
+        aria-controls="app-sidebar"
+        aria-expanded={sidebarOpen}
+        aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
+        aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
+        className={cx(
+          "absolute top-1/2 z-50 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+          edgeClass
+        )}
+        onClick={drawerDrag.onClick}
+        onPointerDown={drawerDrag.onPointerDown}
+        title={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
+        type="button"
+      >
+        <span className="flex h-8 w-5 items-center justify-center rounded-hcbSm border border-border bg-surface-0">
+          <ToggleIcon aria-hidden="true" size={14} />
+        </span>
+      </button>
+    </>
   );
 }
 

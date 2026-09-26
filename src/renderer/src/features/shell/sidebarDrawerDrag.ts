@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 export const sidebarDrawerSnapThreshold = 48;
 
@@ -38,9 +38,11 @@ export function useSidebarDrawerDrag({
 }): {
   onClick: () => void;
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  previewRef: RefObject<HTMLDivElement>;
 } {
   const suppressClickRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => cleanupRef.current?.(), []);
 
@@ -52,12 +54,29 @@ export function useSidebarDrawerDrag({
     event.preventDefault();
     const startX = event.clientX;
     const pointerId = event.pointerId;
+    const container = event.currentTarget.parentElement;
     let moved = false;
+
+    function showPreview(clientX: number): void {
+      if (!container || !previewRef.current) {
+        return;
+      }
+
+      previewRef.current.style.left = `${clientX - container.getBoundingClientRect().left}px`;
+      previewRef.current.style.opacity = "1";
+    }
+
+    function hidePreview(): void {
+      if (previewRef.current) {
+        previewRef.current.style.opacity = "0";
+      }
+    }
 
     function cleanup(): void {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
+      hidePreview();
       cleanupRef.current = null;
     }
 
@@ -67,6 +86,7 @@ export function useSidebarDrawerDrag({
       }
 
       moved ||= Math.abs(moveEvent.clientX - startX) >= 3;
+      showPreview(moveEvent.clientX);
     }
 
     function onPointerUp(upEvent: PointerEvent): void {
@@ -98,6 +118,7 @@ export function useSidebarDrawerDrag({
 
     cleanupRef.current?.();
     cleanupRef.current = cleanup;
+    showPreview(startX);
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerCancel);
@@ -112,5 +133,5 @@ export function useSidebarDrawerDrag({
     onSetOpen(!sidebarOpen);
   }, [onSetOpen, sidebarOpen]);
 
-  return { onClick, onPointerDown };
+  return { onClick, onPointerDown, previewRef };
 }
