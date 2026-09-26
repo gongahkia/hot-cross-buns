@@ -210,6 +210,9 @@ export class GoogleOAuthController {
     const identity = identityResponse.ok ? await identityResponse.json() as { id?: string; email?: string; name?: string; picture?: string } : {};
     const account = this.store.upsertGoogleAccount({ googleAccountId: identity.id ?? `unknown-${randomBytes(8).toString("hex")}`, email: identity.email ?? null, displayName: identity.name ?? identity.email ?? "Google account", avatarUrl: identity.picture ?? null, connectionState: "connected", missingScopes: [], grantedScopes: token.scope?.split(/\s+/).filter(Boolean) ?? requestedScopes });
     await this.writeSecrets({ ...secrets, accounts: { ...(secrets.accounts ?? {}), [account.accountId]: { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } } });
+    // Tokens are safely persisted now, so the starter-only workspace can be
+    // retired without risking a Google connection that cannot be restored.
+    this.store.retireLocalFallback();
     this.events.emit("connection-change");
   }
 

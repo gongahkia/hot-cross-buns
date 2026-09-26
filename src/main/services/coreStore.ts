@@ -217,6 +217,56 @@ export class CoreStore {
     this.resetGoogleSyncTokens(accountId);
   }
 
+  /**
+   * Retire the starter workspace once a real Google account is connected.
+   *
+   * The local account is only a first-run fallback. Its task lists, tasks,
+   * calendars, events, queued local writes, and undo history must never be
+   * mistaken for Google data. Notes and tags deliberately remain: they are
+   * HCB-owned features and do not belong to the starter account.
+   */
+  retireLocalFallback(): void {
+    if (!this.db.prepare("SELECT 1 FROM google_accounts WHERE id=?").get(localAccountId)) {
+      this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run("local-fallback-retired", "1");
+      return;
+    }
+
+    const currentSettings = this.settings();
+    const nextSettings = withoutLocalFallbackSelections(currentSettings);
+    const transaction = this.db.transaction(() => {
+      // A task block owns references to both a task and an event, so it must
+      // be removed before either local resource table can be cleared.
+      this.db.prepare(`DELETE FROM scheduled_task_blocks
+        WHERE task_id IN (SELECT id FROM tasks WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?))
+           OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE account_id=?))
+           OR calendar_id IN (SELECT id FROM calendars WHERE account_id=?)`)
+        .run(localAccountId, localAccountId, localAccountId);
+      this.db.prepare("DELETE FROM outbox WHERE account_id=?").run(localAccountId);
+      this.db.prepare("DELETE FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE account_id=?)").run(localAccountId);
+      this.db.prepare("DELETE FROM tasks WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?)").run(localAccountId);
+      // Notes can reference the starter Inbox as an optional grouping. Keep
+      // the note, but remove that now-invalid local list reference.
+      this.db.prepare("UPDATE notes SET list_id=NULL WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?)").run(localAccountId);
+      this.db.prepare("DELETE FROM task_lists WHERE account_id=?").run(localAccountId);
+      this.db.prepare("DELETE FROM calendars WHERE account_id=?").run(localAccountId);
+      this.db.prepare("DELETE FROM google_accounts WHERE id=?").run(localAccountId);
+      this.db.prepare("DELETE FROM sync_meta WHERE key LIKE ?").run(`google-sync-token:${localAccountId}:%`);
+      // Local undo entries could otherwise recreate a resource we just
+      // intentionally retired. Preserve any Google history by removing only
+      // entries whose forward or inverse payload points at Inbox/Primary.
+      this.db.prepare(`DELETE FROM undo_entries
+        WHERE forward_json LIKE ? OR forward_json LIKE ? OR inverse_json LIKE ? OR inverse_json LIKE ?`)
+        .run('%"listId":"inbox"%', '%"calendarId":"primary"%', '%"listId":"inbox"%', '%"calendarId":"primary"%');
+      this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run("local-fallback-retired", "1");
+      this.db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run("app", JSON.stringify(nextSettings));
+    });
+    transaction();
+    this.nativeBridge?.applySettings?.(nextSettings);
+  }
+
   previewCrossAccountCopy(input: JsonRecord): JsonRecord {
     const { sourceAccountId, destinationAccountId, destinationCalendarId } = this.crossAccountCopyTargets(input);
     const taskListCount = Number((this.db.prepare("SELECT COUNT(*) AS count FROM task_lists WHERE account_id=?").get(sourceAccountId) as { count: number }).count);
@@ -907,20 +957,28 @@ export class CoreStore {
 
   private seed(): void {
     const now = timestamp();
+    const localFallbackRetired = Boolean(this.db.prepare("SELECT 1 FROM sync_meta WHERE key=?").get("local-fallback-retired"));
+    const connectedGoogle = Boolean(this.db.prepare("SELECT 1 FROM google_accounts WHERE id != ? AND connection_state='connected' LIMIT 1").get(localAccountId));
     const transaction = this.db.transaction(() => {
-      this.db.prepare(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", "[]", now, now);
-      if (!this.db.prepare("SELECT 1 FROM task_lists LIMIT 1").get()) {
-        this.db.prepare("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("inbox", localAccountId, "Inbox", now, now);
-      }
-      if (!this.db.prepare("SELECT 1 FROM calendars LIMIT 1").get()) {
-        this.db.prepare("INSERT INTO calendars(id, account_id, title, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run("primary", localAccountId, "Primary", "#4285f4", now, now);
-      }
       if (!this.db.prepare("SELECT 1 FROM settings WHERE key = ?").get("app")) {
         this.db.prepare("INSERT INTO settings(key, value) VALUES (?, ?)").run("app", JSON.stringify(defaultSettings));
       }
+      if (!localFallbackRetired && !connectedGoogle) {
+        this.db.prepare(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", "[]", now, now);
+        if (!this.db.prepare("SELECT 1 FROM task_lists LIMIT 1").get()) {
+          this.db.prepare("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("inbox", localAccountId, "Inbox", now, now);
+        }
+        if (!this.db.prepare("SELECT 1 FROM calendars LIMIT 1").get()) {
+          this.db.prepare("INSERT INTO calendars(id, account_id, title, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run("primary", localAccountId, "Primary", "#4285f4", now, now);
+        }
+      }
     });
     transaction();
+    // Existing developer databases can already contain both a connected
+    // Google account and the retired starter workspace. Clean that exact
+    // local boundary on their next launch too.
+    if (connectedGoogle) this.retireLocalFallback();
   }
 
   private bootstrap(input: JsonRecord): JsonRecord {
@@ -984,7 +1042,7 @@ export class CoreStore {
   private createTask(input: JsonRecord): JsonRecord {
     const now = timestamp();
     const id = typeof input.id === "string" ? input.id : randomUUID();
-    const listId = input.listId ?? "inbox";
+    const listId = input.listId ?? this.defaultWritableTaskListId();
     this.requireList(listId);
     this.db.transaction(() => {
       this.db.prepare(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,locked_schedule,snooze_until,tags_json,created_at,updated_at)
@@ -1847,11 +1905,39 @@ export class CoreStore {
     return connected?.accountId ?? localAccountId;
   }
 
+  private defaultWritableTaskListId(): string {
+    const selected = new Set(this.selectedTaskListIds());
+    const connectedAccountIds = new Set(
+      this.googleAccounts()
+        .filter((account) => account.accountId !== localAccountId && account.connectionState === "connected")
+        .map((account) => account.accountId)
+    );
+    const writable = this.taskLists().find((list) =>
+      connectedAccountIds.has(list.accountId) && (selected.size === 0 || selected.has(list.id))
+    );
+    if (writable) return writable.id;
+    if (connectedAccountIds.size > 0) {
+      throw new CoreStoreError("Google Tasks has not finished syncing a task list yet.");
+    }
+    if (this.db.prepare("SELECT 1 FROM task_lists WHERE id=? AND account_id=?").get("inbox", localAccountId)) return "inbox";
+    throw new CoreStoreError("Connect Google before creating a task.");
+  }
+
   private defaultWritableCalendarId(): string {
-    const selected = this.selectedCalendarIds();
-    const writable = this.calendars().find((calendar) => selected.includes(calendar.id) && calendar.accountId !== localAccountId) ?? this.calendars()[0];
-    if (!writable) throw new CoreStoreError("No calendar is available");
-    return writable.id;
+    const selected = new Set(this.selectedCalendarIds());
+    const connectedAccountIds = new Set(
+      this.googleAccounts()
+        .filter((account) => account.accountId !== localAccountId && account.connectionState === "connected")
+        .map((account) => account.accountId)
+    );
+    const writable = this.calendars().find((calendar) =>
+      connectedAccountIds.has(calendar.accountId) && (selected.size === 0 || selected.has(calendar.id))
+    );
+    if (writable) return writable.id;
+    if (connectedAccountIds.size > 0) throw new CoreStoreError("Google Calendar has not finished syncing a calendar yet.");
+    const local = this.calendars().find((calendar) => calendar.accountId === localAccountId);
+    if (local) return local.id;
+    throw new CoreStoreError("Connect Google before creating an event.");
   }
 
   private page(items: JsonRecord[], input: JsonRecord): JsonRecord {
@@ -1871,6 +1957,23 @@ export class CoreStore {
 }
 
 export class CoreStoreError extends Error {}
+
+function withoutLocalFallbackSelections(settings: JsonRecord): JsonRecord {
+  const withoutLocalId = (ids: unknown) => stringArray(ids).filter((id) => id !== "inbox" && id !== "primary");
+  const listFilters = safeObject(settings.perTabListFilters) ?? {};
+  const withoutLocalFilters = Object.fromEntries(
+    Object.entries(listFilters).map(([surface, filter]) => {
+      const value = safeObject(filter) ?? {};
+      return [surface, { ...value, selectedTaskListIds: withoutLocalId(value.selectedTaskListIds) }];
+    })
+  );
+  return {
+    ...settings,
+    selectedTaskListIds: withoutLocalId(settings.selectedTaskListIds),
+    selectedCalendarIds: withoutLocalId(settings.selectedCalendarIds),
+    perTabListFilters: withoutLocalFilters
+  };
+}
 
 function taskFromRow(row: JsonRecord): JsonRecord {
   return { ...row, lockedSchedule: Boolean(row.lockedSchedule), tags: safeJson(row.tags, []), dueAt: row.dueAt ?? null, parentId: row.parentId ?? null, plannedStart: row.plannedStart ?? null, plannedEnd: row.plannedEnd ?? null, durationMinutes: row.durationMinutes ?? null, snoozeUntil: row.snoozeUntil ?? null };

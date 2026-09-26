@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   Bell,
@@ -32,6 +32,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const refreshedConnectedAccount = useRef<string | null>(null);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
   const selectedCalendars = useMemo(() => new Set(selectedCalendarIds), [selectedCalendarIds]);
   const accountState = source.diagnosticsSummary?.account.state ?? "signed_out";
@@ -46,6 +47,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     false;
   const googleClientConfigured = source.googleStatus.oauthClientConfigured;
   const googleConnecting = source.googleStatus.authorizationInProgress === true;
+  const googleTaskLists = source.taskLists.filter((taskList) => taskList.accountId !== "local");
+  const googleCalendars = source.calendarSources.filter((calendar) => calendar.accountId !== "local");
+  const googleResourcesReady = googleConnected && googleTaskLists.length > 0 && googleCalendars.length > 0;
+  const reconnecting = source.settings.onboardingStatus === "completed";
 
   useEffect(() => {
     setGoogleClientId(source.googleStatus.clientId ?? "");
@@ -63,6 +68,28 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
     return () => window.clearInterval(interval);
   }, [googleConnecting, source.refreshGoogleStatus]);
+
+  useEffect(() => {
+    const accountId = source.googleStatus.account?.accountId ?? null;
+    if (!googleConnected || !accountId || refreshedConnectedAccount.current === accountId) return;
+
+    refreshedConnectedAccount.current = accountId;
+    source.refresh();
+    const timers = [1_500, 4_000, 8_000].map((delayMs) => window.setTimeout(() => source.refresh(), delayMs));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [googleConnected, source.googleStatus.account?.accountId, source.refresh]);
+
+  useEffect(() => {
+    if (!googleConnected) return;
+    const taskListIds = googleTaskLists.map((taskList) => taskList.id);
+    const calendarIds = googleCalendars.map((calendar) => calendar.id);
+    if (taskListIds.length > 0) {
+      setSelectedTaskListIds((current) => current.includes("inbox") ? taskListIds : current);
+    }
+    if (calendarIds.length > 0) {
+      setSelectedCalendarIds((current) => current.includes("primary") ? calendarIds : current);
+    }
+  }, [googleCalendars, googleConnected, googleTaskLists]);
 
   function toggleTaskList(taskListId: string, selected: boolean): void {
     setSelectedTaskListIds((current) => {
@@ -101,6 +128,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       | "notificationsEnabled"
     >> = {}
   ): Promise<void> {
+    if (!googleResourcesReady) {
+      setLocalError("Wait for Google Calendar and Google Tasks to finish their first sync.");
+      return;
+    }
     setSubmitting(true);
     setLocalError(null);
 
@@ -112,21 +143,6 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       onboardingStatus: "completed",
       setupCompletedAt: new Date().toISOString()
     });
-
-    if (!saved) {
-      setSubmitting(false);
-      setLocalError("Setup preferences were not saved.");
-    }
-  }
-
-  async function skipSetup(): Promise<void> {
-    setSubmitting(true);
-    setLocalError(null);
-
-    // Skipping must not make an implicit choice about sync, notifications, or
-    // selected Google resources. Those defaults remain untouched until setup
-    // is deliberately completed or re-opened from Settings.
-    const saved = await source.updateSettings({ onboardingStatus: "skipped" });
 
     if (!saved) {
       setSubmitting(false);
@@ -204,14 +220,14 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
         <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2 sm:px-5">
           <div className="min-w-0">
             <h2 className="hcb-heading truncate text-[var(--text-xl)] font-bold text-text-primary" id="first-run-title">
-              First-run setup
+              {reconnecting ? "Reconnect Google" : "Connect Google"}
             </h2>
             <p className="hcb-copy truncate text-[var(--text-sm)] text-text-muted">
-              Connect Google now or finish with the local cache and connect it later.
+              HCB requires Google Calendar and Google Tasks. Your Google data remains in Google; HCB keeps a local sync cache for speed and offline reads.
             </p>
           </div>
           <Badge tone={googleConnected ? "success" : "neutral"}>
-            {googleConnected ? "Google connected" : "Google optional"}
+            {googleConnected ? "Google connected" : "Google required"}
           </Badge>
         </header>
 
@@ -283,15 +299,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               ) : null}
             </SetupCard>
             <SetupCard
-              description={`${selectedTaskListIds.length} task list${selectedTaskListIds.length === 1 ? "" : "s"} selected`}
+              description={googleConnected && !googleResourcesReady ? "Waiting for the first Google sync." : `${selectedTaskListIds.length} task list${selectedTaskListIds.length === 1 ? "" : "s"} selected`}
               icon={ListChecks}
-              status={source.taskLists.length === 0 ? "None" : "Selected"}
+              status={googleTaskLists.length === 0 ? "Waiting" : "Selected"}
               title="2. Task lists"
             />
             <SetupCard
-              description={`${selectedCalendarIds.length} calendar${selectedCalendarIds.length === 1 ? "" : "s"} selected`}
+              description={googleConnected && !googleResourcesReady ? "Waiting for the first Google sync." : `${selectedCalendarIds.length} calendar${selectedCalendarIds.length === 1 ? "" : "s"} selected`}
               icon={CalendarDays}
-              status={source.calendarSources.length === 0 ? "None" : "Selected"}
+              status={googleCalendars.length === 0 ? "Waiting" : "Selected"}
               title="3. Calendars"
             />
           </div>
@@ -388,18 +404,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
         <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
           <p className="hcb-copy text-[var(--text-sm)] text-text-muted">
-            You can configure Google and preferences later in Settings.
+            Google is required before HCB can open your planner.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              disabled={submitting || source.settingsMutationPending}
-              onClick={() => void skipSetup()}
-              variant="ghost"
-            >
-              Skip setup for now
-            </Button>
-            <Button
-              disabled={submitting || source.settingsMutationPending}
+              disabled={submitting || source.settingsMutationPending || !googleResourcesReady}
               onClick={() => void completeSetup()}
               variant="primary"
             >
