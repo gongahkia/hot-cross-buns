@@ -31,8 +31,10 @@ import {
   allDayEndInputValue,
   calendarDraftDurationLabel,
   calendarDraftRangeLabel,
+  calendarSimpleRecurrenceLines,
   calendarRecurrenceRulePreview,
-  calendarRecurrenceSummary
+  calendarRecurrenceSummary,
+  normalizeGoogleRecurrenceLines
 } from "./drafts";
 import type { CalendarCreateMode, CalendarEventDraft, CalendarRepeatFrequency, CalendarRepeatWeekday } from "./types";
 
@@ -1277,7 +1279,8 @@ export function CalendarEventForm({
             Repeat
           </span>
         </legend>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {draft.recurrenceEditor === "simple" ? (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Frequency</span>
             <select
@@ -1296,8 +1299,9 @@ export function CalendarEventForm({
               <option value="custom">Custom</option>
             </select>
           </label>
-        </div>
-        {draft.repeatFrequency === "custom" ? (
+          </div>
+        ) : null}
+        {draft.recurrenceEditor === "simple" && draft.repeatFrequency === "custom" ? (
           <div className="grid gap-3 rounded-hcbMd border border-border bg-surface-0 p-3">
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)] sm:items-end">
               <span className="hidden pb-2 text-[var(--text-sm)] text-text-secondary sm:block">Repeat every</span>
@@ -1461,7 +1465,52 @@ export function CalendarEventForm({
             ) : null}
           </div>
         ) : null}
-        <div className="text-[var(--text-xs)] text-text-muted">{calendarRecurrenceSummary(draft)}</div>
+        {draft.recurrenceEditor === "simple" ? (
+          <>
+            <div className="text-[var(--text-xs)] text-text-muted">{calendarRecurrenceSummary(draft)}</div>
+            <button
+              className="w-fit text-[var(--text-xs)] text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={() => setDraft({
+                ...draft,
+                recurrenceEditor: "google",
+                recurrenceLines: calendarSimpleRecurrenceLines(draft)
+              })}
+              type="button"
+            >
+              Edit exact Google recurrence rules
+            </button>
+          </>
+        ) : (
+          <div className="grid gap-2 rounded-hcbMd border border-border bg-surface-0 p-3">
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Google recurrence rules</span>
+              <textarea
+                aria-label="Google recurrence rules"
+                className="min-h-28 w-full resize-y rounded-hcbMd border border-border bg-bg-tertiary px-3 py-2 font-mono text-[var(--text-sm)] text-text-primary placeholder:text-text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                onChange={(event) => setDraft({
+                  ...draft,
+                  recurrenceLines: normalizeGoogleRecurrenceLines(event.currentTarget.value.split("\n"))
+                })}
+                placeholder={"RRULE:FREQ=WEEKLY;BYDAY=MO,WE\nEXDATE;TZID=Asia/Singapore:20261012T090000\nRDATE;TZID=Asia/Singapore:20261013T090000"}
+                spellCheck={false}
+                value={draft.recurrenceLines.join("\n")}
+              />
+            </label>
+            <p className="text-[var(--text-xs)] text-text-muted">
+              Exact Google Calendar RFC 5545 lines. Use RRULE, EXRULE, RDATE, and EXDATE; start/end and timezone stay in the Time section.
+            </p>
+            <button
+              className="w-fit text-[var(--text-xs)] text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={() => setDraft({ ...draft, recurrenceEditor: "simple" })}
+              type="button"
+            >
+              Use simple repeat controls instead
+            </button>
+            <p className="text-[var(--text-xs)] text-warning">
+              Switching to simple controls replaces the exact Google rule set when you save.
+            </p>
+          </div>
+        )}
       </fieldset>
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">

@@ -7,6 +7,11 @@
 - Gmail: searches explicitly requested message metadata/snippets and creates a Task that links back to the selected Gmail thread. It never sends, edits, archives, labels, or deletes mail.
 - Cross-account migration: previewable, non-destructive one-way copy. It creates new Task lists/tasks and ordinary Calendar events in a destination account. It intentionally excludes attendees, Meet links, Drive attachments, and Calendar status events.
 
+## Fidelity and interoperability
+
+- Calendar recurrence is HCB's canonical Google Calendar RFC 5545 line array. The event editor exposes the exact `RRULE`, `EXRULE`, `RDATE`, and `EXDATE` lines Google accepts, including property parameters such as `TZID`; it sends those lines unchanged and keeps the event start/end and IANA timezone alongside them. The simple repeat controls are an opt-in shortcut for creating a basic rule. Choosing them explicitly replaces the exact rule set on save, with a visible warning. For **this and following**, HCB safely splits RRULE-based series; it refuses a series containing `RDATE` rather than risk changing an explicit future occurrence, and directs that case to Google Calendar.
+- Google Tasks does not have HCB equivalents for priority, tags, planned start/end, duration, schedule lock, or snooze. When any are set, HCB stores a versioned footer in the task's Google-visible notes and strips it from the note shown in HCB on the next pull. Regular note text is preserved. Do not manually edit or remove that footer if the HCB planning fields should survive a reinstall or use in another HCB profile. Google limits task notes to 8,192 characters, so HCB reports a clear sync conflict instead of truncating either user text or metadata when the combined value cannot fit.
+
 ## Consent model
 
 Calendar and Tasks use the standard HCB OAuth grant. Drive and Gmail are optional and must be requested by the user in **Settings → Profile**:

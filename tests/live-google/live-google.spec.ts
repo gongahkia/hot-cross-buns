@@ -112,6 +112,21 @@ function benchmarkMetric(runs: readonly BenchmarkRun[], field: keyof Omit<Benchm
   };
 }
 
+function googleLocalRecurrenceDateTime(value: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(new Date(value));
+  const field = (type: Intl.DateTimeFormatPartTypes): string => parts.find((part) => part.type === type)?.value ?? "00";
+  return `${field("year")}${field("month")}${field("day")}T${field("hour")}${field("minute")}${field("second")}`;
+}
+
 async function syncAccount(page: Page, accountId: string, readOnly: boolean, phase: string): Promise<Record<string, unknown>> {
   const result = await page.evaluate(async ({ accountId, phase, readOnly }) =>
     window.hcb?.sync.runNow({ accountId, readOnly, reason: `live-google-${phase}` }), { accountId, phase, readOnly });
@@ -170,9 +185,11 @@ async function recoverMarkedLiveTestResidue(
     return { errors, retried };
   }, { calendarId, taskListId, titlePrefix: liveTestTitlePrefix });
   expect(recovery.errors, "Could not recover interrupted, explicitly marked live-test work.").toEqual([]);
-  if (recovery.retried === 0) return;
+  if (recovery.retried > 0) await syncAccount(page, accountId, false, "recover-marked-live-test-residue");
 
-  await syncAccount(page, accountId, false, "recover-marked-live-test-residue");
+  // A process interruption after delivery can leave an active record without
+  // an outbox row. Recover it too, but only when its title and resource both
+  // prove it belongs to this suite's disposable test area.
   await cleanupLiveRecords(page, {
     accountId,
     calendarId,
@@ -430,6 +447,169 @@ test.describe.serial("live Google account smoke", () => {
       expect(requireSuccess(updated.task as HcbResult<{ title: string }>, "Update live task").title).toBe(`${title} updated`);
       expect(requireSuccess(updated.event as HcbResult<{ title: string }>, "Update live event").title).toBe(`${title} updated`);
       await syncAccount(page, accountId, false, "update");
+    } finally {
+      await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
+    }
+  });
+
+  test("round-trips Google Calendar's complete recurrence line set", async () => {
+    test.skip(config.mode !== "mutating", "Mutating checks require HCB_LIVE_GOOGLE_TEST_MODE=mutating.");
+
+    const { calendarId, taskListId } = await requireDedicatedResources(page, accountId);
+    const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = `[HCB live smoke recurrence ${runId}]`;
+    const scheduledStart = new Date(Date.now() + 21 * 24 * 60 * 60 * 1_000);
+    scheduledStart.setUTCHours(1, 0, 0, 0);
+    const startsAt = scheduledStart.toISOString();
+    const endsAt = new Date(Date.parse(startsAt) + 30 * 60_000).toISOString();
+    const timeZone = "Asia/Singapore";
+    const recurrenceLines = [
+      "RRULE:FREQ=DAILY;COUNT=3",
+      "EXRULE:FREQ=YEARLY;BYMONTH=12",
+      `EXDATE;TZID=${timeZone}:${googleLocalRecurrenceDateTime(new Date(Date.parse(startsAt) + 24 * 60 * 60 * 1_000).toISOString(), timeZone)}`,
+      `RDATE;TZID=${timeZone}:${googleLocalRecurrenceDateTime(new Date(Date.parse(startsAt) + 4 * 24 * 60 * 60 * 1_000).toISOString(), timeZone)}`
+    ];
+    let eventId: string | undefined;
+
+    try {
+      const created = await page.evaluate(async ({ calendarId, endsAt, recurrenceLines, startsAt, timeZone, title }) =>
+        window.hcb?.calendar.create({ allDay: false, calendarId, endsAt, recurrenceLines, startsAt, timeZone, title }),
+      { calendarId, endsAt, recurrenceLines, startsAt, timeZone, title });
+      eventId = requireSuccess(created as HcbResult<{ id: string }>, "Create recurrence event").id;
+      await syncAccount(page, accountId, false, "recurrence-create");
+
+      const firstPull = requireSuccess(await page.evaluate(async (id) => window.hcb?.calendar.get({ id }), eventId) as HcbResult<Record<string, unknown>>, "Read recurrence event");
+      expect([...(firstPull.recurrenceLines as string[])].sort()).toEqual([...recurrenceLines].sort());
+      const canonicalRecurrenceLines = firstPull.recurrenceLines as string[];
+
+      requireSuccess(await page.evaluate(async ({ id, title }) => window.hcb?.calendar.update({ id, title }), {
+        id: eventId,
+        title: `${title} renamed`
+      }) as HcbResult, "Rename recurrence event");
+      await syncAccount(page, accountId, false, "recurrence-rename");
+      const secondPull = requireSuccess(await page.evaluate(async (id) => window.hcb?.calendar.get({ id }), eventId) as HcbResult<Record<string, unknown>>, "Read renamed recurrence event");
+      expect(secondPull.recurrenceLines).toEqual(canonicalRecurrenceLines);
+    } finally {
+      await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskListId, titlePrefix: title });
+    }
+  });
+
+  test("round-trips supported Calendar and task metadata through a fresh Google pull", async () => {
+    test.skip(config.mode !== "mutating", "Mutating checks require HCB_LIVE_GOOGLE_TEST_MODE=mutating.");
+
+    const { calendarId, taskListId } = await requireDedicatedResources(page, accountId);
+    const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = `[HCB live smoke metadata ${runId}]`;
+    const scheduledStart = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000);
+    scheduledStart.setUTCHours(1, 0, 0, 0);
+    const startsAt = scheduledStart.toISOString();
+    const endsAt = new Date(Date.parse(startsAt) + 45 * 60_000).toISOString();
+    const recurrenceTimeZone = "Asia/Singapore";
+    const recurrenceLines = [
+      "RRULE:FREQ=DAILY;COUNT=3",
+      "EXRULE:FREQ=YEARLY;BYMONTH=12",
+      `EXDATE;TZID=${recurrenceTimeZone}:${googleLocalRecurrenceDateTime(new Date(Date.parse(startsAt) + 24 * 60 * 60 * 1_000).toISOString(), recurrenceTimeZone)}`,
+      `RDATE;TZID=${recurrenceTimeZone}:${googleLocalRecurrenceDateTime(new Date(Date.parse(startsAt) + 4 * 24 * 60 * 60 * 1_000).toISOString(), recurrenceTimeZone)}`
+    ];
+    const dueDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+    const planning = {
+      durationMinutes: 45,
+      lockedSchedule: true,
+      plannedEnd: endsAt,
+      plannedStart: startsAt,
+      priority: "high",
+      snoozeUntil: new Date(Date.now() + 13 * 24 * 60 * 60 * 1_000).toISOString(),
+      tags: ["live-smoke", "metadata"]
+    };
+    let eventId: string | undefined;
+    let taskId: string | undefined;
+
+    try {
+      const created = await page.evaluate(async ({ calendarId, dueDate, endsAt, planning, recurrenceLines, startsAt, taskListId, title, accountEmail }) => ({
+        event: await window.hcb?.calendar.create({
+          allDay: false,
+          attendees: [{ email: accountEmail }],
+          calendarId,
+          colorId: "9",
+          description: "Metadata fidelity event description.",
+          endsAt,
+          location: "HCB metadata test location",
+          recurrenceLines,
+          reminders: [{ method: "popup", minutes: 10 }],
+          remindersUseDefault: false,
+          startsAt,
+          timeZone: "Asia/Singapore",
+          title,
+          transparency: "transparent",
+          visibility: "private"
+        }),
+        task: await window.hcb?.tasks.create({
+          dueDate,
+          listId: taskListId,
+          notes: "Metadata fidelity task note.",
+          title,
+          ...planning
+        })
+      }), { calendarId, dueDate, endsAt, planning, recurrenceLines, startsAt, taskListId, title, accountEmail: config.accountEmail });
+      eventId = requireSuccess(created.event as HcbResult<{ id: string }>, "Create metadata event").id;
+      taskId = requireSuccess(created.task as HcbResult<{ id: string }>, "Create metadata task").id;
+      await syncAccount(page, accountId, false, "metadata-create");
+
+      const firstPull = await page.evaluate(async ({ eventId, taskId }) => ({
+        event: await window.hcb?.calendar.get({ id: eventId }),
+        task: await window.hcb?.tasks.get({ id: taskId })
+      }), { eventId, taskId });
+      const event = requireSuccess(firstPull.event as HcbResult<Record<string, unknown>>, "Read metadata event after fresh pull");
+      const task = requireSuccess(firstPull.task as HcbResult<Record<string, unknown>>, "Read metadata task after fresh pull");
+      expect(event).toMatchObject({
+        colorId: "9",
+        description: "Metadata fidelity event description.",
+        location: "HCB metadata test location",
+        remindersUseDefault: false,
+        timeZone: "Asia/Singapore",
+        title,
+        transparency: "transparent",
+        visibility: "private"
+      });
+      // Calendar normalises the order of recurrence properties. It must retain
+      // the complete set, then HCB must retain Google's canonical returned
+      // order through a later unrelated event update.
+      expect([...(event.recurrenceLines as string[])].sort()).toEqual([...recurrenceLines].sort());
+      const canonicalRecurrenceLines = event.recurrenceLines as string[];
+      expect(event.reminders).toEqual(expect.arrayContaining([{ method: "popup", minutes: 10 }]));
+      expect((event.attendees as Array<{ email?: string }>).some((attendee) => attendee.email?.toLowerCase() === config.accountEmail)).toBe(true);
+      expect(task).toMatchObject({
+        dueAt: expect.stringMatching(new RegExp(`^${dueDate}`)),
+        notes: "Metadata fidelity task note.",
+        title,
+        ...planning
+      });
+
+      const updatedTitle = `${title} renamed`;
+      const updated = await page.evaluate(async ({ eventId, taskId, updatedTitle }) => ({
+        event: await window.hcb?.calendar.update({ id: eventId, title: updatedTitle }),
+        task: await window.hcb?.tasks.update({ id: taskId, title: updatedTitle })
+      }), { eventId, taskId, updatedTitle });
+      requireSuccess(updated.event as HcbResult, "Rename metadata event");
+      requireSuccess(updated.task as HcbResult, "Rename metadata task");
+      await syncAccount(page, accountId, false, "metadata-rename");
+
+      const secondPull = await page.evaluate(async ({ eventId, taskId }) => ({
+        event: await window.hcb?.calendar.get({ id: eventId }),
+        task: await window.hcb?.tasks.get({ id: taskId })
+      }), { eventId, taskId });
+      const renamedEvent = requireSuccess(secondPull.event as HcbResult<Record<string, unknown>>, "Read renamed metadata event");
+      const renamedTask = requireSuccess(secondPull.task as HcbResult<Record<string, unknown>>, "Read renamed metadata task");
+      expect(renamedEvent).toMatchObject({
+        colorId: "9",
+        description: "Metadata fidelity event description.",
+        location: "HCB metadata test location",
+        title: updatedTitle,
+        transparency: "transparent",
+        visibility: "private"
+      });
+      expect(renamedEvent.recurrenceLines).toEqual(canonicalRecurrenceLines);
+      expect(renamedTask).toMatchObject({ notes: "Metadata fidelity task note.", title: updatedTitle, ...planning });
     } finally {
       await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
     }

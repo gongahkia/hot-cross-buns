@@ -39,6 +39,9 @@ export interface CalendarEventDraft {
   selfResponseStatus: CalendarEventViewModel["selfResponseStatus"];
   attachments: CalendarEventViewModel["attachments"];
   conference: CalendarEventViewModel["conference"];
+  /** Exact Google Calendar RRULE / EXRULE / RDATE / EXDATE values. */
+  recurrenceLines: string[];
+  recurrenceEditor: "simple" | "google";
   repeatFrequency: CalendarRepeatFrequency;
   recurringEventId?: string | null;
   originalStartAt?: string | null;

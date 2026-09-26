@@ -64,7 +64,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.googleEventForSync(event!.id)).toMatchObject({ googleId: "remote-event" });
   });
 
-  it("retains full Google recurrence lines through an unrelated HCB edit", () => {
+  it("uses Google recurrence lines as the canonical Calendar recurrence model", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
     const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
@@ -82,11 +82,24 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     }, calendar.id)!;
 
     expect(store.googleEventForSync(event.id)?.googleRecurrence).toEqual(rawRecurrence);
+    expect(store.dispatch("calendar", "get", { id: event.id }).recurrenceLines).toEqual(rawRecurrence);
     store.dispatch("calendar", "update", { id: event.id, title: "Renamed in HCB" });
     expect(store.googleEventForSync(event.id)?.googleRecurrence).toEqual(rawRecurrence);
 
-    store.dispatch("calendar", "update", { id: event.id, recurrence: { frequency: "weekly", interval: 1, byDay: ["MO"] } });
-    expect(store.googleEventForSync(event.id)?.googleRecurrence).toBeNull();
+    const editedLines = [
+      "RRULE:FREQ=MONTHLY;BYMONTHDAY=1,-1;BYSETPOS=1;WKST=MO",
+      "EXRULE:FREQ=YEARLY;BYMONTH=12",
+      "EXDATE;TZID=Asia/Singapore:20270101T090000",
+      "RDATE;TZID=Asia/Singapore:20270102T090000"
+    ];
+    store.dispatch("calendar", "update", { id: event.id, recurrenceLines: editedLines });
+    expect(store.googleEventForSync(event.id)?.recurrenceLines).toEqual(editedLines);
+    expect(store.dispatch("calendar", "get", { id: event.id }).recurrenceLines).toEqual(editedLines);
+
+    expect(() => store.dispatch("calendar", "update", {
+      id: event.id,
+      recurrenceLines: ["DTSTART:20270101T090000Z", "RRULE:FREQ=DAILY"]
+    })).toThrow("Google recurrence lines must be RRULE, EXRULE, RDATE, or EXDATE properties");
   });
 
   it("restores HCB-only task planning metadata from Google notes and keeps it across ordinary pulls", () => {
@@ -214,6 +227,11 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const event = store.dispatch("calendar", "create", {
       calendarId: source.id, title: "Move me", startsAt: "2026-10-06T09:00:00.000Z", endsAt: "2026-10-06T10:00:00.000Z", allDay: false
     });
+    // Binding represents a create that Google already accepted. Mark the
+    // queued create as delivered first, as the sync service would do.
+    const createMutation = store.pendingSyncMutations(20, first.accountId).find((mutation) => mutation.entityId === event.id);
+    if (!createMutation) throw new Error("Expected local event create mutation.");
+    store.completeSyncMutation(createMutation.id);
     store.bindGoogleEvent(event.id, { id: "remote-event", etag: "etag" });
 
     const moved = store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id });

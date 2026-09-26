@@ -89,6 +89,8 @@ export function newCalendarDraft(
     selfResponseStatus: null,
     attachments: [],
     conference: null,
+    recurrenceLines: [],
+    recurrenceEditor: "simple",
     recurringEventId: null,
     originalStartAt: null,
     repeatFrequency: "none",
@@ -141,6 +143,11 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     selfResponseStatus: event.selfResponseStatus ?? null,
     attachments: event.attachments ?? [],
     conference: event.conference,
+    recurrenceLines: event.recurrenceLines ?? [],
+    // Existing Google events begin in exact-rule mode. This prevents a normal
+    // title/notes edit from silently normalising a rule the friendly controls
+    // do not know how to represent.
+    recurrenceEditor: (event.recurrenceLines?.length ?? 0) > 0 ? "google" : "simple",
     recurringEventId: event.recurringEventId ?? null,
     originalStartAt: event.originalStartAt ?? null,
     repeatFrequency: recurrence?.repeatFrequency ?? "none",
@@ -185,6 +192,9 @@ export function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCr
     selfResponseStatus: draft.selfResponseStatus,
     attachments: draft.attachments,
     recurrence: calendarDraftRecurrence(draft),
+    recurrenceLines: draft.recurrenceEditor === "google"
+      ? normalizeGoogleRecurrenceLines(draft.recurrenceLines)
+      : calendarSimpleRecurrenceLines(draft),
     hcbKind: draft.hcbKind
   };
 }
@@ -232,6 +242,8 @@ export function calendarEventDraftsEqual(
     left.selfResponseStatus === right.selfResponseStatus &&
     JSON.stringify(left.attachments) === JSON.stringify(right.attachments) &&
     JSON.stringify(left.conference ?? null) === JSON.stringify(right.conference ?? null) &&
+    left.recurrenceEditor === right.recurrenceEditor &&
+    left.recurrenceLines.join("\u001f") === right.recurrenceLines.join("\u001f") &&
     left.recurringEventId === right.recurringEventId &&
     left.originalStartAt === right.originalStartAt &&
     left.repeatFrequency === right.repeatFrequency &&
@@ -420,6 +432,15 @@ export function calendarRecurrenceRulePreview(draft: CalendarEventDraft): string
   }
 
   return `RRULE:${parts.join(";")}`;
+}
+
+export function calendarSimpleRecurrenceLines(draft: CalendarEventDraft): string[] {
+  const preview = calendarRecurrenceRulePreview(draft);
+  return preview ? [preview] : [];
+}
+
+export function normalizeGoogleRecurrenceLines(lines: readonly string[]): string[] {
+  return lines.map((line) => line.trim()).filter(Boolean);
 }
 
 function recurrenceSetPosLabel(value: number): string {

@@ -468,6 +468,10 @@ export class CoreStore {
           ...record,
           recurrence: safeJson(record.recurrence, null),
           googleRecurrence: safeJson(record.googleRecurrence, null),
+          recurrenceLines: recurrenceLinesFromStored(
+            safeJson(record.googleRecurrence, null),
+            safeJson(record.recurrence, null)
+          ),
           attendees: safeJson(record.attendees, []),
           reminders: safeJson(record.reminders, []),
           conference: safeJson(record.conference, null),
@@ -494,12 +498,15 @@ export class CoreStore {
     const event = this.googleEventForSync(localId);
     if (!event) throw new CoreStoreError("Calendar event no longer exists");
     const remoteMetadata = googleEventMetadata(remote);
-    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
+    const recurrenceLines = hasOwn(remote, "recurrence")
+      ? googleRecurrenceLines(remote.recurrence)
+      : recurrenceLinesFromStored(event.googleRecurrence, event.recurrence);
+    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
       working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
       .run(
         requiredText(remote.id, "Google event id"), remote.etag ?? null,
-        hasOwn(remote, "recurrence") ? JSON.stringify(googleRecurrenceLines(remote.recurrence)) : JSON.stringify(event.googleRecurrence ?? null),
+        JSON.stringify(recurrenceFromGoogle(recurrenceLines)), JSON.stringify(recurrenceLines),
         remoteMetadata.conference === undefined ? JSON.stringify(event.conference ?? null) : JSON.stringify(remoteMetadata.conference),
         remoteMetadata.attachments === undefined ? JSON.stringify(event.attachments ?? []) : JSON.stringify(remoteMetadata.attachments),
         remoteMetadata.eventType ?? event.eventType ?? "default",
@@ -601,7 +608,7 @@ export class CoreStore {
       self_response_status=excluded.self_response_status,updated_at=excluded.updated_at`)
       .run(localId, localCalendarId, remote.summary ?? "Untitled event", remote.description ?? "", start.value, end.value,
         start.allDay ? 1 : 0, previous?.completed ? 1 : 0, remote.colorId ?? null, remote.location ?? null,
-        JSON.stringify(recurrenceFromGoogle(remote.recurrence)), JSON.stringify(googleRecurrenceLines(remote.recurrence)), JSON.stringify(remote.attendees ?? []),
+        JSON.stringify(recurrenceFromGoogle(googleRecurrenceLines(remote.recurrence))), JSON.stringify(googleRecurrenceLines(remote.recurrence)), JSON.stringify(remote.attendees ?? []),
         JSON.stringify(remote.reminders?.overrides ?? []), remote.reminders?.useDefault === false ? 0 : 1,
         remote.transparency ?? "opaque", remote.visibility ?? "default", remote.start?.timeZone ?? null,
         googleId, remote.etag ?? null, remote.recurringEventId ?? null,
@@ -883,6 +890,7 @@ export class CoreStore {
     this.addColumn("events", "working_location_properties_json TEXT");
     this.addColumn("events", "self_response_status TEXT");
     this.addColumn("events", "google_recurrence_json TEXT");
+    this.backfillCanonicalRecurrenceLines();
     this.addColumn("outbox", "account_id TEXT");
     this.addColumn("outbox", "last_error TEXT");
     this.db.exec(`
@@ -902,6 +910,22 @@ export class CoreStore {
     const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     if (!columns.some((item) => item.name === column)) {
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+    }
+  }
+
+  /**
+   * `google_recurrence_json` is the canonical recurrence representation. The
+   * older structured JSON is retained as a projection for the existing quick
+   * controls and older renderer clients, but is never the source of a Google
+   * Calendar write once canonical lines have been established.
+   */
+  private backfillCanonicalRecurrenceLines(): void {
+    const rows = this.db.prepare(`SELECT id,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence
+      FROM events WHERE google_recurrence_json IS NULL AND recurrence_json IS NOT NULL`).all() as JsonRecord[];
+    const update = this.db.prepare("UPDATE events SET google_recurrence_json=? WHERE id=?");
+    for (const row of rows) {
+      const lines = recurrenceLinesFromStored(null, safeJson(row.recurrence, null));
+      if (lines) update.run(JSON.stringify(lines), row.id);
     }
   }
 
@@ -1165,7 +1189,7 @@ export class CoreStore {
     const start = input.start ?? "0000-01-01T00:00:00.000Z";
     const end = input.end ?? "9999-12-31T23:59:59.999Z";
     const rows = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
-      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,
+      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       transparency,visibility,event.time_zone AS timeZone,event.conference_json AS conference,event.attachments_json AS attachments,
       event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
@@ -1196,6 +1220,9 @@ export class CoreStore {
     const eventType = normalizedEventType(input.eventType);
     this.assertStatusEventCalendar(calendarId, eventType);
     const statusProperties = normalizedStatusEventProperties(eventType, input);
+    const recurrenceLines = recurrenceLinesForInput(input);
+    const recurrence = recurrenceFromGoogle(recurrenceLines);
+    const timeZone = normalizedCalendarEventTimeZone(input.timeZone, this.calendarTimeZone(calendarId));
     this.db.transaction(() => {
       this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
         attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,conference_json,conference_create_requested,
@@ -1204,9 +1231,9 @@ export class CoreStore {
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         id, calendarId, requiredText(input.title, "Event title"), stringValue(input.description ?? input.notes), requiredText(input.startsAt, "Event start"),
         requiredText(input.endsAt, "Event end"), input.allDay ? 1 : 0, 0, input.colorId ?? null, input.location ?? null,
-        JSON.stringify(input.recurrence ?? null), JSON.stringify(null), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
+        JSON.stringify(recurrence), JSON.stringify(recurrenceLines), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
         JSON.stringify(input.reminders ?? []), input.remindersUseDefault === false ? 0 : 1,
-        statusEventTransparency(eventType, input.transparency), statusEventVisibility(eventType, input.visibility), input.timeZone ?? null,
+        statusEventTransparency(eventType, input.transparency), statusEventVisibility(eventType, input.visibility), timeZone,
         JSON.stringify(null), input.conferenceCreateRequest ? 1 : 0,
         JSON.stringify(normalizeCalendarAttachments(input.attachments)), Object.hasOwn(input, "attachments") ? 1 : 0,
         eventType, JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
@@ -1245,14 +1272,17 @@ export class CoreStore {
       input.selfResponseStatus ?? previous.selfResponseStatus
     );
     const previousForSync = this.googleEventForSync(previous.id);
-    const nextRecurrence = input.recurrence === undefined ? previous.recurrence ?? null : input.recurrence;
-    // Google recurrence is an RFC 5545 line array. HCB's editor deliberately
-    // exposes a smaller friendly subset, so retain the original raw lines
-    // for unrelated edits and only replace them when the recurrence itself
-    // was intentionally changed.
-    const nextGoogleRecurrence = equivalentJson(nextRecurrence, previous.recurrence)
-      ? previous.googleRecurrence ?? null
-      : null;
+    // Google recurrence lines are canonical. A structured recurrence remains
+    // only as a legacy/simple-controls projection, so normal event edits never
+    // lower an imported Google rule to HCB's smaller historical subset.
+    const nextGoogleRecurrence = hasOwn(input, "recurrenceLines") || hasOwn(input, "recurrence")
+      ? recurrenceLinesForInput(input)
+      : recurrenceLinesFromStored(previous.googleRecurrence, previous.recurrence);
+    const nextRecurrence = recurrenceFromGoogle(nextGoogleRecurrence);
+    const nextTimeZone = normalizedCalendarEventTimeZone(
+      input.timeZone ?? previous.timeZone,
+      this.calendarTimeZone(nextCalendarId)
+    );
     const now = timestamp();
     this.db.transaction(() => {
       this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,google_recurrence_json=?,
@@ -1269,7 +1299,7 @@ export class CoreStore {
         JSON.stringify(input.reminders ?? previous.reminders ?? []),
         input.remindersUseDefault === undefined ? (previous.remindersUseDefault ? 1 : 0) : input.remindersUseDefault ? 1 : 0,
         statusEventTransparency(eventType, input.transparency ?? previous.transparency), statusEventVisibility(eventType, input.visibility ?? previous.visibility),
-        input.timeZone ?? previous.timeZone ?? null, input.conferenceCreateRequest ? 1 : 0,
+        nextTimeZone, input.conferenceCreateRequest ? 1 : 0,
         JSON.stringify(Object.hasOwn(input, "attachments") ? normalizeCalendarAttachments(input.attachments) : previous.attachments ?? []),
         Object.hasOwn(input, "attachments") ? 1 : Number(previous.attachmentsManaged ?? 0), eventType,
         JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
@@ -1292,16 +1322,17 @@ export class CoreStore {
     const series = occurrence.googleRecurringEventId
       ? this.findEventByGoogleId(occurrence.calendarId, occurrence.googleRecurringEventId) ?? occurrence
       : occurrence;
-    if (!series.recurrence) throw new CoreStoreError("This event is not a recurring series.");
+    const oldRecurrenceLines = recurrenceLinesFromStored(series.googleRecurrence, series.recurrence);
+    if (!oldRecurrenceLines) throw new CoreStoreError("This event is not a recurring series.");
     const splitAt = input.startsAt ?? occurrence.googleOriginalStartTime ?? occurrence.startsAt;
     if (!Number.isFinite(Date.parse(splitAt))) throw new CoreStoreError("Recurring split date is invalid.");
-    const oldRecurrence = structuredClone(series.recurrence) as JsonRecord;
-    const parentRecurrence = { ...oldRecurrence, endsOn: new Date(Date.parse(splitAt) - 1_000).toISOString() };
+    const oldRecurrence = recurrenceFromGoogle(oldRecurrenceLines) ?? {};
+    const parentRecurrenceLines = truncateGoogleRecurrenceAt(oldRecurrenceLines, splitAt, Boolean(series.allDay));
     // Keep existing completed/exception history with the old series, then make
     // a successor that owns the selected and later occurrences. Google has no
     // dedicated "this and following" endpoint, so this explicit split is the
     // least surprising representation for both the cache and API.
-    this.updateEvent({ id: series.id, recurrence: parentRecurrence, scope: "series" });
+    this.updateEvent({ id: series.id, recurrenceLines: parentRecurrenceLines, scope: "series" });
     const sourceDuration = Math.max(1, Date.parse(series.endsAt) - Date.parse(series.startsAt));
     const successorStartsAt = input.startsAt ?? splitAt;
     const successor = this.createEvent({
@@ -1313,7 +1344,10 @@ export class CoreStore {
       allDay: input.allDay ?? series.allDay,
       colorId: input.colorId ?? series.colorId,
       location: input.location ?? series.location,
-      recurrence: { ...oldRecurrence, ...(input.recurrence ?? {}) },
+      recurrenceLines: hasOwn(input, "recurrenceLines")
+        ? input.recurrenceLines
+        : oldRecurrenceLines,
+      ...(hasOwn(input, "recurrence") ? { recurrence: input.recurrence } : {}),
       attendees: input.attendees ?? input.guestEmails ?? series.attendees,
       reminders: input.reminders ?? series.reminders,
       remindersUseDefault: input.remindersUseDefault ?? series.remindersUseDefault,
@@ -1918,6 +1952,12 @@ export class CoreStore {
     return row.accountId;
   }
 
+  private calendarTimeZone(calendarId: string): string {
+    const row = this.db.prepare("SELECT time_zone AS timeZone FROM calendars WHERE id=?").get(calendarId) as { timeZone?: string | null } | undefined;
+    if (!row) throw new CoreStoreError("Calendar no longer exists");
+    return row.timeZone?.trim() || String(this.settings().defaultTimeZone ?? "UTC");
+  }
+
   private defaultWritableAccountId(): string {
     const connected = this.googleAccounts().find((account) => account.accountId !== localAccountId && account.connectionState === "connected");
     return connected?.accountId ?? localAccountId;
@@ -2001,6 +2041,7 @@ function eventFromRow(row: JsonRecord): JsonRecord {
   const reminders = safeJson(row.reminders, []);
   const recurrence = safeJson(row.recurrence, null);
   const googleRecurrence = safeJson(row.googleRecurrence, null);
+  const recurrenceLines = recurrenceLinesFromStored(googleRecurrence, recurrence);
   const attendees = safeJson(row.attendees, []);
   const conference = safeJson(row.conference, null);
   const attachments = safeJson(row.attachments, []);
@@ -2013,7 +2054,8 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     notes: row.notes ?? row.description ?? "",
     recurrence,
     googleRecurrence,
-    recurrenceRule: recurrenceRuleFromStored(recurrence),
+    recurrenceLines,
+    recurrenceRule: recurrenceRuleFromLines(recurrenceLines) ?? recurrenceRuleFromStored(recurrence),
     attendees,
     conference,
     attachments,
@@ -2234,18 +2276,45 @@ function googleRecurrenceLines(value: unknown): string[] | null {
   return lines.length > 0 ? lines : null;
 }
 
-function equivalentJson(left: unknown, right: unknown): boolean {
-  return JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
+const googleRecurrenceProperty = /^(RRULE|EXRULE|RDATE|EXDATE)(?:;[^:\r\n]+)?:[^\r\n]+$/;
+
+/**
+ * Validate only Calendar's actual recurrence envelope. Deliberately do not
+ * parse or rewrite the RFC 5545 values: Google owns that grammar and adding a
+ * local subset would once again make HCB lossy for advanced rules.
+ */
+function requiredGoogleRecurrenceLines(value: unknown): string[] | null {
+  if (value === null || value === undefined) return null;
+  if (!Array.isArray(value)) throw new CoreStoreError("Google recurrence must be a list of RFC 5545 lines.");
+  const lines = value.map((entry) => {
+    if (typeof entry !== "string") throw new CoreStoreError("Each Google recurrence line must be text.");
+    return entry.trim();
+  }).filter(Boolean);
+  if (lines.length === 0) return null;
+  if (lines.length > 100) throw new CoreStoreError("Google recurrence has too many lines.");
+  for (const line of lines) {
+    if (!googleRecurrenceProperty.test(line)) {
+      throw new CoreStoreError("Google recurrence lines must be RRULE, EXRULE, RDATE, or EXDATE properties (without DTSTART or DTEND).");
+    }
+    if (line.startsWith("RRULE:") && !/(?:^|;)FREQ=[A-Z]+(?:;|$)/.test(line.slice("RRULE:".length))) {
+      throw new CoreStoreError("Each RRULE must include FREQ.");
+    }
+  }
+  return lines;
 }
 
-function canonicalJson(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalJson);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value as JsonRecord)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => [key, canonicalJson(item)]));
-  }
-  return value;
+function recurrenceLinesFromStored(googleRecurrence: unknown, recurrence: unknown): string[] | null {
+  return googleRecurrenceLines(googleRecurrence) ?? recurrenceLinesFromStructured(recurrence);
+}
+
+function recurrenceLinesForInput(input: JsonRecord): string[] | null {
+  if (hasOwn(input, "recurrenceLines")) return requiredGoogleRecurrenceLines(input.recurrenceLines);
+  return recurrenceLinesFromStructured(input.recurrence);
+}
+
+function recurrenceLinesFromStructured(value: unknown): string[] | null {
+  const rule = recurrenceRuleFromStored(value);
+  return rule ? [rule] : null;
 }
 
 function recurrenceRuleFromStored(value: unknown): string | null {
@@ -2260,6 +2329,45 @@ function recurrenceRuleFromStored(value: unknown): string | null {
   if (record.endsOn) fields.push(`UNTIL=${String(record.endsOn).replace(/-/g, "")}`);
   if (record.count) fields.push(`COUNT=${record.count}`);
   return `RRULE:${fields.join(";")}`;
+}
+
+function recurrenceRuleFromLines(lines: string[] | null): string | null {
+  return lines?.find((line) => line.startsWith("RRULE:")) ?? null;
+}
+
+/**
+ * Google has no "this and following" endpoint. Splitting therefore shortens
+ * the old master then creates a new master. This transformation is safe for
+ * RRULE/EXRULE/EXDATE sets, but an RDATE could add a later explicit instance
+ * that cannot be partitioned without interpreting every RFC 5545 value. Refuse
+ * that case rather than silently altering the Google recurrence set.
+ */
+function truncateGoogleRecurrenceAt(lines: string[], splitAt: string, allDay: boolean): string[] {
+  if (lines.some((line) => line.startsWith("RDATE"))) {
+    throw new CoreStoreError("This recurring event has RDATE entries. To preserve every occurrence exactly, edit this-and-following in Google Calendar.");
+  }
+  const until = recurrenceUntilBefore(splitAt, allDay);
+  let changedRule = false;
+  const truncated = lines.map((line) => {
+    if (!line.startsWith("RRULE:")) return line;
+    changedRule = true;
+    const fields = line.slice("RRULE:".length).split(";")
+      .filter((field) => !field.startsWith("COUNT=") && !field.startsWith("UNTIL="));
+    fields.push(`UNTIL=${until}`);
+    return `RRULE:${fields.join(";")}`;
+  });
+  if (!changedRule) {
+    throw new CoreStoreError("This recurring event has no RRULE to split. Edit its explicit dates in Google Calendar.");
+  }
+  return truncated;
+}
+
+function recurrenceUntilBefore(splitAt: string, allDay: boolean): string {
+  const moment = Date.parse(splitAt);
+  if (!Number.isFinite(moment)) throw new CoreStoreError("Recurring split date is invalid.");
+  const previous = new Date(moment - 1_000);
+  if (allDay) return previous.toISOString().slice(0, 10).replace(/-/g, "");
+  return previous.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
 function ftsQuery(value: string): string | null {
@@ -2344,7 +2452,7 @@ function eventCreatePayload(event: JsonRecord): JsonRecord {
   return {
     id: event.id, calendarId: event.calendarId, title: event.title, description: event.description ?? event.notes,
     startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay, completed: event.completed, colorId: event.colorId, location: event.location,
-    recurrence: event.recurrence, attendees: event.attendees, reminders: event.reminders, remindersUseDefault: event.remindersUseDefault,
+    recurrence: event.recurrence, recurrenceLines: recurrenceLinesFromStored(event.googleRecurrence, event.recurrence), attendees: event.attendees, reminders: event.reminders, remindersUseDefault: event.remindersUseDefault,
     transparency: event.transparency, visibility: event.visibility, timeZone: event.timeZone,
     attachments: event.attachments, eventType: event.eventType, focusTimeProperties: event.focusTimeProperties,
     outOfOfficeProperties: event.outOfOfficeProperties, workingLocationProperties: event.workingLocationProperties,
@@ -2355,4 +2463,14 @@ function eventUpdatePayload(event: JsonRecord): JsonRecord { return eventCreateP
 function requiredText(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) throw new CoreStoreError(`${label} is required`);
   return value.trim();
+}
+
+function normalizedCalendarEventTimeZone(value: unknown, fallback: string): string {
+  const timeZone = typeof value === "string" && value.trim() ? value.trim() : fallback;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone }).format();
+  } catch {
+    throw new CoreStoreError("Event time zone must be a valid IANA time-zone name.");
+  }
+  return timeZone;
 }

@@ -582,7 +582,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
               interval: 1,
               endsOn: null,
               count: null
-            }
+            },
+            recurrenceLines: ["RRULE:FREQ=YEARLY;INTERVAL=1"]
           }
         : payload;
 
@@ -699,7 +700,8 @@ function eventNoteBody(sourceDraft: CalendarEventDraft, timeZone: string): strin
 }
 
 function recurringDraft(draft: CalendarEventDraft): boolean {
-  return draft.repeatFrequency !== "none" ||
+  return draft.recurrenceLines.length > 0 ||
+    draft.repeatFrequency !== "none" ||
     !!draft.recurringEventId ||
     !!draft.originalStartAt ||
     (!!draft.eventId && draft.eventId !== draft.id);

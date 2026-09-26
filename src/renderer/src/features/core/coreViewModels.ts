@@ -123,6 +123,8 @@ export interface CalendarEventViewModel {
     moreLabel?: string;
   } | null;
   mutationState?: "synced" | "queued" | "failed";
+  /** Exact Google Calendar RFC 5545 recurrence properties. */
+  recurrenceLines: string[];
   recurrenceRule: string | null;
   recurringEventId?: string | null;
   originalStartAt?: string | null;

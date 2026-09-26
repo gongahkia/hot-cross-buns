@@ -4,6 +4,9 @@ const markerPrefix = "[HCB task metadata v1:";
 const markerPattern = /(?:\r?\n){0,2}\[HCB task metadata v1:([A-Za-z0-9_-]+)\]\s*$/;
 const priorities = new Set(["high", "medium", "low", "none"]);
 
+export const googleTaskNotesMaxLength = 8_192;
+export const googleTaskTitleMaxLength = 1_024;
+
 export interface HcbTaskMetadata {
   durationMinutes: number | null;
   lockedSchedule: boolean;

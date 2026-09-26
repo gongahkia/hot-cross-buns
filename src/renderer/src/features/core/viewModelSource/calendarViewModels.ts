@@ -75,6 +75,7 @@ export function stableCalendarEventViewModel(
     event.conference ? JSON.stringify(event.conference) : "",
     event.mutationState ?? "",
     event.completedAt ?? "",
+    (event.recurrenceLines ?? []).join("\u001f"),
     event.recurrenceRule ?? "",
     event.recurringEventId ?? "",
     event.originalStartAt ?? "",
@@ -133,6 +134,7 @@ export function stableCalendarEventViewModel(
     tags: event.tags ?? [],
     conference: event.conference ?? null,
     mutationState: event.mutationState,
+    recurrenceLines: event.recurrenceLines ?? [],
     recurrenceRule: event.recurrenceRule ?? null,
     recurringEventId: event.recurringEventId ?? null,
     originalStartAt: event.originalStartAt ?? null
@@ -213,6 +215,7 @@ export function stableTaskCalendarEventViewModel(
     conference: null,
     mutationState: task.mutationState,
     completedAt: null,
+    recurrenceLines: [],
     recurrenceRule: null
   };
 
@@ -298,6 +301,7 @@ export function stableProjectedTaskCalendarEventViewModel(
     conference: null,
     mutationState: task.mutationState,
     completedAt: null,
+    recurrenceLines: [],
     recurrenceRule: null
   };
 

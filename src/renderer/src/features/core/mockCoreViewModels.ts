@@ -316,6 +316,7 @@ function mockCalendarEvent({
     selfResponseStatus: null,
     attachments: [],
     conference: null,
+    recurrenceLines: [],
     recurrenceRule: null
   };
 }

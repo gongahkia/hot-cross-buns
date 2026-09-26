@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitHcbTaskMetadata, withHcbTaskMetadata } from "./hcbTaskMetadata";
+import { googleTaskNotesMaxLength, splitHcbTaskMetadata, withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 describe("HCB task metadata", () => {
   it("round-trips planning fields without changing the user-visible note", () => {
@@ -42,5 +42,13 @@ describe("HCB task metadata", () => {
       priority: "none", tags: [], plannedStart: null, plannedEnd: null,
       durationMinutes: null, lockedSchedule: false, snoozeUntil: null
     })).toBe("Plain note");
+  });
+
+  it("lets the caller detect a Google-notes overflow without truncating user text", () => {
+    const note = "x".repeat(googleTaskNotesMaxLength);
+    const stored = withHcbTaskMetadata(note, { priority: "high" });
+
+    expect(stored.slice(0, note.length)).toBe(note);
+    expect(stored.length).toBeGreaterThan(googleTaskNotesMaxLength);
   });
 });

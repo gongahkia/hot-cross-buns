@@ -2,7 +2,7 @@ import { CoreStore, CoreStoreError, type PendingSyncMutation } from "./coreStore
 import { GoogleOAuthController } from "./googleOAuth";
 import { EventEmitter } from "node:events";
 import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
-import { withHcbTaskMetadata } from "./hcbTaskMetadata";
+import { googleTaskNotesMaxLength, googleTaskTitleMaxLength, withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 type JsonRecord = Record<string, any>;
 
@@ -565,6 +565,12 @@ function taskUrl(taskListId: string, taskId: string): string {
 function googleTaskBody(task: JsonRecord): JsonRecord {
   const due = googleTaskDue(task.dueAt);
   const notes = withHcbTaskMetadata(task.notes, task);
+  if (String(task.title ?? "").length > googleTaskTitleMaxLength) {
+    throw new CoreStoreError(`Google Tasks titles are limited to ${googleTaskTitleMaxLength} characters.`);
+  }
+  if (notes.length > googleTaskNotesMaxLength) {
+    throw new CoreStoreError(`Google Tasks notes, including HCB planning metadata, are limited to ${googleTaskNotesMaxLength} characters.`);
+  }
   return {
     title: task.title,
     notes: notes || undefined,
@@ -585,10 +591,12 @@ function googleTaskDue(value: unknown): string | undefined {
 }
 
 function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
-  // Imported Calendar recurrence is already expressed as RFC 5545 lines.
-  // Prefer that exact representation over the editor's friendly subset so an
-  // unrelated edit cannot remove EXDATE/RDATE or advanced RRULE properties.
-  const recurrence = preservedGoogleRecurrence(event.googleRecurrence) ?? googleRecurrence(event.recurrence);
+  // RFC 5545 lines are HCB's canonical Calendar recurrence value. The
+  // structured recurrence remains only for old local records and is promoted
+  // during the next write; no imported Google recurrence is projected down.
+  const recurrence = preservedGoogleRecurrence(event.recurrenceLines)
+    ?? preservedGoogleRecurrence(event.googleRecurrence)
+    ?? googleRecurrence(event.recurrence);
   const eventType = event.eventType === "focusTime" || event.eventType === "outOfOffice" || event.eventType === "workingLocation"
     ? event.eventType
     : "default";
@@ -649,8 +657,9 @@ function deterministicGoogleEventId(localId: string): string {
 }
 
 function googleEventTime(value: string, allDay: boolean, timeZone: unknown): JsonRecord {
-  if (!allDay) return { dateTime: value, ...(typeof timeZone === "string" && timeZone ? { timeZone } : {}) };
-  return { date: value.slice(0, 10) };
+  const zone = typeof timeZone === "string" && timeZone ? { timeZone } : {};
+  if (!allDay) return { dateTime: value, ...zone };
+  return { date: value.slice(0, 10), ...zone };
 }
 
 function googleRecurrence(value: unknown): string[] | undefined {

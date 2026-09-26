@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { GoogleSyncService } from "./googleSync";
+import { googleTaskNotesMaxLength } from "./hcbTaskMetadata";
 
 function createService(): {
   deliverOutbox: ReturnType<typeof vi.fn>;
@@ -135,9 +136,10 @@ describe("GoogleSyncService", () => {
     expect(body.conferenceData.createRequest.conferenceSolutionKey.type).toBe("hangoutsMeet");
   });
 
-  it("preserves imported Google recurrence lines when an event is updated", async () => {
+  it("sends every supported Google recurrence line unchanged", async () => {
     const rawRecurrence = [
       "RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO;BYSETPOS=1;WKST=SU",
+      "EXRULE:FREQ=YEARLY;BYMONTH=12",
       "EXDATE:20270105T010000Z,20270705T010000Z",
       "RDATE:20261231T010000Z"
     ];
@@ -154,7 +156,7 @@ describe("GoogleSyncService", () => {
         endsAt: "2027-01-01T09:00:00.000Z",
         allDay: false,
         recurrence: { frequency: "yearly", interval: 1, byDay: ["MO"] },
-        googleRecurrence: rawRecurrence,
+        recurrenceLines: rawRecurrence,
         remindersUseDefault: true,
         reminders: [],
         attendees: [],
@@ -206,5 +208,24 @@ describe("GoogleSyncService", () => {
     await service.pushTask("test-account", "task-local-id", {});
     const undatedBody = JSON.parse(String((googleFetch.mock.calls[1]?.[2] as RequestInit).body));
     expect(undatedBody).not.toHaveProperty("due");
+  });
+
+  it("does not truncate a task note when HCB metadata would exceed Google's limit", async () => {
+    const googleFetch = vi.fn();
+    const store = {
+      googleTaskForSync: vi.fn(() => ({
+        id: "task-local-id", listGoogleId: "remote-list", title: "Keep every character",
+        notes: "x".repeat(googleTaskNotesMaxLength), status: "active", priority: "high"
+      })),
+      bindGoogleTask: vi.fn()
+    };
+    const oauth = { onConnectionChange: vi.fn(), googleFetch };
+    const service = new GoogleSyncService(store as never, oauth as never) as unknown as {
+      pushTask: (accountId: string, localId: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+
+    await expect(service.pushTask("test-account", "task-local-id", {}))
+      .rejects.toThrow(`Google Tasks notes, including HCB planning metadata, are limited to ${googleTaskNotesMaxLength} characters.`);
+    expect(googleFetch).not.toHaveBeenCalled();
   });
 });
