@@ -29,7 +29,9 @@ pnpm test:live-google
 
 ## Mutating mode — use only for a disposable account
 
-This mode creates, updates, then deletes one marked Task and one marked Calendar event. It only uses exactly one Task list and one Calendar with the supplied names, and both must belong to the supplied account. The test synchronizes after create, update, and cleanup; it fails if the profile already has pending mutations.
+This mode runs four checks: a read/render check, a direct create/update/delete round trip for one marked Task and Calendar event, a timed three-run create/update/sync/cleanup benchmark, and the Command Palette Quick Add path for both an event and a task. Quick Add intentionally opens the existing full editor, which then saves and syncs the item.
+
+It only uses exactly one Task list and one Calendar with the supplied names, and both must belong to the supplied account. Every mutating check uses a unique `[HCB live smoke ...]` title, synchronizes after writes and cleanup, and asserts that no active marked record or queued mutation remains. If an earlier run was interrupted, the suite may recover and remove only a marked record in those exact dedicated resources before starting a new run.
 
 Create dedicated, otherwise-empty resources in the disposable account first, for example `HCB Smoke Tasks` and `HCB Smoke Calendar`. Never point this mode at a personal or production account.
 
@@ -43,4 +45,4 @@ HCB_LIVE_GOOGLE_TEST_MUTATION_ACK=I_UNDERSTAND_HCB_LIVE_TEST_WRITES_AND_DELETES 
 pnpm test:live-google
 ```
 
-Every remotely-created record begins with `[HCB live smoke ...]`. If connectivity fails during cleanup, use that prefix only inside the dedicated test resources to remove leftovers, then rerun the suite.
+Every remotely-created record begins with `[HCB live smoke ...]`. If connectivity fails during cleanup, use that prefix only inside the dedicated test resources to remove leftovers, then rerun the suite. Google Tasks and HCB retain deleted-task tombstones for sync reconciliation; these are not active tasks or queued writes.

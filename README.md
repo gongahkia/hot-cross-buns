@@ -54,7 +54,7 @@
 - [x] Electron smoke test for launch, task/event/note writes, task blocks, availability, undo/redo, search, and disconnected sync.
 - [x] Parameterized Electron performance fixture (`HCB_PERF_COUNT`) for equal numbers of local tasks and local events.
 - [x] Named Electron scale-smoke commands for 1,000, 5,000, and 10,000 local tasks plus events; each verifies complete Task and Calendar pagination after writes.
-- [x] Opt-in live Google suite with a main-process-enforced read-only mode for real accounts and an acknowledged create/update/delete mode confined to dedicated disposable-account resources. See `docs/live-google-testing.md`.
+- [x] Opt-in live Google suite with a main-process-enforced read-only mode for real accounts and an acknowledged mode confined to dedicated disposable-account resources: direct Task/Calendar CRUD, a timed three-run benchmark, and Command Palette Quick Add through the existing full editor. See `docs/live-google-testing.md`.
 - [x] Mocked Google transport tests for pagination, incremental Calendar sync tokens, and Meet/attachment/status-event request encoding.
 - [x] Renderer-scale measurements in the 1,000/5,000/10,000 Electron fixture: cache invalidation/cold hydration plus Tasks and Calendar route rendering after the local data checks.
 - [x] Pull-request CI gate for build/typecheck, unit/mocked transport, Electron SQLite, and launch smoke tests. Live Google, performance, package signing, and notarization remain deliberately outside CI.
@@ -64,7 +64,8 @@
 - [ ] OAuth browser consent and localhost callback against a separately supplied Desktop OAuth client.
 - [ ] Token refresh and reconnect behavior against a live account.
 - [ ] Two-account sync, conflict handling, offline recovery, shared calendars, and recurrence edge cases against live Google data.
-- [ ] Real Google Tasks and Calendar mutation round trips, including list/task moves and Calendar event moves.
+- [x] Real Google Tasks and Calendar create/update/delete mutation round trips against dedicated live resources, with cleanup verification.
+- [ ] Real Google list/task moves and Calendar event moves.
 - [ ] HCB Vault/local remote sync — dormant shell only; no supported remote protocol, encryption lifecycle, or recovery UX.
 - [ ] MCP local server and agent actions — dormant shell only; no enabled listener, authentication flow, permission model, or audited tool implementation in the running app.
 - [ ] ICS import and calendar subscriptions — dormant shell only; no supported parser, subscription refresh policy, or conflict model.
