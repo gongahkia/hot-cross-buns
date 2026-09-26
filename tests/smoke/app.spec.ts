@@ -62,6 +62,11 @@ test("launches and renders the planner shell", async () => {
     await expect(page.getByLabel("Monospace and buffer font family")).toHaveValue("");
     await page.getByRole("button", { name: "Close settings" }).click();
 
+    await page.getByRole("button", { name: "Command palette" }).click();
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+    await page.getByRole("button", { name: "Close command palette" }).click();
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeHidden();
+
     const title = `smoke task ${Date.now()}`;
     const mutation = await page.evaluate(async ({ title, startsAt, endsAt }) => {
       const task = await window.hcb?.tasks.create({ listId: "inbox", title, notes: "Created through the restored bridge." });

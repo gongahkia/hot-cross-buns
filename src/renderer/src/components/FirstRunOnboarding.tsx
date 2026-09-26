@@ -51,6 +51,19 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     setGoogleClientId(source.googleStatus.clientId ?? "");
   }, [source.googleStatus.clientId]);
 
+  useEffect(() => {
+    if (!googleConnecting) {
+      return;
+    }
+
+    // OAuth completion occurs in the browser and may happen long after the
+    // initial handoff. Keep setup current until the callback settles it.
+    source.refreshGoogleStatus();
+    const interval = window.setInterval(() => source.refreshGoogleStatus(), 1_500);
+
+    return () => window.clearInterval(interval);
+  }, [googleConnecting, source.refreshGoogleStatus]);
+
   function toggleTaskList(taskListId: string, selected: boolean): void {
     setSelectedTaskListIds((current) => {
       const next = new Set(current);
