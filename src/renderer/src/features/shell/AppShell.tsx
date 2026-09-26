@@ -110,14 +110,16 @@ function SidebarDrawerToggle({
       aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
       aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
       className={cx(
-        "absolute top-16 z-30 hidden h-12 w-7 items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+        "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
         edgeClass
       )}
       onClick={onToggle}
       title={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
       type="button"
     >
-      <ToggleIcon aria-hidden="true" size={16} />
+      <span className="flex h-8 w-5 items-center justify-center rounded-hcbSm border border-border bg-surface-0">
+        <ToggleIcon aria-hidden="true" size={14} />
+      </span>
     </button>
   );
 }
