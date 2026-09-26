@@ -62,6 +62,20 @@ function requireSuccess<T>(result: HcbResult<T> | undefined, label: string): T {
 async function syncAccount(page: Page, accountId: string, readOnly: boolean, phase: string): Promise<Record<string, unknown>> {
   const result = await page.evaluate(async ({ accountId, phase, readOnly }) =>
     window.hcb?.sync.runNow({ accountId, readOnly, reason: `live-google-${phase}` }), { accountId, phase, readOnly });
+
+  if (!result?.ok || result.data === undefined) {
+    const runtimeStatus = await page.evaluate(async () => window.hcb?.sync.status());
+    const status = runtimeStatus?.ok && runtimeStatus.data && typeof runtimeStatus.data === "object"
+      ? runtimeStatus.data as { lastErrorCode?: unknown; message?: unknown }
+      : null;
+    const diagnostic = [
+      result?.error?.message,
+      typeof status?.lastErrorCode === "string" ? `code ${status.lastErrorCode}` : null,
+      typeof status?.message === "string" ? status.message : null
+    ].filter(Boolean).join("; ");
+    throw new Error(`${phase} sync failed: ${diagnostic || "No result returned"}`);
+  }
+
   const status = requireSuccess(result, `${phase} sync`) as Record<string, unknown>;
   expect(status.state).toBe("idle");
   if (!readOnly) expect(status.pendingMutationCount).toBe(0);

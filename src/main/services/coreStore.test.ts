@@ -41,6 +41,28 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(tasks.find((task: { title: string }) => task.title === "Second").accountId).toBe(second.accountId);
   });
 
+  it("upserts a Google Calendar event into the local cache", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+
+    const event = store.upsertGoogleEvent({
+      id: "remote-event",
+      summary: "Remote planning",
+      description: "Pulled from Google",
+      start: { dateTime: "2026-09-26T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-09-26T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      etag: "remote-etag"
+    }, calendar.id);
+
+    expect(event).toMatchObject({
+      title: "Remote planning",
+      calendarId: calendar.id,
+      description: "Pulled from Google"
+    });
+    expect(store.googleEventForSync(event!.id)).toMatchObject({ googleId: "remote-event" });
+  });
+
   it("retires only the starter workspace after Google connects and defaults new writes to Google", () => {
     const store = createStore();
     const localTask = store.dispatch("tasks", "create", { listId: "inbox", title: "Starter task" });

@@ -579,7 +579,7 @@ export class CoreStore {
       attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,google_id,google_etag,google_recurring_event_id,google_original_start_time,
       conference_json,conference_create_requested,attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,
       working_location_properties_json,self_response_status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET calendar_id=excluded.calendar_id,title=excluded.title,description=excluded.description,
       starts_at=excluded.starts_at,ends_at=excluded.ends_at,all_day=excluded.all_day,color_id=excluded.color_id,location=excluded.location,
       recurrence_json=excluded.recurrence_json,attendees_json=excluded.attendees_json,reminders_json=excluded.reminders_json,

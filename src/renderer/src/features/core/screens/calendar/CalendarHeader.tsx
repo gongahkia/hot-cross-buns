@@ -66,73 +66,81 @@ export function CalendarHeader({
   visibleCalendarViewIds: CalendarViewId[];
 }): JSX.Element {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <div className="flex min-w-0 items-center gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1" role="tablist" aria-label="Calendar views">
-        {visibleCalendarViewIds.map((viewId) => (
-          <CalendarTabButton
-            actionId={calendarViewActionId(viewId)}
-            active={viewId === activeViewId}
-            key={viewId}
-            onClick={() => onSetView(viewId)}
-          >
-            {calendarViewLabel(viewId)}
-          </CalendarTabButton>
-        ))}
-      </div>
-      <div
-        aria-label="Calendar range navigation"
-        className="flex shrink-0 items-center gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1"
-        role="group"
-      >
-        <IconButton
-          icon={ChevronLeft}
-          label={previousRangeLabel}
-          onClick={() => onShiftRange(-1)}
-          size="sm"
-          variant="ghost"
-        />
-        <Button
-          aria-label="Return calendar to today"
-          className="min-w-32 max-w-48 truncate px-2"
-          onClick={onResetRange}
-          size="sm"
-          title="Return to today"
-          variant="ghost"
+    <div className="grid min-w-0 gap-2 2xl:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div
+          aria-label="Calendar views"
+          className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-hcbMd border border-border bg-bg-secondary p-1"
+          role="tablist"
         >
-          <span className="truncate">{calendarRangeLabel}</span>
-        </Button>
-        <IconButton
-          icon={ChevronRight}
-          label={nextRangeLabel}
-          onClick={() => onShiftRange(1)}
-          size="sm"
-          variant="ghost"
-        />
+          {visibleCalendarViewIds.map((viewId) => (
+            <CalendarTabButton
+              actionId={calendarViewActionId(viewId)}
+              active={viewId === activeViewId}
+              key={viewId}
+              onClick={() => onSetView(viewId)}
+            >
+              {calendarViewLabel(viewId)}
+            </CalendarTabButton>
+          ))}
+        </div>
+        <div
+          aria-label="Calendar range navigation"
+          className="flex shrink-0 items-center gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1"
+          role="group"
+        >
+          <IconButton
+            icon={ChevronLeft}
+            label={previousRangeLabel}
+            onClick={() => onShiftRange(-1)}
+            size="sm"
+            variant="ghost"
+          />
+          <Button
+            aria-label="Return calendar to today"
+            className="min-w-32 max-w-48 truncate px-2"
+            onClick={onResetRange}
+            size="sm"
+            title="Return to today"
+            variant="ghost"
+          >
+            <span className="truncate">{calendarRangeLabel}</span>
+          </Button>
+          <IconButton
+            icon={ChevronRight}
+            label={nextRangeLabel}
+            onClick={() => onShiftRange(1)}
+            size="sm"
+            variant="ghost"
+          />
+        </div>
       </div>
-      <Button data-action-id="calendar.create" onClick={onCreate} size="sm" variant="primary">
-        <CalendarPlus aria-hidden="true" size={14} />
-        New event
-      </Button>
-      {shareAvailabilityVisible ? (
+      <div aria-label="Calendar actions" className="flex min-w-0 flex-wrap items-center gap-2 2xl:justify-end" role="group">
+        <Button data-action-id="calendar.create" onClick={onCreate} size="sm" variant="primary">
+          <CalendarPlus aria-hidden="true" size={14} />
+          New event
+        </Button>
+        {shareAvailabilityVisible ? (
+          <Button
+            aria-expanded={shareAvailabilityOpen}
+            onClick={onToggleShareAvailability}
+            size="sm"
+            variant="primary"
+          >
+            <CalendarPlus aria-hidden="true" size={14} />
+            Share availability
+          </Button>
+        ) : null}
         <Button
-          aria-expanded={shareAvailabilityOpen}
-          onClick={onToggleShareAvailability}
+          aria-expanded={smartRescheduleOpen}
+          onClick={onToggleSmartReschedule}
           size="sm"
           variant="primary"
         >
-          <CalendarPlus aria-hidden="true" size={14} />
-          Share availability
+          <Sparkles aria-hidden="true" size={14} />
+          Reschedule
         </Button>
-      ) : null}
-      <Button
-        aria-expanded={smartRescheduleOpen}
-        onClick={onToggleSmartReschedule}
-        size="sm"
-        variant="primary"
-      >
-        <Sparkles aria-hidden="true" size={14} />
-        Reschedule
-      </Button>
+      </div>
       <div aria-label="Calendar status" className="sr-only" role="status" />
     </div>
   );
