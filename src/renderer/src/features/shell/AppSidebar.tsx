@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useState, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
-import { ChevronDown, ChevronRight, EyeOff } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, EyeOff } from "lucide-react";
 import { Badge, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
 import { useI18n } from "../../i18n";
@@ -106,6 +106,7 @@ function SidebarCalendarDropdown({
 export function AppSidebar({
   activeSectionId,
   onShowAllCalendars,
+  onToggleDrawer,
   onToggleVisibleCalendar,
   onNavigateToSection,
   sidebarOnRight,
@@ -115,6 +116,7 @@ export function AppSidebar({
 }: {
   activeSectionId: SectionId;
   onShowAllCalendars: () => void;
+  onToggleDrawer: () => void;
   onToggleVisibleCalendar: (calendarId: string, visible: boolean) => void;
   onNavigateToSection: (sectionId: SectionId) => void;
   sidebarOnRight: boolean;
@@ -125,6 +127,7 @@ export function AppSidebar({
   const { t } = useI18n();
   const sectionButtonRefs = useRef(new Map<SectionId, HTMLButtonElement>());
   const [calendarDropdownOpen, setCalendarDropdownOpen] = useState(true);
+  const DrawerToggleIcon = sidebarOnRight ? ChevronRight : ChevronLeft;
 
   const setSectionButtonRef = useCallback(
     (sectionId: SectionId) =>
@@ -170,7 +173,7 @@ export function AppSidebar({
   return (
     <aside
       className={cx(
-        "flex min-h-0 min-w-0 flex-row items-center overflow-x-auto border-b border-border bg-bg-secondary md:flex-col md:items-stretch md:overflow-hidden md:border-b-0",
+        "relative flex min-h-0 min-w-0 flex-row items-center overflow-x-auto border-b border-border bg-bg-secondary md:flex-col md:items-stretch md:overflow-visible md:border-b-0",
         sidebarOnRight ? "md:order-2 md:border-l" : "md:order-1 md:border-r"
       )}
       id="app-sidebar"
@@ -224,6 +227,24 @@ export function AppSidebar({
           );
         })}
       </nav>
+
+      <button
+        aria-controls="app-sidebar"
+        aria-expanded="true"
+        aria-keyshortcuts={ariaKeyShortcuts(source.settings.keybindings["navigation.sidebar.toggle"])}
+        aria-label={t("nav.hideSidebar")}
+        className={cx(
+          "absolute top-1/2 z-30 hidden h-12 w-7 -translate-y-1/2 items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+          sidebarOnRight ? "-left-[27px] rounded-l-hcbMd border-r-0" : "-right-[27px] rounded-r-hcbMd border-l-0"
+        )}
+        onClick={onToggleDrawer}
+        title={t("nav.hideSidebar")}
+        type="button"
+      >
+        <span className="flex h-8 w-5 items-center justify-center rounded-hcbSm border border-border bg-surface-0">
+          <DrawerToggleIcon aria-hidden="true" size={14} />
+        </span>
+      </button>
 
     </aside>
   );

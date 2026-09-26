@@ -1082,6 +1082,7 @@ export function AppShell(): JSX.Element {
           <AppSidebar
             activeSectionId={paneWorkspace.activeSectionId}
             onShowAllCalendars={showAllCalendars}
+            onToggleDrawer={toggleSidebar}
             onToggleVisibleCalendar={toggleVisibleCalendar}
             onNavigateToSection={navigateToSection}
             sidebarOnRight={sidebarOnRight}
@@ -1121,12 +1122,14 @@ export function AppShell(): JSX.Element {
           </RenderTimingBoundary>
         </main>
 
-        <SidebarDrawerToggle
-          keybindings={source.settings.keybindings}
-          onToggle={toggleSidebar}
-          sidebarOnRight={sidebarOnRight}
-          sidebarOpen={sidebarOpen}
-        />
+        {!sidebarOpen ? (
+          <SidebarDrawerToggle
+            keybindings={source.settings.keybindings}
+            onToggle={toggleSidebar}
+            sidebarOnRight={sidebarOnRight}
+            sidebarOpen={sidebarOpen}
+          />
+        ) : null}
       </div>
 
       <RenderTimingBoundary id="command-palette">
