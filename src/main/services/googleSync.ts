@@ -562,12 +562,24 @@ function taskUrl(taskListId: string, taskId: string): string {
 }
 
 function googleTaskBody(task: JsonRecord): JsonRecord {
+  const due = googleTaskDue(task.dueAt);
   return {
     title: task.title,
     notes: task.notes || undefined,
-    due: task.dueAt || null,
+    // Google Tasks accepts an RFC 3339 timestamp here (although it only
+    // retains the calendar-date portion). HCB intentionally stores task
+    // dates as date-only values, so normalize those before writing. Omitting
+    // the field is also important: the API rejects an explicit null due date.
+    ...(due ? { due } : {}),
     status: task.status === "completed" ? "completed" : "needsAction"
   };
+}
+
+function googleTaskDue(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const normalized = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return `${normalized}T00:00:00.000Z`;
+  return Number.isFinite(Date.parse(normalized)) ? new Date(normalized).toISOString() : undefined;
 }
 
 function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {

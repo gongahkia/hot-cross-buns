@@ -134,4 +134,33 @@ describe("GoogleSyncService", () => {
     expect(body.attachments).toEqual([{ fileUrl: "https://drive.google.com/open?id=file-1", title: "Brief", mimeType: "application/pdf" }]);
     expect(body.conferenceData.createRequest.conferenceSolutionKey.type).toBe("hangoutsMeet");
   });
+
+  it("sends Google Tasks a valid due timestamp and omits an absent due date", async () => {
+    const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-task", etag: "etag" }));
+    const task = {
+      id: "task-local-id",
+      listGoogleId: "remote-list",
+      title: "Ship smoke coverage",
+      notes: "",
+      status: "active",
+      dueAt: "2026-10-01" as string | null
+    };
+    const store = {
+      googleTaskForSync: vi.fn(() => task),
+      bindGoogleTask: vi.fn()
+    };
+    const oauth = { onConnectionChange: vi.fn(), googleFetch };
+    const service = new GoogleSyncService(store as never, oauth as never) as unknown as {
+      pushTask: (accountId: string, localId: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+
+    await service.pushTask("test-account", "task-local-id", {});
+    const datedBody = JSON.parse(String((googleFetch.mock.calls[0]?.[2] as RequestInit).body));
+    expect(datedBody).toMatchObject({ due: "2026-10-01T00:00:00.000Z", status: "needsAction", title: "Ship smoke coverage" });
+
+    task.dueAt = null;
+    await service.pushTask("test-account", "task-local-id", {});
+    const undatedBody = JSON.parse(String((googleFetch.mock.calls[1]?.[2] as RequestInit).body));
+    expect(undatedBody).not.toHaveProperty("due");
+  });
 });

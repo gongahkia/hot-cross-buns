@@ -3,6 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
 const mutationAcknowledgement = "I_UNDERSTAND_HCB_LIVE_TEST_WRITES_AND_DELETES";
+const liveTestTitlePrefix = "[HCB live smoke ";
 
 type LiveGoogleTestMode = "read-only" | "mutating";
 type HcbResult<T = any> = { ok: boolean; data?: T; error?: { message?: string } };
@@ -134,6 +135,52 @@ async function syncAccount(page: Page, accountId: string, readOnly: boolean, pha
   return status;
 }
 
+/**
+ * A prior interrupted run can leave an explicitly marked smoke mutation in
+ * the dedicated resources. Recover only those records before starting a new
+ * mutating run; never touch unmarked user work or another resource.
+ */
+async function recoverMarkedLiveTestResidue(
+  page: Page,
+  accountId: string,
+  { calendarId, taskListId }: LiveGoogleResources
+): Promise<void> {
+  const recovery = await page.evaluate(async ({ calendarId, taskListId, titlePrefix }) => {
+    const diagnostics = await window.hcb?.diagnostics.pendingMutations({ limit: 100 });
+    if (!diagnostics?.ok) return { errors: [diagnostics?.error?.message ?? "Could not inspect pending mutations."], retried: 0 };
+
+    const errors: string[] = [];
+    let retried = 0;
+    for (const mutation of diagnostics.data.mutations as Array<{ id?: string; resourceId?: string; resourceType?: string }>) {
+      if (!mutation.id || !mutation.resourceId || (mutation.resourceType !== "task" && mutation.resourceType !== "event")) continue;
+      const record = mutation.resourceType === "task"
+        ? await window.hcb?.tasks.get({ id: mutation.resourceId })
+        : await window.hcb?.calendar.get({ id: mutation.resourceId });
+      if (!record?.ok) continue;
+      const item = record.data as { calendarId?: string; listId?: string; title?: string };
+      const isDedicatedRecord = mutation.resourceType === "task"
+        ? item.listId === taskListId
+        : item.calendarId === calendarId;
+      if (!isDedicatedRecord || !item.title?.startsWith(titlePrefix)) continue;
+
+      const retriedMutation = await window.hcb?.diagnostics.retryPendingMutation({ id: mutation.id });
+      if (!retriedMutation?.ok) errors.push(retriedMutation?.error?.message ?? `Could not retry marked mutation ${mutation.id}.`);
+      else retried += 1;
+    }
+    return { errors, retried };
+  }, { calendarId, taskListId, titlePrefix: liveTestTitlePrefix });
+  expect(recovery.errors, "Could not recover interrupted, explicitly marked live-test work.").toEqual([]);
+  if (recovery.retried === 0) return;
+
+  await syncAccount(page, accountId, false, "recover-marked-live-test-residue");
+  await cleanupLiveRecords(page, {
+    accountId,
+    calendarId,
+    taskListId,
+    titlePrefix: liveTestTitlePrefix
+  });
+}
+
 async function requireDedicatedResources(page: Page, accountId: string): Promise<LiveGoogleResources> {
   const resources = await page.evaluate(async ({ accountId, calendarName, taskListName }) => ({
     calendars: await window.hcb?.calendar.listCalendars({ limit: 1_000 }),
@@ -147,8 +194,6 @@ async function requireDedicatedResources(page: Page, accountId: string): Promise
     calendarName: config.calendarName,
     taskListName: config.taskListName
   });
-  const syncStatus = requireSuccess(resources.sync as HcbResult<Record<string, unknown>>, "Mutating preflight status");
-  expect(syncStatus.pendingMutationCount ?? 0).toBe(0);
   const taskLists = requireSuccess(resources.taskLists as HcbResult<{ items: Array<Record<string, unknown>> }>, "Task-list preflight").items;
   const calendars = requireSuccess(resources.calendars as HcbResult<{ items: Array<Record<string, unknown>> }>, "Calendar preflight").items;
   const matchingTaskLists = taskLists.filter((item) => item.accountId === accountId && item.title === config.taskListName);
@@ -157,10 +202,14 @@ async function requireDedicatedResources(page: Page, accountId: string): Promise
   expect(matchingTaskLists, `Expected exactly one dedicated task list named ${config.taskListName}.`).toHaveLength(1);
   expect(matchingCalendars, `Expected exactly one dedicated calendar named ${config.calendarName}.`).toHaveLength(1);
 
-  return {
+  const dedicatedResources = {
     calendarId: String(matchingCalendars[0].id),
     taskListId: String(matchingTaskLists[0].id)
   };
+  await recoverMarkedLiveTestResidue(page, accountId, dedicatedResources);
+  const syncStatus = requireSuccess(await page.evaluate(async () => window.hcb?.sync.status()) as HcbResult<Record<string, unknown>>, "Mutating preflight status");
+  expect(syncStatus.pendingMutationCount ?? 0).toBe(0);
+  return dedicatedResources;
 }
 
 async function cleanupLiveRecords(
@@ -449,34 +498,34 @@ test.describe.serial("live Google account smoke", () => {
           updateSyncMs: updateSync.elapsedMs
         });
       } finally {
-        const localCleanup = await measure(() => page.evaluate(async ({ eventId, taskId }) => {
-          const errors: string[] = [];
-          if (eventId) {
-            const result = await window.hcb?.calendar.delete({ id: eventId });
-            if (!result?.ok) errors.push(`event: ${result?.error?.message ?? "delete failed"}`);
-          }
-          if (taskId) {
-            const result = await window.hcb?.tasks.delete({ id: taskId });
-            if (!result?.ok) errors.push(`task: ${result?.error?.message ?? "delete failed"}`);
-          }
-          return { errors };
-        }, { eventId, taskId }));
-        cleanupLocalMs = localCleanup.elapsedMs;
-        if (localCleanup.value.errors.length > 0) {
-          await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
-          expect(localCleanup.value.errors, `Benchmark ${run} local cleanup failed.`).toEqual([]);
-        }
-
-        const syncedCleanup = await measure(() => syncAccount(page, accountId, false, `benchmark-${run}-cleanup`));
-        cleanupSyncMs = syncedCleanup.elapsedMs;
         const benchmarkRun = runs.find((candidate) => candidate.run === run);
-        if (benchmarkRun) {
+        if (!benchmarkRun) {
+          await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
+        } else {
+          const localCleanup = await measure(() => page.evaluate(async ({ eventId, taskId }) => {
+            const errors: string[] = [];
+            if (eventId) {
+              const result = await window.hcb?.calendar.delete({ id: eventId });
+              if (!result?.ok) errors.push(`event: ${result?.error?.message ?? "delete failed"}`);
+            }
+            if (taskId) {
+              const result = await window.hcb?.tasks.delete({ id: taskId });
+              if (!result?.ok) errors.push(`task: ${result?.error?.message ?? "delete failed"}`);
+            }
+            return { errors };
+          }, { eventId, taskId }));
+          cleanupLocalMs = localCleanup.elapsedMs;
+          if (localCleanup.value.errors.length > 0) {
+            await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
+            expect(localCleanup.value.errors, `Benchmark ${run} local cleanup failed.`).toEqual([]);
+          }
+
+          const syncedCleanup = await measure(() => syncAccount(page, accountId, false, `benchmark-${run}-cleanup`));
+          cleanupSyncMs = syncedCleanup.elapsedMs;
           benchmarkRun.cleanupLocalMs = cleanupLocalMs;
           benchmarkRun.cleanupSyncMs = cleanupSyncMs;
           benchmarkRun.totalCleanupMs = Math.round((cleanupLocalMs + cleanupSyncMs) * 100) / 100;
           await assertNoRetainedLiveRecords(page, { calendarId, taskListId, titlePrefix: title });
-        } else {
-          await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
         }
       }
     }
