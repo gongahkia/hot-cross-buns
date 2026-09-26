@@ -1,11 +1,11 @@
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   Bell,
+  Columns2,
   Command,
   Gauge,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelRightOpen,
   RefreshCw,
   Settings2
 } from "lucide-react";
@@ -108,7 +108,7 @@ export function AppHeader({
         title={t("action.splitView")}
         variant="ghost"
       >
-        <PanelRightOpen aria-hidden="true" size={15} />
+        <Columns2 aria-hidden="true" size={15} />
       </Button>
     ),
     refresh: (
