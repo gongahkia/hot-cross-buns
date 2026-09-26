@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, DragEvent, MouseEvent, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent, PointerEvent, ReactNode } from "react";
 import type { CalendarEventCompletionScope } from "@shared/ipc/contracts";
 import { Minus, Plus } from "lucide-react";
 import { IconButton, cx } from "../../../../components/primitives";
@@ -226,6 +226,8 @@ function CalendarTimelineView({
     startClientY: number;
     startsAt: string;
   } | null>(null);
+  const pendingDragSelectionRef = useRef<CalendarTimeBlock | null>(null);
+  const dragSelectionFrameRef = useRef<number | null>(null);
   const suppressNextClickRef = useRef(false);
   const hourRowHeight = calendarTimelineHourHeight(source.settings.calendarTimelineDensity);
   const timeline = useMemo(
@@ -266,6 +268,12 @@ function CalendarTimelineView({
   useEffect(() => {
     const timer = window.setInterval(() => setNowIso(new Date().toISOString()), 60_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => () => {
+    if (dragSelectionFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragSelectionFrameRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -438,10 +446,30 @@ function CalendarTimelineView({
     }
   }
 
-  type TimeDragEvent = PointerEvent<HTMLElement> | MouseEvent<HTMLElement>;
+  function scheduleDragSelection(nextSelection: CalendarTimeBlock): void {
+    pendingDragSelectionRef.current = nextSelection;
+    if (dragSelectionFrameRef.current !== null) return;
+
+    dragSelectionFrameRef.current = window.requestAnimationFrame(() => {
+      dragSelectionFrameRef.current = null;
+      const pending = pendingDragSelectionRef.current;
+      pendingDragSelectionRef.current = null;
+      if (!pending) return;
+      setDragSelection((current) => current?.id === pending.id ? current : pending);
+    });
+  }
+
+  function clearDragSelection(): void {
+    pendingDragSelectionRef.current = null;
+    if (dragSelectionFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragSelectionFrameRef.current);
+      dragSelectionFrameRef.current = null;
+    }
+    setDragSelection(null);
+  }
 
   function updateTimeDrag(
-    pointerEvent: TimeDragEvent,
+    pointerEvent: PointerEvent<HTMLElement>,
     dayKey: string,
     hour: number
   ): CalendarTimeBlock | null {
@@ -463,16 +491,16 @@ function CalendarTimelineView({
       drag.moved = true;
     }
 
-    setDragSelection(nextSelection);
+    scheduleDragSelection(nextSelection);
     return nextSelection;
   }
 
   function handleTimePointerDown(
-    pointerEvent: TimeDragEvent,
+    pointerEvent: PointerEvent<HTMLElement>,
     dayKey: string,
     hour: number
   ): void {
-    if (pointerEvent.button !== 0) {
+    if (!pointerEvent.isPrimary || pointerEvent.button !== 0) {
       return;
     }
 
@@ -487,11 +515,11 @@ function CalendarTimelineView({
       startClientY: pointerEvent.clientY,
       startsAt
     };
-    setDragSelection(initialSelection);
+    scheduleDragSelection(initialSelection);
   }
 
   function handleTimePointerUp(
-    pointerEvent: TimeDragEvent,
+    pointerEvent: PointerEvent<HTMLElement>,
     dayKey: string,
     hour: number
   ): void {
@@ -503,7 +531,7 @@ function CalendarTimelineView({
 
     const finalSelection = updateTimeDrag(pointerEvent, dayKey, hour) ?? dragSelection;
     timelineDragRef.current = null;
-    setDragSelection(null);
+    clearDragSelection();
 
     if (!drag.moved || !finalSelection) {
       return;
@@ -727,9 +755,6 @@ function CalendarTimelineView({
                         }}
                         onDragOver={(dragEvent) => previewDrop(dragEvent, dayKey, startsAt, false)}
                         onDrop={(dragEvent) => handleDrop(dragEvent, dayKey, startsAt, false)}
-                        onMouseDown={(mouseEvent) => handleTimePointerDown(mouseEvent, dayKey, hour)}
-                        onMouseMove={(mouseEvent) => updateTimeDrag(mouseEvent, dayKey, hour)}
-                        onMouseUp={(mouseEvent) => handleTimePointerUp(mouseEvent, dayKey, hour)}
                         onPointerDown={(pointerEvent) => handleTimePointerDown(pointerEvent, dayKey, hour)}
                         onPointerEnter={(pointerEvent) => {
                           if (timelineDragRef.current) {
@@ -738,6 +763,10 @@ function CalendarTimelineView({
                         }}
                         onPointerMove={(pointerEvent) => updateTimeDrag(pointerEvent, dayKey, hour)}
                         onPointerUp={(pointerEvent) => handleTimePointerUp(pointerEvent, dayKey, hour)}
+                        onPointerCancel={() => {
+                          timelineDragRef.current = null;
+                          clearDragSelection();
+                        }}
                         onKeyDown={(event) =>
                           !availabilityMode
                             ? handleActivationKeyDown(event, () =>

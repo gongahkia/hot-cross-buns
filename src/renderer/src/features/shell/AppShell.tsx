@@ -800,12 +800,22 @@ export function AppShell(): JSX.Element {
       return;
     }
 
+    // The Google connection screen is a real product gate, not a visual
+    // reminder over an otherwise usable local planner.
+    setCommandPaletteOpen(false);
+    setQuickAddOpen(false);
+    setNotificationsOpen(false);
+    setDiagnosticsOpen(false);
+    setSettingsOpen(false);
     scheduleFrame(() => {
       void import("../../components/FirstRunOnboarding");
     });
   }, [onboardingVisible]);
 
-  useEffect(() => window.hcb?.native.subscribeAction(handleNativeAction), [handleNativeAction]);
+  useEffect(() => {
+    if (onboardingVisible) return;
+    return window.hcb?.native.subscribeAction(handleNativeAction);
+  }, [handleNativeAction, onboardingVisible]);
 
   useEffect(() => {
     const activePrimarySection = primaryPlannerSections.some((section) => section.id === paneWorkspace.activeSectionId);
@@ -821,6 +831,8 @@ export function AppShell(): JSX.Element {
 
   useEffect(() => {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent): void {
+      if (onboardingVisible) return;
+
       if (isEditableShortcutTarget(event.target) && !(event.metaKey || event.ctrlKey)) {
         return;
       }
@@ -888,6 +900,7 @@ export function AppShell(): JSX.Element {
   }, [
     leaderActive,
     leaderEntries,
+    onboardingVisible,
     runHotkeyAction,
     source.settings.keybindings,
     source.settings.leaderKey
