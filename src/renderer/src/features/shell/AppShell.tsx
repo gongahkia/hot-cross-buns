@@ -1044,69 +1044,77 @@ export function AppShell(): JSX.Element {
       preferences={source.settings.loadingIndicators}
     >
     <div
-      className={cx(
-        "grid h-dvh min-h-0 overflow-hidden text-text-primary",
+      className="flex h-dvh min-h-0 flex-col overflow-hidden text-text-primary"
+      data-testid="app-shell"
+      style={{ background: "var(--app-shell-background)" }}
+    >
+      <AppHeader
+        appNotificationsCount={visibleNotifications.length}
+        commandPaletteOpen={commandPaletteOpen}
+        diagnosticsOpen={diagnosticsOpen}
+        keybindings={source.settings.keybindings}
+        notificationsOpen={notificationsOpen}
+        onOpenCommandPalette={openCommandPalette}
+        onOpenSplitPane={paneWorkspace.openChooser}
+        onRefresh={() => syncThenRefresh("toolbar")}
+        onToggleDiagnostics={toggleDiagnosticsPanel}
+        onToggleNotifications={toggleNotificationsPanel}
+        onToggleSettings={toggleSettingsPanel}
+        settingsOpen={settingsOpen}
+        toolbarActionOrder={source.settings.toolbarActionOrder}
+      />
+
+      <div
+        className={cx(
+          "relative grid min-h-0 flex-1",
         sidebarOpen
           ? sidebarOnRight
             ? "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_72px] md:grid-rows-none lg:grid-cols-[minmax(0,1fr)_232px]"
             : "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
           : "grid-rows-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)] md:grid-rows-none"
-      )}
-      data-testid="app-shell"
-      style={{ background: "var(--app-shell-background)" }}
-    >
-      {sidebarOpen ? (
-        <AppSidebar
-          activeSectionId={paneWorkspace.activeSectionId}
-          onShowAllCalendars={showAllCalendars}
-          onToggleVisibleCalendar={toggleVisibleCalendar}
-          onNavigateToSection={navigateToSection}
-          sidebarOnRight={sidebarOnRight}
-          source={source}
-          visibleCalendarIds={visibleCalendarIdSet}
-          visiblePrimarySections={visiblePrimarySections}
-        />
-      ) : null}
-
-      <main className={cx("flex min-h-0 min-w-0 flex-col overflow-hidden", sidebarOnRight ? "md:order-1" : "md:order-2")}>
-        <AppHeader
-          activeSectionTitle={paneWorkspace.focusedTitle}
-          appNotificationsCount={visibleNotifications.length}
-          commandPaletteOpen={commandPaletteOpen}
-          diagnosticsOpen={diagnosticsOpen}
-          keybindings={source.settings.keybindings}
-          notificationsOpen={notificationsOpen}
-          onOpenCommandPalette={openCommandPalette}
-          onOpenSplitPane={paneWorkspace.openChooser}
-          onRefresh={() => syncThenRefresh("toolbar")}
-          onToggleDiagnostics={toggleDiagnosticsPanel}
-          onToggleNotifications={toggleNotificationsPanel}
-          onToggleSettings={toggleSettingsPanel}
-          onToggleSidebar={toggleSidebar}
-          settingsOpen={settingsOpen}
-          sidebarOpen={sidebarOpen}
-          toolbarActionOrder={source.settings.toolbarActionOrder}
-        />
-
-        <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
-          <PaneWorkspace
+        )}
+      >
+        {sidebarOpen ? (
+          <AppSidebar
             activeSectionId={paneWorkspace.activeSectionId}
-            canSplit={paneWorkspace.canSplit}
-            focusedPaneId={paneWorkspace.focusedPaneId}
-            onClosePane={paneWorkspace.closePane}
-            onFocusPane={paneWorkspace.focusPane}
-            onMovePane={paneWorkspace.movePane}
-            onOpenWebPage={paneWorkspace.openWebPageInPane}
-            onReplacePane={paneWorkspace.replacePane}
-            onSetSplitRatio={paneWorkspace.setSplitRatio}
-            onSplitPane={paneWorkspace.splitPane}
-            root={paneWorkspace.root}
-            taskCommand={taskCommand}
+            onShowAllCalendars={showAllCalendars}
+            onToggleVisibleCalendar={toggleVisibleCalendar}
+            onNavigateToSection={navigateToSection}
+            sidebarOnRight={sidebarOnRight}
+            source={source}
             visibleCalendarIds={visibleCalendarIdSet}
-            visibleSectionIds={visiblePaneSectionIds}
+            visiblePrimarySections={visiblePrimarySections}
           />
-        </RenderTimingBoundary>
-      </main>
+        ) : null}
+
+        <main className={cx("flex min-h-0 min-w-0 flex-col overflow-hidden", sidebarOnRight ? "md:order-1" : "md:order-2")}>
+          <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
+            <PaneWorkspace
+              activeSectionId={paneWorkspace.activeSectionId}
+              canSplit={paneWorkspace.canSplit}
+              focusedPaneId={paneWorkspace.focusedPaneId}
+              onClosePane={paneWorkspace.closePane}
+              onFocusPane={paneWorkspace.focusPane}
+              onMovePane={paneWorkspace.movePane}
+              onOpenWebPage={paneWorkspace.openWebPageInPane}
+              onReplacePane={paneWorkspace.replacePane}
+              onSetSplitRatio={paneWorkspace.setSplitRatio}
+              onSplitPane={paneWorkspace.splitPane}
+              root={paneWorkspace.root}
+              taskCommand={taskCommand}
+              visibleCalendarIds={visibleCalendarIdSet}
+              visibleSectionIds={visiblePaneSectionIds}
+            />
+          </RenderTimingBoundary>
+        </main>
+
+        <SidebarDrawerToggle
+          keybindings={source.settings.keybindings}
+          onToggle={toggleSidebar}
+          sidebarOnRight={sidebarOnRight}
+          sidebarOpen={sidebarOpen}
+        />
+      </div>
 
       <RenderTimingBoundary id="command-palette">
         <Suspense fallback={null}>
