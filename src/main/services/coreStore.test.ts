@@ -108,6 +108,9 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("persists task blocks, availability, and reversible writes", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Write release notes", durationMinutes: 30 });
+    expect(store.dispatch("notes", "entityLinks", { entityId: task.id, entityKind: "task" })).toEqual({
+      outgoing: [], backlinks: [], broken: []
+    });
     const block = store.dispatch("calendar", "scheduleTaskBlock", {
       taskId: task.id, calendarId: "primary", startsAt: "2026-10-02T09:00:00.000Z", durationMinutes: 30
     });

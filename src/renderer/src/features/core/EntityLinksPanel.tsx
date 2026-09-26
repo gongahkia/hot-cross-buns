@@ -3,6 +3,16 @@ import { Link2, RotateCcw, Search } from "lucide-react";
 import type { NoteEntityKind, NoteEntityLink, NoteEntityLinksResponse } from "@shared/ipc/contracts";
 import { Badge, Button, cx } from "../../components/primitives";
 
+function normalizeEntityLinks(value: unknown): NoteEntityLinksResponse {
+  const links = value as Partial<NoteEntityLinksResponse> | null | undefined;
+
+  return {
+    backlinks: Array.isArray(links?.backlinks) ? links.backlinks : [],
+    broken: Array.isArray(links?.broken) ? links.broken : [],
+    outgoing: Array.isArray(links?.outgoing) ? links.outgoing : []
+  };
+}
+
 export function EntityLinksPanel({
   entityId,
   entityKind
@@ -17,7 +27,7 @@ export function EntityLinksPanel({
 
     void window.hcb?.notes.entityLinks({ entityKind, entityId }).then((result) => {
       if (!cancelled && result?.ok) {
-        setLinks(result.data);
+        setLinks(normalizeEntityLinks(result.data));
       }
     });
 

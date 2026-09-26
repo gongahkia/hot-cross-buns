@@ -40,7 +40,7 @@ const taskWriteSchema = z.object({
   id: idSchema.optional(), listId: idSchema.optional(), title: z.string().trim().min(1).max(10_000).optional(),
   notes: z.string().max(100_000).optional(), status: z.enum(["active", "completed", "deleted", "hidden"]).optional(),
   dueDate: z.string().max(100).nullable().optional(), parentId: idSchema.nullable().optional(), previousTaskId: idSchema.nullable().optional(),
-  durationMinutes: z.number().finite().min(1).max(1_440).optional(), lockedSchedule: z.boolean().optional(),
+  durationMinutes: z.number().finite().min(1).max(1_440).nullable().optional(), lockedSchedule: z.boolean().optional(),
   plannedStart: isoDateSchema.nullable().optional(), plannedEnd: isoDateSchema.nullable().optional(), accountId: idSchema.optional()
 }).passthrough();
 const eventWriteSchema = z.object({
@@ -49,7 +49,7 @@ const eventWriteSchema = z.object({
   description: z.string().max(100_000).optional(), scope: z.enum(["series", "occurrence", "following", "thisAndFollowing", "future"]).optional()
 }).passthrough();
 
-function payloadIsValid(namespace: string, action: string, payload: Record<string, unknown>): boolean {
+export function payloadIsValid(namespace: string, action: string, payload: Record<string, unknown>): boolean {
   if (!actionMap[namespace]?.includes(action)) return false;
   if (namespace === "tasks" && ["create", "update", "complete", "reopen", "delete", "move"].includes(action)) return taskWriteSchema.safeParse(payload).success;
   if (namespace === "calendar" && ["create", "update", "complete", "reopen"].includes(action)) return eventWriteSchema.safeParse(payload).success;

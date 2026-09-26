@@ -674,7 +674,7 @@ export class CoreStore {
       case "notes.delete":
         return this.deleteNote(input);
       case "notes.entityLinks":
-        return { items: [] };
+        return { outgoing: [], backlinks: [], broken: [] };
       case "notes.listBrokenLinks":
         return { items: [] };
       case "notes.linkSuggest":
