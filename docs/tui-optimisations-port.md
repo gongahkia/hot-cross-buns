@@ -36,7 +36,7 @@ The smoke test covers the Electron launch, SQLite migrations, local task/event/n
 ## Work still required for full product parity
 
 - Strong, per-operation Zod DTOs and removal of temporary `any` contracts.
-- Production recurrence-instance semantics, exceptions, and series/occurrence edit scopes.
+- Production recurrence-instance projection, Google-native exceptions, and series/occurrence edit scopes.
 - Completing or removing the remaining restored placeholder surfaces: attachments, ICS subscriptions, portable archive, vault remote, extensions, semantic models, notifications, tray, updater, MCP, and agent actions.
 - Restore and compile the missing native service dependencies rather than excluding `src/main/native` from TypeScript.
 - Replace legacy JSON planner/settings initialization with a one-time migration or removal.

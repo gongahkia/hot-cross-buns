@@ -162,6 +162,61 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(mutations.some((mutation) => mutation.kind === "event.create" || mutation.kind === "event.update")).toBe(false);
   });
 
+  it("projects Google recurrence masters into the requested window and edits a generated instance as an exception", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const master = store.upsertGoogleEvent({
+      id: "weekly-master",
+      summary: "Weekly planning",
+      start: { dateTime: "2026-03-01T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-01T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]
+    }, calendar.id)!;
+
+    const projected = store.dispatch("calendar", "listEvents", {
+      start: "2026-03-03T00:00:00.000Z", end: "2026-03-05T00:00:00.000Z", limit: 20
+    }).items;
+    expect(projected).toHaveLength(2);
+    expect(projected).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: `recurrence:${master.id}:2026-03-03T01:00:00.000Z`,
+        eventId: master.id,
+        recurringEventId: "weekly-master",
+        originalStartAt: "2026-03-03T01:00:00.000Z"
+      })
+    ]));
+
+    const edited = store.dispatch("calendar", "update", {
+      id: master.id,
+      originalStartAt: "2026-03-03T01:00:00.000Z",
+      scope: "occurrence",
+      title: "Moved one planning session",
+      startsAt: "2026-03-03T03:00:00.000Z",
+      endsAt: "2026-03-03T04:00:00.000Z"
+    });
+    expect(edited).toMatchObject({
+      title: "Moved one planning session",
+      googleRecurringEventId: "weekly-master",
+      googleOriginalStartTime: "2026-03-03T01:00:00.000Z"
+    });
+    expect(store.pendingSyncMutations()).toEqual([
+      expect.objectContaining({
+        kind: "event.updateOccurrence",
+        entityId: edited.id,
+        payload: { parentEventId: master.id, originalStartAt: "2026-03-03T01:00:00.000Z" }
+      })
+    ]);
+
+    store.dispatch("calendar", "delete", {
+      id: master.id,
+      originalStartAt: "2026-03-04T01:00:00.000Z",
+      scope: "occurrence"
+    });
+    expect(store.dispatch("calendar", "get", { id: master.id }).recurrenceLines)
+      .toContain("EXDATE;TZID=Asia/Singapore:20260304T090000");
+  });
+
   it("restores HCB-only task planning metadata from Google notes and keeps it across ordinary pulls", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });

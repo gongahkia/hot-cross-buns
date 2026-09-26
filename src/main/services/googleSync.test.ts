@@ -181,6 +181,54 @@ describe("GoogleSyncService", () => {
     expect(JSON.parse(String(init.body)).recurrence).toEqual(rawRecurrence);
   });
 
+  it("patches exactly one generated Google instance without rewriting its master recurrence", async () => {
+    const calls: Array<{ target: URL; init?: RequestInit }> = [];
+    const parent = {
+      id: "master-local", googleId: "master-remote", calendarId: "calendar-local", calendarGoogleId: "smoke-calendar",
+      startsAt: "2026-03-01T01:00:00.000Z", endsAt: "2026-03-01T02:00:00.000Z", allDay: false,
+      recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=5"]
+    };
+    const occurrence = {
+      id: "occurrence-local", calendarId: "calendar-local", calendarGoogleId: "smoke-calendar",
+      googleRecurringEventId: "master-remote", googleOriginalStartTime: "2026-03-03T01:00:00.000Z",
+      title: "Moved one session", description: "Keep the note", startsAt: "2026-03-03T03:00:00.000Z", endsAt: "2026-03-03T04:00:00.000Z",
+      allDay: false, recurrenceLines: [], attendees: [{ email: "guest@example.test" }], remindersUseDefault: true,
+      reminders: [], transparency: "opaque", visibility: "default", timeZone: "Asia/Singapore", attachmentsManaged: false, conferenceCreateRequested: false
+    };
+    const googleFetch = vi.fn(async (_accountId: string, target: URL, init?: RequestInit) => {
+      calls.push({ target, init });
+      if (target.pathname.endsWith("/events/master-remote/instances")) {
+        return Response.json({ items: [{ id: "instance-remote", etag: "instance-etag", status: "confirmed" }] });
+      }
+      if (target.pathname.endsWith("/events/instance-remote") && init?.method === "PATCH") {
+        return Response.json({
+          id: "instance-remote", etag: "new-etag", recurringEventId: "master-remote",
+          originalStartTime: { dateTime: "2026-03-03T01:00:00.000Z", timeZone: "Asia/Singapore" }
+        });
+      }
+      throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
+    });
+    const store = {
+      googleEventForSync: vi.fn((id: string) => id === "master-local" ? parent : id === "occurrence-local" ? occurrence : null),
+      bindGoogleEvent: vi.fn()
+    };
+    const service = new GoogleSyncService(store as never, { onConnectionChange: vi.fn(), googleFetch } as never) as unknown as {
+      updateGoogleOccurrence: (accountId: string, localId: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+
+    await service.updateGoogleOccurrence("test-account", "occurrence-local", {
+      parentEventId: "master-local", originalStartAt: "2026-03-03T01:00:00.000Z"
+    });
+
+    const lookup = calls.find((call) => call.target.pathname.endsWith("/events/master-remote/instances"));
+    const patch = calls.find((call) => call.target.pathname.endsWith("/events/instance-remote"));
+    expect(lookup?.target.searchParams.get("originalStart")).toBe("2026-03-03T01:00:00.000Z");
+    expect(patch?.init?.method).toBe("PATCH");
+    expect(JSON.parse(String(patch?.init?.body))).toMatchObject({ summary: "Moved one session", description: "Keep the note" });
+    expect(JSON.parse(String(patch?.init?.body))).not.toHaveProperty("recurrence");
+    expect(store.bindGoogleEvent).toHaveBeenCalledWith("occurrence-local", expect.objectContaining({ id: "instance-remote" }));
+  });
+
   it("splits a Google series by updating both masters and copying future modified and cancelled exceptions", async () => {
     const calls: Array<{ target: URL; init?: RequestInit }> = [];
     const parent = {

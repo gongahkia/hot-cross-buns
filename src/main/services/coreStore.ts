@@ -507,11 +507,18 @@ export class CoreStore {
     const recurrenceLines = hasOwn(remote, "recurrence")
       ? googleRecurrenceLines(remote.recurrence)
       : recurrenceLinesFromStored(event.googleRecurrence, event.recurrence);
-    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
+    const remoteOriginalStart = hasOwn(remote, "originalStartTime")
+      ? originalStartTimeFromGoogle(remote.originalStartTime)
+      : event.googleOriginalStartTime ?? null;
+    const remoteRecurringEventId = typeof remote.recurringEventId === "string"
+      ? remote.recurringEventId
+      : event.googleRecurringEventId ?? null;
+    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
       working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
       .run(
         requiredText(remote.id, "Google event id"), remote.etag ?? null,
+        remoteRecurringEventId, remoteOriginalStart,
         JSON.stringify(recurrenceFromGoogle(recurrenceLines)), JSON.stringify(recurrenceLines),
         remoteMetadata.conference === undefined ? JSON.stringify(event.conference ?? null) : JSON.stringify(remoteMetadata.conference),
         remoteMetadata.attachments === undefined ? JSON.stringify(event.attachments ?? []) : JSON.stringify(remoteMetadata.attachments),
@@ -670,7 +677,7 @@ export class CoreStore {
         JSON.stringify(remote.reminders?.overrides ?? []), remote.reminders?.useDefault === false ? 0 : 1,
         remote.transparency ?? "opaque", remote.visibility ?? "default", remote.start?.timeZone ?? null,
         googleId, remote.etag ?? null, remote.recurringEventId ?? null,
-        remote.originalStartTime?.dateTime ?? remote.originalStartTime?.date ?? null,
+        originalStartTimeFromGoogle(remote.originalStartTime),
         JSON.stringify(metadata.conference ?? null), 0, JSON.stringify(metadata.attachments ?? []), previous?.attachmentsManaged ? 1 : 0,
         metadata.eventType ?? "default", JSON.stringify(metadata.focusTimeProperties ?? null), JSON.stringify(metadata.outOfOfficeProperties ?? null),
         JSON.stringify(metadata.workingLocationProperties ?? null), metadata.selfResponseStatus ?? null, now, remote.updated ?? now);
@@ -1244,6 +1251,10 @@ export class CoreStore {
   }
 
   private listEvents(input: JsonRecord): JsonRecord {
+    // Callers without a date window (diagnostics, export, and live-test
+    // cleanup) need stored resources, not an effectively unbounded expansion
+    // of every recurring series. Calendar views always supply a window.
+    const projectRecurrence = typeof input.start === "string" && typeof input.end === "string";
     const start = input.start ?? "0000-01-01T00:00:00.000Z";
     const end = input.end ?? "9999-12-31T23:59:59.999Z";
     const rows = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
@@ -1260,7 +1271,9 @@ export class CoreStore {
         OR event.google_recurring_event_id IS NOT NULL
       ORDER BY event.starts_at,event.id`).all(end, start);
     const records = (rows as any[]).map(eventFromRow);
-    const masters = records.filter((event) => event.recurrenceLines.length > 0 && !event.recurringEventId);
+    const masters = projectRecurrence
+      ? records.filter((event) => (event.recurrenceLines?.length ?? 0) > 0 && !event.recurringEventId)
+      : [];
     const exceptions = records.filter((event) => Boolean(event.recurringEventId));
     const exceptionOriginalStarts = new Map<string, Set<string>>();
     for (const exception of exceptions) {
@@ -1292,7 +1305,7 @@ export class CoreStore {
         }));
     });
     const ordinary = records.filter((event) => {
-      if (event.recurrenceLines.length > 0 && !event.recurringEventId) return false;
+      if (projectRecurrence && (event.recurrenceLines?.length ?? 0) > 0 && !event.recurringEventId) return false;
       return event.startsAt < end && event.endsAt > start;
     });
     return this.page([...ordinary, ...virtualOccurrences].sort((left, right) =>
@@ -1304,7 +1317,7 @@ export class CoreStore {
     const row = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
-      event.transparency,event.visibility,event.time_zone AS timeZone,event.google_recurring_event_id AS googleRecurringEventId,
+      event.transparency,event.visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_recurring_event_id AS googleRecurringEventId,
       event.google_original_start_time AS googleOriginalStartTime,event.conference_json AS conference,event.attachments_json AS attachments,
       event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
@@ -2471,6 +2484,15 @@ function eventTimeFromGoogle(value: unknown, label: string): { value: string; al
     return { value: new Date(record.dateTime).toISOString(), allDay: false };
   }
   throw new CoreStoreError(`${label} is invalid.`);
+}
+
+function originalStartTimeFromGoogle(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  try {
+    return eventTimeFromGoogle(value, "Google recurring original start").value;
+  } catch {
+    return null;
+  }
 }
 
 function recurrenceFromGoogle(value: unknown): JsonRecord | null {

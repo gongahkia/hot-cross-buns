@@ -23,7 +23,7 @@
     "test:live-google": "corepack pnpm build && corepack pnpm exec playwright test --config playwright.live-google.config.ts",
     "test:perf": "corepack pnpm build && tsx scripts/perf-smoke.ts",
     "test:release-gate": "corepack pnpm build && corepack pnpm test:unit && corepack pnpm test:db && corepack pnpm exec playwright test -c playwright.config.ts",
-    "test:db": "ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/services/coreStore.test.ts",
+    "test:db": "cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/services/coreStore.test.ts",
     "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts"
   },
   "dependencies": {
@@ -66,6 +66,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "cross-env": "7.0.3",
     "electron": "^33.2.1",
     "electron-builder": "^26.8.1",
     "electron-vite": "^2.3.0",

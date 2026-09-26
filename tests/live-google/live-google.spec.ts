@@ -266,8 +266,10 @@ async function cleanupLiveRecords(
       if (!events?.ok) {
         errors.push(`list events: ${events?.error?.message ?? "request failed"}`);
       } else {
-        for (const event of events.data.items as Array<{ calendarId?: string; id: string; title?: string }>) {
-          if (event.calendarId === calendarId && event.title?.startsWith(titlePrefix)) {
+        for (const event of events.data.items as Array<{ calendarId?: string; id: string; recurringEventId?: string | null; title?: string }>) {
+          // Deleting either recurrence master removes its exceptions. Do not
+          // subsequently issue an invalid delete for a now-gone instance.
+          if (event.calendarId === calendarId && !event.recurringEventId && event.title?.startsWith(titlePrefix)) {
             eventIds.add(event.id);
           }
         }
@@ -509,6 +511,89 @@ test.describe.serial("live Google account smoke", () => {
       await syncAccount(page, accountId, false, "recurrence-rename");
       const secondPull = requireSuccess(await page.evaluate(async (id) => window.hcb?.calendar.get({ id }), eventId) as HcbResult<Record<string, unknown>>, "Read renamed recurrence event");
       expect(secondPull.recurrenceLines).toEqual(canonicalRecurrenceLines);
+    } finally {
+      await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskListId, titlePrefix: title });
+    }
+  });
+
+  test("splits an advanced series and preserves future exceptions in Google", async () => {
+    test.skip(config.mode !== "mutating", "Mutating checks require HCB_LIVE_GOOGLE_TEST_MODE=mutating.");
+
+    const { calendarId, taskListId } = await requireDedicatedResources(page, accountId);
+    const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = `[HCB live smoke recurrence split ${runId}]`;
+    const successorTitle = `${title} future`;
+    const timeZone = "Asia/Singapore";
+    const startDate = new Date(Date.now() + 28 * 24 * 60 * 60 * 1_000);
+    startDate.setUTCHours(1, 0, 0, 0);
+    const startsAt = startDate.toISOString();
+    const endsAt = new Date(Date.parse(startsAt) + 30 * 60_000).toISOString();
+    const exdate = new Date(Date.parse(startsAt) + 24 * 60 * 60 * 1_000).toISOString();
+    const splitAt = new Date(Date.parse(startsAt) + 3 * 24 * 60 * 60 * 1_000).toISOString();
+    const futureExceptionStart = new Date(Date.parse(startsAt) + 4 * 24 * 60 * 60 * 1_000).toISOString();
+    const rdate = new Date(Date.parse(startsAt) + 6 * 24 * 60 * 60 * 1_000).toISOString();
+    const recurrenceLines = [
+      "RRULE:FREQ=DAILY;COUNT=5",
+      `EXDATE;TZID=${timeZone}:${googleLocalRecurrenceDateTime(exdate, timeZone)}`,
+      `RDATE;TZID=${timeZone}:${googleLocalRecurrenceDateTime(rdate, timeZone)}`
+    ];
+    let eventId: string | undefined;
+
+    try {
+      const created = await page.evaluate(async ({ calendarId, endsAt, recurrenceLines, startsAt, timeZone, title }) =>
+        window.hcb?.calendar.create({ allDay: false, calendarId, endsAt, recurrenceLines, startsAt, timeZone, title }),
+      { calendarId, endsAt, recurrenceLines, startsAt, timeZone, title });
+      eventId = requireSuccess(created as HcbResult<{ id: string }>, "Create advanced recurrence event").id;
+      await syncAccount(page, accountId, false, "recurrence-split-create");
+
+      const editedException = requireSuccess(await page.evaluate(async ({ eventId, futureExceptionStart, title }) =>
+        window.hcb?.calendar.update({
+          id: eventId,
+          originalStartAt: futureExceptionStart,
+          scope: "occurrence",
+          description: "Future exception preserved by HCB live smoke.",
+          startsAt: new Date(Date.parse(futureExceptionStart) + 2 * 60 * 60 * 1_000).toISOString(),
+          endsAt: new Date(Date.parse(futureExceptionStart) + 150 * 60_000).toISOString(),
+          title
+        }),
+      { eventId, futureExceptionStart, title }) as HcbResult<{ id: string }>, "Edit future recurrence exception");
+      expect(editedException.id).toBeTruthy();
+      await syncAccount(page, accountId, false, "recurrence-split-exception");
+
+      const successor = requireSuccess(await page.evaluate(async ({ eventId, splitAt, startsAt, endsAt, successorTitle }) =>
+        window.hcb?.calendar.update({
+          id: eventId,
+          originalStartAt: splitAt,
+          scope: "following",
+          startsAt: splitAt,
+          endsAt: new Date(Date.parse(splitAt) + (Date.parse(endsAt) - Date.parse(startsAt))).toISOString(),
+          title: successorTitle
+        }),
+      { eventId, splitAt, startsAt, endsAt, successorTitle }) as HcbResult<{ id: string }>, "Split advanced recurrence series");
+      await syncAccount(page, accountId, false, "recurrence-split");
+
+      const records = await page.evaluate(async ({ eventId, successorId, futureExceptionStart }) => ({
+        parent: await window.hcb?.calendar.get({ id: eventId }),
+        successor: await window.hcb?.calendar.get({ id: successorId }),
+        occurrences: await window.hcb?.calendar.listEvents({
+          start: futureExceptionStart,
+          end: new Date(Date.parse(futureExceptionStart) + 24 * 60 * 60 * 1_000).toISOString(),
+          limit: 100
+        })
+      }), { eventId, successorId: successor.id, futureExceptionStart });
+      const parent = requireSuccess(records.parent as HcbResult<Record<string, unknown>>, "Read split parent");
+      const splitSuccessor = requireSuccess(records.successor as HcbResult<Record<string, unknown>>, "Read split successor");
+      const occurrences = requireSuccess(records.occurrences as HcbResult<{ items: Array<Record<string, unknown>> }>, "Read split occurrences").items;
+      const parentLines = parent.recurrenceLines as string[];
+      const successorLines = splitSuccessor.recurrenceLines as string[];
+      expect(parentLines.some((line) => line.startsWith("RRULE:") && line.includes("UNTIL="))).toBe(true);
+      expect(parentLines).toContain(`EXDATE;TZID=${timeZone}:${googleLocalRecurrenceDateTime(exdate, timeZone)}`);
+      expect(parentLines.some((line) => line.split(";", 1)[0] === "RDATE")).toBe(false);
+      expect(successorLines).toContain(`RDATE;TZID=${timeZone}:${googleLocalRecurrenceDateTime(rdate, timeZone)}`);
+      expect(successorLines.some((line) => line.startsWith("RRULE:") && line.includes("COUNT=2"))).toBe(true);
+      expect(occurrences).toEqual(expect.arrayContaining([
+        expect.objectContaining({ description: "Future exception preserved by HCB live smoke." })
+      ]));
     } finally {
       await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskListId, titlePrefix: title });
     }

@@ -35,7 +35,7 @@
 - [x] Timed and all-day events.
 - [x] Event title, description, location, color, attendees, reminders, visibility, and transparency fields.
 - [x] Recurrence rules for daily, weekly, monthly, and yearly events.
-- [x] Edit or delete one occurrence, an entire series, or this-and-following through a series split.
+- [x] Edit or delete one occurrence, an entire series, or this-and-following through a Google-native series split, preserving `RRULE`/`EXRULE`/`RDATE`/`EXDATE` and modified/cancelled instances.
 - [x] Move an existing Calendar event between calendars in the same Google account through the Calendar move API.
 - [x] Reject cross-account event moves rather than silently copying or orphaning events.
 - [x] Turn a task into a real Calendar task-block event, then move or unschedule it.
@@ -65,6 +65,7 @@
 - [ ] Token refresh and reconnect behavior against a live account.
 - [ ] Two-account sync, conflict handling, offline recovery, shared calendars, and recurrence edge cases against live Google data.
 - [x] Real Google Tasks and Calendar create/update/delete mutation round trips against dedicated live resources, with cleanup verification.
+- [ ] Manually verify a Windows-app “This and following” edit on the dedicated HCB Smoke Calendar, including the recurrence-split UI flow.
 - [ ] Real Google list/task moves and Calendar event moves.
 - [ ] HCB Vault/local remote sync — dormant shell only; no supported remote protocol, encryption lifecycle, or recovery UX.
 - [ ] MCP local server and agent actions — dormant shell only; no enabled listener, authentication flow, permission model, or audited tool implementation in the running app.

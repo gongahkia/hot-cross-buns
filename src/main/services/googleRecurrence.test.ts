@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines } from "./googleRecurrence";
+import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 
 describe("splitGoogleRecurrenceLines", () => {
   it("partitions RDATE and EXDATE values and reduces RRULE/EXRULE COUNT exactly", () => {
@@ -102,5 +102,23 @@ describe("splitGoogleRecurrenceLines", () => {
       "2026-03-03T01:00:00.000Z",
       "2026-03-06T01:00:00.000Z"
     ]);
+  });
+
+  it("cancels a generated occurrence with a native EXDATE in the series timezone", () => {
+    expect(withGoogleExdate(
+      ["RRULE:FREQ=WEEKLY;COUNT=4"],
+      "2026-03-08T13:00:00.000Z",
+      false,
+      "America/New_York"
+    )).toEqual([
+      "RRULE:FREQ=WEEKLY;COUNT=4",
+      "EXDATE;TZID=America/New_York:20260308T090000"
+    ]);
+    expect(withGoogleExdate(
+      ["RRULE:FREQ=DAILY"],
+      "2026-03-08T00:00:00.000Z",
+      true,
+      "America/New_York"
+    )).toContain("EXDATE;VALUE=DATE:20260308");
   });
 });
