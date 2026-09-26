@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createServer } from "node:http";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -129,7 +129,10 @@ export class GoogleOAuthController {
   private async runAuthorization(clientId: string, requestedServices: OptionalWorkspaceService[]): Promise<void> {
     const verifier = base64Url(randomBytes(32));
     const challenge = base64Url(createHash("sha256").update(verifier).digest());
-    const callback = await createLoopbackCallback();
+    // PKCE protects the authorization-code exchange. `state` separately
+    // binds the browser redirect to this specific authorization attempt.
+    const state = base64Url(randomBytes(32));
+    const callback = await createLoopbackCallback(state);
     const redirectUri = `http://127.0.0.1:${callback.port}/oauth/callback`;
     const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authorizationUrl.searchParams.set("client_id", clientId);
@@ -139,6 +142,7 @@ export class GoogleOAuthController {
     authorizationUrl.searchParams.set("scope", requestedScopes.join(" "));
     authorizationUrl.searchParams.set("code_challenge", challenge);
     authorizationUrl.searchParams.set("code_challenge_method", "S256");
+    authorizationUrl.searchParams.set("state", state);
     authorizationUrl.searchParams.set("access_type", "offline");
     authorizationUrl.searchParams.set("prompt", "consent");
     authorizationUrl.searchParams.set("include_granted_scopes", "true");
@@ -238,7 +242,7 @@ function optionalServices(value: unknown): OptionalWorkspaceService[] {
   return [...new Set(value.filter((service): service is OptionalWorkspaceService => service === "drive" || service === "gmail"))];
 }
 
-function createLoopbackCallback(): Promise<{ port: number; waitForCode: () => Promise<string> }> {
+function createLoopbackCallback(expectedState: string): Promise<{ port: number; waitForCode: () => Promise<string> }> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let listening = false;
@@ -259,12 +263,22 @@ function createLoopbackCallback(): Promise<{ port: number; waitForCode: () => Pr
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
       const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
-      response.writeHead(error || !code ? 400 : 200, { "content-type": "text/html; charset=utf-8" });
-      response.end(error || !code ? "<p>Google authorization did not complete. You may close this tab.</p>" : "<p>Hot Cross Buns is connected. You may close this tab.</p>");
+      const stateMatches = matchesState(url.searchParams.get("state"), expectedState);
+      const succeeded = !error && Boolean(code) && stateMatches;
+      response.writeHead(succeeded ? 200 : 400, { "content-type": "text/html; charset=utf-8" });
+      response.end(succeeded
+        ? "<p>Hot Cross Buns is connected. You may close this tab.</p>"
+        : "<p>Google authorization did not complete. You may close this tab.</p>");
       if (!settled) {
         settled = true;
         server.close();
-        error || !code ? rejectCode(new CoreStoreError("Google authorization was cancelled or denied.")) : resolveCode(code);
+        if (!stateMatches) {
+          rejectCode(new CoreStoreError("Google authorization callback could not be verified. Please try connecting again."));
+        } else if (error || !code) {
+          rejectCode(new CoreStoreError("Google authorization was cancelled or denied."));
+        } else {
+          resolveCode(code);
+        }
       }
     });
     server.once("error", (error) => fail(error));
@@ -283,6 +297,11 @@ function createLoopbackCallback(): Promise<{ port: number; waitForCode: () => Pr
       resolve({ port: address.port, waitForCode: () => codePromise });
     });
   });
+}
+
+function matchesState(receivedState: string | null, expectedState: string): boolean {
+  if (!receivedState || receivedState.length !== expectedState.length) return false;
+  return timingSafeEqual(Buffer.from(receivedState), Buffer.from(expectedState));
 }
 
 function headersWithAuthorization(headers: HeadersInit | undefined, accessToken: string): Headers {
