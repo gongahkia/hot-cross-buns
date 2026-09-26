@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
@@ -12,7 +13,13 @@ import { DiagnosticsOverlay } from "../core/DiagnosticsOverlay";
 import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
-import { displayAccelerator, duplicateAccelerators, eventMatchesAccelerator, hotkeyDefinitions } from "../core/hotkeys";
+import {
+  ariaKeyShortcuts,
+  displayAccelerator,
+  duplicateAccelerators,
+  eventMatchesAccelerator,
+  hotkeyDefinitions
+} from "../core/hotkeys";
 import {
   RenderTimingBoundary,
   rendererNow,
@@ -72,6 +79,47 @@ function quickAddRecurrenceDraft(recurrence: CalendarEventRecurrence | null): Re
 
 function closestAnchor(target: EventTarget | null): HTMLAnchorElement | null {
   return target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
+}
+
+function SidebarDrawerToggle({
+  keybindings,
+  onToggle,
+  sidebarOnRight,
+  sidebarOpen
+}: {
+  keybindings: SettingsSnapshot["keybindings"];
+  onToggle: () => void;
+  sidebarOnRight: boolean;
+  sidebarOpen: boolean;
+}): JSX.Element {
+  const ToggleIcon = sidebarOnRight
+    ? sidebarOpen ? ChevronRight : ChevronLeft
+    : sidebarOpen ? ChevronLeft : ChevronRight;
+  const edgeClass = sidebarOnRight
+    ? sidebarOpen
+      ? "right-[72px] rounded-l-hcbMd border-r-0 lg:right-[232px]"
+      : "right-0 rounded-l-hcbMd border-r-0"
+    : sidebarOpen
+      ? "left-[72px] rounded-r-hcbMd border-l-0 lg:left-[232px]"
+      : "left-0 rounded-r-hcbMd border-l-0";
+
+  return (
+    <button
+      aria-controls="app-sidebar"
+      aria-expanded={sidebarOpen}
+      aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
+      aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
+      className={cx(
+        "absolute top-4 z-30 hidden h-11 w-7 items-center justify-center border border-border bg-bg-secondary text-text-muted shadow-sm transition-[background-color,color,box-shadow] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
+        edgeClass
+      )}
+      onClick={onToggle}
+      title={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
+      type="button"
+    >
+      <ToggleIcon aria-hidden="true" size={16} />
+    </button>
+  );
 }
 
 export function AppShell(): JSX.Element {

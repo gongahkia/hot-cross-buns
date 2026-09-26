@@ -2,7 +2,6 @@ import { Fragment, useCallback, useState, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import { ChevronDown, ChevronRight, EyeOff } from "lucide-react";
-import appIconUrl from "../../../../../assets/brand/buns-app-icon-sidebar.png";
 import { Badge, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
 import { useI18n } from "../../i18n";
@@ -177,19 +176,6 @@ export function AppSidebar({
       id="app-sidebar"
       style={{ fontFamily: "var(--font-family-sidebar)", fontSize: "var(--text-sidebar)" }}
     >
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center border-r border-border px-3 md:w-auto md:border-b md:border-r-0 lg:justify-start lg:gap-3 lg:px-4">
-        <img
-          alt=""
-          aria-hidden="true"
-          className="hcb-media-outline size-8 rounded-hcbMd object-cover"
-          draggable={false}
-          src={appIconUrl}
-        />
-        <div className="hidden min-w-0 lg:block">
-          <div className="truncate text-[var(--text-md)] font-semibold">Hot Cross Buns</div>
-        </div>
-      </div>
-
       <nav aria-label="Primary" className="flex min-h-0 min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-2 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:py-3">
         {visiblePrimarySections.map(({ section }) => {
           const Icon = section.icon;

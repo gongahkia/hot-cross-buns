@@ -4,11 +4,10 @@ import {
   Columns2,
   Command,
   Gauge,
-  PanelLeftClose,
-  PanelLeftOpen,
   RefreshCw,
   Settings2
 } from "lucide-react";
+import appIconUrl from "../../../../../assets/brand/buns-app-icon-sidebar.png";
 import { Badge, Button } from "../../components/primitives";
 import { useI18n } from "../../i18n";
 import { ariaKeyShortcuts } from "../core/hotkeys";
@@ -16,7 +15,6 @@ import { ariaKeyShortcuts } from "../core/hotkeys";
 type ToolbarActionId = SettingsSnapshot["toolbarActionOrder"][number];
 
 export function AppHeader({
-  activeSectionTitle,
   appNotificationsCount,
   commandPaletteOpen,
   diagnosticsOpen,
@@ -28,12 +26,9 @@ export function AppHeader({
   onToggleDiagnostics,
   onToggleNotifications,
   onToggleSettings,
-  onToggleSidebar,
   settingsOpen,
-  sidebarOpen,
   toolbarActionOrder
 }: {
-  activeSectionTitle: string;
   appNotificationsCount: number;
   commandPaletteOpen: boolean;
   diagnosticsOpen: boolean;
@@ -45,13 +40,10 @@ export function AppHeader({
   onToggleDiagnostics: () => void;
   onToggleNotifications: () => void;
   onToggleSettings: () => void;
-  onToggleSidebar: () => void;
   settingsOpen: boolean;
-  sidebarOpen: boolean;
   toolbarActionOrder: SettingsSnapshot["toolbarActionOrder"];
 }): JSX.Element {
   const { t } = useI18n();
-  const SidebarToggleIcon = sidebarOpen ? PanelLeftClose : PanelLeftOpen;
   const toolbarButtons: Record<ToolbarActionId, JSX.Element> = {
     commandPalette: (
       <Button
@@ -144,19 +136,14 @@ export function AppHeader({
   return (
     <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-primary px-3 py-2 sm:flex-nowrap md:px-5">
       <div className="flex min-w-0 items-center gap-3">
-        <Button
-          aria-controls="app-sidebar"
-          aria-expanded={sidebarOpen}
-          aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
-          aria-label={sidebarOpen ? t("nav.hideSidebar") : t("nav.showSidebar")}
-          className="min-w-10"
-          onClick={onToggleSidebar}
-          title={sidebarOpen ? t("nav.hideSidebar") : t("nav.showSidebar")}
-          variant="ghost"
-        >
-          <SidebarToggleIcon aria-hidden="true" size={15} />
-        </Button>
-        <h1 className="sr-only" id="planner-title">{activeSectionTitle}</h1>
+        <img
+          alt=""
+          aria-hidden="true"
+          className="hcb-media-outline size-8 shrink-0 rounded-hcbMd object-cover"
+          draggable={false}
+          src={appIconUrl}
+        />
+        <h1 className="truncate text-[var(--text-md)] font-semibold" id="planner-title">Hot Cross Buns</h1>
       </div>
 
       <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">
