@@ -19,6 +19,17 @@ interface SecretPayload {
 
 type OptionalWorkspaceService = "drive" | "gmail";
 
+interface PendingAuthorization {
+  cancelled: boolean;
+  callback?: OAuthLoopbackCallback;
+}
+
+interface OAuthLoopbackCallback {
+  port: number;
+  waitForCode: () => Promise<string>;
+  cancel: () => void;
+}
+
 const baseScopes = [
   "openid",
   "email",
@@ -44,7 +55,8 @@ const optionalWorkspaceScopes: Record<OptionalWorkspaceService, string> = {
  */
 export class GoogleOAuthController {
   private readonly credentialPath: string;
-  private connecting = false;
+  private activeAuthorization: PendingAuthorization | null = null;
+  private authorizationError: string | null = null;
   private readonly events = new EventEmitter();
 
   constructor(
@@ -84,8 +96,8 @@ export class GoogleOAuthController {
   }
 
   async begin(input: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
-    if (this.connecting) {
-      return { message: "Google authorization is already open in your browser." };
+    if (this.activeAuthorization) {
+      return { ...this.status(), message: "Google authorization is already open in your browser." };
     }
 
     const clientId = this.store.oauthClientId();
@@ -93,18 +105,46 @@ export class GoogleOAuthController {
       throw new CoreStoreError("Add an OAuth client ID before connecting Google.");
     }
 
-    const requestedServices = optionalServices(input.requestedServices);
-    this.connecting = true;
-    void this.runAuthorization(clientId, requestedServices)
-      // No account id exists until userinfo returns. Do not mark an unrelated,
-      // already-connected account as failed when an "Add account" browser flow
-      // is cancelled before identity exchange.
-      .catch(() => undefined)
-      .finally(() => {
-        this.connecting = false;
-        this.events.emit("connection-change");
-      });
-    return { message: "Opening Google authorization in your browser." };
+    const attempt: PendingAuthorization = { cancelled: false };
+    this.activeAuthorization = attempt;
+    this.authorizationError = null;
+    try {
+      const authorization = await this.prepareAuthorization(clientId, optionalServices(input.requestedServices), attempt);
+      void this.completeAuthorization(authorization, attempt)
+        .catch((error: unknown) => {
+          if (!attempt.cancelled) this.authorizationError = safeAuthorizationError(error);
+        })
+        .finally(() => {
+          if (this.activeAuthorization !== attempt) return;
+          this.activeAuthorization = null;
+          this.events.emit("connection-change");
+        });
+      return { ...this.status(), message: "Google authorization is open in your browser." };
+    } catch (error: unknown) {
+      if (this.activeAuthorization === attempt) this.activeAuthorization = null;
+      attempt.callback?.cancel();
+      this.events.emit("connection-change");
+      throw new CoreStoreError(`Could not open Google authorization: ${safeAuthorizationError(error)}`);
+    }
+  }
+
+  async cancel(): Promise<Record<string, unknown>> {
+    const attempt = this.activeAuthorization;
+    if (!attempt) return { ...this.status(), message: "No Google authorization is in progress." };
+    attempt.cancelled = true;
+    attempt.callback?.cancel();
+    if (this.activeAuthorization === attempt) this.activeAuthorization = null;
+    this.authorizationError = null;
+    this.events.emit("connection-change");
+    return { ...this.status(), message: "Google authorization was cancelled. You can try again." };
+  }
+
+  status(): Record<string, unknown> {
+    return {
+      ...this.store.dispatch("google", "status"),
+      authorizationError: this.authorizationError,
+      authorizationInProgress: this.activeAuthorization !== null
+    };
   }
 
   async disconnect(input: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
@@ -123,16 +163,19 @@ export class GoogleOAuthController {
     }
     await this.writeSecrets({ clientSecret: secrets.clientSecret, accounts });
     this.events.emit("connection-change");
-    return this.store.dispatch("google", "status");
+    return this.status();
   }
 
-  private async runAuthorization(clientId: string, requestedServices: OptionalWorkspaceService[]): Promise<void> {
+  private async prepareAuthorization(clientId: string, requestedServices: OptionalWorkspaceService[], attempt: PendingAuthorization): Promise<{ callback: OAuthLoopbackCallback; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string }> {
     const verifier = base64Url(randomBytes(32));
     const challenge = base64Url(createHash("sha256").update(verifier).digest());
-    // PKCE protects the authorization-code exchange. `state` separately
-    // binds the browser redirect to this specific authorization attempt.
     const state = base64Url(randomBytes(32));
     const callback = await createLoopbackCallback(state);
+    attempt.callback = callback;
+    if (attempt.cancelled) {
+      callback.cancel();
+      throw new CoreStoreError("Google authorization was cancelled.");
+    }
     const redirectUri = `http://127.0.0.1:${callback.port}/oauth/callback`;
     const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authorizationUrl.searchParams.set("client_id", clientId);
@@ -146,36 +189,27 @@ export class GoogleOAuthController {
     authorizationUrl.searchParams.set("access_type", "offline");
     authorizationUrl.searchParams.set("prompt", "consent");
     authorizationUrl.searchParams.set("include_granted_scopes", "true");
-
     await shell.openExternal(authorizationUrl.toString());
+    return { callback, clientId, redirectUri, requestedScopes, verifier };
+  }
+
+  private async completeAuthorization({ callback, clientId, redirectUri, requestedScopes, verifier }: { callback: OAuthLoopbackCallback; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string }, attempt: PendingAuthorization): Promise<void> {
+    if (attempt.cancelled) throw new CoreStoreError("Google authorization was cancelled.");
     const code = await callback.waitForCode();
+    if (attempt.cancelled) throw new CoreStoreError("Google authorization was cancelled.");
     const secrets = await this.readSecrets();
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code, client_id: clientId, redirect_uri: redirectUri, grant_type: "authorization_code", code_verifier: verifier,
-        ...(secrets.clientSecret ? { client_secret: secrets.clientSecret } : {})
-      })
+      body: new URLSearchParams({ code, client_id: clientId, redirect_uri: redirectUri, grant_type: "authorization_code", code_verifier: verifier, ...(secrets.clientSecret ? { client_secret: secrets.clientSecret } : {}) })
     });
     if (!tokenResponse.ok) throw new CoreStoreError("Google declined the authorization exchange. Check the OAuth client configuration.");
     const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
     if (!token.access_token || !token.refresh_token) throw new CoreStoreError("Google did not return a reusable authorization token.");
     const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } });
     const identity = identityResponse.ok ? await identityResponse.json() as { id?: string; email?: string; name?: string; picture?: string } : {};
-    const account = this.store.upsertGoogleAccount({
-      googleAccountId: identity.id ?? `unknown-${randomBytes(8).toString("hex")}`,
-      email: identity.email ?? null,
-      displayName: identity.name ?? identity.email ?? "Google account",
-      avatarUrl: identity.picture ?? null,
-      connectionState: "connected",
-      missingScopes: [],
-      grantedScopes: token.scope?.split(/\s+/).filter(Boolean) ?? requestedScopes
-    });
-    await this.writeSecrets({ ...secrets, accounts: {
-      ...(secrets.accounts ?? {}),
-      [account.accountId]: { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 }
-    } });
+    const account = this.store.upsertGoogleAccount({ googleAccountId: identity.id ?? `unknown-${randomBytes(8).toString("hex")}`, email: identity.email ?? null, displayName: identity.name ?? identity.email ?? "Google account", avatarUrl: identity.picture ?? null, connectionState: "connected", missingScopes: [], grantedScopes: token.scope?.split(/\s+/).filter(Boolean) ?? requestedScopes });
+    await this.writeSecrets({ ...secrets, accounts: { ...(secrets.accounts ?? {}), [account.accountId]: { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } } });
     this.events.emit("connection-change");
   }
 
@@ -242,7 +276,7 @@ function optionalServices(value: unknown): OptionalWorkspaceService[] {
   return [...new Set(value.filter((service): service is OptionalWorkspaceService => service === "drive" || service === "gmail"))];
 }
 
-function createLoopbackCallback(expectedState: string): Promise<{ port: number; waitForCode: () => Promise<string> }> {
+function createLoopbackCallback(expectedState: string): Promise<OAuthLoopbackCallback> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let listening = false;
@@ -294,7 +328,7 @@ function createLoopbackCallback(expectedState: string): Promise<{ port: number; 
         fail(new CoreStoreError("Google authorization timed out."));
       }, 5 * 60_000);
       codePromise.finally(() => clearTimeout(timeout)).catch(() => undefined);
-      resolve({ port: address.port, waitForCode: () => codePromise });
+      resolve({ port: address.port, waitForCode: () => codePromise, cancel: () => fail(new CoreStoreError("Google authorization was cancelled.")) });
     });
   });
 }
@@ -302,6 +336,10 @@ function createLoopbackCallback(expectedState: string): Promise<{ port: number; 
 function matchesState(receivedState: string | null, expectedState: string): boolean {
   if (!receivedState || receivedState.length !== expectedState.length) return false;
   return timingSafeEqual(Buffer.from(receivedState), Buffer.from(expectedState));
+}
+
+function safeAuthorizationError(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : "Google authorization could not be started.";
 }
 
 function headersWithAuthorization(headers: HeadersInit | undefined, accessToken: string): Headers {

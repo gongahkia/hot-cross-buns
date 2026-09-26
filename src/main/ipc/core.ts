@@ -26,7 +26,7 @@ const actionMap: Record<string, readonly string[]> = {
   search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
   settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
   sync: ["status", "runNow", "forceFullResync"],
-  google: ["status", "saveOAuthClient", "beginOAuth", "disconnect", "searchDriveFiles", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
+  google: ["status", "saveOAuthClient", "beginOAuth", "cancelOAuth", "disconnect", "searchDriveFiles", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
   native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
   diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
@@ -96,8 +96,16 @@ export function registerCoreIpc(
         return ok(await googleOAuth.saveClient(request.data.payload));
       }
 
+      if (request.data.namespace === "google" && request.data.action === "status") {
+        return ok(googleOAuth.status());
+      }
+
       if (request.data.namespace === "google" && request.data.action === "beginOAuth") {
         return ok(await googleOAuth.begin(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "cancelOAuth") {
+        return ok(await googleOAuth.cancel());
       }
 
       if (request.data.namespace === "google" && request.data.action === "disconnect") {

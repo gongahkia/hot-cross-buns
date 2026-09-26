@@ -67,6 +67,8 @@ export interface GoogleStatusResponse {
   oauthClientConfigured: boolean;
   clientId: string | null;
   hasClientSecret: boolean;
+  authorizationInProgress?: boolean;
+  authorizationError?: string | null;
   account?: GoogleAccountStatus | null;
   accounts: GoogleAccountStatus[];
 }

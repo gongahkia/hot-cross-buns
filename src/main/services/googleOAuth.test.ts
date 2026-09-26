@@ -28,6 +28,7 @@ function requestCallback(url: URL): Promise<number | undefined> {
 describe("GoogleOAuthController", () => {
   it("adds a one-time state value and rejects a callback with the wrong state", async () => {
     const store = {
+      dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
       oauthClientId: () => "test-desktop-client-id"
     };
     const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);

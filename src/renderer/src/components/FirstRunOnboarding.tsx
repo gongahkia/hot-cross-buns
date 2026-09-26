@@ -30,7 +30,6 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const [googleMessage, setGoogleMessage] = useState<string | null>(null);
   const [googleClientId, setGoogleClientId] = useState(source.googleStatus.clientId ?? "");
   const [googleClientSecret, setGoogleClientSecret] = useState("");
-  const [googleConnecting, setGoogleConnecting] = useState(false);
   const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
@@ -46,6 +45,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     nativeFlags.supportsCredentialStorage ??
     false;
   const googleClientConfigured = source.googleStatus.oauthClientConfigured;
+  const googleConnecting = source.googleStatus.authorizationInProgress === true;
 
   useEffect(() => {
     setGoogleClientId(source.googleStatus.clientId ?? "");
@@ -127,7 +127,6 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       return;
     }
 
-    setGoogleConnecting(true);
     setGoogleMessage(null);
     setLocalError(null);
 
@@ -135,6 +134,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
     if (result?.ok) {
       setGoogleMessage(result.data.message);
+      source.setGoogleStatus(result.data);
       source.refreshGoogleStatus();
       for (const delayMs of [2_000, 5_000, 10_000]) {
         window.setTimeout(() => source.refreshGoogleStatus(), delayMs);
@@ -143,7 +143,19 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       setLocalError(result?.error.message ?? "Google authorization could not start.");
     }
 
-    setGoogleConnecting(false);
+  }
+
+  async function cancelGoogleAuthorization(): Promise<void> {
+    setGoogleMessage(null);
+    setLocalError(null);
+    const result = await window.hcb?.google.cancelOAuth();
+
+    if (result?.ok) {
+      source.setGoogleStatus(result.data);
+      setGoogleMessage(result.data.message);
+    } else {
+      setLocalError(result?.error.message ?? "Google authorization could not be cancelled.");
+    }
   }
 
   async function saveGoogleClient(): Promise<void> {
@@ -248,6 +260,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 <ExternalLink aria-hidden="true" size={14} />
                 {googleConnected ? "Google connected" : googleConnecting ? "Opening Google" : "Connect Google"}
               </Button>
+              {googleConnecting ? (
+                <Button onClick={() => void cancelGoogleAuthorization()} variant="secondary">
+                  Cancel authorization
+                </Button>
+              ) : null}
               {googleMessage ? (
                 <p className="text-[var(--text-xs)] text-text-muted">{googleMessage}</p>
               ) : null}
