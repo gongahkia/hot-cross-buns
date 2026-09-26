@@ -583,7 +583,10 @@ function googleTaskDue(value: unknown): string | undefined {
 }
 
 function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
-  const recurrence = googleRecurrence(event.recurrence);
+  // Imported Calendar recurrence is already expressed as RFC 5545 lines.
+  // Prefer that exact representation over the editor's friendly subset so an
+  // unrelated edit cannot remove EXDATE/RDATE or advanced RRULE properties.
+  const recurrence = preservedGoogleRecurrence(event.googleRecurrence) ?? googleRecurrence(event.recurrence);
   const eventType = event.eventType === "focusTime" || event.eventType === "outOfOffice" || event.eventType === "workingLocation"
     ? event.eventType
     : "default";
@@ -660,6 +663,12 @@ function googleRecurrence(value: unknown): string[] | undefined {
   if (record.endsOn) fields.push(`UNTIL=${String(record.endsOn).replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z")}`);
   if (record.count) fields.push(`COUNT=${record.count}`);
   return [`RRULE:${fields.join(";")}`];
+}
+
+function preservedGoogleRecurrence(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const lines = value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return lines.length > 0 ? lines : [];
 }
 
 function normalizeAttendees(value: unknown): JsonRecord[] | undefined {

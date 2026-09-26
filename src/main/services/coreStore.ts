@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 
 type JsonRecord = Record<string, any>;
 
@@ -427,11 +428,14 @@ export class CoreStore {
   }
 
   googleTaskForSync(id: string): JsonRecord | null {
-    return (this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.due_at AS dueAt,
+    const record = this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.priority,task.due_at AS dueAt,
+      task.planned_start AS plannedStart,task.planned_end AS plannedEnd,task.duration_minutes AS durationMinutes,
+      task.locked_schedule AS lockedSchedule,task.snooze_until AS snoozeUntil,task.tags_json AS tags,
       task.parent_id AS parentId,task.sort_order AS sortOrder,task.google_id AS googleId,task.google_etag AS googleEtag,
       task.google_list_id AS googleListId,task.google_parent_id AS googleParentId,
       list.google_id AS listGoogleId,list.account_id AS accountId FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.id=?`)
-      .get(id) as JsonRecord | undefined) ?? null;
+      .get(id) as JsonRecord | undefined;
+    return record ? { ...record, tags: safeJson(record.tags, []), lockedSchedule: Boolean(record.lockedSchedule) } : null;
   }
 
   bindGoogleTaskList(localId: string, remote: JsonRecord): JsonRecord {
@@ -449,6 +453,7 @@ export class CoreStore {
   googleEventForSync(id: string): JsonRecord | null {
     const record = this.db.prepare(`SELECT event.id,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,
       event.ends_at AS endsAt,event.all_day AS allDay,event.color_id AS colorId,event.location,event.recurrence_json AS recurrence,
+      event.google_recurrence_json AS googleRecurrence,
       event.attendees_json AS attendees,event.reminders_json AS reminders,event.reminders_use_default AS remindersUseDefault,
       event.transparency,event.visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_etag AS googleEtag,
       event.google_recurring_event_id AS googleRecurringEventId,event.google_original_start_time AS googleOriginalStartTime,
@@ -462,6 +467,7 @@ export class CoreStore {
       ? {
           ...record,
           recurrence: safeJson(record.recurrence, null),
+          googleRecurrence: safeJson(record.googleRecurrence, null),
           attendees: safeJson(record.attendees, []),
           reminders: safeJson(record.reminders, []),
           conference: safeJson(record.conference, null),
@@ -488,11 +494,12 @@ export class CoreStore {
     const event = this.googleEventForSync(localId);
     if (!event) throw new CoreStoreError("Calendar event no longer exists");
     const remoteMetadata = googleEventMetadata(remote);
-    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,conference_json=?,conference_create_requested=0,
+    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
       working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
       .run(
         requiredText(remote.id, "Google event id"), remote.etag ?? null,
+        hasOwn(remote, "recurrence") ? JSON.stringify(googleRecurrenceLines(remote.recurrence)) : JSON.stringify(event.googleRecurrence ?? null),
         remoteMetadata.conference === undefined ? JSON.stringify(event.conference ?? null) : JSON.stringify(remoteMetadata.conference),
         remoteMetadata.attachments === undefined ? JSON.stringify(event.attachments ?? []) : JSON.stringify(remoteMetadata.attachments),
         remoteMetadata.eventType ?? event.eventType ?? "default",
@@ -529,6 +536,8 @@ export class CoreStore {
       ? (this.db.prepare("SELECT id FROM tasks WHERE list_id=? AND google_id=?").get(localListId, remote.parent) as { id?: string } | undefined)?.id ?? null
       : null;
     const previous = existing ? this.requireTask(localId) : null;
+    const remoteTask = splitHcbTaskMetadata(remote.notes);
+    const metadata = remoteTask.metadata;
     const now = timestamp();
     this.db.prepare(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,
       locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,google_parent_id,created_at,updated_at)
@@ -536,11 +545,11 @@ export class CoreStore {
       ON CONFLICT(id) DO UPDATE SET list_id=excluded.list_id,title=excluded.title,notes=excluded.notes,status=excluded.status,
       due_at=excluded.due_at,parent_id=excluded.parent_id,sort_order=excluded.sort_order,google_id=excluded.google_id,
       google_etag=excluded.google_etag,google_parent_id=excluded.google_parent_id,updated_at=excluded.updated_at`)
-      .run(localId, localListId, remote.title ?? "Untitled task", remote.notes ?? "",
+      .run(localId, localListId, remote.title ?? "Untitled task", remoteTask.notes,
         remote.deleted ? "deleted" : remote.status === "completed" ? "completed" : "active",
-        previous?.priority ?? "none", remote.due ?? null, parentId, previous?.plannedStart ?? null,
-        previous?.plannedEnd ?? null, previous?.durationMinutes ?? null, previous?.lockedSchedule ? 1 : 0,
-        previous?.snoozeUntil ?? null, JSON.stringify(previous?.tags ?? []), remote.position ?? null,
+        metadata?.priority ?? previous?.priority ?? "none", remote.due ?? null, parentId, metadata?.plannedStart ?? previous?.plannedStart ?? null,
+        metadata?.plannedEnd ?? previous?.plannedEnd ?? null, metadata?.durationMinutes ?? previous?.durationMinutes ?? null, (metadata?.lockedSchedule ?? previous?.lockedSchedule) ? 1 : 0,
+        metadata?.snoozeUntil ?? previous?.snoozeUntil ?? null, JSON.stringify(metadata?.tags ?? previous?.tags ?? []), remote.position ?? null,
         googleId, remote.etag ?? null, remote.parent ?? null, now, remote.updated ?? now);
     this.db.prepare("UPDATE tasks SET google_list_id=? WHERE id=?")
       .run(localList.googleId ?? null, localId);
@@ -575,14 +584,14 @@ export class CoreStore {
     const end = eventTimeFromGoogle(remote.end, "Event end");
     const metadata = googleEventMetadata(remote);
     const now = timestamp();
-    this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,
+    this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
       attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,google_id,google_etag,google_recurring_event_id,google_original_start_time,
       conference_json,conference_create_requested,attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,
       working_location_properties_json,self_response_status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET calendar_id=excluded.calendar_id,title=excluded.title,description=excluded.description,
       starts_at=excluded.starts_at,ends_at=excluded.ends_at,all_day=excluded.all_day,color_id=excluded.color_id,location=excluded.location,
-      recurrence_json=excluded.recurrence_json,attendees_json=excluded.attendees_json,reminders_json=excluded.reminders_json,
+      recurrence_json=excluded.recurrence_json,google_recurrence_json=excluded.google_recurrence_json,attendees_json=excluded.attendees_json,reminders_json=excluded.reminders_json,
       reminders_use_default=excluded.reminders_use_default,transparency=excluded.transparency,visibility=excluded.visibility,
       google_id=excluded.google_id,google_etag=excluded.google_etag,google_recurring_event_id=excluded.google_recurring_event_id,
       google_original_start_time=excluded.google_original_start_time,conference_json=excluded.conference_json,
@@ -592,7 +601,7 @@ export class CoreStore {
       self_response_status=excluded.self_response_status,updated_at=excluded.updated_at`)
       .run(localId, localCalendarId, remote.summary ?? "Untitled event", remote.description ?? "", start.value, end.value,
         start.allDay ? 1 : 0, previous?.completed ? 1 : 0, remote.colorId ?? null, remote.location ?? null,
-        JSON.stringify(recurrenceFromGoogle(remote.recurrence)), JSON.stringify(remote.attendees ?? []),
+        JSON.stringify(recurrenceFromGoogle(remote.recurrence)), JSON.stringify(googleRecurrenceLines(remote.recurrence)), JSON.stringify(remote.attendees ?? []),
         JSON.stringify(remote.reminders?.overrides ?? []), remote.reminders?.useDefault === false ? 0 : 1,
         remote.transparency ?? "opaque", remote.visibility ?? "default", remote.start?.timeZone ?? null,
         googleId, remote.etag ?? null, remote.recurringEventId ?? null,
@@ -873,6 +882,7 @@ export class CoreStore {
     this.addColumn("events", "out_of_office_properties_json TEXT");
     this.addColumn("events", "working_location_properties_json TEXT");
     this.addColumn("events", "self_response_status TEXT");
+    this.addColumn("events", "google_recurrence_json TEXT");
     this.addColumn("outbox", "account_id TEXT");
     this.addColumn("outbox", "last_error TEXT");
     this.db.exec(`
@@ -1167,7 +1177,7 @@ export class CoreStore {
 
   private requireEvent(id: string): JsonRecord {
     const row = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
-      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,
+      all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       event.transparency,event.visibility,event.time_zone AS timeZone,event.google_recurring_event_id AS googleRecurringEventId,
       event.google_original_start_time AS googleOriginalStartTime,event.conference_json AS conference,event.attachments_json AS attachments,
@@ -1187,14 +1197,14 @@ export class CoreStore {
     this.assertStatusEventCalendar(calendarId, eventType);
     const statusProperties = normalizedStatusEventProperties(eventType, input);
     this.db.transaction(() => {
-      this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,
+      this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
         attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,conference_json,conference_create_requested,
         attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,working_location_properties_json,
         self_response_status,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         id, calendarId, requiredText(input.title, "Event title"), stringValue(input.description ?? input.notes), requiredText(input.startsAt, "Event start"),
         requiredText(input.endsAt, "Event end"), input.allDay ? 1 : 0, 0, input.colorId ?? null, input.location ?? null,
-        JSON.stringify(input.recurrence ?? null), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
+        JSON.stringify(input.recurrence ?? null), JSON.stringify(null), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
         JSON.stringify(input.reminders ?? []), input.remindersUseDefault === false ? 0 : 1,
         statusEventTransparency(eventType, input.transparency), statusEventVisibility(eventType, input.visibility), input.timeZone ?? null,
         JSON.stringify(null), input.conferenceCreateRequest ? 1 : 0,
@@ -1235,9 +1245,17 @@ export class CoreStore {
       input.selfResponseStatus ?? previous.selfResponseStatus
     );
     const previousForSync = this.googleEventForSync(previous.id);
+    const nextRecurrence = input.recurrence === undefined ? previous.recurrence ?? null : input.recurrence;
+    // Google recurrence is an RFC 5545 line array. HCB's editor deliberately
+    // exposes a smaller friendly subset, so retain the original raw lines
+    // for unrelated edits and only replace them when the recurrence itself
+    // was intentionally changed.
+    const nextGoogleRecurrence = equivalentJson(nextRecurrence, previous.recurrence)
+      ? previous.googleRecurrence ?? null
+      : null;
     const now = timestamp();
     this.db.transaction(() => {
-      this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,
+      this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,google_recurrence_json=?,
         attendees_json=?,reminders_json=?,reminders_use_default=?,transparency=?,visibility=?,time_zone=?,conference_create_requested=?,
         attachments_json=?,attachments_managed=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
         working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`).run(
@@ -1246,7 +1264,7 @@ export class CoreStore {
         input.allDay === undefined ? Number(previous.allDay) : input.allDay ? 1 : 0,
         input.completed === undefined ? Number(previous.completed) : input.completed ? 1 : 0,
         input.colorId ?? previous.colorId ?? null, input.location ?? previous.location ?? null,
-        JSON.stringify(input.recurrence ?? previous.recurrence ?? null),
+        JSON.stringify(nextRecurrence), JSON.stringify(nextGoogleRecurrence),
         JSON.stringify(nextAttendees),
         JSON.stringify(input.reminders ?? previous.reminders ?? []),
         input.remindersUseDefault === undefined ? (previous.remindersUseDefault ? 1 : 0) : input.remindersUseDefault ? 1 : 0,
@@ -1982,6 +2000,7 @@ function taskFromRow(row: JsonRecord): JsonRecord {
 function eventFromRow(row: JsonRecord): JsonRecord {
   const reminders = safeJson(row.reminders, []);
   const recurrence = safeJson(row.recurrence, null);
+  const googleRecurrence = safeJson(row.googleRecurrence, null);
   const attendees = safeJson(row.attendees, []);
   const conference = safeJson(row.conference, null);
   const attachments = safeJson(row.attachments, []);
@@ -1993,6 +2012,7 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     status: row.status ?? "confirmed",
     notes: row.notes ?? row.description ?? "",
     recurrence,
+    googleRecurrence,
     recurrenceRule: recurrenceRuleFromStored(recurrence),
     attendees,
     conference,
@@ -2201,6 +2221,31 @@ function recurrenceFromGoogle(value: unknown): JsonRecord | null {
     ...(fields.UNTIL ? { endsOn: fields.UNTIL } : {}),
     ...(fields.COUNT ? { count: Number.parseInt(fields.COUNT, 10) || undefined } : {})
   };
+}
+
+/**
+ * The Calendar API's recurrence field is already its canonical wire format:
+ * one RFC 5545 line per array entry. Keep it verbatim so unsupported-but-valid
+ * constructs such as EXDATE/RDATE and advanced RRULE parts survive HCB edits.
+ */
+function googleRecurrenceLines(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const lines = value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  return lines.length > 0 ? lines : null;
+}
+
+function equivalentJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
+}
+
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as JsonRecord)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, canonicalJson(item)]));
+  }
+  return value;
 }
 
 function recurrenceRuleFromStored(value: unknown): string | null {
