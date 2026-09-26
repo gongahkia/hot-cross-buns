@@ -2,6 +2,7 @@ import { CoreStore, CoreStoreError, type PendingSyncMutation } from "./coreStore
 import { GoogleOAuthController } from "./googleOAuth";
 import { EventEmitter } from "node:events";
 import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
+import { withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 type JsonRecord = Record<string, any>;
 
@@ -563,9 +564,10 @@ function taskUrl(taskListId: string, taskId: string): string {
 
 function googleTaskBody(task: JsonRecord): JsonRecord {
   const due = googleTaskDue(task.dueAt);
+  const notes = withHcbTaskMetadata(task.notes, task);
   return {
     title: task.title,
-    notes: task.notes || undefined,
+    notes: notes || undefined,
     // Google Tasks accepts an RFC 3339 timestamp here (although it only
     // retains the calendar-date portion). HCB intentionally stores task
     // dates as date-only values, so normalize those before writing. Omitting

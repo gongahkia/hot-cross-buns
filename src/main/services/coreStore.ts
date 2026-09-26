@@ -547,9 +547,9 @@ export class CoreStore {
       google_etag=excluded.google_etag,google_parent_id=excluded.google_parent_id,updated_at=excluded.updated_at`)
       .run(localId, localListId, remote.title ?? "Untitled task", remoteTask.notes,
         remote.deleted ? "deleted" : remote.status === "completed" ? "completed" : "active",
-        metadata?.priority ?? previous?.priority ?? "none", remote.due ?? null, parentId, metadata?.plannedStart ?? previous?.plannedStart ?? null,
-        metadata?.plannedEnd ?? previous?.plannedEnd ?? null, metadata?.durationMinutes ?? previous?.durationMinutes ?? null, (metadata?.lockedSchedule ?? previous?.lockedSchedule) ? 1 : 0,
-        metadata?.snoozeUntil ?? previous?.snoozeUntil ?? null, JSON.stringify(metadata?.tags ?? previous?.tags ?? []), remote.position ?? null,
+        metadata ? metadata.priority : previous?.priority ?? "none", remote.due ?? null, parentId, metadata ? metadata.plannedStart : previous?.plannedStart ?? null,
+        metadata ? metadata.plannedEnd : previous?.plannedEnd ?? null, metadata ? metadata.durationMinutes : previous?.durationMinutes ?? null, metadata ? Number(metadata.lockedSchedule) : previous?.lockedSchedule ? 1 : 0,
+        metadata ? metadata.snoozeUntil : previous?.snoozeUntil ?? null, JSON.stringify(metadata ? metadata.tags : previous?.tags ?? []), remote.position ?? null,
         googleId, remote.etag ?? null, remote.parent ?? null, now, remote.updated ?? now);
     this.db.prepare("UPDATE tasks SET google_list_id=? WHERE id=?")
       .run(localList.googleId ?? null, localId);

@@ -135,6 +135,50 @@ describe("GoogleSyncService", () => {
     expect(body.conferenceData.createRequest.conferenceSolutionKey.type).toBe("hangoutsMeet");
   });
 
+  it("preserves imported Google recurrence lines when an event is updated", async () => {
+    const rawRecurrence = [
+      "RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO;BYSETPOS=1;WKST=SU",
+      "EXDATE:20270105T010000Z,20270705T010000Z",
+      "RDATE:20261231T010000Z"
+    ];
+    const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-event", etag: "etag-2" }));
+    const store = {
+      googleEventForSync: () => ({
+        id: "event-local-id",
+        googleId: "remote-event",
+        googleEtag: "etag-1",
+        calendarGoogleId: "primary",
+        title: "Rename only",
+        description: "",
+        startsAt: "2027-01-01T08:00:00.000Z",
+        endsAt: "2027-01-01T09:00:00.000Z",
+        allDay: false,
+        recurrence: { frequency: "yearly", interval: 1, byDay: ["MO"] },
+        googleRecurrence: rawRecurrence,
+        remindersUseDefault: true,
+        reminders: [],
+        attendees: [],
+        transparency: "opaque",
+        visibility: "default",
+        attachmentsManaged: false,
+        conferenceCreateRequested: false
+      }),
+      bindGoogleEvent: vi.fn()
+    };
+    const oauth = { onConnectionChange: vi.fn(), googleFetch };
+    const service = new GoogleSyncService(store as never, oauth as never) as unknown as {
+      pushEvent: (accountId: string, localId: string) => Promise<void>;
+    };
+
+    await service.pushEvent("test-account", "event-local-id");
+
+    const target = googleFetch.mock.calls[0]?.[1] as URL;
+    const init = googleFetch.mock.calls[0]?.[2] as RequestInit;
+    expect(target.pathname).toContain("/events/remote-event");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(String(init.body)).recurrence).toEqual(rawRecurrence);
+  });
+
   it("sends Google Tasks a valid due timestamp and omits an absent due date", async () => {
     const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-task", etag: "etag" }));
     const task = {

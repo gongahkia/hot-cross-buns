@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CoreStore } from "./coreStore";
+import { withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 const stores: Array<{ store: CoreStore; directory: string }> = [];
 
@@ -61,6 +62,65 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
       description: "Pulled from Google"
     });
     expect(store.googleEventForSync(event!.id)).toMatchObject({ googleId: "remote-event" });
+  });
+
+  it("retains full Google recurrence lines through an unrelated HCB edit", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const rawRecurrence = [
+      "RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO;BYSETPOS=1;WKST=SU",
+      "EXDATE:20270105T010000Z,20270705T010000Z",
+      "RDATE:20261231T010000Z"
+    ];
+    const event = store.upsertGoogleEvent({
+      id: "complex-series",
+      summary: "Complex remote series",
+      start: { dateTime: "2026-09-26T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-09-26T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      recurrence: rawRecurrence
+    }, calendar.id)!;
+
+    expect(store.googleEventForSync(event.id)?.googleRecurrence).toEqual(rawRecurrence);
+    store.dispatch("calendar", "update", { id: event.id, title: "Renamed in HCB" });
+    expect(store.googleEventForSync(event.id)?.googleRecurrence).toEqual(rawRecurrence);
+
+    store.dispatch("calendar", "update", { id: event.id, recurrence: { frequency: "weekly", interval: 1, byDay: ["MO"] } });
+    expect(store.googleEventForSync(event.id)?.googleRecurrence).toBeNull();
+  });
+
+  it("restores HCB-only task planning metadata from Google notes and keeps it across ordinary pulls", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const list = store.upsertGoogleTaskList({ id: "remote-list", title: "Tasks" }, account.accountId);
+    const planning = {
+      priority: "high",
+      tags: ["release", "writing"],
+      plannedStart: "2026-10-05T01:00:00.000Z",
+      plannedEnd: "2026-10-05T02:30:00.000Z",
+      durationMinutes: 90,
+      lockedSchedule: true,
+      snoozeUntil: "2026-10-04T01:00:00.000Z"
+    };
+    const task = store.upsertGoogleTask({
+      id: "remote-task",
+      title: "Draft release notes",
+      notes: withHcbTaskMetadata("Visible Google note", planning),
+      status: "needsAction"
+    }, list.id)!;
+
+    expect(task).toMatchObject({ notes: "Visible Google note", ...planning });
+    const refreshed = store.upsertGoogleTask({
+      id: "remote-task",
+      title: "Draft release notes (renamed in Google)",
+      notes: "Edited in Google without touching HCB metadata",
+      status: "needsAction"
+    }, list.id)!;
+    expect(refreshed).toMatchObject({
+      title: "Draft release notes (renamed in Google)",
+      notes: "Edited in Google without touching HCB metadata",
+      ...planning
+    });
   });
 
   it("retires only the starter workspace after Google connects and defaults new writes to Google", () => {
