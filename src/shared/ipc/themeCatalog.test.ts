@@ -43,7 +43,7 @@ describe("theme catalogue", () => {
     expect(resolveEffectiveThemeMode({ theme: "system" }, true)).toBe("dark");
     expect(resolveEffectiveThemeMode({ theme: "system" }, false)).toBe("light");
     expect(resolveEffectiveColorTheme({ colorTheme: "catppuccin-mocha" }, "light").id).toBe("catppuccin-latte");
-    expect(resolveEffectiveColorTheme({ colorTheme: "notion" }, "dark").id).toBe("catppuccin-mocha");
+    expect(resolveEffectiveColorTheme({ colorTheme: "notion" }, "dark").id).toBe("gruvbox-dark");
   });
 
   it("returns a complete semantic palette for legacy and new custom backgrounds", () => {

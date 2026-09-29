@@ -39,8 +39,8 @@ const schemaVersion = 4;
 const localAccountId = "local";
 
 const defaultSettings: JsonRecord = {
-  theme: "system",
-  colorTheme: "catppuccin-mocha",
+  theme: "dark",
+  colorTheme: "gruvbox-dark",
   customBackground: null,
   useInferredBackgroundTheme: true,
   appLanguage: "system",

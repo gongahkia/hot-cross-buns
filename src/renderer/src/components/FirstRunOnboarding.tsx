@@ -217,18 +217,12 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       role="dialog"
     >
       <div className="hcb-raised flex max-h-[calc(100vh-48px)] w-full max-w-5xl flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
-        <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2 sm:px-5">
+        <header className="flex min-h-14 items-center border-b border-border px-3 py-2 sm:px-5">
           <div className="min-w-0">
             <h2 className="hcb-heading truncate text-[var(--text-xl)] font-bold text-text-primary" id="first-run-title">
               {reconnecting ? "Reconnect Google" : "Connect Google"}
             </h2>
-            <p className="hcb-copy truncate text-[var(--text-sm)] text-text-muted">
-              HCB requires Google Calendar and Google Tasks. Your Google data remains in Google; HCB keeps a local sync cache for speed and offline reads.
-            </p>
           </div>
-          <Badge tone={googleConnected ? "success" : "neutral"}>
-            {googleConnected ? "Google connected" : "Google required"}
-          </Badge>
         </header>
 
         <div className="grid min-h-0 gap-3 overflow-y-auto p-4">
@@ -402,10 +396,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
           ) : null}
         </div>
 
-        <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
-          <p className="hcb-copy text-[var(--text-sm)] text-text-muted">
-            Google is required before HCB can open your planner.
-          </p>
+        <footer className="flex min-h-14 flex-wrap items-center justify-end gap-3 border-t border-border px-3 py-2 sm:px-5">
           <div className="flex flex-wrap items-center gap-2">
             <Button
               disabled={submitting || source.settingsMutationPending || !googleResourcesReady}

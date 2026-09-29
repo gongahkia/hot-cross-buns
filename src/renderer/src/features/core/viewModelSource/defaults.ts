@@ -34,8 +34,8 @@ export const emptyUndoStatus: UndoStackStatusResponse = {
 };
 
 export const emptySettings: SettingsSnapshot = {
-  theme: "system",
-  colorTheme: "catppuccin-mocha",
+  theme: "dark",
+  colorTheme: "gruvbox-dark",
   customBackground: null,
   useInferredBackgroundTheme: true,
   appLanguage: "system",

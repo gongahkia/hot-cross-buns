@@ -148,8 +148,8 @@ export const appColorThemes = colorThemeDefinitions;
 export const customBackgroundThemeId = "custom-background";
 
 const defaultThemeIdByMode: Record<ThemeMode, AppColorThemeId> = {
-  dark: "catppuccin-mocha",
-  light: "catppuccin-latte"
+  dark: "gruvbox-dark",
+  light: "gruvbox-light"
 };
 
 export function defaultAppColorTheme(mode: ThemeMode): ColorThemeDefinition {
