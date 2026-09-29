@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
+  ArrowLeft,
+  ArrowRight,
   Bell,
   CheckCircle2,
   Cloud,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Save,
+  X
 } from "lucide-react";
+import appIconUrl from "../../../../assets/brand/buns-app-icon-sidebar.png";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
@@ -49,14 +54,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const googleTaskLists = source.taskLists.filter((taskList) => taskList.accountId !== "local");
   const googleCalendars = source.calendarSources.filter((calendar) => calendar.accountId !== "local");
   const googleResourcesReady = googleConnected && googleTaskLists.length > 0 && googleCalendars.length > 0;
-  const reconnecting = source.settings.onboardingStatus === "completed";
   const canAdvance =
     activeStep === 0
-      ? googleResourcesReady
+      ? true
       : activeStep === 1
-        ? selectedTaskListIds.length > 0
+        ? googleResourcesReady
         : activeStep === 2
-          ? selectedCalendarIds.length > 0
+          ? selectedTaskListIds.length > 0
+          : activeStep === 3
+            ? selectedCalendarIds.length > 0
           : true;
   const canFinish = googleResourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
 
@@ -134,7 +140,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
   function goForward(): void {
     setLocalError(null);
-    setActiveStep((current) => Math.min(4, current + 1));
+    setActiveStep((current) => Math.min(5, current + 1));
   }
 
   async function completeSetup(
@@ -231,23 +237,50 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     <div
       aria-labelledby="first-run-title"
       aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary/80 p-3 sm:p-6"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary/60 p-3 backdrop-blur-sm sm:p-6"
       role="dialog"
     >
-      <div className="hcb-raised flex max-h-[calc(100vh-48px)] w-full max-w-2xl flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
+      <div className="hcb-raised flex h-[min(760px,calc(100dvh-48px))] w-[min(1180px,calc(100vw-48px))] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
         <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-3 py-2 sm:px-5">
-          <div className="min-w-0">
-            <h2 className="hcb-heading truncate text-[var(--text-xl)] font-bold text-text-primary" id="first-run-title">
-              {reconnecting ? "Update setup" : "Set up HCB"}
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="hcb-media-outline size-8 shrink-0 rounded-hcbMd object-cover"
+              draggable={false}
+              src={appIconUrl}
+            />
+            <h2 className="truncate text-[var(--text-md)] font-semibold text-text-primary" id="first-run-title">
+              Hot Cross Buns
             </h2>
           </div>
           <p aria-live="polite" className="shrink-0 text-[var(--text-sm)] text-text-muted">
-            Step {activeStep + 1} of 5
+            Step {activeStep + 1} of 6
           </p>
         </header>
 
-        <div className="grid min-h-0 gap-3 overflow-y-auto p-4">
+        <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 sm:p-6">
           {activeStep === 0 ? (
+            <section className="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-5 py-12 text-center sm:py-20">
+              <img
+                alt=""
+                aria-hidden="true"
+                className="size-20 rounded-hcbLg object-cover"
+                draggable={false}
+                src={appIconUrl}
+              />
+              <div>
+                <h3 className="hcb-heading text-balance text-[var(--text-2xl)] font-bold text-text-primary">
+                  Welcome to Hot Cross Buns
+                </h3>
+                <p className="hcb-copy mt-3 text-pretty text-[var(--text-md)] text-text-muted">
+                  This setup takes about 2 minutes. You’ll connect Google, choose what to sync, and set your preferences.
+                </p>
+              </div>
+            </section>
+          ) : null}
+
+          {activeStep === 1 ? (
             <SetupCard
               description={
                 googleConnected
@@ -259,15 +292,6 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                     : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               icon={Cloud}
-              status={
-                googleConnected
-                  ? "Connected"
-                  : !oauthRuntimeReady
-                    ? "Unavailable"
-                    : googleClientConfigured
-                      ? "Ready"
-                    : "Needs client"
-              }
               title="Google account"
             >
               {!googleConnected ? (
@@ -293,6 +317,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   onClick={() => void saveGoogleClient()}
                   variant="secondary"
                 >
+                  <Save aria-hidden="true" size={14} />
                   Save OAuth Client
                 </Button>
               ) : null}
@@ -306,6 +331,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               </Button>
               {googleConnecting ? (
                 <Button onClick={() => void cancelGoogleAuthorization()} variant="secondary">
+                  <X aria-hidden="true" size={14} />
                   Cancel authorization
                 </Button>
               ) : null}
@@ -315,7 +341,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </SetupCard>
           ) : null}
 
-          {activeStep === 1 ? (
+          {activeStep === 2 ? (
             <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
               <div className="border-b border-border px-3 py-2">
                 <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
@@ -344,7 +370,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </section>
           ) : null}
 
-          {activeStep === 2 ? (
+          {activeStep === 3 ? (
             <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
               <div className="border-b border-border px-3 py-2">
                 <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Calendars</h3>
@@ -373,7 +399,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </section>
           ) : null}
 
-          {activeStep === 3 ? (
+          {activeStep === 4 ? (
             <SetupOption title="Sync mode" icon={RefreshCw}>
               <select
                 aria-label="Onboarding sync mode"
@@ -388,7 +414,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </SetupOption>
           ) : null}
 
-          {activeStep === 4 ? (
+          {activeStep === 5 ? (
             <SetupOption title="Notifications" icon={Bell}>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <Checkbox
@@ -413,13 +439,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
         <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
           {activeStep > 0 ? (
             <Button onClick={goBack} variant="secondary">
+              <ArrowLeft aria-hidden="true" size={14} />
               Back
             </Button>
           ) : <span />}
           <div className="flex flex-wrap items-center gap-2">
-            {activeStep < 4 ? (
+            {activeStep < 5 ? (
               <Button disabled={!canAdvance} onClick={goForward} variant="primary">
-                Continue
+                {activeStep === 0 ? "Get started" : "Continue"}
+                <ArrowRight aria-hidden="true" size={14} />
               </Button>
             ) : (
               <Button
@@ -442,13 +470,11 @@ function SetupCard({
   children,
   description,
   icon: Icon,
-  status,
   title
 }: {
   children?: ReactNode;
   description: string;
   icon: typeof Cloud;
-  status: string;
   title: string;
 }): JSX.Element {
   return (
@@ -460,7 +486,6 @@ function SetupCard({
         <div className="min-w-0 flex-1">
           <h3 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
         </div>
-        <Badge tone={status === "Ready" || status === "Selected" || status === "Connected" ? "success" : "warning"}>{status}</Badge>
       </div>
       <p className="hcb-copy mt-2 line-clamp-2 text-[var(--text-sm)] text-text-muted">{description}</p>
       {children ? <div className="mt-3 grid gap-2">{children}</div> : null}
