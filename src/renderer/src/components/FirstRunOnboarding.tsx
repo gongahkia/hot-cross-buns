@@ -2,11 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   Bell,
-  CalendarDays,
   CheckCircle2,
   Cloud,
   ExternalLink,
-  ListChecks,
   RefreshCw
 } from "lucide-react";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
@@ -32,6 +30,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
   const refreshedConnectedAccount = useRef<string | null>(null);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
   const selectedCalendars = useMemo(() => new Set(selectedCalendarIds), [selectedCalendarIds]);
@@ -51,6 +50,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const googleCalendars = source.calendarSources.filter((calendar) => calendar.accountId !== "local");
   const googleResourcesReady = googleConnected && googleTaskLists.length > 0 && googleCalendars.length > 0;
   const reconnecting = source.settings.onboardingStatus === "completed";
+  const canAdvance =
+    activeStep === 0
+      ? googleResourcesReady
+      : activeStep === 1
+        ? selectedTaskListIds.length > 0
+        : activeStep === 2
+          ? selectedCalendarIds.length > 0
+          : true;
+  const canFinish = googleResourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
 
   useEffect(() => {
     setGoogleClientId(source.googleStatus.clientId ?? "");
@@ -117,6 +125,16 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
       return [...next];
     });
+  }
+
+  function goBack(): void {
+    setLocalError(null);
+    setActiveStep((current) => Math.max(0, current - 1));
+  }
+
+  function goForward(): void {
+    setLocalError(null);
+    setActiveStep((current) => Math.min(4, current + 1));
   }
 
   async function completeSetup(
@@ -216,17 +234,20 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary/80 p-3 sm:p-6"
       role="dialog"
     >
-      <div className="hcb-raised flex max-h-[calc(100vh-48px)] w-full max-w-5xl flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
-        <header className="flex min-h-14 items-center border-b border-border px-3 py-2 sm:px-5">
+      <div className="hcb-raised flex max-h-[calc(100vh-48px)] w-full max-w-2xl flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-3 py-2 sm:px-5">
           <div className="min-w-0">
             <h2 className="hcb-heading truncate text-[var(--text-xl)] font-bold text-text-primary" id="first-run-title">
-              {reconnecting ? "Reconnect Google" : "Connect Google"}
+              {reconnecting ? "Update setup" : "Set up HCB"}
             </h2>
           </div>
+          <p aria-live="polite" className="shrink-0 text-[var(--text-sm)] text-text-muted">
+            Step {activeStep + 1} of 5
+          </p>
         </header>
 
         <div className="grid min-h-0 gap-3 overflow-y-auto p-4">
-          <div className="grid items-start grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {activeStep === 0 ? (
             <SetupCard
               description={
                 googleConnected
@@ -235,7 +256,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                     ? "Google OAuth browser handoff is unavailable in this runtime."
                     : googleClientConfigured
                       ? "Open the browser to authorize Google Tasks and Calendar sync."
-                      : "Save a Desktop OAuth client ID, then connect your Google account."
+                    : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               icon={Cloud}
               status={
@@ -245,9 +266,9 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                     ? "Unavailable"
                     : googleClientConfigured
                       ? "Ready"
-                      : "Needs client"
+                    : "Needs client"
               }
-              title="1. Google account"
+              title="Google account"
             >
               {!googleConnected ? (
                 <div className="grid w-full gap-2">
@@ -292,21 +313,9 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 <p className="text-[var(--text-xs)] text-text-muted">{googleMessage}</p>
               ) : null}
             </SetupCard>
-            <SetupCard
-              description={googleConnected && !googleResourcesReady ? "Waiting for the first Google sync." : `${selectedTaskListIds.length} task list${selectedTaskListIds.length === 1 ? "" : "s"} selected`}
-              icon={ListChecks}
-              status={googleTaskLists.length === 0 ? "Waiting" : "Selected"}
-              title="2. Task lists"
-            />
-            <SetupCard
-              description={googleConnected && !googleResourcesReady ? "Waiting for the first Google sync." : `${selectedCalendarIds.length} calendar${selectedCalendarIds.length === 1 ? "" : "s"} selected`}
-              icon={CalendarDays}
-              status={googleCalendars.length === 0 ? "Waiting" : "Selected"}
-              title="3. Calendars"
-            />
-          </div>
+          ) : null}
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          {activeStep === 1 ? (
             <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
               <div className="border-b border-border px-3 py-2">
                 <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
@@ -333,7 +342,9 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 ))}
               </div>
             </section>
+          ) : null}
 
+          {activeStep === 2 ? (
             <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
               <div className="border-b border-border px-3 py-2">
                 <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Calendars</h3>
@@ -360,10 +371,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 ))}
               </div>
             </section>
-          </div>
+          ) : null}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <SetupOption title="4. Sync mode" icon={RefreshCw}>
+          {activeStep === 3 ? (
+            <SetupOption title="Sync mode" icon={RefreshCw}>
               <select
                 aria-label="Onboarding sync mode"
                 className={onboardingSelectClass}
@@ -375,7 +386,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 <option value="near-real-time">Near real time</option>
               </select>
             </SetupOption>
-            <SetupOption title="5. Notifications" icon={Bell}>
+          ) : null}
+
+          {activeStep === 4 ? (
+            <SetupOption title="Notifications" icon={Bell}>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <Checkbox
                   aria-label="Local notifications"
@@ -385,7 +399,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 Local notifications
               </label>
             </SetupOption>
-          </div>
+          ) : null}
 
           {source.settingsMutationError || localError ? (
             <StatusBanner
@@ -396,16 +410,27 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
           ) : null}
         </div>
 
-        <footer className="flex min-h-14 flex-wrap items-center justify-end gap-3 border-t border-border px-3 py-2 sm:px-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              disabled={submitting || source.settingsMutationPending || !googleResourcesReady}
-              onClick={() => void completeSetup()}
-              variant="primary"
-            >
-              <CheckCircle2 aria-hidden="true" size={15} />
-              Finish setup
+        <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
+          {activeStep > 0 ? (
+            <Button onClick={goBack} variant="secondary">
+              Back
             </Button>
+          ) : <span />}
+          <div className="flex flex-wrap items-center gap-2">
+            {activeStep < 4 ? (
+              <Button disabled={!canAdvance} onClick={goForward} variant="primary">
+                Continue
+              </Button>
+            ) : (
+              <Button
+                disabled={submitting || source.settingsMutationPending || !canFinish}
+                onClick={() => void completeSetup()}
+                variant="primary"
+              >
+                <CheckCircle2 aria-hidden="true" size={15} />
+                Finish setup
+              </Button>
+            )}
           </div>
         </footer>
       </div>
