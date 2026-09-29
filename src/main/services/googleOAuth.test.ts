@@ -121,4 +121,29 @@ describe("GoogleOAuthController", () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  it("explains when Google rejects a mismatched OAuth client ID and secret", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-test-"));
+    const controller = new GoogleOAuthController(directory, {} as never);
+    const internals = controller as unknown as {
+      completeAuthorization: (
+        authorization: { callback: { waitForCode: () => Promise<string> }; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string },
+        attempt: { cancelled: boolean }
+      ) => Promise<void>;
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ error: "invalid_client" }, { status: 401 }));
+
+    try {
+      await expect(internals.completeAuthorization({
+        callback: { waitForCode: async () => "authorization-code" },
+        clientId: "test-desktop-client-id",
+        redirectUri: "http://127.0.0.1:9999/oauth/callback",
+        requestedScopes: ["openid"],
+        verifier: "verifier"
+      }, { cancelled: false })).rejects.toThrow("belong to the same Desktop OAuth client");
+    } finally {
+      fetchSpy.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });

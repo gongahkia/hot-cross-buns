@@ -277,6 +277,9 @@ export class GoogleSyncService {
     const remoteCalendars = await this.allPages(accountId, "https://www.googleapis.com/calendar/v3/users/me/calendarList", {
       maxResults: "250", showDeleted: "true"
     });
+    this.store.pruneGoogleCalendars(accountId, remoteCalendars.flatMap((calendar) =>
+      !calendar.deleted && typeof calendar.id === "string" ? [calendar.id] : []
+    ));
     for (const remoteCalendar of remoteCalendars) {
       if (remoteCalendar.deleted) continue;
       const localCalendar = this.store.upsertGoogleCalendar(remoteCalendar, accountId);

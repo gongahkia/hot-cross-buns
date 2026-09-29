@@ -64,6 +64,28 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.googleEventForSync(event!.id)).toMatchObject({ googleId: "remote-event" });
   });
 
+  it("removes a Google calendar cache entry when it no longer appears in that account's calendar list", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const retained = store.upsertGoogleCalendar({ id: "primary", summary: "Primary" }, account.accountId);
+    const removed = store.upsertGoogleCalendar({ id: "retired", summary: "Retired" }, account.accountId);
+    const removedEvent = store.upsertGoogleEvent({
+      id: "retired-event",
+      summary: "Old event",
+      start: { dateTime: "2026-09-26T09:00:00+08:00" },
+      end: { dateTime: "2026-09-26T10:00:00+08:00" }
+    }, removed.id)!;
+    store.dispatch("settings", "update", { selectedCalendarIds: [retained.id, removed.id] });
+
+    store.pruneGoogleCalendars(account.accountId, ["primary"]);
+
+    const calendars = store.dispatch("calendar", "listCalendars", { limit: 20 }).items;
+    expect(calendars.map((calendar: { id: string }) => calendar.id)).toContain(retained.id);
+    expect(calendars.map((calendar: { id: string }) => calendar.id)).not.toContain(removed.id);
+    expect(store.dispatch("settings", "get", {}).selectedCalendarIds).toEqual([retained.id]);
+    expect(() => store.dispatch("calendar", "get", { id: removedEvent.id })).toThrow("Calendar event no longer exists");
+  });
+
   it("uses Google recurrence lines as the canonical Calendar recurrence model", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });

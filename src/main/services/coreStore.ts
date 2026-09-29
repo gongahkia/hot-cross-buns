@@ -642,6 +642,61 @@ export class CoreStore {
     return this.googleCalendarForSync(id)!;
   }
 
+  /**
+   * The Calendar list is authoritative for a connected account. Once a
+   * calendar disappears there, remove its local cache rather than leaving a
+   * stale source selectable in the UI or eligible for later outbox delivery.
+   */
+  pruneGoogleCalendars(accountId: string, activeGoogleIds: readonly string[]): void {
+    const activeIds = new Set(activeGoogleIds.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim()));
+    const cached = this.db.prepare("SELECT id,google_id AS googleId FROM calendars WHERE account_id=? AND google_id IS NOT NULL")
+      .all(accountId) as Array<{ id: string; googleId: string }>;
+    const removed = cached.filter((calendar) => !activeIds.has(calendar.googleId));
+    if (removed.length === 0) return;
+
+    const calendarIds = removed.map((calendar) => calendar.id);
+    const googleIds = removed.map((calendar) => calendar.googleId);
+    const placeholders = calendarIds.map(() => "?").join(",");
+    const currentSettings = this.settings();
+    const nextSettings = {
+      ...currentSettings,
+      selectedCalendarIds: stringArray(currentSettings.selectedCalendarIds).filter((id) => !calendarIds.includes(id))
+    };
+
+    this.db.transaction(() => {
+      const eventIds = (this.db.prepare(`SELECT id FROM events WHERE calendar_id IN (${placeholders})`).all(...calendarIds) as Array<{ id: string }>)
+        .map((event) => event.id);
+      const scheduledTaskIds = (this.db.prepare(`SELECT DISTINCT task_id AS taskId FROM scheduled_task_blocks
+        WHERE calendar_id IN (${placeholders}) OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (${placeholders}))`)
+        .all(...calendarIds, ...calendarIds) as Array<{ taskId: string }>)
+        .map((block) => block.taskId);
+
+      this.db.prepare(`DELETE FROM scheduled_task_blocks
+        WHERE calendar_id IN (${placeholders}) OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (${placeholders}))`)
+        .run(...calendarIds, ...calendarIds);
+      for (const taskId of scheduledTaskIds) {
+        this.db.prepare("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), taskId);
+      }
+      if (eventIds.length > 0) {
+        const eventPlaceholders = eventIds.map(() => "?").join(",");
+        this.db.prepare(`DELETE FROM outbox WHERE account_id=? AND kind LIKE 'event.%' AND entity_id IN (${eventPlaceholders})`)
+          .run(accountId, ...eventIds);
+      }
+      this.db.prepare(`DELETE FROM events WHERE calendar_id IN (${placeholders})`).run(...calendarIds);
+      this.db.prepare(`DELETE FROM calendars WHERE id IN (${placeholders})`).run(...calendarIds);
+      for (const googleId of googleIds) {
+        this.db.prepare("DELETE FROM sync_meta WHERE key=?").run(`google-sync-token:${accountId}:events:${googleId}`);
+      }
+      for (const id of [...calendarIds, ...eventIds]) {
+        this.db.prepare("DELETE FROM undo_entries WHERE forward_json LIKE ? OR inverse_json LIKE ?")
+          .run(`%${id}%`, `%${id}%`);
+      }
+      this.db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run("app", JSON.stringify(nextSettings));
+    })();
+    this.nativeBridge?.applySettings?.(nextSettings);
+  }
+
   upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google event id");
     const existing = this.db.prepare("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;

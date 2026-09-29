@@ -203,7 +203,13 @@ export class GoogleOAuthController {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ code, client_id: clientId, redirect_uri: redirectUri, grant_type: "authorization_code", code_verifier: verifier, ...(secrets.clientSecret ? { client_secret: secrets.clientSecret } : {}) })
     });
-    if (!tokenResponse.ok) throw new CoreStoreError("Google declined the authorization exchange. Check the OAuth client configuration.");
+    if (!tokenResponse.ok) {
+      const failure = await tokenResponse.json().catch(() => null) as { error?: string } | null;
+      if (failure?.error === "invalid_client") {
+        throw new CoreStoreError("Google rejected this OAuth client ID and secret. Check that they belong to the same Desktop OAuth client.");
+      }
+      throw new CoreStoreError("Google declined the authorization exchange. Check the OAuth client configuration.");
+    }
     const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
     if (!token.access_token || !token.refresh_token) throw new CoreStoreError("Google did not return a reusable authorization token.");
     const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } });

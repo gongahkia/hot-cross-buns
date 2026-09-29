@@ -58,6 +58,7 @@ describe("GoogleSyncService", () => {
       isSelectedTaskList: vi.fn(() => true),
       upsertGoogleTask: vi.fn(),
       upsertGoogleCalendar: vi.fn(() => ({ id: "local-calendar", googleId: "primary" })),
+      pruneGoogleCalendars: vi.fn(),
       isSelectedCalendar: vi.fn(() => true),
       googleSyncToken: vi.fn(() => "old-sync-token"),
       setGoogleSyncToken: vi.fn(),
@@ -84,6 +85,7 @@ describe("GoogleSyncService", () => {
 
     await service.runNow({ accountId: "test-account", readOnly: true });
 
+    expect(store.pruneGoogleCalendars).toHaveBeenCalledWith("test-account", ["primary"]);
     expect(store.upsertGoogleTask).toHaveBeenCalledTimes(2);
     expect(store.upsertGoogleEvent).toHaveBeenCalledTimes(2);
     expect(store.setGoogleSyncToken).toHaveBeenCalledWith("test-account", "events:primary", "new-sync-token");

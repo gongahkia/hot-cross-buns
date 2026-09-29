@@ -71,6 +71,12 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   }, [source.googleStatus.clientId]);
 
   useEffect(() => {
+    if (source.googleStatus.authorizationError) {
+      setLocalError(source.googleStatus.authorizationError);
+    }
+  }, [source.googleStatus.authorizationError]);
+
+  useEffect(() => {
     if (!googleConnecting) {
       return;
     }
@@ -180,6 +186,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       return;
     }
 
+    await beginGoogleAuthorization();
+  }
+
+  async function beginGoogleAuthorization(): Promise<void> {
     setGoogleMessage(null);
     setLocalError(null);
 
@@ -195,7 +205,6 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     } else {
       setLocalError(result?.error.message ?? "Google authorization could not start.");
     }
-
   }
 
   async function cancelGoogleAuthorization(): Promise<void> {
@@ -225,7 +234,8 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     if (result?.ok) {
       source.setGoogleStatus(result.data);
       setGoogleClientSecret("");
-      setGoogleMessage("Google OAuth client saved.");
+      setGoogleMessage("Google OAuth client saved. Opening your browser…");
+      await beginGoogleAuthorization();
     } else {
       setLocalError(result?.error.message ?? "Google OAuth client could not be saved.");
     }
