@@ -6,10 +6,11 @@ Hot Cross Buns 2 is the Electron-first rebuild of Hot Cross Buns. This repositor
 
 Read these first, in order:
 
-1. [Product PRD](product/prd.md)
-2. [Tech Stack ADR](architecture/tech-stack.md)
-3. [System Architecture](architecture/system-architecture.md)
-4. [Agent Workflow](agents/workflow.md)
+1. [Agent quick start](../AGENTS.md)
+2. [Product PRD](product/prd.md)
+3. [Tech Stack ADR](architecture/tech-stack.md)
+4. [System Architecture](architecture/system-architecture.md)
+5. [Agent Workflow](agents/workflow.md)
 
 Then read the spec for the subsystem you are changing. Do not scaffold app code until the relevant spec and acceptance checks are clear.
 
@@ -29,6 +30,7 @@ Architecture:
 
 - [Tech Stack ADR](architecture/tech-stack.md)
 - [System Architecture](architecture/system-architecture.md)
+- [Current architecture diagram](architecture/hot-cross-buns-current-architecture.drawio) ([source model](architecture/hot-cross-buns-architecture.json), [maintenance workflow](architecture/diagram-workflow.md))
 
 Product:
 

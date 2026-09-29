@@ -11,7 +11,9 @@
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
     "dev": "electron-vite dev",
-    "build": "corepack pnpm typecheck && corepack pnpm typecheck:core && corepack pnpm exec electron-vite build",
+    "build": "corepack pnpm architecture:check && corepack pnpm typecheck && corepack pnpm typecheck:core && corepack pnpm exec electron-vite build",
+    "architecture:generate": "node scripts/generate-architecture-diagram.mjs",
+    "architecture:check": "node scripts/generate-architecture-diagram.mjs --check",
     "typecheck": "tsc --noEmit",
     "typecheck:core": "tsc --noEmit -p tsconfig.core.json",
     "test": "corepack pnpm test:unit",

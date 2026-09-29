@@ -1,3 +1,15 @@
+# Hot Cross Buns
+
+Keyboard-first desktop planning for Google Tasks and Google Calendar.
+
+## Current architecture
+
+[![Hot Cross Buns current runtime architecture](docs/assets/hot-cross-buns-current-architecture.svg)](docs/architecture/hot-cross-buns-current-architecture.drawio)
+
+The diagram is generated from the checked-in [architecture model](docs/architecture/hot-cross-buns-architecture.json). See the [diagram workflow](docs/architecture/diagram-workflow.md) before changing a system boundary, service, persistence layer, or external integration.
+
+## Implemented capabilities
+
 - [x] Electron desktop application with a hardened preload bridge and local SQLite store.
 - [x] First-run onboarding and editable Settings screens for Profile, Appearance, Hotkeys, Alerts, and About.
 - [x] Command palette and keyboard-first navigation.

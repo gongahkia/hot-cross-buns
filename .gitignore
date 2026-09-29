@@ -12,4 +12,3 @@ artifacts/perf/latest.json
 artifacts/perf/latest.md
 .DS_Store
 *.log
-AGENTS.md

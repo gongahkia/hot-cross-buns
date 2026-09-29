@@ -9,6 +9,29 @@ permissions:
   contents: read
 
 jobs:
+  architecture-diagram:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify generated architecture diagram
+        run: node scripts/generate-architecture-diagram.mjs --check
+      - name: Require architecture-model review for boundary changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          changed_files="$(git diff --name-only "origin/${BASE_REF}"...HEAD)"
+          if echo "$changed_files" | grep -Eq '^(src/main/index\.ts|src/main/ipc/|src/main/security|src/main/services/(coreStore|googleOAuth|googleSync|serviceContainer)\.ts|src/preload/)'; then
+            if ! echo "$changed_files" | grep -qx 'docs/architecture/hot-cross-buns-architecture.json'; then
+              echo "An architecture-sensitive boundary changed. Review and update docs/architecture/hot-cross-buns-architecture.json, then regenerate the diagram."
+              exit 1
+            fi
+          fi
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
