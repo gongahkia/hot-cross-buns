@@ -240,7 +240,7 @@ export function ProfileSettingsTab({
             Enable Gmail capture
           </Button>
           <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "gmail"])} variant="secondary">
-            <span aria-hidden="true" className="flex items-center -space-x-0.5">
+            <span aria-hidden="true" className="flex items-center gap-1">
               <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
               <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
             </span>

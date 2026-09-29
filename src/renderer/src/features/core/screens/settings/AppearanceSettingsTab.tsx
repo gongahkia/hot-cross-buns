@@ -309,7 +309,7 @@ export function AppearanceSettingsTab({
             <option value="dark">Dark</option>
           </select>
         </SettingsControlRow>
-        <div className="grid gap-2">
+        <div className="grid gap-2 px-3 py-2">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <div>
               <p className="text-[var(--text-sm)] font-semibold text-text-primary">Colour theme</p>
