@@ -7,6 +7,8 @@ import {
 } from "react";
 import type { KeyboardEvent, Ref, TextareaHTMLAttributes } from "react";
 import { FileUp, FolderSearch, Link2, Search, X } from "lucide-react";
+import type { GoogleStatusResponse } from "@shared/ipc/contracts";
+import { googleScopes, hasGoogleScope } from "../googleCapabilities";
 import { EmojiTextarea } from "./EmojiTextField";
 import { Button, cx } from "./primitives";
 
@@ -119,6 +121,13 @@ function toHcbItem(value: unknown): ReferenceItem | null {
   return { source: "hcb", id: item.id, kind, label: item.title, subtitle: `HCB ${kind}` };
 }
 
+function driveCapabilities(status: GoogleStatusResponse, accountId?: string): { canSearch: boolean; canUpload: boolean } {
+  return {
+    canSearch: hasGoogleScope(status, accountId, googleScopes.driveSearch),
+    canUpload: hasGoogleScope(status, accountId, googleScopes.driveUpload)
+  };
+}
+
 export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> & {
   accountId?: string;
   onValueChange: (value: string) => void;
@@ -128,6 +137,8 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     const searchRef = useRef<HTMLInputElement | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const [driveItems, setDriveItems] = useState<ReferenceItem[]>([]);
+    const [canSearchDrive, setCanSearchDrive] = useState(false);
+    const [canUploadDrive, setCanUploadDrive] = useState(false);
     const [hcbItems, setHcbItems] = useState<ReferenceItem[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
@@ -146,10 +157,25 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     }, []);
 
     useEffect(() => {
+      let cancelled = false;
+      void window.hcb?.google.status().then((result) => {
+        if (cancelled || !result?.ok) return;
+        const capabilities = driveCapabilities(result.data, accountId);
+        setCanSearchDrive(capabilities.canSearch);
+        setCanUploadDrive(capabilities.canUpload);
+      });
+      return () => { cancelled = true; };
+    }, [accountId]);
+
+    useEffect(() => {
+      if (!canSearchDrive && mode === "drive") setMode("all");
+    }, [canSearchDrive, mode]);
+
+    useEffect(() => {
       if (!isOpen) return;
       let cancelled = false;
       const timer = window.setTimeout(() => {
-        if (mode === "all" || mode === "drive") {
+        if (canSearchDrive && (mode === "all" || mode === "drive")) {
           void window.hcb?.google.searchDriveFiles({ accountId, query: pickerQuery }).then((result) => {
             if (cancelled) return;
             if (!result?.ok) {
@@ -178,11 +204,11 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
         }
       }, 160);
       return () => { cancelled = true; window.clearTimeout(timer); };
-    }, [accountId, isOpen, mode, pickerQuery]);
+    }, [accountId, canSearchDrive, isOpen, mode, pickerQuery]);
 
     const recentItems = useMemo(
-      () => recent.filter((item) => matches(item, pickerQuery) && (mode === "all" || item.source === mode)),
-      [mode, pickerQuery, recent]
+      () => recent.filter((item) => matches(item, pickerQuery) && (mode === "all" || item.source === mode) && (item.source !== "drive" || canSearchDrive)),
+      [canSearchDrive, mode, pickerQuery, recent]
     );
     const freshDriveItems = useMemo(
       () => driveItems.filter((item) => !recentItems.some((recentItem) => recentItem.source === "drive" && recentItem.fileUrl === item.fileUrl)),
@@ -193,6 +219,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
       [hcbItems, recentItems]
     );
     const choices = useMemo(() => [...recentItems, ...freshDriveItems, ...freshHcbItems], [freshDriveItems, freshHcbItems, recentItems]);
+    const sourceTabs: PickerSource[] = canSearchDrive ? ["all", "drive", "hcb"] : ["all", "hcb"];
 
     useEffect(() => { setActiveIndex(0); }, [isOpen, mode, pickerQuery]);
 
@@ -258,6 +285,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     }
 
     async function uploadFromMac(): Promise<void> {
+      if (!canUploadDrive) return;
       setUploading(true);
       setMessage("Choose a file to upload privately to Drive…");
       const result = await window.hcb?.google.pickAndUploadDriveFile({ accountId });
@@ -347,28 +375,28 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           {...props}
         />
         <div className="flex flex-wrap items-center gap-1.5" aria-label="Insert reference">
-          <Button onClick={() => openPicker("drive")} size="sm" type="button" variant="secondary"><FolderSearch aria-hidden="true" size={14} />Drive</Button>
+          {canSearchDrive ? <Button onClick={() => openPicker("drive")} size="sm" type="button" variant="secondary"><FolderSearch aria-hidden="true" size={14} />Drive</Button> : null}
           <Button onClick={() => openPicker("hcb")} size="sm" type="button" variant="secondary"><Link2 aria-hidden="true" size={14} />HCB item</Button>
-          <Button disabled={uploading} onClick={() => void uploadFromMac()} size="sm" type="button" variant="secondary"><FileUp aria-hidden="true" size={14} />Upload file</Button>
+          {canUploadDrive ? <Button disabled={uploading} onClick={() => void uploadFromMac()} size="sm" type="button" variant="secondary"><FileUp aria-hidden="true" size={14} />Upload file</Button> : null}
           <span className="text-[var(--text-xs)] text-text-muted">Type <kbd className="rounded border border-border bg-surface-0 px-1 font-mono">@</kbd> to insert a reference.</span>
         </div>
         {isOpen ? (
           <div className="absolute inset-x-0 top-[calc(100%+4px)] z-[1002] grid max-h-[min(28rem,60vh)] overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl" role="dialog" aria-label="Insert reference">
             <div className="flex items-center gap-1 border-b border-border p-1">
               <Search aria-hidden="true" className="ml-1 text-text-muted" size={14} />
-              <input aria-label="Search references" className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[var(--text-sm)] text-text-primary outline-none placeholder:text-text-muted" onChange={(event) => setPickerQuery(event.currentTarget.value)} placeholder="Search Drive or Hot Cross Buns" ref={searchRef} value={pickerQuery} />
+              <input aria-label="Search references" className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[var(--text-sm)] text-text-primary outline-none placeholder:text-text-muted" onChange={(event) => setPickerQuery(event.currentTarget.value)} placeholder={canSearchDrive ? "Search Drive or Hot Cross Buns" : "Search Hot Cross Buns"} ref={searchRef} value={pickerQuery} />
               <button aria-label="Close reference picker" className="flex size-8 items-center justify-center rounded-hcbSm text-text-muted hover:bg-bg-tertiary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => setIsOpen(false)} type="button"><X aria-hidden="true" size={14} /></button>
             </div>
             <div className="flex flex-wrap gap-1 border-b border-border p-1">
-              {(["all", "drive", "hcb"] as const).map((source) => <button aria-pressed={mode === source} className={cx("rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", mode === source ? "bg-bg-tertiary text-text-primary" : "text-text-muted hover:bg-bg-tertiary hover:text-text-primary")} key={source} onClick={() => setMode(source)} type="button">{source === "all" ? "All" : source === "drive" ? "Drive" : "HCB items"}</button>)}
-              <button className="ml-auto inline-flex items-center gap-1 rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold text-accent hover:bg-bg-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" disabled={uploading} onClick={() => void uploadFromMac()} type="button"><FileUp aria-hidden="true" size={13} />Upload from Mac</button>
+              {sourceTabs.map((source) => <button aria-pressed={mode === source} className={cx("rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", mode === source ? "bg-bg-tertiary text-text-primary" : "text-text-muted hover:bg-bg-tertiary hover:text-text-primary")} key={source} onClick={() => setMode(source)} type="button">{source === "all" ? "All" : source === "drive" ? "Drive" : "HCB items"}</button>)}
+              {canUploadDrive ? <button className="ml-auto inline-flex items-center gap-1 rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold text-accent hover:bg-bg-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" disabled={uploading} onClick={() => void uploadFromMac()} type="button"><FileUp aria-hidden="true" size={13} />Upload from Mac</button> : null}
             </div>
             <div className="grid p-1" role="listbox" aria-label="Reference results">
               {renderGroup("Recently used", recentItems)}
               {renderGroup("Drive", freshDriveItems)}
               {renderGroup("Hot Cross Buns", freshHcbItems)}
               {choices.length === 0 && !message ? <p className="px-2 py-4 text-center text-[var(--text-sm)] text-text-muted">No references match that search.</p> : null}
-              {message ? <div className="grid gap-1 px-2 py-3 text-[var(--text-xs)] text-warning" role="status"><span>{message}</span>{/Reconnect this Google account with Drive (linking|uploads) enabled\./.test(message) ? <button className="w-fit text-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => void window.hcb?.google.beginOAuth({ requestedServices: ["drive", "driveUpload"] })} type="button">Enable Drive links and uploads</button> : null}</div> : null}
+              {message ? <div className="grid gap-1 px-2 py-3 text-[var(--text-xs)] text-warning" role="status"><span>{message}</span></div> : null}
             </div>
           </div>
         ) : null}
@@ -376,4 +404,3 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     );
   }
 );
-

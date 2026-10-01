@@ -20,7 +20,9 @@ Calendar and Tasks use the standard HCB OAuth grant. Drive and Gmail are optiona
 - Drive uploads: `https://www.googleapis.com/auth/drive.file` — a narrowly scoped, non-sensitive grant used only after the user explicitly selects a local file. It lets HCB create and manage files it uses; it does not grant broad Drive access.
 - Gmail capture: `https://www.googleapis.com/auth/gmail.readonly`
 
-HCB requests these only when the user selects an enable button. Drive metadata is restricted while `drive.file` is the narrower upload scope; Gmail is read-only. Do not claim public distribution is ready until the maintainer has completed the relevant Google Cloud consent-screen, test-user, scope-review, and verification work for the chosen distribution model.
+HCB requests each of these separately and only when the user selects its enable button. Drive metadata is restricted while `drive.file` is the narrower upload scope; Gmail is read-only. A user can leave any capability off without losing Calendar or Tasks. Google grants can only be revoked as a whole for an app, so removing a scope that was already granted requires revoking HCB in the Google Account and reconnecting with only the desired capabilities. Do not claim public distribution is ready until the maintainer has completed the relevant Google Cloud consent-screen, test-user, scope-review, and verification work for the chosen distribution model.
+
+The description-reference UI is capability-aware: without the Drive metadata grant it shows no Drive search controls or Drive results; without `drive.file` it shows no local-file upload controls. The Calendar Drive-attachment picker and Gmail-capture panel follow the same rule. HCB item references remain available without either Drive scope. Users who decline an optional scope therefore see only the features their account authorized.
 
 ## Test selection for agents
 

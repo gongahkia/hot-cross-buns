@@ -11,6 +11,7 @@ import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField
 import { ReferenceTextarea } from "../../../../components/ReferenceTextarea";
 import { Badge, Button, Input, cx } from "../../../../components/primitives";
 import { ErrorState } from "../../../../components/states";
+import { googleScopes, hasGoogleScope } from "../../../../googleCapabilities";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
 import { TagBadges, TagInput } from "../../TagInput";
@@ -666,7 +667,21 @@ function DriveAttachmentControl({ accountId, draft, setDraft }: { accountId?: st
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<Array<{ fileId?: string; fileUrl: string; title: string; mimeType?: string; iconLink?: string }>>([]);
   const [message, setMessage] = useState<string | null>(null);
-  if (!accountId || accountId === "local") return null;
+  const [canSearchDrive, setCanSearchDrive] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!accountId || accountId === "local") {
+      setCanSearchDrive(false);
+      return () => { cancelled = true; };
+    }
+    void window.hcb?.google.status().then((result) => {
+      if (!cancelled && result?.ok) setCanSearchDrive(hasGoogleScope(result.data, accountId, googleScopes.driveSearch));
+    });
+    return () => { cancelled = true; };
+  }, [accountId]);
+
+  if (!accountId || accountId === "local" || !canSearchDrive) return null;
   async function search(): Promise<void> {
     setMessage("Searching Drive…");
     const result = await window.hcb?.google.searchDriveFiles({ accountId, query });

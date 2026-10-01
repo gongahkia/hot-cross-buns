@@ -12,6 +12,7 @@ import googleCalendarLogo from "../../../../assets/google-calendar.png";
 import googleDriveLogo from "../../../../assets/google-drive.png";
 import googleGmailLogo from "../../../../assets/google-gmail.png";
 import googleTasksLogo from "../../../../assets/google-tasks.png";
+import { googleScopes } from "../../../../googleCapabilities";
 import {
   SettingsControlRow,
   SettingsGroup,
@@ -168,8 +169,9 @@ export function ProfileSettingsTab({
                       <div aria-label="Google Calendar and Google Tasks connected" className="mt-1 flex flex-wrap items-center gap-1.5">
                         <img alt="Google Calendar" className="size-5 object-contain" src={googleCalendarLogo} />
                         <img alt="Google Tasks" className="size-5 object-contain" src={googleTasksLogo} />
-                        {candidate.grantedScopes?.includes("https://www.googleapis.com/auth/drive.metadata.readonly") ? <Badge tone="neutral">Drive metadata</Badge> : null}
-                        {candidate.grantedScopes?.includes("https://www.googleapis.com/auth/gmail.readonly") ? <Badge tone="neutral">Gmail read-only</Badge> : null}
+                        {candidate.grantedScopes?.includes(googleScopes.driveSearch) ? <Badge tone="neutral">Drive links</Badge> : null}
+                        {candidate.grantedScopes?.includes(googleScopes.driveUpload) ? <Badge tone="neutral">Drive uploads</Badge> : null}
+                        {candidate.grantedScopes?.includes(googleScopes.gmailCapture) ? <Badge tone="neutral">Gmail read-only</Badge> : null}
                       </div>
                     ) : null}
                   </div>
@@ -227,29 +229,26 @@ export function ProfileSettingsTab({
 
       <SettingsGroup title="Optional Google Workspace access">
         <div className="grid gap-1 px-3 pt-3 text-[var(--text-sm)] text-text-secondary">
-          <p>These are optional scopes requested only when you choose them. Drive linking can search file metadata; Drive uploads create private copies of files you explicitly select. Gmail capture remains read-only.</p>
-          <p className="text-[var(--text-xs)] text-text-muted">Reconnecting preserves the existing Calendar and Tasks grants for the selected Google account.</p>
+          <p>Each capability asks for its own scope only when you choose it. Drive links search file metadata; local-file uploads create private copies of files you explicitly select; Gmail capture remains read-only.</p>
+          <p className="text-[var(--text-xs)] text-text-muted">Leave a capability off and HCB removes its controls. Google permissions already granted must be revoked in your Google Account before reconnecting with only the access you want.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "driveUpload"])} variant="secondary">
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive"])} variant="secondary">
             <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
-            Enable Drive links & uploads
+            Enable Drive links
+          </Button>
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["driveUpload"])} variant="secondary">
+            <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
+            Enable local-file uploads
           </Button>
           <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["gmail"])} variant="secondary">
             <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
             Enable Gmail capture
           </Button>
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "driveUpload", "gmail"])} variant="secondary">
-            <span aria-hidden="true" className="flex items-center gap-1">
-              <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
-              <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
-            </span>
-            Enable both
-          </Button>
         </div>
       </SettingsGroup>
 
-      {visibleAccounts.some((candidate) => candidate.connectionState === "connected") ? <GmailCapture accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected")} onCaptured={refreshPlanner} taskLists={taskLists} /> : null}
+      {visibleAccounts.some((candidate) => candidate.connectionState === "connected" && candidate.grantedScopes?.includes(googleScopes.gmailCapture)) ? <GmailCapture accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected" && candidate.grantedScopes?.includes(googleScopes.gmailCapture))} onCaptured={refreshPlanner} taskLists={taskLists} /> : null}
 
       {visibleAccounts.filter((candidate) => candidate.connectionState === "connected").length >= 2 ? (
         <CrossAccountCopy accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected")} calendarSources={calendarSources} />
