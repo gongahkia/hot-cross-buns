@@ -8,6 +8,7 @@ import {
   useState
 } from "react";
 import { AlertTriangle, Pencil, RotateCcw, Search } from "lucide-react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AutoTagRule } from "@shared/ipc/contracts";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { EmojiInput } from "../../../components/EmojiTextField";
@@ -380,6 +381,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
         <div className="grid gap-3">
           <EmojiInput
             aria-label="Note title"
+            autoFocus={createMode}
             onValueChange={(title) => patchDraft({ title })}
             value={dirty.value.title}
           />
@@ -450,9 +452,15 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
             ) : (
               <span />
             )}
-            <Badge tone={dirty.isDirty ? "warning" : "success"}>
-              {dirty.isDirty ? "Saving" : "Saved"}
-            </Badge>
+            {error ? (
+              <Button onClick={() => void flush()} size="sm" variant="danger">
+                Couldn’t save · Retry
+              </Button>
+            ) : (
+              <Badge tone={dirty.isDirty ? "warning" : "success"}>
+                {dirty.isDirty ? "Saving…" : "Saved"}
+              </Badge>
+            )}
           </div>
 
           {createMode || viewMode === "edit" ? (

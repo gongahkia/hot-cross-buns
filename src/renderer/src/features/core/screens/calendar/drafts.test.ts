@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarEventPayload, editCalendarDraft, newCalendarDraft } from "./drafts";
+import { calendarDraftRangeLabel, calendarEventPayload, editCalendarDraft, newCalendarDraft } from "./drafts";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 
 describe("Calendar recurrence drafts", () => {
@@ -61,5 +61,16 @@ describe("Calendar recurrence drafts", () => {
     expect(calendarEventPayload(draft).recurrenceLines).toEqual([
       "RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE"
     ]);
+  });
+
+  it("uses locale-facing dates rather than storage-date strings in event detail labels", () => {
+    const draft = newCalendarDraft({
+      calendarSources: [{ id: "calendar-1", selected: true }]
+    } as never);
+    draft.startsAt = "2026-10-01T07:00:00.000Z";
+    draft.endsAt = "2026-10-01T08:30:00.000Z";
+
+    expect(calendarDraftRangeLabel(draft, "UTC")).toContain("07:00–08:30");
+    expect(calendarDraftRangeLabel(draft, "UTC")).not.toMatch(/2026-10-01/);
   });
 });

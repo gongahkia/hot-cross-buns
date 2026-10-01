@@ -2176,9 +2176,9 @@ export class CoreStore {
   }
 
   private activeSchedulableTasks(scope: SmartScheduleCandidateScope = "allOpen", scheduleDate?: string): JsonRecord[] {
-    const tasks = (this.db.prepare(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
+    const tasks: JsonRecord[] = (this.db.prepare(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
       task.planned_start AS plannedStart,task.planned_end AS plannedEnd,task.duration_minutes AS durationMinutes,task.locked_schedule AS lockedSchedule,
-      task.snooze_until AS snoozeUntil,task.priority,task.position,task.updated_at AS updatedAt
+      task.snooze_until AS snoozeUntil,task.priority,task.sort_order AS sortOrder,task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id
       WHERE task.status='active' AND task.parent_id IS NULL`).all() as JsonRecord[])
       .map((task) => ({ ...task, lockedSchedule: Boolean(task.lockedSchedule) }));
@@ -3228,7 +3228,7 @@ function compareSchedulableTasks(left: JsonRecord, right: JsonRecord, scheduleDa
   return dueRank(left) - dueRank(right) ||
     dueDate(left).localeCompare(dueDate(right)) ||
     (priority[String(left.priority)] ?? 3) - (priority[String(right.priority)] ?? 3) ||
-    String(left.position ?? "").localeCompare(String(right.position ?? "")) ||
+    String(left.sortOrder ?? "").localeCompare(String(right.sortOrder ?? "")) ||
     String(left.id ?? "").localeCompare(String(right.id ?? ""));
 }
 function smartScheduleDuration(value: unknown): number {

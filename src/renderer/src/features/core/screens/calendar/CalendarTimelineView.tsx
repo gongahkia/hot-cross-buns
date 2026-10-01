@@ -154,7 +154,7 @@ function allDaySegmentStyle(segment: CalendarTimelineAllDaySegment): CSSProperti
 }
 
 function timelinePreviewSegments(
-  blocks: CalendarTimeBlock[],
+  blocks: Array<Pick<CalendarTimeBlock, "id" | "startsAt" | "endsAt">>,
   days: Array<{ day: CalendarDayViewModel }>,
   hourRowHeight: number,
   timeZone: string

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
 import { useInspector } from "../../../components/Inspector";
 import { Button } from "../../../components/primitives";
 import {
@@ -249,7 +249,7 @@ export function useNotesController(source: CoreViewModelSource): {
       actions: noteInspectorActions(selectedNote),
       body: noteInspectorBody(selectedNote),
       dirty: noteInspectorMode === "view" ? false : currentInspector.dirty,
-      hideHeader: noteInspectorMode === "view",
+      hideHeader: false,
       subtitle: selectedNote.updatedLabel,
       title: selectedNote.title || "Untitled note"
     });
@@ -305,36 +305,37 @@ export function useNotesController(source: CoreViewModelSource): {
 
     if (mode === "view") {
       return (
-        <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
-              <Trash2 aria-hidden="true" size={14} />
-              Delete note
-            </Button>
-            <Button onClick={() => setNoteInspectorMode("edit")} size="sm" variant="secondary">
+        <div className="flex w-full flex-wrap items-center gap-2">
+            <Button onClick={() => setNoteInspectorMode("edit")} size="sm" variant="primary">
               <Pencil aria-hidden="true" size={14} />
               Edit
             </Button>
-            <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="secondary">
-              <Copy aria-hidden="true" size={14} />
-              Duplicate
-            </Button>
-            {!localDraft ? (
-              <>
-                <Button onClick={() => convertNote(note, "task")} size="sm" variant="secondary">
-                  <ArrowRightLeft aria-hidden="true" size={14} />
-                  Create task from note
-                </Button>
-                <Button onClick={() => convertNote(note, "event")} size="sm" variant="secondary">
-                  <ArrowRightLeft aria-hidden="true" size={14} />
-                  Create event from note
-                </Button>
-              </>
-            ) : null}
-          </div>
-          <Button onClick={() => void closeInspector()} size="sm" variant="ghost">
-            <X aria-hidden="true" size={14} />
-            Close
+          <details className="relative">
+            <summary className="flex min-h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border px-2.5 text-[var(--text-sm)] text-text-secondary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              More actions
+            </summary>
+            <div className="absolute bottom-full left-0 z-30 mb-1 grid min-w-52 gap-1 rounded-hcbMd border border-border bg-bg-primary p-1 shadow-xl">
+              <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="ghost">
+                <Copy aria-hidden="true" size={14} />
+                Duplicate
+              </Button>
+              {!localDraft ? (
+                <>
+                  <Button onClick={() => convertNote(note, "task")} size="sm" variant="ghost">
+                    <ArrowRightLeft aria-hidden="true" size={14} />
+                    Create task from note
+                  </Button>
+                  <Button onClick={() => convertNote(note, "event")} size="sm" variant="ghost">
+                    <ArrowRightLeft aria-hidden="true" size={14} />
+                    Create event from note
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </details>
+          <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
+            <Trash2 aria-hidden="true" size={14} />
+            Delete note
           </Button>
         </div>
       );
@@ -345,43 +346,42 @@ export function useNotesController(source: CoreViewModelSource): {
         <>
           <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
             <Trash2 aria-hidden="true" size={14} />
-            Discard
+            Discard draft
           </Button>
           <Button onClick={() => void saveLocalNoteDraft(note.id)} size="sm" variant="primary">
             <Save aria-hidden="true" size={14} />
-            Save
+            Create note
           </Button>
         </>
       );
     }
 
     return (
-      <>
+      <div className="flex flex-wrap items-center gap-2">
         <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
           <Trash2 aria-hidden="true" size={14} />
           Delete note
         </Button>
-        <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="secondary">
-          <Copy aria-hidden="true" size={14} />
-          Duplicate
-        </Button>
-        {!localDraft ? (
-          <>
-            <Button onClick={() => convertNote(note, "task")} size="sm" variant="secondary">
+        <details className="relative">
+          <summary className="flex min-h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border px-2.5 text-[var(--text-sm)] text-text-secondary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            More actions
+          </summary>
+          <div className="absolute bottom-full left-0 z-30 mb-1 grid min-w-52 gap-1 rounded-hcbMd border border-border bg-bg-primary p-1 shadow-xl">
+            <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="ghost">
+              <Copy aria-hidden="true" size={14} />
+              Duplicate
+            </Button>
+            <Button onClick={() => convertNote(note, "task")} size="sm" variant="ghost">
               <ArrowRightLeft aria-hidden="true" size={14} />
               Create task from note
             </Button>
-            <Button onClick={() => convertNote(note, "event")} size="sm" variant="secondary">
+            <Button onClick={() => convertNote(note, "event")} size="sm" variant="ghost">
               <ArrowRightLeft aria-hidden="true" size={14} />
               Create event from note
             </Button>
-          </>
-        ) : null}
-        <Button onClick={() => void closeInspector()} size="sm" variant="ghost">
-          <X aria-hidden="true" size={14} />
-          Close
-        </Button>
-      </>
+          </div>
+        </details>
+      </div>
     );
   }
 
@@ -395,7 +395,7 @@ export function useNotesController(source: CoreViewModelSource): {
       actions: noteInspectorActions(note, mode),
       body: noteInspectorBody(note, mode),
       dirty: false,
-      hideHeader: mode === "view",
+      hideHeader: false,
       id: note.id,
       kind: "note",
       onConfirmClose: async () => {
@@ -820,6 +820,7 @@ export function useNotesController(source: CoreViewModelSource): {
     });
 
     if (result?.ok) {
+      setNoteActionError(undefined);
       const cleanupError = await cleanupConvertedSource(noteId);
       if (cleanupError) {
         window.alert(`Converted item was saved, but ${cleanupError}`);

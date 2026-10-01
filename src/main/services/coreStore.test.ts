@@ -467,6 +467,74 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     }));
   });
 
+  it("makes Smart Schedule scope, prioritization, and working-hour validation explicit", () => {
+    const store = createStore();
+    const overdue = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Overdue first", dueDate: "2026-09-30", durationMinutes: 30, priority: "low"
+    });
+    const dueSoon = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Due soon", dueDate: "2026-10-05", durationMinutes: 30, priority: "high"
+    });
+    const future = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Future task", dueDate: "2026-11-01", durationMinutes: 30
+    });
+    const undated = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Undated task", durationMinutes: 30
+    });
+
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: "primary", apply: false, candidateScope: "dueSoon",
+      workingHours: { startMinutes: 9 * 60, endMinutes: 11 * 60 }
+    });
+
+    expect(preview).toMatchObject({
+      candidateScope: "dueSoon",
+      candidateScopeLabel: "Overdue and due within 14 days",
+      prioritizationLabel: "Overdue first · earliest due date · priority · stable list order",
+      capacityPolicy: "allFreeTime"
+    });
+    expect(preview.suggestions.map((item: { taskId: string }) => item.taskId)).toEqual([
+      overdue.id,
+      dueSoon.id
+    ]);
+    expect(preview.suggestions.map((item: { taskId: string }) => item.taskId)).not.toEqual(
+      expect.arrayContaining([future.id, undated.id])
+    );
+    expect(() => store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: "primary", apply: false,
+      workingHours: { startMinutes: 17 * 60, endMinutes: 16 * 60 }
+    })).toThrow("End time must be after start time.");
+  });
+
+  it("blocks opaque events while explicitly transparent events remain available to Smart Schedule", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "work", summary: "Work", timeZone: "UTC" }, account.accountId);
+    store.dispatch("settings", "update", { defaultTimeZone: "UTC", selectedCalendarIds: [calendar.id] });
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Plan around meetings", durationMinutes: 30 });
+    store.upsertGoogleEvent({
+      id: "busy", summary: "Busy meeting", transparency: "opaque",
+      start: { dateTime: "2026-10-01T09:00:00Z" }, end: { dateTime: "2026-10-01T09:30:00Z" }
+    }, calendar.id);
+    store.upsertGoogleEvent({
+      id: "free", summary: "Focus time", transparency: "transparent",
+      start: { dateTime: "2026-10-01T09:30:00Z" }, end: { dateTime: "2026-10-01T10:00:00Z" }
+    }, calendar.id);
+
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: calendar.id, apply: false,
+      workingHours: { startMinutes: 9 * 60, endMinutes: 10 * 60 }
+    });
+
+    expect(preview.fixedEventCount).toBe(1);
+    expect(preview.nonBlockingEventCount).toBe(1);
+    expect(preview.suggestions).toContainEqual(expect.objectContaining({
+      taskId: task.id,
+      startsAt: "2026-10-01T09:30:00.000Z",
+      endsAt: "2026-10-01T10:00:00.000Z"
+    }));
+  });
+
   it("persists native notes and note-list identity without creating Google Tasks", () => {
     const store = createStore();
     const list = store.dispatch("notes", "createNoteList", { title: "Research" });
