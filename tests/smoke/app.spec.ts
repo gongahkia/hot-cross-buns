@@ -24,11 +24,17 @@ test("launches and renders the planner shell", async () => {
     });
 
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    const onboarding = page.getByRole("dialog", { name: "Connect Google" });
+    const primaryNavigation = page.getByRole("navigation", { name: "Primary" });
+    await expect(primaryNavigation.getByRole("button", { name: "Calendar Cmd 1" })).toBeVisible();
+    await expect(primaryNavigation.getByRole("button", { name: "Tasks Cmd 2" })).toBeVisible();
+    await expect(primaryNavigation.getByRole("button", { name: "Notes Cmd 3" })).toBeVisible();
+    await expect(page.locator("#app-sidebar")).toHaveCount(0);
+
+    const onboarding = page.getByRole("dialog", { name: "Hot Cross Buns" });
     await expect(onboarding).toBeVisible();
-    await expect(onboarding).toContainText("HCB requires Google Calendar and Google Tasks");
-    await expect(onboarding.getByLabel("Google OAuth client ID")).toBeVisible();
-    await expect(onboarding.getByRole("button", { name: "Connect Google" })).toBeDisabled();
+    await expect(onboarding.getByRole("heading", { name: "Welcome to Hot Cross Buns" })).toBeVisible();
+    await expect(onboarding).toContainText("This setup takes about 2 minutes.");
+    await expect(onboarding.getByRole("button", { name: "Get started" })).toBeVisible();
   } finally {
     await electronApp?.close();
     rmSync(profileDir, { recursive: true, force: true });

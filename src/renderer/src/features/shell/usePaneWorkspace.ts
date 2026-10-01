@@ -151,13 +151,21 @@ export function usePaneWorkspace(): {
   }, []);
 
   const replaceFocusedWithSection = useCallback((sectionId: SectionId): void => {
-    setState((current) => ({
-      ...current,
-      root: replacePaneContent(current.root, current.focusedPaneId, {
-        kind: "section",
-        sectionId
-      })
-    }));
+    setState((current) => {
+      const focusedPane = findPaneLeaf(current.root, current.focusedPaneId);
+
+      if (focusedPane?.content.kind === "section" && focusedPane.content.sectionId === sectionId) {
+        return current;
+      }
+
+      return {
+        ...current,
+        root: replacePaneContent(current.root, current.focusedPaneId, {
+          kind: "section",
+          sectionId
+        })
+      };
+    });
   }, []);
 
   const splitPane = useCallback((
