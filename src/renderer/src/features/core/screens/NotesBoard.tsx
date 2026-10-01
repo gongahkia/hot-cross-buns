@@ -37,7 +37,10 @@ export function NotesBoard({
   return (
     <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-primary">
       <div
-        className="flex h-full min-h-[480px] min-w-0 gap-2 overflow-x-auto p-2"
+        className={cx(
+          "flex h-full min-h-[480px] min-w-0 gap-2 p-2",
+          columns.length <= 1 ? "overflow-y-auto" : "overflow-x-auto"
+        )}
         role="list"
         aria-label="Note views"
       >
@@ -53,7 +56,10 @@ export function NotesBoard({
                   title={column.title}
                 />
               }
-              className="flex max-h-full w-[min(560px,calc(100vw-2rem))] shrink-0 flex-col overflow-hidden border-border/70 bg-bg-primary shadow-none"
+              className={cx(
+                "flex max-h-full flex-col overflow-hidden border-border/70 bg-bg-primary shadow-none",
+                columns.length === 1 ? "w-full" : "w-[min(560px,calc(100vw-2rem))] shrink-0"
+              )}
               description={column.description}
               key={column.id}
               onDragLeave={() => undefined}

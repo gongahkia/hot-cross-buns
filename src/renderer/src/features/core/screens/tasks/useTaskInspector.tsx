@@ -187,11 +187,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
             </Button>
             <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to event
+              Create event from task
             </Button>
             <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to note
+              Create note from task
             </Button>
           </div>
           <Button onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">
@@ -225,11 +225,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
           <>
             <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to event
+              Create event from task
             </Button>
             <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to note
+              Create note from task
             </Button>
           </>
         ) : null}

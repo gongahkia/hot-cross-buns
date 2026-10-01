@@ -3,7 +3,7 @@ import {
   resolveEffectiveColorTheme,
   resolveEffectiveThemeMode
 } from "@shared/ipc/themeCatalog";
-import type { CalendarEventViewModel, NoteViewModel, TaskViewModel } from "../coreViewModels";
+import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import {
   buildCalendarEventDayIndex,
   dayView,
@@ -15,7 +15,6 @@ import {
   stableTaskCalendarEventViewModel,
   weekDays
 } from "./calendarViewModels";
-import { shortDateTime } from "./dateFormat";
 import { noteViewModel } from "./noteViewModels";
 import { idleSearchViewModel } from "./searchViewModels";
 import { settingsSections } from "./settingsViewModels";

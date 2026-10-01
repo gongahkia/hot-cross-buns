@@ -274,11 +274,11 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
               <>
                 <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
                   <ArrowRightLeft aria-hidden="true" size={14} />
-                  Convert to task
+                  Create task from event
                 </Button>
                 <Button onClick={() => convertEventDraft(nextDraft, "note")} size="sm" variant="secondary">
                   <ArrowRightLeft aria-hidden="true" size={14} />
-                  Convert to note
+                  Create note from event
                 </Button>
               </>
             ) : null}
@@ -310,11 +310,11 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
           <>
             <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to task
+              Create task from event
             </Button>
             <Button onClick={() => convertEventDraft(nextDraft, "note")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to note
+              Create note from event
             </Button>
           </>
         ) : null}

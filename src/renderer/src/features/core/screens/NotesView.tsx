@@ -45,7 +45,7 @@ export function NotesView(): JSX.Element {
     >
       <NotesSidebar
         collapsed={effectiveSidebarCollapsed}
-        onCreateNote={() => void createNote()}
+        onCreateNote={() => void createNote(selectedNoteViews[0]?.slice("list:".length))}
         onCreateNoteList={() => void createNoteList()}
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
         onToggleView={toggleNoteView}

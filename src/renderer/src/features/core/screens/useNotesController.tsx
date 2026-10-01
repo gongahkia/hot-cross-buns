@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
-import type { TaskListSummary, TaskSummary } from "@shared/ipc/contracts";
 import { useInspector } from "../../../components/Inspector";
 import { Button } from "../../../components/primitives";
 import {
@@ -38,39 +37,31 @@ function noteListSelection(listId: string): NoteBoardSelection {
 }
 
 function initialNoteViews(noteLists: CoreViewModelSource["noteLists"]): NoteBoardSelection[] {
-  return noteLists.map((list) => noteListSelection(list.id));
+  const first = noteLists[0];
+  return first ? [noteListSelection(first.id)] : [];
 }
 
 function displayNote(note: NoteViewModel): NoteViewModel {
   return note;
 }
 
-function noteFromTask(
-  task: TaskSummary,
-  noteLists: CoreViewModelSource["noteLists"],
-  updatedLabel = "Just now"
-): NoteViewModel {
-  const body = task.notes ?? "";
-  const listTitle = noteLists.find((list) => list.id === task.listId)?.title ?? defaultNoteListTitle;
-
+function noteFromNative(note: {
+  id: string;
+  listId: string;
+  listTitle?: string;
+  title: string;
+  body: string;
+  updatedAt?: string;
+}): NoteViewModel {
   return {
-    id: task.id,
-    listId: task.listId,
-    listTitle,
-    title: task.title,
-    body,
-    preview: buildNotePreview(body),
-    tags: task.tags ?? [],
-    updatedLabel
-  };
-}
-
-function noteListFromTaskList(list: TaskListSummary): CoreViewModelSource["noteLists"][number] {
-  return {
-    id: list.id,
-    title: list.title,
-    updatedAt: list.updatedAt,
-    noteCount: 0
+    id: note.id,
+    listId: note.listId,
+    listTitle: note.listTitle ?? defaultNoteListTitle,
+    title: note.title,
+    body: note.body,
+    preview: buildNotePreview(note.body),
+    tags: [],
+    updatedLabel: note.updatedAt ?? "Just now"
   };
 }
 
@@ -198,7 +189,7 @@ export function useNotesController(source: CoreViewModelSource): {
 
     setSelectedNoteViews((current) => {
       const next = current.filter((view) => available.has(view));
-      return next.length > 0 ? next : availableViews;
+      return next.length > 0 ? [next[0]!] : availableViews.slice(0, 1);
     });
   }, [noteListSignature]);
 
@@ -316,7 +307,7 @@ export function useNotesController(source: CoreViewModelSource): {
           <div className="flex items-center gap-2">
             <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
               <Trash2 aria-hidden="true" size={14} />
-              Delete selected note
+              Delete note
             </Button>
             <Button onClick={() => setNoteInspectorMode("edit")} size="sm" variant="secondary">
               <Pencil aria-hidden="true" size={14} />
@@ -330,11 +321,11 @@ export function useNotesController(source: CoreViewModelSource): {
               <>
                 <Button onClick={() => convertNote(note, "task")} size="sm" variant="secondary">
                   <ArrowRightLeft aria-hidden="true" size={14} />
-                  Convert to task
+                  Create task from note
                 </Button>
                 <Button onClick={() => convertNote(note, "event")} size="sm" variant="secondary">
                   <ArrowRightLeft aria-hidden="true" size={14} />
-                  Convert to event
+                  Create event from note
                 </Button>
               </>
             ) : null}
@@ -366,7 +357,7 @@ export function useNotesController(source: CoreViewModelSource): {
       <>
         <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
           <Trash2 aria-hidden="true" size={14} />
-          Delete selected note
+          Delete note
         </Button>
         <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="secondary">
           <Copy aria-hidden="true" size={14} />
@@ -376,11 +367,11 @@ export function useNotesController(source: CoreViewModelSource): {
           <>
             <Button onClick={() => convertNote(note, "task")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to task
+              Create task from note
             </Button>
             <Button onClick={() => convertNote(note, "event")} size="sm" variant="secondary">
               <ArrowRightLeft aria-hidden="true" size={14} />
-              Convert to event
+              Create event from note
             </Button>
           </>
         ) : null}
@@ -457,27 +448,6 @@ export function useNotesController(source: CoreViewModelSource): {
     setSelectedNoteId(fallbackId);
     createNoteIds.current.add(fallbackId);
     openNoteInspector(fallbackNote, "edit");
-
-    const result = await window.hcb?.tasks.create({
-      title: "Untitled note",
-      notes: "",
-      listId: list.id,
-      dueDate: null,
-      tags: []
-    });
-
-    if (result?.ok) {
-      const persisted = noteFromTask(result.data, noteLists);
-
-      setNotes((current) =>
-        current.map((note) => (note.id === fallbackId ? persisted : note))
-      );
-      setSelectedNoteId(result.data.id);
-      createNoteIds.current.delete(fallbackId);
-      createNoteIds.current.add(result.data.id);
-      openNoteInspector(persisted, "edit");
-      source.refreshUndoStatus();
-    }
   }
 
   function openLocalNoteDraft(seed: {
@@ -527,32 +497,6 @@ export function useNotesController(source: CoreViewModelSource): {
     const list = noteLists.find((candidate) => candidate.id === seed.listId) ?? noteLists[0];
 
     if (!list) {
-      return;
-    }
-
-    if (seed.replaceSource && seed.id) {
-      const note: NoteViewModel = {
-        id: seed.id,
-        listId: list.id,
-        listTitle: seed.listTitle ?? list.title,
-        title: seed.title,
-        body: seed.body,
-        preview: buildNotePreview(seed.body),
-        tags: seed.tags ?? [],
-        updatedLabel: "Edited"
-      };
-
-      setNotes((current) => current.some((candidate) => candidate.id === note.id)
-        ? current.map((candidate) => candidate.id === note.id ? note : candidate)
-        : [note, ...current]
-      );
-      setSelectedNoteId(note.id);
-      createNoteIds.current.delete(note.id);
-      if (cleanup) {
-        conversionCleanupByNoteId.current.set(note.id, cleanup);
-      }
-      openNoteInspector(note, "edit");
-      void persistNoteDraft(note.id, { title: note.title, body: note.body, tags: note.tags ?? [] });
       return;
     }
 
@@ -678,27 +622,6 @@ export function useNotesController(source: CoreViewModelSource): {
     setSelectedNoteId(fallbackId);
     createNoteIds.current.add(fallbackId);
     openNoteInspector(fallbackNote, "edit");
-
-    const result = await window.hcb?.tasks.create({
-      title,
-      notes: body,
-      listId: list.id,
-      dueDate: null,
-      tags: []
-    });
-
-    if (result?.ok) {
-      const persisted = noteFromTask(result.data, noteLists);
-
-      setNotes((current) =>
-        current.map((note) => (note.id === fallbackId ? persisted : note))
-      );
-      setSelectedNoteId(result.data.id);
-      createNoteIds.current.delete(fallbackId);
-      createNoteIds.current.add(result.data.id);
-      openNoteInspector(persisted, "edit");
-      source.refreshUndoStatus();
-    }
   }
 
   async function duplicateNote(noteId: string): Promise<void> {
@@ -738,12 +661,10 @@ export function useNotesController(source: CoreViewModelSource): {
       tags: note.tags ?? []
     };
     setNoteActionError(undefined);
-    const result = await window.hcb?.tasks.create({
+    const result = await window.hcb?.notes.create({
       title: draft.title || "Untitled note",
-      notes: draft.body,
+      body: draft.body,
       listId: note.listId,
-      dueDate: null,
-      tags: draft.tags
     });
 
     if (!result?.ok) {
@@ -773,34 +694,34 @@ export function useNotesController(source: CoreViewModelSource): {
     if (cleanupError) {
       window.alert(`Converted item was saved, but ${cleanupError}`);
     }
-    const persisted = noteFromTask(result.data, noteLists);
+    const persisted = noteFromNative(result.data);
 
     setNotes((current) => current.map((candidate) => candidate.id === noteId ? persisted : candidate));
     setSelectedNoteId(persisted.id);
     createNoteIds.current.delete(noteId);
     createNoteIds.current.add(persisted.id);
     openNoteInspector(persisted, "edit");
-    source.refreshUndoStatus();
     source.refresh();
   }
 
   async function createNoteList(): Promise<void> {
     const title = `Note list ${localNoteLists.length + 1}`;
-    const result = await window.hcb?.tasks.createTaskList({ title });
+    const result = await window.hcb?.notes.createNoteList({ title });
 
     if (result?.ok) {
-      setLocalNoteLists((current) => [...current, noteListFromTaskList(result.data)]);
+      setLocalNoteLists((current) => [...current, result.data]);
       setSelectedNoteViews((current) => [...current, noteListSelection(result.data.id)]);
-      source.refreshUndoStatus();
+      source.refresh();
     }
   }
 
   async function deleteNoteList(listId: string, title: string): Promise<void> {
-    if (!window.confirm(`Delete ${title}? Notes in this list will be deleted in Google Tasks.`)) {
+    const count = notes.filter((note) => note.listId === listId).length;
+    if (!window.confirm(`Delete ${title} and ${count} note${count === 1 ? "" : "s"}? This cannot be undone.`)) {
       return;
     }
 
-    const result = await window.hcb?.tasks.deleteTaskList({ id: listId });
+    const result = await window.hcb?.notes.deleteNoteList({ id: listId });
 
     if (!result?.ok) {
       return;
@@ -814,7 +735,7 @@ export function useNotesController(source: CoreViewModelSource): {
       const next = current.filter((view) => view !== noteListSelection(listId));
       return next.length > 0 ? next : noteLists.filter((list) => list.id !== listId).map((list) => noteListSelection(list.id));
     });
-    source.refreshUndoStatus();
+    source.refresh();
   }
 
   async function renameNoteList(listId: string, currentTitle: string): Promise<void> {
@@ -824,17 +745,17 @@ export function useNotesController(source: CoreViewModelSource): {
       return;
     }
 
-    const result = await window.hcb?.tasks.renameTaskList({ id: listId, title });
+    const result = await window.hcb?.notes.renameNoteList({ id: listId, title });
 
     if (result?.ok) {
       const displayTitle = result.data.title;
       setLocalNoteLists((current) =>
-        current.map((list) => (list.id === listId ? noteListFromTaskList(result.data) : list))
+        current.map((list) => (list.id === listId ? result.data : list))
       );
       setNotes((current) =>
         current.map((note) => (note.listId === listId ? { ...note, listTitle: displayTitle } : note))
       );
-      source.refreshUndoStatus();
+      source.refresh();
     }
   }
 
@@ -878,12 +799,14 @@ export function useNotesController(source: CoreViewModelSource): {
         return false;
       }
 
-      const result = await window.hcb?.tasks.create({
+      if (draft.title.trim() === "Untitled note" && draft.body.trim().length === 0) {
+        return true;
+      }
+
+      const result = await window.hcb?.notes.create({
         title: draft.title || "Untitled note",
-        notes: draft.body,
+        body: draft.body,
         listId: note.listId,
-        dueDate: null,
-        tags: draft.tags
       });
 
       if (!result?.ok) {
@@ -894,22 +817,19 @@ export function useNotesController(source: CoreViewModelSource): {
       if (cleanupError) {
         window.alert(`Converted item was saved, but ${cleanupError}`);
       }
-      const persisted = noteFromTask(result.data, noteLists);
+      const persisted = noteFromNative(result.data);
       setNotes((current) => current.map((candidate) => candidate.id === noteId ? persisted : candidate));
       setSelectedNoteId(persisted.id);
       createNoteIds.current.delete(noteId);
       createNoteIds.current.add(persisted.id);
-      source.refreshUndoStatus();
       source.refresh();
       return true;
     }
 
-    const result = await window.hcb?.tasks.update({
+    const result = await window.hcb?.notes.update({
       id: noteId,
       title: draft.title,
-      notes: draft.body,
-      dueDate: null,
-      tags: draft.tags
+      body: draft.body
     });
 
     if (result?.ok) {
@@ -917,7 +837,6 @@ export function useNotesController(source: CoreViewModelSource): {
       if (cleanupError) {
         window.alert(`Converted item was saved, but ${cleanupError}`);
       }
-      source.refreshUndoStatus();
       source.refresh();
     } else {
       setNoteActionError(result?.error.message ?? "Note was not saved.");
@@ -934,11 +853,9 @@ export function useNotesController(source: CoreViewModelSource): {
     }
 
     if (!note.id.startsWith("note-draft-")) {
-      const result = await window.hcb?.tasks.delete({ id: note.id });
-
-      if (result?.ok) {
-        source.refreshUndoStatus();
-      }
+      const result = await window.hcb?.notes.delete({ id: note.id });
+      if (!result?.ok) return;
+      source.refresh();
     }
 
     setStarredNoteIds((current) => {
@@ -1016,7 +933,7 @@ export function useNotesController(source: CoreViewModelSource): {
     );
 
     if (!note.id.startsWith("note-draft-")) {
-      const result = await window.hcb?.tasks.move({ id: note.id, listId });
+      const result = await window.hcb?.notes.update({ id: note.id, listId });
 
       if (!result?.ok) {
         setNotes((current) =>
@@ -1031,13 +948,7 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   function toggleNoteView(view: NoteBoardSelection): void {
-    setSelectedNoteViews((current) => {
-      if (current.includes(view)) {
-        return current.filter((selectedView) => selectedView !== view);
-      }
-
-      return [...current, view];
-    });
+    setSelectedNoteViews([view]);
   }
 
   return {
