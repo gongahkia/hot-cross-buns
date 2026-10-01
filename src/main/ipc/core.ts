@@ -26,7 +26,7 @@ const actionMap: Record<string, readonly string[]> = {
   search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
   settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
   sync: ["status", "runNow", "forceFullResync"],
-  google: ["status", "saveOAuthClient", "beginOAuth", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
+  google: ["status", "saveOAuthClient", "beginOAuth", "reconfigureOptionalAccess", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
   native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
   diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
@@ -57,6 +57,7 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "calendar" && action === "exportAvailability") return z.object({ start: isoDateSchema, end: isoDateSchema, calendarIds: z.array(idSchema).max(100).optional(), format: z.literal("text").optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "saveOAuthClient") return z.object({ clientId: z.string().trim().min(10).max(500), clientSecret: z.string().max(1_000).optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "beginOAuth") return z.object({ requestedServices: z.array(z.enum(["drive", "driveUpload", "gmail"])).max(3).optional() }).safeParse(payload).success;
+  if (namespace === "google" && action === "reconfigureOptionalAccess") return z.object({ accountId: idSchema, requestedServices: z.array(z.enum(["drive", "driveUpload", "gmail"])).max(3), confirmation: z.literal("RECONFIGURE_OPTIONAL_ACCESS") }).strict().safeParse(payload).success;
   if (namespace === "google" && action === "disconnect") return z.object({ accountId: idSchema.optional() }).safeParse(payload).success;
   if (namespace === "google" && ["searchDriveFiles", "searchGmailMessages"].includes(action)) return z.object({ accountId: idSchema.optional(), query: z.string().max(500).optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "pickAndUploadDriveFile") return z.object({ accountId: idSchema.optional() }).strict().safeParse(payload).success;
@@ -91,6 +92,9 @@ export function registerCoreIpc(
     if (isLiveGoogleReadOnlyRequest(request.data.namespace, request.data.action, request.data.payload)) {
       return validationError("Live Google read-only mode blocks mutations and non-read-only sync.");
     }
+    if (googleOAuth.isReconfiguring() && isGoogleMutationRequest(request.data.namespace, request.data.action)) {
+      return conflictError("Google access is being reconfigured. Wait for the browser authorization to open, then try again.");
+    }
 
     try {
       if (request.data.namespace === "google" && request.data.action === "saveOAuthClient") {
@@ -103,6 +107,10 @@ export function registerCoreIpc(
 
       if (request.data.namespace === "google" && request.data.action === "beginOAuth") {
         return ok(await googleOAuth.begin(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "reconfigureOptionalAccess") {
+        return ok(await googleOAuth.reconfigureOptionalAccess(request.data.payload));
       }
 
       if (request.data.namespace === "google" && request.data.action === "cancelOAuth") {
@@ -190,6 +198,12 @@ function isWriteAction(action: string): boolean {
     "listTaskLists", "list", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
     "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"
   ]).has(action);
+}
+
+function isGoogleMutationRequest(namespace: string, action: string): boolean {
+  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action) ||
+    (namespace === "diagnostics" && action === "retryPendingMutation") ||
+    (namespace === "google" && action === "copyAccountData");
 }
 
 function isLiveGoogleReadOnlyRequest(namespace: string, action: string, payload: Record<string, unknown>): boolean {

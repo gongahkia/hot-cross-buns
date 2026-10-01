@@ -222,7 +222,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
         "pullHcbVaultRemote", "pushHcbVaultRemote"
       ])
     },
-    google: actions("google", ["status", "saveOAuthClient", "beginOAuth", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"]),
+    google: actions("google", ["status", "saveOAuthClient", "beginOAuth", "reconfigureOptionalAccess", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"]),
     diagnostics: {
       ...legacyApi.diagnostics,
       ...actions("diagnostics", [

@@ -61,6 +61,7 @@ export class GoogleOAuthController {
   private readonly credentialPath: string;
   private activeAuthorization: PendingAuthorization | null = null;
   private authorizationError: string | null = null;
+  private reconfigurationInProgress = false;
   private readonly events = new EventEmitter();
 
   constructor(
@@ -100,6 +101,69 @@ export class GoogleOAuthController {
   }
 
   async begin(input: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    return this.beginAuthorization(optionalServices(input.requestedServices), true);
+  }
+
+  isReconfiguring(): boolean {
+    return this.reconfigurationInProgress;
+  }
+
+  async reconfigureOptionalAccess(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const accountId = requiredString(input.accountId, "Google account");
+    if (input.confirmation !== "RECONFIGURE_OPTIONAL_ACCESS") {
+      throw new CoreStoreError("Confirm the Google access reconfiguration before continuing.");
+    }
+    if (this.reconfigurationInProgress) {
+      throw new CoreStoreError("Google access is already being reconfigured.");
+    }
+    if (this.activeAuthorization) {
+      throw new CoreStoreError("Finish or cancel the current Google authorization before reconfiguring access.");
+    }
+
+    const account = this.store.googleAccount(accountId);
+    if (!account || account.connectionState !== "connected") {
+      throw new CoreStoreError("Choose a connected Google account to reconfigure its access.");
+    }
+    const unresolvedChanges = this.store.unresolvedSyncMutationCount(accountId);
+    if (unresolvedChanges > 0) {
+      throw new CoreStoreError(`Finish syncing ${unresolvedChanges} pending Google change${unresolvedChanges === 1 ? "" : "s"} before reconfiguring access.`);
+    }
+
+    this.reconfigurationInProgress = true;
+    try {
+      const secrets = await this.readSecrets();
+      const refreshToken = secrets.accounts?.[accountId]?.refreshToken;
+      if (!refreshToken) {
+        throw new CoreStoreError("This account needs to be connected again before its access can be reconfigured.");
+      }
+
+      const revokeResponse = await fetch("https://oauth2.googleapis.com/revoke", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token: refreshToken })
+      });
+      if (!revokeResponse.ok) {
+        throw new CoreStoreError("Google could not reset this authorization. Your existing connection was left unchanged; try again.");
+      }
+
+      const accounts = { ...(secrets.accounts ?? {}) };
+      delete accounts[accountId];
+      await this.writeSecrets({ clientSecret: secrets.clientSecret, accounts });
+      // This preserves the cache while making its Google connection unavailable
+      // until the replacement consent flow completes.
+      this.store.removeGoogleAccount(accountId);
+      this.events.emit("connection-change");
+      return await this.beginAuthorization(optionalServices(input.requestedServices), false, "Google access was reset. Continue in your browser to reconnect this account.");
+    } finally {
+      this.reconfigurationInProgress = false;
+    }
+  }
+
+  private async beginAuthorization(
+    requestedServices: OptionalWorkspaceService[],
+    includeGrantedScopes: boolean,
+    message = "Google authorization is open in your browser."
+  ): Promise<Record<string, unknown>> {
     if (this.activeAuthorization) {
       return { ...this.status(), message: "Google authorization is already open in your browser." };
     }
@@ -113,7 +177,7 @@ export class GoogleOAuthController {
     this.activeAuthorization = attempt;
     this.authorizationError = null;
     try {
-      const authorization = await this.prepareAuthorization(clientId, optionalServices(input.requestedServices), attempt);
+      const authorization = await this.prepareAuthorization(clientId, requestedServices, includeGrantedScopes, attempt);
       void this.completeAuthorization(authorization, attempt)
         .catch((error: unknown) => {
           if (!attempt.cancelled) this.authorizationError = safeAuthorizationError(error);
@@ -123,7 +187,7 @@ export class GoogleOAuthController {
           this.activeAuthorization = null;
           this.events.emit("connection-change");
         });
-      return { ...this.status(), message: "Google authorization is open in your browser." };
+      return { ...this.status(), message };
     } catch (error: unknown) {
       if (this.activeAuthorization === attempt) this.activeAuthorization = null;
       attempt.callback?.cancel();
@@ -170,7 +234,7 @@ export class GoogleOAuthController {
     return this.status();
   }
 
-  private async prepareAuthorization(clientId: string, requestedServices: OptionalWorkspaceService[], attempt: PendingAuthorization): Promise<{ callback: OAuthLoopbackCallback; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string }> {
+  private async prepareAuthorization(clientId: string, requestedServices: OptionalWorkspaceService[], includeGrantedScopes: boolean, attempt: PendingAuthorization): Promise<{ callback: OAuthLoopbackCallback; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string }> {
     const verifier = base64Url(randomBytes(32));
     const challenge = base64Url(createHash("sha256").update(verifier).digest());
     const state = base64Url(randomBytes(32));
@@ -192,7 +256,7 @@ export class GoogleOAuthController {
     authorizationUrl.searchParams.set("state", state);
     authorizationUrl.searchParams.set("access_type", "offline");
     authorizationUrl.searchParams.set("prompt", "consent");
-    authorizationUrl.searchParams.set("include_granted_scopes", "true");
+    authorizationUrl.searchParams.set("include_granted_scopes", String(includeGrantedScopes));
     await shell.openExternal(authorizationUrl.toString());
     return { callback, clientId, redirectUri, requestedScopes, verifier };
   }

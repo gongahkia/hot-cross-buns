@@ -378,6 +378,12 @@ export class CoreStore {
       .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
   }
 
+  unresolvedSyncMutationCount(accountId: string): number {
+    const row = this.db.prepare("SELECT COUNT(*) AS count FROM outbox WHERE account_id=? AND state IN ('pending','conflict')")
+      .get(accountId) as { count?: number } | undefined;
+    return Number(row?.count ?? 0);
+  }
+
   completeSyncMutation(id: string): void {
     this.db.prepare("UPDATE outbox SET state='delivered',updated_at=?,last_error=NULL WHERE id=?")
       .run(timestamp(), id);
