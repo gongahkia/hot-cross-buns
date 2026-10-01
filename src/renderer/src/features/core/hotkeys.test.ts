@@ -6,6 +6,10 @@ describe("primary navigation shortcuts", () => {
   it("ships Calendar, Tasks, and Notes on the first three primary shortcuts", () => {
     expect(defaultKeybindings).toMatchObject({
       "commandPalette.open": "CmdOrCtrl+P",
+      "undo.perform": "CmdOrCtrl+Z",
+      "redo.perform": "CmdOrCtrl+Shift+Z",
+      "sync.refresh": "CmdOrCtrl+R",
+      "navigation.diagnostics.toggle": "CmdOrCtrl+Shift+D",
       "navigation.settings": "CmdOrCtrl+Shift+?",
       "navigation.calendar": "CmdOrCtrl+1",
       "navigation.tasks": "CmdOrCtrl+2",
@@ -36,5 +40,15 @@ describe("primary navigation shortcuts", () => {
       { altKey: false, ctrlKey: false, key: "?", metaKey: true, shiftKey: true },
       defaultKeybindings["navigation.settings"]
     )).toBe(true);
+  });
+
+  it("ships the requested application actions on their standard shortcuts", () => {
+    const macShortcut = (key: string, shiftKey = false) =>
+      ({ altKey: false, ctrlKey: false, key, metaKey: true, shiftKey });
+
+    expect(eventMatchesAccelerator(macShortcut("z"), defaultKeybindings["undo.perform"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("z", true), defaultKeybindings["redo.perform"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("r"), defaultKeybindings["sync.refresh"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("d", true), defaultKeybindings["navigation.diagnostics.toggle"])).toBe(true);
   });
 });
