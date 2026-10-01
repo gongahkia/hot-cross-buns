@@ -34,7 +34,7 @@ The client must not silently broaden an existing grant. See [Google Workspace in
 
 ### Reconfiguring optional access
 
-Desktop OAuth cannot selectively withdraw an already-granted scope. **Settings → Profile → Reconfigure Google access** therefore presents the optional capabilities for one connected account, requires an explicit acknowledgement, and starts a replacement consent flow with exactly the selected optional scopes. Before revoking the current authorization, the main process blocks the operation if that account has pending or conflicted outbox mutations. A successful reset deletes the encrypted account credential, marks the cached account disconnected, preserves the local Task/Calendar cache, and opens the default browser for a fresh PKCE authorization. The renderer receives only sanitized status and never a token or revocation response.
+Desktop OAuth cannot selectively withdraw an already-granted scope. **Settings → Profile → Reconfigure Google access** therefore presents the optional capabilities for one connected account, requires an explicit acknowledgement, and starts a replacement consent flow with exactly the selected optional scopes. Before revoking the current authorization, the main process blocks the operation if that account has pending or conflicted outbox mutations. A successful reset deletes the encrypted account credential, marks the cached account disconnected, preserves the local Task/Calendar cache, and opens the default browser for a fresh PKCE authorization. The UI warns that another HCB installation using the same OAuth client may also need to reconnect. The renderer receives only sanitized status and never a token or revocation response.
 
 ## Tasks Mapping
 

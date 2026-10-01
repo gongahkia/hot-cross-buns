@@ -78,6 +78,7 @@ export interface GoogleAccountStatus {
   connectionState: "connected" | "disconnected" | "error" | "reauth_required" | "local" | string;
   missingScopes: string[];
   grantedScopes?: string[];
+  unresolvedMutationCount?: number;
   updatedAt?: string;
 }
 export interface GoogleStatusResponse {

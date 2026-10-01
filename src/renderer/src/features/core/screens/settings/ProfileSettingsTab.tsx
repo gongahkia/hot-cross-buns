@@ -335,6 +335,8 @@ function OptionalGoogleAccessDialog({
   const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const selectedAccount = accounts.find((account) => account.accountId === accountId);
+  const unresolvedMutationCount = selectedAccount?.unresolvedMutationCount ?? 0;
 
   function selectAccount(nextAccountId: string): void {
     const account = accounts.find((candidate) => candidate.accountId === nextAccountId);
@@ -397,8 +399,9 @@ function OptionalGoogleAccessDialog({
             <OptionalAccessChoice checked={gmailCapture} description="Search message metadata and snippets, then capture a message as a Task." label="Gmail capture" onChange={setGmailCapture} />
           </div>
           <div className="rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-sm)] text-text-secondary">
-            HCB preserves its local cache. Google requires a fresh connection, so the next step opens your default browser. Pending Google changes must be synced first.
+            HCB preserves its local cache. Google requires a fresh connection, so the next step opens your default browser. Other HCB installs using this OAuth client may need to reconnect too.
           </div>
+          {unresolvedMutationCount > 0 ? <p className="text-[var(--text-sm)] text-warning" role="status">Sync {unresolvedMutationCount} pending Google change{unresolvedMutationCount === 1 ? "" : "s"} before reconfiguring this account.</p> : null}
           <label className="flex min-h-10 cursor-pointer items-start gap-2 rounded-hcbMd px-1 py-1 text-[var(--text-sm)] text-text-secondary">
             <input aria-label="Acknowledge Google reconnection" checked={acknowledged} className="mt-0.5 size-4 accent-[var(--color-accent)]" onChange={(event) => setAcknowledged(event.target.checked)} type="checkbox" />
             <span>I understand this resets HCB's Google connection for the selected account and opens a browser to reconnect it.</span>
@@ -407,7 +410,7 @@ function OptionalGoogleAccessDialog({
         </div>
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-secondary px-4 py-3">
           <Button disabled={submitting} onClick={onClose} variant="ghost">Cancel</Button>
-          <Button disabled={!accountId || !acknowledged || submitting} onClick={() => void reconfigure()} variant="primary">
+          <Button disabled={!accountId || !acknowledged || submitting || unresolvedMutationCount > 0} onClick={() => void reconfigure()} variant="primary">
             {submitting ? <RefreshCw aria-hidden="true" className="animate-spin" size={14} /> : <Check aria-hidden="true" size={14} />}
             Reconnect with selected access
           </Button>

@@ -322,10 +322,12 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const task = store.dispatch("tasks", "create", { listId: list.id, title: "Queued before access change" });
 
     expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(1);
+    expect(store.googleAccount(account.accountId)?.unresolvedMutationCount).toBe(1);
     const mutation = store.pendingSyncMutations(10, account.accountId).find((candidate) => candidate.entityId === task.id);
     if (!mutation) throw new Error("Expected queued Google task mutation.");
     store.completeSyncMutation(mutation.id);
     expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(0);
+    expect(store.googleAccount(account.accountId)?.unresolvedMutationCount).toBe(0);
   });
 
   it("persists task blocks, availability, and reversible writes", () => {

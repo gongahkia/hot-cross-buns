@@ -184,11 +184,13 @@ export class CoreStore {
   googleAccounts(): JsonRecord[] {
     return this.db.prepare(`SELECT id AS accountId,google_account_id AS googleAccountId,email,display_name AS displayName,
       avatar_url AS avatarUrl,connection_state AS connectionState,missing_scopes_json AS missingScopes,
-      granted_scopes_json AS grantedScopes,updated_at AS updatedAt
+      granted_scopes_json AS grantedScopes,updated_at AS updatedAt,
+      (SELECT COUNT(*) FROM outbox WHERE account_id=google_accounts.id AND state IN ('pending','conflict')) AS unresolvedMutationCount
       FROM google_accounts ORDER BY created_at`).all().map((row: any) => ({
       ...row,
       missingScopes: safeJson(row.missingScopes, []),
-      grantedScopes: safeJson(row.grantedScopes, [])
+      grantedScopes: safeJson(row.grantedScopes, []),
+      unresolvedMutationCount: Number(row.unresolvedMutationCount ?? 0)
     })) as JsonRecord[];
   }
 
