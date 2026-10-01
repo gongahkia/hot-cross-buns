@@ -6,8 +6,15 @@ import { ok } from "@shared/ipc/result";
 import { ReferenceTextarea } from "./ReferenceTextarea";
 
 describe("ReferenceTextarea", () => {
+  const originalHcb = Object.getOwnPropertyDescriptor(window, "hcb");
+
   afterEach(() => {
     cleanup();
+    if (originalHcb) {
+      Object.defineProperty(window, "hcb", originalHcb);
+    } else {
+      Reflect.deleteProperty(window, "hcb");
+    }
   });
 
   it("opens from @ and inserts an ID-stable HCB reference", async () => {
