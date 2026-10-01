@@ -1,15 +1,8 @@
 import type { SettingsRecoveryActionRequest, SettingsSnapshot } from "@shared/ipc/contracts";
 
-export type NavigationTabId = SettingsSnapshot["hiddenNavigationTabs"][number];
 export type ToolbarActionId = SettingsSnapshot["toolbarActionOrder"][number];
 export type CalendarViewModeId = SettingsSnapshot["hiddenCalendarViewModes"][number];
 export type FontSurfaceId = keyof SettingsSnapshot["perSurfaceFontOverrides"];
-
-export const navigationTabs: Array<{ id: NavigationTabId; label: string }> = [
-  { id: "calendar", label: "Calendar" },
-  { id: "tasks", label: "Tasks" },
-  { id: "notes", label: "Notes" }
-];
 
 export const toolbarActions: Array<{ id: ToolbarActionId; label: string }> = [
   { id: "commandPalette", label: "Command palette" },

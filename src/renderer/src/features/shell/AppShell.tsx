@@ -1,6 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
@@ -14,7 +13,6 @@ import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
 import {
-  ariaKeyShortcuts,
   displayAccelerator,
   duplicateAccelerators,
   eventMatchesAccelerator,
@@ -29,7 +27,6 @@ import {
 import { I18nProvider } from "../../i18n";
 import { AppHeader } from "./AppHeader";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
-import { AppSidebar } from "./AppSidebar";
 import { PaneWorkspace } from "./PaneWorkspace";
 import { splitPaneWebUrl } from "./paneWorkspaceModel";
 import {
@@ -37,9 +34,7 @@ import {
   scheduleFrame,
   shellCanBeReported
 } from "./shellUtils";
-import { useSidebarDrawerDrag } from "./sidebarDrawerDrag";
 import { useAppliedTheme } from "./theme";
-import type { VisiblePrimarySection } from "./types";
 import { usePaneWorkspace } from "./usePaneWorkspace";
 
 const DeferredCommandPalette = lazy(() =>
@@ -82,58 +77,6 @@ function closestAnchor(target: EventTarget | null): HTMLAnchorElement | null {
   return target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
 }
 
-function SidebarDrawerToggle({
-  keybindings,
-  onSetOpen,
-  sidebarOnRight,
-  sidebarOpen
-}: {
-  keybindings: SettingsSnapshot["keybindings"];
-  onSetOpen: (open: boolean) => void;
-  sidebarOnRight: boolean;
-  sidebarOpen: boolean;
-}): JSX.Element {
-  const drawerDrag = useSidebarDrawerDrag({ onSetOpen, sidebarOnRight, sidebarOpen });
-  const ToggleIcon = sidebarOnRight
-    ? sidebarOpen ? ChevronRight : ChevronLeft
-    : sidebarOpen ? ChevronLeft : ChevronRight;
-  const edgeClass = sidebarOnRight
-    ? sidebarOpen
-      ? "right-[72px] rounded-l-hcbMd border-r-0 lg:right-[232px]"
-      : "right-[12px] rounded-l-hcbMd border-r-0"
-    : sidebarOpen
-      ? "left-[72px] rounded-r-hcbMd border-l-0 lg:left-[232px]"
-      : "left-[12px] rounded-r-hcbMd border-l-0";
-
-  return (
-    <>
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 z-40 w-1 -translate-x-1/2 bg-accent opacity-0"
-        ref={drawerDrag.previewRef}
-      />
-      <button
-        aria-controls="app-sidebar"
-        aria-expanded={sidebarOpen}
-        aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.sidebar.toggle"])}
-        aria-label={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
-        className={cx(
-          "absolute top-1/2 z-50 hidden h-12 w-7 -translate-y-1/2 cursor-col-resize touch-none select-none items-center justify-center border border-border bg-bg-secondary text-text-muted transition-[background-color,color] duration-fast ease-hcb hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:flex",
-          edgeClass
-        )}
-        onClick={drawerDrag.onClick}
-        onPointerDown={drawerDrag.onPointerDown}
-        title={sidebarOpen ? "Collapse navigation drawer" : "Expand navigation drawer"}
-        type="button"
-      >
-        <span className="flex h-8 w-5 items-center justify-center rounded-hcbSm border border-border bg-surface-0">
-          <ToggleIcon aria-hidden="true" size={14} />
-        </span>
-      </button>
-    </>
-  );
-}
-
 export function AppShell(): JSX.Element {
   useRenderTiming("App");
 
@@ -155,7 +98,6 @@ export function AppShell(): JSX.Element {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [commandPaletteMode, setCommandPaletteMode] = useState<"open" | "action">("open");
   const [leaderActive, setLeaderActive] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [commandPaletteInitialQuery, setCommandPaletteInitialQuery] = useState("");
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([]);
   const [visibleCalendarIds, setVisibleCalendarIds] = useState<string[]>([]);
@@ -169,18 +111,9 @@ export function AppShell(): JSX.Element {
   const visibleNotifications = appNotifications.filter(
     (notification) => !dismissedNotificationIds.includes(notification.id)
   );
-  const visiblePrimarySections = useMemo<VisiblePrimarySection[]>(() => {
-    const hidden = new Set<SectionId>(source.settings.hiddenNavigationTabs);
-    const byId = new Map(primaryPlannerSections.map((section) => [section.id, section]));
-    return source.settings.navigationTabOrder
-      .map((sectionId) => byId.get(sectionId))
-      .filter((section): section is (typeof primaryPlannerSections)[number] => Boolean(section))
-      .map((section) => ({ section }))
-      .filter(({ section }) => !hidden.has(section.id));
-  }, [source.settings.hiddenNavigationTabs, source.settings.navigationTabOrder]);
   const visiblePaneSectionIds = useMemo(
-    () => visiblePrimarySections.map(({ section }) => section.id),
-    [visiblePrimarySections]
+    () => primaryPlannerSections.map((section) => section.id),
+    []
   );
   const availableCalendarIds = useMemo(
     () => new Set(source.calendarSources.map((calendar) => calendar.id)),
@@ -204,7 +137,6 @@ export function AppShell(): JSX.Element {
     () => new Set(visibleCalendarIds.filter((calendarId) => availableCalendarIds.has(calendarId))),
     [availableCalendarIds, visibleCalendarIds]
   );
-  const sidebarOnRight = source.settings.navigationPlacement === "right";
   const googleConnected = source.googleStatus.accounts.some((account) => account.connectionState === "connected");
   const onboardingVisible =
     (source.settings.onboardingStatus === "pending" || !googleConnected) &&
@@ -215,24 +147,6 @@ export function AppShell(): JSX.Element {
   const navigateToSection = useCallback((sectionId: SectionId): void => {
     paneWorkspace.replaceFocusedWithSection(sectionId);
   }, [paneWorkspace]);
-
-  const toggleVisibleCalendar = useCallback((calendarId: string, selected: boolean): void => {
-    setVisibleCalendarIds((current) => {
-      const next = new Set(current);
-
-      if (selected) {
-        next.add(calendarId);
-      } else {
-        next.delete(calendarId);
-      }
-
-      return Array.from(next);
-    });
-  }, []);
-
-  const showAllCalendars = useCallback((): void => {
-    setVisibleCalendarIds(source.calendarSources.map((calendar) => calendar.id));
-  }, [source.calendarSources]);
 
   const dismissNotification = useCallback((id: string): void => {
     setDismissedNotificationIds((current) =>
@@ -337,10 +251,6 @@ export function AppShell(): JSX.Element {
 
     openSettingsPanel();
   }, [openSettingsPanel, settingsOpen]);
-
-  const toggleSidebar = useCallback((): void => {
-    setSidebarOpen((open) => !open);
-  }, []);
 
   const syncThenRefresh = useCallback((reason: string): void => {
     const runNow = window.hcb?.sync?.runNow;
@@ -730,11 +640,6 @@ export function AppShell(): JSX.Element {
         return;
       }
 
-      if (actionId === "navigation.sidebar.toggle") {
-        toggleSidebar();
-        return;
-      }
-
       if (actionId === "navigation.notifications.toggle") {
         toggleNotificationsPanel();
         return;
@@ -805,12 +710,10 @@ export function AppShell(): JSX.Element {
       paneWorkspace.splitPane,
       toggleDiagnosticsPanel,
       openSettingsPanel,
-    syncThenRefresh,
+      syncThenRefresh,
       source.redo,
-      source.runRecoveryAction,
       source.undo,
       toggleNotificationsPanel,
-      toggleSidebar,
       triggerTaskCommand
     ]
   );
@@ -876,18 +779,6 @@ export function AppShell(): JSX.Element {
     if (onboardingVisible) return;
     return window.hcb?.native.subscribeAction(handleNativeAction);
   }, [handleNativeAction, onboardingVisible]);
-
-  useEffect(() => {
-    const activePrimarySection = primaryPlannerSections.some((section) => section.id === paneWorkspace.activeSectionId);
-
-    if (activePrimarySection && !visiblePrimarySections.some(({ section }) => section.id === paneWorkspace.activeSectionId)) {
-      const replacement = visiblePrimarySections[0]?.section.id;
-
-      if (replacement) {
-        navigateToSection(replacement);
-      }
-    }
-  }, [navigateToSection, paneWorkspace.activeSectionId, visiblePrimarySections]);
 
   useEffect(() => {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent): void {
@@ -1061,11 +952,13 @@ export function AppShell(): JSX.Element {
       style={{ background: "var(--app-shell-background)" }}
     >
       <AppHeader
+        activeSectionId={paneWorkspace.activeSectionId}
         appNotificationsCount={visibleNotifications.length}
         commandPaletteOpen={commandPaletteOpen}
         diagnosticsOpen={diagnosticsOpen}
         keybindings={source.settings.keybindings}
         notificationsOpen={notificationsOpen}
+        onNavigateToSection={navigateToPrimarySection}
         onOpenCommandPalette={openCommandPalette}
         onOpenSplitPane={paneWorkspace.openChooser}
         onRefresh={() => syncThenRefresh("toolbar")}
@@ -1076,71 +969,26 @@ export function AppShell(): JSX.Element {
         toolbarActionOrder={source.settings.toolbarActionOrder}
       />
 
-      <div
-        className={cx(
-          "relative grid min-h-0 flex-1",
-        sidebarOpen
-          ? sidebarOnRight
-            ? "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_72px] md:grid-rows-none lg:grid-cols-[minmax(0,1fr)_232px]"
-            : "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[72px_minmax(0,1fr)] md:grid-rows-none lg:grid-cols-[232px_minmax(0,1fr)]"
-          : sidebarOnRight
-            ? "grid-rows-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_12px] md:grid-rows-none"
-            : "grid-rows-[minmax(0,1fr)] md:grid-cols-[12px_minmax(0,1fr)] md:grid-rows-none"
-        )}
-      >
-        {sidebarOpen ? (
-          <AppSidebar
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
+          <PaneWorkspace
             activeSectionId={paneWorkspace.activeSectionId}
-            onShowAllCalendars={showAllCalendars}
-            onSetDrawerOpen={setSidebarOpen}
-            onToggleVisibleCalendar={toggleVisibleCalendar}
-            onNavigateToSection={navigateToSection}
-            sidebarOnRight={sidebarOnRight}
-            source={source}
+            canSplit={paneWorkspace.canSplit}
+            focusedPaneId={paneWorkspace.focusedPaneId}
+            onClosePane={paneWorkspace.closePane}
+            onFocusPane={paneWorkspace.focusPane}
+            onMovePane={paneWorkspace.movePane}
+            onOpenWebPage={paneWorkspace.openWebPageInPane}
+            onReplacePane={paneWorkspace.replacePane}
+            onSetSplitRatio={paneWorkspace.setSplitRatio}
+            onSplitPane={paneWorkspace.splitPane}
+            root={paneWorkspace.root}
+            taskCommand={taskCommand}
             visibleCalendarIds={visibleCalendarIdSet}
-            visiblePrimarySections={visiblePrimarySections}
+            visibleSectionIds={visiblePaneSectionIds}
           />
-        ) : null}
-        {!sidebarOpen ? (
-          <div
-            aria-hidden="true"
-            className={cx(
-              "hidden bg-bg-secondary md:block",
-              sidebarOnRight ? "md:order-2 md:border-l md:border-border" : "md:order-1 md:border-r md:border-border"
-            )}
-          />
-        ) : null}
-
-        <main className={cx("flex min-h-0 min-w-0 flex-col overflow-hidden", sidebarOnRight ? "md:order-1" : "md:order-2")}>
-          <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
-            <PaneWorkspace
-              activeSectionId={paneWorkspace.activeSectionId}
-              canSplit={paneWorkspace.canSplit}
-              focusedPaneId={paneWorkspace.focusedPaneId}
-              onClosePane={paneWorkspace.closePane}
-              onFocusPane={paneWorkspace.focusPane}
-              onMovePane={paneWorkspace.movePane}
-              onOpenWebPage={paneWorkspace.openWebPageInPane}
-              onReplacePane={paneWorkspace.replacePane}
-              onSetSplitRatio={paneWorkspace.setSplitRatio}
-              onSplitPane={paneWorkspace.splitPane}
-              root={paneWorkspace.root}
-              taskCommand={taskCommand}
-              visibleCalendarIds={visibleCalendarIdSet}
-              visibleSectionIds={visiblePaneSectionIds}
-            />
-          </RenderTimingBoundary>
-        </main>
-
-        {!sidebarOpen ? (
-          <SidebarDrawerToggle
-            keybindings={source.settings.keybindings}
-            onSetOpen={setSidebarOpen}
-            sidebarOnRight={sidebarOnRight}
-            sidebarOpen={sidebarOpen}
-          />
-        ) : null}
-      </div>
+        </RenderTimingBoundary>
+      </main>
 
       <RenderTimingBoundary id="command-palette">
         <Suspense fallback={null}>

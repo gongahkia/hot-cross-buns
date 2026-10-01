@@ -58,6 +58,8 @@ const defaultSettings: JsonRecord = {
     preview: "blocks"
   },
   uiLayoutScale: 1,
+  // Retained only to read preferences written by previous builds. Navigation
+  // now lives in the app header, so this value is no longer rendered.
   navigationPlacement: "left",
   hiddenNavigationTabs: [],
   navigationTabOrder: ["calendar", "tasks", "notes"],
@@ -80,7 +82,11 @@ const defaultSettings: JsonRecord = {
   syncCalendarEventsEnabled: true,
   eventRetentionDaysBack: 0,
   completedTaskRetentionDaysBack: 365,
-  keybindings: {},
+  keybindings: {
+    "navigation.calendar": "CmdOrCtrl+1",
+    "navigation.tasks": "CmdOrCtrl+2",
+    "navigation.notes": "CmdOrCtrl+3"
+  },
   leaderKey: "CmdOrCtrl+K",
   leaderKeybindings: {},
   showTrayIcon: true,
@@ -1981,7 +1987,18 @@ export class CoreStore {
     // Earlier builds recorded only a completion timestamp. Preserve that
     // information as an explicit state so skip and completion remain distinct.
     const onboardingStatus = stored.onboardingStatus ?? (stored.setupCompletedAt ? "completed" : "pending");
-    return { ...defaultSettings, ...stored, onboardingStatus };
+    return {
+      ...defaultSettings,
+      ...stored,
+      // New defaults need to reach existing installs too. Explicit user
+      // overrides (including null, which means intentionally unassigned)
+      // always win over a default binding.
+      keybindings: {
+        ...defaultSettings.keybindings,
+        ...safeObject(stored.keybindings)
+      },
+      onboardingStatus
+    };
   }
 
   private updateSettings(input: JsonRecord): JsonRecord {

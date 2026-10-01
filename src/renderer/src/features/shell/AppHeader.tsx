@@ -1,16 +1,20 @@
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   Bell,
+  CalendarDays,
   Columns2,
   Command,
   Gauge,
+  ListTodo,
   RefreshCw,
-  Settings2
+  Settings2,
+  StickyNote
 } from "lucide-react";
 import appIconUrl from "../../../../../assets/brand/buns-app-icon-sidebar.png";
-import { Badge, Button } from "../../components/primitives";
+import { Badge, Button, cx } from "../../components/primitives";
+import type { SectionId } from "../../data/mockPlanner";
 import { useI18n } from "../../i18n";
-import { ariaKeyShortcuts } from "../core/hotkeys";
+import { ariaKeyShortcuts, displayAccelerator } from "../core/hotkeys";
 
 type ToolbarActionId = SettingsSnapshot["toolbarActionOrder"][number];
 
@@ -20,6 +24,8 @@ export function AppHeader({
   diagnosticsOpen,
   keybindings,
   notificationsOpen,
+  activeSectionId,
+  onNavigateToSection,
   onOpenCommandPalette,
   onOpenSplitPane,
   onRefresh,
@@ -34,6 +40,8 @@ export function AppHeader({
   diagnosticsOpen: boolean;
   keybindings: SettingsSnapshot["keybindings"];
   notificationsOpen: boolean;
+  activeSectionId: SectionId;
+  onNavigateToSection: (sectionId: SectionId) => void;
   onOpenCommandPalette: () => void;
   onOpenSplitPane: () => void;
   onRefresh: () => void;
@@ -44,6 +52,26 @@ export function AppHeader({
   toolbarActionOrder: SettingsSnapshot["toolbarActionOrder"];
 }): JSX.Element {
   const { t } = useI18n();
+  const primaryNavigation = [
+    {
+      id: "calendar" as const,
+      icon: CalendarDays,
+      label: t("nav.calendar"),
+      shortcut: keybindings["navigation.calendar"]
+    },
+    {
+      id: "tasks" as const,
+      icon: ListTodo,
+      label: t("nav.tasks"),
+      shortcut: keybindings["navigation.tasks"]
+    },
+    {
+      id: "notes" as const,
+      icon: StickyNote,
+      label: t("nav.notes"),
+      shortcut: keybindings["navigation.notes"]
+    }
+  ];
   const toolbarButtons: Record<ToolbarActionId, JSX.Element> = {
     commandPalette: (
       <Button
@@ -134,7 +162,7 @@ export function AppHeader({
   };
 
   return (
-    <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-bg-primary px-3 py-2 sm:flex-nowrap md:px-5">
+    <header className="grid min-h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-bg-primary px-3 py-2 md:grid-cols-[minmax(11rem,1fr)_auto_minmax(11rem,1fr)] md:gap-3 md:px-5">
       <div className="flex min-w-0 items-center gap-3">
         <img
           alt=""
@@ -146,7 +174,38 @@ export function AppHeader({
         <h1 className="truncate text-[var(--text-md)] font-semibold" id="planner-title">Hot Cross Buns</h1>
       </div>
 
-      <div className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">
+      <nav
+        aria-label="Primary"
+        className="order-3 col-span-2 flex min-w-0 items-center justify-start gap-1 overflow-x-auto border-t border-border pt-2 md:order-none md:col-span-1 md:justify-center md:border-t-0 md:pt-0"
+      >
+        {primaryNavigation.map(({ icon: Icon, id, label, shortcut }) => {
+          const active = activeSectionId === id;
+          const shortcutLabel = displayAccelerator(shortcut);
+
+          return (
+            <Button
+              aria-current={active ? "page" : undefined}
+              aria-keyshortcuts={ariaKeyShortcuts(shortcut)}
+              className={cx(
+                "min-w-10 gap-2 px-3 text-[var(--text-sm)]",
+                active ? "border-accent bg-surface-0 text-text-primary" : "text-text-secondary"
+              )}
+              key={id}
+              onClick={() => onNavigateToSection(id)}
+              title={`${label} (${shortcutLabel})`}
+              variant="ghost"
+            >
+              <Icon aria-hidden="true" size={15} strokeWidth={2} />
+              <span>{label}</span>
+              <kbd className="hidden rounded-hcbSm border border-border bg-bg-secondary px-1.5 py-0.5 font-mono text-[11px] font-medium text-text-muted lg:inline">
+                {shortcutLabel}
+              </kbd>
+            </Button>
+          );
+        })}
+      </nav>
+
+      <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">
         {toolbarActionOrder.map((actionId) => toolbarButtons[actionId])}
       </div>
     </header>

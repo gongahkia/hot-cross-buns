@@ -12,7 +12,7 @@ import type {
   ColorThemeDefinition
 } from "@shared/ipc/themeCatalog";
 import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
-import { ArrowDown, ArrowUp, Check, PanelLeft, PanelRight, RotateCcw, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, RotateCcw, Search } from "lucide-react";
 import {
   LoadingIndicator,
   defaultLoadingIndicatorPreferences,
@@ -36,11 +36,9 @@ import {
 import {
   calendarViewModes,
   fontSurfaceOptions,
-  navigationTabs,
   toolbarActions,
   type CalendarViewModeId,
   type FontSurfaceId,
-  type NavigationTabId,
   type ToolbarActionId
 } from "./settingsUtils";
 
@@ -107,22 +105,6 @@ export function AppearanceSettingsTab({
     };
   }, [pendingBackground]);
 
-  function updateNavigationTab(tabId: NavigationTabId, visible: boolean): void {
-    const hidden = new Set(settings.hiddenNavigationTabs);
-
-    if (visible) {
-      hidden.delete(tabId);
-    } else {
-      hidden.add(tabId);
-    }
-
-    if (navigationTabs.every((tab) => hidden.has(tab.id))) {
-      return;
-    }
-
-    updateSettings({ hiddenNavigationTabs: [...hidden] });
-  }
-
   function updateCalendarViewMode(viewId: CalendarViewModeId, visible: boolean): void {
     const hidden = new Set(settings.hiddenCalendarViewModes);
 
@@ -171,12 +153,6 @@ export function AppearanceSettingsTab({
         ...loadingIndicators,
         [surface]: value
       }
-    });
-  }
-
-  function moveNavigationTab(tabId: NavigationTabId, direction: -1 | 1): void {
-    updateSettings({
-      navigationTabOrder: moveItem(settings.navigationTabOrder, tabId, direction)
     });
   }
 
@@ -738,70 +714,9 @@ export function AppearanceSettingsTab({
 
       <SettingsGroup title={t("settings.layout")}>
         <SettingsControlRow
-          description={t("layout.navigationPlacement.description")}
-          label={t("layout.navigationPlacement")}
-        >
-          <SegmentedControl
-            options={[
-              { label: "Left", value: "left", icon: PanelLeft },
-              { label: "Right", value: "right", icon: PanelRight }
-            ]}
-            onChange={(value) =>
-              updateSettings({ navigationPlacement: value as SettingsSnapshot["navigationPlacement"] })
-            }
-            value={settings.navigationPlacement}
-          />
-        </SettingsControlRow>
-        <div className="grid gap-1 border-b border-border px-3 py-3 last:border-b-0">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-[var(--text-md)] font-semibold text-text-primary">{t("layout.navigationTabs")}</h3>
-            <Button
-              onClick={() => updateSettings({ navigationTabOrder: navigationTabs.map((tab) => tab.id) })}
-              size="sm"
-              variant="ghost"
-            >
-              <RotateCcw aria-hidden="true" size={13} />
-              {t("action.reset")}
-            </Button>
-          </div>
-          {settings.navigationTabOrder.map((tabId, index) => {
-            const tab = navigationTabs.find((item) => item.id === tabId);
-            if (!tab) {
-              return null;
-            }
-
-            return (
-              <SettingsSwitch
-                checked={!settings.hiddenNavigationTabs.includes(tab.id)}
-                key={tab.id}
-                label={navigationLabel(tab.id, t)}
-                onChange={(checked) => updateNavigationTab(tab.id, checked)}
-                trailing={
-                  <div className="flex items-center gap-1">
-                    <Button
-                      aria-label={`${t("action.moveUp")} ${navigationLabel(tab.id, t)}`}
-                      disabled={index === 0}
-                      onClick={() => moveNavigationTab(tab.id, -1)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <ArrowUp aria-hidden="true" size={13} />
-                    </Button>
-                    <Button
-                      aria-label={`${t("action.moveDown")} ${navigationLabel(tab.id, t)}`}
-                      disabled={index === settings.navigationTabOrder.length - 1}
-                      onClick={() => moveNavigationTab(tab.id, 1)}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <ArrowDown aria-hidden="true" size={13} />
-                    </Button>
-                  </div>
-                }
-              />
-            );
-          })}
-        </div>
+          description="Calendar, Tasks, and Notes are always available in the app header. Their defaults are Cmd 1, Cmd 2, and Cmd 3; change them in Hotkeys."
+          label="Primary navigation"
+        />
         <div className="grid gap-1 border-b border-border px-3 py-3 last:border-b-0">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-[var(--text-md)] font-semibold text-text-primary">{t("layout.toolbarActions")}</h3>
@@ -1049,18 +964,6 @@ function loadCropImage(url: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error("Could not load image."));
     image.src = url;
   });
-}
-
-function navigationLabel(tabId: NavigationTabId, t: ReturnType<typeof useI18n>["t"]): string {
-  if (tabId === "calendar") {
-    return t("nav.calendar");
-  }
-
-  if (tabId === "tasks") {
-    return t("nav.tasks");
-  }
-
-  return t("nav.notes");
 }
 
 function toolbarLabel(actionId: ToolbarActionId, t: ReturnType<typeof useI18n>["t"]): string {

@@ -7,7 +7,7 @@ The renderer must stay responsive while showing dense task, calendar, note, and 
 - Keep route-level state small. Store server/cache state in query hooks or preload-backed stores, not duplicated component trees.
 - Render stable view models. Avoid recomputing grouping, sorting, recurrence expansion, or search ranking inside render.
 - Virtualize large task, event, note, and search result lists.
-- Keep command palette, quick capture, and sidebar always cheap to mount.
+- Keep command palette, quick capture, and primary header navigation always cheap to mount.
 - Prefer CSS for visual states and simple animations.
 - Avoid layout thrash: measure DOM only in narrow hooks and batch reads before writes.
 - Avoid object rest destructuring on TanStack Query result objects because it can disable tracked-property optimizations.
@@ -48,7 +48,7 @@ Command palette and quick capture:
 Use React Profiler or equivalent measurement in development/performance builds for:
 
 - app shell
-- sidebar
+- primary header navigation
 - task list
 - calendar grid
 - search results
@@ -65,4 +65,3 @@ Collect render durations in local logs only when profiling is enabled. Do not en
 - Storing full raw Google payloads in renderer state.
 - Doing date recurrence expansion in component render.
 - Opening command palette by mounting the entire app settings/search stack.
-

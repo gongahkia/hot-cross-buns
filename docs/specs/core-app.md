@@ -10,13 +10,18 @@ macOS is the first supported platform. UI and service contracts must be written 
 
 The first screen after setup should be the usable planner, not a landing page. The shell should include:
 
-- sidebar navigation
+- persistent header navigation for Calendar, Tasks, and Notes
 - main content region
 - command palette
 - global status banner
 - sync state indicator
 - settings entry
 - keyboard-accessible navigation
+
+Calendar, Tasks, and Notes use `Cmd+1`, `Cmd+2`, and `Cmd+3` on macOS by
+default (`Ctrl+1`, `Ctrl+2`, and `Ctrl+3` on other platforms). The header
+controls remain available for pointer and assistive-technology navigation, but
+there is no persistent sidebar or collapsible navigation drawer.
 
 Primary sections:
 
@@ -149,4 +154,6 @@ Settings must not expose raw tokens, secrets, cache encryption keys, or full Goo
 - Task/event write flows share the same mutation services used by MCP.
 - Search returns local cache results without network access.
 - The app can render after restart from local SQLite before fresh sync completes.
-
+- Section changes must swap to the cached local view immediately; sync and
+  hydration continue in the background without replacing a usable surface with
+  a blocking loading state.

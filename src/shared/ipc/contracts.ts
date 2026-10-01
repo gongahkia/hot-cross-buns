@@ -205,7 +205,11 @@ export interface UndoApplyResponse { action: "undo" | "redo"; applied: boolean; 
 export interface UndoStackStatusResponse { canUndo: boolean; canRedo: boolean; }
 
 export const defaultHistoryCategoryVisibility = {};
-export const defaultKeybindings = {};
+export const defaultKeybindings = {
+  "navigation.calendar": "CmdOrCtrl+1",
+  "navigation.tasks": "CmdOrCtrl+2",
+  "navigation.notes": "CmdOrCtrl+3"
+};
 export const defaultLeaderKey = "CmdOrCtrl+K";
 export const defaultLeaderKeybindings = {};
 export const defaultSemanticSearchModels: any[] = [];

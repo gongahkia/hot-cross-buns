@@ -23,7 +23,6 @@ export const hotkeyDefinitions: HotkeyDefinition[] = [
   { id: "navigation.search", label: "Search Command Palette", group: "Navigation" },
   { id: "navigation.settings", label: "Open Settings", group: "Navigation" },
   { id: "navigation.diagnostics.toggle", label: "Diagnostics", group: "Navigation" },
-  { id: "navigation.sidebar.toggle", label: "Toggle Sidebar", group: "Navigation" },
   { id: "navigation.notifications.toggle", label: "Notifications", group: "Navigation" },
   { id: "pane.create", label: "New Pane", group: "Navigation" },
   { id: "pane.close", label: "Close Pane", group: "Navigation" },
