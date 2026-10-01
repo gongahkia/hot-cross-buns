@@ -23,6 +23,8 @@ default (`Ctrl+1`, `Ctrl+2`, and `Ctrl+3` on other platforms). The header
 controls remain available for pointer and assistive-technology navigation, but
 there is no persistent sidebar or collapsible navigation drawer.
 
+The command palette defaults to `Cmd+P` on macOS (`Ctrl+P` elsewhere).
+
 Primary sections:
 
 - Today

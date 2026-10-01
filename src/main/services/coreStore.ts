@@ -83,6 +83,7 @@ const defaultSettings: JsonRecord = {
   eventRetentionDaysBack: 0,
   completedTaskRetentionDaysBack: 365,
   keybindings: {
+    "commandPalette.open": "CmdOrCtrl+P",
     "navigation.calendar": "CmdOrCtrl+1",
     "navigation.tasks": "CmdOrCtrl+2",
     "navigation.notes": "CmdOrCtrl+3"
