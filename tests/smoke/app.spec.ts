@@ -14,6 +14,7 @@ test("launches and renders the planner shell", async () => {
       args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`],
       env: {
         ...process.env,
+        HCB_TEST_DATABASE_ROOT: profileDir,
         NODE_ENV: "test"
       }
     });

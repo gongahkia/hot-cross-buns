@@ -87,6 +87,16 @@ Required note capabilities:
 
 Notes must not be uploaded to Google unless a later spec adds a sync provider.
 
+### Legacy task-backed Notes import
+
+Some pre-native-Notes builds displayed a projection of Google Tasks as Notes.
+When eligible legacy items exist, Notes offers a user-reviewed import rather
+than silently migrating data. Eligibility intentionally mirrors that old
+projection: an active, top-level Task with no due date. Import copies title,
+body, tags, and source-list structure into local Notes, retains stable source
+Task/list provenance, and never modifies or deletes the original Google Task.
+The import is idempotent and is not a bidirectional sync.
+
 ## Search
 
 Search is local-first and must not call Google per keystroke.

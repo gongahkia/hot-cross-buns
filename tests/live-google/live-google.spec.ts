@@ -351,6 +351,7 @@ test.describe.serial("live Google account smoke", () => {
       args: [resolve(__dirname, "../.."), `--user-data-dir=${config.profileDir}`],
       env: {
         ...process.env,
+        HCB_TEST_DATABASE_ROOT: config.profileDir,
         NODE_ENV: "test",
         HCB_LIVE_GOOGLE_TEST_MODE: config.mode
       }

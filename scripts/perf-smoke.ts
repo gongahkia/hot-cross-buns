@@ -86,7 +86,7 @@ async function run(): Promise<void> {
   try {
     app = await electron.launch({
       args: [resolve(process.cwd()), `--user-data-dir=${profileDir}`],
-      env: { ...process.env, NODE_ENV: "test" }
+      env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" }
     });
     if (debugPerformanceRun) {
       app.process().stderr?.on("data", (chunk: Buffer) => process.stderr.write(chunk));

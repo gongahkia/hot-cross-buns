@@ -4,6 +4,7 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
+import { assertIsolatedTestDatabasePath } from "./testDatabasePaths";
 
 type JsonRecord = Record<string, any>;
 
@@ -23,6 +24,12 @@ export interface PendingSyncMutation {
   payload: JsonRecord;
   attempts: number;
   createdAt: string;
+}
+
+export interface HistoricalSmokeNoteFixture {
+  id: string;
+  title: string;
+  body: string;
 }
 
 interface EventWriteOptions {
@@ -45,8 +52,11 @@ interface SmartSchedulePlan {
 // accounts unsafe (both can legitimately expose e.g. a `primary` calendar).
 // This branch has no released users, so a clean reset is safer than a lossy
 // inference migration.
-const schemaVersion = 5;
+const schemaVersion = 6;
 const localAccountId = "local";
+const legacyPseudoNoteImportVersion = 1;
+const legacyPseudoNoteSourceType = "legacy-google-task-pseudo-note";
+const historicalSmokeNoteBody = "SQLite-backed smoke note.";
 
 const defaultSettings: JsonRecord = {
   theme: "dark",
@@ -181,6 +191,7 @@ export class CoreStore {
   private readonly smartSchedulePlans = new Map<string, SmartSchedulePlan>();
 
   constructor(databasePath: string) {
+    assertIsolatedTestDatabasePath(databasePath);
     mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
     chmodSync(dirname(databasePath), 0o700);
     this.db = new Database(databasePath);
@@ -193,6 +204,21 @@ export class CoreStore {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * Operator-only recovery hook for the historical Playwright defect. Callers
+   * must supply an audited manifest of exact record ids; this is deliberately
+   * not a broad title-based cleanup and is safe to repeat.
+   */
+  removeKnownHistoricalSmokeNotes(fixtures: readonly HistoricalSmokeNoteFixture[]): number {
+    const confirmed = fixtures.filter(isHistoricalSmokeNoteFixture);
+    const remove = this.db.prepare("DELETE FROM notes WHERE id=? AND title=? AND body=?");
+    let removed = 0;
+    this.db.transaction(() => {
+      for (const fixture of confirmed) removed += remove.run(fixture.id, fixture.title, fixture.body).changes;
+    })();
+    return removed;
   }
 
   attachNativeBridge(nativeBridge: CoreNativeBridge): void {
@@ -859,6 +885,10 @@ export class CoreStore {
         return { items: [] };
       case "notes.linkSuggest":
         return { items: this.search(input.query ?? "", input.limit ?? 8).items };
+      case "notes.legacyMigrationPreview":
+        return this.legacyPseudoNotesMigrationPreview(input);
+      case "notes.importLegacyPseudoNotes":
+        return this.importLegacyPseudoNotes(input);
       case "tags.list":
         return this.page(this.tags(), input);
       case "tags.create":
@@ -1009,6 +1039,25 @@ export class CoreStore {
       CREATE TABLE IF NOT EXISTS note_lists (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS legacy_note_import_lists (
+        source_task_list_id TEXT PRIMARY KEY,
+        native_note_list_id TEXT NOT NULL REFERENCES note_lists(id),
+        import_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS legacy_note_imports (
+        source_type TEXT NOT NULL,
+        source_task_id TEXT NOT NULL,
+        source_task_list_id TEXT NOT NULL,
+        source_google_task_id TEXT,
+        source_google_task_list_id TEXT,
+        native_note_id TEXT NOT NULL REFERENCES notes(id),
+        import_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(source_type,source_task_id),
+        UNIQUE(native_note_id)
+      );
+      CREATE INDEX IF NOT EXISTS legacy_note_imports_source_list_idx ON legacy_note_imports(source_task_list_id);
       CREATE TABLE IF NOT EXISTS tags (
         id TEXT PRIMARY KEY, title TEXT NOT NULL UNIQUE, color TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
@@ -2115,6 +2164,110 @@ export class CoreStore {
     return { ...this.page(rows.map((row) => this.noteSummary(row)), input), lists: this.noteLists() };
   }
 
+  /**
+   * The replaced Notes surface projected exactly these items: active,
+   * top-level Tasks with no due date. Keep that predicate literal here so an
+   * import never sweeps ordinary or completed Google Tasks into native Notes.
+   */
+  private legacyPseudoNotesMigrationPreview(input: JsonRecord): JsonRecord {
+    const candidates = this.legacyPseudoNoteCandidates();
+    const limit = Math.min(Math.max(Number(input.limit ?? 500), 1), 1_000);
+    return {
+      foundCount: candidates.length,
+      importedCount: this.legacyPseudoNoteImportCount(),
+      // Google identifiers remain main-process provenance. The renderer gets
+      // the stable local source identity it needs for review and selection.
+      items: candidates.slice(0, limit).map(({ sourceGoogleTaskId, sourceGoogleTaskListId, ...candidate }) => candidate)
+    };
+  }
+
+  /**
+   * Import is a copy-only transaction. It neither changes a Google Task nor
+   * enqueues an outbox mutation; provenance prevents a rerun from duplicating
+   * a Note even if its imported copy was later deleted by the user.
+   */
+  private importLegacyPseudoNotes(input: JsonRecord): JsonRecord {
+    const requestedTaskIds = [...new Set(stringArray(input.taskIds))];
+    if (requestedTaskIds.length === 0) throw new CoreStoreError("Select at least one legacy note to import.");
+    if (requestedTaskIds.length > 1_000) throw new CoreStoreError("Import at most 1,000 legacy notes at a time.");
+
+    const sourceById = new Map(this.legacyPseudoNoteCandidates(true).map((candidate) => [candidate.sourceTaskId, candidate]));
+    const now = timestamp();
+    let importedCount = 0;
+    let skippedCount = 0;
+    let listsCreated = 0;
+
+    this.db.transaction(() => {
+      const findImported = this.db.prepare(`SELECT native_note_id AS nativeNoteId FROM legacy_note_imports
+        WHERE source_type=? AND source_task_id=?`);
+      const findListMapping = this.db.prepare(`SELECT native_note_list_id AS nativeNoteListId FROM legacy_note_import_lists
+        WHERE source_task_list_id=?`);
+      const createList = this.db.prepare("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)");
+      const createListMapping = this.db.prepare(`INSERT INTO legacy_note_import_lists(source_task_list_id,native_note_list_id,import_version,created_at)
+        VALUES(?,?,?,?) ON CONFLICT(source_task_list_id) DO UPDATE SET native_note_list_id=excluded.native_note_list_id,
+        import_version=excluded.import_version,created_at=excluded.created_at`);
+      const createNote = this.db.prepare(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?)`);
+      const createProvenance = this.db.prepare(`INSERT INTO legacy_note_imports(
+        source_type,source_task_id,source_task_list_id,source_google_task_id,source_google_task_list_id,native_note_id,import_version,created_at
+      ) VALUES(?,?,?,?,?,?,?,?)`);
+
+      for (const sourceTaskId of requestedTaskIds) {
+        const source = sourceById.get(sourceTaskId);
+        if (!source || findImported.get(legacyPseudoNoteSourceType, source.sourceTaskId)) {
+          skippedCount += 1;
+          continue;
+        }
+
+        const mappedList = findListMapping.get(source.sourceTaskListId) as { nativeNoteListId?: string } | undefined;
+        let nativeNoteListId = mappedList?.nativeNoteListId;
+        if (!nativeNoteListId || !this.noteList(nativeNoteListId)) {
+          nativeNoteListId = randomUUID();
+          createList.run(nativeNoteListId, source.sourceListTitle, now, now);
+          createListMapping.run(source.sourceTaskListId, nativeNoteListId, legacyPseudoNoteImportVersion, now);
+          listsCreated += 1;
+        }
+
+        const nativeNoteId = randomUUID();
+        createNote.run(nativeNoteId, source.title, source.body, nativeNoteListId, JSON.stringify(source.tags), now, now);
+        createProvenance.run(
+          legacyPseudoNoteSourceType,
+          source.sourceTaskId,
+          source.sourceTaskListId,
+          source.sourceGoogleTaskId,
+          source.sourceGoogleTaskListId,
+          nativeNoteId,
+          legacyPseudoNoteImportVersion,
+          now
+        );
+        importedCount += 1;
+      }
+    })();
+
+    return { importedCount, skippedCount, listsCreated, importVersion: legacyPseudoNoteImportVersion };
+  }
+
+  private legacyPseudoNoteCandidates(includeImported = false): JsonRecord[] {
+    const importedJoin = includeImported
+      ? ""
+      : "LEFT JOIN legacy_note_imports imported ON imported.source_type='legacy-google-task-pseudo-note' AND imported.source_task_id=task.id";
+    const importedCondition = includeImported ? "" : "AND imported.source_task_id IS NULL";
+    const rows = this.db.prepare(`SELECT task.id AS sourceTaskId,task.list_id AS sourceTaskListId,task.google_id AS sourceGoogleTaskId,
+      list.google_id AS sourceGoogleTaskListId,list.title AS sourceListTitle,task.title,task.notes AS body,task.tags_json AS tagsJson,
+      task.updated_at AS updatedAt
+      FROM tasks task JOIN task_lists list ON list.id=task.list_id
+      ${importedJoin}
+      WHERE task.status='active' AND task.parent_id IS NULL AND task.due_at IS NULL
+      ${importedCondition}
+      ORDER BY list.title COLLATE NOCASE,task.updated_at DESC,task.id`).all() as JsonRecord[];
+    return rows.map(({ tagsJson, ...row }) => ({ ...row, tags: stringArray(safeJson(tagsJson, [])) }));
+  }
+
+  private legacyPseudoNoteImportCount(): number {
+    return Number((this.db.prepare("SELECT COUNT(*) AS count FROM legacy_note_imports WHERE source_type=?")
+      .get(legacyPseudoNoteSourceType) as { count?: number }).count ?? 0);
+  }
+
   private requireNote(id: string): JsonRecord {
     const row = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
@@ -2192,6 +2345,7 @@ export class CoreStore {
     const deletedAt = timestamp();
     this.db.transaction(() => {
       this.db.prepare("UPDATE notes SET deleted_at=?,updated_at=? WHERE list_id=? AND deleted_at IS NULL").run(deletedAt, deletedAt, id);
+      this.db.prepare("DELETE FROM legacy_note_import_lists WHERE native_note_list_id=?").run(id);
       this.db.prepare("DELETE FROM note_lists WHERE id=?").run(id);
     })();
     return { id, deleted: true };
@@ -2938,6 +3092,9 @@ function ftsQuery(value: string): string | null {
 }
 
 function timestamp(): string { return new Date().toISOString(); }
+function isHistoricalSmokeNoteFixture(fixture: HistoricalSmokeNoteFixture): boolean {
+  return /^smoke task \d{10,}$/.test(fixture.title) && fixture.body === historicalSmokeNoteBody;
+}
 function requiredIso(value: unknown, label: string): string {
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new CoreStoreError(`${label} is invalid.`);
   return new Date(value).toISOString();

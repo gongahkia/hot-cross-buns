@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { CoreStore } from "./coreStore";
 import { withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 const stores: Array<{ store: CoreStore; directory: string }> = [];
 
 function createStore(): CoreStore {
-  const directory = mkdtempSync(join(tmpdir(), "hcb-core-store-"));
+  const testRoot = process.env.HCB_TEST_DATABASE_ROOT;
+  if (!testRoot) throw new Error("HCB_TEST_DATABASE_ROOT is required for CoreStore tests.");
+  const directory = mkdtempSync(join(testRoot, "hcb-core-store-"));
   const store = new CoreStore(join(directory, "hcb.sqlite"));
   stores.push({ store, directory });
   return store;
@@ -25,6 +26,78 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("uses a unique temporary database directory for each store", () => {
+    const first = createStore();
+    const second = createStore();
+    const firstNote = first.dispatch("notes", "create", {
+      title: "smoke task 1790311447937",
+      body: "SQLite-backed smoke note."
+    });
+
+    expect(second.dispatch("notes", "list", { limit: 20 }).items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: firstNote.id })])
+    );
+    expect(stores).toHaveLength(2);
+    expect(stores.every(({ directory }) => existsSync(directory))).toBe(true);
+  });
+
+  it("removes only an audited exact historical smoke-note manifest and is idempotent", () => {
+    const store = createStore();
+    const fixture = store.dispatch("notes", "create", {
+      title: "smoke task 1790311447937",
+      body: "SQLite-backed smoke note."
+    });
+    const legitimate = store.dispatch("notes", "create", {
+      title: "smoke task 1790311447937",
+      body: "A user note with a similarly named title."
+    });
+
+    expect(store.removeKnownHistoricalSmokeNotes([fixture, legitimate])).toBe(1);
+    expect(store.dispatch("notes", "list", { limit: 20 }).items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: legitimate.id })])
+    );
+    expect(store.removeKnownHistoricalSmokeNotes([fixture])).toBe(0);
+  });
+
+  it("imports only the old task-backed pseudo-note predicate without changing source tasks", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "legacy-account", email: "legacy@example.test", connectionState: "connected" });
+    const firstList = store.upsertGoogleTaskList({ id: "legacy-list-a", title: "Inbox" }, account.accountId);
+    const secondList = store.upsertGoogleTaskList({ id: "legacy-list-b", title: "Inbox" }, account.accountId);
+    const first = store.upsertGoogleTask({ id: "legacy-task-a", title: "First legacy note", notes: "# First\n\nBody preserved", status: "needsAction" }, firstList.id)!;
+    const second = store.upsertGoogleTask({ id: "legacy-task-b", title: "Second legacy note", notes: "Second body", status: "needsAction" }, secondList.id)!;
+    store.upsertGoogleTask({ id: "dated", title: "Ordinary dated task", notes: "Do not import", due: "2026-10-02T00:00:00.000Z", status: "needsAction" }, firstList.id);
+    store.upsertGoogleTask({ id: "completed", title: "Completed task", notes: "Do not import", status: "completed" }, firstList.id);
+    store.upsertGoogleTask({ id: "parent", title: "Parent", notes: "Do not import", due: "2026-10-03T00:00:00.000Z", status: "needsAction" }, firstList.id);
+    store.upsertGoogleTask({ id: "child", parent: "parent", title: "Child task", notes: "Do not import", status: "needsAction" }, firstList.id);
+
+    const preview = store.dispatch("notes", "legacyMigrationPreview", { limit: 20 });
+    expect(preview).toMatchObject({ foundCount: 2, importedCount: 0 });
+    expect(preview.items.map((item: { sourceTaskId: string }) => item.sourceTaskId)).toEqual(expect.arrayContaining([first.id, second.id]));
+    expect(preview.items[0]).not.toHaveProperty("sourceGoogleTaskId");
+
+    const imported = store.dispatch("notes", "importLegacyPseudoNotes", { taskIds: [first.id, second.id] });
+    expect(imported).toMatchObject({ importedCount: 2, skippedCount: 0, listsCreated: 2, importVersion: 1 });
+    const notes = store.dispatch("notes", "list", { limit: 20 }).items;
+    expect(notes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: "First legacy note", body: "# First\n\nBody preserved" }),
+      expect.objectContaining({ title: "Second legacy note", body: "Second body" })
+    ]));
+    expect(store.dispatch("notes", "list", { limit: 20 }).lists.filter((list: { title: string }) => list.title === "Inbox")).toHaveLength(2);
+    expect(store.dispatch("tasks", "get", { id: first.id })).toMatchObject({
+      id: first.id,
+      title: "First legacy note",
+      notes: "# First\n\nBody preserved",
+      dueAt: null,
+      status: "active"
+    });
+    expect(store.pendingSyncMutations()).toEqual([]);
+
+    expect(store.dispatch("notes", "legacyMigrationPreview", { limit: 20 })).toMatchObject({ foundCount: 0, importedCount: 2 });
+    expect(store.dispatch("notes", "importLegacyPseudoNotes", { taskIds: [first.id, second.id] }))
+      .toMatchObject({ importedCount: 0, skippedCount: 2 });
+  });
+
   it("isolates same Google resource ids across accounts", () => {
     const store = createStore();
     const first = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });

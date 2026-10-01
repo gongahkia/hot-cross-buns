@@ -40,6 +40,8 @@ Required table groups:
 - Every schema change must be a numbered migration.
 - Migrations must be idempotent or guarded by migration version.
 - Migration tests must run against temporary SQLite databases.
+- Test processes must provide an explicit temporary database root and fail if
+  they attempt to open a normal development or user-profile database.
 - Failed migrations must not leave partially upgraded state without an error marker.
 - Destructive migrations require a backup/export path first.
 
@@ -64,6 +66,10 @@ Minimum fields:
 - created_at
 - updated_at
 - deleted_at
+
+Imported legacy task-backed Notes additionally retain local provenance for the
+source Task and Task list. That mapping is a copy/import record only; it must
+prevent duplicate imports without creating a hidden Notes-to-Google sync.
 
 Future linking fields may associate notes with task ids, event ids, list ids, or calendar ids, but linked notes still remain local-only unless a future sync spec changes that.
 
@@ -95,4 +101,3 @@ Required tests:
 - repository CRUD for tasks, events, notes, settings, checkpoints, and pending mutations
 - transaction rollback on failed write
 - renderer cannot import database modules
-

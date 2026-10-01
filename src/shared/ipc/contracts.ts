@@ -119,6 +119,26 @@ export type NoteEntityKind = any;
 export type NoteEntityLink = any;
 export type NoteEntityLinksResponse = any;
 export type NoteLinkSuggestResponse = any;
+export interface LegacyPseudoNoteCandidate {
+  sourceTaskId: string;
+  sourceTaskListId: string;
+  sourceListTitle: string;
+  title: string;
+  body: string;
+  tags: string[];
+  updatedAt: string;
+}
+export interface LegacyPseudoNotesMigrationPreview {
+  foundCount: number;
+  importedCount: number;
+  items: LegacyPseudoNoteCandidate[];
+}
+export interface LegacyPseudoNotesImportResult {
+  importedCount: number;
+  skippedCount: number;
+  listsCreated: number;
+  importVersion: number;
+}
 export type NoteListRequest = any;
 export type NoteListResponse = any;
 export type NoteListSummary = any;

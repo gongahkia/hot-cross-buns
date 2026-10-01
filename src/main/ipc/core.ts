@@ -21,7 +21,7 @@ const actionMap: Record<string, readonly string[]> = {
   bootstrap: ["get"],
   tasks: ["listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
   calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"],
-  notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "entityLinks", "listBrokenLinks", "linkSuggest"],
+  notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "entityLinks", "listBrokenLinks", "linkSuggest", "legacyMigrationPreview", "importLegacyPseudoNotes"],
   tags: ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"],
   search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
   settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
@@ -86,6 +86,8 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "notes" && action === "createNoteList") return z.object({ title: z.string().trim().min(1).max(500) }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "renameNoteList") return z.object({ id: idSchema, title: z.string().trim().min(1).max(500) }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "deleteNoteList") return z.object({ id: idSchema }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "legacyMigrationPreview") return z.object({ limit: z.number().int().min(1).max(1_000).optional() }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "importLegacyPseudoNotes") return z.object({ taskIds: z.array(idSchema).min(1).max(1_000) }).strict().safeParse(payload).success;
   if (namespace === "native" && action === "openExternalUrl") return z.object({ url: z.string().url().max(4_096) }).safeParse(payload).success;
   return true;
 }

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { LegacyPseudoNotesMigrationPreview } from "@shared/ipc/contracts";
 import { CacheStatePanel } from "../coreScreenShared";
 import { useCoreViewModelSource } from "../coreViewModelSource";
+import { LegacyNotesMigrationDialog } from "./LegacyNotesMigrationDialog";
 import { NotesBoard } from "./NotesBoard";
 import { NotesSidebar } from "./NotesSidebar";
 import { useAutoCollapsedSidebar } from "./useAutoCollapsedSidebar";
@@ -9,6 +11,7 @@ import { useNotesController } from "./useNotesController";
 export function NotesView(): JSX.Element {
   const source = useCoreViewModelSource();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [legacyMigrationPreview, setLegacyMigrationPreview] = useState<LegacyPseudoNotesMigrationPreview | null>(null);
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
   const {
@@ -28,6 +31,24 @@ export function NotesView(): JSX.Element {
     toggleNoteStar,
     toggleNoteView
   } = useNotesController(source);
+
+  useEffect(() => {
+    let active = true;
+    void window.hcb?.notes.legacyMigrationPreview({ limit: 1_000 }).then((result) => {
+      if (active && result?.ok && result.data.foundCount > 0) {
+        setLegacyMigrationPreview(result.data as LegacyPseudoNotesMigrationPreview);
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function importLegacyPseudoNotes(taskIds: string[]): Promise<{ ok: boolean; error?: string }> {
+    const result = await window.hcb?.notes.importLegacyPseudoNotes({ taskIds });
+    if (!result?.ok) return { ok: false, error: result?.error.message ?? "HCB could not import those legacy notes." };
+    setLegacyMigrationPreview(null);
+    source.refresh();
+    return { ok: true };
+  }
 
   if (
     (source.dataState === "loading" ||
@@ -65,6 +86,13 @@ export function NotesView(): JSX.Element {
         selectedNoteId={selectedNoteId}
         starredNoteIds={starredNoteIds}
       />
+      {legacyMigrationPreview ? (
+        <LegacyNotesMigrationDialog
+          onDismiss={() => setLegacyMigrationPreview(null)}
+          onImport={importLegacyPseudoNotes}
+          preview={legacyMigrationPreview}
+        />
+      ) : null}
     </div>
   );
 }

@@ -61,6 +61,11 @@ Use temporary databases for:
 
 These tests must not touch a user's real app data path.
 
+`test:db` creates a unique OS-temporary `HCB_TEST_DATABASE_ROOT` for each run.
+CoreStore rejects any `NODE_ENV=test` database path outside that root, so a
+missing test profile cannot fall back to the normal Electron user-data
+directory. Teardown owns and removes only that generated temporary root.
+
 ## Google Sync Tests
 
 Use mocked Google transport for:
