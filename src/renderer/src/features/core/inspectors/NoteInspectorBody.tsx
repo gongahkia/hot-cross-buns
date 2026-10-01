@@ -7,13 +7,12 @@ import {
   useRef,
   useState
 } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { AlertTriangle, Link2, Pencil, RotateCcw, Search } from "lucide-react";
-import type { NoteLinkSuggestResponse } from "@shared/ipc/contracts";
+import { AlertTriangle, Pencil, RotateCcw, Search } from "lucide-react";
 import type { AutoTagRule } from "@shared/ipc/contracts";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
-import { EmojiInput, EmojiTextarea } from "../../../components/EmojiTextField";
-import { Badge, Button, Input, cx } from "../../../components/primitives";
+import { EmojiInput } from "../../../components/EmojiTextField";
+import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
+import { Badge, Button, cx } from "../../../components/primitives";
 import { AutoTagAudit } from "../AutoTagAudit";
 import { AttachmentPanel } from "../AttachmentPanel";
 import { EntityLinksPanel } from "../EntityLinksPanel";
@@ -48,8 +47,6 @@ export interface NoteTemplateOption {
   name: string;
   title: string;
 }
-
-type LinkSuggestion = NoteLinkSuggestResponse["items"][number];
 
 interface NoteInspectorBodyProps {
   createMode?: boolean;
@@ -206,13 +203,8 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
     const { update } = useInspector();
     const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
     const [selectedTemplateId, setSelectedTemplateId] = useState("blank");
-    const [linkQuery, setLinkQuery] = useState("");
-    const [suggestions, setSuggestions] = useState<LinkSuggestion[]>([]);
-    const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
-    const [repairLinkText, setRepairLinkText] = useState<string | null>(null);
     const [brokenLinks, setBrokenLinks] = useState<Array<{ linkText: string }>>([]);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-    const linkInputRef = useRef<HTMLInputElement | null>(null);
     const draftRef = useRef<NoteDraftValue>(dirty.value);
     const dirtyRef = useRef(dirty.isDirty);
     const lastNotifiedDraftRef = useRef<NoteDraftValue>(dirty.value);
@@ -262,32 +254,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
       };
     }, [dirty.value.body, note.id]);
 
-    useEffect(() => {
-      const query = linkQuery.trim();
-
-      if (!query) {
-        setSuggestions([]);
-        setActiveSuggestionIndex(0);
-        return;
-      }
-
-      let cancelled = false;
-      const timer = window.setTimeout(() => {
-        void window.hcb?.notes.linkSuggest({ query, limit: 8 }).then((result) => {
-          if (cancelled || !result?.ok) {
-            return;
-          }
-
-          setSuggestions(result.data.items);
-          setActiveSuggestionIndex(0);
-        });
-      }, 180);
-
-      return () => {
-        cancelled = true;
-        window.clearTimeout(timer);
-      };
-    }, [linkQuery]);
 
     useEffect(() => {
       onDraftChangeRef.current = onDraftChange;

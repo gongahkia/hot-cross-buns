@@ -131,8 +131,9 @@ function driveCapabilities(status: GoogleStatusResponse, accountId?: string): { 
 export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> & {
   accountId?: string;
   onValueChange: (value: string) => void;
+  showControls?: boolean;
 }>(
-  function ReferenceTextarea({ accountId, className, onKeyDown, onSelect, onValueChange, value = "", ...props }, ref) {
+  function ReferenceTextarea({ accountId, className, onKeyDown, onSelect, onValueChange, showControls = true, value = "", ...props }, ref) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const searchRef = useRef<HTMLInputElement | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -374,12 +375,12 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           value={value}
           {...props}
         />
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="Insert reference">
+        {showControls ? <div className="flex flex-wrap items-center gap-1.5" aria-label="Insert reference">
           {canSearchDrive ? <Button onClick={() => openPicker("drive")} size="sm" type="button" variant="secondary"><FolderSearch aria-hidden="true" size={14} />Drive</Button> : null}
           <Button onClick={() => openPicker("hcb")} size="sm" type="button" variant="secondary"><Link2 aria-hidden="true" size={14} />HCB item</Button>
           {canUploadDrive ? <Button disabled={uploading} onClick={() => void uploadFromMac()} size="sm" type="button" variant="secondary"><FileUp aria-hidden="true" size={14} />Upload file</Button> : null}
           <span className="text-[var(--text-xs)] text-text-muted">Type <kbd className="rounded border border-border bg-surface-0 px-1 font-mono">@</kbd> to insert a reference.</span>
-        </div>
+        </div> : null}
         {isOpen ? (
           <div className="absolute inset-x-0 top-[calc(100%+4px)] z-[1002] grid max-h-[min(28rem,60vh)] overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl" role="dialog" aria-label="Insert reference">
             <div className="flex items-center gap-1 border-b border-border p-1">

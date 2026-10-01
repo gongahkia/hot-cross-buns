@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from "react";
 import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -152,6 +152,13 @@ function snoozeLabel(value: string | null | undefined): string {
   });
 }
 
+function taskDuePreset(daysFromToday: number): string {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + daysFromToday);
+  return date.toISOString().slice(0, 10);
+}
+
 export function TaskInspectorDetails({
   draft,
   parentOptions,
@@ -300,6 +307,7 @@ export function TaskInspectorBody({
 }): JSX.Element {
   const dirty = useDirtyState<TaskDraft>(draft);
   const { update } = useInspector();
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
 
   useEffect(() => {
     setDraft((current) => (taskDraftsEqual(current, dirty.value) ? current : dirty.value));
@@ -334,6 +342,7 @@ export function TaskInspectorBody({
     <div className="grid min-w-0 gap-3" onKeyDown={handleKeyDown}>
       <EmojiInput
         aria-label="Task title"
+        autoFocus={dirty.value.mode === "create"}
         onValueChange={(title) => patchDraft({ title })}
         placeholder="Task title"
         value={dirty.value.title}
@@ -380,63 +389,72 @@ export function TaskInspectorBody({
           </select>
         </label>
       </div>
-      <div className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
-        <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
-          <span>Snooze until</span>
-          <Input
-            aria-label="Snooze until"
-            onChange={(event) => patchDraft({ snoozeUntil: localDateTimeInputToIso(event.target.value) })}
-            type="datetime-local"
-            value={localDateTimeInputValue(dirty.value.snoozeUntil)}
-          />
-        </label>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("laterToday") })} size="sm" variant="secondary">
-            Later today
-          </Button>
-          <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("tomorrow") })} size="sm" variant="secondary">
-            Tomorrow
-          </Button>
-          <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("nextWeek") })} size="sm" variant="secondary">
-            Next week
-          </Button>
-          <Button disabled={!dirty.value.snoozeUntil} onClick={() => patchDraft({ snoozeUntil: null })} size="sm" variant="ghost">
-            Clear snooze
-          </Button>
-        </div>
+      <div className="flex flex-wrap gap-1.5">
+        <span className="self-center text-[var(--text-xs)] font-medium text-text-muted">Due</span>
+        <Button onClick={() => patchDraft({ dueDate: taskDuePreset(0) })} size="sm" type="button" variant="secondary">Today</Button>
+        <Button onClick={() => patchDraft({ dueDate: taskDuePreset(1) })} size="sm" type="button" variant="secondary">Tomorrow</Button>
+        <Button onClick={() => patchDraft({ dueDate: taskDuePreset(7) })} size="sm" type="button" variant="secondary">Next week</Button>
+        {dirty.value.dueDate ? <Button onClick={() => patchDraft({ dueDate: "" })} size="sm" type="button" variant="ghost">Clear</Button> : null}
       </div>
-      <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
-        <span>Parent</span>
-        <select
-          aria-label="Parent task"
-          className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onChange={(event) => patchDraft({ parentId: event.target.value })}
-          value={dirty.value.parentId}
-        >
-          <option value="">No parent</option>
-          {parentOptions.map((task) => (
-            <option key={task.id} value={task.id}>
-              {task.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <TagInput onChange={(tags) => patchDraft({ tags })} value={dirty.value.tags ?? []} />
       <ReferenceTextarea
         accountId={source.taskLists.find((taskList) => taskList.id === dirty.value.listId)?.accountId}
         aria-label="Task notes"
         className="min-h-20 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onValueChange={(notes) => patchDraft({ notes })}
         placeholder="Notes"
+        showControls={showMoreOptions}
         value={dirty.value.notes}
       />
-      <div className="flex items-center gap-2">
-        <Button disabled={dirty.value.mode !== "edit"} onClick={onAddSubtask} size="sm" variant="secondary">
-          <ListPlus aria-hidden="true" size={14} />
-          Add subtask
+      <div className="border-t border-border pt-2">
+        <Button
+          aria-expanded={showMoreOptions}
+          onClick={() => setShowMoreOptions((expanded) => !expanded)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {showMoreOptions ? "Fewer options" : "More options"}
         </Button>
       </div>
-      {dirty.value.id ? <AttachmentPanel editable entityId={dirty.value.id} entityKind="task" /> : null}
+      {showMoreOptions ? (
+        <div className="grid gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+          <div className="grid gap-2">
+            <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Snooze until</span>
+              <Input
+                aria-label="Snooze until"
+                onChange={(event) => patchDraft({ snoozeUntil: localDateTimeInputToIso(event.target.value) })}
+                type="datetime-local"
+                value={localDateTimeInputValue(dirty.value.snoozeUntil)}
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("laterToday") })} size="sm" variant="secondary">Later today</Button>
+              <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("tomorrow") })} size="sm" variant="secondary">Tomorrow</Button>
+              <Button onClick={() => patchDraft({ snoozeUntil: snoozePresetIso("nextWeek") })} size="sm" variant="secondary">Next week</Button>
+              <Button disabled={!dirty.value.snoozeUntil} onClick={() => patchDraft({ snoozeUntil: null })} size="sm" variant="ghost">Clear snooze</Button>
+            </div>
+          </div>
+          <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Parent</span>
+            <select
+              aria-label="Parent task"
+              className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onChange={(event) => patchDraft({ parentId: event.target.value })}
+              value={dirty.value.parentId}
+            >
+              <option value="">No parent</option>
+              {parentOptions.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+            </select>
+          </label>
+          <TagInput onChange={(tags) => patchDraft({ tags })} value={dirty.value.tags ?? []} />
+          <Button disabled={dirty.value.mode !== "edit"} onClick={onAddSubtask} size="sm" variant="secondary">
+            <ListPlus aria-hidden="true" size={14} />
+            Add subtask
+          </Button>
+          {dirty.value.id ? <AttachmentPanel editable entityId={dirty.value.id} entityKind="task" /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
