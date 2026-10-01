@@ -89,6 +89,15 @@ export interface GoogleStatusResponse {
   account?: GoogleAccountStatus | null;
   accounts: GoogleAccountStatus[];
 }
+export type GoogleOptionalWorkspaceService = "drive" | "driveUpload" | "gmail";
+export interface GoogleReconfigureOptionalAccessRequest {
+  accountId: string;
+  requestedServices: GoogleOptionalWorkspaceService[];
+  confirmation: "RECONFIGURE_OPTIONAL_ACCESS";
+}
+export interface GoogleReconfigureOptionalAccessResponse extends GoogleStatusResponse {
+  message: string;
+}
 export type HotkeyActionId = string;
 export type IcsSubscriptionsResponse = any;
 export type LocalPointerListResponse = any;

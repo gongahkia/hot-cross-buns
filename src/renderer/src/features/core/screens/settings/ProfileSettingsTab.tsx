@@ -1,23 +1,26 @@
 import type {
   CalendarListSummary,
+  GoogleOptionalWorkspaceService,
   GoogleStatusResponse,
   SettingsSnapshot,
   TaskListSummary
 } from "@shared/ipc/contracts";
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Mail, Save, ShieldCheck, Trash2, Users } from "lucide-react";
+import { Check, Eye, EyeOff, Mail, RefreshCw, Save, ShieldCheck, Trash2, Users, X } from "lucide-react";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import googleCalendarLogo from "../../../../assets/google-calendar.png";
-import googleDriveLogo from "../../../../assets/google-drive.png";
-import googleGmailLogo from "../../../../assets/google-gmail.png";
 import googleTasksLogo from "../../../../assets/google-tasks.png";
 import { googleScopes } from "../../../../googleCapabilities";
 import {
   SettingsControlRow,
   SettingsGroup,
-  SettingsSwitch
+  SettingsSwitch,
+  settingsSelectClass
 } from "./SettingsPrimitives";
+
+type OptionalWorkspaceService = GoogleOptionalWorkspaceService;
+type ReconfigureOptionalAccessResult = { ok: boolean; message: string };
 
 interface ProfileSettingsTabProps {
   beginGoogleOAuth: (requestedServices?: Array<"drive" | "driveUpload" | "gmail">) => Promise<void>;
@@ -27,6 +30,7 @@ interface ProfileSettingsTabProps {
   googleClientSecret: string;
   googleStatus: GoogleStatusResponse;
   refreshPlanner: () => void;
+  reconfigureOptionalAccess: (input: { accountId: string; requestedServices: OptionalWorkspaceService[] }) => Promise<ReconfigureOptionalAccessResult>;
   saveGoogleOAuthClient: () => Promise<void>;
   setGoogleClientId: (value: string) => void;
   setGoogleClientSecret: (value: string) => void;
@@ -45,6 +49,7 @@ export function ProfileSettingsTab({
   googleClientSecret,
   googleStatus,
   refreshPlanner,
+  reconfigureOptionalAccess,
   saveGoogleOAuthClient,
   setGoogleClientId,
   setGoogleClientSecret,
@@ -55,6 +60,7 @@ export function ProfileSettingsTab({
   updateSelectedTaskList
 }: ProfileSettingsTabProps): JSX.Element {
   const [showClientSecret, setShowClientSecret] = useState(false);
+  const [optionalAccessDialogOpen, setOptionalAccessDialogOpen] = useState(false);
   const selectedTaskLists = new Set(settings.selectedTaskListIds);
   const selectedCalendars = new Set(settings.selectedCalendarIds);
   const account = googleStatus.account;
@@ -71,6 +77,7 @@ export function ProfileSettingsTab({
   const connected = primaryAccount?.connectionState === "connected";
   const accountLabel = primaryAccount?.displayName || primaryAccount?.email || (connected ? "Connected Google account" : "Not connected");
   const accountDetail = primaryAccount?.email ?? primaryAccount?.googleAccountId ?? primaryAccount?.connectionState ?? "Google account is not connected";
+  const connectedAccounts = visibleAccounts.filter((candidate) => candidate.connectionState === "connected");
 
   useEffect(() => {
     if (resourceAccountFilter === "all" || visibleAccounts.some((candidate) => candidate.accountId === resourceAccountFilter)) {
@@ -229,22 +236,15 @@ export function ProfileSettingsTab({
 
       <SettingsGroup title="Optional Google Workspace access">
         <div className="grid gap-1 px-3 pt-3 text-[var(--text-sm)] text-text-secondary">
-          <p>Each capability asks for its own scope only when you choose it. Drive links search file metadata; local-file uploads create private copies of files you explicitly select; Gmail capture remains read-only.</p>
-          <p className="text-[var(--text-xs)] text-text-muted">Leave a capability off and HCB removes its controls. Google permissions already granted must be revoked in your Google Account before reconnecting with only the access you want.</p>
+          <p>Choose only the optional Google capabilities you want. HCB will reconnect the selected account with that exact access.</p>
+          <p className="text-[var(--text-xs)] text-text-muted">Leave a capability off and HCB removes its controls. Your local cache stays in place, and HCB blocks the change until pending Google writes are synced.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive"])} variant="secondary">
-            <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
-            Enable Drive links
+          <Button disabled={!googleStatus.oauthClientConfigured || connectedAccounts.length === 0} onClick={() => setOptionalAccessDialogOpen(true)} variant="secondary">
+            <RefreshCw aria-hidden="true" size={14} />
+            Reconfigure Google access
           </Button>
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["driveUpload"])} variant="secondary">
-            <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
-            Enable local-file uploads
-          </Button>
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["gmail"])} variant="secondary">
-            <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
-            Enable Gmail capture
-          </Button>
+          {connectedAccounts.length === 0 ? <span className="text-[var(--text-xs)] text-text-muted">Connect a Google account first.</span> : null}
         </div>
       </SettingsGroup>
 
@@ -252,6 +252,14 @@ export function ProfileSettingsTab({
 
       {visibleAccounts.filter((candidate) => candidate.connectionState === "connected").length >= 2 ? (
         <CrossAccountCopy accounts={visibleAccounts.filter((candidate) => candidate.connectionState === "connected")} calendarSources={calendarSources} />
+      ) : null}
+
+      {optionalAccessDialogOpen ? (
+        <OptionalGoogleAccessDialog
+          accounts={connectedAccounts}
+          onClose={() => setOptionalAccessDialogOpen(false)}
+          onReconfigure={reconfigureOptionalAccess}
+        />
       ) : null}
 
       <SettingsGroup title="Task lists">
@@ -307,6 +315,124 @@ export function ProfileSettingsTab({
         ))}
       </SettingsGroup>
     </div>
+  );
+}
+
+function OptionalGoogleAccessDialog({
+  accounts,
+  onClose,
+  onReconfigure
+}: {
+  accounts: GoogleStatusResponse["accounts"];
+  onClose: () => void;
+  onReconfigure: (input: { accountId: string; requestedServices: OptionalWorkspaceService[] }) => Promise<ReconfigureOptionalAccessResult>;
+}): JSX.Element {
+  const firstAccount = accounts[0];
+  const [accountId, setAccountId] = useState(firstAccount?.accountId ?? "");
+  const [driveLinks, setDriveLinks] = useState(() => firstAccount?.grantedScopes?.includes(googleScopes.driveSearch) ?? false);
+  const [driveUploads, setDriveUploads] = useState(() => firstAccount?.grantedScopes?.includes(googleScopes.driveUpload) ?? false);
+  const [gmailCapture, setGmailCapture] = useState(() => firstAccount?.grantedScopes?.includes(googleScopes.gmailCapture) ?? false);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function selectAccount(nextAccountId: string): void {
+    const account = accounts.find((candidate) => candidate.accountId === nextAccountId);
+    setAccountId(nextAccountId);
+    setDriveLinks(account?.grantedScopes?.includes(googleScopes.driveSearch) ?? false);
+    setDriveUploads(account?.grantedScopes?.includes(googleScopes.driveUpload) ?? false);
+    setGmailCapture(account?.grantedScopes?.includes(googleScopes.gmailCapture) ?? false);
+    setAcknowledged(false);
+    setMessage(null);
+  }
+
+  async function reconfigure(): Promise<void> {
+    const requestedServices: OptionalWorkspaceService[] = [
+      ...(driveLinks ? ["drive" as const] : []),
+      ...(driveUploads ? ["driveUpload" as const] : []),
+      ...(gmailCapture ? ["gmail" as const] : [])
+    ];
+    setSubmitting(true);
+    setMessage(null);
+    const result = await onReconfigure({ accountId, requestedServices });
+    setSubmitting(false);
+    if (result.ok) {
+      onClose();
+      return;
+    }
+    setMessage(result.message);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] grid place-items-center bg-bg-primary/70 p-4 backdrop-blur-sm"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !submitting) {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      role="presentation"
+    >
+      <section aria-labelledby="optional-google-access-title" aria-modal="true" className="hcb-raised grid w-full max-w-xl overflow-hidden rounded-hcbLg border border-border bg-bg-primary shadow-hcbLg" role="dialog">
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-bg-secondary px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-[var(--text-lg)] font-semibold text-text-primary" id="optional-google-access-title">Reconfigure Google access</h2>
+            <p className="mt-0.5 text-[var(--text-xs)] text-text-muted">Select only the optional capabilities this account should have.</p>
+          </div>
+          <IconButton disabled={submitting} icon={X} label="Close Google access settings" onClick={onClose} variant="ghost" />
+        </header>
+        <div className="grid gap-3 p-4">
+          {accounts.length > 1 ? (
+            <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+              <span>Google account</span>
+              <select aria-label="Google account to reconfigure" className={settingsSelectClass} onChange={(event) => selectAccount(event.target.value)} value={accountId}>
+                {accounts.map((account) => <option key={account.accountId} value={account.accountId}>{account.displayName || account.email || "Google account"}</option>)}
+              </select>
+            </label>
+          ) : null}
+          <div className="grid overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
+            <OptionalAccessChoice checked={driveLinks} description="Search and link metadata for Drive files you can access." label="Drive links" onChange={setDriveLinks} />
+            <OptionalAccessChoice checked={driveUploads} description="Upload a file you explicitly select into HCB's private Drive folder." label="Local-file uploads" onChange={setDriveUploads} />
+            <OptionalAccessChoice checked={gmailCapture} description="Search message metadata and snippets, then capture a message as a Task." label="Gmail capture" onChange={setGmailCapture} />
+          </div>
+          <div className="rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-sm)] text-text-secondary">
+            HCB preserves its local cache. Google requires a fresh connection, so the next step opens your default browser. Pending Google changes must be synced first.
+          </div>
+          <label className="flex min-h-10 cursor-pointer items-start gap-2 rounded-hcbMd px-1 py-1 text-[var(--text-sm)] text-text-secondary">
+            <input aria-label="Acknowledge Google reconnection" checked={acknowledged} className="mt-0.5 size-4 accent-[var(--color-accent)]" onChange={(event) => setAcknowledged(event.target.checked)} type="checkbox" />
+            <span>I understand this resets HCB's Google connection for the selected account and opens a browser to reconnect it.</span>
+          </label>
+          {message ? <p className="text-[var(--text-sm)] text-warning" role="status">{message}</p> : null}
+        </div>
+        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-secondary px-4 py-3">
+          <Button disabled={submitting} onClick={onClose} variant="ghost">Cancel</Button>
+          <Button disabled={!accountId || !acknowledged || submitting} onClick={() => void reconfigure()} variant="primary">
+            {submitting ? <RefreshCw aria-hidden="true" className="animate-spin" size={14} /> : <Check aria-hidden="true" size={14} />}
+            Reconnect with selected access
+          </Button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function OptionalAccessChoice({
+  checked,
+  description,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (checked: boolean) => void;
+}): JSX.Element {
+  return (
+    <label className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-surface-0">
+      <input aria-label={label} checked={checked} className="size-4 accent-[var(--color-accent)]" onChange={(event) => onChange(event.target.checked)} type="checkbox" />
+      <span className="min-w-0"><span className="block text-[var(--text-base)] font-medium text-text-primary">{label}</span><span className="block text-[var(--text-xs)] text-text-muted">{description}</span></span>
+    </label>
   );
 }
 

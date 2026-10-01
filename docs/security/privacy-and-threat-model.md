@@ -96,6 +96,7 @@ Controls:
 - least scopes for Tasks and Calendar only
 - token access only in main/worker service
 - no raw Google payloads in renderer diagnostics
+- optional-access reconfiguration is an explicit, main-process-only revoke-and-reconnect flow; it blocks unresolved Google writes and never exposes the credential or revocation response to the renderer
 - retry/backoff for transient failures
 - full-resync path for invalid sync tokens
 - visible unresolved sync issue state

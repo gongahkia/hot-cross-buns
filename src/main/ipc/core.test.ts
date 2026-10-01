@@ -21,4 +21,21 @@ describe("core IPC task payload validation", () => {
     expect(payloadIsValid("google", "pickAndUploadDriveFile", { accountId: "google-account" })).toBe(true);
     expect(payloadIsValid("google", "pickAndUploadDriveFile", { filePath: "/private/file" })).toBe(false);
   });
+
+  it("requires explicit confirmation and bounded scopes when reconfiguring Google access", () => {
+    expect(payloadIsValid("google", "reconfigureOptionalAccess", {
+      accountId: "google-account",
+      confirmation: "RECONFIGURE_OPTIONAL_ACCESS",
+      requestedServices: ["drive", "gmail"]
+    })).toBe(true);
+    expect(payloadIsValid("google", "reconfigureOptionalAccess", {
+      accountId: "google-account",
+      confirmation: "RECONFIGURE_OPTIONAL_ACCESS",
+      requestedServices: ["not-a-service"]
+    })).toBe(false);
+    expect(payloadIsValid("google", "reconfigureOptionalAccess", {
+      accountId: "google-account",
+      requestedServices: []
+    })).toBe(false);
+  });
 });

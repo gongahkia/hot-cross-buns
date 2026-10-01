@@ -32,6 +32,10 @@ Optional scopes are requested only after the user selects the corresponding cont
 
 The client must not silently broaden an existing grant. See [Google Workspace integrations](../google-workspace-integrations.md) for consent, verification, and live-test requirements.
 
+### Reconfiguring optional access
+
+Desktop OAuth cannot selectively withdraw an already-granted scope. **Settings → Profile → Reconfigure Google access** therefore presents the optional capabilities for one connected account, requires an explicit acknowledgement, and starts a replacement consent flow with exactly the selected optional scopes. Before revoking the current authorization, the main process blocks the operation if that account has pending or conflicted outbox mutations. A successful reset deletes the encrypted account credential, marks the cached account disconnected, preserves the local Task/Calendar cache, and opens the default browser for a fresh PKCE authorization. The renderer receives only sanitized status and never a token or revocation response.
+
 ## Tasks Mapping
 
 Google Tasks backs:

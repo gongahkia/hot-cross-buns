@@ -315,6 +315,19 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(() => store.dispatch("calendar", "get", { id: localEvent.id })).toThrow("Calendar event no longer exists");
   });
 
+  it("counts queued Google changes before an OAuth reconfiguration", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const list = store.upsertGoogleTaskList({ id: "google-inbox", title: "Google Inbox" }, account.accountId);
+    const task = store.dispatch("tasks", "create", { listId: list.id, title: "Queued before access change" });
+
+    expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(1);
+    const mutation = store.pendingSyncMutations(10, account.accountId).find((candidate) => candidate.entityId === task.id);
+    if (!mutation) throw new Error("Expected queued Google task mutation.");
+    store.completeSyncMutation(mutation.id);
+    expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(0);
+  });
+
   it("persists task blocks, availability, and reversible writes", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Write release notes", durationMinutes: 30 });

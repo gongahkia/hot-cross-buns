@@ -67,6 +67,7 @@ The main process owns Electron lifecycle and privileged orchestration:
 - notification scheduling
 - deep link handling
 - IPC handler registration
+- OAuth consent revocation and replacement authorization for user-requested scope reconfiguration
 - service container setup
 - worker lifecycle
 - logging and diagnostics
@@ -165,4 +166,3 @@ The app must have structured local logs for:
 - tray/hotkey registration results
 
 Diagnostics must be copyable from Settings and must redact secrets by default.
-

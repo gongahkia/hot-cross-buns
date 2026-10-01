@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { safeStorage, shell } from "electron";
+import type { GoogleOptionalWorkspaceService } from "@shared/ipc/contracts";
 import { CoreStore, CoreStoreError } from "./coreStore";
 
 interface AccountSecretPayload {
@@ -17,7 +18,7 @@ interface SecretPayload {
   accounts?: Record<string, AccountSecretPayload>;
 }
 
-type OptionalWorkspaceService = "drive" | "driveUpload" | "gmail";
+type OptionalWorkspaceService = GoogleOptionalWorkspaceService;
 
 interface PendingAuthorization {
   cancelled: boolean;
@@ -137,11 +138,16 @@ export class GoogleOAuthController {
         throw new CoreStoreError("This account needs to be connected again before its access can be reconfigured.");
       }
 
-      const revokeResponse = await fetch("https://oauth2.googleapis.com/revoke", {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: refreshToken })
-      });
+      let revokeResponse: Response;
+      try {
+        revokeResponse = await fetch("https://oauth2.googleapis.com/revoke", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: refreshToken })
+        });
+      } catch {
+        throw new CoreStoreError("Could not reach Google to reset this authorization. Your existing connection was left unchanged; try again.");
+      }
       if (!revokeResponse.ok) {
         throw new CoreStoreError("Google could not reset this authorization. Your existing connection was left unchanged; try again.");
       }

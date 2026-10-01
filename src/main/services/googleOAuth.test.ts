@@ -96,6 +96,75 @@ describe("GoogleOAuthController", () => {
     await controller.cancel();
   });
 
+  it("revokes an account before reopening consent with only the selected optional access", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-test-"));
+    const removeGoogleAccount = vi.fn();
+    const store = {
+      dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
+      googleAccount: vi.fn(() => ({ accountId: "google-account", connectionState: "connected" })),
+      oauthClientId: () => "test-desktop-client-id",
+      removeGoogleAccount,
+      unresolvedSyncMutationCount: () => 0
+    };
+    electronMocks.isEncryptionAvailable.mockReturnValue(true);
+    electronMocks.encryptString.mockImplementation((value) => Buffer.from(value));
+    electronMocks.decryptString.mockImplementation((value) => value.toString());
+    const controller = new GoogleOAuthController(directory, store as never);
+    const internals = controller as unknown as {
+      readSecrets: () => Promise<{ accounts?: Record<string, unknown> }>;
+      writeSecrets: (value: unknown) => Promise<void>;
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+
+    try {
+      await internals.writeSecrets({ accounts: { "google-account": { refreshToken: "test-refresh-credential" } } });
+      const result = await controller.reconfigureOptionalAccess({
+        accountId: "google-account",
+        confirmation: "RECONFIGURE_OPTIONAL_ACCESS",
+        requestedServices: ["drive"]
+      });
+
+      expect(result.message).toContain("Continue in your browser");
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "https://oauth2.googleapis.com/revoke",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(removeGoogleAccount).toHaveBeenCalledWith("google-account");
+      expect((await internals.readSecrets()).accounts).not.toHaveProperty("google-account");
+      await vi.waitFor(() => expect(electronMocks.openExternal).toHaveBeenCalled());
+      const authorizationUrl = new URL(String(electronMocks.openExternal.mock.calls.at(-1)?.[0]));
+      const scopes = authorizationUrl.searchParams.get("scope")?.split(" ") ?? [];
+      expect(scopes).toContain("https://www.googleapis.com/auth/drive.metadata.readonly");
+      expect(scopes).not.toContain("https://www.googleapis.com/auth/drive.file");
+      expect(scopes).not.toContain("https://www.googleapis.com/auth/gmail.readonly");
+      expect(authorizationUrl.searchParams.get("include_granted_scopes")).toBe("false");
+      await controller.cancel();
+    } finally {
+      fetchSpy.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not revoke an account with unresolved Google changes", async () => {
+    const store = {
+      googleAccount: () => ({ accountId: "google-account", connectionState: "connected" }),
+      unresolvedSyncMutationCount: () => 2
+    };
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    try {
+      await expect(controller.reconfigureOptionalAccess({
+        accountId: "google-account",
+        confirmation: "RECONFIGURE_OPTIONAL_ACCESS",
+        requestedServices: []
+      })).rejects.toThrow("Finish syncing 2 pending Google changes");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("retires the starter workspace only after OAuth tokens are stored", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-test-"));
     const retireLocalFallback = vi.fn();

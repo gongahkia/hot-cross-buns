@@ -1,4 +1,5 @@
 import type { HcbResult } from "./result";
+import type { GoogleReconfigureOptionalAccessRequest, GoogleReconfigureOptionalAccessResponse } from "./contracts";
 
 /** Privileged API exposed by preload. Each namespace is explicitly populated by
  * the bridge; the index signature keeps restored optional feature namespaces
@@ -12,10 +13,11 @@ export interface HcbApi {
   tags: Record<string, (...args: any[]) => Promise<HcbResult<any>>>;
   settings: Record<string, (...args: any[]) => Promise<HcbResult<any>>>;
   search: Record<string, (...args: any[]) => Promise<HcbResult<any>>>;
-  google: Record<string, (...args: any[]) => Promise<HcbResult<any>>>;
+  google: Record<string, (...args: any[]) => Promise<HcbResult<any>>> & {
+    reconfigureOptionalAccess: (request: GoogleReconfigureOptionalAccessRequest) => Promise<HcbResult<GoogleReconfigureOptionalAccessResponse>>;
+  };
   diagnostics: Record<string, (...args: any[]) => Promise<HcbResult<any>>>;
   native: Record<string, any>;
   sync: Record<string, any>;
   undo: Record<string, (...args: any[]) => Promise<HcbResult<any>>>;
 }
-

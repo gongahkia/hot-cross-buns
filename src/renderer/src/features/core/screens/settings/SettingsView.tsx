@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
+  GoogleOptionalWorkspaceService,
   SettingsRecoveryActionRequest,
   SettingsSnapshot,
   SettingsUpdateRequest
@@ -133,6 +134,8 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Google accounts",
     "Add Google Account",
     "Disconnect",
+    "Optional Google Workspace access",
+    "Reconfigure Google access",
     "Task lists",
     "Calendars"
   ].join(" ")
@@ -552,7 +555,7 @@ export function SettingsView({
     setRecoveryMessage(result.error.message);
   }
 
-  async function beginGoogleOAuth(requestedServices: Array<"drive" | "driveUpload" | "gmail"> = []): Promise<void> {
+  async function beginGoogleOAuth(requestedServices: GoogleOptionalWorkspaceService[] = []): Promise<void> {
     setRecoveryMessage(null);
 
     const result = await window.hcb?.google.beginOAuth({ requestedServices });
@@ -569,6 +572,26 @@ export function SettingsView({
     if (result && !result.ok) {
       setRecoveryMessage(result.error.message);
     }
+  }
+
+  async function reconfigureOptionalAccess(input: { accountId: string; requestedServices: GoogleOptionalWorkspaceService[] }): Promise<{ ok: boolean; message: string }> {
+    setRecoveryMessage(null);
+    const result = await window.hcb?.google.reconfigureOptionalAccess({
+      ...input,
+      confirmation: "RECONFIGURE_OPTIONAL_ACCESS"
+    });
+
+    if (result?.ok) {
+      source.setGoogleStatus(result.data);
+      source.refreshGoogleStatus();
+      for (const delayMs of [2_000, 5_000, 10_000]) {
+        window.setTimeout(() => source.refreshGoogleStatus(), delayMs);
+      }
+      setRecoveryMessage(result.data.message ?? "Google access was reset. Continue in your browser to reconnect.");
+      return { ok: true, message: result.data.message ?? "Google access was reset." };
+    }
+
+    return { ok: false, message: result && !result.ok ? result.error.message : "Google access could not be reconfigured." };
   }
 
   async function disconnectGoogle(accountId?: string): Promise<void> {
@@ -709,6 +732,7 @@ export function SettingsView({
             googleClientSecret={googleClientSecret}
             googleStatus={googleStatus}
             refreshPlanner={source.refresh}
+            reconfigureOptionalAccess={reconfigureOptionalAccess}
             saveGoogleOAuthClient={saveGoogleOAuthClient}
             setGoogleClientId={setGoogleClientId}
             setGoogleClientSecret={setGoogleClientSecret}
