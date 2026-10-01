@@ -10,7 +10,7 @@ import {
   CalendarOverflowPopover,
   type EventCompletionDefaultScope
 } from "./CalendarEventChips";
-import { calendarAddUtcDays, calendarDateTitle, calendarMonthVisibleChipCount, visibleCalendarMonthWeeks } from "./calendarGrid";
+import { calendarAddUtcDays, calendarContextualDateTitleFromIso, calendarDayKey, calendarMonthVisibleChipCount, visibleCalendarMonthWeeks } from "./calendarGrid";
 import type { CalendarCreateSeed, CalendarTimelineAllDaySegment } from "./types";
 
 const monthEventLaneHeight = 24;
@@ -356,7 +356,7 @@ export function MonthView({
                     onOpen={() =>
                       setActiveOverflow({
                         events: popupEvents,
-                        title: `Items for ${calendarDateTitle(day)}`
+                        title: calendarContextualDateTitleFromIso(calendarDayKey(day))
                       })
                     }
                   />

@@ -38,14 +38,21 @@ interface EventWriteOptions {
 }
 
 interface SmartSchedulePlan {
+  availableMinutes: number;
   calendarId: string;
+  candidateScope: SmartScheduleCandidateScope;
+  candidateScopeLabel: string;
   createdAt: number;
   date: string;
   fixedEventCount: number;
+  nonBlockingEventCount: number;
+  scheduledMinutes: number;
   suggestions: JsonRecord[];
   skipped: JsonRecord[];
   candidateCount: number;
 }
+
+type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 
 // v3 deliberately starts a new developer-only data set.  The previous
 // restored Electron build used global Google identifiers, which makes two
@@ -1960,9 +1967,13 @@ export class CoreStore {
     const calendar = this.googleCalendarForSync(calendarId);
     if (!calendar) throw new CoreStoreError("Calendar no longer exists");
 
-    const busy = this.busyEvents(range.start, range.end, this.selectedCalendarIds());
+    const calendarIds = this.selectedCalendarIds();
+    const busy = this.busyEvents(range.start, range.end, calendarIds);
+    const nonBlocking = this.nonBlockingEvents(range.start, range.end, calendarIds);
     const free = subtractIntervals(range, busy.map((event) => ({ start: event.startsAt, end: event.endsAt })));
-    const candidates = this.activeSchedulableTasks().sort(compareSchedulableTasks);
+    const candidateScope = smartScheduleCandidateScope(input.candidateScope);
+    const candidates = this.activeSchedulableTasks(candidateScope, date)
+      .sort((left, right) => compareSchedulableTasks(left, right, date));
     const tasks: JsonRecord[] = [];
     const skipped: JsonRecord[] = [];
 
@@ -2035,11 +2046,16 @@ export class CoreStore {
     }
 
     return {
+      availableMinutes: free.reduce((total, slot) => total + durationMinutes(slot.start, slot.end), 0),
       calendarId,
       candidateCount: candidates.length,
+      candidateScope,
+      candidateScopeLabel: smartScheduleCandidateScopeLabel(candidateScope),
       createdAt: Date.now(),
       date,
       fixedEventCount: busy.length,
+      nonBlockingEventCount: nonBlocking.length,
+      scheduledMinutes: suggestions.reduce((total, suggestion) => total + Number(suggestion.durationMinutes ?? 0), 0),
       skipped,
       suggestions
     };
@@ -2115,8 +2131,15 @@ export class CoreStore {
     return {
       ...details,
       calendarId: plan.calendarId,
+      candidateScope: plan.candidateScope,
+      candidateScopeLabel: plan.candidateScopeLabel,
+      prioritizationLabel: "Overdue first · earliest due date · priority · stable list order",
+      capacityPolicy: "allFreeTime",
+      availableMinutes: plan.availableMinutes,
+      scheduledMinutes: plan.scheduledMinutes,
       candidateCount: plan.candidateCount,
       fixedEventCount: plan.fixedEventCount,
+      nonBlockingEventCount: plan.nonBlockingEventCount,
       skipped: plan.skipped,
       suggestions: plan.suggestions
     };
@@ -2133,7 +2156,17 @@ export class CoreStore {
     if (calendarIds.length === 0) return [];
     const placeholders = calendarIds.map(() => "?").join(",");
     return this.db.prepare(`SELECT id,title,starts_at AS startsAt,ends_at AS endsAt,transparency
-      FROM events WHERE starts_at < ? AND ends_at > ? AND calendar_id IN (${placeholders}) AND transparency != 'transparent'`)
+      FROM events WHERE starts_at < ? AND ends_at > ? AND calendar_id IN (${placeholders})
+      AND COALESCE(transparency, 'opaque') != 'transparent'`)
+      .all(end, start, ...calendarIds) as JsonRecord[];
+  }
+
+  private nonBlockingEvents(start: string, end: string, calendarIds: string[]): JsonRecord[] {
+    if (calendarIds.length === 0) return [];
+    const placeholders = calendarIds.map(() => "?").join(",");
+    return this.db.prepare(`SELECT id,title,starts_at AS startsAt,ends_at AS endsAt,transparency
+      FROM events WHERE starts_at < ? AND ends_at > ? AND calendar_id IN (${placeholders})
+      AND transparency = 'transparent'`)
       .all(end, start, ...calendarIds) as JsonRecord[];
   }
 
@@ -2142,13 +2175,23 @@ export class CoreStore {
     return selected.length ? selected : this.calendars().map((calendar) => calendar.id);
   }
 
-  private activeSchedulableTasks(): JsonRecord[] {
-    return (this.db.prepare(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
+  private activeSchedulableTasks(scope: SmartScheduleCandidateScope = "allOpen", scheduleDate?: string): JsonRecord[] {
+    const tasks = (this.db.prepare(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
       task.planned_start AS plannedStart,task.planned_end AS plannedEnd,task.duration_minutes AS durationMinutes,task.locked_schedule AS lockedSchedule,
-      task.snooze_until AS snoozeUntil,task.priority,task.updated_at AS updatedAt
+      task.snooze_until AS snoozeUntil,task.priority,task.position,task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id
       WHERE task.status='active' AND task.parent_id IS NULL`).all() as JsonRecord[])
       .map((task) => ({ ...task, lockedSchedule: Boolean(task.lockedSchedule) }));
+
+    if (scope !== "dueSoon" || !scheduleDate) {
+      return tasks;
+    }
+
+    const latestIncludedDate = addPlannerDays(scheduleDate, 14);
+    return tasks.filter((task) => {
+      const dueDate = taskDueDate(task.dueAt);
+      return dueDate !== null && dueDate <= latestIncludedDate;
+    });
   }
 
   private scheduledMinutesForRange(start: string, end: string): number {
@@ -3109,10 +3152,10 @@ function durationMinutes(start: string, end: string): number {
 }
 function workingRange(date: string, hours: JsonRecord, settings: JsonRecord): { start: string; end: string } {
   const startMinute = workingMinute(hours.startMinutes, hours.start, settings.todayWorkingHoursStart, 9);
-  const endMinute = Math.max(
-    startMinute + 1,
-    workingMinute(hours.endMinutes, hours.end, settings.todayWorkingHoursEnd, 17)
-  );
+  const endMinute = workingMinute(hours.endMinutes, hours.end, settings.todayWorkingHoursEnd, 17);
+  if (endMinute <= startMinute) {
+    throw new CoreStoreError("End time must be after start time.");
+  }
   const zone = typeof settings.defaultTimeZone === "string" && settings.defaultTimeZone ? settings.defaultTimeZone : "UTC";
   const start = zonedDateTime(date, Math.floor(startMinute / 60), startMinute % 60, zone);
   const end = zonedDateTime(date, Math.floor(endMinute / 60), endMinute % 60, zone);
@@ -3160,11 +3203,33 @@ function subtractIntervals(range: { start: string; end: string }, intervals: Arr
   if (cursor < Date.parse(range.end)) free.push({ start: new Date(cursor).toISOString(), end: range.end });
   return free;
 }
-function compareSchedulableTasks(left: JsonRecord, right: JsonRecord): number {
+function smartScheduleCandidateScope(value: unknown): SmartScheduleCandidateScope {
+  return value === "dueSoon" ? "dueSoon" : "allOpen";
+}
+function smartScheduleCandidateScopeLabel(scope: SmartScheduleCandidateScope): string {
+  return scope === "allOpen"
+    ? "All open top-level tasks"
+    : "Overdue and due within 14 days";
+}
+function addPlannerDays(date: string, days: number): string {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (!Number.isFinite(parsed.getTime())) return date;
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+function compareSchedulableTasks(left: JsonRecord, right: JsonRecord, scheduleDate: string): number {
   const priority = { high: 0, medium: 1, low: 2, none: 3 } as Record<string, number>;
-  return (priority[left.priority] ?? 3) - (priority[right.priority] ?? 3) ||
-    String(left.dueAt ?? "9999-12-31").localeCompare(String(right.dueAt ?? "9999-12-31")) ||
-    String(left.updatedAt ?? "").localeCompare(String(right.updatedAt ?? ""));
+  const dueDate = (task: JsonRecord) => taskDueDate(task.dueAt) ?? "9999-12-31";
+  const dueRank = (task: JsonRecord) => {
+    const due = taskDueDate(task.dueAt);
+    if (!due) return 2;
+    return due < scheduleDate ? 0 : 1;
+  };
+  return dueRank(left) - dueRank(right) ||
+    dueDate(left).localeCompare(dueDate(right)) ||
+    (priority[String(left.priority)] ?? 3) - (priority[String(right.priority)] ?? 3) ||
+    String(left.position ?? "").localeCompare(String(right.position ?? "")) ||
+    String(left.id ?? "").localeCompare(String(right.id ?? ""));
 }
 function smartScheduleDuration(value: unknown): number {
   return Math.max(5, Math.min(24 * 60, Number(value) || 30));

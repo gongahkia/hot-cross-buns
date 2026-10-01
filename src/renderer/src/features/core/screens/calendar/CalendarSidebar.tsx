@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SmartRescheduleResponse } from "@shared/ipc/contracts";
 import { CalendarPlus, Check, Copy, Eye, EyeOff, MapPin, Minus, Sparkles, X } from "lucide-react";
 import { Badge, Button, IconButton, Input, Panel, cx } from "../../../../components/primitives";
@@ -26,11 +26,28 @@ function smartSuggestionTimeLabel(startsAt: string, endsAt: string, timeZone: st
     hour: "numeric",
     minute: "2-digit",
     timeZone
-  })}-${new Date(endsAt).toLocaleTimeString(undefined, {
+  })}–${new Date(endsAt).toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
     timeZone
   })}`;
+}
+
+function smartDueLabel(dueDate: string, scheduleDate: string): string {
+  const due = new Date(`${dueDate}T00:00:00.000Z`);
+  const scheduled = new Date(`${scheduleDate}T00:00:00.000Z`);
+  const dayDistance = Math.round((due.getTime() - scheduled.getTime()) / 86_400_000);
+  if (dayDistance === 0) return "today";
+  if (dayDistance === 1) return "tomorrow";
+  if (dayDistance === -1) return "yesterday";
+  return Number.isFinite(due.getTime())
+    ? new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" }).format(due)
+    : dueDate;
+}
+
+export interface SmartSchedulePreview {
+  stale: boolean;
+  suggestions: SmartRescheduleResponse["suggestions"];
 }
 
 function CalendarSourceRow({
@@ -408,33 +425,53 @@ export function SmartReschedulePanel({
   defaultTimeZone,
   initialDate,
   onApplied,
-  onClose
+  onClose,
+  onPreviewChange
 }: {
   calendars: CalendarSourceViewModel[];
   defaultTimeZone: string;
   initialDate: string;
   onApplied: () => void;
   onClose: () => void;
+  onPreviewChange: (preview: SmartSchedulePreview | null) => void;
 }): JSX.Element {
   const defaultCalendarId = calendars.find((calendar) => calendar.selected)?.id ?? calendars[0]?.id ?? "";
   const [date, setDate] = useState(initialDate);
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
   const [workStartMinutes, setWorkStartMinutes] = useState(9 * 60);
   const [workEndMinutes, setWorkEndMinutes] = useState(17 * 60);
+  const [candidateScope, setCandidateScope] = useState<"dueSoon" | "allOpen">("allOpen");
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<(SmartRescheduleResponse & { previewKey?: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showUnscheduled, setShowUnscheduled] = useState(false);
 
-  const previewKey = `${date}|${calendarId}|${workStartMinutes}|${workEndMinutes}`;
+  const previewKey = `${date}|${calendarId}|${workStartMinutes}|${workEndMinutes}|${candidateScope}`;
   const previewIsCurrent = Boolean(result?.planId && result.applied === false && result.previewKey === previewKey);
+  const invalidWorkingHours = workEndMinutes <= workStartMinutes;
 
   function setPreview(next: SmartRescheduleResponse | null): void {
     if (next && !next.applied) {
       setResult({ ...next, previewKey });
+      setShowUnscheduled(false);
       return;
     }
     setResult(next);
   }
+
+  useEffect(() => {
+    if (!result || result.applied) {
+      onPreviewChange(null);
+      return;
+    }
+
+    onPreviewChange({
+      stale: !previewIsCurrent,
+      suggestions: result.suggestions
+    });
+  }, [onPreviewChange, previewIsCurrent, result]);
+
+  useEffect(() => () => onPreviewChange(null), [onPreviewChange]);
 
   async function runSmartReschedule(mode: "preview" | "apply"): Promise<void> {
     if (!window.hcb?.calendar.smartReschedule) {
@@ -451,8 +488,8 @@ export function SmartReschedulePanel({
             date,
             calendarId,
             apply: false,
-            workingHours: { startMinutes: workStartMinutes, endMinutes: workEndMinutes },
-            capacityMinutes: Math.max(5, workEndMinutes - workStartMinutes)
+            candidateScope,
+            workingHours: { startMinutes: workStartMinutes, endMinutes: workEndMinutes }
           }
     );
     setPending(false);
@@ -483,11 +520,23 @@ export function SmartReschedulePanel({
       <div className="grid gap-3 overflow-auto p-3">
         <div className="grid gap-2">
           <p className="text-[var(--text-xs)] leading-relaxed text-text-secondary">
-            Schedule open tasks around fixed calendar events. Nothing changes until you apply a reviewed preview.
+            Build a reviewed plan around blocking Calendar events. Nothing changes until you apply it.
           </p>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Date</span>
             <Input aria-label="Smart reschedule date" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+          </label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+            <span>Tasks to consider</span>
+            <select
+              aria-label="Smart schedule task scope"
+              className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onChange={(event) => setCandidateScope(event.target.value as "dueSoon" | "allOpen")}
+              value={candidateScope}
+            >
+              <option value="allOpen">All open top-level tasks</option>
+              <option value="dueSoon">Overdue and due within 14 days</option>
+            </select>
           </label>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Calendar</span>
@@ -514,8 +563,16 @@ export function SmartReschedulePanel({
               <Input aria-label="Working hours end" onChange={(event) => setWorkEndMinutes(timeInputToMinutes(event.target.value))} type="time" value={minutesToTimeInput(workEndMinutes)} />
             </label>
           </div>
+          {invalidWorkingHours ? (
+            <p className="text-[var(--text-xs)] font-medium text-danger" role="alert">
+              End time must be after start time.
+            </p>
+          ) : null}
+          <p className="text-[var(--text-xs)] leading-relaxed text-text-muted">
+            Uses all available free time in this window. Free Calendar events remain visible but do not reserve time.
+          </p>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={pending || !calendarId || workEndMinutes <= workStartMinutes} onClick={() => void runSmartReschedule("preview")} size="sm" variant="secondary">
+            <Button disabled={pending || !calendarId || invalidWorkingHours} onClick={() => void runSmartReschedule("preview")} size="sm" variant="secondary">
               <Sparkles aria-hidden="true" size={14} />
               {pending ? "Checking" : "Preview"}
             </Button>
@@ -527,23 +584,28 @@ export function SmartReschedulePanel({
         </div>
         {error ? <ErrorState description={error} title="Smart schedule failed" /> : null}
         {result ? (
-          <div className="grid gap-2">
-            <p className="text-[var(--text-xs)] text-text-secondary">
-              {result.fixedEventCount ?? 0} fixed event{result.fixedEventCount === 1 ? "" : "s"} · {result.suggestions.length} change{result.suggestions.length === 1 ? "" : "s"}
-            </p>
-            {!previewIsCurrent && !result.applied ? (
-              <p className="rounded-hcbMd border border-border bg-surface-0 px-2 py-1.5 text-[var(--text-xs)] text-text-secondary">
-                Settings changed. Preview again before applying.
+          <div className={cx("grid gap-2", !previewIsCurrent && !result.applied && "opacity-60")}>
+            <div className="grid gap-1 text-[var(--text-xs)] text-text-secondary">
+              <p>
+                {result.fixedEventCount ?? 0} blocking event{result.fixedEventCount === 1 ? "" : "s"} · {result.nonBlockingEventCount ?? 0} Free event{result.nonBlockingEventCount === 1 ? "" : "s"} ignored
               </p>
+              <p>{result.candidateScopeLabel ?? "Open tasks"} · {result.prioritizationLabel ?? "Stable scheduling order"}</p>
+              <p>
+                {result.suggestions.length} scheduled · {result.scheduledMinutes ?? 0} minutes planned{result.availableMinutes !== undefined ? ` of ${result.availableMinutes} free` : ""}
+              </p>
+            </div>
+            {!previewIsCurrent && !result.applied ? (
+              <div className="rounded-hcbMd border border-warning bg-surface-0 px-2 py-1.5 text-[var(--text-xs)] text-text-secondary">
+                <span className="font-semibold text-warning">Outdated preview</span>
+                <span className="ml-1">Settings changed. Preview again before applying.</span>
+              </div>
             ) : null}
             {result.suggestions.map((suggestion) => (
               <div className="grid gap-1 rounded-hcbMd border border-border bg-surface-0 p-2" key={`${suggestion.taskId}-${suggestion.startsAt}`}>
-                <div className="flex items-center justify-between gap-2 text-[var(--text-sm)] font-medium text-text-primary">
-                  <span className="truncate">{suggestion.taskTitle}</span>
-                  <Badge tone="info">{smartSuggestionTimeLabel(suggestion.startsAt, suggestion.endsAt, defaultTimeZone)}</Badge>
-                </div>
+                <span className="tabular-nums text-[var(--text-sm)] font-semibold text-info">{smartSuggestionTimeLabel(suggestion.startsAt, suggestion.endsAt, defaultTimeZone)}</span>
+                <span className="truncate text-[var(--text-sm)] font-medium text-text-primary">{suggestion.taskTitle}</span>
                 <div className="text-[var(--text-xs)] text-text-secondary">
-                  {suggestion.action === "move" ? "Move scheduled work" : "Schedule task"} · {suggestion.durationMinutes} min{suggestion.usesDefaultDuration ? " · default estimate" : ""}
+                  {suggestion.durationMinutes} min{suggestion.usesDefaultDuration ? " · default estimate" : ""}{suggestion.dueDate ? ` · Due ${smartDueLabel(suggestion.dueDate, date)}` : ""}
                 </div>
                 <div className="text-[var(--text-xs)] text-text-muted">{suggestion.reason}</div>
               </div>
@@ -555,13 +617,25 @@ export function SmartReschedulePanel({
             ) : null}
             {result.skipped.length > 0 ? (
               <div className="grid gap-1 border-t border-border pt-2">
-                <p className="text-[var(--text-sm)] font-medium text-text-primary">Couldn’t schedule {result.skipped.length} task{result.skipped.length === 1 ? "" : "s"}</p>
-                {result.skipped.slice(0, 8).map((item) => (
-                  <div className="grid gap-0.5 text-[var(--text-xs)]" key={item.taskId}>
-                    <span className="truncate text-text-secondary">{item.taskTitle} · {item.durationMinutes} min{item.usesDefaultDuration ? " estimate" : ""}</span>
-                    <span className="text-text-muted">{item.reason}</span>
+                <button
+                  aria-expanded={showUnscheduled}
+                  className="flex min-h-8 items-center justify-between gap-2 rounded-hcbSm px-1 text-left text-[var(--text-sm)] font-medium text-text-primary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  onClick={() => setShowUnscheduled((shown) => !shown)}
+                  type="button"
+                >
+                  <span>Couldn’t schedule {result.skipped.length} task{result.skipped.length === 1 ? "" : "s"}</span>
+                  <span aria-hidden="true" className="text-text-muted">{showUnscheduled ? "⌄" : "›"}</span>
+                </button>
+                {showUnscheduled ? (
+                  <div className="grid max-h-64 gap-1 overflow-auto pr-1">
+                    {result.skipped.map((item) => (
+                      <div className="grid gap-0.5 rounded-hcbSm px-1 py-1 text-[var(--text-xs)]" key={item.taskId}>
+                        <span className="truncate text-text-secondary">{item.taskTitle} · {item.durationMinutes} min{item.usesDefaultDuration ? " estimate" : ""}{item.dueDate ? ` · Due ${smartDueLabel(item.dueDate, date)}` : ""}</span>
+                        <span className="text-text-muted">{item.reason}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : null}
               </div>
             ) : null}
           </div>

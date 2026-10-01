@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEventCompletionScope, CalendarEventDetail } from "@shared/ipc/contracts";
 import { AlertTriangle, X } from "lucide-react";
 import { IconButton, StatusBanner } from "../../../../components/primitives";
@@ -14,8 +14,8 @@ import {
 } from "../../coreScreenShared";
 import { CalendarAgendaView } from "./CalendarAgendaView";
 import { CalendarHeader } from "./CalendarHeader";
-import { ShareAvailabilityPanel, SmartReschedulePanel } from "./CalendarSidebar";
-import { DayView, MultiDayView, WeekView } from "./CalendarTimelineView";
+import { ShareAvailabilityPanel, SmartReschedulePanel, type SmartSchedulePreview } from "./CalendarSidebar";
+import { DayView, MultiDayView, WeekView, type SmartScheduleGhostBlock } from "./CalendarTimelineView";
 import { MonthView } from "./MonthView";
 import {
   buildCalendarEventDayIndex,
@@ -128,6 +128,7 @@ export function CalendarView({
   );
   const [multiDayCount, setMultiDayCount] = useState(3);
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
+  const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
   const calendarNavigationStartedAt = useRef<number | null>(null);
   const {
     addAvailabilitySlot,
@@ -171,6 +172,19 @@ export function CalendarView({
       ),
     [source.calendarAgendaEvents, visibleCalendarIds]
   );
+  const smartScheduleGhostBlocks = useMemo<SmartScheduleGhostBlock[]>(
+    () => smartSchedulePreview?.suggestions.map((suggestion) => ({
+      id: `${suggestion.taskId}-${suggestion.startsAt}`,
+      startsAt: suggestion.startsAt,
+      endsAt: suggestion.endsAt,
+      stale: smartSchedulePreview.stale,
+      title: suggestion.taskTitle
+    })) ?? [],
+    [smartSchedulePreview]
+  );
+  const handleSmartSchedulePreview = useCallback((preview: SmartSchedulePreview | null) => {
+    setSmartSchedulePreview(preview);
+  }, []);
   const visibleCalendarViewIds = useMemo(() => {
     const hidden = new Set(source.settings.hiddenCalendarViewModes);
     const visible = (["agenda", "day", "multiDay", "week", "month"] as CalendarViewId[]).filter(
@@ -469,7 +483,10 @@ export function CalendarView({
         }}
         onToggleSmartReschedule={() => {
           setShareAvailabilityOpen(false);
-          setSmartRescheduleOpen((open) => !open);
+          setSmartRescheduleOpen((open) => {
+            if (open) setSmartSchedulePreview(null);
+            return !open;
+          });
         }}
         previousRangeLabel={previousRangeLabel}
         shareAvailabilityOpen={shareAvailabilityOpen}
@@ -504,7 +521,11 @@ export function CalendarView({
               defaultTimeZone={source.settings.defaultTimeZone}
               initialDate={calendarAnchorDate}
               onApplied={() => source.refresh()}
-              onClose={() => setSmartRescheduleOpen(false)}
+              onClose={() => {
+                setSmartSchedulePreview(null);
+                setSmartRescheduleOpen(false);
+              }}
+              onPreviewChange={handleSmartSchedulePreview}
             />
           ) : shareAvailabilityVisible && shareAvailabilityOpen ? (
             <ShareAvailabilityPanel
@@ -560,6 +581,7 @@ export function CalendarView({
               onResizeEvent={resizeCalendarEvent}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
+              smartScheduleGhostBlocks={smartScheduleGhostBlocks}
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
@@ -578,6 +600,7 @@ export function CalendarView({
               onResizeEvent={resizeCalendarEvent}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
+              smartScheduleGhostBlocks={smartScheduleGhostBlocks}
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
@@ -594,6 +617,7 @@ export function CalendarView({
               onResizeEvent={resizeCalendarEvent}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
+              smartScheduleGhostBlocks={smartScheduleGhostBlocks}
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}

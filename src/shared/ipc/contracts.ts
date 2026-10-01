@@ -190,7 +190,18 @@ export interface SmartRescheduleResponse {
   calendarId: string;
   generatedAt: string;
   candidateCount?: number;
+  /** The explicit population used to build this reviewed plan. */
+  candidateScope?: "dueSoon" | "allOpen";
+  candidateScopeLabel?: string;
+  /** A short, user-facing description of the deterministic task ordering. */
+  prioritizationLabel?: string;
+  /** Smart Schedule intentionally fills the available time in the chosen window. */
+  capacityPolicy?: "allFreeTime";
+  availableMinutes?: number;
+  scheduledMinutes?: number;
   fixedEventCount?: number;
+  /** Events marked Free remain visible in Calendar but do not reserve a slot. */
+  nonBlockingEventCount?: number;
 }
 export type SyncRunNowRequest = any;
 export interface SyncStatusResponse {

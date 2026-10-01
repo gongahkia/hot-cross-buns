@@ -15,6 +15,7 @@ import {
 import {
   addUtcMinutesIso,
   calendarDateTitle,
+  calendarContextualDateTitleFromIso,
   calendarDayKey,
   calendarDisplayHourLabel,
   calendarEventTimeOfDayIso,
@@ -41,6 +42,14 @@ import {
 import type { CalendarCreateSeed, CalendarTimeBlock, CalendarTimelineAllDaySegment } from "./types";
 
 const allDayLaneHeight = 28;
+
+export interface SmartScheduleGhostBlock {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  stale: boolean;
+  title: string;
+}
 
 function CalendarTimelineEventChip({
   className,
@@ -149,7 +158,7 @@ function timelinePreviewSegments(
   days: Array<{ day: CalendarDayViewModel }>,
   hourRowHeight: number,
   timeZone: string
-): Array<{ dayId: string; height: number; id: string; top: number }> {
+): Array<{ dayId: string; height: number; id: string; sourceId: string; top: number }> {
   return blocks.flatMap((block) => {
     const start = calendarLocalPoint(block.startsAt, timeZone);
     const end = calendarLocalPoint(block.endsAt, timeZone);
@@ -169,6 +178,7 @@ function timelinePreviewSegments(
         dayId: day.id,
         height: Math.max(6, ((clampedEnd - clampedStart) / 60) * hourRowHeight),
         id: `${block.id}-${day.id}`,
+        sourceId: block.id,
         top: (clampedStart / 60) * hourRowHeight
       }];
     });
@@ -190,8 +200,8 @@ function CalendarTimelineView({
   onResizeEvent,
   onToggleEvent,
   onToggleTask,
+  smartScheduleGhostBlocks = [],
   timedLabelVariant = "time",
-  title,
   visibleCalendarIds
 }: {
   availabilityMode?: boolean;
@@ -208,8 +218,8 @@ function CalendarTimelineView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
+  smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
   timedLabelVariant?: "range" | "time";
-  title: string;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
@@ -267,6 +277,14 @@ function CalendarTimelineView({
     hourRowHeight,
     source.settings.defaultTimeZone
   );
+  const smartScheduleGhostSegments = useMemo(() => {
+    const titles = new Map(smartScheduleGhostBlocks.map((block) => [block.id, block]));
+    return timelinePreviewSegments(smartScheduleGhostBlocks, visibleDays, hourRowHeight, source.settings.defaultTimeZone)
+      .flatMap((segment) => {
+        const block = titles.get(segment.sourceId);
+        return block ? [{ ...segment, stale: block.stale, title: block.title }] : [];
+      });
+  }, [hourRowHeight, smartScheduleGhostBlocks, source.settings.defaultTimeZone, visibleDays]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowIso(new Date().toISOString()), 60_000);
@@ -556,13 +574,11 @@ function CalendarTimelineView({
 
   return (
     <div className="flex h-full min-h-[680px] flex-col overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
-      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-primary/40 px-3 py-2">
-        <div className="min-w-0">
-          <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</div>
-          <div className="truncate text-[var(--text-xs)] text-text-muted">{label}</div>
+      {dayCountControl ? (
+        <div className="flex min-h-10 items-center justify-end border-b border-border bg-bg-primary/40 px-3 py-1.5">
+          {dayCountControl}
         </div>
-        {dayCountControl}
-      </div>
+      ) : null}
       <div
         className="min-h-0 flex-1 overflow-auto"
         data-calendar-timeline-scroll
@@ -693,7 +709,7 @@ function CalendarTimelineView({
                         onOpen={() =>
                           setActiveOverflow({
                             events: popupEvents,
-                            title: `Items for ${calendarDateTitle(day)}`
+                            title: calendarContextualDateTitleFromIso(calendarDayKey(day))
                           })
                         }
                       />
@@ -811,7 +827,7 @@ function CalendarTimelineView({
             >
               {visibleDays.map(({ day }) => (
                 <div className="relative min-w-0 border-r border-transparent last:border-r-0" key={`${day.id}-previews`}>
-                  {previewSegments
+                {previewSegments
                     .filter((segment) => segment.dayId === day.id)
                     .map((segment) => (
                       <div
@@ -820,6 +836,22 @@ function CalendarTimelineView({
                         key={segment.id}
                         style={{ height: segment.height, top: segment.top }}
                       />
+                    ))}
+                  {smartScheduleGhostSegments
+                    .filter((segment) => segment.dayId === day.id)
+                    .map((segment) => (
+                      <div
+                        className={cx(
+                          "absolute left-2 right-2 overflow-hidden rounded-hcbSm border border-dashed border-accent bg-accent/10 px-1.5 py-0.5 text-[11px] leading-tight text-accent",
+                          segment.stale && "opacity-35"
+                        )}
+                        data-calendar-smart-schedule-ghost={segment.stale ? "stale" : "current"}
+                        key={`smart-${segment.id}`}
+                        style={{ height: segment.height, top: segment.top }}
+                        title={`${segment.stale ? "Outdated proposal" : "Proposed schedule"}: ${segment.title}`}
+                      >
+                        {segment.height >= 22 ? <span className="block truncate">{segment.title}</span> : null}
+                      </div>
                     ))}
                 </div>
               ))}
@@ -925,6 +957,7 @@ export function DayView({
   onResizeEvent,
   onToggleEvent,
   onToggleTask,
+  smartScheduleGhostBlocks,
   visibleCalendarIds
 }: {
   availabilityMode: boolean;
@@ -938,6 +971,7 @@ export function DayView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
+  smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
@@ -955,8 +989,8 @@ export function DayView({
       onResizeEvent={onResizeEvent}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
+      smartScheduleGhostBlocks={smartScheduleGhostBlocks}
       timedLabelVariant="range"
-      title="Day view"
       visibleCalendarIds={visibleCalendarIds}
     />
   );
@@ -976,6 +1010,7 @@ export function MultiDayView({
   onResizeEvent,
   onToggleEvent,
   onToggleTask,
+  smartScheduleGhostBlocks,
   visibleCalendarIds
 }: {
   availabilityMode: boolean;
@@ -991,6 +1026,7 @@ export function MultiDayView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
+  smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
@@ -1031,7 +1067,7 @@ export function MultiDayView({
       onResizeEvent={onResizeEvent}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
-      title="Multi-Day view"
+      smartScheduleGhostBlocks={smartScheduleGhostBlocks}
       visibleCalendarIds={visibleCalendarIds}
     />
   );
@@ -1049,6 +1085,7 @@ export function WeekView({
   onResizeEvent,
   onToggleEvent,
   onToggleTask,
+  smartScheduleGhostBlocks,
   visibleCalendarIds
 }: {
   availabilityMode: boolean;
@@ -1062,6 +1099,7 @@ export function WeekView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
+  smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
@@ -1079,7 +1117,7 @@ export function WeekView({
       onResizeEvent={onResizeEvent}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
-      title="Week view"
+      smartScheduleGhostBlocks={smartScheduleGhostBlocks}
       visibleCalendarIds={visibleCalendarIds}
     />
   );

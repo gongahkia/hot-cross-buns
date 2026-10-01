@@ -65,7 +65,8 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
         start: z.number().finite().min(0).max(24).optional(),
         end: z.number().finite().min(0).max(24).optional()
       }).strict().optional(),
-      capacityMinutes: z.number().finite().min(5).max(1_440).optional()
+      capacityMinutes: z.number().finite().min(5).max(1_440).optional(),
+      candidateScope: z.enum(["dueSoon", "allOpen"]).optional()
     }).strict(),
     z.object({ apply: z.literal(true), planId: z.string().uuid() }).strict()
   ]).safeParse(payload).success;

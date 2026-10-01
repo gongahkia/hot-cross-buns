@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent } from "react";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Circle, ListTodo, X } from "lucide-react";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
-import { cx } from "../../../../components/primitives";
+import { cx, IconButton } from "../../../../components/primitives";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 
 const calendarSourceTones = [
@@ -133,14 +133,57 @@ function eventCompleted(event: CalendarEventViewModel): boolean {
 }
 
 function compareOverflowEvents(left: CalendarEventViewModel, right: CalendarEventViewModel): number {
-  const leftCompleted = eventCompleted(left) ? 0 : 1;
-  const rightCompleted = eventCompleted(right) ? 0 : 1;
+  const leftCompleted = eventCompleted(left) ? 1 : 0;
+  const rightCompleted = eventCompleted(right) ? 1 : 0;
 
   return (
     leftCompleted - rightCompleted ||
     left.startsAt.localeCompare(right.startsAt) ||
     left.endsAt.localeCompare(right.endsAt) ||
     left.id.localeCompare(right.id)
+  );
+}
+
+function calendarOverflowTimeLabel(event: CalendarEventViewModel): string {
+  if (event.sourceKind === "task") return event.taskStatus === "completed" ? "Completed" : "Due";
+  return event.allDay ? "All day" : event.timeLabel;
+}
+
+function calendarOverflowKindLabel(event: CalendarEventViewModel): string {
+  if (event.sourceKind === "task") return "Google Task";
+  if (event.allDay) return "All-day event";
+  return "Calendar event";
+}
+
+function CalendarOverflowRow({
+  event,
+  onOpen
+}: Pick<Parameters<typeof CalendarEventChip>[0], "event" | "onOpen">): JSX.Element {
+  const completed = eventCompleted(event);
+  const TypeIcon = event.sourceKind === "task" ? ListTodo : CalendarDays;
+
+  return (
+    <button
+      className={cx(
+        "grid w-full grid-cols-[4.75rem_18px_minmax(0,1fr)] items-start gap-2 rounded-hcbSm px-2 py-2 text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+        completed && "opacity-65"
+      )}
+      onClick={() => onOpen?.(event)}
+      type="button"
+    >
+      <span className="pt-0.5 tabular-nums text-[var(--text-xs)] font-medium text-text-secondary">{calendarOverflowTimeLabel(event)}</span>
+      <span className="flex items-center gap-1 text-text-muted">
+        <TypeIcon aria-hidden="true" size={14} />
+      </span>
+      <span className="min-w-0">
+        <span className={cx("block truncate text-[var(--text-sm)] font-medium text-text-primary", completed && "line-through")}>{event.title}</span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[var(--text-xs)] text-text-muted">
+          <span className="truncate">{calendarOverflowKindLabel(event)}</span>
+          <span aria-hidden="true">·</span>
+          <span className="truncate">{event.calendar}</span>
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -403,6 +446,9 @@ export function CalendarOverflowPopover({
   title: string;
 }): JSX.Element {
   const orderedEvents = [...events].sort(compareOverflowEvents);
+  const activeEvents = orderedEvents.filter((event) => !eventCompleted(event));
+  const completedEvents = orderedEvents.filter(eventCompleted);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   return (
     <div
@@ -428,30 +474,42 @@ export function CalendarOverflowPopover({
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
           <h2 className="min-w-0 truncate text-[var(--text-sm)] font-semibold text-text-primary">{title}</h2>
-          <button
-            aria-label="Close overflow events"
-            className="rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold text-text-muted hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onClick={onClose}
-            type="button"
-          >
-            X
-          </button>
+          <IconButton icon={X} label="Close overflow items" onClick={onClose} size="sm" variant="ghost" />
         </div>
         <div className="grid max-h-[60vh] gap-1 overflow-auto p-2">
-          {orderedEvents.map((event) => (
-            <CalendarEventChip
+          {activeEvents.map((event) => (
+            <CalendarOverflowRow
               event={event}
-              eventCompletionDefaultScope={eventCompletionDefaultScope}
               key={event.id}
-              labelVariant="range"
               onOpen={(selectedEvent) => {
                 onClose();
                 onOpen(selectedEvent);
               }}
-              onToggleEvent={onToggleEvent}
-              onToggleTask={onToggleTask}
             />
           ))}
+          {completedEvents.length > 0 ? (
+            <div className="border-t border-border pt-1">
+              <button
+                aria-expanded={showCompleted}
+                className="flex min-h-8 w-full items-center justify-between gap-2 rounded-hcbSm px-2 text-left text-[var(--text-sm)] font-medium text-text-secondary hover:bg-surface-0 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+                onClick={() => setShowCompleted((shown) => !shown)}
+                type="button"
+              >
+                <span>Completed ({completedEvents.length})</span>
+                {showCompleted ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
+              </button>
+              {showCompleted ? completedEvents.map((event) => (
+                <CalendarOverflowRow
+                  event={event}
+                  key={event.id}
+                  onOpen={(selectedEvent) => {
+                    onClose();
+                    onOpen(selectedEvent);
+                  }}
+                />
+              )) : null}
+            </div>
+          ) : null}
         </div>
       </section>
     </div>
