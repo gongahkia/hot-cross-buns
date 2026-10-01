@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain } from "electron";
 import { z } from "zod";
 import { CoreStore, CoreStoreError } from "../services/coreStore";
 import { GoogleOAuthController } from "../services/googleOAuth";
@@ -26,7 +26,7 @@ const actionMap: Record<string, readonly string[]> = {
   search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
   settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
   sync: ["status", "runNow", "forceFullResync"],
-  google: ["status", "saveOAuthClient", "beginOAuth", "cancelOAuth", "disconnect", "searchDriveFiles", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
+  google: ["status", "saveOAuthClient", "beginOAuth", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
   native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
   diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
@@ -56,9 +56,10 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "calendar" && action === "scheduleTaskBlock") return z.object({ taskId: idSchema, calendarId: idSchema, startsAt: isoDateSchema, endsAt: isoDateSchema.optional(), durationMinutes: z.number().finite().min(5).max(1_440).optional() }).safeParse(payload).success;
   if (namespace === "calendar" && action === "exportAvailability") return z.object({ start: isoDateSchema, end: isoDateSchema, calendarIds: z.array(idSchema).max(100).optional(), format: z.literal("text").optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "saveOAuthClient") return z.object({ clientId: z.string().trim().min(10).max(500), clientSecret: z.string().max(1_000).optional() }).safeParse(payload).success;
-  if (namespace === "google" && action === "beginOAuth") return z.object({ requestedServices: z.array(z.enum(["drive", "gmail"])).max(2).optional() }).safeParse(payload).success;
+  if (namespace === "google" && action === "beginOAuth") return z.object({ requestedServices: z.array(z.enum(["drive", "driveUpload", "gmail"])).max(3).optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "disconnect") return z.object({ accountId: idSchema.optional() }).safeParse(payload).success;
   if (namespace === "google" && ["searchDriveFiles", "searchGmailMessages"].includes(action)) return z.object({ accountId: idSchema.optional(), query: z.string().max(500).optional() }).safeParse(payload).success;
+  if (namespace === "google" && action === "pickAndUploadDriveFile") return z.object({ accountId: idSchema.optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "captureGmailMessage") return z.object({ accountId: idSchema.optional(), listId: idSchema.optional(), messageId: idSchema, threadId: idSchema.optional(), subject: z.string().max(10_000).optional(), from: z.string().max(10_000).optional(), snippet: z.string().max(100_000).optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "previewAccountCopy") return z.object({ sourceAccountId: idSchema, destinationAccountId: idSchema, destinationCalendarId: idSchema }).safeParse(payload).success;
   if (namespace === "google" && action === "copyAccountData") return z.object({ sourceAccountId: idSchema, destinationAccountId: idSchema, destinationCalendarId: idSchema, confirmation: z.literal("COPY") }).safeParse(payload).success;
@@ -114,6 +115,15 @@ export function registerCoreIpc(
 
       if (request.data.namespace === "google" && request.data.action === "searchDriveFiles") {
         return ok(await googleSync.searchDriveFiles(request.data.payload));
+      }
+
+      if (request.data.namespace === "google" && request.data.action === "pickAndUploadDriveFile") {
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        const selected = focusedWindow
+          ? await dialog.showOpenDialog(focusedWindow, { properties: ["openFile"] })
+          : await dialog.showOpenDialog({ properties: ["openFile"] });
+        if (selected.canceled || !selected.filePaths[0]) return ok({ cancelled: true });
+        return ok({ cancelled: false, item: await googleSync.uploadLocalDriveFile({ accountId: request.data.payload.accountId, filePath: selected.filePaths[0] }) });
       }
 
       if (request.data.namespace === "google" && request.data.action === "searchGmailMessages") {

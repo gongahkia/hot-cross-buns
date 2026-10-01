@@ -17,7 +17,7 @@ interface SecretPayload {
   accounts?: Record<string, AccountSecretPayload>;
 }
 
-type OptionalWorkspaceService = "drive" | "gmail";
+type OptionalWorkspaceService = "drive" | "driveUpload" | "gmail";
 
 interface PendingAuthorization {
   cancelled: boolean;
@@ -39,9 +39,13 @@ const baseScopes = [
 ] as const;
 
 const optionalWorkspaceScopes: Record<OptionalWorkspaceService, string> = {
-  // Drive metadata is sufficient to find a file and attach its alternateLink
-  // to Calendar; HCB never uploads or modifies Drive content.
+  // Metadata-only access is retained for searching files which were not
+  // created by HCB. Uploads use the narrower drive.file scope below.
   drive: "https://www.googleapis.com/auth/drive.metadata.readonly",
+  // This non-sensitive Drive scope lets HCB create and manage only files the
+  // user explicitly chooses through HCB. It is requested separately rather
+  // than silently broadening a Drive-linking grant.
+  driveUpload: "https://www.googleapis.com/auth/drive.file",
   // Gmail capture reads message metadata/snippets only; it never sends,
   // archives, labels, or deletes mail.
   gmail: "https://www.googleapis.com/auth/gmail.readonly"
@@ -282,7 +286,7 @@ export class GoogleOAuthController {
 
 function optionalServices(value: unknown): OptionalWorkspaceService[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((service): service is OptionalWorkspaceService => service === "drive" || service === "gmail"))];
+  return [...new Set(value.filter((service): service is OptionalWorkspaceService => service === "drive" || service === "driveUpload" || service === "gmail"))];
 }
 
 function createLoopbackCallback(expectedState: string): Promise<OAuthLoopbackCallback> {

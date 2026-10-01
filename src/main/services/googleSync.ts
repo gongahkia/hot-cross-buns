@@ -1,11 +1,18 @@
 import { CoreStore, CoreStoreError, type PendingSyncMutation } from "./coreStore";
 import { GoogleOAuthController } from "./googleOAuth";
 import { EventEmitter } from "node:events";
+import { open, stat } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
 import { googleTaskNotesMaxLength, googleTaskTitleMaxLength, withHcbTaskMetadata } from "./hcbTaskMetadata";
 import { googleOriginalStartQueryValue } from "./googleRecurrence";
 
 type JsonRecord = Record<string, any>;
+type WorkspaceService = "driveSearch" | "driveUpload" | "gmail";
+
+const driveUploadFolderName = "Hot Cross Buns attachments";
+const resumableUploadChunkBytes = 256 * 1024;
+const maximumDriveUploadBytes = 512 * 1024 * 1024;
 
 interface GooglePage {
   items?: JsonRecord[];
@@ -120,7 +127,7 @@ export class GoogleSyncService {
   }
 
   async searchDriveFiles(input: JsonRecord): Promise<JsonRecord> {
-    const accountId = this.workspaceAccountId(input.accountId, "drive");
+    const accountId = this.workspaceAccountId(input.accountId, "driveSearch");
     const query = String(input.query ?? "").trim().replace(/[\\']/g, "\\$&").slice(0, 200);
     const driveQuery = query ? `trashed = false and name contains '${query}'` : "trashed = false";
     const page = await this.requestJson<GooglePage & { files?: JsonRecord[] }>(accountId, "https://www.googleapis.com/drive/v3/files", {
@@ -144,6 +151,49 @@ export class GoogleSyncService {
           sizeBytes: typeof file.size === "string" && /^\d+$/.test(file.size) ? Number(file.size) : null
         }];
       })
+    };
+  }
+
+  /**
+   * Uploads a file selected by the native picker. The renderer never receives
+   * the local path or file bytes; it receives only the Drive metadata needed
+   * to insert a portable link into a task or event description.
+   */
+  async uploadLocalDriveFile(input: { accountId?: unknown; filePath: string }): Promise<JsonRecord> {
+    const accountId = this.workspaceAccountId(input.accountId, "driveUpload");
+    const filePath = input.filePath;
+    const file = await stat(filePath).catch(() => null);
+
+    if (!file?.isFile()) {
+      throw new CoreStoreError("The selected file is no longer available.");
+    }
+    if (file.size > maximumDriveUploadBytes) {
+      throw new CoreStoreError("Files larger than 512 MB cannot be uploaded from a description reference.");
+    }
+
+    const title = safeDriveFileName(basename(filePath));
+    const mimeType = mimeTypeForPath(filePath);
+    const folderId = await this.ensureDriveUploadFolder(accountId);
+    const sessionUrl = await this.startResumableDriveUpload(accountId, {
+      mimeType,
+      name: title,
+      parentId: folderId,
+      sizeBytes: file.size
+    });
+    const uploaded = await this.finishResumableDriveUpload(accountId, sessionUrl, filePath, file.size, mimeType);
+
+    if (typeof uploaded.id !== "string" || typeof uploaded.name !== "string" || typeof uploaded.webViewLink !== "string") {
+      throw new CoreStoreError("Google Drive did not return a link for the uploaded file.");
+    }
+
+    return {
+      fileId: uploaded.id,
+      fileUrl: uploaded.webViewLink,
+      iconLink: typeof uploaded.iconLink === "string" ? uploaded.iconLink : undefined,
+      mimeType: typeof uploaded.mimeType === "string" ? uploaded.mimeType : mimeType,
+      modifiedTime: typeof uploaded.modifiedTime === "string" ? uploaded.modifiedTime : undefined,
+      sizeBytes: typeof uploaded.size === "string" && /^\d+$/.test(uploaded.size) ? Number(uploaded.size) : file.size,
+      title: uploaded.name
     };
   }
 
@@ -803,19 +853,154 @@ export class GoogleSyncService {
     return await response.json() as T;
   }
 
-  private workspaceAccountId(value: unknown, requiredService?: "drive" | "gmail"): string {
+  private async ensureDriveUploadFolder(accountId: string): Promise<string> {
+    const escapedName = driveUploadFolderName.replace(/'/g, "\\'");
+    const existing = await this.requestJson<GooglePage & { files?: JsonRecord[] }>(accountId, "https://www.googleapis.com/drive/v3/files", {
+      query: {
+        fields: "files(id)",
+        orderBy: "createdTime asc",
+        pageSize: "1",
+        q: `trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '${escapedName}'`
+      }
+    });
+    const existingId = existing.files?.[0]?.id;
+    if (typeof existingId === "string" && existingId) return existingId;
+
+    const created = await this.requestJson<JsonRecord>(accountId, "https://www.googleapis.com/drive/v3/files", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      query: { fields: "id" },
+      body: json({ name: driveUploadFolderName, mimeType: "application/vnd.google-apps.folder" })
+    });
+    if (typeof created.id !== "string" || !created.id) {
+      throw new CoreStoreError("Google Drive could not create the Hot Cross Buns attachments folder.");
+    }
+    return created.id;
+  }
+
+  private async startResumableDriveUpload(
+    accountId: string,
+    file: { mimeType: string; name: string; parentId: string; sizeBytes: number }
+  ): Promise<string> {
+    const target = new URL("https://www.googleapis.com/upload/drive/v3/files");
+    target.searchParams.set("uploadType", "resumable");
+    target.searchParams.set("fields", "id,name,mimeType,webViewLink,iconLink,modifiedTime,size");
+    const response = await this.googleResponse(accountId, target, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json; charset=UTF-8",
+        "x-upload-content-length": String(file.sizeBytes),
+        "x-upload-content-type": file.mimeType
+      },
+      body: json({ name: file.name, mimeType: file.mimeType, parents: [file.parentId] })
+    });
+    const sessionUrl = response.headers.get("location");
+    if (!sessionUrl) throw new CoreStoreError("Google Drive did not start the file upload.");
+    return sessionUrl;
+  }
+
+  private async finishResumableDriveUpload(
+    accountId: string,
+    sessionUrl: string,
+    filePath: string,
+    sizeBytes: number,
+    mimeType: string
+  ): Promise<JsonRecord> {
+    const handle = await open(filePath, "r");
+    try {
+      if (sizeBytes === 0) {
+        const response = await this.googleResponse(accountId, sessionUrl, {
+          method: "PUT",
+          headers: { "content-length": "0", "content-range": "bytes */0" }
+        });
+        return await response.json() as JsonRecord;
+      }
+
+      let offset = 0;
+      while (offset < sizeBytes) {
+        const bytes = Math.min(resumableUploadChunkBytes, sizeBytes - offset);
+        const buffer = Buffer.allocUnsafe(bytes);
+        const read = await handle.read(buffer, 0, bytes, offset);
+        if (read.bytesRead !== bytes) throw new CoreStoreError("The selected file changed while it was uploading.");
+        const response = await this.googleResponse(accountId, sessionUrl, {
+          method: "PUT",
+          headers: {
+            "content-length": String(bytes),
+            "content-range": `bytes ${offset}-${offset + bytes - 1}/${sizeBytes}`,
+            "content-type": mimeType
+          },
+          body: buffer
+        }, new Set([200, 201, 308]));
+        offset += bytes;
+        if (response.status === 308) continue;
+        if (offset !== sizeBytes) throw new CoreStoreError("Google Drive ended the upload before the file was complete.");
+        return await response.json() as JsonRecord;
+      }
+    } finally {
+      await handle.close();
+    }
+    throw new CoreStoreError("Google Drive did not finish the file upload.");
+  }
+
+  private async googleResponse(
+    accountId: string,
+    url: string | URL,
+    init: RequestInit,
+    acceptedStatuses = new Set([200, 201])
+  ): Promise<Response> {
+    let response: Response;
+    try {
+      response = await this.oauth.googleFetch(accountId, url, init);
+    } catch (error: unknown) {
+      throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
+    }
+    if (!acceptedStatuses.has(response.status)) {
+      const detail = await response.text().catch(() => "");
+      throw new GoogleApiError(response.status, googleErrorMessage(response.status, detail));
+    }
+    return response;
+  }
+
+  private workspaceAccountId(value: unknown, requiredService?: WorkspaceService): string {
     const accountId = typeof value === "string" && value ? value : this.store.googleAccounts().find((account) => account.accountId !== "local" && account.connectionState === "connected")?.accountId;
     if (!accountId) throw new CoreStoreError("Connect a Google account before using this feature.");
     const account = this.store.googleAccount(accountId);
     if (!account || account.connectionState !== "connected") throw new CoreStoreError("The selected Google account is not connected.");
     if (requiredService) {
-      const scope = requiredService === "drive" ? "https://www.googleapis.com/auth/drive.metadata.readonly" : "https://www.googleapis.com/auth/gmail.readonly";
+      const scope = requiredService === "driveSearch"
+        ? "https://www.googleapis.com/auth/drive.metadata.readonly"
+        : requiredService === "driveUpload"
+          ? "https://www.googleapis.com/auth/drive.file"
+          : "https://www.googleapis.com/auth/gmail.readonly";
       if (!Array.isArray(account.grantedScopes) || !account.grantedScopes.includes(scope)) {
-        throw new CoreStoreError(`Reconnect this Google account with ${requiredService === "drive" ? "Drive attachment browsing" : "Gmail capture"} enabled.`);
+        const serviceLabel = requiredService === "driveSearch"
+          ? "Drive linking"
+          : requiredService === "driveUpload"
+            ? "Drive uploads"
+            : "Gmail capture";
+        throw new CoreStoreError(`Reconnect this Google account with ${serviceLabel} enabled.`);
       }
     }
     return accountId;
   }
+}
+
+function safeDriveFileName(value: string): string {
+  const normalized = value.replace(/[\u0000-\u001f<>:"/\\|?*]+/g, " ").trim().slice(0, 240);
+  return normalized || "Untitled attachment";
+}
+
+function mimeTypeForPath(filePath: string): string {
+  const extension = extname(filePath).toLowerCase();
+  const known: Record<string, string> = {
+    ".csv": "text/csv", ".gif": "image/gif", ".heic": "image/heic", ".htm": "text/html",
+    ".html": "text/html", ".jpeg": "image/jpeg", ".jpg": "image/jpeg", ".json": "application/json",
+    ".md": "text/markdown", ".mov": "video/quicktime", ".mp3": "audio/mpeg", ".mp4": "video/mp4",
+    ".pdf": "application/pdf", ".png": "image/png", ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".txt": "text/plain", ".webp": "image/webp", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".zip": "application/zip"
+  };
+  return known[extension] ?? "application/octet-stream";
 }
 
 function requiredIso(value: unknown, label: string): string {
