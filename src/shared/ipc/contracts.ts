@@ -207,6 +207,7 @@ export interface UndoStackStatusResponse { canUndo: boolean; canRedo: boolean; }
 export const defaultHistoryCategoryVisibility = {};
 export const defaultKeybindings = {
   "commandPalette.open": "CmdOrCtrl+P",
+  "navigation.settings": "CmdOrCtrl+Shift+?",
   "navigation.calendar": "CmdOrCtrl+1",
   "navigation.tasks": "CmdOrCtrl+2",
   "navigation.notes": "CmdOrCtrl+3"

@@ -24,6 +24,7 @@ controls remain available for pointer and assistive-technology navigation, but
 there is no persistent sidebar or collapsible navigation drawer.
 
 The command palette defaults to `Cmd+P` on macOS (`Ctrl+P` elsewhere).
+Settings default to `Cmd+?` on macOS (`Ctrl+?` elsewhere).
 
 Primary sections:
 
