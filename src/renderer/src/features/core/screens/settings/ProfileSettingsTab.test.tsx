@@ -47,7 +47,7 @@ function renderProfile(overrides: Partial<GoogleStatusResponse> = {}) {
       saveGoogleOAuthClient={vi.fn(async () => undefined)}
       setGoogleClientId={vi.fn()}
       setGoogleClientSecret={vi.fn()}
-      settings={{ selectedCalendarIds: [], selectedTaskListIds: [] } as SettingsSnapshot}
+      settings={{ selectedCalendarIds: [], selectedTaskListIds: [] } as unknown as SettingsSnapshot}
       settingsMutationPending={false}
       taskLists={[]}
       updateSelectedCalendar={vi.fn()}
