@@ -25,8 +25,9 @@ there is no persistent sidebar or collapsible navigation drawer.
 
 The command palette defaults to `Cmd+P` on macOS (`Ctrl+P` elsewhere).
 Settings default to `Cmd+?` on macOS (`Ctrl+?` elsewhere).
-Undo, redo, refresh sync, and diagnostics default to `Cmd+Z`, `Cmd+Shift+Z`,
-`Cmd+R`, and `Cmd+Shift+D` respectively (with `Ctrl` equivalents elsewhere).
+Undo, redo, refresh sync, diagnostics, split-right, and split-below default
+to `Cmd+Z`, `Cmd+Shift+Z`, `Cmd+R`, `Cmd+Option+D`, `Cmd+D`, and
+`Cmd+Shift+D` respectively (with `Ctrl` equivalents elsewhere).
 
 Primary sections:
 

@@ -9,7 +9,9 @@ describe("primary navigation shortcuts", () => {
       "undo.perform": "CmdOrCtrl+Z",
       "redo.perform": "CmdOrCtrl+Shift+Z",
       "sync.refresh": "CmdOrCtrl+R",
-      "navigation.diagnostics.toggle": "CmdOrCtrl+Shift+D",
+      "navigation.diagnostics.toggle": "CmdOrCtrl+Alt+D",
+      "pane.split.horizontal": "CmdOrCtrl+D",
+      "pane.split.vertical": "CmdOrCtrl+Shift+D",
       "navigation.settings": "CmdOrCtrl+Shift+?",
       "navigation.calendar": "CmdOrCtrl+1",
       "navigation.tasks": "CmdOrCtrl+2",
@@ -43,12 +45,14 @@ describe("primary navigation shortcuts", () => {
   });
 
   it("ships the requested application actions on their standard shortcuts", () => {
-    const macShortcut = (key: string, shiftKey = false) =>
-      ({ altKey: false, ctrlKey: false, key, metaKey: true, shiftKey });
+    const macShortcut = (key: string, { altKey = false, shiftKey = false } = {}) =>
+      ({ altKey, ctrlKey: false, key, metaKey: true, shiftKey });
 
     expect(eventMatchesAccelerator(macShortcut("z"), defaultKeybindings["undo.perform"])).toBe(true);
-    expect(eventMatchesAccelerator(macShortcut("z", true), defaultKeybindings["redo.perform"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("z", { shiftKey: true }), defaultKeybindings["redo.perform"])).toBe(true);
     expect(eventMatchesAccelerator(macShortcut("r"), defaultKeybindings["sync.refresh"])).toBe(true);
-    expect(eventMatchesAccelerator(macShortcut("d", true), defaultKeybindings["navigation.diagnostics.toggle"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("d", { altKey: true }), defaultKeybindings["navigation.diagnostics.toggle"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("d"), defaultKeybindings["pane.split.horizontal"])).toBe(true);
+    expect(eventMatchesAccelerator(macShortcut("d", { shiftKey: true }), defaultKeybindings["pane.split.vertical"])).toBe(true);
   });
 });
