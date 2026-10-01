@@ -300,7 +300,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
       .toEqual([googleTask.id]);
     expect(store.dispatch("calendar", "listEvents", { start: "2027-01-02T00:00:00.000Z", end: "2027-01-03T00:00:00.000Z", limit: 20 }).items.map((item: { id: string }) => item.id))
       .toEqual([googleEvent.id]);
-    expect(store.dispatch("notes", "get", { id: note.id }).listId).toBeNull();
+    expect(store.dispatch("notes", "get", { id: note.id }).listId).toBe("notes");
     expect(store.dispatch("settings", "get", {})).toMatchObject({
       selectedTaskListIds: [],
       selectedCalendarIds: [],
@@ -392,6 +392,19 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
       taskId: snoozed.id,
       reason: expect.stringContaining("Snoozed until")
     }));
+  });
+
+  it("persists native notes and note-list identity without creating Google Tasks", () => {
+    const store = createStore();
+    const list = store.dispatch("notes", "createNoteList", { title: "Research" });
+    const note = store.dispatch("notes", "create", {
+      title: "Architecture notes", body: "Keep this local.", listId: list.id
+    });
+
+    const notes = store.dispatch("notes", "list", { limit: 20 });
+    expect(notes.lists).toContainEqual(expect.objectContaining({ id: list.id, title: "Research", noteCount: 1 }));
+    expect(notes.items).toContainEqual(expect.objectContaining({ id: note.id, listId: list.id, listTitle: "Research" }));
+    expect(store.dispatch("tasks", "list", { status: "all", limit: 20 }).items.map((task: { title: string }) => task.title)).not.toContain("Architecture notes");
   });
 
   it("queues a same-account Calendar move and rejects a cross-account move", () => {

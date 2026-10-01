@@ -567,6 +567,7 @@ function PaneChooser({
   const appSections = visibleSectionIds.filter((sectionId) => !openSectionIds.has(sectionId));
   const [webPageUrl, setWebPageUrl] = useState("");
   const [webPageError, setWebPageError] = useState<string | null>(null);
+  const [webPageSelected, setWebPageSelected] = useState(false);
 
   function handleOpenWebPage(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -608,14 +609,19 @@ function PaneChooser({
             </p>
           )}
           <div className="grid gap-2 rounded-hcbMd border border-border bg-bg-secondary px-3 py-2">
-            <div className="flex min-h-12 min-w-0 items-center gap-3 text-left">
+            <button
+              aria-expanded={webPageSelected}
+              className="flex min-h-12 min-w-0 items-center gap-3 rounded-hcbSm text-left transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              onClick={() => setWebPageSelected((selected) => !selected)}
+              type="button"
+            >
               <ExternalLink aria-hidden="true" className="shrink-0 text-text-muted" size={17} />
               <span className="min-w-0">
                 <span className="block truncate text-[var(--text-base)] font-medium text-text-primary">Webpage</span>
                 <span className="block truncate text-[var(--text-xs)] text-text-muted">Open a website in this pane</span>
               </span>
-            </div>
-            <form className="grid gap-2" onSubmit={handleOpenWebPage}>
+            </button>
+            {webPageSelected ? <form className="grid gap-2" onSubmit={handleOpenWebPage}>
               <div className="flex min-w-0 gap-2">
                 <input
                   aria-label="Webpage URL"
@@ -640,7 +646,7 @@ function PaneChooser({
                 </Button>
               </div>
               {webPageError ? <p className="text-[var(--text-xs)] text-danger">{webPageError}</p> : null}
-            </form>
+            </form> : null}
           </div>
         </div>
       </div>
@@ -723,7 +729,7 @@ function PaneDivider({
 
 function paneContentTitle(content: PaneContent): string {
   if (content.kind === "chooser") {
-    return "Choose split view";
+    return "Open in this pane";
   }
 
   if (content.kind === "web") {

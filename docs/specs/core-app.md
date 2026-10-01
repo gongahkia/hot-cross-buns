@@ -75,7 +75,7 @@ Calendar views must be virtualized or windowed where large accounts could create
 
 ## Notes
 
-Notes are local-only in v1.
+Notes and note lists are local-only in v1, persisted in HCB's SQLite workspace rather than represented as Google Tasks.
 
 Required note capabilities:
 

@@ -31,7 +31,7 @@ export function conversionCleanup(
   target: ConvertItemKind
 ): ConvertSourceCleanup | undefined {
   const replace = window.confirm(
-    `Remove the original ${kind} after saving the converted ${target}? Cancel keeps the original.`
+    `Also remove the original ${kind} after the new ${target} is saved? Choose OK to remove it, or Cancel to keep it.`
   );
 
   return replace ? { id, kind } : undefined;

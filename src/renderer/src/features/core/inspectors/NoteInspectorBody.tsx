@@ -119,7 +119,7 @@ export function NoteInspectorSummary({
 
       {note.body.trim() ? (
         <MarkdownPreview ariaLabel="Note preview" body={note.body} plannerLinkTargets={plannerLinkTargets(source)} />
-      ) : null}
+      ) : <p className="text-[var(--text-base)] text-text-muted">No content</p>}
 
       <AttachmentPanel entityId={note.id} entityKind="note" />
 
@@ -577,7 +577,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           {createMode || viewMode === "edit" ? (
             <EmojiTextarea
               aria-label="Note body"
-              className="min-h-[260px] w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="min-h-40 w-full resize-y rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onValueChange={(body) => patchDraft({ body })}
               ref={textareaRef}
               value={dirty.value.body}

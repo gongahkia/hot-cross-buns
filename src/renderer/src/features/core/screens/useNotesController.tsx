@@ -25,6 +25,7 @@ import {
   type NoteTemplateOption
 } from "../inspectors/NoteInspectorBody";
 import { buildNotePreview } from "../notesParsing";
+import { shortDateTime } from "../viewModelSource/dateFormat";
 import { rendererNow, reportRendererTimingSince } from "../../../hooks/useRenderTiming";
 import type { NoteBoardSelection, NoteViewColumn } from "./notesTypes";
 
@@ -51,6 +52,7 @@ function noteFromNative(note: {
   listTitle?: string;
   title: string;
   body: string;
+  tags?: string[];
   updatedAt?: string;
 }): NoteViewModel {
   return {
@@ -60,8 +62,8 @@ function noteFromNative(note: {
     title: note.title,
     body: note.body,
     preview: buildNotePreview(note.body),
-    tags: [],
-    updatedLabel: note.updatedAt ?? "Just now"
+    tags: note.tags ?? [],
+    updatedLabel: note.updatedAt ? shortDateTime(note.updatedAt) : "Just now"
   };
 }
 
@@ -539,41 +541,23 @@ export function useNotesController(source: CoreViewModelSource): {
       return;
     }
 
-    const replace = window.confirm(
-      "Remove the original note after saving the converted task? Cancel keeps the original note."
-    );
     const dueDate = dateInputValue(new Date().toISOString());
 
     dispatchConvertCommand({
+      cleanup: conversionCleanup("note", note.id, target),
       target,
-      taskDraft: replace
-        ? {
-            mode: "edit",
-            id: note.id,
-            title,
-            notes: body,
-            dueDate,
-            listId: note.listId,
-            parentId: "",
-            priority: "none",
-            plannedStart: null,
-            plannedEnd: null,
-            durationMinutes: null,
-            lockedSchedule: false,
-            tags
-          }
-        : {
-            title,
-            notes: body,
-            dueDate,
-            listId: note.listId,
-            priority: "none",
-            plannedStart: null,
-            plannedEnd: null,
-            durationMinutes: null,
-            lockedSchedule: false,
-            tags
-          }
+      taskDraft: {
+        title,
+        notes: body,
+        dueDate,
+        listId: note.listId,
+        priority: "none",
+        plannedStart: null,
+        plannedEnd: null,
+        durationMinutes: null,
+        lockedSchedule: false,
+        tags
+      }
     });
   }
 
@@ -665,6 +649,7 @@ export function useNotesController(source: CoreViewModelSource): {
       title: draft.title || "Untitled note",
       body: draft.body,
       listId: note.listId,
+      tags: draft.tags,
     });
 
     if (!result?.ok) {
@@ -807,6 +792,7 @@ export function useNotesController(source: CoreViewModelSource): {
         title: draft.title || "Untitled note",
         body: draft.body,
         listId: note.listId,
+        tags: draft.tags,
       });
 
       if (!result?.ok) {
@@ -829,7 +815,8 @@ export function useNotesController(source: CoreViewModelSource): {
     const result = await window.hcb?.notes.update({
       id: noteId,
       title: draft.title,
-      body: draft.body
+      body: draft.body,
+      tags: draft.tags
     });
 
     if (result?.ok) {

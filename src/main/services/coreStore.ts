@@ -1002,6 +1002,7 @@ export class CoreStore {
       CREATE INDEX IF NOT EXISTS scheduled_task_blocks_range_idx ON scheduled_task_blocks(calendar_id, starts_at, ends_at);
       CREATE TABLE IF NOT EXISTS notes (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', list_id TEXT,
+        tags_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
       );
       CREATE INDEX IF NOT EXISTS notes_page_idx ON notes(deleted_at, updated_at, id);
@@ -1057,6 +1058,7 @@ export class CoreStore {
     this.addColumn("events", "working_location_properties_json TEXT");
     this.addColumn("events", "self_response_status TEXT");
     this.addColumn("events", "google_recurrence_json TEXT");
+    this.addColumn("notes", "tags_json TEXT NOT NULL DEFAULT '[]'");
     this.backfillCanonicalRecurrenceLines();
     this.addColumn("outbox", "account_id TEXT");
     this.addColumn("outbox", "last_error TEXT");
@@ -1072,7 +1074,7 @@ export class CoreStore {
     this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
   }
 
-  private addColumn(table: "google_accounts" | "task_lists" | "tasks" | "calendars" | "events" | "outbox", definition: string): void {
+  private addColumn(table: "google_accounts" | "task_lists" | "tasks" | "calendars" | "events" | "notes" | "outbox", definition: string): void {
     const column = definition.split(/\s+/, 1)[0];
     const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     if (!columns.some((item) => item.name === column)) {
@@ -2106,27 +2108,31 @@ export class CoreStore {
   }
 
   private listNotes(input: JsonRecord): JsonRecord {
-    const rows = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,list.title AS listTitle,
+    const rows = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
       FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id
-      WHERE note.deleted_at IS NULL ORDER BY note.updated_at DESC,note.id`).all();
-    return { ...this.page(rows as JsonRecord[], input), lists: this.noteLists() };
+      WHERE note.deleted_at IS NULL ORDER BY note.updated_at DESC,note.id`).all() as JsonRecord[];
+    return { ...this.page(rows.map((row) => this.noteSummary(row)), input), lists: this.noteLists() };
   }
 
   private requireNote(id: string): JsonRecord {
-    const row = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,list.title AS listTitle,
+    const row = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
       FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id WHERE note.id=? AND note.deleted_at IS NULL`).get(id);
     if (!row) throw new CoreStoreError("Note no longer exists");
-    return row as JsonRecord;
+    return this.noteSummary(row as JsonRecord);
   }
 
   private createNote(input: JsonRecord): JsonRecord {
     const now = timestamp();
     const id = randomUUID();
-    const listId = typeof input.listId === "string" && input.listId ? input.listId : this.noteLists()[0]?.id;
-    if (!listId || !this.noteList(listId)) throw new CoreStoreError("Note list no longer exists");
-    this.db.prepare("INSERT INTO notes(id,title,body,list_id,created_at,updated_at) VALUES(?,?,?,?,?,?)").run(id, requiredText(input.title, "Note title"), stringValue(input.body), listId, now, now);
+    const requestedListId = typeof input.listId === "string" && input.listId ? input.listId : null;
+    // Older renderer builds used Google Task-list ids for local notes. Keep
+    // those notes local during upgrade by placing them in the default native
+    // list rather than rejecting an otherwise safe local write.
+    const listId = (requestedListId && this.noteList(requestedListId) ? requestedListId : this.noteLists()[0]?.id);
+    if (!listId) throw new CoreStoreError("No note list is available");
+    this.db.prepare("INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").run(id, requiredText(input.title, "Note title"), stringValue(input.body), listId, JSON.stringify(stringArray(input.tags)), now, now);
     return this.requireNote(id);
   }
 
@@ -2134,7 +2140,7 @@ export class CoreStore {
     const current = this.requireNote(requiredText(input.id, "Note id"));
     const listId = input.listId ?? current.listId;
     if (!this.noteList(listId)) throw new CoreStoreError("Note list no longer exists");
-    this.db.prepare("UPDATE notes SET title=?,body=?,list_id=?,updated_at=? WHERE id=?").run(input.title ?? current.title, input.body ?? current.body, listId, timestamp(), current.id);
+    this.db.prepare("UPDATE notes SET title=?,body=?,list_id=?,tags_json=?,updated_at=? WHERE id=?").run(input.title ?? current.title, input.body ?? current.body, listId, JSON.stringify(input.tags === undefined ? current.tags : stringArray(input.tags)), timestamp(), current.id);
     return this.requireNote(current.id);
   }
 
@@ -2142,6 +2148,11 @@ export class CoreStore {
     const id = requiredText(input.id, "Note id");
     this.db.prepare("UPDATE notes SET deleted_at=?,updated_at=? WHERE id=?").run(timestamp(), timestamp(), id);
     return { id, deleted: true };
+  }
+
+  private noteSummary(row: JsonRecord): JsonRecord {
+    const { tagsJson, ...note } = row;
+    return { ...note, tags: stringArray(safeJson(tagsJson, [])) };
   }
 
   private noteLists(): JsonRecord[] {

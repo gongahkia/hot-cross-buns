@@ -54,7 +54,7 @@ export const plannerSections: PlannerSection[] = [
     id: "tasks",
     label: "Tasks",
     title: "Tasks",
-    subtitle: "Task lists, priorities, and queued mutations",
+    subtitle: "Lists, priorities, and due dates",
     metric: "4 open",
     icon: ListTodo
   },

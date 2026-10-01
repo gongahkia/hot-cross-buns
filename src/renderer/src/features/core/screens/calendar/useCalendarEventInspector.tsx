@@ -55,7 +55,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const [formError, setFormError] = useState<string | undefined>();
   const [calendarInspectorMode, setCalendarInspectorModeState] = useState<"view" | "edit">("edit");
   const [calendarActionError, setCalendarActionError] = useState<string | undefined>();
-  const [eventWriteScope, setEventWriteScopeState] = useState<CalendarEventCompletionScope>("series");
+  const [eventWriteScope, setEventWriteScopeState] = useState<CalendarEventCompletionScope>("occurrence");
   const calendarDraftRef = useRef<CalendarEventDraft | null>(draft);
   const calendarDraftBaselineRef = useRef<CalendarEventDraft | null>(draft);
   const calendarInspectorDirtyRef = useRef(false);
@@ -63,7 +63,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const calendarInspectorModeRef = useRef<"view" | "edit">("edit");
   const createModeRef = useRef<CalendarCreateMode>("event");
   const createTaskListIdRef = useRef(createTaskListId);
-  const eventWriteScopeRef = useRef<CalendarEventCompletionScope>("series");
+  const eventWriteScopeRef = useRef<CalendarEventCompletionScope>("occurrence");
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
     setDraftState((current) => {
@@ -237,7 +237,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   function recurrenceScopeSelect(): ReactNode {
     return (
       <select
-        aria-label="Recurring event edit scope"
+        aria-label="Apply edits to"
         className="h-7 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] text-text-primary"
         onChange={(event) => setEventWriteScope(event.currentTarget.value as CalendarEventCompletionScope)}
         value={eventWriteScope}
@@ -257,7 +257,6 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return (
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            {recurringDraft(nextDraft) ? recurrenceScopeSelect() : null}
             <Button onClick={() => void deleteDraft()} size="sm" variant="danger">
               <Trash2 aria-hidden="true" size={14} />
               Delete event
@@ -268,7 +267,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
             </Button>
             <Button onClick={() => duplicateEventDraftValue(nextDraft)} size="sm" variant="secondary">
               <Copy aria-hidden="true" size={14} />
-              Duplicate
+              Create standalone copy
             </Button>
             {nextDraft.hcbKind !== "birthday" ? (
               <>
@@ -303,7 +302,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         {nextDraft.mode === "edit" ? (
           <Button onClick={() => duplicateEventDraftValue(nextDraft)} size="sm" variant="secondary">
             <Copy aria-hidden="true" size={14} />
-            Duplicate
+            Create standalone copy
           </Button>
         ) : null}
         {nextDraft.mode === "edit" && nextDraft.hcbKind !== "birthday" ? (
@@ -324,7 +323,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         </Button>
         <Button onClick={() => void saveDraft()} size="sm" variant="primary">
           <Save aria-hidden="true" size={14} />
-          Save
+          Save changes
         </Button>
       </>
     );
@@ -497,6 +496,11 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return result?.ok ? null : result?.error.message ?? "Original event was not removed.";
     }
 
+    if (cleanup.kind === "note") {
+      const result = await window.hcb?.notes.delete({ id: cleanup.id });
+      return result?.ok ? null : result?.error.message ?? "Original note was not removed.";
+    }
+
     const result = await window.hcb?.tasks.delete({ id: cleanup.id });
     return result?.ok ? null : result?.error.message ?? "Original task was not removed.";
   }
@@ -616,9 +620,12 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return;
     }
 
+    const scope = recurringDraft(currentDraft) ? promptRecurringScope("Delete") : undefined;
+    if (recurringDraft(currentDraft) && !scope) return;
+
     const result = await window.hcb?.calendar.delete({
       id: currentDraft.id,
-      ...(recurringDraft(currentDraft) ? { scope: eventWriteScopeRef.current } : {}),
+      ...(scope ? { scope } : {}),
       ...(currentDraft.originalStartAt ? { originalStartAt: currentDraft.originalStartAt } : {})
     });
 
@@ -718,8 +725,22 @@ function defaultEventWriteScope(
     return "seriesAll";
   }
 
-  if (setting === "ask") return "occurrence";
-  if (setting === "seriesFuture") return "following";
-  if (setting === "seriesAll") return "series";
-  return setting;
+  // A previous completion preference must never silently widen an edit.
+  // Each recurring edit starts with the safest supported scope.
+  void setting;
+  return "occurrence";
+}
+
+function promptRecurringScope(operation: "Delete"): CalendarEventCompletionScope | null {
+  const response = window.prompt(
+    `${operation} which part of this recurring event? Enter: occurrence, following, or series.`,
+    "occurrence"
+  );
+  if (response === null) return null;
+  const normalized = response.trim().toLowerCase();
+  if (normalized === "occurrence" || normalized === "following" || normalized === "series") {
+    return normalized;
+  }
+  window.alert("Choose occurrence, following, or series.");
+  return null;
 }

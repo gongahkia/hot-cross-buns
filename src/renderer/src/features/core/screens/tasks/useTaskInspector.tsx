@@ -244,7 +244,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
           variant="primary"
         >
           <Save aria-hidden="true" size={14} />
-          Save
+          {nextDraft.mode === "create" ? "Add task" : "Save changes"}
         </Button>
       </>
     );
@@ -343,17 +343,12 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       return;
     }
 
-    const replace = window.confirm(
-      "Remove the original task fields after saving the converted note? Cancel keeps the original task."
-    );
-
     dispatchConvertCommand({
+      cleanup: conversionCleanup("task", sourceDraft.id, target),
       target,
       noteDraft: {
         body: sourceDraft.notes,
-        id: replace ? sourceDraft.id : undefined,
         listId: sourceDraft.listId,
-        replaceSource: replace,
         title: sourceDraft.title
       }
     });
@@ -371,6 +366,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     if (cleanup.kind === "event") {
       const result = await window.hcb?.calendar.delete({ id: cleanup.id });
       return result?.ok ? null : result?.error.message ?? "Original event was not removed.";
+    }
+
+    if (cleanup.kind === "note") {
+      const result = await window.hcb?.notes.delete({ id: cleanup.id });
+      return result?.ok ? null : result?.error.message ?? "Original note was not removed.";
     }
 
     const result = await window.hcb?.tasks.delete({ id: cleanup.id });

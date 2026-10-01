@@ -18,12 +18,27 @@ export {
 } from "@shared/plannerLinks";
 
 export function buildNotePreview(body: string): string {
-  const trimmed = body.trim();
+  const trimmed = markdownPlainText(body);
   if (!trimmed) {
     return "";
   }
 
   return trimmed.length > 92 ? `${trimmed.slice(0, 89)}...` : trimmed;
+}
+
+/** Compact list previews should describe content, never expose Markdown syntax. */
+export function markdownPlainText(body: string): string {
+  return body
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/!\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/[`*_~]/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function normalizedNoteTitle(title: string): string {

@@ -17,7 +17,7 @@
     { "id": "core", "label": "CoreStore domain service", "detail": "tasks, events, notes, settings, optimistic local writes", "x": 570, "y": 405, "width": 300, "height": 90, "kind": "service", "accent": "green" },
     { "id": "oauth", "label": "Google OAuth controller", "detail": "Desktop PKCE + scope reset + loopback callback", "x": 895, "y": 405, "width": 125, "height": 90, "kind": "service", "accent": "orange" },
     { "id": "sync", "label": "GoogleSyncService", "detail": "pull, durable outbox delivery, retries, 5-minute polling", "x": 570, "y": 565, "width": 300, "height": 90, "kind": "service", "accent": "green" },
-    { "id": "sqlite", "label": "SQLite: hcb.sqlite", "detail": "account cache • sync tokens • outbox", "x": 595, "y": 735, "width": 250, "height": 80, "kind": "database", "accent": "yellow" },
+    { "id": "sqlite", "label": "SQLite: hcb.sqlite", "detail": "account cache • native notes • sync tokens • outbox", "x": 595, "y": 735, "width": 250, "height": 80, "kind": "database", "accent": "yellow" },
     { "id": "credentials", "label": "Electron safeStorage", "detail": "credentials-v1.bin", "x": 885, "y": 565, "width": 145, "height": 85, "kind": "database", "accent": "orange" },
     { "id": "browser", "label": "Default browser", "detail": "user consent", "x": 1230, "y": 190, "width": 200, "height": 75, "kind": "browser", "accent": "blue" },
     { "id": "google-auth", "label": "Google OAuth 2.0", "detail": "accounts.google.com + token endpoint", "x": 1205, "y": 330, "width": 255, "height": 90, "kind": "cloud", "accent": "orange" },

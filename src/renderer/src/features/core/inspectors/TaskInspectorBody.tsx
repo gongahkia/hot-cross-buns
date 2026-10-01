@@ -14,6 +14,7 @@ import { EntityLinksPanel } from "../EntityLinksPanel";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../MarkdownPreview";
 import { plannerLinkTargets } from "../plannerLinkTargets";
 import { TagBadges, TagInput } from "../TagInput";
+import { dueLabel } from "../viewModelSource/dateFormat";
 
 export interface TaskDraft {
   mode: "create" | "edit";
@@ -188,14 +189,13 @@ export function TaskInspectorDetails({
             </h3>
           </div>
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-xs)] text-text-muted">
-            <Badge tone={completed ? "success" : "neutral"}>{statusLabel}</Badge>
             <Badge tone="neutral">{listTitle}</Badge>
             {draft.priority !== "none" ? (
               <Badge tone={draft.priority === "high" ? "danger" : draft.priority === "medium" ? "warning" : "accent"}>
                 {priorityLabel}
               </Badge>
             ) : null}
-            {draft.dueDate ? <Badge tone="neutral">{draft.dueDate}</Badge> : null}
+            {draft.dueDate ? <Badge tone="neutral">Due {dueLabel(draft.dueDate)}</Badge> : null}
             {draft.snoozeUntil ? <Badge tone="warning">Snoozed {snoozeLabel(draft.snoozeUntil)}</Badge> : null}
           </div>
         </div>
@@ -219,8 +219,8 @@ export function TaskInspectorDetails({
       ) : null}
 
       {draft.dueDate ? (
-        <TaskDetailLine icon={CalendarClock}>
-          {draft.dueDate}
+        <TaskDetailLine icon={CalendarClock} label="Due">
+          {dueLabel(draft.dueDate)}
         </TaskDetailLine>
       ) : null}
 
@@ -241,10 +241,6 @@ export function TaskInspectorDetails({
           <TagBadges tags={draft.tags} />
         </TaskDetailLine>
       ) : null}
-
-      <TaskDetailLine icon={List}>
-        {listTitle}
-      </TaskDetailLine>
 
       <AutoTagAudit
         input={{
@@ -360,12 +356,15 @@ export function TaskInspectorBody({
         </select>
       </label>
       <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
-        <Input
-          aria-label="Task due date"
-          onChange={(event) => patchDraft({ dueDate: event.target.value })}
-          type="date"
-          value={dirty.value.dueDate}
-        />
+        <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
+          <span>Due</span>
+          <Input
+            aria-label="Task due date"
+            onChange={(event) => patchDraft({ dueDate: event.target.value })}
+            type="date"
+            value={dirty.value.dueDate}
+          />
+        </label>
         <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Priority</span>
           <select

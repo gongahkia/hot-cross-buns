@@ -378,7 +378,7 @@ export function usePaneWorkspace(): {
 
 function paneContentTitle(content: PaneContent): string {
   if (content.kind === "chooser") {
-    return "Choose split view";
+    return "Open in this pane";
   }
 
   if (content.kind === "web") {
