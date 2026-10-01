@@ -89,9 +89,10 @@ export function calendarEventFillStyle(event: CalendarEventViewModel): CSSProper
   }
 
   return {
-    backgroundColor: background,
-    borderColor: background,
-    color: normalizeCalendarColor(event.displayForegroundColor ?? event.calendarForegroundColor) ?? readableTextColor(background)
+    backgroundColor: hexToRgba(background, 0.16),
+    borderColor: hexToRgba(background, 0.55),
+    boxShadow: `inset 3px 0 ${background}`,
+    color: "var(--color-text-primary)"
   };
 }
 
@@ -101,15 +102,6 @@ function hexToRgba(color: string, alpha: number): string {
   const blue = Number.parseInt(color.slice(5, 7), 16);
 
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function readableTextColor(color: string): string {
-  const red = Number.parseInt(color.slice(1, 3), 16);
-  const green = Number.parseInt(color.slice(3, 5), 16);
-  const blue = Number.parseInt(color.slice(5, 7), 16);
-  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
-
-  return luminance > 0.55 ? "#1d1d1d" : "#ffffff";
 }
 
 function calendarEventLabel(
@@ -279,6 +271,7 @@ export function CalendarEventChip({
   onOpen,
   onToggleEvent,
   onToggleTask,
+  showContent = true,
   size = "default"
 }: {
   className?: string;
@@ -291,6 +284,7 @@ export function CalendarEventChip({
   onOpen?: (event: CalendarEventViewModel) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
+  showContent?: boolean;
   size?: CalendarEventChipSize;
 }): JSX.Element {
   const tone = calendarSourceTone(event.calendarId);
@@ -305,7 +299,8 @@ export function CalendarEventChip({
     <div
       aria-label={label}
       className={cx(
-        "group flex w-full min-w-0 cursor-default items-center gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary shadow-sm transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "group flex w-full min-w-0 cursor-default gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary shadow-sm transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        size === "compact" ? "items-start" : "items-center",
         size === "compact" ? "min-h-0 px-1.5 py-0.5 text-[11px]" : "min-h-6 px-2 py-1 text-[var(--text-xs)]",
         draggable && "cursor-grab active:cursor-grabbing",
         event.allDay && "font-medium",
@@ -338,16 +333,20 @@ export function CalendarEventChip({
       tabIndex={0}
       title={`${label} - ${event.calendar}`}
     >
-      <CalendarItemCompletionButton
-        event={event}
-        eventCompletionDefaultScope={eventCompletionDefaultScope}
-        onToggleEvent={onToggleEvent}
-        onToggleTask={onToggleTask}
-        size={size}
-      />
-      <span className={cx("min-w-0 flex-1 truncate leading-tight", completed && "line-through")}>
-        {label}
-      </span>
+      {showContent ? (
+        <>
+          <CalendarItemCompletionButton
+            event={event}
+            eventCompletionDefaultScope={eventCompletionDefaultScope}
+            onToggleEvent={onToggleEvent}
+            onToggleTask={onToggleTask}
+            size={size}
+          />
+          <span className={cx("min-w-0 flex-1 truncate leading-tight", completed && "line-through")}>
+            {label}
+          </span>
+        </>
+      ) : null}
     </div>
   );
 }

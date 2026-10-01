@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Copy,
   CornerDownRight,
+  ListTodo,
   ListPlus,
   MoreVertical,
   PanelLeftClose,
@@ -73,8 +74,8 @@ interface GoogleTasksBoardProps {
 
 const sortLabels: Record<TaskListSort, string> = {
   myOrder: "My order",
-  date: "Date",
-  deadline: "Deadline",
+  date: "Recently updated",
+  deadline: "Due date",
   starred: "Starred recently",
   title: "Title"
 };
@@ -82,7 +83,7 @@ const taskDragType = "application/x-hcb-task-id";
 
 function activeRootTasks(source: CoreViewModelSource): TaskViewModel[] {
   return source.largeTaskWindow.filter(
-    (task) => task.parentId === null && task.status === "open" && task.dueDate !== null
+    (task) => task.parentId === null && task.status === "open"
   );
 }
 
@@ -198,7 +199,9 @@ export function GoogleTasksBoard({
       ];
     }
 
-    const lists = source.taskLists.filter((list) => visibleListIdSet.has(list.id));
+    const lists = source.taskLists
+      .filter((list) => visibleListIdSet.has(list.id))
+      .filter((list) => selectedView.listIds !== null || visibleListTasks(source, list.id).length > 0 || completedListTasks(source, list.id).length > 0);
 
     return lists.map((list) => ({
       id: list.id,
@@ -265,7 +268,7 @@ export function GoogleTasksBoard({
       <TaskBoardSidebar
         collapsed={effectiveSidebarCollapsed}
         onCreateList={onCreateList}
-        onCreateTask={() => onCreateTask()}
+        onCreateTask={() => onCreateTask(selectedView.mode === "lists" && selectedView.listIds?.length === 1 ? selectedView.listIds[0] : undefined)}
         onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
         selectedView={selectedView}
         setSelectedView={setSelectedView}
@@ -290,7 +293,10 @@ export function GoogleTasksBoard({
           />
         ) : null}
         <div
-          className="flex h-full min-h-[480px] min-w-0 gap-3 overflow-x-auto p-3"
+          className={cx(
+            "flex h-full min-h-[480px] min-w-0 gap-3 p-3",
+            columns.length <= 1 ? "overflow-y-auto" : "overflow-x-auto"
+          )}
           role="list"
           aria-label={selectedView.mode === "starred" ? "Starred task lists" : "Task lists"}
         >
@@ -323,6 +329,7 @@ export function GoogleTasksBoard({
                 source={source}
                 starred={starred}
                 completedTasks={column.completedTasks}
+                singleColumn={columns.length === 1}
                 tasks={column.tasks}
                 title={column.title}
               />
@@ -366,7 +373,6 @@ function TaskBoardSidebar({
   starredCount: number;
   visibleListIds: string[];
 }): JSX.Element {
-  const allListIds = source.taskLists.map((list) => list.id);
   const visibleListIdSet = new Set(visibleListIds);
 
   function selectAllLists(): void {
@@ -377,20 +383,8 @@ function TaskBoardSidebar({
     setSelectedView({ mode: "starred", listIds: selectedView.listIds });
   }
 
-  function toggleList(listId: string): void {
-    const nextSet = new Set(visibleListIds);
-
-    if (nextSet.has(listId)) {
-      nextSet.delete(listId);
-    } else {
-      nextSet.add(listId);
-    }
-
-    const nextListIds = allListIds.filter((id) => nextSet.has(id));
-    setSelectedView({
-      mode: "lists",
-      listIds: nextListIds.length === allListIds.length ? null : nextListIds
-    });
+  function selectList(listId: string): void {
+    setSelectedView({ mode: "lists", listIds: [listId] });
   }
 
   if (collapsed) {
@@ -412,7 +406,7 @@ function TaskBoardSidebar({
       <div className="flex items-center gap-2">
         <Button className="h-12 min-w-0 flex-1 justify-start rounded-hcbLg shadow-sm" onClick={onCreateTask} variant="primary">
           <Plus aria-hidden="true" size={18} />
-          Create tasks
+          New task
         </Button>
         <IconButton
           className="size-10 rounded-hcbMd"
@@ -442,19 +436,19 @@ function TaskBoardSidebar({
         <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
         <div className="mt-2 grid gap-1">
           {source.taskLists.map((list) => (
-            <TaskListCheckbox
-              checked={visibleListIdSet.has(list.id)}
+            <TaskListButton
               count={visibleListTasks(source, list.id).length}
               key={list.id}
               label={list.title}
-              onClick={() => toggleList(list.id)}
+              onClick={() => selectList(list.id)}
+              selected={selectedView.mode === "lists" && selectedView.listIds?.includes(list.id) === true}
             />
           ))}
         </div>
       </div>
       <Button className="mt-5 justify-start" onClick={onCreateList} variant="ghost">
         <Plus aria-hidden="true" size={16} />
-        Create new list
+        New list
       </Button>
     </aside>
   );
@@ -494,38 +488,29 @@ function TaskSidebarButton({
   );
 }
 
-function TaskListCheckbox({
-  checked,
+function TaskListButton({
   count,
   label,
-  onClick
+  onClick,
+  selected
 }: {
-  checked: boolean;
   count: number;
   label: string;
   onClick: () => void;
+  selected: boolean;
 }): JSX.Element {
   return (
     <button
-      aria-checked={checked}
+      aria-current={selected ? "page" : undefined}
       aria-label={label}
       className={cx(
         "grid h-9 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 rounded-hcbLg px-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        checked ? "text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
+        selected ? "bg-accent/20 text-text-primary" : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
       )}
       onClick={onClick}
-      role="checkbox"
       type="button"
     >
-      <span
-        aria-hidden="true"
-        className={cx(
-          "flex size-4 items-center justify-center rounded-[4px] border",
-          checked ? "border-accent bg-accent text-[var(--color-accent-foreground)]" : "border-text-muted bg-transparent"
-        )}
-      >
-        {checked ? <Check size={12} strokeWidth={3} /> : null}
-      </span>
+      <ListTodo aria-hidden="true" size={16} />
       <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
       <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
     </button>
@@ -629,6 +614,7 @@ function TaskListColumn({
   source,
   starred,
   completedTasks,
+  singleColumn,
   tasks,
   title
 }: {
@@ -657,6 +643,7 @@ function TaskListColumn({
   source: CoreViewModelSource;
   starred: StarredState;
   completedTasks: TaskViewModel[];
+  singleColumn: boolean;
   tasks: TaskViewModel[];
   title: string;
 }): JSX.Element {
@@ -695,7 +682,8 @@ function TaskListColumn({
   return (
     <section
       className={cx(
-        "flex max-h-full w-[min(420px,calc(100vw-2rem))] shrink-0 flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary",
+        "flex max-h-full flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary",
+        singleColumn ? "w-full" : "w-[min(420px,calc(100vw-2rem))] shrink-0",
         dropActive && "ring-2 ring-info"
       )}
       onDragLeave={() => setDropActive(false)}

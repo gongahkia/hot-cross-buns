@@ -5,11 +5,7 @@ import { VirtualizedList } from "../../../../components/VirtualizedList";
 import { handleActivationKeyDown } from "../../coreScreenShared";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
-import {
-  CalendarItemCompletionButton,
-  calendarEventFillStyle
-} from "./CalendarEventChips";
-import { calendarDateTitleFromIso } from "./calendarGrid";
+import { CalendarItemCompletionButton, calendarSourceColorStyle } from "./CalendarEventChips";
 
 function calendarAgendaDescription(event: CalendarEventViewModel): { location: string; notes: boolean } {
   const location = event.location.trim();
@@ -31,10 +27,7 @@ function CalendarAgendaEventRow({
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
 }): JSX.Element {
-  const fillStyle = calendarEventFillStyle(event);
-  const whenLabel = event.allDay
-    ? `${calendarDateTitleFromIso(event.startsAt.slice(0, 10))} - All day`
-    : event.rangeLabel;
+  const whenLabel = event.allDay ? "All day" : event.rangeLabel;
   const description = calendarAgendaDescription(event);
   const hasDescription = Boolean(description.location || description.notes);
   const isCompletedTask = event.taskStatus === "completed";
@@ -44,7 +37,7 @@ function CalendarAgendaEventRow({
   return (
     <div
       className={cx(
-        "grid w-full cursor-default grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-border bg-bg-tertiary px-3 py-2 text-left last:border-b-0 transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "grid w-full cursor-default grid-cols-[4.5rem_minmax(0,1fr)] gap-3 border-b border-border bg-bg-tertiary px-3 py-2 text-left last:border-b-0 transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         hasDescription ? "min-h-[76px]" : "min-h-[58px]",
         completed && "text-text-muted opacity-75"
       )}
@@ -53,6 +46,7 @@ function CalendarAgendaEventRow({
       role="listitem"
       tabIndex={0}
     >
+      <div className="pt-0.5 text-right text-[var(--text-xs)] font-medium text-text-secondary">{whenLabel}</div>
       <div className="flex min-w-0 items-start gap-2">
         <span className="mt-1 text-text-secondary">
           <CalendarItemCompletionButton
@@ -62,17 +56,21 @@ function CalendarAgendaEventRow({
             onToggleTask={onToggleTask}
           />
         </span>
+        <span
+          aria-hidden="true"
+          className="mt-2 size-2 shrink-0 rounded-full"
+          style={calendarSourceColorStyle(event.displayBackgroundColor ?? event.calendarBackgroundColor)}
+        />
         <div className="min-w-0">
           <span
             className={cx(
-              "inline-block max-w-full whitespace-normal break-words rounded-hcbSm px-2 py-0.5 text-[var(--text-md)] font-semibold leading-snug text-text-primary",
+              "block max-w-full whitespace-normal break-words text-[var(--text-md)] font-semibold leading-snug text-text-primary",
               completed && "line-through"
             )}
-            style={fillStyle}
           >
             {event.title}
           </span>
-          <span className="block truncate text-[var(--text-sm)] text-text-secondary">{whenLabel}</span>
+          <span className="block truncate text-[var(--text-xs)] text-text-muted">{event.calendar}</span>
           {description.location ? <span className="block truncate text-[var(--text-xs)] text-text-muted">{description.location}</span> : null}
           {description.notes ? (
             <div
@@ -108,9 +106,9 @@ export function CalendarAgendaView({
     <div className="flex min-h-[680px] flex-col overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-primary/40 px-3 py-2">
         <div className="min-w-0">
-          <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">Agenda view</div>
+          <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">{label}</div>
           <div className="truncate text-[var(--text-xs)] text-text-muted">
-            {label} - {events.length} visible events
+            {events.length} event{events.length === 1 ? "" : "s"}
           </div>
         </div>
       </div>

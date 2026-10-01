@@ -66,7 +66,7 @@ export function CalendarHeader({
   visibleCalendarViewIds: CalendarViewId[];
 }): JSX.Element {
   return (
-    <div className="grid min-w-0 gap-2 2xl:grid-cols-[minmax(0,1fr)_auto]">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <div
           aria-label="Calendar views"
@@ -97,11 +97,11 @@ export function CalendarHeader({
             variant="ghost"
           />
           <Button
-            aria-label="Return calendar to today"
+            aria-label="Jump to today"
             className="min-w-32 max-w-48 truncate px-2"
             onClick={onResetRange}
             size="sm"
-            title="Return to today"
+            title="Jump to today"
             variant="ghost"
           >
             <span className="truncate">{calendarRangeLabel}</span>
@@ -115,7 +115,7 @@ export function CalendarHeader({
           />
         </div>
       </div>
-      <div aria-label="Calendar actions" className="flex min-w-0 flex-wrap items-center gap-2 2xl:justify-end" role="group">
+      <div aria-label="Calendar actions" className="ml-auto flex min-w-0 flex-wrap items-center gap-2" role="group">
         <Button data-action-id="calendar.create" onClick={onCreate} size="sm" variant="primary">
           <CalendarPlus aria-hidden="true" size={14} />
           New event
@@ -138,7 +138,7 @@ export function CalendarHeader({
           variant="primary"
         >
           <Sparkles aria-hidden="true" size={14} />
-          Reschedule
+          Smart schedule
         </Button>
       </div>
       <div aria-label="Calendar status" className="sr-only" role="status" />

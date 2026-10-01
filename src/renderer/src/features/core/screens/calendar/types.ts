@@ -97,6 +97,17 @@ export interface CalendarTimelineEventLayout {
   height: number;
   laneIndex: number;
   laneCount: number;
+  /** A timed event may widen after neighbouring overlaps end. */
+  segments: CalendarTimelineEventSegment[];
+}
+
+export interface CalendarTimelineEventSegment {
+  startMinute: number;
+  durationMinutes: number;
+  top: number;
+  height: number;
+  laneIndex: number;
+  laneCount: number;
 }
 
 export interface CalendarTimeBlock {

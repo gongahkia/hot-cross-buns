@@ -38,4 +38,22 @@ describe("core IPC task payload validation", () => {
       requestedServices: []
     })).toBe(false);
   });
+
+  it("only accepts a reviewed plan for a Smart Schedule apply", () => {
+    expect(payloadIsValid("calendar", "smartReschedule", {
+      apply: false,
+      date: "2026-10-01",
+      calendarId: "primary",
+      workingHours: { startMinutes: 540, endMinutes: 1020 }
+    })).toBe(true);
+    expect(payloadIsValid("calendar", "smartReschedule", {
+      apply: true,
+      planId: "660e8400-e29b-41d4-a716-446655440000"
+    })).toBe(true);
+    expect(payloadIsValid("calendar", "smartReschedule", {
+      apply: true,
+      date: "2026-10-01",
+      calendarId: "primary"
+    })).toBe(false);
+  });
 });

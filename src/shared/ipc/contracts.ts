@@ -142,11 +142,35 @@ export interface SettingsSnapshot {
 }
 export type SettingsUpdateRequest = any;
 export interface SmartRescheduleResponse {
-  suggestions: Array<{ taskId: string; calendarId: string; startsAt: string; endsAt: string; action: "schedule" | "move"; reason: string }>;
-  skipped: Array<{ taskId: string; reason: string }>;
+  /** An in-memory, short-lived reviewed plan. Apply must use this exact id. */
+  planId?: string;
+  suggestions: Array<{
+    taskId: string;
+    taskTitle: string;
+    calendarId: string;
+    startsAt: string;
+    endsAt: string;
+    durationMinutes: number;
+    usesDefaultDuration: boolean;
+    dueDate: string | null;
+    action: "schedule" | "move";
+    reason: string;
+  }>;
+  skipped: Array<{
+    taskId: string;
+    taskTitle: string;
+    durationMinutes: number;
+    usesDefaultDuration: boolean;
+    dueDate: string | null;
+    reason: string;
+  }>;
   applied: boolean;
+  appliedCount?: number;
+  failed?: Array<{ taskId: string; taskTitle: string; reason: string }>;
   calendarId: string;
   generatedAt: string;
+  candidateCount?: number;
+  fixedEventCount?: number;
 }
 export type SyncRunNowRequest = any;
 export interface SyncStatusResponse {

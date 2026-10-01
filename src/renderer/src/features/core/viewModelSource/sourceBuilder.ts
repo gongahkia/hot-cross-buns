@@ -1,4 +1,4 @@
-import type { CalendarEventSummary, NoteListSummary, TaskSummary } from "@shared/ipc/contracts";
+import type { CalendarEventSummary, TaskSummary } from "@shared/ipc/contracts";
 import {
   resolveEffectiveColorTheme,
   resolveEffectiveThemeMode
@@ -16,6 +16,7 @@ import {
   weekDays
 } from "./calendarViewModels";
 import { shortDateTime } from "./dateFormat";
+import { noteViewModel } from "./noteViewModels";
 import { idleSearchViewModel } from "./searchViewModels";
 import { settingsSections } from "./settingsViewModels";
 import { hasSnapshotData } from "./snapshot";
@@ -126,9 +127,8 @@ export function buildCoreViewModelSource(
   const rootTasks = tasks.filter((task) => task.parentId === null);
   const openTasks = rootTasks.filter((task) => task.status === "open");
   const openDatedTasks = openTasks.filter((task) => task.dueDate !== null);
-  const openUndatedTasks = openTasks.filter((task) => task.dueDate === null);
-  const notes = openUndatedTasks.map((task) => taskBackedNoteViewModel(task));
-  const noteLists = taskBackedNoteLists(snapshot.taskLists, notes);
+  const notes = snapshot.notes.map(noteViewModel);
+  const noteLists = snapshot.noteLists;
   const completedTasks = rootTasks.filter((task) => task.status === "completed");
   const hiddenTasks = rootTasks.filter((task) => task.status === "hidden");
   const deletedTasks = rootTasks.filter((task) => task.status === "deleted");
@@ -268,37 +268,4 @@ function pruneViewModelCache<T extends { id: string }, V>(
 
 function taskHasDueDate(task: TaskViewModel): task is TaskViewModel & { dueDate: string } {
   return task.dueDate !== null;
-}
-
-function taskBackedNoteViewModel(task: TaskViewModel): NoteViewModel {
-  const body = task.detail.trim();
-
-  return {
-    id: task.id,
-    listId: task.listId,
-    listTitle: task.list,
-    title: task.title,
-    body,
-    preview: body,
-    tags: task.tags ?? [],
-    updatedLabel: task.updatedAt ? shortDateTime(task.updatedAt) : "Unknown"
-  };
-}
-
-function taskBackedNoteLists(
-  taskLists: CoreDataSnapshot["taskLists"],
-  notes: NoteViewModel[]
-): NoteListSummary[] {
-  const noteCountsByList = new Map<string, number>();
-
-  for (const note of notes) {
-    noteCountsByList.set(note.listId, (noteCountsByList.get(note.listId) ?? 0) + 1);
-  }
-
-  return taskLists.map((list) => ({
-    id: list.id,
-    title: list.title,
-    updatedAt: list.updatedAt,
-    noteCount: noteCountsByList.get(list.id) ?? 0
-  }));
 }

@@ -24,6 +24,7 @@ import {
   calendarCurrentDayKey,
   calendarDateFromIsoDate,
   calendarDateTitleFromIso,
+  calendarContextualDateTitleFromIso,
   calendarDayViewForDate,
   calendarDayKey,
   calendarEventsForDay,
@@ -535,12 +536,12 @@ export function CalendarView({
           ) : undefined
         }
       >
-        <div className="h-full min-h-0 overflow-auto pr-1">
+        <div className="h-full min-h-0 pr-1">
           {activeViewId === "agenda" ? (
             <CalendarAgendaView
               eventCompletionDefaultScope={source.settings.eventCompletionDefaultScope}
               events={calendarAgendaEvents}
-              label={calendarDateTitleFromIso(calendarAnchorDate)}
+              label={calendarContextualDateTitleFromIso(calendarAnchorDate)}
               onOpen={openCalendarItem}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}

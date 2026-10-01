@@ -50,7 +50,8 @@ function CalendarTimelineEventChip({
   onMoveEvent,
   onOpen,
   onToggleEvent,
-  onToggleTask
+  onToggleTask,
+  showContent = true
 }: {
   className?: string;
   event: CalendarEventViewModel;
@@ -60,6 +61,7 @@ function CalendarTimelineEventChip({
   onOpen: (event: CalendarEventViewModel) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
+  showContent?: boolean;
 }): JSX.Element {
   const draggable = event.sourceKind !== "task";
 
@@ -97,6 +99,7 @@ function CalendarTimelineEventChip({
         onOpen={onOpen}
         onToggleEvent={onToggleEvent}
         onToggleTask={onToggleTask}
+        showContent={showContent}
         size="compact"
       />
       {draggable && !event.allDay ? (
@@ -252,7 +255,7 @@ function CalendarTimelineView({
     : days[0]
       ? calendarDayKey(days[0])
       : calendarTodayKey();
-  const dayColumnMinWidth = days.length <= 1 ? 520 : days.length <= 3 ? 220 : 160;
+  const dayColumnMinWidth = days.length <= 1 ? 520 : days.length <= 3 ? 220 : 112;
   const gridTemplateColumns = `repeat(${Math.max(1, days.length)}, minmax(${dayColumnMinWidth}px, 1fr))`;
   const previewSegments = timelinePreviewSegments(
     [
@@ -567,8 +570,8 @@ function CalendarTimelineView({
         role="grid"
         aria-label={gridLabel}
       >
-        <div className="min-w-[720px]">
-          <div className="grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-secondary/80">
+        <div style={{ minWidth: `${64 + dayColumnMinWidth * Math.max(1, days.length)}px` }}>
+          <div className="sticky top-0 z-40 grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-secondary/95 backdrop-blur-sm">
             <div className="border-r border-border" aria-hidden="true" />
             <div className="grid" style={{ gridTemplateColumns }}>
               {visibleDays.map(({ day }) => (
@@ -831,31 +834,41 @@ function CalendarTimelineView({
                   data-calendar-day-events
                   key={`${day.id}-events`}
                 >
-                  {timedEventLayouts.map((layout) => (
-                    <div
-                      className="pointer-events-auto absolute min-w-0"
-                      data-calendar-event-layout={layout.event.id}
-                      data-duration-minutes={layout.durationMinutes}
-                      data-lane-count={layout.laneCount}
-                      data-lane-index={layout.laneIndex}
-                      data-start-minute={layout.startMinute}
-                      key={layout.event.id}
-                      onDragOver={(dragEvent) => previewTimedEventDrop(dragEvent, calendarDayKey(day))}
-                      onDrop={(dragEvent) => handleTimedEventDrop(dragEvent, calendarDayKey(day))}
-                      style={timelineEventStyle(layout)}
-                    >
-                      <CalendarTimelineEventChip
-                        className="min-w-0"
-                        event={layout.event}
-                        eventCompletionDefaultScope={eventCompletionDefaultScope}
-                        labelVariant={timedLabelVariant}
-                        onMoveEvent={onMoveEvent}
-                        onOpen={onOpen}
-                        onToggleEvent={onToggleEvent}
-                        onToggleTask={onToggleTask}
-                      />
-                    </div>
-                  ))}
+                  {timedEventLayouts.flatMap((layout) => {
+                    if (layout.segments.length === 0) return [];
+                    const contentSegment = layout.segments.reduce((best, segment) =>
+                      segment.height / Math.max(1, segment.laneCount) > best.height / Math.max(1, best.laneCount)
+                        ? segment
+                        : best
+                    , layout.segments[0]!);
+
+                    return layout.segments.map((segment) => (
+                      <div
+                        className="pointer-events-auto absolute min-w-0"
+                        data-calendar-event-layout={layout.event.id}
+                        data-duration-minutes={segment.durationMinutes}
+                        data-lane-count={segment.laneCount}
+                        data-lane-index={segment.laneIndex}
+                        data-start-minute={segment.startMinute}
+                        key={`${layout.event.id}-${segment.startMinute}-${segment.durationMinutes}`}
+                        onDragOver={(dragEvent) => previewTimedEventDrop(dragEvent, calendarDayKey(day))}
+                        onDrop={(dragEvent) => handleTimedEventDrop(dragEvent, calendarDayKey(day))}
+                        style={timelineEventStyle(segment)}
+                      >
+                        <CalendarTimelineEventChip
+                          className="min-w-0"
+                          event={layout.event}
+                          eventCompletionDefaultScope={eventCompletionDefaultScope}
+                          labelVariant={timedLabelVariant}
+                          onMoveEvent={onMoveEvent}
+                          onOpen={onOpen}
+                          onToggleEvent={onToggleEvent}
+                          onToggleTask={onToggleTask}
+                          showContent={segment === contentSegment}
+                        />
+                      </div>
+                    ));
+                  })}
                 </div>
               ))}
             </div>

@@ -70,24 +70,24 @@ function taskGroups(
   taskLists: TaskListSummary[]
 ): TaskGroupViewModel[] {
   const byList = new Map<string, TaskViewModel[]>();
-  const listOrder = new Map(taskLists.map((list, index) => [list.title, index]));
+  const listOrder = new Map(taskLists.map((list, index) => [list.id, index]));
 
   for (const task of tasks) {
-    const listTasks = byList.get(task.list) ?? [];
+    const listTasks = byList.get(task.listId) ?? [];
     listTasks.push(task);
-    byList.set(task.list, listTasks);
+    byList.set(task.listId, listTasks);
   }
 
-  return Array.from(byList, ([list, listTasks]) => ({
-    id: `${state}-${slugId(list)}`,
-    title: list,
+  return Array.from(byList, ([listId, listTasks]) => ({
+    id: `${state}-${listId}`,
+    title: taskLists.find((list) => list.id === listId)?.title ?? listTasks[0]?.list ?? "Unknown list",
     description: `${taskStateLabel(state)} tasks`,
     countLabel: `${listTasks.length} ${listTasks.length === 1 ? "task" : "tasks"}`,
     tasks: listTasks
   })).sort(
     (left, right) =>
-      (listOrder.get(left.title) ?? Number.MAX_SAFE_INTEGER) -
-        (listOrder.get(right.title) ?? Number.MAX_SAFE_INTEGER) ||
+      (listOrder.get(left.id.slice(`${state}-`.length)) ?? Number.MAX_SAFE_INTEGER) -
+        (listOrder.get(right.id.slice(`${state}-`.length)) ?? Number.MAX_SAFE_INTEGER) ||
       left.title.localeCompare(right.title)
   );
 }

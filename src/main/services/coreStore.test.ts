@@ -353,20 +353,45 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("undo", "redo", {}).applied).toBe(true);
   });
 
-  it("returns a preview before smart scheduling applies task blocks", () => {
+  it("requires an unchanged reviewed plan before smart scheduling applies task blocks", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Schedule me", durationMinutes: 45, priority: "high" });
     const preview = store.dispatch("calendar", "smartReschedule", {
       date: "2026-10-06", calendarId: "primary", apply: false, workingHours: { start: 9, end: 12 }
     });
     expect(preview.applied).toBe(false);
+    expect(preview.planId).toEqual(expect.any(String));
     expect(preview.suggestions.some((suggestion: { taskId: string }) => suggestion.taskId === task.id)).toBe(true);
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", { limit: 20 }).items).toHaveLength(0);
 
     const applied = store.dispatch("calendar", "smartReschedule", {
-      date: "2026-10-06", calendarId: "primary", apply: true, workingHours: { start: 9, end: 12 }
+      apply: true, planId: preview.planId
     });
     expect(applied.applied).toBe(true);
+    expect(applied.appliedCount).toBe(1);
     expect(store.dispatch("calendar", "listScheduledTaskBlocks", { limit: 20 }).items.some((block: { taskId: string }) => block.taskId === task.id)).toBe(true);
+    expect(store.dispatch("tasks", "get", { id: task.id }).status).toBe("active");
+  });
+
+  it("labels an overdue task truthfully and does not schedule a snoozed task", () => {
+    const store = createStore();
+    const overdue = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Already overdue", dueDate: "2026-09-29", durationMinutes: 30
+    });
+    const snoozed = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Snoozed", durationMinutes: 30, snoozeUntil: "2026-10-02T00:00:00.000Z"
+    });
+
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: "primary", apply: false,
+      workingHours: { startMinutes: 9 * 60, endMinutes: 10 * 60 }
+    });
+
+    expect(preview.suggestions.find((item: { taskId: string }) => item.taskId === overdue.id)?.reason).toContain("Overdue");
+    expect(preview.skipped).toContainEqual(expect.objectContaining({
+      taskId: snoozed.id,
+      reason: expect.stringContaining("Snoozed until")
+    }));
   });
 
   it("queues a same-account Calendar move and rejects a cross-account move", () => {

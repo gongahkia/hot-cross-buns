@@ -207,7 +207,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock",
       "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"
     ]),
-    notes: actions("notes", ["list", "get", "create", "update", "delete", "entityLinks", "listBrokenLinks", "linkSuggest"]),
+    notes: actions("notes", ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "entityLinks", "listBrokenLinks", "linkSuggest"]),
     tags: actions("tags", ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"]),
     search: actions("search", ["query", "installModel", "uninstallModel", "rebuildIndex"]),
     settings: {

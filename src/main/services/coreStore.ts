@@ -30,12 +30,22 @@ interface EventWriteOptions {
   recordUndo?: boolean;
 }
 
+interface SmartSchedulePlan {
+  calendarId: string;
+  createdAt: number;
+  date: string;
+  fixedEventCount: number;
+  suggestions: JsonRecord[];
+  skipped: JsonRecord[];
+  candidateCount: number;
+}
+
 // v3 deliberately starts a new developer-only data set.  The previous
 // restored Electron build used global Google identifiers, which makes two
 // accounts unsafe (both can legitimately expose e.g. a `primary` calendar).
 // This branch has no released users, so a clean reset is safer than a lossy
 // inference migration.
-const schemaVersion = 4;
+const schemaVersion = 5;
 const localAccountId = "local";
 
 const defaultSettings: JsonRecord = {
@@ -163,6 +173,12 @@ export class CoreStore {
   private applyingUndo = false;
   private nativeBridge: CoreNativeBridge | null = null;
   private developerDataWasReset = false;
+  /**
+   * Smart Schedule plans deliberately live only for the current app session.
+   * The renderer can review a stable plan without making it durable state, and
+   * an app restart cannot accidentally apply an old plan against new data.
+   */
+  private readonly smartSchedulePlans = new Map<string, SmartSchedulePlan>();
 
   constructor(databasePath: string) {
     mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
@@ -831,6 +847,12 @@ export class CoreStore {
         return this.updateNote(input);
       case "notes.delete":
         return this.deleteNote(input);
+      case "notes.createNoteList":
+        return this.createNoteList(input);
+      case "notes.renameNoteList":
+        return this.renameNoteList(input);
+      case "notes.deleteNoteList":
+        return this.deleteNoteList(input);
       case "notes.entityLinks":
         return { outgoing: [], backlinks: [], broken: [] };
       case "notes.listBrokenLinks":
@@ -983,6 +1005,9 @@ export class CoreStore {
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
       );
       CREATE INDEX IF NOT EXISTS notes_page_idx ON notes(deleted_at, updated_at, id);
+      CREATE TABLE IF NOT EXISTS note_lists (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS tags (
         id TEXT PRIMARY KEY, title TEXT NOT NULL UNIQUE, color TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
@@ -1139,6 +1164,11 @@ export class CoreStore {
       if (!this.db.prepare("SELECT 1 FROM settings WHERE key = ?").get("app")) {
         this.db.prepare("INSERT INTO settings(key, value) VALUES (?, ?)").run("app", JSON.stringify(defaultSettings));
       }
+      if (!this.db.prepare("SELECT 1 FROM note_lists LIMIT 1").get()) {
+        this.db.prepare("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)")
+          .run("notes", "Notes", now, now);
+      }
+      this.db.prepare("UPDATE notes SET list_id='notes' WHERE list_id IS NULL").run();
       if (!localFallbackRetired && !connectedGoogle) {
         this.db.prepare(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
           VALUES(?,?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", "[]", now, now);
@@ -1854,41 +1884,198 @@ export class CoreStore {
   }
 
   private smartReschedule(input: JsonRecord): JsonRecord {
+    if (input.apply === true) {
+      return this.applySmartSchedulePlan(input);
+    }
+
+    const date = requiredText(input.date, "Schedule date");
+    const calendarId = requiredText(input.calendarId, "Calendar id");
+    const plan = this.buildSmartSchedulePlan({ ...input, calendarId, date });
+    const planId = randomUUID();
+    this.pruneSmartSchedulePlans();
+    this.smartSchedulePlans.set(planId, plan);
+
+    return this.smartScheduleResponse(plan, {
+      applied: false,
+      generatedAt: new Date(plan.createdAt).toISOString(),
+      planId
+    });
+  }
+
+  private buildSmartSchedulePlan(input: JsonRecord): SmartSchedulePlan {
     const date = requiredText(input.date, "Schedule date");
     const calendarId = requiredText(input.calendarId, "Calendar id");
     const range = workingRange(date, input.workingHours ?? {}, this.settings());
     const calendar = this.googleCalendarForSync(calendarId);
     if (!calendar) throw new CoreStoreError("Calendar no longer exists");
+
     const busy = this.busyEvents(range.start, range.end, this.selectedCalendarIds());
     const free = subtractIntervals(range, busy.map((event) => ({ start: event.startsAt, end: event.endsAt })));
-    const tasks = this.activeSchedulableTasks().filter((task) => !task.lockedSchedule).sort(compareSchedulableTasks);
-    const suggestions: JsonRecord[] = [];
+    const candidates = this.activeSchedulableTasks().sort(compareSchedulableTasks);
+    const tasks: JsonRecord[] = [];
     const skipped: JsonRecord[] = [];
+
+    for (const task of candidates) {
+      const taskTitle = String(task.title || "Untitled task");
+      const needed = smartScheduleDuration(task.durationMinutes);
+      const usesDefaultDuration = !Number(task.durationMinutes);
+      const dueDate = taskDueDate(task.dueAt);
+
+      if (task.lockedSchedule) {
+        skipped.push({ taskId: task.id, taskTitle, durationMinutes: needed, usesDefaultDuration, dueDate, reason: "Its schedule is locked." });
+        continue;
+      }
+
+      if (task.snoozeUntil && Date.parse(task.snoozeUntil) > Date.parse(range.start)) {
+        skipped.push({
+          taskId: task.id,
+          taskTitle,
+          durationMinutes: needed,
+          usesDefaultDuration,
+          dueDate,
+          reason: `Snoozed until ${formatPlannerDateTime(task.snoozeUntil, this.settings().defaultTimeZone)}.`
+        });
+        continue;
+      }
+
+      tasks.push(task);
+    }
+
+    const suggestions: JsonRecord[] = [];
     let slotIndex = 0;
     let cursor = free[0]?.start;
     for (const task of tasks) {
-      const needed = Math.max(5, Math.min(24 * 60, Number(task.durationMinutes) || 30));
+      const needed = smartScheduleDuration(task.durationMinutes);
       while (cursor && slotIndex < free.length && Date.parse(cursor) + needed * 60_000 > Date.parse(free[slotIndex].end)) {
         slotIndex += 1;
         cursor = free[slotIndex]?.start;
       }
+
+      const taskTitle = String(task.title || "Untitled task");
+      const dueDate = taskDueDate(task.dueAt);
+      const usesDefaultDuration = !Number(task.durationMinutes);
       if (!cursor || slotIndex >= free.length) {
-        skipped.push({ taskId: task.id, reason: "No free working-hours slot fits this task." });
+        skipped.push({
+          taskId: task.id,
+          taskTitle,
+          durationMinutes: needed,
+          usesDefaultDuration,
+          dueDate,
+          reason: `No ${needed}-minute slot is available in the selected working hours.`
+        });
         continue;
       }
+
       const startsAt = cursor;
       const endsAt = new Date(Date.parse(startsAt) + needed * 60_000).toISOString();
-      suggestions.push({ taskId: task.id, calendarId, startsAt, endsAt, action: task.plannedStart ? "move" : "schedule", reason: task.dueAt ? `Fits before due date ${task.dueAt.slice(0, 10)}.` : "Fits the next available working-hours slot." });
+      suggestions.push({
+        taskId: task.id,
+        taskTitle,
+        calendarId,
+        startsAt,
+        endsAt,
+        durationMinutes: needed,
+        usesDefaultDuration,
+        dueDate,
+        action: task.plannedStart ? "move" : "schedule",
+        reason: smartScheduleReason(date, dueDate)
+      });
       cursor = endsAt;
     }
-    if (input.apply === true) {
-      for (const suggestion of suggestions) {
-        const existing = this.db.prepare("SELECT id FROM scheduled_task_blocks WHERE task_id=? LIMIT 1").get(suggestion.taskId) as { id?: string } | undefined;
-        if (existing?.id) this.moveScheduledTaskBlock({ id: existing.id, calendarId, startsAt: suggestion.startsAt, durationMinutes: durationMinutes(suggestion.startsAt, suggestion.endsAt) });
-        else this.scheduleTaskBlock({ taskId: suggestion.taskId, calendarId, startsAt: suggestion.startsAt, endsAt: suggestion.endsAt });
+
+    return {
+      calendarId,
+      candidateCount: candidates.length,
+      createdAt: Date.now(),
+      date,
+      fixedEventCount: busy.length,
+      skipped,
+      suggestions
+    };
+  }
+
+  private applySmartSchedulePlan(input: JsonRecord): JsonRecord {
+    const planId = requiredText(input.planId, "Smart Schedule preview");
+    this.pruneSmartSchedulePlans();
+    const plan = this.smartSchedulePlans.get(planId);
+    if (!plan) {
+      throw new CoreStoreError("This preview has expired. Generate a new preview before applying changes.");
+    }
+
+    if (!this.googleCalendarForSync(plan.calendarId)) {
+      throw new CoreStoreError("The preview calendar is no longer available. Generate a new preview.");
+    }
+
+    const failed: JsonRecord[] = [];
+    let appliedCount = 0;
+    for (const suggestion of plan.suggestions) {
+      try {
+        const task = this.requireTask(suggestion.taskId);
+        if (task.status !== "active") {
+          throw new CoreStoreError("The task is no longer open.");
+        }
+        if (task.lockedSchedule) {
+          throw new CoreStoreError("Its schedule is now locked.");
+        }
+        if (task.snoozeUntil && Date.parse(task.snoozeUntil) > Date.parse(suggestion.startsAt)) {
+          throw new CoreStoreError("The task is now snoozed.");
+        }
+
+        const existing = this.db.prepare("SELECT id FROM scheduled_task_blocks WHERE task_id=? LIMIT 1")
+          .get(suggestion.taskId) as { id?: string } | undefined;
+        if (existing?.id) {
+          this.moveScheduledTaskBlock({
+            id: existing.id,
+            calendarId: plan.calendarId,
+            startsAt: suggestion.startsAt,
+            durationMinutes: suggestion.durationMinutes
+          });
+        } else {
+          this.scheduleTaskBlock({
+            taskId: suggestion.taskId,
+            calendarId: plan.calendarId,
+            startsAt: suggestion.startsAt,
+            endsAt: suggestion.endsAt
+          });
+        }
+        appliedCount += 1;
+      } catch (error) {
+        failed.push({
+          taskId: suggestion.taskId,
+          taskTitle: suggestion.taskTitle,
+          reason: error instanceof Error ? error.message : "The change could not be prepared."
+        });
       }
     }
-    return { suggestions, skipped, applied: input.apply === true, calendarId, generatedAt: timestamp() };
+
+    this.smartSchedulePlans.delete(planId);
+    return this.smartScheduleResponse(plan, {
+      applied: true,
+      appliedCount,
+      failed,
+      generatedAt: timestamp()
+    });
+  }
+
+  private smartScheduleResponse(
+    plan: SmartSchedulePlan,
+    details: JsonRecord
+  ): JsonRecord {
+    return {
+      ...details,
+      calendarId: plan.calendarId,
+      candidateCount: plan.candidateCount,
+      fixedEventCount: plan.fixedEventCount,
+      skipped: plan.skipped,
+      suggestions: plan.suggestions
+    };
+  }
+
+  private pruneSmartSchedulePlans(): void {
+    const minimumCreatedAt = Date.now() - 15 * 60_000;
+    for (const [id, plan] of this.smartSchedulePlans) {
+      if (plan.createdAt < minimumCreatedAt) this.smartSchedulePlans.delete(id);
+    }
   }
 
   private busyEvents(start: string, end: string, calendarIds: string[]): JsonRecord[] {
@@ -1907,7 +2094,9 @@ export class CoreStore {
   private activeSchedulableTasks(): JsonRecord[] {
     return (this.db.prepare(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
       task.planned_start AS plannedStart,task.planned_end AS plannedEnd,task.duration_minutes AS durationMinutes,task.locked_schedule AS lockedSchedule,
-      task.priority,task.updated_at AS updatedAt FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.status='active'`).all() as JsonRecord[])
+      task.snooze_until AS snoozeUntil,task.priority,task.updated_at AS updatedAt
+      FROM tasks task JOIN task_lists list ON list.id=task.list_id
+      WHERE task.status='active' AND task.parent_id IS NULL`).all() as JsonRecord[])
       .map((task) => ({ ...task, lockedSchedule: Boolean(task.lockedSchedule) }));
   }
 
@@ -1917,13 +2106,17 @@ export class CoreStore {
   }
 
   private listNotes(input: JsonRecord): JsonRecord {
-    const rows = this.db.prepare(`SELECT id,title,body,list_id AS listId,created_at AS createdAt,updated_at AS updatedAt
-      FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC,id`).all();
-    return { ...this.page(rows as JsonRecord[], input), lists: [] };
+    const rows = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,list.title AS listTitle,
+      note.created_at AS createdAt,note.updated_at AS updatedAt
+      FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id
+      WHERE note.deleted_at IS NULL ORDER BY note.updated_at DESC,note.id`).all();
+    return { ...this.page(rows as JsonRecord[], input), lists: this.noteLists() };
   }
 
   private requireNote(id: string): JsonRecord {
-    const row = this.db.prepare(`SELECT id,title,body,list_id AS listId,created_at AS createdAt,updated_at AS updatedAt FROM notes WHERE id=? AND deleted_at IS NULL`).get(id);
+    const row = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,list.title AS listTitle,
+      note.created_at AS createdAt,note.updated_at AS updatedAt
+      FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id WHERE note.id=? AND note.deleted_at IS NULL`).get(id);
     if (!row) throw new CoreStoreError("Note no longer exists");
     return row as JsonRecord;
   }
@@ -1931,19 +2124,65 @@ export class CoreStore {
   private createNote(input: JsonRecord): JsonRecord {
     const now = timestamp();
     const id = randomUUID();
-    this.db.prepare("INSERT INTO notes(id,title,body,list_id,created_at,updated_at) VALUES(?,?,?,?,?,?)").run(id, requiredText(input.title, "Note title"), stringValue(input.body), input.listId ?? null, now, now);
+    const listId = typeof input.listId === "string" && input.listId ? input.listId : this.noteLists()[0]?.id;
+    if (!listId || !this.noteList(listId)) throw new CoreStoreError("Note list no longer exists");
+    this.db.prepare("INSERT INTO notes(id,title,body,list_id,created_at,updated_at) VALUES(?,?,?,?,?,?)").run(id, requiredText(input.title, "Note title"), stringValue(input.body), listId, now, now);
     return this.requireNote(id);
   }
 
   private updateNote(input: JsonRecord): JsonRecord {
     const current = this.requireNote(requiredText(input.id, "Note id"));
-    this.db.prepare("UPDATE notes SET title=?,body=?,list_id=?,updated_at=? WHERE id=?").run(input.title ?? current.title, input.body ?? current.body, input.listId ?? current.listId, timestamp(), current.id);
+    const listId = input.listId ?? current.listId;
+    if (!this.noteList(listId)) throw new CoreStoreError("Note list no longer exists");
+    this.db.prepare("UPDATE notes SET title=?,body=?,list_id=?,updated_at=? WHERE id=?").run(input.title ?? current.title, input.body ?? current.body, listId, timestamp(), current.id);
     return this.requireNote(current.id);
   }
 
   private deleteNote(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Note id");
     this.db.prepare("UPDATE notes SET deleted_at=?,updated_at=? WHERE id=?").run(timestamp(), timestamp(), id);
+    return { id, deleted: true };
+  }
+
+  private noteLists(): JsonRecord[] {
+    return this.db.prepare(`SELECT list.id,list.title,list.created_at AS createdAt,list.updated_at AS updatedAt,
+      COUNT(note.id) AS noteCount FROM note_lists list
+      LEFT JOIN notes note ON note.list_id=list.id AND note.deleted_at IS NULL
+      GROUP BY list.id ORDER BY list.created_at,list.id`).all() as JsonRecord[];
+  }
+
+  private noteList(id: unknown): JsonRecord | null {
+    if (typeof id !== "string" || !id) return null;
+    return this.db.prepare("SELECT id,title,created_at AS createdAt,updated_at AS updatedAt FROM note_lists WHERE id=?").get(id) as JsonRecord | undefined ?? null;
+  }
+
+  private createNoteList(input: JsonRecord): JsonRecord {
+    const now = timestamp();
+    const list = { id: randomUUID(), title: requiredText(input.title, "Note list title"), createdAt: now, updatedAt: now };
+    this.db.prepare("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)").run(list.id, list.title, now, now);
+    return { ...list, noteCount: 0 };
+  }
+
+  private renameNoteList(input: JsonRecord): JsonRecord {
+    const list = this.noteList(requiredText(input.id, "Note list id"));
+    if (!list) throw new CoreStoreError("Note list no longer exists");
+    const title = requiredText(input.title, "Note list title");
+    const updatedAt = timestamp();
+    this.db.prepare("UPDATE note_lists SET title=?,updated_at=? WHERE id=?").run(title, updatedAt, list.id);
+    return { ...list, title, updatedAt };
+  }
+
+  private deleteNoteList(input: JsonRecord): JsonRecord {
+    const id = requiredText(input.id, "Note list id");
+    const list = this.noteList(id);
+    if (!list) throw new CoreStoreError("Note list no longer exists");
+    const remaining = this.noteLists().filter((candidate) => candidate.id !== id);
+    if (remaining.length === 0) throw new CoreStoreError("Keep at least one note list");
+    const deletedAt = timestamp();
+    this.db.transaction(() => {
+      this.db.prepare("UPDATE notes SET deleted_at=?,updated_at=? WHERE list_id=? AND deleted_at IS NULL").run(deletedAt, deletedAt, id);
+      this.db.prepare("DELETE FROM note_lists WHERE id=?").run(id);
+    })();
     return { id, deleted: true };
   }
 
@@ -2701,17 +2940,31 @@ function durationMinutes(start: string, end: string): number {
   return Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 60_000));
 }
 function workingRange(date: string, hours: JsonRecord, settings: JsonRecord): { start: string; end: string } {
-  const startHour = Math.max(0, Math.min(23, Number(hours.start ?? settings.todayWorkingHoursStart) || 9));
-  const endHour = Math.max(startHour + 1, Math.min(24, Number(hours.end ?? settings.todayWorkingHoursEnd) || 17));
+  const startMinute = workingMinute(hours.startMinutes, hours.start, settings.todayWorkingHoursStart, 9);
+  const endMinute = Math.max(
+    startMinute + 1,
+    workingMinute(hours.endMinutes, hours.end, settings.todayWorkingHoursEnd, 17)
+  );
   const zone = typeof settings.defaultTimeZone === "string" && settings.defaultTimeZone ? settings.defaultTimeZone : "UTC";
-  const start = zonedDateTime(date, startHour, zone);
-  const end = zonedDateTime(date, endHour, zone);
+  const start = zonedDateTime(date, Math.floor(startMinute / 60), startMinute % 60, zone);
+  const end = zonedDateTime(date, Math.floor(endMinute / 60), endMinute % 60, zone);
   return { start, end };
 }
-function zonedDateTime(date: string, hour: number, timeZone: string): string {
+function workingMinute(
+  explicitMinutes: unknown,
+  legacyHour: unknown,
+  fallbackHour: unknown,
+  defaultHour: number
+): number {
+  const minutes = Number(explicitMinutes);
+  if (Number.isFinite(minutes)) return Math.max(0, Math.min(24 * 60, Math.round(minutes)));
+  const hour = Number(legacyHour ?? fallbackHour);
+  return Math.max(0, Math.min(24 * 60, Math.round((Number.isFinite(hour) ? hour : defaultHour) * 60)));
+}
+function zonedDateTime(date: string, hour: number, minute: number, timeZone: string): string {
   const [year, month, day] = date.split("-").map(Number);
   if (![year, month, day].every(Number.isFinite)) throw new CoreStoreError("Schedule date is invalid.");
-  let instant = Date.UTC(year, month - 1, day, hour, 0, 0);
+  let instant = Date.UTC(year, month - 1, day, hour, minute, 0);
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
   });
@@ -2721,7 +2974,7 @@ function zonedDateTime(date: string, hour: number, timeZone: string): string {
   for (let pass = 0; pass < 2; pass += 1) {
     const parts = Object.fromEntries(formatter.formatToParts(new Date(instant)).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
     const displayed = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0);
-    instant += Date.UTC(year, month - 1, day, hour, 0, 0) - displayed;
+    instant += Date.UTC(year, month - 1, day, hour, minute, 0) - displayed;
   }
   return new Date(instant).toISOString();
 }
@@ -2744,6 +2997,30 @@ function compareSchedulableTasks(left: JsonRecord, right: JsonRecord): number {
   return (priority[left.priority] ?? 3) - (priority[right.priority] ?? 3) ||
     String(left.dueAt ?? "9999-12-31").localeCompare(String(right.dueAt ?? "9999-12-31")) ||
     String(left.updatedAt ?? "").localeCompare(String(right.updatedAt ?? ""));
+}
+function smartScheduleDuration(value: unknown): number {
+  return Math.max(5, Math.min(24 * 60, Number(value) || 30));
+}
+function taskDueDate(value: unknown): string | null {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : null;
+}
+function smartScheduleReason(scheduleDate: string, dueDate: string | null): string {
+  if (!dueDate) return "No due date · first available slot.";
+  if (dueDate < scheduleDate) return `Overdue · due ${formatPlannerDate(dueDate)}.`;
+  if (dueDate === scheduleDate) return "Due today · first available slot.";
+  return `Scheduled ahead of its ${formatPlannerDate(dueDate)} due date.`;
+}
+function formatPlannerDate(value: string): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" }).format(date)
+    : value;
+}
+function formatPlannerDateTime(value: string, timeZone: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(date)
+    : "a later time";
 }
 function formatAvailabilityTime(value: string, timeZone: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(value));

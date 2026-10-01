@@ -33,19 +33,30 @@ export function dateOnlyFromLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function dueLabel(value: string | null | undefined): string {
+export function dueLabel(value: string | null | undefined, now = new Date()): string {
   if (!value) {
     return "No date";
   }
 
   const due = startOfUtcDay(new Date(value));
-  const today = startOfUtcDay(new Date());
+  const today = startOfUtcDay(now);
 
   if (due.getTime() === today.getTime()) {
     return "Today";
   }
 
-  return due.toISOString().slice(0, 10);
+  if (due.getTime() === today.getTime() + 86_400_000) {
+    return "Tomorrow";
+  }
+
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+    year: due.getUTCFullYear() === today.getUTCFullYear() ? undefined : "numeric",
+    timeZone: "UTC"
+  }).format(due);
+
+  return due.getTime() < today.getTime() ? `Overdue · ${dateLabel}` : dateLabel;
 }
 
 export function timeLabel(value: string, timeZone = "UTC"): string {
@@ -98,7 +109,12 @@ export function shortDateTime(value: string): string {
     return "Unknown";
   }
 
-  return `${date.toISOString().slice(0, 10)} ${timeLabel(value)}`;
+  return new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
 }
 
 export function weekdayLabel(date: Date): string {

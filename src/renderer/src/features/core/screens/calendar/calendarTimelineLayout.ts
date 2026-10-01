@@ -3,6 +3,7 @@ import type {
   CalendarDaySlot,
   CalendarTimelineAllDaySegment,
   CalendarTimelineEventLayout,
+  CalendarTimelineEventSegment,
   VisibleCalendarDay,
   VisibleCalendarTimeline,
   VisibleCalendarTimelineDay
@@ -182,7 +183,7 @@ export function calendarAllDayLayout(
   return { overflowCounts, overflowEvents, segments };
 }
 
-function calendarTimelineEventLayouts(
+export function calendarTimelineEventLayouts(
   events: CalendarEventViewModel[],
   dayKey: string,
   hourRowHeight: number
@@ -204,58 +205,50 @@ function calendarTimelineEventLayouts(
         left.endMinute - right.endMinute ||
         left.event.id.localeCompare(right.event.id)
     );
-  const layouts: CalendarTimelineEventLayout[] = [];
-  let cluster: typeof candidates = [];
-  let clusterEnd = -1;
+  const segmentMap = new Map<string, CalendarTimelineEventSegment[]>();
+  const boundaries = [...new Set(candidates.flatMap((item) => [item.startMinute, item.endMinute]))]
+    .sort((left, right) => left - right);
 
-  function flushCluster(): void {
-    if (cluster.length === 0) {
-      return;
-    }
+  for (let boundaryIndex = 0; boundaryIndex < boundaries.length - 1; boundaryIndex += 1) {
+    const startMinute = boundaries[boundaryIndex];
+    const endMinute = boundaries[boundaryIndex + 1];
+    if (startMinute === undefined || endMinute === undefined || endMinute <= startMinute) continue;
 
-    const laneEnds: number[] = [];
-    const pending: CalendarTimelineEventLayout[] = [];
-
-    for (const item of cluster) {
-      let laneIndex = laneEnds.findIndex((endMinute) => endMinute <= item.startMinute);
-
-      if (laneIndex < 0) {
-        laneIndex = laneEnds.length;
-        laneEnds.push(item.endMinute);
-      } else {
-        laneEnds[laneIndex] = item.endMinute;
-      }
-
-      const durationMinutes = Math.max(5, item.endMinute - item.startMinute);
-
-      pending.push({
-        event: item.event,
-        startMinute: item.startMinute,
+    // Every active event overlaps for this complete interval. Reassigning
+    // lanes at each boundary lets a long event reclaim width as neighbouring
+    // events finish instead of being constrained by the peak cluster width.
+    const active = candidates.filter((item) => item.startMinute < endMinute && item.endMinute > startMinute);
+    active.forEach((item, laneIndex) => {
+      const segments = segmentMap.get(item.event.id) ?? [];
+      const durationMinutes = endMinute - startMinute;
+      segments.push({
+        startMinute,
         durationMinutes,
-        top: (item.startMinute / 60) * hourRowHeight,
+        top: (startMinute / 60) * hourRowHeight,
         height: (durationMinutes / 60) * hourRowHeight,
         laneIndex,
-        laneCount: 1
+        laneCount: active.length
       });
-    }
-
-    const laneCount = Math.max(1, laneEnds.length);
-    layouts.push(...pending.map((layout) => ({ ...layout, laneCount })));
-    cluster = [];
-    clusterEnd = -1;
+      segmentMap.set(item.event.id, segments);
+    });
   }
 
-  for (const item of candidates) {
-    if (cluster.length > 0 && item.startMinute >= clusterEnd) {
-      flushCluster();
-    }
+  return candidates.map((item) => {
+    const segments = segmentMap.get(item.event.id) ?? [];
+    const first = segments[0];
+    const durationMinutes = Math.max(5, item.endMinute - item.startMinute);
 
-    cluster.push(item);
-    clusterEnd = Math.max(clusterEnd, item.endMinute);
-  }
-
-  flushCluster();
-  return layouts;
+    return {
+      event: item.event,
+      startMinute: item.startMinute,
+      durationMinutes,
+      top: (item.startMinute / 60) * hourRowHeight,
+      height: (durationMinutes / 60) * hourRowHeight,
+      laneIndex: first?.laneIndex ?? 0,
+      laneCount: Math.max(1, ...segments.map((segment) => segment.laneCount)),
+      segments
+    };
+  });
 }
 
 function calendarEventLocalMinuteRange(

@@ -10,8 +10,15 @@ import { CalendarSourceSwatch } from "./CalendarEventChips";
 import { calendarTimeBlockLabel, sortedCalendarTimeBlocks } from "./calendarGrid";
 import type { CalendarTimeBlock } from "./types";
 
-function hourInputValue(value: number): string {
-  return String(Math.max(0, Math.min(24, value)));
+function minutesToTimeInput(value: number): string {
+  const minutes = Math.max(0, Math.min(24 * 60 - 1, Math.round(value)));
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function timeInputToMinutes(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return Math.max(0, Math.min(24 * 60 - 1, hours * 60 + minutes));
 }
 
 function smartSuggestionTimeLabel(startsAt: string, endsAt: string, timeZone: string): string {
@@ -412,13 +419,24 @@ export function SmartReschedulePanel({
   const defaultCalendarId = calendars.find((calendar) => calendar.selected)?.id ?? calendars[0]?.id ?? "";
   const [date, setDate] = useState(initialDate);
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
-  const [workStart, setWorkStart] = useState(9);
-  const [workEnd, setWorkEnd] = useState(17);
+  const [workStartMinutes, setWorkStartMinutes] = useState(9 * 60);
+  const [workEndMinutes, setWorkEndMinutes] = useState(17 * 60);
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<SmartRescheduleResponse | null>(null);
+  const [result, setResult] = useState<(SmartRescheduleResponse & { previewKey?: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function runSmartReschedule(apply: boolean): Promise<void> {
+  const previewKey = `${date}|${calendarId}|${workStartMinutes}|${workEndMinutes}`;
+  const previewIsCurrent = Boolean(result?.planId && result.applied === false && result.previewKey === previewKey);
+
+  function setPreview(next: SmartRescheduleResponse | null): void {
+    if (next && !next.applied) {
+      setResult({ ...next, previewKey });
+      return;
+    }
+    setResult(next);
+  }
+
+  async function runSmartReschedule(mode: "preview" | "apply"): Promise<void> {
     if (!window.hcb?.calendar.smartReschedule) {
       setError("Preload bridge is unavailable.");
       return;
@@ -426,13 +444,17 @@ export function SmartReschedulePanel({
 
     setPending(true);
     setError(null);
-    const response = await window.hcb.calendar.smartReschedule({
-      date,
-      calendarId,
-      apply,
-      workingHours: { start: workStart, end: workEnd },
-      capacityMinutes: Math.max(5, (workEnd - workStart) * 60)
-    });
+    const response = await window.hcb.calendar.smartReschedule(
+      mode === "apply"
+        ? { apply: true, planId: result?.planId }
+        : {
+            date,
+            calendarId,
+            apply: false,
+            workingHours: { startMinutes: workStartMinutes, endMinutes: workEndMinutes },
+            capacityMinutes: Math.max(5, workEndMinutes - workStartMinutes)
+          }
+    );
     setPending(false);
 
     if (!response.ok) {
@@ -440,9 +462,9 @@ export function SmartReschedulePanel({
       return;
     }
 
-    setResult(response.data);
+    setPreview(response.data);
 
-    if (apply) {
+    if (mode === "apply") {
       onApplied();
     }
   }
@@ -451,15 +473,18 @@ export function SmartReschedulePanel({
     <Panel className="flex flex-col overflow-hidden self-start">
       <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div className="min-w-0">
-          <h2 className="truncate text-[var(--text-sm)] font-semibold text-text-primary">Smart reschedule</h2>
+          <h2 className="truncate text-[var(--text-sm)] font-semibold text-text-primary">Smart schedule</h2>
           <p className="text-[var(--text-xs)] text-text-muted">
-            {result ? `${result.suggestions.length} suggestion${result.suggestions.length === 1 ? "" : "s"}` : "Preview before applying"}
+            {result ? `${result.candidateCount ?? 0} tasks considered` : "Review a plan before anything changes"}
           </p>
         </div>
         <IconButton icon={X} label="Close smart reschedule" onClick={onClose} size="sm" variant="ghost" />
       </div>
       <div className="grid gap-3 overflow-auto p-3">
         <div className="grid gap-2">
+          <p className="text-[var(--text-xs)] leading-relaxed text-text-secondary">
+            Schedule open tasks around fixed calendar events. Nothing changes until you apply a reviewed preview.
+          </p>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Date</span>
             <Input aria-label="Smart reschedule date" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
@@ -481,33 +506,44 @@ export function SmartReschedulePanel({
           </label>
           <div className="grid grid-cols-2 gap-2">
             <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
-              <span>Start hour</span>
-              <Input aria-label="Working start hour" max={23} min={0} onChange={(event) => setWorkStart(Number(event.target.value))} type="number" value={hourInputValue(workStart)} />
+              <span>From</span>
+              <Input aria-label="Working hours start" onChange={(event) => setWorkStartMinutes(timeInputToMinutes(event.target.value))} type="time" value={minutesToTimeInput(workStartMinutes)} />
             </label>
             <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
-              <span>End hour</span>
-              <Input aria-label="Working end hour" max={24} min={1} onChange={(event) => setWorkEnd(Number(event.target.value))} type="number" value={hourInputValue(workEnd)} />
+              <span>To</span>
+              <Input aria-label="Working hours end" onChange={(event) => setWorkEndMinutes(timeInputToMinutes(event.target.value))} type="time" value={minutesToTimeInput(workEndMinutes)} />
             </label>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={pending || !calendarId || workEnd <= workStart} onClick={() => void runSmartReschedule(false)} size="sm" variant="secondary">
+            <Button disabled={pending || !calendarId || workEndMinutes <= workStartMinutes} onClick={() => void runSmartReschedule("preview")} size="sm" variant="secondary">
               <Sparkles aria-hidden="true" size={14} />
               {pending ? "Checking" : "Preview"}
             </Button>
-            <Button disabled={pending || !result || result.suggestions.length === 0} onClick={() => void runSmartReschedule(true)} size="sm" variant="primary">
+            <Button disabled={pending || !previewIsCurrent || !result || result.suggestions.length === 0} onClick={() => void runSmartReschedule("apply")} size="sm" variant="primary">
               <Check aria-hidden="true" size={14} />
-              Apply
+              Apply {result?.suggestions.length ?? 0} changes
             </Button>
           </div>
         </div>
-        {error ? <ErrorState description={error} title="Smart reschedule failed" /> : null}
+        {error ? <ErrorState description={error} title="Smart schedule failed" /> : null}
         {result ? (
           <div className="grid gap-2">
+            <p className="text-[var(--text-xs)] text-text-secondary">
+              {result.fixedEventCount ?? 0} fixed event{result.fixedEventCount === 1 ? "" : "s"} · {result.suggestions.length} change{result.suggestions.length === 1 ? "" : "s"}
+            </p>
+            {!previewIsCurrent && !result.applied ? (
+              <p className="rounded-hcbMd border border-border bg-surface-0 px-2 py-1.5 text-[var(--text-xs)] text-text-secondary">
+                Settings changed. Preview again before applying.
+              </p>
+            ) : null}
             {result.suggestions.map((suggestion) => (
               <div className="grid gap-1 rounded-hcbMd border border-border bg-surface-0 p-2" key={`${suggestion.taskId}-${suggestion.startsAt}`}>
                 <div className="flex items-center justify-between gap-2 text-[var(--text-sm)] font-medium text-text-primary">
-                  <span className="truncate">{suggestion.action === "move" ? "Move task" : "Schedule task"}</span>
+                  <span className="truncate">{suggestion.taskTitle}</span>
                   <Badge tone="info">{smartSuggestionTimeLabel(suggestion.startsAt, suggestion.endsAt, defaultTimeZone)}</Badge>
+                </div>
+                <div className="text-[var(--text-xs)] text-text-secondary">
+                  {suggestion.action === "move" ? "Move scheduled work" : "Schedule task"} · {suggestion.durationMinutes} min{suggestion.usesDefaultDuration ? " · default estimate" : ""}
                 </div>
                 <div className="text-[var(--text-xs)] text-text-muted">{suggestion.reason}</div>
               </div>
@@ -519,9 +555,11 @@ export function SmartReschedulePanel({
             ) : null}
             {result.skipped.length > 0 ? (
               <div className="grid gap-1 border-t border-border pt-2">
-                {result.skipped.slice(0, 5).map((item) => (
-                  <div className="text-[var(--text-xs)] text-text-muted" key={item.taskId}>
-                    {item.reason}
+                <p className="text-[var(--text-sm)] font-medium text-text-primary">Couldn’t schedule {result.skipped.length} task{result.skipped.length === 1 ? "" : "s"}</p>
+                {result.skipped.slice(0, 8).map((item) => (
+                  <div className="grid gap-0.5 text-[var(--text-xs)]" key={item.taskId}>
+                    <span className="truncate text-text-secondary">{item.taskTitle} · {item.durationMinutes} min{item.usesDefaultDuration ? " estimate" : ""}</span>
+                    <span className="text-text-muted">{item.reason}</span>
                   </div>
                 ))}
               </div>

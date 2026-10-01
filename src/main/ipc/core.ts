@@ -21,7 +21,7 @@ const actionMap: Record<string, readonly string[]> = {
   bootstrap: ["get"],
   tasks: ["listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
   calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"],
-  notes: ["list", "get", "create", "update", "delete", "entityLinks", "listBrokenLinks", "linkSuggest"],
+  notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "entityLinks", "listBrokenLinks", "linkSuggest"],
   tags: ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"],
   search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
   settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
@@ -54,6 +54,21 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "tasks" && ["create", "update", "complete", "reopen", "delete", "move"].includes(action)) return taskWriteSchema.safeParse(payload).success;
   if (namespace === "calendar" && ["create", "update", "complete", "reopen"].includes(action)) return eventWriteSchema.safeParse(payload).success;
   if (namespace === "calendar" && action === "scheduleTaskBlock") return z.object({ taskId: idSchema, calendarId: idSchema, startsAt: isoDateSchema, endsAt: isoDateSchema.optional(), durationMinutes: z.number().finite().min(5).max(1_440).optional() }).safeParse(payload).success;
+  if (namespace === "calendar" && action === "smartReschedule") return z.union([
+    z.object({
+      apply: z.literal(false).optional(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      calendarId: idSchema,
+      workingHours: z.object({
+        startMinutes: z.number().finite().min(0).max(1_439).optional(),
+        endMinutes: z.number().finite().min(1).max(1_440).optional(),
+        start: z.number().finite().min(0).max(24).optional(),
+        end: z.number().finite().min(0).max(24).optional()
+      }).strict().optional(),
+      capacityMinutes: z.number().finite().min(5).max(1_440).optional()
+    }).strict(),
+    z.object({ apply: z.literal(true), planId: z.string().uuid() }).strict()
+  ]).safeParse(payload).success;
   if (namespace === "calendar" && action === "exportAvailability") return z.object({ start: isoDateSchema, end: isoDateSchema, calendarIds: z.array(idSchema).max(100).optional(), format: z.literal("text").optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "saveOAuthClient") return z.object({ clientId: z.string().trim().min(10).max(500), clientSecret: z.string().max(1_000).optional() }).safeParse(payload).success;
   if (namespace === "google" && action === "beginOAuth") return z.object({ requestedServices: z.array(z.enum(["drive", "driveUpload", "gmail"])).max(3).optional() }).safeParse(payload).success;
@@ -65,6 +80,12 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "google" && action === "previewAccountCopy") return z.object({ sourceAccountId: idSchema, destinationAccountId: idSchema, destinationCalendarId: idSchema }).safeParse(payload).success;
   if (namespace === "google" && action === "copyAccountData") return z.object({ sourceAccountId: idSchema, destinationAccountId: idSchema, destinationCalendarId: idSchema, confirmation: z.literal("COPY") }).safeParse(payload).success;
   if (namespace === "calendar" && action === "freeBusy") return z.object({ accountId: idSchema.optional(), start: isoDateSchema, end: isoDateSchema, calendarIds: z.array(z.string().min(1).max(500)).min(1).max(50) }).safeParse(payload).success;
+  if (namespace === "notes" && action === "create") return z.object({ title: z.string().trim().min(1).max(10_000), body: z.string().max(100_000).optional(), listId: idSchema.optional() }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "update") return z.object({ id: idSchema, title: z.string().trim().min(1).max(10_000).optional(), body: z.string().max(100_000).optional(), listId: idSchema.optional() }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "delete") return z.object({ id: idSchema }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "createNoteList") return z.object({ title: z.string().trim().min(1).max(500) }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "renameNoteList") return z.object({ id: idSchema, title: z.string().trim().min(1).max(500) }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "deleteNoteList") return z.object({ id: idSchema }).strict().safeParse(payload).success;
   if (namespace === "native" && action === "openExternalUrl") return z.object({ url: z.string().url().max(4_096) }).safeParse(payload).success;
   return true;
 }
@@ -92,7 +113,7 @@ export function registerCoreIpc(
     if (isLiveGoogleReadOnlyRequest(request.data.namespace, request.data.action, request.data.payload)) {
       return validationError("Live Google read-only mode blocks mutations and non-read-only sync.");
     }
-    if (googleOAuth.isReconfiguring() && isGoogleMutationRequest(request.data.namespace, request.data.action)) {
+    if (googleOAuth.isReconfiguring() && isGoogleMutationRequest(request.data.namespace, request.data.action, request.data.payload)) {
       return conflictError("Google access is being reconfigured. Wait for the browser authorization to open, then try again.");
     }
 
@@ -166,7 +187,7 @@ export function registerCoreIpc(
 
       const response = await Promise.resolve(store.dispatch(request.data.namespace, request.data.action, request.data.payload));
       if (
-        (["tasks", "calendar"].includes(request.data.namespace) && isWriteAction(request.data.action)) ||
+        (["tasks", "calendar"].includes(request.data.namespace) && isWriteAction(request.data.action, request.data.payload)) ||
         (request.data.namespace === "diagnostics" && request.data.action === "retryPendingMutation")
       ) {
         if (!isLiveGoogleTest()) {
@@ -193,15 +214,16 @@ export function registerCoreIpc(
   });
 }
 
-function isWriteAction(action: string): boolean {
+function isWriteAction(action: string, payload: Record<string, unknown> = {}): boolean {
+  if (action === "smartReschedule") return payload.apply === true;
   return !new Set([
     "listTaskLists", "list", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
-    "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"
+    "exportAvailability", "freeBusy", "scheduleSuggest"
   ]).has(action);
 }
 
-function isGoogleMutationRequest(namespace: string, action: string): boolean {
-  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action) ||
+function isGoogleMutationRequest(namespace: string, action: string, payload: Record<string, unknown>): boolean {
+  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action, payload) ||
     (namespace === "diagnostics" && action === "retryPendingMutation") ||
     (namespace === "google" && action === "copyAccountData");
 }
@@ -223,5 +245,5 @@ function isLiveGoogleReadOnlyRequest(namespace: string, action: string, payload:
     return true;
   }
 
-  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action);
+  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action, payload);
 }

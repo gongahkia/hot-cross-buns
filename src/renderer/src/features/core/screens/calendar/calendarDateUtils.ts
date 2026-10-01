@@ -64,6 +64,21 @@ export function calendarDateTitleFromIso(day: string, includeYear = true): strin
   }).format(new Date(`${day}T00:00:00.000Z`));
 }
 
+/** A contextual, locale-aware date for visible calendar copy. */
+export function calendarContextualDateTitleFromIso(day: string, today = calendarTodayKey()): string {
+  if (day === today) return "Today";
+  if (day === calendarAddUtcDays(today, 1)) return "Tomorrow";
+  if (day === calendarAddUtcDays(today, -1)) return "Yesterday";
+
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: day.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric",
+    timeZone: "UTC"
+  }).format(new Date(`${day}T00:00:00.000Z`));
+}
+
 export function calendarRangeTitle(days: CalendarDayViewModel[]): string {
   const firstDay = days[0];
   const lastDay = days.at(-1);
