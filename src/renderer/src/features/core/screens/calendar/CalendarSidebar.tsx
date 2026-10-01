@@ -5,7 +5,7 @@ import { Badge, Button, IconButton, Input, Panel, cx } from "../../../../compone
 import { EmptyState, ErrorState } from "../../../../components/states";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 import type { CalendarSourceViewModel } from "../../coreScreenShared";
-import { MarkdownPreview } from "../../MarkdownPreview";
+import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
 import { CalendarSourceSwatch } from "./CalendarEventChips";
 import { calendarTimeBlockLabel, sortedCalendarTimeBlocks } from "./calendarGrid";
 import type { CalendarTimeBlock } from "./types";
@@ -169,7 +169,7 @@ export function CalendarContextPanel({
               </span>
             ) : null}
           </button>
-          {event.notes.trim() ? (
+          {hasRenderableMixedMarkup(event.notes) ? (
             <div className="border-t border-border px-3 py-3">
               <MarkdownPreview
                 ariaLabel="Event description"

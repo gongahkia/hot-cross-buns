@@ -26,6 +26,8 @@ import { EmptyState } from "../../../../components/states";
 import { MotionCollapse } from "../../../../components/animate-ui/MotionCollapse";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { ScheduledTaskBlockViewModel, TaskViewModel } from "../../coreViewModels";
+import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
+import { plannerLinkTargets } from "../../plannerLinkTargets";
 import {
   TaskCompletionButton,
   taskScheduleLabel,
@@ -973,38 +975,48 @@ function GoogleTaskRow({
               {childrenOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
             </button>
           ) : null}
-        <button
-          className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onClick={() => onOpenTask(task.id)}
-          onKeyDown={(event) => {
-            if (childTasks.length === 0) return;
-            if (event.key === "ArrowRight") {
-              event.preventDefault();
-              setChildrenOpen(true);
-            }
-            if (event.key === "ArrowLeft") {
-              event.preventDefault();
-              setChildrenOpen(false);
-            }
-          }}
-          type="button"
-        >
-          <div className="flex min-w-0 items-start gap-1">
-            <span className={cx(
-              "line-clamp-2 min-w-0 text-[var(--text-md)] font-medium",
-              completed ? "text-text-muted line-through" : "text-text-primary"
-            )}>{task.title}</span>
-            {childTasks.length > 0 ? (
-              <span className="ml-auto shrink-0 text-[var(--text-xs)] tabular-nums text-text-muted">
-                {completedChildCount}/{childTasks.length}
-              </span>
-            ) : null}
-          </div>
-          {preview ? (
-            <p className={cx(
-              "mt-0.5 line-clamp-2 text-[var(--text-sm)]",
-              completed ? "text-text-muted line-through" : "text-text-secondary"
-            )}>{preview}</p>
+        <div className="min-w-0 flex-1">
+          <button
+            className="min-w-0 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            onClick={() => onOpenTask(task.id)}
+            onKeyDown={(event) => {
+              if (childTasks.length === 0) return;
+              if (event.key === "ArrowRight") {
+                event.preventDefault();
+                setChildrenOpen(true);
+              }
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                setChildrenOpen(false);
+              }
+            }}
+            type="button"
+          >
+            <div className="flex min-w-0 items-start gap-1">
+              <span className={cx(
+                "line-clamp-2 min-w-0 text-[var(--text-md)] font-medium",
+                completed ? "text-text-muted line-through" : "text-text-primary"
+              )}>{task.title}</span>
+              {childTasks.length > 0 ? (
+                <span className="ml-auto shrink-0 text-[var(--text-xs)] tabular-nums text-text-muted">
+                  {completedChildCount}/{childTasks.length}
+                </span>
+              ) : null}
+            </div>
+          </button>
+          {preview && hasRenderableMixedMarkup(preview) ? (
+            <div
+              className={cx("mt-0.5 min-w-0", completed && "text-text-muted line-through")}
+              onClick={(clickEvent) => clickEvent.stopPropagation()}
+              onKeyDown={(keyEvent) => keyEvent.stopPropagation()}
+            >
+              <MarkdownPreview
+                ariaLabel={`Description for ${task.title}`}
+                body={preview}
+                plannerLinkTargets={plannerLinkTargets(source)}
+                variant="summary"
+              />
+            </div>
           ) : null}
           {scheduleLabel || task.dueDate || task.snoozeUntil || (showAccountBadge && task.accountId) ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1031,7 +1043,7 @@ function GoogleTaskRow({
               ) : null}
             </div>
           ) : null}
-        </button>
+        </div>
         </div>
         <div
           className="relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"

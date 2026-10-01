@@ -20,7 +20,7 @@ export {
 export function buildNotePreview(body: string): string {
   const trimmed = body.trim();
   if (!trimmed) {
-    return "Empty note";
+    return "";
   }
 
   return trimmed.length > 92 ? `${trimmed.slice(0, 89)}...` : trimmed;

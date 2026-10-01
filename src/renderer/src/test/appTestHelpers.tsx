@@ -829,7 +829,7 @@ export function seededHcb(): HcbApi {
           listId: request.listId ?? "list-inbox",
           listTitle: "Notes",
           title: request.title,
-          preview: request.body ?? "Empty note",
+          preview: request.body ?? "",
           body: request.body ?? "",
           updatedAt: now
         })

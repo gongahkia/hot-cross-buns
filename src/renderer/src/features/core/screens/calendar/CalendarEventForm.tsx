@@ -11,7 +11,7 @@ import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField
 import { Badge, Button, Input, cx } from "../../../../components/primitives";
 import { ErrorState } from "../../../../components/states";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
-import { MarkdownPreview } from "../../MarkdownPreview";
+import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
 import { TagBadges, TagInput } from "../../TagInput";
 import { AutoTagAudit } from "../../AutoTagAudit";
 import { EntityLinksPanel } from "../../EntityLinksPanel";
@@ -755,7 +755,7 @@ export function CalendarEventDetails({
         </div>
       </div>
 
-      {notes ? (
+      {hasRenderableMixedMarkup(notes) ? (
         <DetailLine icon={FileText}>
           <MarkdownPreview
             ariaLabel="Event notes preview"

@@ -48,6 +48,7 @@ import { Badge, IconButton, ListRow, Panel, cx } from "../../components/primitiv
 import { EmptyState, ErrorState, LoadingState, OfflineState } from "../../components/states";
 import { VirtualizedList } from "../../components/VirtualizedList";
 import { useCoreViewModelSource } from "./coreViewModelSource";
+import { MarkdownPreview, hasRenderableMixedMarkup } from "./MarkdownPreview";
 import type {
   CalendarEventViewModel,
   CorePriority,
@@ -509,8 +510,9 @@ export function TaskRow({
             type="checkbox"
           />
         ) : null}
+        <div className="min-w-0 flex-1">
         <button
-          className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-w-0 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={() => onSelect(task.id)}
           type="button"
         >
@@ -529,7 +531,12 @@ export function TaskRow({
               </Badge>
             ) : null}
           </div>
-          <p className="truncate text-[var(--text-sm)] text-text-muted">{task.detail}</p>
+        </button>
+        {hasRenderableMixedMarkup(task.detail) ? (
+          <div className="mt-0.5 min-w-0" onClick={(clickEvent) => clickEvent.stopPropagation()}>
+            <MarkdownPreview ariaLabel={`Description for ${task.title}`} body={task.detail} variant="summary" />
+          </div>
+        ) : null}
           {scheduleLabel || task.tags?.length ? (
             <div className="mt-2 flex flex-wrap gap-1">
               {scheduleLabel ? (
@@ -569,7 +576,7 @@ export function TaskRow({
               ))}
             </div>
           ) : null}
-        </button>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge aria-label={`Task priority ${task.title}`} className="gap-1" tone={priorityTone(task.priority)}>
             <Flag aria-hidden="true" size={11} />

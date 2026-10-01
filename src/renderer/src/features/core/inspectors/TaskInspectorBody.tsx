@@ -10,7 +10,7 @@ import type { CorePriority, TaskViewModel } from "../coreViewModels";
 import { AutoTagAudit } from "../AutoTagAudit";
 import { AttachmentPanel } from "../AttachmentPanel";
 import { EntityLinksPanel } from "../EntityLinksPanel";
-import { MarkdownPreview } from "../MarkdownPreview";
+import { MarkdownPreview, hasRenderableMixedMarkup } from "../MarkdownPreview";
 import { plannerLinkTargets } from "../plannerLinkTargets";
 import { TagBadges, TagInput } from "../TagInput";
 
@@ -200,7 +200,7 @@ export function TaskInspectorDetails({
         </div>
       </div>
 
-      {notes ? (
+      {hasRenderableMixedMarkup(notes) ? (
         <TaskDetailLine icon={FileText}>
           <MarkdownPreview
             ariaLabel="Task notes preview"

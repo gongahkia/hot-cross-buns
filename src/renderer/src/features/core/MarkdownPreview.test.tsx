@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MarkdownPreview } from "./MarkdownPreview";
+import { MarkdownPreview, hasRenderableMixedMarkup, markdownFromMixedMarkup } from "./MarkdownPreview";
 
 describe("MarkdownPreview", () => {
   it("renders GFM checklist state without permitting a write", () => {
@@ -11,5 +11,30 @@ describe("MarkdownPreview", () => {
     expect(checkboxes[0]).not.toBeChecked();
     expect(checkboxes[1]).toBeChecked();
     expect(checkboxes.every((checkbox) => (checkbox as HTMLInputElement).disabled)).toBe(true);
+  });
+
+  it("renders HTML and Markdown together without exposing HTML source", () => {
+    render(
+      <MarkdownPreview
+        ariaLabel="Mixed event description"
+        body={'<p><strong>Open</strong> the <a href="https://www.crowdtask.gov.sg/dashboard">Crowdtask Dashboard</a>.</p>\n\n- [x] Complete the survey'}
+      />
+    );
+
+    const preview = within(screen.getByRole("region", { name: "Mixed event description" }));
+    expect(preview.getByText("Open")).toBeInTheDocument();
+    expect(preview.getByRole("link", { name: "Crowdtask Dashboard" })).toHaveAttribute("href", "https://www.crowdtask.gov.sg/dashboard");
+    expect(preview.getByRole("checkbox")).toBeChecked();
+    expect(preview.queryByText(/<p>/)).not.toBeInTheDocument();
+  });
+
+  it("treats whitespace-only HTML descriptions as empty", () => {
+    expect(hasRenderableMixedMarkup("<p>&nbsp;</p><br>\n")).toBe(false);
+  });
+
+  it("does not preserve raw anchor tags from malformed provider HTML", () => {
+    const description = '<p>[<a href="https://www.crowdtask.gov.sg/dashboard">Crowdtask Dashboard</a>](<a>https://www.crowdtask.gov.sg/dashboard</a>)</p>';
+
+    expect(markdownFromMixedMarkup(description)).not.toContain("<a");
   });
 });

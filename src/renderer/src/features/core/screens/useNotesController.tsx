@@ -447,7 +447,7 @@ export function useNotesController(source: CoreViewModelSource): {
       listTitle: list.title,
       title: "Untitled note",
       body: "",
-      preview: "Empty note",
+      preview: "",
       tags: [],
       updatedLabel: "Just now"
     };

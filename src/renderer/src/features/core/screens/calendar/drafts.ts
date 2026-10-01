@@ -126,7 +126,7 @@ export function editCalendarDraft(event: CalendarEventViewModel): CalendarEventD
     timeZone: event.timeZone || undefined,
     allDay: event.allDay,
     location: event.location === "Scheduled" || event.location === "All day" ? "" : event.location,
-    notes: event.notes === "No notes" ? "" : event.notes,
+    notes: event.notes,
     tags: event.tags ?? [],
     guests: event.guestEmails.join(", "),
     reminderMinutes: event.reminderMinutes[0] === undefined ? "" : String(event.reminderMinutes[0]),
