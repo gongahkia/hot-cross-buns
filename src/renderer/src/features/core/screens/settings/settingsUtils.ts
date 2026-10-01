@@ -32,7 +32,7 @@ export const retentionOptions: Array<{ label: string; value: number }> = [
 
 export const fontSurfaceOptions: Array<{ id: FontSurfaceId; label: string }> = [
   { id: "markdownEditor", label: "Markdown editor" },
-  { id: "sidebar", label: "Sidebar" },
+  { id: "sidebar", label: "Navigation controls" },
   { id: "calendarGrid", label: "Calendar grid" },
   { id: "taskList", label: "Task list" },
   { id: "inspector", label: "Inspector" },
