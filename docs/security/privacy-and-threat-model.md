@@ -120,7 +120,7 @@ Controls:
 
 - No analytics by default.
 - No hosted sync backend in v1.
-- Optional, explicit read-only Drive metadata access is limited to searching and attaching existing Calendar Drive links; HCB does not upload, download, move, share, or delete Drive files.
+- Optional Drive linking access searches metadata for existing links. A separate, explicit `drive.file` grant uploads only a file selected in HCB's native picker to the user's private `Hot Cross Buns attachments` folder. The renderer never receives local paths or bytes; HCB does not download, move, share, or delete Drive files.
 - Optional, explicit read-only Gmail access is limited to a user-requested message metadata/snippet search and explicit Gmail-to-Task capture; HCB does not send, edit, archive, label, or delete mail.
 - No sharing local notes with Google or MCP clients unless explicitly requested by the user/tool.
 - MCP is opt-in and local-only.

@@ -4,6 +4,7 @@ import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucid
 import type { LucideIcon } from "lucide-react";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { EmojiInput, EmojiTextarea } from "../../../components/EmojiTextField";
+import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
 import { Badge, Button, cx, Input } from "../../../components/primitives";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
 import type { CorePriority, TaskViewModel } from "../coreViewModels";
@@ -422,7 +423,8 @@ export function TaskInspectorBody({
         </select>
       </label>
       <TagInput onChange={(tags) => patchDraft({ tags })} value={dirty.value.tags ?? []} />
-      <EmojiTextarea
+      <ReferenceTextarea
+        accountId={source.taskLists.find((taskList) => taskList.id === dirty.value.listId)?.accountId}
         aria-label="Task notes"
         className="min-h-20 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onValueChange={(notes) => patchDraft({ notes })}

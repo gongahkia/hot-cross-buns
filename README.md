@@ -57,7 +57,9 @@ The diagram is generated from the checked-in [architecture model](docs/architect
 - [x] Google Meet creation requests, stored conference entry points, and join-link display for supported Google calendars.
 - [x] Self-RSVP editing and read-only Google free/busy lookup for event guests.
 - [x] Google Calendar status events: Focus Time, Out of Office, and Working Location on a connected primary calendar.
-- [x] Drive metadata search and Calendar Drive-link attachment selection after explicit read-only Drive authorization.
+- [x] Drive metadata search, description references, and Calendar Drive-link attachment selection after explicit authorization.
+- [x] Explicit local-file upload to a private `Hot Cross Buns attachments` Drive folder using the narrow `drive.file` scope; uploaded files are inserted as portable description links.
+- [x] `@` reference picker in task and event descriptions for recent references, Drive files, and HCB tasks/events/notes.
 - [x] Gmail metadata/snippet search and email-to-Task capture after explicit read-only Gmail authorization.
 - [x] Explicit cross-account copy preview and copy workflow. Source data is preserved; copied events intentionally omit guests, Meet links, Drive attachments, and status-event types.
 - [x] Type checks for the renderer/preload app and stricter main-process core.
@@ -82,13 +84,13 @@ The diagram is generated from the checked-in [architecture model](docs/architect
 - [ ] HCB Vault/local remote sync — dormant shell only; no supported remote protocol, encryption lifecycle, or recovery UX.
 - [ ] MCP local server and agent actions — dormant shell only; no enabled listener, authentication flow, permission model, or audited tool implementation in the running app.
 - [ ] ICS import and calendar subscriptions — dormant shell only; no supported parser, subscription refresh policy, or conflict model.
-- [ ] Local event/task file attachments and local file pointers — dormant shell only; no supported local-file lifecycle or sharing model. This does not apply to the implemented Google Calendar Drive-link attachment flow.
+- [ ] Independent local event/task file attachments and local file pointers — dormant shell only. Files selected from a description are uploaded to the user's private Drive folder and linked; HCB does not maintain a separate local-file lifecycle.
 - [ ] Extensions and snippets — dormant shell only; no sandboxing, lifecycle, or compatibility contract.
 - [ ] Semantic-search model installation — dormant shell only; no model runtime, indexing policy, or data-retention controls.
 - [ ] Portable archive import/export — dormant shell only; no stable archive format, migration guarantees, or restore verification.
 - [ ] Google Meet conference removal, conference-provider selection beyond Google Meet, or Meet participant management.
 - [ ] Organizer-side attendee editing, room/resource booking, and arbitrary attendee-response editing. HCB supports only the signed-in attendee's RSVP and read-only free/busy lookup.
-- [ ] Drive binary upload/download, Drive permission changes, and attachment lifecycle management. HCB attaches existing Drive links only.
+- [ ] Drive download, permission changes, moving files, and broad attachment lifecycle management. HCB can only upload a user-selected local file to its private Drive folder and link it; it never changes sharing.
 - [ ] Calendar Goals. Google Calendar's API does not expose a supported Goal-creation workflow; Focus Time, Out of Office, and Working Location are supported.
 - [ ] Gmail send/reply/archive/label actions, mail reminders, attachment download, or background inbox synchronization. HCB only searches metadata/snippets and captures an explicit message as a Task.
 - [ ] Google Contacts, Chat, or other Google Workspace product integrations.

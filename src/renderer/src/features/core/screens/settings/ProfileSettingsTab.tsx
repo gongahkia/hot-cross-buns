@@ -19,7 +19,7 @@ import {
 } from "./SettingsPrimitives";
 
 interface ProfileSettingsTabProps {
-  beginGoogleOAuth: (requestedServices?: Array<"drive" | "gmail">) => Promise<void>;
+  beginGoogleOAuth: (requestedServices?: Array<"drive" | "driveUpload" | "gmail">) => Promise<void>;
   calendarSources: CalendarListSummary[];
   disconnectGoogle: (accountId?: string) => Promise<void>;
   googleClientId: string;
@@ -227,19 +227,19 @@ export function ProfileSettingsTab({
 
       <SettingsGroup title="Optional Google Workspace access">
         <div className="grid gap-1 px-3 pt-3 text-[var(--text-sm)] text-text-secondary">
-          <p>These are separate read-only scopes. They are requested only when you choose them; Drive file content and Gmail messages are never modified by HCB.</p>
+          <p>These are optional scopes requested only when you choose them. Drive linking can search file metadata; Drive uploads create private copies of files you explicitly select. Gmail capture remains read-only.</p>
           <p className="text-[var(--text-xs)] text-text-muted">Reconnecting preserves the existing Calendar and Tasks grants for the selected Google account.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-2">
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive"])} variant="secondary">
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "driveUpload"])} variant="secondary">
             <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
-            Enable Drive attachments
+            Enable Drive links & uploads
           </Button>
           <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["gmail"])} variant="secondary">
             <img alt="" className="size-4 object-contain" src={googleGmailLogo} />
             Enable Gmail capture
           </Button>
-          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "gmail"])} variant="secondary">
+          <Button disabled={!googleStatus.oauthClientConfigured} onClick={() => void beginGoogleOAuth(["drive", "driveUpload", "gmail"])} variant="secondary">
             <span aria-hidden="true" className="flex items-center gap-1">
               <img alt="" className="size-4 object-contain" src={googleDriveLogo} />
               <img alt="" className="size-4 object-contain" src={googleGmailLogo} />

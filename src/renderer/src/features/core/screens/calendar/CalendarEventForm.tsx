@@ -8,6 +8,7 @@ import {
 } from "@shared/ipc/contracts";
 import { Bell, BriefcaseBusiness, CalendarPlus, Check, Clock3, ExternalLink, FileText, Gift, ListPlus, MapPin, Paperclip, Phone, Plus, RotateCcw, Search, Tag, Trash2, Users, Video, X, type LucideIcon } from "lucide-react";
 import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField";
+import { ReferenceTextarea } from "../../../../components/ReferenceTextarea";
 import { Badge, Button, Input, cx } from "../../../../components/primitives";
 import { ErrorState } from "../../../../components/states";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
@@ -1512,19 +1513,20 @@ export function CalendarEventForm({
           </div>
         )}
       </fieldset>
-      <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+      <div className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">
           <FileText aria-hidden="true" size={13} />
           Notes
         </span>
-        <EmojiTextarea
+        <ReferenceTextarea
+          accountId={selectedCalendar?.accountId}
           aria-label="Event notes"
           className="min-h-24 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onValueChange={(notes) => setDraft({ ...draft, notes })}
           placeholder="Notes"
           value={draft.notes}
         />
-      </label>
+      </div>
     </div>
   );
 }

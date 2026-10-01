@@ -4,7 +4,7 @@
 
 Hot Cross Buns 2 syncs with Google Tasks and Google Calendar. Google remains the synced source of truth for tasks and events. SQLite stores local mirrors, settings, checkpoints, and pending mutations.
 
-Drive and Gmail are optional, user-authorized helper integrations rather than sync sources: Drive is used only to search file metadata and attach an existing Drive link to a Calendar event; Gmail is used only to search selected message metadata/snippets and explicitly capture one message as a Task. Neither integration uploads, downloads, edits, sends, archives, labels, or deletes Google data.
+Drive and Gmail are optional, user-authorized helper integrations rather than sync sources. Drive searches metadata for existing files and may upload a local file only after the user selects it from HCB's native picker; the upload is placed in the user's private `Hot Cross Buns attachments` folder and HCB inserts its Drive link into a task or event description. HCB never downloads, moves, shares, or deletes Drive files. Gmail is used only to search selected message metadata/snippets and explicitly capture one message as a Task; it never sends, archives, labels, or deletes mail.
 
 ## OAuth
 
@@ -27,6 +27,7 @@ Required Google scopes:
 Optional scopes are requested only after the user selects the corresponding control in **Settings → Profile**:
 
 - `https://www.googleapis.com/auth/drive.metadata.readonly` for Drive-link attachment browsing
+- `https://www.googleapis.com/auth/drive.file` for explicitly selected local-file uploads. This is requested separately and creates/manages only files HCB uses.
 - `https://www.googleapis.com/auth/gmail.readonly` for Gmail-to-Task capture
 
 The client must not silently broaden an existing grant. See [Google Workspace integrations](../google-workspace-integrations.md) for consent, verification, and live-test requirements.
@@ -68,7 +69,7 @@ Google Calendar backs:
 
 Calendar incremental sync should use `nextSyncToken` after initial full sync. If Google invalidates a token, the app must perform a full resync for that calendar.
 
-For connected primary calendars, Calendar status events support Focus Time, Out of Office, and Working Location. HCB supports signed-in-user RSVP edits, read-only free/busy lookup, Google Meet creation requests, and existing Drive-link attachments. It does not support Calendar Goals, organizer-side guest or resource booking, conference removal, or Drive binary/file-permission lifecycle operations.
+For connected primary calendars, Calendar status events support Focus Time, Out of Office, and Working Location. HCB supports signed-in-user RSVP edits, read-only free/busy lookup, Google Meet creation requests, existing Drive-link attachments, and private uploads of user-selected local files. It does not support Calendar Goals, organizer-side guest or resource booking, conference removal, Drive download, sharing, moving, deletion, or a broad Drive file-lifecycle feature.
 
 ## Sync Modes
 

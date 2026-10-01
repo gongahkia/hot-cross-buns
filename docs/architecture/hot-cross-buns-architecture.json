@@ -1,7 +1,7 @@
 {
   "title": "Hot Cross Buns — current runtime architecture",
   "subtitle": "Electron desktop client • direct Google sync • local cache and encrypted credentials",
-  "lastReviewed": "2026-09-29",
+  "lastReviewed": "2026-10-01",
   "groups": [
     { "id": "frontend", "title": "FRONTEND — unprivileged renderer process", "x": 45, "y": 130, "width": 430, "height": 700 },
     { "id": "backend", "title": "DESKTOP BACKEND — Electron main process", "x": 520, "y": 130, "width": 540, "height": 700 },
@@ -23,7 +23,7 @@
     { "id": "google-auth", "label": "Google OAuth 2.0", "detail": "accounts.google.com + token endpoint", "x": 1205, "y": 330, "width": 255, "height": 90, "kind": "cloud", "accent": "orange" },
     { "id": "calendar-api", "label": "Google Calendar API", "detail": "calendars, events, free/busy", "x": 1205, "y": 490, "width": 255, "height": 82, "kind": "cloud", "accent": "brightGreen" },
     { "id": "tasks-api", "label": "Google Tasks API", "detail": "lists, tasks, ordering", "x": 1205, "y": 600, "width": 255, "height": 82, "kind": "cloud", "accent": "brightGreen" },
-    { "id": "workspace-api", "label": "Optional read-only APIs", "detail": "Drive metadata • Gmail metadata/snippets", "x": 1205, "y": 710, "width": 255, "height": 82, "kind": "cloudOptional", "accent": "blue" }
+    { "id": "workspace-api", "label": "Optional Workspace APIs", "detail": "Drive metadata + selected uploads • Gmail metadata/snippets", "x": 1205, "y": 710, "width": 255, "height": 82, "kind": "cloudOptional", "accent": "blue" }
   ],
   "edges": [
     { "from": "user", "to": "renderer", "label": "1. User interaction", "color": "muted" },
@@ -38,7 +38,7 @@
     { "from": "browser", "to": "google-auth", "label": "10. consent; loopback code callback; token exchange", "color": "orange" },
     { "from": "sync", "to": "calendar-api", "label": "11. pull remote state / send outbox writes", "color": "brightGreen", "points": [[1090, 610], [1090, 531]] },
     { "from": "sync", "to": "tasks-api", "label": "12. pull remote state / send outbox writes", "color": "brightGreen", "points": [[1090, 610], [1090, 641]] },
-    { "from": "sync", "to": "workspace-api", "label": "13. explicit optional read-only search", "color": "blue", "dashed": true, "points": [[1090, 610], [1090, 751]] },
+    { "from": "sync", "to": "workspace-api", "label": "13. explicit Drive search/upload + Gmail search", "color": "blue", "dashed": true, "points": [[1090, 610], [1090, 751]] },
     { "from": "sync", "to": "renderer", "label": "14. sync status subscription", "color": "muted", "dashed": true, "points": [[500, 610], [500, 342]] }
   ],
   "note": "Boundary note: Hot Cross Buns has no HCB cloud backend, supported Vault/hoster endpoint, or enabled local MCP listener. Google Tasks and Calendar are the synced sources of truth; HCB keeps an encrypted local cache for speed, offline reads, and durable mutation delivery."

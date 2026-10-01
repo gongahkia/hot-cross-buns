@@ -552,7 +552,7 @@ export function SettingsView({
     setRecoveryMessage(result.error.message);
   }
 
-  async function beginGoogleOAuth(requestedServices: Array<"drive" | "gmail"> = []): Promise<void> {
+  async function beginGoogleOAuth(requestedServices: Array<"drive" | "driveUpload" | "gmail"> = []): Promise<void> {
     setRecoveryMessage(null);
 
     const result = await window.hcb?.google.beginOAuth({ requestedServices });

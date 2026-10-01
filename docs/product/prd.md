@@ -46,6 +46,7 @@ Core v1 includes:
 - Command palette
 - Global quick capture
 - Local-first search over cached tasks, events, and notes
+- Inline description references for Drive files and HCB tasks, events, and notes; explicit local-file uploads to private Drive storage
 - Local cache and sync checkpoints
 - Offline mutation queue
 - Settings for Google, sync, appearance, hotkeys, tray, notifications, MCP, diagnostics
@@ -59,7 +60,7 @@ V1 does not include:
 
 - Hosted sync server
 - Multi-user collaboration beyond Google sharing behavior
-- Drive binary upload/download, permission management, or file lifecycle integration (existing Drive-link attachments are supported with explicit read-only authorization)
+- Drive download, permission management, moving files, or broad file-lifecycle integration. HCB may upload only a file the user explicitly selects, keep it private, and insert its Drive link.
 - Gmail write actions or background mailbox synchronization (explicit metadata search and Gmail-to-Task capture are supported with explicit read-only authorization)
 - Mobile apps
 - Full Spotlight/App Intents/Share Extension parity

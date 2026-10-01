@@ -67,7 +67,7 @@ Tests worth studying for behavior:
 
 - Google Tasks and Google Calendar are the synced sources of truth.
 - Local SQLite is cache, settings, checkpoints, offline mutation queue, diagnostics metadata, and local-only notes.
-- This historical context predates the current optional Drive metadata/Gmail capture integrations. For current behavior, see `docs/google-workspace-integrations.md`; Drive remains out of scope for binary transfer, permissions, and file lifecycle management.
+- This historical context predates the current optional Drive/Gmail integrations. For current behavior, see `docs/google-workspace-integrations.md`; Drive may upload a user-selected file to HCB's private app folder, but broad binary transfer, permissions, and file-lifecycle management remain out of scope.
 - Renderer code in Hot Cross Buns 2 never gets direct filesystem, token, SQLite, or Google API access.
 - UI writes and MCP writes must use the same domain services.
 - MCP uses read-only, confirm-writes, and allow-writes modes.

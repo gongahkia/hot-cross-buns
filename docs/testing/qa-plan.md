@@ -90,7 +90,7 @@ Run `pnpm test:live-google` only when a user explicitly requests live-account va
 
 `src/main/services/googleSync.test.ts` is the protocol-level suite for Google REST request shape, pagination, sync-token behavior, and Calendar feature flags. It is fully mocked and belongs in normal unit runs.
 
-Drive/Gmail operations require an explicit read-only scope from Settings → Profile. For live test selection, follow [Google Workspace Integrations](../google-workspace-integrations.md): personal accounts may only search/render, while a disposable account may capture a dedicated Gmail message to a dedicated Task list and then clean up the created Task.
+Drive/Gmail operations require an explicit scope from Settings → Profile. Personal accounts may only search/render. On a designated disposable account, Drive-upload validation may upload a dedicated disposable file and verify that its link stays private; delete that test file manually afterwards. Gmail capture may create a dedicated Task and then clean it up. Follow [Google Workspace Integrations](../google-workspace-integrations.md) and `docs/live-google-testing.md` exactly.
 
 ## IPC Contract Tests
 
