@@ -6,7 +6,7 @@ import {
   googleCalendarEventColors,
   type SettingsSnapshot
 } from "@shared/ipc/contracts";
-import { Bell, BriefcaseBusiness, CalendarPlus, Check, Clock3, ExternalLink, FileText, Gift, ListPlus, MapPin, Paperclip, Phone, Plus, RotateCcw, Search, Tag, Trash2, Users, Video, X, type LucideIcon } from "lucide-react";
+import { Bell, BriefcaseBusiness, CalendarPlus, Check, ExternalLink, FileText, Gift, ListPlus, MapPin, Paperclip, Phone, Plus, RotateCcw, Search, Tag, Trash2, Users, Video, X, type LucideIcon } from "lucide-react";
 import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField";
 import { ReferenceTextarea } from "../../../../components/ReferenceTextarea";
 import { Badge, Button, Input, cx } from "../../../../components/primitives";
@@ -253,7 +253,21 @@ function calendarDetailRangeLabel(draft: CalendarEventDraft, timeZone: string): 
   }
 
   if (draft.allDay) {
-    return `${dateInputValue(draft.startsAt)}-${allDayEndInputValue(draft.endsAt)} · All day`;
+    const start = new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(new Date(`${dateInputValue(draft.startsAt)}T00:00:00.000Z`));
+    const end = new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(new Date(`${allDayEndInputValue(draft.endsAt)}T00:00:00.000Z`));
+    return `${start} – ${end} · All day`;
   }
 
   return calendarDraftRangeLabel(draft, timeZone);
@@ -714,6 +728,7 @@ export function CalendarEventDetails({
   draft,
   eventColorOverrides,
   rules,
+  showTitle = true,
   source
 }: {
   calendars: ReturnType<typeof useCoreViewModelSource>["calendarSources"];
@@ -721,6 +736,7 @@ export function CalendarEventDetails({
   draft: CalendarEventDraft;
   eventColorOverrides: CalendarEventColorOverrides;
   rules: readonly AutoTagRule[];
+  showTitle?: boolean;
   source: ReturnType<typeof useCoreViewModelSource>;
 }): JSX.Element {
   const selectedCalendar = calendars.find((calendar) => calendar.id === draft.calendarId);
@@ -748,14 +764,14 @@ export function CalendarEventDetails({
           color={displayColor.background}
         />
         <div className="min-w-0">
-          <div className="flex min-w-0 items-start justify-between gap-3">
+          {showTitle ? <div className="flex min-w-0 items-start justify-between gap-3">
             <h3 className={cx(
               "min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight text-text-primary",
               completed && "text-text-muted line-through"
             )}>
               {draft.title || "Untitled event"}
             </h3>
-          </div>
+          </div> : null}
           <div className={cx(
             "mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-base)] text-text-secondary",
             completed && "line-through"
@@ -766,7 +782,9 @@ export function CalendarEventDetails({
             {showSourceTimeZone ? <Badge tone="neutral">{sourceTimeZone}</Badge> : null}
             {draft.eventType !== "default" ? <Badge tone="neutral">{draft.eventType === "focusTime" ? "Focus time" : draft.eventType === "outOfOffice" ? "Out of office" : "Working location"}</Badge> : null}
             <Badge tone="neutral">{draft.transparency === "transparent" ? "Free" : "Busy"}</Badge>
-            <Badge tone="neutral">{draft.visibility === "private" ? "Private" : draft.visibility === "public" ? "Public" : "Default visibility"}</Badge>
+            {draft.visibility && draft.visibility !== "default" ? (
+              <Badge tone="neutral">{draft.visibility === "private" ? "Private" : "Public"}</Badge>
+            ) : null}
           </div>
         </div>
       </div>
@@ -910,10 +928,9 @@ export function CalendarEventForm({
   taskListId: string;
   taskLists: ReturnType<typeof useCoreViewModelSource>["taskLists"];
 }): JSX.Element {
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
   const selectedCalendar = calendars.find((calendar) => calendar.id === draft.calendarId);
-  const displayColor = draftDisplayColor(draft, selectedCalendar, eventColorOverrides);
   const sourceTimeZone = draft.timeZone ?? selectedCalendar?.timeZone ?? defaultTimeZone;
-  const showSourceTimeZone = sourceTimeZone !== defaultTimeZone;
   const isBirthdayDraft = draft.hcbKind === "birthday" || (draft.mode === "create" && createMode === "birthday");
 
   function setAllDay(allDay: boolean): void {
@@ -1156,33 +1173,14 @@ export function CalendarEventForm({
         <CalendarCreateModeTabs mode={createMode} onChange={onCreateModeChange} />
       ) : null}
       {error ? <ErrorState description={error} title="Event not saved" /> : null}
-      <div
-        aria-label="Event context"
-        className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3"
-        role="group"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <CalendarSourceSwatch calendarId={draft.calendarId} color={displayColor.background} />
-          <span className="min-w-0 flex-1 truncate text-[var(--text-sm)] font-semibold text-text-primary">
-            {selectedCalendar?.title ?? "Calendar"}
-          </span>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-xs)] text-text-muted">
-          <span className="inline-flex min-w-0 items-center gap-1">
-            <Clock3 aria-hidden="true" size={13} />
-            <span className="truncate">{calendarDraftRangeLabel(draft, sourceTimeZone)}</span>
-          </span>
-          <Badge tone="neutral">{calendarDraftDurationLabel(draft)}</Badge>
-          {showSourceTimeZone ? <Badge tone="neutral">{sourceTimeZone}</Badge> : null}
-        </div>
-      </div>
       <EmojiInput
         aria-label="Event title"
+        autoFocus={draft.mode === "create"}
         onValueChange={(title) => setDraft({ ...draft, title })}
         placeholder="Title"
         value={draft.title}
       />
-      <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+      {showMoreOptions ? <><fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Calendar</legend>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Source</span>
@@ -1207,7 +1205,7 @@ export function CalendarEventForm({
         />
         <PrivacyControls draft={draft} setDraft={setDraft} />
       </fieldset>
-      <EventTypeControl draft={draft} setDraft={setDraft} />
+      <EventTypeControl draft={draft} setDraft={setDraft} /></> : null}
       <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Time</legend>
         <label className="flex min-h-8 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
@@ -1269,25 +1267,27 @@ export function CalendarEventForm({
             value={draft.guests}
           />
         </label>
-        <AttendeeStatusPreview draft={draft} />
-        <RsvpControl draft={draft} setDraft={setDraft} />
-        <AvailabilityControl accountId={selectedCalendar?.accountId} draft={draft} />
         <ReminderControls draft={draft} setDraft={setDraft} />
         <MeetControl draft={draft} setDraft={setDraft} />
-        <DriveAttachmentControl accountId={selectedCalendar?.accountId} draft={draft} setDraft={setDraft} />
-        <TagInput onChange={(tags) => setDraft({ ...draft, tags })} value={draft.tags} />
-        <AutoTagAudit
-          input={{
-            kind: "event",
-            title: draft.title,
-            body: draft.notes,
-            existingTags: draft.tags,
-            existingEventColorId: draft.colorId || undefined,
-            requestedEventColorId: draft.colorId || undefined,
-            hcbKind: draft.hcbKind
-          }}
-          rules={rules}
-        />
+        {showMoreOptions ? <>
+          <AttendeeStatusPreview draft={draft} />
+          <RsvpControl draft={draft} setDraft={setDraft} />
+          <AvailabilityControl accountId={selectedCalendar?.accountId} draft={draft} />
+          <DriveAttachmentControl accountId={selectedCalendar?.accountId} draft={draft} setDraft={setDraft} />
+          <TagInput onChange={(tags) => setDraft({ ...draft, tags })} value={draft.tags} />
+          <AutoTagAudit
+            input={{
+              kind: "event",
+              title: draft.title,
+              body: draft.notes,
+              existingTags: draft.tags,
+              existingEventColorId: draft.colorId || undefined,
+              requestedEventColorId: draft.colorId || undefined,
+              hcbKind: draft.hcbKind
+            }}
+            rules={rules}
+          />
+        </> : null}
       </fieldset>
       <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">
@@ -1542,6 +1542,17 @@ export function CalendarEventForm({
           placeholder="Notes"
           value={draft.notes}
         />
+      </div>
+      <div className="border-t border-border pt-2">
+        <Button
+          aria-expanded={showMoreOptions}
+          onClick={() => setShowMoreOptions((expanded) => !expanded)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {showMoreOptions ? "Fewer options" : "More options"}
+        </Button>
       </div>
     </div>
   );

@@ -486,17 +486,27 @@ function calendarDraftLocalDateTimeParts(value: string, timeZone: string): { dat
   };
 }
 
+function calendarDraftHumanDate(day: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(new Date(`${day}T00:00:00.000Z`));
+}
+
 export function calendarDraftRangeLabel(draft: CalendarEventDraft, timeZone = "UTC"): string {
   if (draft.allDay) {
-    return `${dateInputValue(draft.startsAt)} · All day`;
+    return `${calendarDraftHumanDate(dateInputValue(draft.startsAt))} · All day`;
   }
 
   const start = calendarDraftLocalDateTimeParts(draft.startsAt, timeZone);
   const end = calendarDraftLocalDateTimeParts(draft.endsAt, timeZone);
 
   return start.date === end.date
-    ? `${start.date} · ${start.time}-${end.time}`
-    : `${start.date} · ${start.time}-${end.date} · ${end.time}`;
+    ? `${calendarDraftHumanDate(start.date)} · ${start.time}–${end.time}`
+    : `${calendarDraftHumanDate(start.date)} · ${start.time} – ${calendarDraftHumanDate(end.date)} · ${end.time}`;
 }
 
 export function calendarDraftDurationLabel(draft: CalendarEventDraft): string {

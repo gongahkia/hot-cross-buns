@@ -365,91 +365,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
       patchDraft({ title: template.title, body: template.body });
     }
 
-    function markerForSuggestion(suggestion: LinkSuggestion): string {
-      return `[[${suggestion.kind}:${suggestion.label}]]`;
-    }
-
-    function insertMarkerAtCursor(marker: string): void {
-      const textarea = textareaRef.current;
-      const body = dirty.value.body;
-      const start = textarea?.selectionStart ?? body.length;
-      const end = textarea?.selectionEnd ?? start;
-      const nextBody = `${body.slice(0, start)}${marker}${body.slice(end)}`;
-      patchDraft({ body: nextBody });
-      setLinkQuery("");
-      setSuggestions([]);
-
-      queueMicrotask(() => {
-        const nextCursor = start + marker.length;
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
-      });
-    }
-
-    function repairLink(marker: string): void {
-      if (!repairLinkText) {
-        insertMarkerAtCursor(marker);
-        return;
-      }
-
-      const escaped = repairLinkText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(`\\[\\[${escaped}\\]\\]`);
-      patchDraft({ body: dirty.value.body.replace(pattern, marker) });
-      setRepairLinkText(null);
-      setLinkQuery("");
-      setSuggestions([]);
-      textareaRef.current?.focus();
-    }
-
-    function chooseSuggestion(suggestion: LinkSuggestion): void {
-      const marker = markerForSuggestion(suggestion);
-
-      if (repairLinkText) {
-        repairLink(marker);
-        return;
-      }
-
-      insertMarkerAtCursor(marker);
-    }
-
-    function openRepair(linkText: string): void {
-      const parsed = parsePlannerLink(linkText);
-      setRepairLinkText(linkText);
-      setLinkQuery(parsed.label);
-      setActiveSuggestionIndex(0);
-      queueMicrotask(() => linkInputRef.current?.focus());
-    }
-
-    function handleSuggestionKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setActiveSuggestionIndex((current) =>
-          suggestions.length === 0 ? 0 : (current + 1) % suggestions.length
-        );
-        return;
-      }
-
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setActiveSuggestionIndex((current) =>
-          suggestions.length === 0 ? 0 : (current - 1 + suggestions.length) % suggestions.length
-        );
-        return;
-      }
-
-      if (event.key === "Enter" && suggestions[activeSuggestionIndex]) {
-        event.preventDefault();
-        chooseSuggestion(suggestions[activeSuggestionIndex]);
-        return;
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setSuggestions([]);
-        setRepairLinkText(null);
-      }
-    }
-
     function handleLinkChipKeyDown(
       event: ReactKeyboardEvent<HTMLButtonElement>,
       action: () => void
@@ -541,7 +456,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           </div>
 
           {createMode || viewMode === "edit" ? (
-            <EmojiTextarea
+            <ReferenceTextarea
               aria-label="Note body"
               className="min-h-40 w-full resize-y rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onValueChange={(body) => patchDraft({ body })}
@@ -561,88 +476,23 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           <AttachmentPanel editable entityId={note.id} entityKind="note" />
         ) : null}
 
-        <div className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
-          <div className="flex items-center gap-2 text-[var(--text-sm)] font-medium text-text-primary">
-            <Link2 aria-hidden="true" size={15} />
-            {repairLinkText ? `Fix ${repairLinkText}` : "Insert link"}
-          </div>
-          <div className="relative grid gap-2">
-            <Input
-              aria-autocomplete="list"
-              aria-controls="note-link-suggestions"
-              aria-expanded={suggestions.length > 0}
-              aria-label="Planner link target"
-              onChange={(event) => setLinkQuery(event.target.value)}
-              onKeyDown={handleSuggestionKeyDown}
-              placeholder="Search notes, tasks, events"
-              ref={linkInputRef}
-              role="combobox"
-              value={linkQuery}
-            />
-            {suggestions.length > 0 ? (
-              <div
-                className="absolute left-0 right-0 top-9 z-10 grid max-h-48 overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-hcbMd"
-                id="note-link-suggestions"
-                role="listbox"
-              >
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    aria-selected={index === activeSuggestionIndex}
-                    className={cx(
-                      "flex min-h-8 items-center justify-between gap-2 rounded-hcbSm px-2 text-left text-[var(--text-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                      index === activeSuggestionIndex ? "bg-bg-tertiary text-text-primary" : "text-text-secondary hover:bg-bg-tertiary"
-                    )}
-                    key={`${suggestion.kind}-${suggestion.id}`}
-                    onClick={() => chooseSuggestion(suggestion)}
-                    onMouseEnter={() => setActiveSuggestionIndex(index)}
-                    role="option"
-                    type="button"
-                  >
-                    <span className="truncate">{suggestion.label}</span>
-                    <Badge tone={suggestion.kind === "note" ? "info" : suggestion.kind === "task" ? "success" : "accent"}>
-                      {suggestion.kind}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {repairLinkText ? (
-              <Button
-                onClick={() => {
-                  setRepairLinkText(null);
-                  setLinkQuery("");
-                  setSuggestions([]);
-                }}
-                size="sm"
-                variant="ghost"
-              >
-                Cancel repair
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="grid gap-2">
+        {properties.length > 0 ? <div className="grid gap-2">
           <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Properties</div>
-          {properties.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {properties.map((property) => (
-                <Badge key={`${property.key}-${property.value}`} tone="info">
-                  {property.key}: {property.value}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <span className="text-[var(--text-sm)] text-text-muted">No properties</span>
-          )}
-        </div>
+          <div className="flex flex-wrap gap-2">
+            {properties.map((property) => (
+              <Badge key={`${property.key}-${property.value}`} tone="info">
+                {property.key}: {property.value}
+              </Badge>
+            ))}
+          </div>
+        </div> : null}
 
-        <div className="grid gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+        {links.length > 0 || brokenLinks.length > 0 || backlinks.length > 0 ? <div className="grid gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+          {links.length > 0 ? (
           <div className="grid gap-2">
             <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Links</div>
-            {links.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {links.map((title) => {
+            <div className="flex flex-wrap gap-2">
+              {links.map((title) => {
                   const link = parsePlannerLink(title);
                   const linkedNote = link.kind === "note"
                     ? noteByNormalizedTitle.get(normalizedNoteTitle(link.label))
@@ -664,12 +514,9 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
                       {linkedNote ? label : `${isBroken ? "Broken" : link.kind}: ${label}`}
                     </button>
                   );
-                })}
-              </div>
-            ) : (
-              <span className="text-[var(--text-sm)] text-text-muted">None</span>
-            )}
-          </div>
+              })}
+            </div>
+          </div>) : null}
 
           {brokenLinks.length > 0 ? (
             <div className="grid gap-2">
@@ -681,25 +528,16 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
                     key={item.linkText}
                   >
                     {item.linkText}
-                    <button
-                      aria-label={`Fix link ${item.linkText}`}
-                      className="rounded-hcbSm px-1 text-warning underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                      onClick={() => openRepair(item.linkText)}
-                      type="button"
-                    >
-                      Fix link
-                    </button>
                   </span>
                 ))}
               </div>
             </div>
           ) : null}
 
-          <div className="grid gap-2">
+          {backlinks.length > 0 ? <div className="grid gap-2">
             <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Backlinks</div>
-            {backlinks.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {backlinks.map((backlink) => {
+            <div className="flex flex-wrap gap-2">
+              {backlinks.map((backlink) => {
                   const action = () => void onOpenNote(backlink.id);
 
                   return (
@@ -715,13 +553,11 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
                       {backlink.title}
                     </button>
                   );
-                })}
-              </div>
-            ) : (
-              <span className="text-[var(--text-sm)] text-text-muted">None</span>
-            )}
-          </div>
-        </div>
+              })}
+            </div>
+          </div> : null}
+        </div> : null}
+        {!createMode ? <EntityLinksPanel entityId={note.id} entityKind="note" /> : null}
       </div>
     );
   }

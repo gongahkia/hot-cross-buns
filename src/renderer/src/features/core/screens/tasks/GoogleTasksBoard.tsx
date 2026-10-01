@@ -850,11 +850,8 @@ function ListActionMenu({
       <MenuButton onClick={() => { onRenameList(list); onClose(); }}>Rename list</MenuButton>
       <MenuButton onClick={() => { onDeleteList(list.id); onClose(); }}>Delete list</MenuButton>
       <MenuButton onClick={() => { onStartBulkSelect(); onClose(); }}>Select tasks</MenuButton>
-      <MenuButton disabled>Move list to first position</MenuButton>
       <MenuSeparator />
       <MenuButton onClick={() => { window.print(); onClose(); }}>Print list</MenuButton>
-      <MenuButton disabled>Delete all completed tasks</MenuButton>
-      <MenuButton disabled>Clean up old tasks</MenuButton>
     </div>
   );
 }

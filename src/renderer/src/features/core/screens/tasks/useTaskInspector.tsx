@@ -142,6 +142,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
           draft={nextDraft}
           key={`view-${taskInspectorInstanceRef.current}`}
           parentOptions={taskParentOptions(source.largeTaskWindow, nextDraft)}
+          showTitle={false}
           source={source}
           task={selectedTask}
         />
@@ -166,8 +167,19 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   function taskInspectorActions(nextDraft: TaskDraft, mode = taskInspectorModeRef.current): ReactNode {
     if (nextDraft.mode === "edit" && mode === "view") {
       return (
-        <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            <Button onClick={() => setTaskInspectorMode("edit")} size="sm" variant="primary">
+              <Pencil aria-hidden="true" size={14} />
+              Edit
+            </Button>
+            <details className="group relative">
+              <summary className="flex h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] font-medium text-text-secondary hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">More actions</summary>
+              <div className="absolute bottom-full right-0 z-20 mb-2 grid min-w-52 gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1 shadow-xl">
+                <Button onClick={() => duplicateTaskDraftValue(nextDraft)} size="sm" variant="ghost"><Copy aria-hidden="true" size={14} />Duplicate</Button>
+                <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="ghost"><ArrowRightLeft aria-hidden="true" size={14} />Create event from task</Button>
+                <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="ghost"><ArrowRightLeft aria-hidden="true" size={14} />Create note from task</Button>
+              </div>
+            </details>
             <Button
               data-action-id="task.deleteSelected"
               onClick={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined}
@@ -175,29 +187,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
               variant="danger"
             >
               <Trash2 aria-hidden="true" size={14} />
-              Delete
+              Delete task
             </Button>
-            <Button onClick={() => setTaskInspectorMode("edit")} size="sm" variant="secondary">
-              <Pencil aria-hidden="true" size={14} />
-              Edit
-            </Button>
-            <Button onClick={() => duplicateTaskDraftValue(nextDraft)} size="sm" variant="secondary">
-              <Copy aria-hidden="true" size={14} />
-              Duplicate
-            </Button>
-            <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="secondary">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create event from task
-            </Button>
-            <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="secondary">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create note from task
-            </Button>
-          </div>
-          <Button onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">
-            <X aria-hidden="true" size={14} />
-            Close
-          </Button>
         </div>
       );
     }
@@ -215,28 +206,6 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
             Delete
           </Button>
         ) : null}
-        {nextDraft.mode === "edit" ? (
-          <Button onClick={() => duplicateTaskDraftValue(nextDraft)} size="sm" variant="secondary">
-            <Copy aria-hidden="true" size={14} />
-            Duplicate
-          </Button>
-        ) : null}
-        {nextDraft.mode === "edit" ? (
-          <>
-            <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="secondary">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create event from task
-            </Button>
-            <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="secondary">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create note from task
-            </Button>
-          </>
-        ) : null}
-        <Button onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">
-          <X aria-hidden="true" size={14} />
-          Cancel
-        </Button>
         <Button
           disabled={!canSaveTaskDraft(nextDraft, source.taskMutationPending)}
           onClick={() => void saveTask()}
@@ -251,7 +220,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   function taskInspectorHidesHeader(nextDraft: TaskDraft, mode = taskInspectorModeRef.current): boolean {
-    return nextDraft.mode === "edit" && mode === "view";
+    return false;
   }
 
   function openTaskInspector(

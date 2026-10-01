@@ -162,11 +162,13 @@ function taskDuePreset(daysFromToday: number): string {
 export function TaskInspectorDetails({
   draft,
   parentOptions,
+  showTitle = true,
   source,
   task
 }: {
   draft: TaskDraft;
   parentOptions: TaskViewModel[];
+  showTitle?: boolean;
   source: ReturnType<typeof useCoreViewModelSource>;
   task?: TaskViewModel | null;
 }): JSX.Element {
@@ -187,14 +189,14 @@ export function TaskInspectorDetails({
           className={`mt-2 size-3.5 rounded-hcbSm ${taskAccentClass(draft.priority, completed)}`}
         />
         <div className="min-w-0">
-          <div className="flex min-w-0 items-start justify-between gap-3">
+          {showTitle ? <div className="flex min-w-0 items-start justify-between gap-3">
             <h3 className={cx(
               "min-w-0 break-words text-[var(--text-2xl)] font-semibold leading-tight",
               completed ? "text-text-muted line-through" : "text-text-primary"
             )}>
               {draft.title || "Untitled task"}
             </h3>
-          </div>
+          </div> : null}
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-[var(--text-xs)] text-text-muted">
             <Badge tone="neutral">{listTitle}</Badge>
             {draft.priority !== "none" ? (

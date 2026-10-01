@@ -204,6 +204,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
           eventColorOverrides={source.settings.calendarEventColorOverrides}
           key={`view-${calendarInspectorInstanceRef.current}`}
           rules={source.settings.autoTagRules}
+          showTitle={false}
           source={source}
         />
       )
@@ -285,22 +286,21 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   ): ReactNode {
     if (nextDraft.mode === "edit" && mode === "view") {
       return (
-        <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => void deleteDraft()} size="sm" variant="danger">
-              <Trash2 aria-hidden="true" size={14} />
-              Delete event
-            </Button>
-            <Button onClick={() => setCalendarInspectorMode("edit")} size="sm" variant="secondary">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            <Button onClick={() => setCalendarInspectorMode("edit")} size="sm" variant="primary">
               <Pencil aria-hidden="true" size={14} />
               Edit
             </Button>
-            <Button onClick={() => duplicateEventDraftValue(nextDraft)} size="sm" variant="secondary">
-              <Copy aria-hidden="true" size={14} />
-              Create standalone copy
-            </Button>
-            {nextDraft.hcbKind !== "birthday" ? (
-              <>
+            <details className="group relative">
+              <summary className="flex h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] font-medium text-text-secondary hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                More actions
+              </summary>
+              <div className="absolute bottom-full right-0 z-20 mb-2 grid min-w-56 gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1 shadow-xl">
+                <Button onClick={() => duplicateEventDraftValue(nextDraft)} size="sm" variant="ghost">
+                  <Copy aria-hidden="true" size={14} />
+                  Create standalone copy
+                </Button>
+                {nextDraft.hcbKind !== "birthday" ? <>
                 <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
                   <ArrowRightLeft aria-hidden="true" size={14} />
                   Create task from event
@@ -309,13 +309,13 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
                   <ArrowRightLeft aria-hidden="true" size={14} />
                   Create note from event
                 </Button>
-              </>
-            ) : null}
-          </div>
-          <Button onClick={() => void cancelEventInspector()} size="sm" variant="ghost">
-            <X aria-hidden="true" size={14} />
-            Close
-          </Button>
+                </> : null}
+              </div>
+            </details>
+            <Button onClick={() => void deleteDraft()} size="sm" variant="danger">
+              <Trash2 aria-hidden="true" size={14} />
+              Delete event
+            </Button>
         </div>
       );
     }
@@ -328,28 +328,6 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
             Delete event
           </Button>
         ) : null}
-        {nextDraft.mode === "edit" ? (
-          <Button onClick={() => duplicateEventDraftValue(nextDraft)} size="sm" variant="secondary">
-            <Copy aria-hidden="true" size={14} />
-            Create standalone copy
-          </Button>
-        ) : null}
-        {nextDraft.mode === "edit" && nextDraft.hcbKind !== "birthday" ? (
-          <>
-            <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create task from event
-            </Button>
-            <Button onClick={() => convertEventDraft(nextDraft, "note")} size="sm" variant="secondary">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create note from event
-            </Button>
-          </>
-        ) : null}
-        <Button onClick={() => void cancelEventInspector()} size="sm" variant="ghost">
-          <X aria-hidden="true" size={14} />
-          Cancel
-        </Button>
         <Button onClick={() => void saveDraft()} size="sm" variant="primary">
           <Save aria-hidden="true" size={14} />
           Save changes
@@ -362,7 +340,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     nextDraft: CalendarEventDraft,
     mode = calendarInspectorModeRef.current
   ): boolean {
-    return nextDraft.mode === "edit" && mode === "view";
+    return false;
   }
 
   function openEventInspector(
