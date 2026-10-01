@@ -1020,7 +1020,8 @@ export function CalendarEventForm({
           placeholder="New task"
           value={draft.title}
         />
-        <EmojiTextarea
+        <ReferenceTextarea
+          accountId={taskLists.find((taskList) => taskList.id === taskListId)?.accountId}
           aria-label="Task notes"
           className="min-h-32 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onValueChange={(notes) => setDraft({ ...draft, notes })}

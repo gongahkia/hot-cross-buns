@@ -3,7 +3,7 @@ import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from "react";
 import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
-import { EmojiInput, EmojiTextarea } from "../../../components/EmojiTextField";
+import { EmojiInput } from "../../../components/EmojiTextField";
 import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
 import { Badge, Button, cx, Input } from "../../../components/primitives";
 import type { useCoreViewModelSource } from "../coreViewModelSource";

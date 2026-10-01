@@ -79,6 +79,23 @@ describe("GoogleOAuthController", () => {
     expect(tokenFetch).not.toHaveBeenCalled();
   });
 
+  it("requests the narrow Drive upload scope only when the user enables uploads", async () => {
+    const store = {
+      dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
+      oauthClientId: () => "test-desktop-client-id"
+    };
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+
+    await controller.begin({ requestedServices: ["drive", "driveUpload"] });
+    await vi.waitFor(() => expect(electronMocks.openExternal).toHaveBeenCalled());
+    const authorizationUrl = new URL(String(electronMocks.openExternal.mock.calls.at(-1)?.[0]));
+    const scopes = authorizationUrl.searchParams.get("scope")?.split(" ") ?? [];
+
+    expect(scopes).toContain("https://www.googleapis.com/auth/drive.metadata.readonly");
+    expect(scopes).toContain("https://www.googleapis.com/auth/drive.file");
+    await controller.cancel();
+  });
+
   it("retires the starter workspace only after OAuth tokens are stored", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-test-"));
     const retireLocalFallback = vi.fn();

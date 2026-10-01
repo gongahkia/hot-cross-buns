@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MarkdownPreview, hasRenderableMixedMarkup, markdownFromMixedMarkup } from "./MarkdownPreview";
 
@@ -36,5 +36,16 @@ describe("MarkdownPreview", () => {
     const description = '<p>[<a href="https://www.crowdtask.gov.sg/dashboard">Crowdtask Dashboard</a>](<a>https://www.crowdtask.gov.sg/dashboard</a>)</p>';
 
     expect(markdownFromMixedMarkup(description)).not.toContain("<a");
+  });
+
+  it("renders an ID-stable HCB reference as an internal, clickable item", () => {
+    const opened: Array<{ id: string; kind: string }> = [];
+    const onOpen = (event: Event): void => { opened.push((event as CustomEvent<{ id: string; kind: string }>).detail); };
+    window.addEventListener("hcb:open-entity", onOpen);
+    render(<MarkdownPreview body="See [[hcb:task:task-1|Plan launch]]" plannerLinkTargets={[{ id: "task-1", kind: "task", title: "Plan launch" }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan launch" }));
+    expect(opened).toEqual([{ id: "task-1", kind: "task" }]);
+    window.removeEventListener("hcb:open-entity", onOpen);
   });
 });

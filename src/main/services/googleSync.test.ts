@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { GoogleSyncService } from "./googleSync";
 import { googleTaskNotesMaxLength } from "./hcbTaskMetadata";
@@ -28,6 +31,54 @@ function createService(): {
 }
 
 describe("GoogleSyncService", () => {
+  it("uploads a user-selected file resumably to the private HCB Drive folder", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hcb-drive-upload-"));
+    const filePath = join(directory, "brief.txt");
+    writeFileSync(filePath, "private project brief");
+    const googleFetch = vi.fn(async (_accountId: string, target: URL | string, init?: RequestInit) => {
+      const url = new URL(String(target));
+      if (url.hostname === "www.googleapis.com" && url.pathname === "/drive/v3/files" && !init?.method) {
+        return Response.json({ files: [{ id: "hcb-folder" }] });
+      }
+      if (url.hostname === "www.googleapis.com" && url.pathname === "/upload/drive/v3/files") {
+        expect(init?.method).toBe("POST");
+        expect(new Headers(init?.headers).get("x-upload-content-type")).toBe("text/plain");
+        expect(JSON.parse(String(init?.body))).toEqual(expect.objectContaining({
+          name: "brief.txt",
+          parents: ["hcb-folder"]
+        }));
+        return new Response(null, { headers: { location: "https://upload.example.test/session/1" }, status: 200 });
+      }
+      if (url.hostname === "upload.example.test") {
+        expect(init?.method).toBe("PUT");
+        expect(new Headers(init?.headers).get("content-range")).toBe("bytes 0-20/21");
+        return Response.json({
+          id: "drive-file-1",
+          mimeType: "text/plain",
+          name: "brief.txt",
+          size: "21",
+          webViewLink: "https://drive.google.com/open?id=drive-file-1"
+        });
+      }
+      throw new Error(`Unexpected request ${url}`);
+    });
+    const store = {
+      googleAccounts: () => [{ accountId: "test-account", connectionState: "connected" }],
+      googleAccount: () => ({ accountId: "test-account", connectionState: "connected", grantedScopes: ["https://www.googleapis.com/auth/drive.file"] })
+    };
+    const service = new GoogleSyncService(store as never, { googleFetch, onConnectionChange: vi.fn() } as never);
+
+    try {
+      await expect(service.uploadLocalDriveFile({ accountId: "test-account", filePath })).resolves.toEqual(expect.objectContaining({
+        fileId: "drive-file-1",
+        fileUrl: "https://drive.google.com/open?id=drive-file-1",
+        title: "brief.txt"
+      }));
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
   it("pulls without draining the outbox in read-only mode", async () => {
     const { deliverOutbox, pullGoogleCalendars, pullGoogleTasks, service } = createService();
 

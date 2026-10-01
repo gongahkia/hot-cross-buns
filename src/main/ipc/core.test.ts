@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
-  BrowserWindow: { getAllWindows: vi.fn(() => []) },
+  BrowserWindow: { getAllWindows: vi.fn(() => []), getFocusedWindow: vi.fn(() => undefined) },
+  dialog: { showOpenDialog: vi.fn() },
   ipcMain: { handle: vi.fn() }
 }));
 
@@ -14,5 +15,10 @@ describe("core IPC task payload validation", () => {
       listId: "hcb-smoke-tasks",
       title: "Quick Add task"
     })).toBe(true);
+  });
+
+  it("only accepts a selected-account identifier for a native Drive upload", () => {
+    expect(payloadIsValid("google", "pickAndUploadDriveFile", { accountId: "google-account" })).toBe(true);
+    expect(payloadIsValid("google", "pickAndUploadDriveFile", { filePath: "/private/file" })).toBe(false);
   });
 });
