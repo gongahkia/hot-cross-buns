@@ -1,10 +1,29 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { X } from "lucide-react";
 import { Badge, IconButton, cx } from "../primitives";
 import { useInspector } from "./InspectorContext";
 
 const titleId = "inspector-title";
+const subscribeStaticDirty = (): (() => void) => () => undefined;
+const getStaticDirty = (): boolean => false;
+const getStaticDirtyTrue = (): boolean => true;
+
+function InspectorDirtyBadge({
+  dirty,
+  dirtyState
+}: {
+  dirty?: boolean;
+  dirtyState?: { getSnapshot: () => boolean; subscribe: (listener: () => void) => () => void };
+}): JSX.Element | null {
+  const resolvedDirty = useSyncExternalStore(
+    dirtyState?.subscribe ?? subscribeStaticDirty,
+    dirtyState?.getSnapshot ?? (dirty ? getStaticDirtyTrue : getStaticDirty),
+    dirtyState?.getSnapshot ?? (dirty ? getStaticDirtyTrue : getStaticDirty)
+  );
+
+  return resolvedDirty ? <Badge tone="warning">Unsaved</Badge> : null;
+}
 
 export function InspectorShell(): JSX.Element | null {
   const { current, close, isOpen } = useInspector();
@@ -75,7 +94,7 @@ export function InspectorShell(): JSX.Element | null {
                 >
                   {current.title}
                 </h2>
-                {current.dirty ? <Badge tone="warning">Unsaved</Badge> : null}
+                <InspectorDirtyBadge dirty={current.dirty} dirtyState={current.dirtyState} />
               </div>
               {current.subtitle ? (
                 <p className="hcb-copy mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>

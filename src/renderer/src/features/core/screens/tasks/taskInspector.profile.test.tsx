@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Profiler, type ProfilerOnRenderCallback } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ok } from "@shared/ipc/result";
 import { InspectorProvider, InspectorShell } from "../../../../components/Inspector";
@@ -6,7 +7,13 @@ import { CoreDataProvider } from "../../coreViewModelSource";
 import { installHcb, seededHcb, testNativeCapabilities, testSettings } from "../../../../test/appTestHelpers";
 import { TasksView } from "./TasksView";
 
-function renderTaskSurface() {
+function renderTaskSurface({
+  onTaskSurfaceRender,
+  taskCount
+}: {
+  onTaskSurfaceRender?: ProfilerOnRenderCallback;
+  taskCount?: number;
+} = {}) {
   const api = seededHcb();
   api.sync.subscribeStatus = vi.fn(() => () => undefined);
   api.native = { capabilities: vi.fn(async () => ({ ok: true, data: testNativeCapabilities() })) } as never;
@@ -15,12 +22,42 @@ function renderTaskSurface() {
     recordTiming: vi.fn(async () => ok({ recorded: true }))
   } as never;
   api.settings.get = vi.fn(async () => ok(testSettings()));
+
+  if (taskCount !== undefined) {
+    const tasks = Array.from({ length: taskCount }, (_, index) => ({
+      id: `task-performance-${index}`,
+      listId: "list-inbox",
+      title: `Synthetic performance task ${index}`,
+      status: "active" as const,
+      priority: "none" as const,
+      dueAt: null,
+      notes: "",
+      parentId: null,
+      updatedAt: "2026-10-02T00:00:00.000Z"
+    }));
+    api.tasks.listTaskLists = vi.fn(async () => ok({
+      items: [{
+        id: "list-inbox",
+        title: "Inbox",
+        updatedAt: "2026-10-02T00:00:00.000Z",
+        taskCount,
+        activeTaskCount: taskCount
+      }],
+      page: { limit: 100, totalKnown: 1 }
+    })) as never;
+    api.tasks.list = vi.fn(async (request) => ok({
+      items: request.status === "all" ? tasks : [],
+      page: { limit: 100, totalKnown: request.status === "all" ? taskCount : 0 }
+    })) as never;
+  }
   installHcb(api);
 
   render(
     <CoreDataProvider>
       <InspectorProvider>
-        <TasksView />
+        <Profiler id="tasks-surface" onRender={onTaskSurfaceRender ?? (() => undefined)}>
+          <TasksView />
+        </Profiler>
         <InspectorShell />
       </InspectorProvider>
     </CoreDataProvider>
@@ -77,5 +114,50 @@ describe("Task inspector draft persistence", () => {
       notes: "Updated notes",
       title: "Revise inbox triage rules"
     }));
+  });
+
+  it("keeps populated task-workspace work out of New Task title typing", async () => {
+    const commits: Array<{ actualDuration: number; phase: string }> = [];
+    const api = renderTaskSurface({
+      taskCount: 100,
+      onTaskSurfaceRender: (_id, phase, actualDuration) => {
+        commits.push({ actualDuration, phase });
+      }
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());
+    const taskBoard = screen.getByLabelText("Task board navigation");
+    const allTasks = within(taskBoard).getByRole("button", { name: /^All tasks/ });
+    window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
+    const inspector = await screen.findByTestId("inspector-shell");
+    const inspectorQueries = within(inspector);
+    const title = inspectorQueries.getByRole("textbox", { name: "Task title" });
+    const addTask = inspectorQueries.getByRole("button", { name: "Add task" });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    commits.length = 0;
+
+    fireEvent.change(title, { target: { value: "A" } });
+
+    await waitFor(() => expect(addTask).toBeEnabled());
+    expect(commits).toEqual([]);
+    expect(api.tasks.create).not.toHaveBeenCalled();
+    expect(api.tasks.update).not.toHaveBeenCalled();
+    expect(inspectorQueries.getByText("Unsaved")).toBeTruthy();
+
+    fireEvent.click(inspectorQueries.getByRole("button", { name: "Close inspector" }));
+
+    expect(title.isConnected).toBe(true);
+
+    fireEvent.keyDown(title, { key: "Enter", metaKey: true });
+
+    await waitFor(() => expect(api.tasks.create).toHaveBeenCalledTimes(1));
+    expect(api.tasks.create).toHaveBeenCalledWith(expect.objectContaining({
+      listId: "list-inbox",
+      title: "A"
+    }));
+    await waitFor(() => expect(title.isConnected).toBe(false));
+    expect(allTasks).toHaveTextContent("101");
+    cleanup();
   });
 });
