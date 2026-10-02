@@ -111,6 +111,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   const taskInspectorDirtyRef = useRef(false);
   const taskInspectorInstanceRef = useRef(0);
   const taskInspectorModeRef = useRef<"view" | "edit">("edit");
+  const taskSaveInFlightRef = useRef(false);
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const taskInspectorDirtyStateRef = useRef<InspectorFlagState | null>(null);
   const taskInspectorCanSaveStateRef = useRef<InspectorFlagState | null>(null);
@@ -292,6 +293,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     nextDraft: TaskDraft,
     mode: "view" | "edit" = nextDraft.mode === "edit" ? "view" : "edit"
   ): void {
+    taskSaveInFlightRef.current = false;
     taskInspectorInstanceRef.current += 1;
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
@@ -418,29 +420,40 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   async function saveTask(): Promise<void> {
     const currentDraft = taskDraftRef.current;
 
-    if (!canSaveTaskDraft(currentDraft, source.taskMutationPending)) {
+    if (taskSaveInFlightRef.current || !canSaveTaskDraft(currentDraft, source.taskMutationPending)) {
       return;
     }
+    taskSaveInFlightRef.current = true;
+    setTaskInspectorCanSave(false);
 
-    const saved = currentDraft.mode === "edit"
-      ? await source.updateTask(taskUpdatePayload(currentDraft))
-      : await source.createTask(taskCreatePayload(currentDraft));
+    let saved = false;
 
-    if (saved) {
-      const cleanupError = await cleanupConvertedSource();
-      if (cleanupError) {
-        window.alert(`Converted item was saved, but ${cleanupError}`);
+    try {
+      saved = currentDraft.mode === "edit"
+        ? await source.updateTask(taskUpdatePayload(currentDraft))
+        : await source.createTask(taskCreatePayload(currentDraft));
+
+      if (saved) {
+        const cleanupError = await cleanupConvertedSource();
+        if (cleanupError) {
+          window.alert(`Converted item was saved, but ${cleanupError}`);
+        }
+        const nextDraft = newTaskDraft(source, { listId: currentDraft.listId });
+        taskDraftBaselineRef.current = nextDraft;
+        taskDraftRef.current = nextDraft;
+        taskInspectorDirtyRef.current = false;
+        taskInspectorDirtyState.set(false);
+        setTaskInspectorCanSave(false);
+        setTaskInspectorMode("edit");
+        setSelectedTaskId(null);
+        await closeInspector();
+        setDraft(nextDraft);
       }
-      const nextDraft = newTaskDraft(source, { listId: currentDraft.listId });
-      taskDraftBaselineRef.current = nextDraft;
-      taskDraftRef.current = nextDraft;
-      taskInspectorDirtyRef.current = false;
-      taskInspectorDirtyState.set(false);
-      setTaskInspectorCanSave(false);
-      setTaskInspectorMode("edit");
-      setSelectedTaskId(null);
-      await closeInspector();
-      setDraft(nextDraft);
+    } finally {
+      if (!saved) {
+        taskSaveInFlightRef.current = false;
+        setTaskInspectorCanSave(canSaveTaskDraft(taskDraftRef.current, source.taskMutationPending));
+      }
     }
   }
 

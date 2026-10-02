@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import {
   CalendarClock,
   Clock,
@@ -227,7 +227,7 @@ export function GoogleTasksBoard({
     });
   }, [source.largeTaskWindow]);
 
-  function toggleBulkTask(taskId: string, selected: boolean): void {
+  const toggleBulkTask = useCallback((taskId: string, selected: boolean): void => {
     setBulkSelectedIds((current) => {
       const next = new Set(current);
 
@@ -239,7 +239,7 @@ export function GoogleTasksBoard({
 
       return next;
     });
-  }
+  }, []);
 
   async function bulkReschedule(dueDate: string | null): Promise<void> {
     if (bulkSelectedIdsInWindow.length === 0 || source.taskMutationPending) {
@@ -856,29 +856,7 @@ function ListActionMenu({
   );
 }
 
-function GoogleTaskRow({
-  bulkSelected,
-  bulkSelectedIds,
-  onCreateList,
-  onDeleteTask,
-  onDuplicateTask,
-  onMoveTask,
-  onMoveTaskRequest,
-  onOpenTask,
-  onScheduleTask,
-  onToggleStar,
-  onToggleTask,
-  onAddSubtask,
-  onBulkSelectTask,
-  showBulkSelection,
-  scheduledBlock,
-  selected,
-  selectedTaskId,
-  source,
-  starred,
-  task,
-  showAccountBadge
-}: {
+interface GoogleTaskRowProps {
   bulkSelected: boolean;
   bulkSelectedIds: ReadonlySet<string>;
   onCreateList: () => void;
@@ -900,7 +878,31 @@ function GoogleTaskRow({
   starred: boolean;
   task: TaskViewModel;
   showAccountBadge: boolean;
-}): JSX.Element {
+}
+
+const GoogleTaskRow = memo(function GoogleTaskRow({
+  bulkSelected,
+  bulkSelectedIds,
+  onCreateList,
+  onDeleteTask,
+  onDuplicateTask,
+  onMoveTask,
+  onMoveTaskRequest,
+  onOpenTask,
+  onScheduleTask,
+  onToggleStar,
+  onToggleTask,
+  onAddSubtask,
+  onBulkSelectTask,
+  showBulkSelection,
+  scheduledBlock,
+  selected,
+  selectedTaskId,
+  source,
+  starred,
+  task,
+  showAccountBadge
+}: GoogleTaskRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [childrenOpen, setChildrenOpen] = useState(true);
@@ -1091,6 +1093,34 @@ function GoogleTaskRow({
         </MotionCollapse>
       ) : null}
     </div>
+  );
+}, areGoogleTaskRowPropsEqual);
+
+function areGoogleTaskRowPropsEqual(previous: GoogleTaskRowProps, next: GoogleTaskRowProps): boolean {
+  return (
+    previous.bulkSelected === next.bulkSelected &&
+    previous.bulkSelectedIds === next.bulkSelectedIds &&
+    previous.onAddSubtask === next.onAddSubtask &&
+    previous.onBulkSelectTask === next.onBulkSelectTask &&
+    previous.onCreateList === next.onCreateList &&
+    previous.onDeleteTask === next.onDeleteTask &&
+    previous.onDuplicateTask === next.onDuplicateTask &&
+    previous.onMoveTask === next.onMoveTask &&
+    previous.onMoveTaskRequest === next.onMoveTaskRequest &&
+    previous.onOpenTask === next.onOpenTask &&
+    previous.onScheduleTask === next.onScheduleTask &&
+    previous.onToggleStar === next.onToggleStar &&
+    previous.onToggleTask === next.onToggleTask &&
+    previous.scheduledBlock === next.scheduledBlock &&
+    previous.selected === next.selected &&
+    previous.selectedTaskId === next.selectedTaskId &&
+    previous.showAccountBadge === next.showAccountBadge &&
+    previous.showBulkSelection === next.showBulkSelection &&
+    previous.source.calendarAgendaEvents === next.source.calendarAgendaEvents &&
+    previous.source.googleStatus === next.source.googleStatus &&
+    previous.source.initialNotes === next.source.initialNotes &&
+    previous.starred === next.starred &&
+    previous.task === next.task
   );
 }
 

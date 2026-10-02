@@ -232,7 +232,13 @@ function duplicateGroupsFromItems<T>(
 
   for (const item of items) {
     const key = keyFor(item);
-    grouped.set(key, [...(grouped.get(key) ?? []), item]);
+    const group = grouped.get(key);
+
+    if (group) {
+      group.push(item);
+    } else {
+      grouped.set(key, [item]);
+    }
   }
 
   return Array.from(grouped.entries())

@@ -396,7 +396,10 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
 
     expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(1);
     expect(store.googleAccount(account.accountId)?.unresolvedMutationCount).toBe(1);
-    const mutation = store.pendingSyncMutations(10, account.accountId).find((candidate) => candidate.entityId === task.id);
+    const taskCreateMutations = store.pendingSyncMutations(10, account.accountId)
+      .filter((candidate) => candidate.entityId === task.id && candidate.kind === "task.create");
+    expect(taskCreateMutations).toHaveLength(1);
+    const mutation = taskCreateMutations[0];
     if (!mutation) throw new Error("Expected queued Google task mutation.");
     store.completeSyncMutation(mutation.id);
     expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(0);

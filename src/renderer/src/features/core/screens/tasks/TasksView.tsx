@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import { DuplicateReviewPanel } from "../../DuplicateReviewPanel";
 import type { ConvertSourceCleanup } from "../../conversionEvents";
@@ -33,6 +33,23 @@ export interface TaskSurfaceCommand {
 const starredTasksStorageKey = "hcb.starredTaskIds";
 const starredTasksAtStorageKey = "hcb.starredTaskAt";
 
+interface TaskBoardActionHandlers {
+  addSubtaskForTask: (task: TaskViewModel | null) => void;
+  confirmDeleteTaskList: (taskListId: string) => void;
+  deleteTask: (taskId: string) => Promise<void>;
+  duplicateTask: (taskId: string) => void;
+  moveTaskToList: (taskId: string, listId: string) => void;
+  moveTaskRequest: (request: Parameters<ReturnType<typeof useCoreViewModelSource>["moveTask"]>[0]) => void;
+  openNewTask: (listId?: string) => void;
+  promptCreateTaskList: () => void;
+  promptRenameTaskList: (taskList: { id: string; title: string }) => void;
+  scheduleTask: (task: TaskViewModel) => void;
+  selectTask: (taskId: string) => void;
+  setListSort: (listId: string, sort: TaskListSort) => void;
+  toggleTask: (taskId: string) => Promise<void>;
+  toggleTaskStar: (taskId: string) => void;
+}
+
 export function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.Element {
   const source = useCoreViewModelSource();
   const {
@@ -56,9 +73,14 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   );
   const [listSorts, setListSorts] = useState<Record<string, TaskListSort>>({});
   const handledCommandNonce = useRef<number | null>(null);
+  const boardActionsRef = useRef<TaskBoardActionHandlers | null>(null);
   const scheduledBlocksByTask = useMemo(
     () => scheduledBlockByTaskId(source.scheduledTaskBlocks),
     [source.scheduledTaskBlocks]
+  );
+  const starred = useMemo(
+    () => ({ ids: starredTaskIds, starredAt: starredTaskAt }),
+    [starredTaskAt, starredTaskIds]
   );
 
   useEffect(() => {
@@ -108,15 +130,6 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   useEffect(() => {
     writeLocalStorageJSON(starredTasksAtStorageKey, starredTaskAt);
   }, [starredTaskAt]);
-
-  if (
-    (source.dataState === "loading" ||
-      source.dataState === "offline" ||
-      source.dataState === "error") &&
-    !source.hasCachedData
-  ) {
-    return <CacheStatePanel title="Tasks" />;
-  }
 
   function deleteTaskList(taskListId: string): void {
     void source.deleteTaskList(taskListId);
@@ -200,35 +213,104 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     void source.scheduleTaskBlock({ taskId: task.id, calendarId: calendar.id, startsAt, durationMinutes });
   }
 
+  boardActionsRef.current = {
+    addSubtaskForTask,
+    confirmDeleteTaskList,
+    deleteTask,
+    duplicateTask,
+    moveTaskRequest: (request) => { void source.moveTask(request); },
+    moveTaskToList,
+    openNewTask,
+    promptCreateTaskList,
+    promptRenameTaskList,
+    scheduleTask,
+    selectTask,
+    setListSort,
+    toggleTask,
+    toggleTaskStar
+  };
+
+  const handleAddSubtask = useCallback((task: TaskViewModel) => {
+    boardActionsRef.current?.addSubtaskForTask(task);
+  }, []);
+  const handleCreateList = useCallback(() => {
+    boardActionsRef.current?.promptCreateTaskList();
+  }, []);
+  const handleCreateTask = useCallback((listId?: string) => {
+    boardActionsRef.current?.openNewTask(listId);
+  }, []);
+  const handleDeleteList = useCallback((taskListId: string) => {
+    boardActionsRef.current?.confirmDeleteTaskList(taskListId);
+  }, []);
+  const handleDeleteTask = useCallback((taskId: string) => {
+    void boardActionsRef.current?.deleteTask(taskId);
+  }, []);
+  const handleDuplicateTask = useCallback((taskId: string) => {
+    boardActionsRef.current?.duplicateTask(taskId);
+  }, []);
+  const handleMoveTask = useCallback((taskId: string, listId: string) => {
+    boardActionsRef.current?.moveTaskToList(taskId, listId);
+  }, []);
+  const handleMoveTaskRequest = useCallback((request: Parameters<ReturnType<typeof useCoreViewModelSource>["moveTask"]>[0]) => {
+    boardActionsRef.current?.moveTaskRequest(request);
+  }, []);
+  const handleOpenTask = useCallback((taskId: string) => {
+    boardActionsRef.current?.selectTask(taskId);
+  }, []);
+  const handleRenameList = useCallback((taskList: { id: string; title: string }) => {
+    boardActionsRef.current?.promptRenameTaskList(taskList);
+  }, []);
+  const handleScheduleTask = useCallback((task: TaskViewModel) => {
+    boardActionsRef.current?.scheduleTask(task);
+  }, []);
+  const handleSetListSort = useCallback((listId: string, sort: TaskListSort) => {
+    boardActionsRef.current?.setListSort(listId, sort);
+  }, []);
+  const handleToggleStar = useCallback((taskId: string) => {
+    boardActionsRef.current?.toggleTaskStar(taskId);
+  }, []);
+  const handleToggleTask = useCallback((taskId: string) => {
+    void boardActionsRef.current?.toggleTask(taskId);
+  }, []);
+
+  if (
+    (source.dataState === "loading" ||
+      source.dataState === "offline" ||
+      source.dataState === "error") &&
+    !source.hasCachedData
+  ) {
+    return <CacheStatePanel title="Tasks" />;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <TaskMutationErrorBanner source={source} />
-      <DuplicateReviewPanel onOpenTask={selectTask} source={source} />
+      <DuplicateReviewPanel onOpenTask={handleOpenTask} source={source} />
 
       <div className="grid min-h-0 flex-1 gap-3">
         {source.dataState === "stale" ? <TaskRefreshPanel /> : null}
         <GoogleTasksBoard
           listSorts={listSorts}
-          onAddSubtask={addSubtaskForTask}
-          onCreateList={promptCreateTaskList}
-          onCreateTask={openNewTask}
-          onDeleteList={confirmDeleteTaskList}
-          onDeleteTask={(taskId) => void deleteTask(taskId)}
-          onDuplicateTask={duplicateTask}
-          onMoveTask={moveTaskToList}
-          onMoveTaskRequest={(request) => { void source.moveTask(request); }}
-          onOpenTask={selectTask}
-          onRenameList={promptRenameTaskList}
-          onScheduleTask={scheduleTask}
-          onSetListSort={setListSort}
-          onToggleStar={toggleTaskStar}
-          onToggleTask={(taskId) => void toggleTask(taskId)}
+          onAddSubtask={handleAddSubtask}
+          onCreateList={handleCreateList}
+          onCreateTask={handleCreateTask}
+          onDeleteList={handleDeleteList}
+          onDeleteTask={handleDeleteTask}
+          onDuplicateTask={handleDuplicateTask}
+          onMoveTask={handleMoveTask}
+          onMoveTaskRequest={handleMoveTaskRequest}
+          onOpenTask={handleOpenTask}
+          onRenameList={handleRenameList}
+          onScheduleTask={handleScheduleTask}
+          onSetListSort={handleSetListSort}
+          onToggleStar={handleToggleStar}
+          onToggleTask={handleToggleTask}
           scheduledBlocksByTask={scheduledBlocksByTask}
           selectedTaskId={selectedTaskId}
           selectedView={selectedBoardView}
           setSelectedView={setSelectedBoardView}
           source={source}
-          starred={{ ids: starredTaskIds, starredAt: starredTaskAt }}
+          starred={starred}
         />
       </div>
     </div>

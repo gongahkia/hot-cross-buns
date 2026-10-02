@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { startTransition, useCallback, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   CalendarEventCompletionScope,
@@ -161,43 +161,24 @@ export function useTaskMutations({
         return false;
       }
 
-      const optimisticId = `optimistic:task:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-      const now = new Date().toISOString();
-      const optimisticTask: TaskSummary = {
-        id: optimisticId,
-        listId: request.listId,
-        title: request.title,
-        status: "active",
-        dueAt: request.dueDate ? `${request.dueDate}T00:00:00.000Z` : null,
-        updatedAt: now,
-        notes: request.notes ?? "",
-        parentId: request.parentId ?? null,
-        priority: request.priority ?? "none",
-        plannedStart: request.plannedStart ?? null,
-        plannedEnd: request.plannedEnd ?? null,
-        durationMinutes: request.durationMinutes ?? null,
-        lockedSchedule: request.lockedSchedule ?? false,
-        snoozeUntil: request.snoozeUntil ?? null,
-        tags: request.tags ?? [],
-        mutationState: "queued"
-      };
-
-      beginTaskMutation();
-      setTasksSnapshot((tasks) => [optimisticTask, ...tasks]);
-      adjustTaskListCounts(request.listId, 1, 1);
-
       const result = await window.hcb.tasks.create(request);
 
       if (result.ok) {
-        setTasksSnapshot((tasks) =>
-          tasks.map((task) => (task.id === optimisticId ? result.data : task))
-        );
-        finishTaskMutation();
+        // The main process has committed the task and its outbox receipt at
+        // this point. Yield one turn before reconciling a populated task
+        // surface so the urgent inspector-close update is not batched behind
+        // the board's work. The next transition renders the durable task once.
+        window.setTimeout(() => {
+          startTransition(() => {
+            beginTaskMutation();
+            setTasksSnapshot((tasks) => [result.data, ...tasks]);
+            adjustTaskListCounts(request.listId, 1, 1);
+            finishTaskMutation();
+          });
+        }, 0);
         return true;
       }
 
-      setTasksSnapshot((tasks) => tasks.filter((task) => task.id !== optimisticId));
-      adjustTaskListCounts(request.listId, -1, -1);
       failTaskMutation(result.error.message, () => void createTask(request));
       return false;
     },
