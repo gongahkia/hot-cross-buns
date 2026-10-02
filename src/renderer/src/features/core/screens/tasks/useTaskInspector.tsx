@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
@@ -91,6 +91,10 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     setTaskInspectorCanSaveState((current) => (current === canSave ? current : canSave));
   }, []);
   const selectedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
+  const parentOptions = useMemo(
+    () => taskParentOptions(source.largeTaskWindow, taskDraftRef.current),
+    [source.largeTaskWindow]
+  );
 
   function setTaskInspectorMode(mode: "view" | "edit"): void {
     taskInspectorModeRef.current = mode;
@@ -125,6 +129,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     currentInspector?.kind,
     currentInspector?.ownerId,
     draft,
+    parentOptions,
     selectedTask?.id,
     selectedTask?.status,
     taskInspectorCanSave,
@@ -170,7 +175,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
         onDirtyChange={updateTaskInspectorDirty}
         onDraftChange={updateTaskDraftRef}
         onSave={saveTask}
-        parentOptions={taskParentOptions(source.largeTaskWindow, nextDraft)}
+        parentOptions={parentOptions}
         mutationPending={source.taskMutationPending}
         source={source}
       />

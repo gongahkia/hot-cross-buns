@@ -42,6 +42,7 @@ describe("Task inspector draft persistence", () => {
 
     expect(api.tasks.create).not.toHaveBeenCalled();
     expect(api.tasks.update).not.toHaveBeenCalled();
+    const taskListReadsBeforeSubmit = vi.mocked(api.tasks.listTaskLists).mock.calls.length;
 
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
 
@@ -53,6 +54,7 @@ describe("Task inspector draft persistence", () => {
     }));
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Task title" })).toBeNull());
     expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4");
+    expect(api.tasks.listTaskLists).toHaveBeenCalledTimes(taskListReadsBeforeSubmit);
   });
 
   it("keeps existing Task title and notes local until Save changes", async () => {
