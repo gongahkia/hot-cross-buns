@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import {
-  addUtcDaysIso,
-  dateInputValue,
-  dateRangeInputToInclusiveIsoRange,
-  startOfUtcDayIso
-} from "../../coreScreenShared";
-import {
-  calendarAvailabilitySnippet,
+  calendarAvailabilityHoldDrafts,
+  calendarAvailabilityRange,
+  calendarAvailabilitySlotsInRange,
+  calendarTimeBlockIsWithinAvailabilityRange,
   sortedCalendarTimeBlocks
 } from "./calendarGrid";
+import { calendarAddUtcDays, calendarCurrentDayKey } from "./calendarDateUtils";
 import { defaultCalendarId } from "./drafts";
 import type { CalendarTimeBlock } from "./types";
 
@@ -24,11 +22,9 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
   availabilityHoldPending: boolean;
   availabilityPending: boolean;
   availabilitySlots: CalendarTimeBlock[];
-  availabilitySnippet: string;
   availabilityStartDate: string;
   availabilityText: string;
   availabilityTitle: string;
-  copyAvailabilitySnippet: () => void;
   createAvailabilityHolds: () => Promise<void>;
   exportAvailability: () => Promise<void>;
   removeAvailabilitySlot: (slotId: string) => void;
@@ -36,21 +32,24 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
   setAvailabilityDurationMinutes: Dispatch<SetStateAction<number>>;
   setAvailabilityEndDate: Dispatch<SetStateAction<string>>;
   setAvailabilityStartDate: Dispatch<SetStateAction<string>>;
-  setAvailabilityTitle: Dispatch<SetStateAction<string>>;
+  setAvailabilityTitle: (title: string) => void;
   setShareAvailabilityOpen: Dispatch<SetStateAction<boolean>>;
   shareAvailabilityOpen: boolean;
 } {
   const [shareAvailabilityOpen, setShareAvailabilityOpen] = useState(false);
-  const [availabilityTitle, setAvailabilityTitle] = useState("Meeting");
+  // Title typing belongs to the small sidebar panel, not CalendarView. Keep
+  // the latest draft here for the durable Create Holds action without making
+  // each character invalidate the visible Calendar grid.
+  const availabilityTitleRef = useRef("Meeting");
   const [availabilityDurationMinutes, setAvailabilityDurationMinutes] = useState(30);
   const [availabilityCalendarId, setAvailabilityCalendarId] = useState(() => defaultCalendarId(source));
   const [availabilitySlots, setAvailabilitySlots] = useState<CalendarTimeBlock[]>([]);
   const [availabilityHoldPending, setAvailabilityHoldPending] = useState(false);
   const [availabilityStartDate, setAvailabilityStartDate] = useState(() =>
-    dateInputValue(startOfUtcDayIso(new Date()))
+    calendarCurrentDayKey(source.settings.defaultTimeZone)
   );
   const [availabilityEndDate, setAvailabilityEndDate] = useState(() =>
-    dateInputValue(addUtcDaysIso(startOfUtcDayIso(new Date()), 6))
+    calendarAddUtcDays(calendarCurrentDayKey(source.settings.defaultTimeZone), 6)
   );
   const [availabilityCalendarIds, setAvailabilityCalendarIds] = useState<string[]>([]);
   const [availabilityText, setAvailabilityText] = useState("");
@@ -64,22 +63,26 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
   const selectedAvailabilityCalendarIds = availabilityCalendarIds.filter((calendarId) =>
     availableCalendarIds.has(calendarId)
   );
-  const availabilityRange = dateRangeInputToInclusiveIsoRange(availabilityStartDate, availabilityEndDate);
+  const availabilityRange = useMemo(
+    () => calendarAvailabilityRange(availabilityStartDate, availabilityEndDate, source.settings.defaultTimeZone),
+    [availabilityEndDate, availabilityStartDate, source.settings.defaultTimeZone]
+  );
+  const visibleAvailabilitySlots = useMemo(
+    () =>
+      availabilityRange
+        ? calendarAvailabilitySlotsInRange(availabilitySlots, availabilityRange)
+        : availabilitySlots,
+    [availabilityRange, availabilitySlots]
+  );
   const canExportAvailability =
     selectedAvailabilityCalendarIds.length > 0 &&
     availabilityRange !== null &&
     Date.parse(availabilityRange.end) > Date.parse(availabilityRange.start) &&
     !availabilityPending;
-  const availabilitySnippet = useMemo(
-    () =>
-      calendarAvailabilitySnippet({
-        durationMinutes: availabilityDurationMinutes,
-        slots: availabilitySlots,
-        timeZone: source.settings.defaultTimeZone,
-        title: availabilityTitle
-      }),
-    [availabilityDurationMinutes, availabilitySlots, availabilityTitle, source.settings.defaultTimeZone]
-  );
+
+  const setAvailabilityTitle = useCallback((title: string) => {
+    availabilityTitleRef.current = title;
+  }, []);
 
   useEffect(() => {
     if (availabilityCalendarIds.length > 0 || source.calendarSources.length === 0) {
@@ -110,6 +113,19 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
     setAvailabilityCalendarId(defaultCalendarId(source));
   }, [availabilityCalendarId, source, source.calendarSources]);
 
+  useEffect(() => {
+    if (!availabilityRange) {
+      return;
+    }
+
+    setAvailabilitySlots((current) => {
+      const next = calendarAvailabilitySlotsInRange(current, availabilityRange);
+      return next.length === current.length ? current : next;
+    });
+    setAvailabilityText("");
+    setAvailabilityBusyBlockCount(null);
+  }, [availabilityRange]);
+
   async function exportAvailability(): Promise<void> {
     if (!canExportAvailability || availabilityRange === null) {
       setAvailabilityError("Choose at least one calendar and a valid date range.");
@@ -138,6 +154,11 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
   }
 
   function addAvailabilitySlot(slot: CalendarTimeBlock): void {
+    if (!availabilityRange || !calendarTimeBlockIsWithinAvailabilityRange(slot, availabilityRange)) {
+      setAvailabilityError("Selected time is outside the availability date range.");
+      return;
+    }
+
     setAvailabilityError(undefined);
     setAvailabilitySlots((current) => {
       if (current.some((candidate) => candidate.id === slot.id)) {
@@ -152,17 +173,14 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
     setAvailabilitySlots((current) => current.filter((slot) => slot.id !== slotId));
   }
 
-  function copyAvailabilitySnippet(): void {
-    if (availabilitySlots.length === 0) {
+  async function createAvailabilityHolds(): Promise<void> {
+    if (!availabilityRange) {
+      setAvailabilityError("Choose a valid availability date range.");
       return;
     }
 
-    void navigator.clipboard?.writeText(availabilitySnippet);
-  }
-
-  async function createAvailabilityHolds(): Promise<void> {
-    if (availabilitySlots.length === 0) {
-      setAvailabilityError("Select at least one time block.");
+    if (visibleAvailabilitySlots.length === 0) {
+      setAvailabilityError("Select at least one time block within the availability date range.");
       return;
     }
 
@@ -174,19 +192,13 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
     setAvailabilityHoldPending(true);
     setAvailabilityError(undefined);
 
-    for (const slot of sortedCalendarTimeBlocks(availabilitySlots)) {
-      const result = await window.hcb?.calendar.create({
-        allDay: false,
-        calendarId: availabilityCalendarId,
-        endsAt: slot.endsAt,
-        guestEmails: [],
-        location: "",
-        notes: "Availability hold",
-        recurrence: null,
-        reminderMinutes: [],
-        startsAt: slot.startsAt,
-        title: availabilityTitle.trim() || "Hold"
-      });
+    for (const draft of calendarAvailabilityHoldDrafts({
+      calendarId: availabilityCalendarId,
+      slots: visibleAvailabilitySlots,
+      timeZone: source.settings.defaultTimeZone,
+      title: availabilityTitleRef.current
+    })) {
+      const result = await window.hcb?.calendar.create(draft);
 
       if (!result?.ok) {
         setAvailabilityHoldPending(false);
@@ -209,12 +221,10 @@ export function useCalendarAvailability(source: CoreViewModelSource): {
     availabilityError,
     availabilityHoldPending,
     availabilityPending,
-    availabilitySlots,
-    availabilitySnippet,
+    availabilitySlots: visibleAvailabilitySlots,
     availabilityStartDate,
     availabilityText,
-    availabilityTitle,
-    copyAvailabilitySnippet,
+    availabilityTitle: availabilityTitleRef.current,
     createAvailabilityHolds,
     exportAvailability,
     removeAvailabilitySlot,

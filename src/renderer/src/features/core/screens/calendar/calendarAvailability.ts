@@ -2,10 +2,105 @@ import type { MouseEvent, PointerEvent } from "react";
 import type { CalendarTimeBlock } from "./types";
 import {
   addUtcMinutesIso,
+  calendarAddUtcDays,
   calendarLocalPoint,
   hourSlotIso,
   zonedDateTimeIso
 } from "./calendarDateUtils";
+
+export interface CalendarAvailabilityRange {
+  /** Inclusive start and exclusive end, represented as canonical instants. */
+  end: string;
+  start: string;
+}
+
+export interface CalendarAvailabilityHoldDraft {
+  allDay: false;
+  calendarId: string;
+  endsAt: string;
+  guestEmails: [];
+  location: "";
+  notes: "Availability hold";
+  recurrence: null;
+  reminderMinutes: [];
+  startsAt: string;
+  timeZone: string;
+  title: string;
+}
+
+/**
+ * Translates date-only availability controls into the selected calendar
+ * timezone. Date inputs describe local calendar days, never UTC days.
+ */
+export function calendarAvailabilityRange(
+  startDate: string,
+  endDate: string,
+  timeZone: string
+): CalendarAvailabilityRange | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return null;
+  }
+
+  const start = zonedDateTimeIso(startDate, 0, 0, timeZone);
+  const end = zonedDateTimeIso(calendarAddUtcDays(endDate, 1), 0, 0, timeZone);
+
+  if (!Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)) || Date.parse(end) <= Date.parse(start)) {
+    return null;
+  }
+
+  return { start, end };
+}
+
+export function calendarTimeBlockIsWithinAvailabilityRange(
+  block: CalendarTimeBlock,
+  range: CalendarAvailabilityRange
+): boolean {
+  const startsAt = Date.parse(block.startsAt);
+  const endsAt = Date.parse(block.endsAt);
+
+  return (
+    Number.isFinite(startsAt) &&
+    Number.isFinite(endsAt) &&
+    startsAt >= Date.parse(range.start) &&
+    endsAt <= Date.parse(range.end)
+  );
+}
+
+export function calendarAvailabilitySlotsInRange(
+  slots: CalendarTimeBlock[],
+  range: CalendarAvailabilityRange
+): CalendarTimeBlock[] {
+  return slots.filter((slot) => calendarTimeBlockIsWithinAvailabilityRange(slot, range));
+}
+
+/** Builds the exact local event drafts used by Create Holds without writing anything. */
+export function calendarAvailabilityHoldDrafts({
+  calendarId,
+  slots,
+  timeZone,
+  title
+}: {
+  calendarId: string;
+  slots: CalendarTimeBlock[];
+  timeZone: string;
+  title: string;
+}): CalendarAvailabilityHoldDraft[] {
+  const holdTitle = title.trim() || "Hold";
+
+  return sortedCalendarTimeBlocks(slots).map((slot) => ({
+    allDay: false,
+    calendarId,
+    endsAt: slot.endsAt,
+    guestEmails: [],
+    location: "",
+    notes: "Availability hold",
+    recurrence: null,
+    reminderMinutes: [],
+    startsAt: slot.startsAt,
+    timeZone,
+    title: holdTitle
+  }));
+}
 
 export function calendarPointerTimeIso(
   dayKey: string,

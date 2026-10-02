@@ -140,11 +140,9 @@ export function CalendarView({
     availabilityHoldPending,
     availabilityPending,
     availabilitySlots,
-    availabilitySnippet,
     availabilityStartDate,
     availabilityText,
     availabilityTitle,
-    copyAvailabilitySnippet,
     createAvailabilityHolds,
     exportAvailability,
     removeAvailabilitySlot,
@@ -535,7 +533,6 @@ export function CalendarView({
               error={availabilityError}
               onCalendarChange={setAvailabilityCalendarId}
               onClose={() => setShareAvailabilityOpen(false)}
-              onCopySnippet={copyAvailabilitySnippet}
               onCreateHolds={() => void createAvailabilityHolds()}
               onDurationChange={setAvailabilityDurationMinutes}
               onEndDateChange={setAvailabilityEndDate}
@@ -548,10 +545,9 @@ export function CalendarView({
               exportPending={availabilityPending}
               exportText={availabilityText}
               slots={availabilitySlots}
-              snippet={availabilitySnippet}
               startDate={availabilityStartDate}
               timeZone={source.settings.defaultTimeZone}
-              title={availabilityTitle}
+              initialTitle={availabilityTitle}
               endDate={availabilityEndDate}
             />
           ) : undefined

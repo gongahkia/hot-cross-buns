@@ -7,7 +7,11 @@ import type { CalendarEventViewModel } from "../../coreViewModels";
 import type { CalendarSourceViewModel } from "../../coreScreenShared";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
 import { CalendarSourceSwatch } from "./CalendarEventChips";
-import { calendarTimeBlockLabel, sortedCalendarTimeBlocks } from "./calendarGrid";
+import {
+  calendarAvailabilitySnippet,
+  calendarTimeBlockLabel,
+  sortedCalendarTimeBlocks
+} from "./calendarGrid";
 import type { CalendarTimeBlock } from "./types";
 
 function minutesToTimeInput(value: number): string {
@@ -223,7 +227,6 @@ export function ShareAvailabilityPanel({
   exportText,
   onCalendarChange,
   onClose,
-  onCopySnippet,
   onCreateHolds,
   onDurationChange,
   onEndDateChange,
@@ -233,10 +236,9 @@ export function ShareAvailabilityPanel({
   onTitleChange,
   pending,
   slots,
-  snippet,
   startDate,
   timeZone,
-  title
+  initialTitle
 }: {
   calendarId: string;
   calendars: CalendarSourceViewModel[];
@@ -248,7 +250,6 @@ export function ShareAvailabilityPanel({
   exportText: string;
   onCalendarChange: (calendarId: string) => void;
   onClose: () => void;
-  onCopySnippet: () => void;
   onCreateHolds: () => void;
   onDurationChange: (duration: number) => void;
   onEndDateChange: (date: string) => void;
@@ -258,14 +259,41 @@ export function ShareAvailabilityPanel({
   onTitleChange: (title: string) => void;
   pending: boolean;
   slots: CalendarTimeBlock[];
-  snippet: string;
   startDate: string;
   timeZone: string;
-  title: string;
+  initialTitle: string;
 }): JSX.Element {
+  const [title, setTitle] = useState(initialTitle);
   const sortedSlots = useMemo(() => sortedCalendarTimeBlocks(slots), [slots]);
+  const snippet = useMemo(
+    () =>
+      calendarAvailabilitySnippet({
+        durationMinutes,
+        slots,
+        timeZone,
+        title
+      }),
+    [durationMinutes, slots, timeZone, title]
+  );
   const selectClass =
     "h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+  useEffect(() => {
+    setTitle(initialTitle);
+  }, [initialTitle]);
+
+  function updateTitle(nextTitle: string): void {
+    setTitle(nextTitle);
+    onTitleChange(nextTitle);
+  }
+
+  function copySnippet(): void {
+    if (sortedSlots.length === 0) {
+      return;
+    }
+
+    void navigator.clipboard?.writeText(snippet);
+  }
 
   return (
     <Panel className="flex flex-col overflow-hidden self-start">
@@ -279,7 +307,7 @@ export function ShareAvailabilityPanel({
       <div className="grid auto-rows-max content-start gap-3 p-3">
         <Input
           aria-label="Availability title"
-          onChange={(event) => onTitleChange(event.target.value)}
+          onChange={(event) => updateTitle(event.target.value)}
           value={title}
         />
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -376,10 +404,10 @@ export function ShareAvailabilityPanel({
                   className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] text-text-secondary"
                   key={slot.id}
                 >
-                  <span className="truncate">{calendarTimeBlockLabel(slot)}</span>
+                  <span className="truncate">{calendarTimeBlockLabel(slot, timeZone)}</span>
                   <IconButton
                     icon={Minus}
-                    label={`Remove ${calendarTimeBlockLabel(slot)}`}
+                    label={`Remove ${calendarTimeBlockLabel(slot, timeZone)}`}
                     onClick={() => onRemoveSlot(slot.id)}
                     size="sm"
                     variant="ghost"
@@ -406,7 +434,7 @@ export function ShareAvailabilityPanel({
         <div className="border-t border-border pt-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <h3 className="text-[var(--text-sm)] font-semibold text-text-primary">Snippet</h3>
-            <Button disabled={sortedSlots.length === 0} onClick={onCopySnippet} size="sm" variant="secondary">
+            <Button disabled={sortedSlots.length === 0} onClick={copySnippet} size="sm" variant="secondary">
               <Copy aria-hidden="true" size={14} />
               Copy
             </Button>
