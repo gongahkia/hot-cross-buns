@@ -101,6 +101,29 @@ export function useTaskMutations({
     [setLoadState]
   );
 
+  const adjustTaskListCounts = useCallback(
+    (listId: string, taskCountDelta: number, activeTaskCountDelta: number) => {
+      setTaskListsSnapshot((taskLists) =>
+        taskLists.map((taskList) => {
+          if (taskList.id !== listId) {
+            return taskList;
+          }
+
+          return {
+            ...taskList,
+            ...(typeof taskList.taskCount === "number"
+              ? { taskCount: Math.max(0, taskList.taskCount + taskCountDelta) }
+              : {}),
+            ...(typeof taskList.activeTaskCount === "number"
+              ? { activeTaskCount: Math.max(0, taskList.activeTaskCount + activeTaskCountDelta) }
+              : {})
+          };
+        })
+      );
+    },
+    [setTaskListsSnapshot]
+  );
+
   const beginTaskMutation = useCallback((incrementPendingMutationCount = true) => {
     setTaskMutation({ pending: true });
     if (!incrementPendingMutationCount) {
@@ -161,6 +184,7 @@ export function useTaskMutations({
 
       beginTaskMutation();
       setTasksSnapshot((tasks) => [optimisticTask, ...tasks]);
+      adjustTaskListCounts(request.listId, 1, 1);
 
       const result = await window.hcb.tasks.create(request);
 
@@ -173,10 +197,11 @@ export function useTaskMutations({
       }
 
       setTasksSnapshot((tasks) => tasks.filter((task) => task.id !== optimisticId));
+      adjustTaskListCounts(request.listId, -1, -1);
       failTaskMutation(result.error.message, () => void createTask(request));
       return false;
     },
-    [beginTaskMutation, failTaskMutation, finishTaskMutation, setTasksSnapshot]
+    [adjustTaskListCounts, beginTaskMutation, failTaskMutation, finishTaskMutation, setTasksSnapshot]
   );
 
   const updateTask = useCallback(

@@ -2,6 +2,7 @@ import type { TaskCreateRequest, TaskUpdateRequest } from "@shared/ipc/contracts
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import type { TaskViewModel } from "../../coreViewModels";
 import type { TaskDraft } from "../../inspectors/TaskInspectorBody";
+export { canSaveTaskDraft } from "../../inspectors/taskDraftValidation";
 import { copiedTitle } from "../../copyLabels";
 
 type CoreViewModelSource = ReturnType<typeof useCoreViewModelSource>;
@@ -102,10 +103,6 @@ export function taskParentOptions(tasks: TaskViewModel[], draft: TaskDraft): Tas
   return tasks.filter(
     (task) => task.id !== draft.id && task.parentId === null && task.status !== "deleted"
   );
-}
-
-export function canSaveTaskDraft(draft: TaskDraft, mutationPending: boolean): boolean {
-  return draft.title.trim().length > 0 && draft.listId.length > 0 && !mutationPending;
 }
 
 export function taskInspectorTitle(draft: TaskDraft): string {

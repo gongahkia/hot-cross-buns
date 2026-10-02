@@ -305,7 +305,6 @@ export function connectedGoogleStatus(overrides: Partial<GoogleStatusResponse> =
         "https://www.googleapis.com/auth/calendar"
       ],
       missingScopes: [],
-      lastAuthenticatedAt: now,
       updatedAt: now
     },
     accounts: [
@@ -320,7 +319,6 @@ export function connectedGoogleStatus(overrides: Partial<GoogleStatusResponse> =
           "https://www.googleapis.com/auth/calendar"
         ],
         missingScopes: [],
-        lastAuthenticatedAt: now,
         updatedAt: now
       }
     ],

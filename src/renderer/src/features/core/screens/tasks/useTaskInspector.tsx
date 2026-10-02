@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
@@ -57,13 +57,16 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draft, setDraftState] = useState<TaskDraft>(() => newTaskDraft(source));
   const [taskInspectorMode, setTaskInspectorModeState] = useState<"view" | "edit">("edit");
+  const [taskInspectorCanSave, setTaskInspectorCanSaveState] = useState(false);
   const ownerIdRef = useRef(`task-inspector-${Math.random().toString(36).slice(2)}`);
+  const currentInspectorRef = useRef(currentInspector);
   const taskDraftRef = useRef<TaskDraft>(draft);
   const taskDraftBaselineRef = useRef<TaskDraft>(draft);
   const taskInspectorDirtyRef = useRef(false);
   const taskInspectorInstanceRef = useRef(0);
   const taskInspectorModeRef = useRef<"view" | "edit">("edit");
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
+  currentInspectorRef.current = currentInspector;
   const setDraft = useCallback<Dispatch<SetStateAction<TaskDraft>>>((next) => {
     setDraftState((current) => {
       const resolved =
@@ -73,12 +76,21 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       return resolved;
     });
   }, []);
+  const updateTaskDraftRef = useCallback((nextDraft: TaskDraft) => {
+    taskDraftRef.current = nextDraft;
+    taskInspectorDirtyRef.current = !taskDraftsEqual(nextDraft, taskDraftBaselineRef.current);
+  }, []);
+  const updateTaskInspectorDirty = useCallback((dirty: boolean) => {
+    const current = currentInspectorRef.current;
+
+    if (current?.kind === "task" && current.ownerId === ownerIdRef.current) {
+      updateInspector({ dirty });
+    }
+  }, [updateInspector]);
+  const setTaskInspectorCanSave = useCallback((canSave: boolean) => {
+    setTaskInspectorCanSaveState((current) => (current === canSave ? current : canSave));
+  }, []);
   const selectedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
-  const parentOptions = useMemo(
-    () => taskParentOptions(source.largeTaskWindow, draft),
-    [draft.id, source.largeTaskWindow]
-  );
-  const canSaveTask = canSaveTaskDraft(draft, source.taskMutationPending);
 
   function setTaskInspectorMode(mode: "view" | "edit"): void {
     taskInspectorModeRef.current = mode;
@@ -100,23 +112,22 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       return;
     }
 
-    const dirty = taskInspectorMode === "edit" && !taskDraftsEqual(draft, taskDraftBaselineRef.current);
+    const dirty = taskInspectorMode === "edit" && taskInspectorDirtyRef.current;
     taskInspectorDirtyRef.current = dirty;
     updateInspector({
       actions: taskInspectorActions(draft, taskInspectorMode),
       body: taskInspectorBody(draft, taskInspectorMode),
       dirty,
       hideHeader: taskInspectorHidesHeader(draft, taskInspectorMode),
-      title: taskInspectorTitle(draft)
+      title: taskInspectorScreenTitle(draft, taskInspectorMode)
     });
   }, [
-    canSaveTask,
     currentInspector?.kind,
     currentInspector?.ownerId,
     draft,
-    parentOptions,
     selectedTask?.id,
     selectedTask?.status,
+    taskInspectorCanSave,
     taskInspectorMode,
     source.taskLists,
     source.taskMutationPending,
@@ -151,20 +162,26 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
 
     return (
       <TaskInspectorBody
-        canSaveTask={canSaveTaskDraft(nextDraft, source.taskMutationPending)}
         draft={nextDraft}
         key={taskInspectorInstanceRef.current}
         onAddSubtask={addSubtaskDraft}
+        onCanSaveChange={setTaskInspectorCanSave}
         onDelete={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined}
+        onDirtyChange={updateTaskInspectorDirty}
+        onDraftChange={updateTaskDraftRef}
         onSave={saveTask}
         parentOptions={taskParentOptions(source.largeTaskWindow, nextDraft)}
-        setDraft={setDraft}
+        mutationPending={source.taskMutationPending}
         source={source}
       />
     );
   }
 
-  function taskInspectorActions(nextDraft: TaskDraft, mode = taskInspectorModeRef.current): ReactNode {
+  function taskInspectorActions(
+    nextDraft: TaskDraft,
+    mode = taskInspectorModeRef.current,
+    canSave = taskInspectorCanSave
+  ): ReactNode {
     if (nextDraft.mode === "edit" && mode === "view") {
       return (
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
@@ -207,7 +224,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
           </Button>
         ) : null}
         <Button
-          disabled={!canSaveTaskDraft(nextDraft, source.taskMutationPending)}
+          disabled={!canSave}
           onClick={() => void saveTask()}
           size="sm"
           variant="primary"
@@ -231,10 +248,12 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
     taskInspectorDirtyRef.current = false;
+    const canSave = canSaveTaskDraft(nextDraft, source.taskMutationPending);
+    setTaskInspectorCanSave(canSave);
     setTaskInspectorMode(mode);
     setDraft(nextDraft);
     openInspector({
-      actions: taskInspectorActions(nextDraft, mode),
+      actions: taskInspectorActions(nextDraft, mode, canSave),
       body: taskInspectorBody(nextDraft, mode),
       dirty: false,
       hideHeader: taskInspectorHidesHeader(nextDraft, mode),
@@ -242,7 +261,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       kind: "task",
       onConfirmClose: () => taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current,
       ownerId: ownerIdRef.current,
-      title: taskInspectorTitle(nextDraft)
+      title: taskInspectorScreenTitle(nextDraft, mode)
     });
   }
 
@@ -362,15 +381,15 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       if (cleanupError) {
         window.alert(`Converted item was saved, but ${cleanupError}`);
       }
-      source.refresh();
       const nextDraft = newTaskDraft(source, { listId: currentDraft.listId });
       taskDraftBaselineRef.current = nextDraft;
       taskDraftRef.current = nextDraft;
       taskInspectorDirtyRef.current = false;
+      setTaskInspectorCanSave(false);
       setTaskInspectorMode("edit");
       setSelectedTaskId(null);
-      setDraft(nextDraft);
       await closeInspector();
+      setDraft(nextDraft);
     }
   }
 
@@ -496,6 +515,17 @@ function taskEventDraft(sourceDraft: TaskDraft): Partial<CalendarEventDraft> {
     startsAt,
     title: sourceDraft.title
   };
+}
+
+function taskInspectorScreenTitle(
+  draft: TaskDraft,
+  mode: "view" | "edit"
+): string {
+  if (draft.mode === "edit" && mode === "edit") {
+    return "Edit task";
+  }
+
+  return taskInspectorTitle(draft);
 }
 
 function isTaskDraft(candidate: Partial<Omit<TaskDraft, "mode">> | TaskDraft): candidate is TaskDraft {

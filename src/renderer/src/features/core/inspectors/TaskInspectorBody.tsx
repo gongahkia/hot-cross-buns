@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useDirtyState, useInspector } from "../../../components/Inspector";
+import { useDirtyState } from "../../../components/Inspector";
 import { EmojiInput } from "../../../components/EmojiTextField";
 import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
 import { Badge, Button, cx, Input } from "../../../components/primitives";
@@ -15,6 +15,7 @@ import { MarkdownPreview, hasRenderableMixedMarkup } from "../MarkdownPreview";
 import { plannerLinkTargets } from "../plannerLinkTargets";
 import { TagBadges, TagInput } from "../TagInput";
 import { dueLabel } from "../viewModelSource/dateFormat";
+import { canSaveTaskDraft } from "./taskDraftValidation";
 
 export interface TaskDraft {
   mode: "create" | "edit";
@@ -289,35 +290,46 @@ export function TaskInspectorDetails({
 }
 
 export function TaskInspectorBody({
-  canSaveTask,
   draft,
   onAddSubtask,
+  onCanSaveChange,
   onDelete,
+  onDirtyChange,
+  onDraftChange,
   onSave,
   parentOptions,
-  setDraft,
+  mutationPending,
   source
 }: {
   draft: TaskDraft;
-  setDraft: Dispatch<SetStateAction<TaskDraft>>;
   source: ReturnType<typeof useCoreViewModelSource>;
   parentOptions: TaskViewModel[];
-  canSaveTask: boolean;
+  mutationPending: boolean;
   onSave: () => Promise<void> | void;
   onAddSubtask: () => void;
+  onCanSaveChange: (canSave: boolean) => void;
   onDelete: () => Promise<void> | void;
+  onDirtyChange: (dirty: boolean) => void;
+  onDraftChange: (draft: TaskDraft) => void;
 }): JSX.Element {
   const dirty = useDirtyState<TaskDraft>(draft);
-  const { update } = useInspector();
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const canSaveTask = useMemo(
+    () => canSaveTaskDraft(dirty.value, mutationPending),
+    [dirty.value, mutationPending]
+  );
 
   useEffect(() => {
-    setDraft((current) => (taskDraftsEqual(current, dirty.value) ? current : dirty.value));
-  }, [dirty.value, setDraft]);
+    onDraftChange(dirty.value);
+  }, [dirty.value, onDraftChange]);
 
   useEffect(() => {
-    update({ dirty: dirty.isDirty });
-  }, [dirty.isDirty, update]);
+    onDirtyChange(dirty.isDirty);
+  }, [dirty.isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    onCanSaveChange(canSaveTask);
+  }, [canSaveTask, onCanSaveChange]);
 
   function patchDraft(partial: Partial<TaskDraft>): void {
     dirty.patch(partial);
