@@ -67,18 +67,16 @@ $ corepack pnpm test:security
 
 ## Support
 
-* macOS is the core native target.
-* Linux is a technical preview with desktop-environment-specific limitations.
-* Windows is a technical preview requiring installed-build manual validation before support claims.
+* MacOS is the core native target.
+* Linux is supported.
+* Windows is supported via WSL.
 
 ## Other docs
 
-- [Product requirements](docs/product/prd.md)
-- [System architecture](docs/architecture/system-architecture.md)
-- [Tech stack ADR](docs/architecture/tech-stack.md)
-- [Google sync specification](docs/specs/google-sync.md)
-- [Local data specification](docs/specs/local-data.md)
-- [Native parity](docs/specs/native-parity.md)
-- [Google Workspace integrations](docs/google-workspace-integrations.md)
-- [Privacy and threat model](docs/security/privacy-and-threat-model.md)
-- [QA plan](docs/testing/qa-plan.md)
+* [Product requirements](docs/product/prd.md)
+* [Google sync specification](docs/specs/google-sync.md)
+* [Local data specification](docs/specs/local-data.md)
+* [Native parity](docs/specs/native-parity.md)
+* [Google Workspace integrations](docs/google-workspace-integrations.md)
+* [Privacy and threat model](docs/security/privacy-and-threat-model.md)
+* [QA plan](docs/testing/qa-plan.md)
