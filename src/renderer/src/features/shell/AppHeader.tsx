@@ -10,7 +10,7 @@ import {
   Settings2,
   StickyNote
 } from "lucide-react";
-import appIconUrl from "../../../../../assets/brand/buns-app-icon-sidebar.png";
+import appIconUrl from "../../../../../assets/logo/logo.png";
 import { Badge, Button, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
 import { useI18n } from "../../i18n";

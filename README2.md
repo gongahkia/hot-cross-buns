@@ -4,44 +4,26 @@
   </a>
 </p>
 
-> [!WARNING]
-> Historical snapshot from `647121d` (2026-06-25). It is retained for reference only and does not describe the current application; in particular, the current repository has no HCB cloud backend, supported Vault/hoster endpoint, or enabled local MCP listener.
-
 <h1 align="center"><code>Hot Cross Buns</code></h1>
 
-<h3 align="center">Keyboard-first desktop planner for Google Tasks, Google Calendar, local HCB vaults, and terminal workflows on macOS, Linux, and Windows.</h3>
+<h3 align="center">A keyboard-first Electron desktop planner for Google Tasks, Google Calendar, and local notes.</h3>
 
 <p align="center">
-  <a href="https://gongahkia.github.io/hot-cross-buns/">Website</a> ·
+  <a href="#local-development">Get started</a> ·
   <a href="docs/README.md">Docs</a> ·
-  <a href="docs/mcp.md">MCP</a> ·
-  <a href="docs/architecture/system-architecture.md">Architecture</a>
+  <a href="docs/architecture/system-architecture.md">Architecture</a> ·
+  <a href="docs/security/privacy-and-threat-model.md">Privacy &amp; security</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-macOS.dmg">
-    <img src="https://img.shields.io/badge/macOS-DMG-F2B36D?style=for-the-badge&logo=apple&logoColor=white&labelColor=1f2430" alt="macOS DMG" />
-  </a>
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage">
-    <img src="https://img.shields.io/badge/Linux-AppImage-5E8C61?style=for-the-badge&logo=linux&logoColor=white&labelColor=1f2430" alt="Linux AppImage" />
-  </a>
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-windows-x64.exe">
-    <img src="https://img.shields.io/badge/Windows-NSIS-4F7DBD?style=for-the-badge&logo=windows&logoColor=white&labelColor=1f2430" alt="Windows NSIS installer" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns/releases/latest">
-    <img src="https://img.shields.io/github/v/release/gongahkia/hot-cross-buns?display_name=tag" alt="Latest release" />
-  </a>
-  <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later" />
-  <img src="https://img.shields.io/badge/Linux-x64%20AppImage-black" alt="Linux x64 AppImage" />
-  <img src="https://img.shields.io/badge/Windows-x64%20NSIS-black" alt="Windows x64 NSIS" />
-  <img src="https://img.shields.io/badge/Distribution-Unsigned-orange" alt="Unsigned distribution" />
+  <img src="https://img.shields.io/badge/version-5.0.1-F2B36D?style=for-the-badge" alt="Version 5.0.1" />
+  <img src="https://img.shields.io/badge/runtime-Electron-47848F?style=for-the-badge&amp;logo=electron&amp;logoColor=white" alt="Electron" />
+  <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=for-the-badge&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/platform-macOS%20core-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white" alt="macOS core" />
 </p>
 
 > [!IMPORTANT]
-> Downloads are unsigned. macOS may require `System Settings > Privacy & Security > Open Anyway` on first launch, Windows may show SmartScreen warnings, and Linux tray/status-area surfaces, deep links, notifications, global shortcuts, and autostart are intentionally unsupported.
+> Hot Cross Buns is a local desktop app. Google Tasks and Google Calendar are authoritative for synced data; SQLite is a local cache, settings store, and durable outbox. HCB has no cloud backend, Vault/hoster endpoint, or enabled local MCP listener.
 
 ## Table of Contents
 
@@ -56,215 +38,125 @@
 
 ## Highlights
 
-Hot Cross Buns is an Electron-first desktop planner built around three everyday surfaces:
+Hot Cross Buns keeps planning close to the keyboard while safely separating the React UI from desktop and Google privileges.
 
-- Tasks for inbox capture and day-to-day execution, synced with Google Tasks or kept in local HCB storage
-- Calendar views for agenda, day, week, multi-day, month, year, and longer-range planning, synced with Google Calendar or kept in local HCB storage
-- Notes backed by task data for context, drafts, and reference material
+- Google Tasks: task lists, subtasks, completion, dates, priorities, planning fields, reordering, and same-account moves
+- Google Calendar: agenda, day, week, and month views; events, recurrence, task blocks, availability, Meet links, RSVP, free/busy, and Google status events
+- Local notes, tags, full-text search, command palette, quick capture, undo/redo, and split-pane workspaces
+- Multiple Google accounts with account-scoped caches, incremental sync, retry/backoff, and a durable offline-mutation outbox
+- Settings for accounts, sync, appearance, themes, hotkeys, notifications, diagnostics, and native capabilities
+- Fifty curated colour schemes, custom-background inference, and loading indicators that respect reduced-motion preferences
+- Optional Google Workspace access after explicit authorization: Drive metadata/linking plus selected-file private upload, and Gmail metadata/snippet search with email-to-task capture
+- macOS app menu, menu-bar/tray, quick-capture shortcut, notifications, and deep links; Linux and Windows adapters report source-build capabilities and limitations
 
-Around those core surfaces, the app also includes:
-
-- Command palette capture and keyboard-first navigation
-- Account workspaces for multiple Google accounts
-- Smart rescheduling, task/event/note conversion, reminders, recurrence, templates, and saved views
-- Native shell surfaces where supported, including macOS menu bar panels for glanceable calendar, compact capture, and fast return to the main app
-- Local customization with CSS snippets, keymaps, extension panels, custom backgrounds, and inferred color themes
-- Portable `.hcbexport` archives, encrypted `.hcbvault` archives, trusted vault-host status/push/pull from Settings or CLI, saved vault-host credentials for Refresh/scheduled sync, local attachments, ICS import/subscription support, and local report exports
-- Optional local MCP server, local hoster signal server, CLI/TUI, webhook, and dry-run/write-policy surfaces for user-configured agent clients
-- Typed IPC, hardened preload bridge, diagnostics, recovery tools, and native capability reporting
+The renderer is unprivileged: filesystem, SQLite, credential, OAuth, Google, and native work stays behind the hardened preload bridge and validated IPC handlers.
 
 ## Install
 
-**Downloads**
-
-- macOS DMG: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-macOS.dmg`
-- Linux AppImage: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage`
-- Windows NSIS: `https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-windows-x64.exe`
-- Release page: `https://github.com/gongahkia/hot-cross-buns/releases/latest`
-- macOS one-line installer:
-
-```bash
-curl -fsSL https://gongahkia.github.io/hot-cross-buns/install-macos-preview.sh | bash
-```
-
-**First launch on macOS**
-
-1. Open the app once after dragging it into `Applications`.
-2. If macOS blocks it, go to `System Settings > Privacy & Security`.
-3. Click `Open Anyway`.
-
-You should only need to do that once per Mac.
-
-**First launch on Linux**
-
-The Linux package is an x64 AppImage.
-
-```bash
-curl -LO https://github.com/gongahkia/hot-cross-buns/releases/latest/download/Hot-Cross-Buns-linux-x64.AppImage
-curl -LO https://github.com/gongahkia/hot-cross-buns/releases/latest/download/SHASUMS256.txt
-sha256sum -c SHASUMS256.txt --ignore-missing
-chmod +x Hot-Cross-Buns-linux-x64.AppImage
-./Hot-Cross-Buns-linux-x64.AppImage
-```
-
-Known Linux limits:
-
-- AppImage is the only Linux package format.
-- The app can check GitHub Releases for newer AppImage builds, but does not download or install Linux updates automatically.
-- Tray/status-area surfaces, `hotcrossbuns://` deep links, open-at-login/autostart, local notifications, and global shortcuts are unsupported on Linux.
-- Google OAuth tokens, OAuth client secrets, and MCP bearer tokens require an OS-backed Secret Service provider such as GNOME Keyring/libsecret or KWallet. Plaintext fallback is rejected.
-
-**First launch on Windows**
-
-Download `Hot-Cross-Buns-windows-x64.exe`, verify it against `SHASUMS256.txt`, then run the NSIS installer. The installer is unsigned, so Windows or the browser may show trust warnings.
-
-**Google Cloud OAuth setup**
-
-Downloads use a bring-your-own Google Cloud Desktop OAuth client:
-
-1. Create a Google Cloud project.
-2. Enable the Google Tasks API and Google Calendar API.
-3. Configure the OAuth consent screen. For personal use, add your Google account as a test user while setting up.
-4. Create a `Desktop app` OAuth client.
-5. Open Hot Cross Buns, paste the desktop client ID and optional client secret into setup, then connect Google.
-
-Tokens are stored in macOS Keychain on macOS. On Linux, tokens are stored through Electron `safeStorage` only when backed by an OS credential provider such as GNOME Keyring/libsecret or KWallet. On Windows, tokens are stored through Electron `safeStorage`.
-
-Do not distribute a build that embeds your personal OAuth client for other people's accounts.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    user["desktop user"] --> app["Hot Cross Buns<br>Electron + React + TypeScript"]
-
-    subgraph runtime["Desktop runtime"]
-        app --> renderer["Renderer<br>Tasks · Calendar · Notes<br>Command palette · Settings"]
-        app --> preload["Hardened preload bridge"]
-        preload --> ipc["Typed IPC contracts"]
-        ipc --> main["Main process services"]
-        main --> native["Native shell adapters<br>menu bar/tray capability · notifications · updater · files"]
-    end
-
-    subgraph data["Local data"]
-        main --> sqlite["SQLite repositories<br>settings, cache, checkpoints,<br>pending mutations, tags, history"]
-        main --> files["Application Support files<br>attachments, exports, backups"]
-    end
-
-    subgraph google["Google sync option"]
-        main --> tasksApi["Google Tasks API"]
-        main --> calendarApi["Google Calendar API"]
-    end
-
-    subgraph localBackend["Local HCB backend option"]
-        main --> vault["Encrypted .hcbvault export/import"]
-        main --> vaultHost["Trusted vault host status/push/pull"]
-        main --> hoster["Loopback local hoster signals"]
-    end
-
-    subgraph automation["Automation surfaces"]
-        main --> cli["hcb CLI"]
-        main --> mcp["Local MCP server"]
-        main --> webhooks["Local webhooks"]
-    end
-```
-
-## Repository Layout
-
-```text
-src/main/          Electron main process, native adapters, SQLite repositories, services
-src/preload/       Narrow preload bridge over typed IPC contracts
-src/renderer/      React app shell, planner surfaces, settings, command palette
-src/shared/        Shared schemas, contracts, catalogs, sync/search helpers
-docs/              Website, product docs, architecture, release, security, QA docs
-scripts/           Local CLI, smoke, release, and packaging helpers
-```
-
-Start with [docs/README.md](docs/README.md) before changing product, architecture, security, or subsystem behavior.
-
-## Local Development
+This repository is intended for local development and preview validation. A signed public installer is not currently available.
 
 **Requirements**
 
-- macOS 14+
-- Linux x64 AppImage, with Secret Service provider required for credentials
-- Windows x64 NSIS installer
-- Node 20+
-- pnpm 9.15.4 through Corepack
+- Node.js 20 or newer
+- Corepack and pnpm 9.15.4
 
 **Install and run**
 
 ```bash
 corepack enable
-corepack prepare pnpm@9.15.4 --activate
-pnpm install
-pnpm dev
+corepack pnpm install
+corepack pnpm dev
 ```
+
+The development command starts the Vite renderer and Electron app. Stop it with `Ctrl+C` in the terminal.
+
+**Google setup**
+
+Configure a Desktop OAuth client through onboarding or Settings, then complete browser consent. Use your own Google Cloud project and never commit, paste, or log OAuth client secrets, access tokens, refresh tokens, passwords, or browser cookies. Optional Drive and Gmail access is separately authorized and reconfigurable in Settings.
+
+## Architecture
+
+[![Hot Cross Buns current runtime architecture](docs/assets/hot-cross-buns-current-architecture.svg)](docs/architecture/hot-cross-buns-current-architecture.drawio)
+
+```mermaid
+flowchart TD
+    renderer["React renderer"] --> preload["Hardened preload · window.hcb"]
+    preload --> ipc["Validated Electron IPC"]
+    ipc --> services["CoreStore · OAuth · sync services"]
+    services --> sqlite["SQLite cache · settings · outbox"]
+    services --> credentials["Encrypted OS credential storage"]
+    services --> google["Google Tasks · Calendar · optional Drive/Gmail APIs"]
+    services --> native["Native desktop adapters"]
+```
+
+Credentials, local files, databases, and Google calls never enter the renderer. See the [architecture model](docs/architecture/hot-cross-buns-architecture.json) and [diagram workflow](docs/architecture/diagram-workflow.md) before changing a boundary or integration.
+
+## Repository Layout
+
+```text
+assets/logo/       Canonical bread logo used by the renderer
+docs/              Product, architecture, platform, security, testing, and release docs
+src/main/          Electron lifecycle, validated IPC, CoreStore, OAuth, sync, and native adapters
+src/preload/       Narrow, typed renderer-to-main bridge
+src/renderer/      React UI, view models, and feature components
+src/shared/        Shared contracts, schemas, results, and utilities
+scripts/           Architecture generation, database tests, and performance helpers
+```
+
+Start with [docs/README.md](docs/README.md), then read the owning subsystem documentation before changing behaviour.
+
+## Local Development
 
 **Useful commands**
 
 ```bash
-pnpm typecheck
-pnpm test
-pnpm test:smoke
-pnpm hcb --help
+corepack pnpm dev
+corepack pnpm build
+corepack pnpm test:unit
+corepack pnpm test:db
+corepack pnpm test:security
 ```
+
+`build` verifies checked-in architecture artifacts, performs both TypeScript checks, and bundles the Electron main process, preload bridge, and renderer.
+
+**Platform status**
+
+- macOS is the core native target.
+- Linux is a technical preview with desktop-environment-specific limitations.
+- Windows is a technical preview requiring installed-build manual validation before support claims.
+
+Read the [cross-platform strategy](docs/ports/cross-platform-porting.md), [Linux port guide](docs/ports/linux-port.md), and [Windows port guide](docs/ports/windows-port.md) before platform-specific work.
 
 ## Release Checks
 
-Packages are unsigned. macOS packages are also unnotarized.
+Run the narrowest relevant checks while developing. Before a release candidate, run the full local gate:
 
 ```bash
-pnpm release:mac:preview
-pnpm release:linux:preview
-pnpm release:smoke-appimage
-HCB_APPIMAGE_SMOKE_LAUNCH=1 pnpm release:smoke-appimage
-pnpm release:win:preview
-pnpm release:smoke-nsis
+corepack pnpm test:release-gate
 ```
 
-Manual GitHub Actions gates:
-
-- `Linux AppImage Preview Validation`
-- `Windows Preview Validation`
-
-Useful docs:
-
-- [Distribution](docs/release/distribution.md)
-- [Release Candidate Checklist](docs/release/release-candidate-checklist.md)
-- [Mac Preview Support](docs/support/mac-preview-support.md)
-- [Linux Preview Support](docs/support/linux-preview-support.md)
-- [Manual Linux Native Shell Checklist](docs/testing/manual-linux-native-shell.md)
-- [Privacy and Threat Model](docs/security/privacy-and-threat-model.md)
+The gate runs the build, unit suite, SQLite suite, and Electron launch smoke test. It intentionally excludes live-Google mutations, performance smoke suites, signing, notarization, and publishing. Preview-distribution and manual-platform requirements are documented in [Distribution](docs/release/distribution.md).
 
 ## Testing
 
-The current suite covers:
+The test surface includes:
 
-- typed IPC contract validation
-- SQLite repository and domain-service behavior
-- Google Tasks and Google Calendar sync paths
-- local search, semantic search, tags, templates, and automation flows
-- renderer workflows for Tasks, Calendar, Notes, Settings, command palette, and onboarding
-- native shell adapter contracts and release-support paths
-- smoke, perf, and release-artifact scripts
+- unit tests for renderer logic, preload validation, shared contracts, and main-process services
+- Electron-runtime SQLite tests for migrations, sync state, task blocks, undo/redo, and scheduling flows
+- mocked Google transport tests and Playwright Electron launch smoke coverage
+- optional scale/performance commands for 1,000, 5,000, and 10,000 task-and-event fixtures
 
-Run focused tests with:
-
-```bash
-pnpm vitest run --config vitest.config.ts path/to/test.ts
-```
+Live Google testing is opt-in and never runs by default. Personal accounts are read-only; mutation testing requires a designated disposable account, dedicated resources, and the documented acknowledgement. See [Live Google testing](docs/live-google-testing.md).
 
 ## Additional Documentation
 
-- [Docs index](docs/README.md)
+- [Documentation index](docs/README.md)
+- [Product requirements](docs/product/prd.md)
 - [System architecture](docs/architecture/system-architecture.md)
-- [Tech stack](docs/architecture/tech-stack.md)
-- [Google sync spec](docs/specs/google-sync.md)
-- [Local data spec](docs/specs/local-data.md)
-- [MCP agent access](docs/specs/mcp-agent-access.md)
-- [HCB CLI](docs/hcb-cli.md)
-- [Local hoster protocol](docs/specs/local-hoster.md)
-- [Customization](docs/customization/theming.md)
-- [Portable export](docs/portable-export.md)
+- [Tech stack ADR](docs/architecture/tech-stack.md)
+- [Google sync specification](docs/specs/google-sync.md)
+- [Local data specification](docs/specs/local-data.md)
+- [Native parity](docs/specs/native-parity.md)
+- [Google Workspace integrations](docs/google-workspace-integrations.md)
+- [Privacy and threat model](docs/security/privacy-and-threat-model.md)
 - [QA plan](docs/testing/qa-plan.md)

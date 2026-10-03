@@ -11,7 +11,7 @@ import {
   Save,
   X
 } from "lucide-react";
-import appIconUrl from "../../../../assets/brand/buns-app-icon-sidebar.png";
+import appIconUrl from "../../../../assets/logo/logo.png";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
