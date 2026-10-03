@@ -6,7 +6,7 @@ The current architecture diagram is generated with the Python `diagrams-as-code`
 
 Edit [../../scripts/generate_architecture_diagram.py](../../scripts/generate_architecture_diagram.py), then generate [../assets/hot-cross-buns-architecture.png](../assets/hot-cross-buns-architecture.png). Do not edit the PNG directly.
 
-The generator uses the app's checked-in Google Calendar and Google Tasks assets, plus checked-in Electron, Google Cloud, and SQLite marks in [../assets/architecture-icons](../assets/architecture-icons). The Electron mark comes from [Electron's official site](https://www.electronjs.org/assets/img/logo.svg), the Google Cloud mark comes from [Google Cloud's official brand asset](https://www.gstatic.com/cgc/google-cloud-logo-fullcolor.svg), and the SQLite mark comes from the [official SQLite source mirror](https://github.com/sqlite/sqlite/blob/master/art/sqlite370.jpg).
+The generator uses the app's checked-in Google Calendar and Google Tasks assets, plus checked-in Electron, Google Cloud, and SQLite marks in [../assets/architecture-icons](../assets/architecture-icons). The Electron mark comes from [Electron's official site](https://www.electronjs.org/assets/img/logo.svg), the Google Cloud mark comes from [Google Cloud's official favicon asset](https://www.gstatic.com/cgc/supercloud_favicon.ico), and the SQLite mark comes from the [official SQLite source mirror](https://github.com/sqlite/sqlite/blob/master/art/sqlite370.jpg).
 
 The generator requires Python 3.11, Graphviz, and the dependency pinned in `requirements-architecture.txt`. `uv` provisions the compatible interpreter and isolated dependency environment automatically.
 

@@ -25,17 +25,12 @@ GOOGLE_CALENDAR_LOGO = ROOT / "src/renderer/src/assets/google-calendar.png"
 GOOGLE_TASKS_LOGO = ROOT / "src/renderer/src/assets/google-tasks.png"
 
 
-def icon(label: str, path: Path, *, width: str | None = None, height: str | None = None) -> Custom:
+def icon(label: str, path: Path) -> Custom:
     """Create a custom-icon node, failing clearly when a checked-in asset is absent."""
     if not path.is_file():
         raise FileNotFoundError(f"Missing architecture icon: {path.relative_to(ROOT)}")
 
-    node = Custom(label, str(path))
-    if width is not None:
-        node._attrs["width"] = width
-    if height is not None:
-        node._attrs["height"] = height
-    return node
+    return Custom(label, str(path))
 
 
 def render(target: Path) -> None:
@@ -90,10 +85,10 @@ def render(target: Path) -> None:
         ):
             renderer = React("React renderer\n(unprivileged UI)")
             preload = TypeScript("Hardened preload\nwindow.hcb bridge")
-            ipc = icon("Electron main\nvalidated IPC", ELECTRON_LOGO, width="1.45", height="1.45")
+            ipc = icon("Electron main\nvalidated IPC", ELECTRON_LOGO)
             core = TypeScript("CoreStore and\napp services")
             sync = TypeScript("Google OAuth\nand sync services")
-            native = icon("Native desktop\nadapters", ELECTRON_LOGO, width="1.45", height="1.45")
+            native = icon("Native desktop\nadapters", ELECTRON_LOGO)
 
         with Cluster(
             "Local device",
@@ -106,7 +101,7 @@ def render(target: Path) -> None:
                 "margin": "24",
             },
         ):
-            sqlite = icon("SQLite local cache\nsettings and outbox", SQLITE_LOGO, width="2.2", height="1.05")
+            sqlite = icon("SQLite local cache\nsettings and outbox", SQLITE_LOGO)
             credentials = Storage("Encrypted OS credentials\nElectron safeStorage")
 
         browser = Client("Default browser\nOAuth consent")
@@ -122,12 +117,7 @@ def render(target: Path) -> None:
                 "margin": "24",
             },
         ):
-            cloud = icon(
-                "Google Cloud Platform\nOAuth and Google APIs",
-                GOOGLE_CLOUD_LOGO,
-                width="5.0",
-                height="0.82",
-            )
+            cloud = icon("Google Cloud Platform\nOAuth and Google APIs", GOOGLE_CLOUD_LOGO)
             calendar = icon("Google Calendar\nCalendar API", GOOGLE_CALENDAR_LOGO)
             tasks = icon("Google Tasks\nTasks API", GOOGLE_TASKS_LOGO)
 
