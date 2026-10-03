@@ -187,7 +187,10 @@ function floatingEvaluatorLine(line: string, allDay: boolean, timeZone?: string 
   }
   const zone = propertyTimeZone(property.prefix) ?? timeZone ?? "UTC";
   const values = property.value.split(",").map((value) => floatingExplicitValue(value, allDay, zone, timeZone));
-  return `${property.prefix}:${values.join(",")}`;
+  // The values above have already been converted to the master series'
+  // floating wall-clock fields. Keeping TZID here would make rrule apply a
+  // second host-dependent timezone conversion while evaluating this set.
+  return `${property.name}:${values.join(",")}`;
 }
 
 function floatingExplicitValue(value: string, allDay: boolean, propertyZone: string, seriesZone?: string | null): string {
