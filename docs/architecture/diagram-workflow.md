@@ -1,49 +1,22 @@
 # Architecture Diagram Workflow
 
-The current architecture diagram is a repository artifact. It must remain accurate in every clone and in GitHub-rendered documentation; it does not depend on Draw.io Desktop, a locally installed MCP server, or a particular developer machine.
+The current architecture diagram is generated with the Python `diagrams-as-code` library and Graphviz. It is checked into the repository so it renders in GitHub documentation without Draw.io or a local service.
 
-## Source of truth and generated files
+## Source and output
 
-Edit only [hot-cross-buns-architecture.json](hot-cross-buns-architecture.json). It describes the systems, trust boundaries, external dependencies, and numbered request/data flows.
+Edit [hot-cross-buns-architecture.yaml](hot-cross-buns-architecture.yaml), then generate [../assets/hot-cross-buns-architecture.png](../assets/hot-cross-buns-architecture.png). Do not edit the PNG directly.
 
-The generator creates two checked-in outputs:
+The generator requires Python 3.11, Graphviz, and the dependency pinned in `requirements-architecture.txt`. `uv` provisions the compatible interpreter and isolated dependency environment automatically.
 
-- [hot-cross-buns-current-architecture.drawio](hot-cross-buns-current-architecture.drawio) — editable in Draw.io / diagrams.net.
-- [../assets/hot-cross-buns-current-architecture.svg](../assets/hot-cross-buns-current-architecture.svg) — the preview embedded in the root README.
+## When to update it
 
-Do not hand-edit either generated file. A generated-file header makes this explicit.
+Review and update the YAML whenever renderer/preload/IPC boundaries, privileged services, persistence, credentials, OAuth, sync, or external integrations change. Do not add an HCB cloud backend, Vault/hoster endpoint, or enabled local MCP listener to the diagram: none exists.
 
-## When an architecture review is required
+## Commands
 
-Update the model whenever a change affects any of these boundaries:
+```sh
+corepack pnpm architecture:generate
+corepack pnpm architecture:check
+```
 
-- renderer, preload API, IPC contracts, or the Electron main process;
-- a domain service, persistence responsibility, local cache/outbox, or credential handling;
-- OAuth, synchronization, polling, external browser flows, or a Google API scope/integration;
-- a newly supported network service, worker, listener, hosted backend, or security boundary;
-- a supported service being removed or becoming dormant.
-
-Normal component styling and isolated feature behavior do not require a diagram change. When in doubt, review the model and retain or update it deliberately.
-
-## Update flow
-
-1. Implement the architecture change and update its supporting documentation/tests.
-2. Update `docs/architecture/hot-cross-buns-architecture.json` so its nodes, numbered flows, and boundary note match the running application.
-3. Regenerate both artifacts from the repository root:
-
-   ```sh
-   corepack pnpm architecture:generate
-   ```
-
-4. Open the `.drawio` output in Draw.io or inspect the README SVG, then commit the model and both generated files together.
-5. Before opening a pull request, verify that generated output is current:
-
-   ```sh
-   corepack pnpm architecture:check
-   ```
-
-## CI enforcement
-
-The `Architecture diagram` GitHub Actions job runs `architecture:check` on every push and pull request. It fails if the source model and its checked-in Draw.io/SVG artifacts disagree.
-
-For pull requests that alter an architecture-sensitive runtime boundary, CI also requires a deliberate architecture-model review. That prevents a main-process, preload, sync, credential, or integration change from silently bypassing the diagram. If the architecture is unchanged, update the model's `lastReviewed` date and regenerate the artifacts; if it changed, represent the change and regenerate the artifacts.
+Commit the YAML source and generated PNG together. CI runs the check on every push and pull request and requires a YAML review for architecture-sensitive changes.

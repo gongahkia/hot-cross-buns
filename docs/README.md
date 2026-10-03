@@ -30,7 +30,7 @@ Architecture:
 
 - [Tech Stack ADR](architecture/tech-stack.md)
 - [System Architecture](architecture/system-architecture.md)
-- [Current architecture diagram](architecture/hot-cross-buns-current-architecture.drawio) ([source model](architecture/hot-cross-buns-architecture.json), [maintenance workflow](architecture/diagram-workflow.md))
+- [Current architecture diagram](assets/hot-cross-buns-architecture.png) ([diagrams-as-code source](architecture/hot-cross-buns-architecture.yaml), [maintenance workflow](architecture/diagram-workflow.md))
 
 Product:
 

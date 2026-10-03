@@ -5,7 +5,7 @@ Hot Cross Buns is an Electron desktop planner for Google Tasks and Google Calend
 ## Start here
 
 1. Read this file.
-2. Open the [current architecture diagram](docs/architecture/hot-cross-buns-current-architecture.drawio) or its [README preview](docs/assets/hot-cross-buns-current-architecture.svg).
+2. Open the [current architecture diagram](docs/assets/hot-cross-buns-architecture.png) and its [YAML source](docs/architecture/hot-cross-buns-architecture.yaml).
 3. Read the owning subsystem documentation before changing behavior. The documentation map is in [docs/README.md](docs/README.md).
 4. Use [docs/agents/workflow.md](docs/agents/workflow.md) for the full engineering and safety checklist.
 
@@ -23,7 +23,7 @@ corepack pnpm test:db
 The build runs architecture-artifact validation before type checking and bundling.
 
 ```sh
-corepack pnpm architecture:generate  # regenerate Draw.io + README SVG
+corepack pnpm architecture:generate  # regenerate the diagrams-as-code PNG
 corepack pnpm architecture:check     # verify generated files are current
 ```
 
@@ -58,7 +58,7 @@ Key locations:
 
 ## When changing architecture
 
-Update [docs/architecture/hot-cross-buns-architecture.json](docs/architecture/hot-cross-buns-architecture.json) whenever a change affects renderer/preload/IPC boundaries, privileged services, local persistence, credentials, sync/OAuth, or external integrations. Then run `corepack pnpm architecture:generate` and commit the model and generated `.drawio`/`.svg` artifacts together.
+Update [docs/architecture/hot-cross-buns-architecture.yaml](docs/architecture/hot-cross-buns-architecture.yaml) whenever a change affects renderer/preload/IPC boundaries, privileged services, local persistence, credentials, sync/OAuth, or external integrations. Then run `corepack pnpm architecture:generate` and commit the YAML source and generated PNG together.
 
 CI requires that review for architecture-sensitive main-process, IPC, preload, OAuth, CoreStore, and sync changes. Details: [diagram workflow](docs/architecture/diagram-workflow.md).
 
