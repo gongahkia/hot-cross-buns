@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/gongahkia/hot-cross-buns">
-    <img src="docs/logo.png" alt="Hot Cross Buns logo" width="144" />
+    🍞
   </a>
 </p>
 
