@@ -1,123 +1,78 @@
-<p align="center">
-  <a href="#local-development">Get started</a> ·
-  <a href="docs/README.md">Docs</a> ·
-  <a href="docs/architecture/system-architecture.md">Architecture</a> ·
-  <a href="docs/security/privacy-and-threat-model.md">Privacy &amp; security</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/version-5.0.1-F2B36D?style=for-the-badge" alt="Version 5.0.1" />
-  <img src="https://img.shields.io/badge/runtime-Electron-47848F?style=for-the-badge&amp;logo=electron&amp;logoColor=white" alt="Electron" />
-  <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=for-the-badge&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/platform-macOS%20core-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white" alt="macOS core" />
-</p>
+[![](https://img.shields.io/badge/hot_cross_buns_1.0.0-passing-green)](https://github.com/gongahkia/hot-cross-buns/releases/tag/1.0.0) 
+![](https://github.com/gongahkia/hot-cross-buns/actions/workflows/verify.yml/badge.svg)
 
 # `Hot Cross Buns` 🍞
 
-A keyboard-first Electron desktop planner for Google Tasks, Google Calendar, and local notes.
+A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://calendar.google.com/calendar/) and [Tasks](https://tasks.google.com/tasks/).
 
-> [!IMPORTANT]
-> Hot Cross Buns is a local desktop app. Google Tasks and Google Calendar are authoritative for synced data; SQLite is a local cache, settings store, and durable outbox. HCB has no cloud backend, Vault/hoster endpoint, or enabled local MCP listener.
+## Stack
 
-## Table of Contents
+* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Electron](https://www.electronjs.org/), ...
+* Backend: [Node.js](https://nodejs.org/en), ...
+* Tests: ...
+* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), ...
 
-- [Highlights](#highlights)
-- [Install](#install)
-- [Architecture](#architecture)
-- [Repository Layout](#repository-layout)
-- [Local Development](#local-development)
-- [Release Checks](#release-checks)
-- [Testing](#testing)
-- [Additional Documentation](#additional-documentation)
+## Features
 
-## Highlights
+* In-app browser view
+* Split-pane workspaces
+* 50 curated colorschemes 
+* Keyboard-first navigation
+* Comprehensive undo/redo tree
+* Local notes, tags, full-text search
+* Multi-account Google support out-of-the-box
+* Command Palette for quick commands and indexed search
+* Syncs across Google Tasks *(task lists & subtasks)*
+* Syncs across Google Calendar *(agenda, day, week & monthly views)*
 
-Hot Cross Buns keeps planning close to the keyboard while safely separating the React UI from desktop and Google privileges.
+## GIF
 
-- Google Tasks: task lists, subtasks, completion, dates, priorities, planning fields, reordering, and same-account moves
-- Google Calendar: agenda, day, week, and month views; events, recurrence, task blocks, availability, Meet links, RSVP, free/busy, and Google status events
-- Local notes, tags, full-text search, command palette, quick capture, undo/redo, and split-pane workspaces
-- Multiple Google accounts with account-scoped caches, incremental sync, retry/backoff, and a durable offline-mutation outbox
-- Settings for accounts, sync, appearance, themes, hotkeys, notifications, diagnostics, and native capabilities
-- Fifty curated colour schemes, custom-background inference, and loading indicators that respect reduced-motion preferences
-- Optional Google Workspace access after explicit authorization: Drive metadata/linking plus selected-file private upload, and Gmail metadata/snippet search with email-to-task capture
-- macOS app menu, menu-bar/tray, quick-capture shortcut, notifications, and deep links; Linux and Windows adapters report source-build capabilities and limitations
-
-The renderer is unprivileged: filesystem, SQLite, credential, OAuth, Google, and native work stays behind the hardened preload bridge and validated IPC handlers.
-
-## Install
-
-This repository is intended for local development and preview validation. A signed public installer is not currently available.
-
-**Requirements**
-
-- Node.js 20 or newer
-- Corepack and pnpm 9.15.4
-
-**Install and run**
-
-```bash
-corepack enable
-corepack pnpm install
-corepack pnpm dev
-```
-
-The development command starts the Vite renderer and Electron app. Stop it with `Ctrl+C` in the terminal.
-
-**Google setup**
-
-Configure a Desktop OAuth client through onboarding or Settings, then complete browser consent. Use your own Google Cloud project and never commit, paste, or log OAuth client secrets, access tokens, refresh tokens, passwords, or browser cookies. Optional Drive and Gmail access is separately authorized and reconfigurable in Settings.
+...
 
 ## Architecture
 
 ![](assets/reference/hot-cross-buns-architecture.png)
 
-## Local Development
+## Usage
 
-**Useful commands**
+The below instructions are for building `Hot Cross Buns` locally from source.
 
-```bash
-corepack pnpm dev
-corepack pnpm build
-corepack pnpm test:unit
-corepack pnpm test:db
-corepack pnpm test:security
+1. First execute the below commands to clone `Hot Cross Buns`.
+
+```console
+$ git clone https://github.com/gongahkia/hot-cross-buns && cd hot-cross-buns
 ```
 
-`build` verifies checked-in architecture artifacts, performs both TypeScript checks, and bundles the Electron main process, preload bridge, and renderer.
+2. Then run the below to run `Hot Cross Buns` on your machine.
 
-**Platform status**
-
-- macOS is the core native target.
-- Linux is a technical preview with desktop-environment-specific limitations.
-- Windows is a technical preview requiring installed-build manual validation before support claims.
-
-Read the [cross-platform strategy](docs/ports/cross-platform-porting.md), [Linux port guide](docs/ports/linux-port.md), and [Windows port guide](docs/ports/windows-port.md) before platform-specific work.
-
-## Release Checks
-
-Run the narrowest relevant checks while developing. Before a release candidate, run the full local gate:
-
-```bash
-corepack pnpm test:release-gate
+```console
+$ corepack enable
+$ corepack pnpm install
+$ corepack pnpm dev
 ```
 
-The gate runs the build, unit suite, SQLite suite, and Electron launch smoke test. It intentionally excludes live-Google mutations, performance smoke suites, signing, notarization, and publishing. Preview-distribution and manual-platform requirements are documented in [Distribution](docs/release/distribution.md).
+3. Optionally run the below to run `Hot Cross Buns`' comprehensive [test suite](./tests).
 
-## Testing
+```console
+$ corepack pnpm test:unit
+$ corepack pnpm test:db
+$ corepack pnpm test:security
+```
 
-The test surface includes:
+4. Open [Google Cloud Console](https://console.cloud.google.com/) and do the following.
+    1. ...
 
-- unit tests for renderer logic, preload validation, shared contracts, and main-process services
-- Electron-runtime SQLite tests for migrations, sync state, task blocks, undo/redo, and scheduling flows
-- mocked Google transport tests and Playwright Electron launch smoke coverage
-- optional scale/performance commands for 1,000, 5,000, and 10,000 task-and-event fixtures
 
-Live Google testing is opt-in and never runs by default. Personal accounts are read-only; mutation testing requires a designated disposable account, dedicated resources, and the documented acknowledgement. See [Live Google testing](docs/live-google-testing.md).
+5. Finally, within `Hot Cross Buns`, configure a Desktop OAuth client and complete browser consent. 
 
-## Additional Documentation
+## Support
 
-- [Documentation index](docs/README.md)
+* macOS is the core native target.
+* Linux is a technical preview with desktop-environment-specific limitations.
+* Windows is a technical preview requiring installed-build manual validation before support claims.
+
+## Other docs
+
 - [Product requirements](docs/product/prd.md)
 - [System architecture](docs/architecture/system-architecture.md)
 - [Tech stack ADR](docs/architecture/tech-stack.md)
