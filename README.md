@@ -1,12 +1,10 @@
+<h1 align="center"><code>Hot Cross Buns 🍞</code></h1>
+
 <p align="center">
-    <h1>
-        🍞
-    </h1>
+    <i>
+        A keyboard-first Electron desktop planner for Google Tasks, Google Calendar, and local notes.
+    </i>
 </p>
-
-<h1 align="center"><code>Hot Cross Buns</code></h1>
-
-<h3 align="center">A keyboard-first Electron desktop planner for Google Tasks, Google Calendar, and local notes.</h3>
 
 <p align="center">
   <a href="#local-development">Get started</a> ·
