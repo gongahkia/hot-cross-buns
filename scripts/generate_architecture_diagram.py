@@ -11,14 +11,14 @@ from pathlib import Path
 
 from diagrams import Cluster, Diagram, Edge
 from diagrams.custom import Custom
-from diagrams.generic.compute import Rack
 from diagrams.generic.storage import Storage
-from diagrams.onprem.client import User
+from diagrams.onprem.client import Client, User
 from diagrams.programming.framework import React
 from diagrams.programming.language import TypeScript
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "docs/assets/hot-cross-buns-architecture.png"
+ELECTRON_LOGO = ROOT / "docs/assets/architecture-icons/electron.png"
 GOOGLE_CLOUD_LOGO = ROOT / "docs/assets/architecture-icons/google-cloud.png"
 SQLITE_LOGO = ROOT / "docs/assets/architecture-icons/sqlite.png"
 GOOGLE_CALENDAR_LOGO = ROOT / "src/renderer/src/assets/google-calendar.png"
@@ -90,10 +90,10 @@ def render(target: Path) -> None:
         ):
             renderer = React("React renderer\n(unprivileged UI)")
             preload = TypeScript("Hardened preload\nwindow.hcb bridge")
-            ipc = Rack("Electron main\nvalidated IPC")
+            ipc = icon("Electron main\nvalidated IPC", ELECTRON_LOGO, width="1.45", height="1.45")
             core = TypeScript("CoreStore and\napp services")
             sync = TypeScript("Google OAuth\nand sync services")
-            native = Rack("Native desktop\nadapters")
+            native = icon("Native desktop\nadapters", ELECTRON_LOGO, width="1.45", height="1.45")
 
         with Cluster(
             "Local device",
@@ -109,7 +109,7 @@ def render(target: Path) -> None:
             sqlite = icon("SQLite local cache\nsettings and outbox", SQLITE_LOGO, width="2.2", height="1.05")
             credentials = Storage("Encrypted OS credentials\nElectron safeStorage")
 
-        browser = Rack("Default browser\nOAuth consent")
+        browser = Client("Default browser\nOAuth consent")
 
         with Cluster(
             "Google services",
@@ -125,8 +125,8 @@ def render(target: Path) -> None:
             cloud = icon(
                 "Google Cloud Platform\nOAuth and Google APIs",
                 GOOGLE_CLOUD_LOGO,
-                width="2.7",
-                height="1.05",
+                width="5.0",
+                height="0.82",
             )
             calendar = icon("Google Calendar\nCalendar API", GOOGLE_CALENDAR_LOGO)
             tasks = icon("Google Tasks\nTasks API", GOOGLE_TASKS_LOGO)
