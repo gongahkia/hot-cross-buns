@@ -74,34 +74,7 @@ Configure a Desktop OAuth client through onboarding or Settings, then complete b
 
 ## Architecture
 
-[![Hot Cross Buns current runtime architecture](docs/assets/hot-cross-buns-architecture.png)](scripts/generate_architecture_diagram.py)
-
-```mermaid
-flowchart TD
-    renderer["React renderer"] --> preload["Hardened preload · window.hcb"]
-    preload --> ipc["Validated Electron IPC"]
-    ipc --> services["CoreStore · OAuth · sync services"]
-    services --> sqlite["SQLite cache · settings · outbox"]
-    services --> credentials["Encrypted OS credential storage"]
-    services --> google["Google Tasks · Calendar · optional Drive/Gmail APIs"]
-    services --> native["Native desktop adapters"]
-```
-
-Credentials, local files, databases, and Google calls never enter the renderer. See the [diagrams-as-code generator](scripts/generate_architecture_diagram.py) and [diagram workflow](docs/architecture/diagram-workflow.md) before changing a boundary or integration.
-
-## Repository Layout
-
-```text
-assets/logo/       Canonical bread logo used by the renderer
-docs/              Product, architecture, platform, security, testing, and release docs
-src/main/          Electron lifecycle, validated IPC, CoreStore, OAuth, sync, and native adapters
-src/preload/       Narrow, typed renderer-to-main bridge
-src/renderer/      React UI, view models, and feature components
-src/shared/        Shared contracts, schemas, results, and utilities
-scripts/           Architecture generation, database tests, and performance helpers
-```
-
-Start with [docs/README.md](docs/README.md), then read the owning subsystem documentation before changing behaviour.
+![](assets/reference/hot-cross-buns-architecture.png)
 
 ## Local Development
 
