@@ -63,10 +63,8 @@ $ corepack pnpm test:security
 4. Open [Google Cloud Console](https://console.cloud.google.com/) and do the following.
     1. Create or select a Google Cloud project, then enable the [Google Calendar API](https://console.cloud.google.com/marketplace/product/google/calendar-json.googleapis.com) and [Google Tasks API](https://console.cloud.google.com/marketplace/product/google/tasks.googleapis.com).
     2. Under **Google Auth platform**, configure the OAuth consent screen as **External**, supply the required app details, and add your Google account as a test user while the app is in testing.
-    3. Under **Clients**, create an OAuth client with application type **Desktop app**. Do not create a web client or add a web redirect URI: Hot Cross Buns uses a loopback `http://127.0.0.1:<port>/oauth/callback` redirect with PKCE.
-    4. Copy the desktop client ID. The client secret is optional; keep either value private and never commit it. Enable the Drive API or Gmail API only if you later opt in to the corresponding Drive or read-only Gmail capability in the app.
-
-
+    3. Under **Clients**, create an OAuth client with application type **Desktop app**. 
+    4. Copy the desktop client ID. The client secret is optional. 
 5. Finally, within `Hot Cross Buns`, open **Settings → Profile**, save the desktop OAuth client ID (and optional client secret), then complete browser consent.
 
 ## Support
