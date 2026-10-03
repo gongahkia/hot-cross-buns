@@ -82,6 +82,10 @@ Required behavior:
 
 Manual QA must cover GNOME and KDE separately.
 
+## Application Menu
+
+Linux builds do not expose Electron's default File/Edit/View application menu. HCB does not provide a Linux app menu in the technical preview, so the Linux adapter must explicitly clear Electron's default menu. This policy also applies when the Linux app runs through WSL2/WSLg.
+
 ## Global Shortcuts
 
 Linux global shortcuts are the highest-risk native feature.
@@ -187,4 +191,3 @@ Before Linux technical preview:
 - AppImage desktop integration: https://docs.appimage.org/reference/desktop-integration.html
 - FreeDesktop desktop entry keys: https://specifications.freedesktop.org/desktop-entry-spec/latest/recognized-keys.html
 - electron-builder Linux targets: https://www.electron.build/linux
-

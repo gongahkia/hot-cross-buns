@@ -97,6 +97,10 @@ Required behavior:
 
 Close/minimize semantics must be explicit. Do not surprise users by keeping the app running in tray unless settings explain that behavior.
 
+## Application Menu
+
+Windows builds do not expose Electron's default File/Edit/View application menu. HCB has no Windows app-menu feature in the technical preview, so the Windows adapter must explicitly clear Electron's default menu rather than leaving it visible.
+
 ## Global Shortcuts
 
 Required behavior:
@@ -207,4 +211,3 @@ Before Windows technical preview:
 - Electron autoUpdater: https://www.electronjs.org/docs/latest/api/auto-updater
 - electron-builder targets: https://www.electron.build/docs/
 - electron-builder auto-update: https://www.electron.build/docs/features/auto-update/
-

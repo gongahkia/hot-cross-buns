@@ -1,6 +1,7 @@
 import { Notification, app, safeStorage, shell } from "electron";
 import { posix } from "node:path";
 import { linuxSecretServiceStatus } from "../../credentials/secretStore";
+import { clearDefaultApplicationMenu } from "../defaultAppMenu";
 import { detectLinuxGlobalShortcutSupport } from "./globalShortcuts";
 import {
   checkGitHubReleaseForUpdates,
@@ -196,6 +197,7 @@ export function credentialStorageStatus(): NativeOperationResult {
 }
 
 export function installAppMenu(): NativeOperationResult {
+  clearDefaultApplicationMenu();
   return unsupported("Linux application menu support is not enabled in the technical preview scaffold.");
 }
 

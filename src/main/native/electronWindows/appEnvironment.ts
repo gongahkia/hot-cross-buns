@@ -1,6 +1,7 @@
 import { Notification, app, safeStorage, shell } from "electron";
 import { join } from "node:path";
 import { windowsSafeStorageStatus } from "../../credentials/secretStore";
+import { clearDefaultApplicationMenu } from "../defaultAppMenu";
 import {
   buildNativeCapabilityReport,
   capabilityDiagnostic
@@ -175,6 +176,7 @@ export function credentialStorageStatus(): NativeOperationResult {
 }
 
 export function installAppMenu(): NativeOperationResult {
+  clearDefaultApplicationMenu();
   return unsupported("Windows application menu customization is not enabled for the first technical preview.");
 }
 

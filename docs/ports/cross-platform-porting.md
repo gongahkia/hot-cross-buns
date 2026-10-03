@@ -29,6 +29,8 @@ These subsystems must remain shared:
 
 Platform-specific code belongs behind adapters. Renderer code should ask for capabilities and status through preload APIs rather than importing platform-specific modules or branching deeply on `process.platform`.
 
+The native application menu is macOS-only. Windows and Linux adapters must clear Electron's built-in default File/Edit/View menu rather than displaying a menu the product does not support. This also applies to the Linux application when it is run through WSL2/WSLg.
+
 ## Required Adapter Interfaces
 
 Create or preserve adapter interfaces for:
@@ -140,4 +142,3 @@ Every platform preview requires:
 - Electron autoUpdater: https://www.electronjs.org/docs/latest/api/auto-updater
 - electron-builder targets: https://www.electron.build/docs/
 - electron-builder multi-platform build: https://www.electron.build/docs/features/multi-platform-build/
-
