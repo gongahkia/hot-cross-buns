@@ -8,9 +8,10 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 ## Stack
 
 * Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Electron](https://www.electronjs.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
-* Backend: [Node.js](https://nodejs.org/en), [SQLite](https://www.sqlite.org/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks)
+* Backend: [Node.js](https://nodejs.org/en), [SQLite](https://www.sqlite.org/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
 * Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/)
 * Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Electron Vite](https://electron-vite.org/), [Vite](https://vite.dev/), [electron-builder](https://www.electron.build/)
+* API: [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks)
 
 ## Features
 
@@ -27,7 +28,7 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 
 ## GIF
 
-[Watch the historical Hot Cross Buns 2 landing demo](https://github.com/gongahkia/gator/blob/53952d9fdb464df40875d09ebcb7cfc498b54189/docs/assets/landing.mp4)
+<video src="assets/reference/hot-cross-buns-demo.mp4" controls muted playsinline preload="metadata"></video>
 
 ## Architecture
 
