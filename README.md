@@ -28,7 +28,9 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 
 ## GIF
 
-<video src="assets/reference/hot-cross-buns-demo.mp4" controls muted playsinline preload="metadata"></video>
+<div align="center">
+  <video width="85%" src="https://github.com/user-attachments/assets/5ecca4da-dd8a-47f9-a648-306b5d39ee7b" controls muted playsinline preload="metadata"></video>
+</div>
 
 ## Architecture
 
