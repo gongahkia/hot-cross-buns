@@ -7,10 +7,10 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 
 ## Stack
 
-* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Electron](https://www.electronjs.org/), ...
-* Backend: [Node.js](https://nodejs.org/en), ...
-* Tests: ...
-* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), ...
+* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Electron](https://www.electronjs.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
+* Backend: [Node.js](https://nodejs.org/en), [SQLite](https://www.sqlite.org/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks)
+* Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/)
+* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Electron Vite](https://electron-vite.org/), [Vite](https://vite.dev/), [electron-builder](https://www.electron.build/)
 
 ## Features
 
@@ -27,7 +27,7 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 
 ## GIF
 
-...
+[Watch the historical Hot Cross Buns 2 landing demo](https://github.com/gongahkia/gator/blob/53952d9fdb464df40875d09ebcb7cfc498b54189/docs/assets/landing.mp4)
 
 ## Architecture
 
@@ -60,16 +60,21 @@ $ corepack pnpm test:security
 ```
 
 4. Open [Google Cloud Console](https://console.cloud.google.com/) and do the following.
-    1. ...
+    1. Create or select a Google Cloud project, then enable the [Google Calendar API](https://console.cloud.google.com/marketplace/product/google/calendar-json.googleapis.com) and [Google Tasks API](https://console.cloud.google.com/marketplace/product/google/tasks.googleapis.com).
+    2. Under **Google Auth platform**, configure the OAuth consent screen as **External**, supply the required app details, and add your Google account as a test user while the app is in testing.
+    3. Under **Clients**, create an OAuth client with application type **Desktop app**. Do not create a web client or add a web redirect URI: Hot Cross Buns uses a loopback `http://127.0.0.1:<port>/oauth/callback` redirect with PKCE.
+    4. Copy the desktop client ID. The client secret is optional; keep either value private and never commit it. Enable the Drive API or Gmail API only if you later opt in to the corresponding Drive or read-only Gmail capability in the app.
 
 
-5. Finally, within `Hot Cross Buns`, configure a Desktop OAuth client and complete browser consent. 
+5. Finally, within `Hot Cross Buns`, open **Settings → Profile**, save the desktop OAuth client ID (and optional client secret), then complete browser consent.
 
 ## Support
 
-* MacOS is the core native target.
-* Linux is supported.
-* Windows is supported via WSL.
+| Operating system | Support |
+| --- | --- |
+| macOS | ✅ Supported |
+| Linux | ✅ Supported |
+| Windows (WSL2) | 🧪 Experimental |
 
 ## Other docs
 
