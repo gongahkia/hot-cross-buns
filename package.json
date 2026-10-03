@@ -11,9 +11,7 @@
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
     "dev": "electron-vite dev",
-    "build": "corepack pnpm architecture:check && corepack pnpm typecheck && corepack pnpm typecheck:core && corepack pnpm exec electron-vite build",
-    "architecture:generate": "uv run --python 3.11 --with-requirements requirements-architecture.txt python scripts/generate_architecture_diagram.py",
-    "architecture:check": "uv run --python 3.11 --with-requirements requirements-architecture.txt python scripts/generate_architecture_diagram.py --check",
+    "build": "corepack pnpm typecheck && corepack pnpm typecheck:core && corepack pnpm exec electron-vite build",
     "typecheck": "tsc --noEmit",
     "typecheck:core": "tsc --noEmit -p tsconfig.core.json",
     "test": "corepack pnpm test:unit",

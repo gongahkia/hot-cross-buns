@@ -76,6 +76,7 @@ describe("Task inspector draft persistence", () => {
 
     fireEvent.change(title, { target: { value: "Write release notes" } });
     fireEvent.change(notes, { target: { value: "Keep this local until Save." } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
 
     expect(api.tasks.create).not.toHaveBeenCalled();
     expect(api.tasks.update).not.toHaveBeenCalled();
@@ -105,6 +106,7 @@ describe("Task inspector draft persistence", () => {
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
     fireEvent.change(title, { target: { value: "Only create once" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
 
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
@@ -141,6 +143,7 @@ describe("Task inspector draft persistence", () => {
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
     fireEvent.change(title, { target: { value: "Keep this draft" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
 
     await waitFor(() => expect(api.tasks.create).toHaveBeenCalledTimes(1));

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ok } from "@shared/ipc/result";
 import { InspectorProvider, InspectorShell } from "../../../../components/Inspector";
@@ -49,6 +49,10 @@ describe("Share Availability title performance boundary", () => {
     await screen.findByTestId("day-calendar-grid");
     fireEvent.click(screen.getByRole("button", { name: "Share availability" }));
     const title = await screen.findByRole("textbox", { name: "Availability title" });
+    await waitFor(() => expect(api.calendar.listEvents).toHaveBeenCalled());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     timelineRenders.day.mockClear();
     fireEvent.change(title, { target: { value: "Fast availability title" } });
