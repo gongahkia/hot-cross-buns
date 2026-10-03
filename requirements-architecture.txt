@@ -1,1 +1,2 @@
 diagrams-as-code==0.0.4
+diagrams==0.23.3

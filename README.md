@@ -74,7 +74,7 @@ Configure a Desktop OAuth client through onboarding or Settings, then complete b
 
 ## Architecture
 
-[![Hot Cross Buns current runtime architecture](docs/assets/hot-cross-buns-architecture.png)](docs/architecture/hot-cross-buns-architecture.yaml)
+[![Hot Cross Buns current runtime architecture](docs/assets/hot-cross-buns-architecture.png)](scripts/generate_architecture_diagram.py)
 
 ```mermaid
 flowchart TD
@@ -87,7 +87,7 @@ flowchart TD
     services --> native["Native desktop adapters"]
 ```
 
-Credentials, local files, databases, and Google calls never enter the renderer. See the [diagrams-as-code source](docs/architecture/hot-cross-buns-architecture.yaml) and [diagram workflow](docs/architecture/diagram-workflow.md) before changing a boundary or integration.
+Credentials, local files, databases, and Google calls never enter the renderer. See the [diagrams-as-code generator](scripts/generate_architecture_diagram.py) and [diagram workflow](docs/architecture/diagram-workflow.md) before changing a boundary or integration.
 
 ## Repository Layout
 

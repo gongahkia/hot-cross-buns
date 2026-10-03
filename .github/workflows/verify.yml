@@ -25,8 +25,8 @@ jobs:
         run: |
           changed_files="$(git diff --name-only "origin/${BASE_REF}"...HEAD)"
           if echo "$changed_files" | grep -Eq '^(src/main/index\.ts|src/main/ipc/|src/main/security|src/main/services/(coreStore|googleOAuth|googleSync|serviceContainer)\.ts|src/preload/)'; then
-            if ! echo "$changed_files" | grep -qx 'docs/architecture/hot-cross-buns-architecture.yaml'; then
-              echo "An architecture-sensitive boundary changed. Review and update docs/architecture/hot-cross-buns-architecture.yaml, then regenerate the diagram."
+            if ! echo "$changed_files" | grep -qx 'scripts/generate_architecture_diagram.py'; then
+              echo "An architecture-sensitive boundary changed. Review and update scripts/generate_architecture_diagram.py, then regenerate the diagram."
               exit 1
             fi
           fi

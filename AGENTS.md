@@ -5,7 +5,7 @@ Hot Cross Buns is an Electron desktop planner for Google Tasks and Google Calend
 ## Start here
 
 1. Read this file.
-2. Open the [current architecture diagram](docs/assets/hot-cross-buns-architecture.png) and its [YAML source](docs/architecture/hot-cross-buns-architecture.yaml).
+2. Open the [current architecture diagram](docs/assets/hot-cross-buns-architecture.png) and its [Python generator](scripts/generate_architecture_diagram.py).
 3. Read the owning subsystem documentation before changing behavior. The documentation map is in [docs/README.md](docs/README.md).
 4. Use [docs/agents/workflow.md](docs/agents/workflow.md) for the full engineering and safety checklist.
 
@@ -58,7 +58,7 @@ Key locations:
 
 ## When changing architecture
 
-Update [docs/architecture/hot-cross-buns-architecture.yaml](docs/architecture/hot-cross-buns-architecture.yaml) whenever a change affects renderer/preload/IPC boundaries, privileged services, local persistence, credentials, sync/OAuth, or external integrations. Then run `corepack pnpm architecture:generate` and commit the YAML source and generated PNG together.
+Update [scripts/generate_architecture_diagram.py](scripts/generate_architecture_diagram.py) whenever a change affects renderer/preload/IPC boundaries, privileged services, local persistence, credentials, sync/OAuth, or external integrations. Then run `corepack pnpm architecture:generate` and commit the generator, icon assets, and generated PNG together.
 
 CI requires that review for architecture-sensitive main-process, IPC, preload, OAuth, CoreStore, and sync changes. Details: [diagram workflow](docs/architecture/diagram-workflow.md).
 
