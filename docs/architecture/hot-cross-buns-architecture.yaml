@@ -5,25 +5,25 @@ diagram:
   name: Hot Cross Buns current runtime architecture
   file_name: ../assets/hot-cross-buns-architecture
   format: png
-  direction: left-to-right
+  direction: top-to-bottom
   label_resources: false
   open: false
   style:
     graph:
-      bgcolor: '#181818'
-      fontcolor: '#fbf1c7'
-      pad: '0.45'
-      ranksep: '1.05'
-      nodesep: '0.65'
-      splines: ortho
+      bgcolor: '#ffffff'
+      fontcolor: '#202124'
+      pad: '0.25'
+      ranksep: '0.55'
+      nodesep: '0.45'
+      splines: polyline
     node:
-      fontcolor: '#fbf1c7'
-      fillcolor: '#32302f'
-      color: '#83a598'
+      fontcolor: '#202124'
+      fillcolor: '#ffffff'
+      color: '#5f6368'
       margin: '0.18,0.12'
     edge:
-      fontcolor: '#d5c4a1'
-      color: '#a89984'
+      fontcolor: '#202124'
+      color: '#5f6368'
       fontsize: '10'
   resources:
     - id: desktop
@@ -90,7 +90,7 @@ diagram:
       of:
         - id: sqlite
           name: SQLite cache, settings, and durable outbox
-          type: generic.database.SQL
+          type: gcp.database.SQL
         - id: credentials
           name: Electron safeStorage
           type: generic.storage.Storage
@@ -102,5 +102,5 @@ diagram:
           name: Default browser
           type: generic.blank.Blank
         - id: google
-          name: Google OAuth, Tasks, Calendar, Drive, and Gmail APIs
-          type: generic.blank.Blank
+          name: "Google Cloud Platform: OAuth, Calendar, Tasks, Drive, and Gmail APIs"
+          type: gcp.compute.GCE
