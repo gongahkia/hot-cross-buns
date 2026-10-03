@@ -1,11 +1,3 @@
-<h1 align="center"><code>Hot Cross Buns 🍞</code></h1>
-
-<p align="center">
-    <i>
-        A keyboard-first Electron desktop planner for Google Tasks, Google Calendar, and local notes.
-    </i>
-</p>
-
 <p align="center">
   <a href="#local-development">Get started</a> ·
   <a href="docs/README.md">Docs</a> ·
@@ -19,6 +11,10 @@
   <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=for-the-badge&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/platform-macOS%20core-000000?style=for-the-badge&amp;logo=apple&amp;logoColor=white" alt="macOS core" />
 </p>
+
+# `Hot Cross Buns` 🍞
+
+A keyboard-first Electron desktop planner for Google Tasks, Google Calendar, and local notes.
 
 > [!IMPORTANT]
 > Hot Cross Buns is a local desktop app. Google Tasks and Google Calendar are authoritative for synced data; SQLite is a local cache, settings store, and durable outbox. HCB has no cloud backend, Vault/hoster endpoint, or enabled local MCP listener.
