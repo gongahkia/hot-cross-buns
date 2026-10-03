@@ -1,7 +1,7 @@
 <p align="center">
-  <a href="https://github.com/gongahkia/hot-cross-buns">
-    🍞
-  </a>
+    <h1>
+        🍞
+    </h1>
 </p>
 
 <h1 align="center"><code>Hot Cross Buns</code></h1>
