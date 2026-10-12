@@ -1,610 +1,290 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import styled, { css, keyframes } from 'styled-components';
-import { CalendarDays, ChartNoAxesColumn, Github, Moon, Settings2, Sun, Timer as TimerIcon } from 'lucide-react';
-import { api, errorMessage, getJournal, localDate, recoverEarlierDrafts, timerDuration } from './api';
-import { FocusSound } from './audio';
-import type { JournalData, JournalDay, Session } from './types';
-import { Button, Muted, TextButton, press } from './styles';
-import { Journal, Todos } from './components/Journal';
-import { TagTabs } from './components/TagTabs';
-import { JournalContext, flushDrafts } from './JournalContext';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
+import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Moon, Plus, Save, Settings2, Sun, Trash2, X } from 'lucide-react';
+import { Button, Field, IconButton, InlineError, Muted, TextButton } from './styles';
 import { Modal } from './components/Modal';
-import type { SearchHit } from './components/SearchModal';
-import { documentUndo, historyShortcutDirection, recordCompletion } from './documentHistory';
-import { compactViewport, shortViewport } from './layout';
-import { usePager } from './usePager';
-import { isDataSourceConfigured } from './dataSource';
-import { getFont, getTheme, getTimezone, setFont as storeFont, setTheme, setTimezone as storeTimezone, type AppFont } from './preferences';
-import { SettingsModal } from './components/SettingsModal';
+import { getFont, getTheme, setFont, setTheme, type AppFont } from './preferences';
+import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
+import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice, type MergeProposal } from './todoMerge';
+import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
-const JOURNAL_PAGE_SIZE = 14;
-const MOBILE_VIEWS = ['todos', 'log', 'tags'] as const;
-const REPOSITORY_URL = import.meta.env.VITE_REPOSITORY_URL || '';
-const SessionsModal = lazy(() => import('./components/SessionsModal').then(module => ({ default: module.SessionsModal })));
-const StatsModal = lazy(() => import('./components/StatsModal').then(module => ({ default: module.StatsModal })));
-const SearchModal = lazy(() => import('./components/SearchModal').then(module => ({ default: module.SearchModal })));
-const CalendarModal = lazy(() => import('./components/CalendarModal').then(module => ({ default: module.CalendarModal })));
+const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
+const Header = styled.header`display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px;`;
+const Brand = styled.h1`font-size: 28px; letter-spacing: -.06em; line-height: 1;`;
+const Tools = styled.div`display: flex; align-items: center; gap: 2px;`;
+const Icon = styled(IconButton)`width: 38px; height: 38px; @media(max-width: 600px){width: 34px; height: 34px;}`;
+const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;`;
+const DatePicker = styled(Field)`width: 155px; min-height: 38px; font-size: 13px; border-color: transparent; background: var(--date-bg);`;
+const SearchField = styled(Field)`min-height: 38px; flex: 1; min-width: 180px; font-size: 13px;`;
+const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
+const TagPill = styled.button<{ $active: boolean }>`border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px;`;
+const DaySection = styled.section`margin: 0 0 38px; scroll-margin-top: 20px;`;
+const DayTitle = styled.h2`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px;`;
+const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
+const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 42px;`;
+const Divider = styled.div`height: 1px; margin: 15px 0 13px 42px; background: var(--line);`;
+const ItemRow = styled.div`display: flex; align-items: flex-start; gap: 4px; min-height: 34px; border-radius: 7px; &:hover { background: var(--soft); }`;
+const CheckButton = styled.button<{ $done: boolean }>`width: 36px; height: 34px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'};`;
+const Circle = styled.span<{ $done: boolean }>`display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; background: ${({ $done }) => $done ? 'var(--link)' : 'transparent'}; color: ${({ $done }) => $done ? 'var(--paper)' : 'var(--checkbox)'};`;
+const ItemBody = styled.div`min-width: 0; flex: 1;`;
+const ItemInput = styled.input<{ $done?: boolean }>`width: 100%; min-height: 34px; border: 0; border-radius: 4px; padding: 3px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: var(--ink); text-decoration: ${({ $done }) => $done ? 'none' : 'none'}; &:focus { background: var(--field); box-shadow: 0 0 0 1px var(--focus); }`;
+const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 27px; color: var(--muted);`;
+const DetailRow = styled.div`display: flex; align-items: center; gap: 6px; margin-left: 3px; &:hover button { opacity: 1; }`;
+const Dash = styled.span`color: var(--muted); font-size: 13px;`;
+const Mini = styled.button`display: inline-grid; place-items: center; width: 27px; height: 27px; flex: none; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; &:hover { color: var(--link); background: var(--date-bg); }`;
+const HoverActions = styled.div`display: flex; align-items: center; opacity: .2; ${ItemRow}:hover &, ${ItemRow}:focus-within & {opacity: 1;} @media(hover:none){opacity: 1;}`;
+const AddForm = styled.form`display: flex; align-items: center; gap: 4px; margin-left: 40px; max-width: calc(100% - 40px);`;
+const AddInput = styled(Field)`min-height: 37px; border-color: transparent; background: transparent; padding-left: 2px; &:focus { background: var(--field); border-color: var(--focus); }`;
+const Footer = styled.div`display: flex; flex-wrap: wrap; gap: 6px; padding-top: 20px; border-top: 1px solid var(--line);`;
+const ModalTitle = styled.h2`font-size: 22px; margin-bottom: 12px;`;
+const ModalActions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px;`;
+const PaneGrid = styled.div`display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; @media(max-width:550px){grid-template-columns: 1fr;}`;
+const Pane = styled.div`min-width: 0; min-height: 75px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere;`;
+const ReviewRow = styled.div`padding: 13px 0; border-bottom: 1px solid var(--line);`;
+const ReviewChoices = styled.div`display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px;`;
+const RawText = styled.textarea`width: 100%; min-height: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 12px/1.5 ui-monospace,monospace; resize: vertical;`;
+const Note = styled.p`font-size: 12px; color: var(--muted);`;
 
-const Page = styled.div<{ $focusing: boolean }>`
-  --current-page-paper: ${({ $focusing }) => $focusing ? 'var(--page-focus-paper)' : 'var(--page-paper)'};
-  --edge-paper: var(--paper);
-  --document-width: min(680px, calc(100vw - 64px));
-  --left-margin: calc((100vw - var(--document-width)) * .54);
-  --right-margin: calc(100vw - var(--document-width) - var(--left-margin));
-  --page-top: 48px;
-  --todo-heading-height: 44px;
-  @media(pointer: coarse) { --todo-heading-height: 48px; }
-  height: 100dvh; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column;
-  background-color: var(--current-page-paper);
-  [data-focus-chrome] { opacity: ${({ $focusing }) => $focusing ? 'var(--focus-chrome-opacity)' : 'var(--chrome-opacity)'}; transition: opacity 180ms ease-out; }
-  ${({ $focusing }) => $focusing && css`
-    & [data-focus-surface] {
-      --edge-paper: color-mix(in srgb, var(--paper), #000 20%);
-    }
-    :root:not([data-theme='night']) & [data-focus-surface] {
-      --paper: color-mix(in srgb, #f2f1ed, #000 16%);
-      --ink: color-mix(in srgb, #242422, #000 16%);
-      --muted: color-mix(in srgb, #626762, #000 16%);
-      --line: color-mix(in srgb, #d4d2cb, #000 16%);
-      --sage: color-mix(in srgb, #59605d, #000 16%);
-      --soft: color-mix(in srgb, #e8e6df, #000 16%);
-      --surface: color-mix(in srgb, #faf9f6, #000 16%);
-      --field: color-mix(in srgb, #fffefa, #000 16%);
-      --date-bg: color-mix(in srgb, #dfe7ed, #000 16%);
-      --tag-bg: color-mix(in srgb, #e8e6df, #000 16%);
-      --tag-ink: color-mix(in srgb, #525a56, #000 16%);
-      --tag-selected: color-mix(in srgb, #1871ba, #000 16%);
-      --code-bg: color-mix(in srgb, #e6e7e1, #000 16%);
-      --code-ink: color-mix(in srgb, #4d615d, #000 16%);
-      --quote: color-mix(in srgb, #5f645f, #000 16%);
-      --selection: color-mix(in srgb, #ccdbe7, #000 16%);
-      --focus: color-mix(in srgb, #6f7f88, #000 16%);
-      --link: color-mix(in srgb, #1871ba, #000 16%);
-      --url: color-mix(in srgb, #70588f, #000 16%);
-      --checkbox: color-mix(in srgb, #747773, #000 16%);
-      --scrollbar: color-mix(in srgb, #c0beb7, #000 16%);
-      --edge-paper: var(--paper);
-    }
-  `}
-  @media ${compactViewport} {
-    --document-width: min(680px, calc(100vw - max(24px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
-    --page-top: max(16px, env(safe-area-inset-top)); --todo-heading-height: 36px;
-    --left-margin: max(24px, env(safe-area-inset-left), calc((100vw - var(--document-width)) * .54));
-    --right-margin: calc(100vw - var(--document-width) - var(--left-margin));
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-  }
-  /* Browser zoom can make a desktop viewport match the compact breakpoint.
-     Keep enough physical-feeling gutter for the hover sidebar on devices that
-     still have a precise pointer; touch layouts retain their tighter margins. */
-  @media (hover: hover) and (pointer: fine) {
-    --document-width: min(680px, calc(100vw - 64px));
-    --left-margin: max(48px, calc((100vw - var(--document-width)) * .54));
-    --right-margin: calc(100vw - var(--document-width) - var(--left-margin));
-  }
-  @media (pointer: coarse) {
-    height: 100lvh;
-    overflow-y: hidden;
-  }
-`;
-const ringPulse = keyframes`
-  from { transform: scale(1); opacity: .65; }
-  to { transform: scale(1.14); opacity: 0; }
-`;
-const pageControl = css`
-  ${press}; position: relative; display: grid; place-items: center;
-  width: 28px; height: 36px; padding: 0; border: 0; border-radius: 50%;
-  background: transparent; color: var(--muted); text-decoration: none;
-  svg, [data-shortcut-icon] { transition: scale 140ms ease-out; }
-  &:hover { color: var(--link); }
-  &:hover svg, &:hover [data-shortcut-icon] { scale: 1.05; }
-  @media(pointer: coarse) { width: 44px; height: 44px; }
-`;
-const ThemeToggle = styled.button`${pageControl}`;
-const RepositoryLink = styled.a`${pageControl}`;
-const ShortcutToggle = styled.button`${pageControl}`;
-const ShortcutGlyph = styled.span`
-  width: 15px; height: 15px; display: block; background: currentColor;
-  mask: url('/icons/shortcut-flaticon.png') center / contain no-repeat;
-  -webkit-mask: url('/icons/shortcut-flaticon.png') center / contain no-repeat;
-`;
-const ThemeGlyph = styled.span<{ $shown: boolean }>`
-  position: absolute; display: grid; place-items: center; pointer-events: none;
-  opacity: ${({ $shown }) => $shown ? 1 : 0}; scale: ${({ $shown }) => $shown ? 1 : .25};
-  filter: blur(${({ $shown }) => $shown ? 0 : 4}px);
-  transition: opacity 150ms cubic-bezier(.2,0,0,1), scale 150ms cubic-bezier(.2,0,0,1), filter 150ms cubic-bezier(.2,0,0,1);
-`;
-const StatsToggle = styled.button`${pageControl}`;
-const CalendarToggle = styled.button`${pageControl}`;
-const SettingsToggle = styled.button`${pageControl}`;
-const SidebarControls = styled.div`display: flex; align-items: center;`;
-const TimerChrome = styled.div`
-  position: fixed; top: 20px; right: 24px; z-index: 43;
-  display: flex; align-items: center; gap: 10px;
-  @media ${compactViewport} { top: max(12px, env(safe-area-inset-top)); right: 12px; }
-`;
-const TimerTime = styled.span`
-  color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; letter-spacing: -.01em;
-`;
-const TimerButton = styled.button<{ $pulse: boolean; $running: boolean }>`
-  ${press}; position: relative; width: 44px; height: 44px; display: grid; place-items: center; flex-shrink: 0;
-  padding: 0; border: 0; border-radius: 50%; background: var(--timer); color: var(--timer-ink);
-  &::before { content: ''; position: absolute; inset: -3px; border: 1px solid var(--timer-ring); border-radius: 50%; pointer-events: none; transition: border-color 160ms ease-out; }
-  &::after { content: ''; position: absolute; inset: -3px; border: 1px solid ${({ $running }) => $running ? 'var(--timer-running-ring)' : 'var(--timer-ring)'}; border-radius: 50%; pointer-events: none; opacity: 0;
-    transform: scale(1); ${({ $pulse }) => $pulse && css`animation: ${ringPulse} 360ms ease-out; will-change: transform, opacity;`} }
-  &:hover { background: var(--timer-hover); }
-  &[aria-pressed='true'] { background: var(--timer-running); scale: 1.03; }
-  &[aria-pressed='true']:hover { background: var(--timer-running-hover); }
-  &[aria-pressed='true']::before { border-color: var(--timer-running-ring); }
-`;
-const ShortHeader = styled.div`
-  height: 44px; flex-shrink: 0;
-`;
-const MobileTabs = styled.div`
-  position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 43;
-  height: 44px; display: flex; align-items: center;
-`;
-const MobileTab = styled.button<{ $active: boolean }>`
-  position: relative; width: 44px; height: 44px; padding: 0; border: 0; background: transparent;
-  color: ${({ $active }) => $active ? 'var(--link)' : 'var(--muted)'};
-  font-size: 0;
-  &::before { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px;
-    border-radius: 50%; background: currentColor; opacity: ${({ $active }) => $active ? 1 : .48}; translate: -50% -50%;
-    transition: color 120ms ease-out, opacity 120ms ease-out; }
-  &:first-child::before { translate: calc(-50% + 16px) -50%; }
-  &:last-child::before { translate: calc(-50% - 16px) -50%; }
-`;
-const MobilePager = styled.div`
-  display: flex; flex: 1; min-width: 0; min-height: 0; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden;
-  scroll-snap-type: x mandatory; overscroll-behavior-x: none; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  &[data-dragging='true'] { scroll-snap-type: none; scroll-behavior: auto; }
-  &::-webkit-scrollbar { display: none; }
-`;
-const MobilePane = styled.section`
-  flex: 0 0 100%; width: 100%; max-width: 100%; min-width: 0; min-height: 0; overflow-x: clip; overflow-y: auto;
-  display: flex; flex-direction: column; scrollbar-width: none;
-  scroll-snap-align: start; scroll-snap-stop: always; contain: inline-size;
-  padding: 0;
-  &::-webkit-scrollbar { display: none; }
-`;
-const MobileTags = styled.div`
-  padding: 0 2px max(12px, env(safe-area-inset-bottom));
-`;
-const MobileTagCollection = styled.div`
-  display: flex; flex-wrap: wrap; align-content: start; gap: 4px;
-`;
-const MobileTagPillLabel = styled.span`display: block; translate: 0 -1px;`;
-const MobileTagPill = styled.button<{ $selected: boolean }>`
-  ${press}; min-height: 38px; max-width: 100%; padding: 5px 10px;
-  border: 1px solid ${({ $selected }) => $selected ? 'var(--tag-selected)' : 'var(--line)'}; border-radius: 999px; overflow-wrap: anywhere;
-  background: transparent; color: ${({ $selected }) => $selected ? 'var(--tag-selected)' : 'var(--tag-ink)'};
-  font-size: 14px; line-height: 20px;
-  transition: border-color 140ms ease-out, color 140ms ease-out, scale 150ms ease-out;
-`;
-const MobileTagControls = styled.div`
-  margin-top: 10px;
-  button, a { width: 36px; height: 36px; }
-`;
-const SoundMenu = styled.div`display: grid; gap: 8px; padding: 4px; button { justify-content: center; } input { width: 100%; min-height: 40px; accent-color: var(--link); }`;
-const ShortcutPanel = styled.div`
-  padding: 4px 12px 8px;
-`;
-const ShortcutRows = styled.div`
-  display: grid; grid-template-columns: minmax(0, 1fr) max-content; column-gap: 20px; row-gap: 2px;
-`;
-const ShortcutRow = styled.div`
-  display: contents;
-  > * { min-height: 34px; padding: 8px 0; box-sizing: border-box; }
-`;
-const Keys = styled.span`color: var(--muted); font-size: 12px; text-align: left; text-transform: lowercase; white-space: nowrap;`;
-const Demo = styled.span`
-  min-width: 0; line-height: 1.35; font-size: 13px; color: var(--ink); text-align: left;
-  strong { font-weight: 700; } em { font-style: italic; } u { text-underline-offset: 2px; }
-  a { color: var(--link); text-decoration: none; }
-  code { padding: 0; border-radius: 0; background: transparent; color: var(--code-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
-`;
-const Main = styled.main`
-  width: var(--document-width); margin: var(--page-top) var(--right-margin) 0 var(--left-margin);
-  flex: 1; display: flex; flex-direction: column; min-height: 0;
-  @media ${compactViewport} { max-width: 100%; overflow: hidden; }
-`;
-const LogFrame = styled.div`
-  position: relative; flex: 1; min-height: min(240px, max(64px, calc(100dvh - 160px))); display: flex;
-  @media ${compactViewport} { min-height: 0; padding: 0 0 max(12px, env(safe-area-inset-bottom)); overflow-x: clip; }
-`;
-const LogViewport = styled.div`
-  flex: 1; min-height: min(240px, max(64px, calc(100dvh - 160px))); overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain;
-  padding: 30px 12px 24px 8px; scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent;
-  @media ${compactViewport} {
-    min-height: 0; padding: 24px 2px 10px 0; scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-  }
-`;
-const LogEdgeWash = styled.div<{ $edge?: 'top' | 'bottom' }>`
-  position: absolute; z-index: 7; ${({ $edge = 'top' }) => $edge === 'top' ? 'top: -2px;' : 'bottom: 0;'} left: -24px; right: -24px; height: 30px; pointer-events: none;
-  opacity: 1;
-  background: linear-gradient(to ${({ $edge = 'top' }) => $edge === 'top' ? 'bottom' : 'top'}, var(--edge-paper) 0%, color-mix(in srgb, var(--edge-paper) 72%, transparent) 34%, transparent 82%);
-  &::after {
-    content: ''; position: absolute; inset: 0;
-    background-image:
-      radial-gradient(ellipse 22% 105% at 7% -8%, var(--edge-paper) 0 48%, transparent 82%),
-      radial-gradient(ellipse 30% 92% at 31% -10%, var(--edge-paper) 0 44%, transparent 80%),
-      radial-gradient(ellipse 24% 112% at 56% -18%, var(--edge-paper) 0 50%, transparent 84%),
-      radial-gradient(ellipse 32% 96% at 82% -9%, var(--edge-paper) 0 42%, transparent 79%),
-      radial-gradient(ellipse 18% 108% at 101% -16%, var(--edge-paper) 0 49%, transparent 83%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000d 40%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000d 40%, transparent 100%);
-    opacity: .88;
-    ${({ $edge = 'top' }) => $edge === 'bottom' && 'transform: rotate(180deg);'}
-  }
-  @media ${compactViewport} { height: 24px; }
-`;
-const Toast = styled.div`position: fixed; bottom: max(25px, calc(env(safe-area-inset-bottom) + 12px)); left: 50%; transform: translateX(-50%); z-index: 30; max-width: min(540px, calc(100% - 32px)); display: flex; align-items: center; gap: 12px; padding: 7px 8px 7px 19px; background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px #00000007, 0 4px 24px #31392b19; font-size: 12px;`;
-const QuietStatus = styled.div`
-  position: fixed; right: 24px; bottom: 18px; z-index: 20; pointer-events: none;
-  color: var(--muted); font-size: 11px; opacity: 0; transform: translateY(2px);
-  transition: opacity 140ms ease-out, transform 140ms ease-out;
-  &[data-show='true'] { opacity: .82; transform: translateY(0); }
-`;
-const ConnectionState = styled.div`padding: 50px 0; display: grid; gap: 16px; justify-items: start; @media ${shortViewport} { display: none; }`;
+type Review = { raw: string; file: TodoDocument; proposal: MergeProposal; handle: TodoFileHandle | null; mode: 'import' | 'save'; observedText: string | null };
+const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
+const itemLabel = (item: TodoItem | null) => item ? `${item.completed ? 'done' : 'upcoming'}  ${item.text}${item.details.map(detail => `\n  - ${detail}`).join('')}` : '(deleted / absent)';
+const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
-export default function App({ locked = false, load = !locked, onReady, onLoadError }: {
-  locked?: boolean; load?: boolean; onReady?: () => void; onLoadError?: () => void;
-}) {
-  const [data, setData] = useState<JournalData | null>(null);
-  const [night, setNight] = useState(() => getTheme() === 'night');
-  useEffect(() => {
-    setTheme(night ? 'night' : 'day');
-  }, [night]);
-  const [font, setFont] = useState<AppFont>(getFont);
-  const [timezone, setTimezone] = useState(getTimezone);
-  useEffect(() => { storeFont(font); }, [font]);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  const tagRef = useRef<string | null>(null);
-  const [completed, setCompleted] = useState(new Set<number>());
-  const [reopened, setReopened] = useState(new Set<number>());
-  const [undoTask, setUndoTask] = useState<{ id: number; completedAt: string } | null>(null);
-  const [target, setTarget] = useState<{ kind: 'notes' | 'tasks'; id: number } | null>(null);
-  const completionTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reopenTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onComplete = (ids: number[], taskId?: number, completedAt?: string) => {
-    if (completionTimeout.current) clearTimeout(completionTimeout.current);
-    setCompleted(new Set(ids));
-    if (taskId && completedAt) { recordCompletion(taskId, completedAt); setUndoTask({ id: taskId, completedAt }); }
-    completionTimeout.current = setTimeout(() => setCompleted(new Set()), 1000);
-  };
-  const onReopen = (ids: number[]) => {
-    if (reopenTimeout.current) clearTimeout(reopenTimeout.current);
-    setReopened(new Set(ids));
-    reopenTimeout.current = setTimeout(() => setReopened(new Set()), 1000);
-  };
-  useEffect(() => () => {
-    if (completionTimeout.current) clearTimeout(completionTimeout.current);
-    if (reopenTimeout.current) clearTimeout(reopenTimeout.current);
-  }, []);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [now, setNow] = useState(Date.now());
-  const [statsOpen, setStatsOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [soundOpen, setSoundOpen] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+export default function App() {
+  const [state, setState] = useState<TodoState | null>(null);
+  const current = useRef<TodoState>(emptyState());
+  const [selectedDate, setSelectedDate] = useState(todayString);
+  const [query, setQuery] = useState('');
+  const [tag, setTag] = useState<string | null>(null);
+  const [theme, setThemeState] = useState(getTheme);
+  const [font, setFontState] = useState(getFont);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [paged, setPaged] = useState(() => window.matchMedia(compactViewport).matches);
-  const [hasHoverSidebar, setHasHoverSidebar] = useState(() => window.matchMedia('(hover: hover) and (pointer: fine)').matches);
-  const viewportWidth = useRef(window.innerWidth);
-  const { pagerRef: mobilePager, selectView: selectMobileView, trackScroll: trackMobileScroll, view: mobileView } = usePager(MOBILE_VIEWS, 'log', paged);
-  const quietStatus = useRef<HTMLDivElement>(null);
-  const quietStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sessionsDate, setSessionsDate] = useState<string | null>(null);
-  const [timerBusy, setTimerBusy] = useState(false);
-  const [timerIntent, setTimerIntent] = useState<'start' | 'stop' | null>(null);
-  const [timerPulse, setTimerPulse] = useState(false);
-  const [audible, setAudible] = useState(false);
-  const [volume, setVolume] = useState(() => Math.max(0, Math.min(1, Number(localStorage.getItem('jing-volume') ?? '0.22') || 0)));
-  const sound = useRef(new FocusSound());
-  const timerLock = useRef(false);
-  const clockOffset = useRef(0);
-  const generation = useRef(0);
-  const loadedThrough = useRef<string | null>(null);
-  const logViewport = useRef<HTMLDivElement>(null);
-  const notify = useCallback((text: string) => setMessage(text), []);
+  const [review, setReview] = useState<Review | null>(null);
+  const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
+  const [rawEdit, setRawEdit] = useState('');
+  const [issues, setIssues] = useState<ParseIssue[]>([]);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
+  const undoStack = useRef<TodoDocument[]>([]);
+  const redoStack = useRef<TodoDocument[]>([]);
+  const today = todayString();
+
+  useEffect(() => { loadTodoState().then(loaded => { current.current = loaded; setState(loaded); }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
+  const commitState = async (next: TodoState) => { current.current = next; setState(next); await saveTodoState(next); };
+  const edit = (change: (document: TodoDocument) => void) => {
+    const before = current.current.document;
+    const document = cloneDocument(before);
+    change(document);
+    try { validateDocument(document); } catch (error) { setMessage(String(error)); return; }
+    if (serializeTodoText(before) === serializeTodoText(document)) return;
+    undoStack.current.push(before);
+    if (undoStack.current.length > 100) undoStack.current.shift();
+    redoStack.current = [];
+    void commitState({ ...current.current, document }).catch(error => setMessage(`Could not save: ${String(error)}`));
+  };
+  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(current.current.document); void commitState({ ...current.current, document: previous }); };
+  const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(current.current.document); void commitState({ ...current.current, document: next }); };
   useEffect(() => {
-    const media = window.matchMedia(compactViewport);
-    const coarse = window.matchMedia('(pointer: coarse)');
-    const resize = () => {
-      const widthChanged = Math.abs(window.innerWidth - viewportWidth.current) > 80;
-      viewportWidth.current = window.innerWidth;
-      const active = document.activeElement;
-      const editing = active instanceof HTMLElement && (active.isContentEditable || active.matches('input, textarea'));
-      setPaged(previous => coarse.matches && editing && !widthChanged && media.matches !== previous ? previous : media.matches);
+    const key = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('input,textarea,[contenteditable=true]')) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') { event.preventDefault(); document.getElementById('journal-search')?.focus(); }
     };
-    media.addEventListener('change', resize);
-    window.addEventListener('resize', resize);
-    return () => { media.removeEventListener('change', resize); window.removeEventListener('resize', resize); };
-  }, []);
-  useEffect(() => {
-    const media = window.matchMedia('(hover: hover) and (pointer: fine)');
-    const update = () => setHasHoverSidebar(media.matches);
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-  useEffect(() => {
-    if (locked) return;
-    const shortcut = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      const historyDirection = historyShortcutDirection(event);
-      const editing = event.target instanceof Element && !!event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])');
-      if (historyDirection !== null && !editing) {
-        event.preventDefault();
-        void documentUndo(historyDirection).catch(e => notify(errorMessage(e)));
-        return;
-      }
-      if (event.metaKey || event.ctrlKey) {
-        if (event.key.toLowerCase() === 'f') { event.preventDefault(); setSearchOpen(true); }
-      }
-    };
-    window.addEventListener('keydown', shortcut);
-    return () => window.removeEventListener('keydown', shortcut);
-  }, [locked]);
-  useEffect(() => {
-    const saveState = (event: Event) => {
-      const value = (event as CustomEvent<string>).detail;
-      const status = quietStatus.current;
-      if (!status) return;
-      if (quietStatusTimer.current) clearTimeout(quietStatusTimer.current);
-      if (value === 'clear') { status.dataset.show = 'false'; return; }
-      status.textContent = value === 'saving' ? 'saving…' : 'saved'; status.dataset.show = 'true';
-      if (value === 'saved') quietStatusTimer.current = setTimeout(() => { status.dataset.show = 'false'; }, 900);
-    };
-    window.addEventListener('jing-save-state', saveState);
-    return () => {
-      window.removeEventListener('jing-save-state', saveState);
-      if (quietStatusTimer.current) clearTimeout(quietStatusTimer.current);
-    };
-  }, []);
-  const refresh = useCallback(async (includeHistory = true) => {
-    const sequence = ++generation.current;
-    const tag = tagRef.current;
-    let response = await getJournal({ limit: JOURNAL_PAGE_SIZE, tag });
-    try {
-      if (await recoverEarlierDrafts(response.today)) response = await getJournal({ limit: JOURNAL_PAGE_SIZE, tag });
-    } catch { notify('Could not save an earlier draft. Retrying automatically.'); }
-    while (includeHistory && loadedThrough.current && response.next_cursor && response.next_cursor > loadedThrough.current) {
-      const more = await getJournal({ before: response.next_cursor, limit: JOURNAL_PAGE_SIZE, tag });
-      response.days.push(...more.days);
-      response.next_cursor = more.next_cursor;
-    }
-    if (sequence !== generation.current) return;
-    if (tagRef.current && !response.tags?.some(tag => tag.name === tagRef.current)) {
-      tagRef.current = null; loadedThrough.current = null; setActiveTag(null); return;
-    }
-    clockOffset.current = new Date(response.server_time).getTime() - Date.now();
-    setData(previous => {
-      if (includeHistory || !previous || previous.tag !== response.tag) return response;
-      const oldest = response.days.at(-1)?.date ?? response.today;
-      const cachedDays = previous.days.filter(day => day.date < oldest);
-      return { ...response, days: [...response.days, ...cachedDays], next_cursor: cachedDays.length ? previous.next_cursor : response.next_cursor };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
+  const mutateItem = (date: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => edit(document => {
+    const items = document.days.find(day => day.date === date)?.items;
+    const item = items?.find(item => item.id === id);
+    if (items && item) change(item, items);
+  });
+  const addItem = (date: string, text: string) => { if (!text.trim()) return; edit(document => {
+    let day = document.days.find(day => day.date === date);
+    if (!day) { day = { date, items: [] }; document.days.push(day); document.days.sort((a,b) => a.date.localeCompare(b.date)); }
+    day.items.push({ id: newId(), text: text.trim(), details: [], completed: false });
+  }); };
+  const moveItem = (date: string, id: string, target: string) => {
+    if (!validDate(target) || target === date) return;
+    edit(document => {
+      const source = document.days.find(day => day.date === date);
+      const index = source?.items.findIndex(item => item.id === id) ?? -1;
+      if (!source || index < 0) return;
+      const [item] = source.items.splice(index, 1);
+      let destination = document.days.find(day => day.date === target);
+      if (!destination) { destination = { date: target, items: [] }; document.days.push(destination); }
+      destination.items.push(item);
+      document.days = document.days.filter(day => day.items.length);
+      document.days.sort((a,b) => a.date.localeCompare(b.date));
     });
-    setError('');
-  }, [notify]);
-  useEffect(() => {
-    const applied = () => { void refresh().catch(e => notify(errorMessage(e))); };
-    const failed = (event: Event) => notify((event as CustomEvent<string>).detail);
-    const edited = () => setUndoTask(null);
-    window.addEventListener('jing-history-applied', applied);
-    window.addEventListener('jing-history-error', failed);
-    window.addEventListener('jing-history-available', edited);
-    return () => { window.removeEventListener('jing-history-applied', applied); window.removeEventListener('jing-history-error', failed); window.removeEventListener('jing-history-available', edited); };
-  }, [refresh, notify]);
-
-  useEffect(() => {
-    if (!load) { setData(null); return; }
-    void refresh(false).catch(e => { setError(errorMessage(e)); onLoadError?.(); });
-  }, [refresh, activeTag, load, onLoadError, timezone]);
-  useEffect(() => {
-    if (locked || !load || !isDataSourceConfigured()) return;
-    const interval = setInterval(() => { void refresh(false).catch(e => setError(errorMessage(e))); }, 15000);
-    const focus = () => { void refresh(false).catch(e => setError(errorMessage(e))); };
-    window.addEventListener('focus', focus);
-    return () => { clearInterval(interval); window.removeEventListener('focus', focus); };
-  }, [refresh, locked, load]);
-  useEffect(() => { if (data && load) onReady?.(); }, [data, load, onReady]);
-  useEffect(() => {
-    if (!data?.active_session) return;
-    setNow(Date.now());
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [data?.active_session?.id]);
-  useEffect(() => {
-    if (locked) return;
-    let day = localDate();
-    const interval = setInterval(() => {
-      const next = localDate();
-      if (next !== day) { day = next; setNow(Date.now()); void refresh(false).catch(e => setError(errorMessage(e))); }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [refresh, locked]);
-  useEffect(() => { if (!message) return; const id = setTimeout(() => setMessage(''), 6500); return () => clearTimeout(id); }, [message]);
-  useEffect(() => {
-    if (!data?.active_session) { sound.current.stop(); setAudible(false); }
-  }, [data?.active_session?.id]);
-  useEffect(() => { const currentSound = sound.current; return () => currentSound.dispose(); }, []);
-
-  const active = data?.active_session;
-  const timerRunning = timerIntent === 'start' || timerIntent === null && !!active;
-  useEffect(() => {
-    let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon); }
-    const paper = night ? '#011627' : '#d9dcdd';
-    const ink = active ? (night ? '#75d1c4' : '#48675e') : (night ? '#8ca0b0' : '#777b7e');
-    const inner = active ? `<circle cx="16" cy="16" r="5" fill="${ink}"/>` : '';
-    icon.href = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="${paper}"/><circle cx="16" cy="16" r="10" fill="none" stroke="${ink}" stroke-width="2"/>${inner}</svg>`)}`;
-  }, [active, night]);
-  const adjustedNow = now + clockOffset.current;
-  const elapsed = active ? Math.max(0, (adjustedNow - new Date(active.started_at).getTime()) / 1000) : 0;
-  const visibleElapsed = timerRunning ? elapsed : 0;
-  const toggleTimer = async () => {
-    if (timerLock.current) return;
-    const stopping = !!active;
-    timerLock.current = true; setTimerIntent(stopping ? 'stop' : 'start'); setTimerBusy(true);
+    setSelectedDate(target);
+  };
+  const imported = async (raw: string, handle: TodoFileHandle | null, mode: 'import' | 'save', observedText: string | null = null) => {
+    const parsed = parseTodoText(raw);
+    if (parsed.issues.length) { setRawEdit(raw); setIssues(parsed.issues); setReview({ raw, file: parsed.document, proposal: { rows: [], conflicts: [] }, handle, mode, observedText }); return; }
+    const proposal = proposeMerge(current.current.document, parsed.document, current.current.baseline);
+    if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, file: parsed.document, proposal, handle, mode, observedText }); return; }
+    const merged = resolveMerge(proposal, {});
+    if (mode === 'save' && handle) await saveToHandle(handle, merged, observedText ?? raw);
+    else { await commitState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
+  };
+  const saveToHandle = async (handle: TodoFileHandle, document: TodoDocument, observed: string) => {
+    if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted' && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('File access was not granted.');
+    const latest = await (await handle.getFile()).text();
+    if (latest !== observed) {
+      // Keep the user's completed review as the local side of the next merge.
+      await commitState({ ...current.current, document });
+      await imported(latest, handle, 'save', latest);
+      return;
+    }
+    const output = serializeTodoText(document);
+    const writable = await handle.createWritable();
+    await writable.write(output);
+    await writable.close();
+    await commitState({ ...current.current, document, baseline: cloneDocument(document), baselineText: output, fileHandle: handle });
+    setReview(null); setMessage(`Saved ${handle.name}.`);
+  };
+  const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text(), null, 'import'); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } };
+  const openFile = async () => { setBusy(true); try { const handle = await pickTodoFile(); await imported(await (await handle.getFile()).text(), handle, 'import'); } catch (error) { if ((error as Error).name !== 'AbortError') setMessage(String(error)); } finally { setBusy(false); } };
+  const download = async () => {
+    const output = serializeTodoText(current.current.document);
+    const url = URL.createObjectURL(new Blob([output], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'TODO.txt'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (!current.current.fileHandle) await commitState({ ...current.current, baseline: cloneDocument(current.current.document), baselineText: output });
+    setMessage('TODO.txt downloaded.');
+  };
+  const save = async () => {
+    const handle = current.current.fileHandle;
+    if (!handle) { setMessage('Open a TODO.txt file first, or use Download.'); return; }
+    setBusy(true);
     try {
-      if (active) {
-        await api<Session>('/timer/stop', 'POST', { session_id: active.id });
-        sound.current.stop(); setAudible(false);
-        setData(current => current ? { ...current, active_session: null } : current);
-      } else {
-        if (localStorage.getItem('jing-muted') !== 'true') void sound.current.start(volume).then(() => setAudible(true)).catch(() => notify('Audio paused. Open the timer’s sound menu to resume.'));
-        const started = await api<Session>('/timer/start', 'POST');
-        setData(current => current ? { ...current, active_session: started } : current);
-      }
-      setTimerPulse(false);
-      if (!active) {
-        requestAnimationFrame(() => setTimerPulse(true));
-        setTimeout(() => setTimerPulse(false), 400);
-      }
-      await refresh();
-    } catch (e) { if (!active) { sound.current.stop(); setAudible(false); } notify(errorMessage(e)); }
-    finally { timerLock.current = false; setTimerIntent(null); setTimerBusy(false); }
+      if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted' && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('File access was not granted.');
+      const raw = await (await handle.getFile()).text();
+      if (raw !== current.current.baselineText) await imported(raw, handle, 'save', raw);
+      else await saveToHandle(handle, current.current.document, raw);
+    } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
   };
-  const toggleSound = async () => {
-    if (audible) { sound.current.stop(); setAudible(false); localStorage.setItem('jing-muted', 'true'); }
-    else { try { await sound.current.start(volume); setAudible(true); localStorage.setItem('jing-muted', 'false'); } catch { notify('Your browser couldn’t start audio. The timer is still tracking your focus.'); } }
-  };
-  const secondsForDay = (day: JournalDay) => {
-    if (!active || !data || day.date !== data.today) return day.focused_seconds;
-    return day.focused_seconds + Math.max(0, (adjustedNow - new Date(data.server_time).getTime()) / 1000);
-  };
-
-  const selectTag = async (tag: string | null) => {
+  const applyReview = async () => {
+    if (!review || issues.length) return;
+    setBusy(true);
     try {
-      await flushDrafts();
-      tagRef.current = tag; loadedThrough.current = null; generation.current++;
-      setActiveTag(tag);
-      if (logViewport.current) logViewport.current.scrollTop = 0;
-    } catch (error) { notify(errorMessage(error)); }
-  };
-
-  const loadMore = useCallback(async () => {
-    const cursor = data?.next_cursor;
-    if (!cursor) return;
-    const filter = tagRef.current;
-    const more = await getJournal({ before: cursor, limit: JOURNAL_PAGE_SIZE, tag: filter });
-    if (filter !== tagRef.current) return;
-    loadedThrough.current = more.days.at(-1)?.date ?? loadedThrough.current;
-    setData(current => current ? { ...current, days: [...current.days, ...more.days.filter(day => !current.days.some(existing => existing.date === day.date))], next_cursor: more.next_cursor } : current);
-  }, [data?.next_cursor]);
-
-  const jumpTo = async (hit: SearchHit) => {
-    try {
-      await flushDrafts();
-      tagRef.current = null; loadedThrough.current = null; setActiveTag(null); setTarget(null);
-      await refresh();
-      if (hit.date) {
-        const result = await getJournal({ on: hit.date });
-        setData(current => current ? { ...current, days: [...current.days.filter(day => day.date !== hit.date), ...result.days].sort((a, b) => b.date.localeCompare(a.date)) } : current);
+      const merged = resolveMerge(review.proposal, choices);
+      if (review.mode === 'save' && review.handle) await saveToHandle(review.handle, merged, review.observedText ?? review.raw);
+      else {
+        await commitState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal), baselineText: review.raw, fileHandle: review.handle });
+        setReview(null); setMessage('TODO.txt imported.');
       }
-      setSearchOpen(false);
-      setTimeout(() => setTarget({ kind: hit.kind, id: hit.id }), 180);
-    } catch (e) { notify(errorMessage(e)); }
+    } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
   };
-
-  const sidebarControls = <SidebarControls role="group" aria-label="Page controls" data-focus-chrome>
-    {REPOSITORY_URL && <RepositoryLink href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="GitHub"><Github size={15} aria-hidden="true" /></RepositoryLink>}
-    <CalendarToggle aria-label="Manage calendars" title="Calendars" onClick={() => setCalendarOpen(true)}><CalendarDays size={15} aria-hidden="true" /></CalendarToggle>
-    <StatsToggle aria-label="Open focus statistics" title="Statistics" onClick={() => setStatsOpen(true)}><ChartNoAxesColumn size={15} aria-hidden="true" /></StatsToggle>
-    <ShortcutToggle aria-label="Keyboard shortcuts" title="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><ShortcutGlyph data-shortcut-icon aria-hidden="true" /></ShortcutToggle>
-    <SettingsToggle aria-label="Open Jing settings" title="Settings" onClick={() => setSettingsOpen(true)}><Settings2 size={15} aria-hidden="true" /></SettingsToggle>
-    <ThemeToggle role="switch" aria-label="Night mode" aria-checked={night}
-      title={night ? 'Use day mode' : 'Use night mode'} onClick={() => setNight(value => !value)}>
-      <ThemeGlyph $shown={!night} data-icon="sun" aria-hidden="true"><Sun size={15} /></ThemeGlyph>
-      <ThemeGlyph $shown={night} data-icon="moon" aria-hidden="true"><Moon size={15} /></ThemeGlyph>
-    </ThemeToggle>
-  </SidebarControls>;
-
-  return <JournalContext.Provider value={{ tags: data?.tags ?? [], activeTag: data?.tag ?? null, completed, onComplete, reopened, onReopen, target }}><Page $focusing={timerRunning} data-testid="page" data-focus-running={timerRunning ? 'true' : undefined}>
-    <TimerChrome>
-      <TimerTime data-testid="compact-timer-time" aria-hidden="true">{timerDuration(visibleElapsed)}</TimerTime>
-      <TimerButton $pulse={timerPulse} $running={timerRunning} type="button" disabled={!data} data-haptic="impact"
-        aria-label={timerRunning ? 'Stop focus timer' : 'Start focus timer'} aria-pressed={timerRunning} aria-disabled={timerBusy || undefined} aria-busy={timerBusy || undefined}
-        title="Click to start/stop · right-click for sound"
-        onContextMenu={event => { event.preventDefault(); setSoundOpen(true); }}
-        onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); setSoundOpen(true); } }}
-        onClick={() => void toggleTimer()}><TimerIcon size={16} aria-hidden="true" /></TimerButton>
-    </TimerChrome>
-    {(!paged || hasHoverSidebar) && <TagTabs tags={data?.tags ?? []} active={activeTag} onSelect={tag => { void selectTag(tag); }} controls={sidebarControls} compactHover={hasHoverSidebar} />}
-    <Main data-focus-surface>
-      {paged ? <>
-        <ShortHeader>
-          <MobileTabs role="tablist" aria-label="Mobile views">
-            <MobileTab id="mobile-tab-todos" type="button" role="tab" aria-controls="mobile-panel-todos" aria-selected={mobileView === 'todos'} $active={mobileView === 'todos'} onClick={() => selectMobileView('todos')}>to do</MobileTab>
-            <MobileTab id="mobile-tab-log" type="button" role="tab" aria-controls="mobile-panel-log" aria-selected={mobileView === 'log'} $active={mobileView === 'log'} onClick={() => selectMobileView('log')}>log</MobileTab>
-            <MobileTab id="mobile-tab-tags" type="button" role="tab" aria-controls="mobile-panel-tags" aria-selected={mobileView === 'tags'} $active={mobileView === 'tags'} onClick={() => selectMobileView('tags')}>tags</MobileTab>
-          </MobileTabs>
-        </ShortHeader>
-        <MobilePager ref={mobilePager} data-testid="mobile-pager" data-mobile-pager onScroll={event => trackMobileScroll(event.currentTarget)}>
-          <MobilePane id="mobile-panel-todos" role="tabpanel" aria-labelledby="mobile-tab-todos" aria-hidden={mobileView !== 'todos'} inert={mobileView !== 'todos'}>{data ? <Todos key={data.tag ?? 'all'} tasks={data.tasks} refresh={refresh} notify={notify} /> : null}</MobilePane>
-          <MobilePane id="mobile-panel-log" role="tabpanel" aria-labelledby="mobile-tab-log" aria-hidden={mobileView !== 'log'} inert={mobileView !== 'log'}>{data && <LogFrame><LogViewport ref={logViewport} data-testid="log-scroll">
-            <Journal key={data.tag ?? 'all'} scrollRoot={logViewport} days={data.days} today={data.today} refresh={refresh} notify={notify} openSessions={setSessionsDate}
-              sessionsEnabled={false} showHistory secondsForDay={secondsForDay} hasMore={!!data.next_cursor} loadMore={loadMore} />
-          </LogViewport><LogEdgeWash data-testid="log-top-ink-wash" aria-hidden="true" /><LogEdgeWash $edge="bottom" data-testid="log-bottom-ink-wash" aria-hidden="true" /></LogFrame>}</MobilePane>
-          <MobilePane id="mobile-panel-tags" role="tabpanel" aria-labelledby="mobile-tab-tags" aria-hidden={mobileView !== 'tags'} inert={mobileView !== 'tags'}>
-            <MobileTags>
-              <MobileTagCollection aria-label="Filter by tag">
-                <MobileTagPill type="button" $selected={activeTag === null} aria-pressed={activeTag === null} onClick={() => void selectTag(null)}><MobileTagPillLabel>all</MobileTagPillLabel></MobileTagPill>
-                {(data?.tags ?? []).map(tag => <MobileTagPill key={tag.name} type="button" $selected={activeTag === tag.name}
-                  aria-pressed={activeTag === tag.name} onClick={() => void selectTag(tag.name)}><MobileTagPillLabel>#{tag.name}</MobileTagPillLabel></MobileTagPill>)}
-              </MobileTagCollection>
-              <MobileTagControls>{sidebarControls}</MobileTagControls>
-            </MobileTags>
-          </MobilePane>
-        </MobilePager>
-      </> : <>
-        {!data ? <ConnectionState><Muted>{error || 'Loading…'}</Muted>{error && <Button onClick={() => { setError(''); void refresh().catch(e => setError(errorMessage(e))); }}>Retry</Button>}</ConnectionState> :
-          <Todos key={data.tag ?? 'all'} tasks={data.tasks} refresh={refresh} notify={notify} />}
-      {data &&
-        <LogFrame><LogViewport ref={logViewport} data-testid="log-scroll">
-        <Journal key={data.tag ?? 'all'} scrollRoot={logViewport} days={data.days} today={data.today} refresh={refresh} notify={notify} openSessions={setSessionsDate} secondsForDay={secondsForDay} hasMore={!!data.next_cursor} loadMore={loadMore} />
-        {error && <TextButton onClick={() => void refresh().catch(e => notify(errorMessage(e)))}>Connection lost · retry</TextButton>}
-        </LogViewport><LogEdgeWash data-testid="log-top-ink-wash" aria-hidden="true" /><LogEdgeWash $edge="bottom" data-testid="log-bottom-ink-wash" aria-hidden="true" /></LogFrame>
-      }
+  const reparse = async () => { setIssues([]); setReview(null); try { await imported(rawEdit, review?.handle ?? null, review?.mode ?? 'import', review?.observedText ?? null); } catch (error) { setMessage(String(error)); } };
+  const documentData = state?.document ?? emptyDocument();
+  const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details].flatMap(tagsIn))))].sort(), [documentData]);
+  const visibleDays = useMemo(() => {
+    const dates = new Set([selectedDate, ...documentData.days.map(day => day.date)]);
+    return [...dates].sort((a,b) => b.localeCompare(a)).map(date => ({ date, items: documentData.days.find(day => day.date === date)?.items ?? [] }));
+  }, [documentData, selectedDate]);
+  const matches = (item: TodoItem) => {
+    const content = [item.text, ...item.details].join(' ').toLowerCase();
+    return (!query || content.includes(query.toLowerCase())) && (!tag || tagsIn(content).includes(tag));
+  };
+  if (!state) return <Page><Header><Brand>jing</Brand></Header><Muted>{message || 'Opening journal…'}</Muted></Page>;
+  return <Page>
+    <Header><Brand>jing</Brand><Tools>
+      <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
+      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => void download()}><Download size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title="Save connected TODO.txt" aria-label="Save connected TODO.txt" disabled={busy || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
+      <Icon title="Jing settings" aria-label="Jing settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
+    </Tools></Header>
+    <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
+    <Toolbar>
+      <Icon aria-label="Previous day" onClick={() => setSelectedDate(shiftDate(selectedDate,-1))}><ChevronLeft size={17}/></Icon>
+      <DatePicker aria-label="Selected date" type="date" value={selectedDate} onChange={event => validDate(event.target.value) && setSelectedDate(event.target.value)}/>
+      <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
+      <Icon aria-label="Today" title="Today" onClick={() => setSelectedDate(todayString())}><CalendarDays size={17}/></Icon>
+      <SearchField id="journal-search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)}/>
+      {query && <Icon aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></Icon>}
+    </Toolbar>
+    {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
+    {message && <Note role="status" style={{ marginBottom: 14 }}>{message} <button aria-label="Dismiss message" onClick={() => setMessage('')} style={{ border: 0, background: 'transparent', color: 'inherit' }}>×</button></Note>}
+    {visibleDays.map(day => {
+      const completed = day.items.filter(item => item.completed && matches(item));
+      const upcoming = day.items.filter(item => !item.completed && matches(item));
+      if ((query || tag) && !completed.length && !upcoming.length) return null;
+      return <DaySection key={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
+        <DayTitle><DateBadge dateTime={day.date}>{day.date}</DateBadge><span>{dateLabel(day.date,today)}</span></DayTitle>
+        {(completed.length > 0 || day.date === selectedDate) && <SectionCaption>done</SectionCaption>}
+        {completed.map(item => <JournalItem key={item.id} item={item} date={day.date} today={today} onChange={change => mutateItem(day.date,item.id,change)} onMove={target => moveItem(day.date,item.id,target)}/>)}
+        <Divider aria-label="Completed and upcoming divider"/>
+        {(upcoming.length > 0 || day.date === selectedDate) && <SectionCaption>upcoming</SectionCaption>}
+        {upcoming.map(item => <JournalItem key={item.id} item={item} date={day.date} today={today} onChange={change => mutateItem(day.date,item.id,change)} onMove={target => moveItem(day.date,item.id,target)}/>)}
+        {day.date < today && upcoming.length > 0 && <Note style={{ margin: '7px 0 5px 42px' }}>{upcoming.length} unfinished on this day</Note>}
+        {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
+      </DaySection>;
+    })}
+    <Footer>
+      <TextButton onClick={() => importInput.current?.click()}><FileInput size={15}/> import</TextButton>
+      <TextButton onClick={() => void download()}><Download size={15}/> download TODO.txt</TextButton>
+      {supportsDirectFiles() && <TextButton onClick={() => void openFile()}><FolderOpen size={15}/> open file</TextButton>}
+      {supportsDirectFiles() && state.fileHandle && <TextButton onClick={() => void save()}><Save size={15}/> save {state.fileHandle.name}</TextButton>}
+    </Footer>
+    <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Jing settings" compact>
+      <ModalTitle>settings</ModalTitle>
+      <p style={{ fontSize: 13, marginBottom: 15 }}>The journal stays in this browser until you export or save TODO.txt.</p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}><Button onClick={() => { const next = theme === 'day' ? 'night' : 'day'; setTheme(next); setThemeState(next); }}>{theme === 'day' ? <Moon size={15}/> : <Sun size={15}/>} {theme === 'day' ? 'night' : 'day'} mode</Button></div>
+      <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>Font<select value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }} style={{ minHeight: 38, background: 'var(--field)', border: '1px solid var(--line)', borderRadius: 7 }}><option value="sohne">Sohne</option><option value="dm-sans">DM Sans</option><option value="lora">Lora</option><option value="system">System</option></select></label>
+      <ModalActions><Button onClick={() => setSettingsOpen(false)}>close</Button></ModalActions>
+    </Modal>
+    <Modal open={!!review} onClose={() => { setReview(null); setIssues([]); }} title="Review TODO.txt import" wide>
+      <ModalTitle>{review?.mode === 'save' ? 'Review file changes' : 'Review TODO.txt import'}</ModalTitle>
+      {!!issues.length ? <><InlineError>{issues.length} format issue{issues.length === 1 ? '' : 's'} need correction before import.</InlineError>{issues.map(issue => <Note key={`${issue.line}-${issue.message}`}>Line {issue.line}: {issue.message}</Note>)}<RawText aria-label="Edit imported TODO.txt" value={rawEdit} onChange={event => setRawEdit(event.target.value)}/><ModalActions><Button onClick={() => setReview(null)}>cancel</Button><Button $primary onClick={() => void reparse()}>check file</Button></ModalActions></> : <>
+        <Note>{review?.proposal.conflicts.length ?? 0} item{review?.proposal.conflicts.length === 1 ? '' : 's'} need a decision. Clear changes will merge automatically.</Note>
+        <PaneGrid style={{ marginTop: 12 }}><strong style={{ fontSize: 12 }}>Jing</strong><strong style={{ fontSize: 12 }}>TODO.txt</strong></PaneGrid>
+        {review?.proposal.conflicts.map(row => <ReviewRow key={row.key}><Note>{row.date}{row.reorderConflict ? ' · order changed on both sides' : ''}</Note><PaneGrid><Pane>{row.reorderConflict && `position ${row.localOrder + 1}\n`}{itemLabel(row.local)}</Pane><Pane>{row.reorderConflict && `position ${row.fileOrder + 1}\n`}{itemLabel(row.file)}</Pane></PaneGrid><ReviewChoices>
+          {(['local','file','both'] as const).map(choice => <label key={choice}><input type="radio" name={row.key} checked={(choices[row.key] ?? '') === choice} onChange={() => setChoices(previous => ({ ...previous, [row.key]: choice }))}/> {choice === 'local' ? 'keep Jing' : choice === 'file' ? 'use file' : 'keep both'}</label>)}
+        </ReviewChoices></ReviewRow>)}
+        <ModalActions><Button onClick={() => setReview(null)}>cancel</Button><Button $primary disabled={busy || (review?.proposal.conflicts.some(row => !choices[row.key]) ?? false)} onClick={() => void applyReview()}>{review?.mode === 'save' ? 'merge and save' : 'apply import'}</Button></ModalActions>
       </>}
-    </Main>
-    <Suspense fallback={null}>
-      {sessionsDate && <SessionsModal date={sessionsDate} onClose={() => setSessionsDate(null)} onChange={refresh} />}
-      {statsOpen && <StatsModal open onClose={() => setStatsOpen(false)} />}
-      {searchOpen && <SearchModal open onClose={() => setSearchOpen(false)} onSelect={jumpTo} />}
-      {calendarOpen && <CalendarModal open onClose={() => setCalendarOpen(false)} onChange={refresh} />}
-    </Suspense>
-    <Modal open={soundOpen} onClose={() => setSoundOpen(false)} title="Focus sound" compact><SoundMenu>
-      <TextButton aria-label={audible ? 'Mute focus sound' : 'Play focus sound'} onClick={() => void toggleSound()}>{audible ? 'Mute' : 'Play sound'}</TextButton>
-      <input aria-label="Focus sound volume" type="range" min="0" max="1" step="0.01" value={volume} onChange={e => { const value = Number(e.target.value); setVolume(value); localStorage.setItem('jing-volume', String(value)); sound.current.setVolume(value); }} />
-    </SoundMenu></Modal>
-    <SettingsModal open={settingsOpen} font={font} timezone={timezone} onClose={() => setSettingsOpen(false)}
-      onFontChange={setFont} onTimezoneChange={value => { storeTimezone(value); setTimezone(value); }} />
-    <Modal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" compact><ShortcutPanel>
-      <ShortcutRows data-testid="shortcut-rows">
-        <ShortcutRow><Demo>create the next entry</Demo><Keys>enter</Keys></ShortcutRow>
-        <ShortcutRow><Demo>add a line break</Demo><Keys>shift + enter</Keys></ShortcutRow>
-        <ShortcutRow><Demo>indent entry</Demo><Keys>tab</Keys></ShortcutRow>
-        <ShortcutRow><Demo>outdent entry</Demo><Keys>shift + tab</Keys></ShortcutRow>
-        <ShortcutRow><Demo>select all entries</Demo><Keys>⌘ + a twice</Keys></ShortcutRow>
-        <ShortcutRow><Demo>make this <strong>bold</strong></Demo><Keys>⌘ + b</Keys></ShortcutRow>
-        <ShortcutRow><Demo>make this <em>italic</em></Demo><Keys>⌘ + i</Keys></ShortcutRow>
-        <ShortcutRow><Demo>make this <u>underlined</u></Demo><Keys>⌘ + u</Keys></ShortcutRow>
-        <ShortcutRow><Demo>add or edit a <a href="#" onClick={event => event.preventDefault()}>link</a></Demo><Keys>⌘ + k</Keys></ShortcutRow>
-        <ShortcutRow><Demo>turn text into <code>code</code></Demo><Keys>⌘ + shift + c</Keys></ShortcutRow>
-        <ShortcutRow><Demo>search</Demo><Keys>⌘ + f</Keys></ShortcutRow>
-        <ShortcutRow><Demo>undo</Demo><Keys>⌘ + z</Keys></ShortcutRow>
-        <ShortcutRow><Demo>redo</Demo><Keys>⌘ + shift + z</Keys></ShortcutRow>
-      </ShortcutRows>
-    </ShortcutPanel></Modal>
-    {undoTask && !message && <Toast><TextButton aria-label="Undo task completion" onClick={async () => {
-      try { await documentUndo(); setUndoTask(null); }
-      catch (e) { notify(errorMessage(e)); }
-    }}>Undo</TextButton><TextButton aria-label="Dismiss undo" onClick={() => setUndoTask(null)}>×</TextButton></Toast>}
-    {message && <Toast role="status">{message}<TextButton aria-label="Dismiss notification" onClick={() => setMessage('')}>Dismiss</TextButton></Toast>}
-    <QuietStatus ref={quietStatus} role="status" aria-live="polite" data-show="false" />
-  </Page></JournalContext.Provider>;
+    </Modal>
+  </Page>;
+}
+
+function AddItem({ onAdd }: { onAdd: (text: string) => void }) {
+  const [text, setText] = useState('');
+  return <AddForm onSubmit={event => { event.preventDefault(); if (text.trim()) { onAdd(text); setText(''); } }}><AddInput aria-label="New daily item" placeholder="Add a line to this day…" value={text} onChange={event => setText(event.target.value)}/><Mini aria-label="Add daily item" type="submit"><Plus size={16}/></Mini></AddForm>;
+}
+
+function JournalItem({ item, date, today, onChange, onMove }: { item: TodoItem; date: string; today: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void }) {
+  const [text, setText] = useState(item.text);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveDate, setMoveDate] = useState(date);
+  const [addingDetail, setAddingDetail] = useState(false);
+  const [detailDraft, setDetailDraft] = useState('');
+  useEffect(() => setText(item.text), [item.text]);
+  const saveText = () => { const value = text.trim(); if (value && value !== item.text) onChange(item => { item.text = value; }); else setText(item.text); };
+  return <ItemRow role="group" aria-label={item.text}>
+    <CheckButton $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} onClick={() => onChange(item => { item.completed = !item.completed; })}><Circle $done={item.completed}>{item.completed && <Check size={12}/>}</Circle></CheckButton>
+    <ItemBody>
+      <ItemInput $done={item.completed} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value)} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setText(item.text); event.currentTarget.blur(); } }}/>
+      {item.details.map((detail,index) => <Detail key={`${item.id}-${index}`} value={detail} onSave={value => onChange(item => { item.details[index] = value; })} onDelete={() => onChange(item => { item.details.splice(index,1); })}/>)}
+      {addingDetail && <DetailRow><Dash>-</Dash><DetailInput autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setDetailDraft(''); setAddingDetail(false); } }} onBlur={() => { if (detailDraft.trim()) onChange(item => { item.details.push(detailDraft.trim()); }); setDetailDraft(''); setAddingDetail(false); }}/></DetailRow>}
+      {moveOpen && <DetailRow><Dash>move to</Dash><input aria-label={`Move ${item.text} to date`} type="date" value={moveDate} onChange={event => setMoveDate(event.target.value)}/><Mini aria-label="Confirm move" onClick={() => { if (validDate(moveDate)) { onMove(moveDate); setMoveOpen(false); } }}><Check size={14}/></Mini></DetailRow>}
+      {date < today && !item.completed && <Note style={{ margin: '0 0 3px 2px' }}>unfinished</Note>}
+    </ItemBody>
+    <HoverActions>
+      <Mini title="Add detail" aria-label={`Add detail to ${item.text}`} onClick={() => setAddingDetail(true)}><Plus size={14}/></Mini>
+      <Mini title="Move to date" aria-label={`Move ${item.text}`} onClick={() => setMoveOpen(value => !value)}><CalendarDays size={14}/></Mini>
+      <Mini title="Move up" aria-label={`Move ${item.text} up`} onClick={() => onChange((item, items) => { const index = items.indexOf(item); let previous = -1; for (let position = index - 1; position >= 0; position--) { if (items[position].completed === item.completed) { previous = position; break; } } if (previous >= 0) [items[previous], items[index]] = [items[index], items[previous]]; })}><ArrowUp size={13}/></Mini>
+      <Mini title="Move down" aria-label={`Move ${item.text} down`} onClick={() => onChange((item, items) => { const index = items.indexOf(item); const next = items.findIndex((candidate, position) => position > index && candidate.completed === item.completed); if (next >= 0) [items[next], items[index]] = [items[index], items[next]]; })}><ArrowDown size={13}/></Mini>
+      <Mini title="Delete" aria-label={`Delete ${item.text}`} onClick={() => onChange((item, items) => { items.splice(items.indexOf(item),1); })}><Trash2 size={13}/></Mini>
+    </HoverActions>
+  </ItemRow>;
+}
+
+function Detail({ value, onSave, onDelete }: { value: string; onSave: (value: string) => void; onDelete: () => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return <DetailRow><Dash>-</Dash><DetailInput aria-label={`Edit detail ${value}`} value={draft} onChange={event => setDraft(event.target.value)} onBlur={() => { if (draft.trim() && draft.trim() !== value) onSave(draft.trim()); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setDraft(value); event.currentTarget.blur(); } }}/><Mini title="Delete detail" aria-label={`Delete detail ${value}`} onClick={onDelete}><X size={13}/></Mini></DetailRow>;
 }
