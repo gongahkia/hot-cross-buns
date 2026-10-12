@@ -1,4 +1,4 @@
-import { emptyDocument, validateDocument, type TodoDocument } from './todoText';
+import { emptyDocument, normalizeDocument, validateDocument, type TodoDocument } from './todoText';
 
 export interface TodoFileHandle {
   name: string;
@@ -39,8 +39,9 @@ export async function loadTodoState(): Promise<TodoState> {
       if (raw) {
         const pending = JSON.parse(raw) as { revision: number; document: TodoDocument };
         if (Number.isSafeInteger(pending.revision) && pending.revision > (saved.revision ?? 0)) {
-          validateDocument(pending.document);
-          recovered = { ...saved, document: pending.document, revision: pending.revision, baseline: null, baselineText: null, fileHandle: null };
+          const document = normalizeDocument(pending.document);
+          validateDocument(document);
+          recovered = { ...saved, document, revision: pending.revision, baseline: null, baselineText: null, fileHandle: null };
         }
       }
     } catch { /* A damaged recovery record must not hide the IndexedDB copy. */ }
@@ -48,7 +49,7 @@ export async function loadTodoState(): Promise<TodoState> {
       void saveTodoState(recovered);
       return recovered;
     }
-    return { ...saved, revision: saved.revision ?? 0 };
+    return { ...saved, document: normalizeDocument(saved.document), baseline: saved.baseline ? normalizeDocument(saved.baseline) : null, revision: saved.revision ?? 0 };
   } finally { db.close(); }
 }
 

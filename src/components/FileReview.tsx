@@ -18,7 +18,7 @@ const ChoiceLabel = styled.label`display: inline-flex; align-items: center; gap:
 const RawText = styled.textarea`width: 100%; min-height: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 12px/1.5 ui-monospace,monospace; resize: vertical;`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
 
-const itemLabel = (item: TodoItem | null) => item ? `${item.completed ? 'done' : 'upcoming'}  ${item.text}${item.details.map(detail => `\n  - ${detail}`).join('')}` : '(deleted / absent)';
+const itemLabel = (item: TodoItem | null) => item ? `${item.completed ? 'done' : 'upcoming'}  ${item.text}${item.details.map(detail => `\n  - [${detail.completed ? 'x' : ' '}] ${detail.text}`).join('')}` : '(deleted / absent)';
 
 export function FileReview({ review, issues, rawEdit, choices, busy, onClose, onRawEdit, onChoice, onReparse, onApply }: {
   review: FileReviewState | null; issues: ParseIssue[]; rawEdit: string; choices: Record<string, MergeChoice>; busy: boolean;

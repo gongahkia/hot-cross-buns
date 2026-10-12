@@ -1,5 +1,6 @@
-/** The portable document contains only dates, plain lines, detail lines, and the divider. */
-export type TodoItem = { id: string; text: string; details: string[]; completed: boolean };
+/** TODO.txt keeps ISO date headings; detail checkboxes extend plain `- detail` lines. */
+export type TodoDetail = { text: string; completed: boolean };
+export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean };
 export type TodoDay = { date: string; items: TodoItem[] };
 export type TodoDocument = { days: TodoDay[] };
 export type ParseIssue = { line: number; message: string };
@@ -8,6 +9,15 @@ export type ParseResult = { document: TodoDocument; issues: ParseIssue[] };
 export const emptyDocument = (): TodoDocument => ({ days: [] });
 export const newId = () => crypto.randomUUID();
 export const cloneDocument = (document: TodoDocument): TodoDocument => structuredClone(document);
+/** Upgrade journal records saved before details had their own completion state. */
+export function normalizeDocument(document: TodoDocument): TodoDocument {
+  return { days: document.days.map(day => ({ ...day, items: day.items.map(item => ({
+    ...item,
+    details: item.details.map(detail => typeof detail === 'string'
+      ? { text: detail, completed: item.completed }
+      : { text: detail.text, completed: !!detail.completed }),
+  })) })) };
+}
 export const itemValue = (item: TodoItem) => JSON.stringify([item.text, item.details, item.completed]);
 export const itemContent = (item: TodoItem) => JSON.stringify([item.text, item.details]);
 
@@ -23,11 +33,15 @@ export function todayString() {
 }
 
 function unescapeLine(line: string) {
-  return /^\\(?:\\|- |\d{4}-\d{2}-\d{2}$)/.test(line) ? line.slice(1) : line;
+  return /^\\(?:\\|- |\d{4}-\d{2}-\d{2}$|\[(?:x|X| )\] )/.test(line) ? line.slice(1) : line;
 }
 
 function escapeLine(line: string) {
   return /^(?:\\|- |\d{4}-\d{2}-\d{2}$)/.test(line) ? `\\${line}` : line;
+}
+
+function escapeDetail(line: string) {
+  return /^\[(?:x|X| )\] /.test(line) ? `\\${line}` : escapeLine(line);
 }
 
 export function parseTodoText(raw: string, today = todayString()): ParseResult {
@@ -41,12 +55,17 @@ export function parseTodoText(raw: string, today = todayString()): ParseResult {
   let sawDivider = false;
   let pendingBlank = false;
   let lastItem: TodoItem | null = null;
+  const implicitDetails = new WeakMap<TodoItem, number[]>();
   const finishDay = () => {
     if (day && pendingBlank) sawDivider = true;
     if (day && !sawDivider) {
       const completed = day.date < today;
       day.items.forEach(item => { item.completed = completed; });
     }
+    day?.items.forEach(item => {
+      implicitDetails.get(item)?.forEach(index => { item.details[index].completed = item.completed; });
+      if (item.details.length) item.completed = item.details.every(detail => detail.completed);
+    });
   };
   lines.forEach((rawLine, index) => {
     const line = rawLine.replace(/[\t ]+$/, '');
@@ -75,7 +94,11 @@ export function parseTodoText(raw: string, today = todayString()): ParseResult {
     if (/^- /.test(line)) {
       if (!lastItem) { issues.push({ line: lineNumber, message: 'A detail line needs an item above it.' }); return; }
       if (pendingBlank) { issues.push({ line: lineNumber, message: 'A detail line cannot follow the completed/upcoming divider.' }); return; }
-      lastItem.details.push(unescapeLine(line.slice(2)));
+      const rawDetail = line.slice(2);
+      const marker = /^\[([xX ])\] (.*)$/.exec(rawDetail);
+      const explicit = !!marker;
+      lastItem.details.push({ text: unescapeLine(marker ? marker[2] : rawDetail), completed: marker ? marker[1].toLowerCase() === 'x' : lastItem.completed });
+      if (!explicit) implicitDetails.set(lastItem, [...implicitDetails.get(lastItem) ?? [], lastItem.details.length - 1]);
       return;
     }
     if (pendingBlank && !sawDivider) { divider = true; sawDivider = true; }
@@ -97,12 +120,12 @@ export function serializeTodoText(document: TodoDocument) {
     const lines = [day.date];
     for (const item of completed) {
       lines.push(escapeLine(item.text));
-      item.details.forEach(detail => lines.push(`- ${escapeLine(detail)}`));
+      item.details.forEach(detail => lines.push(`- [${detail.completed ? 'x' : ' '}] ${escapeDetail(detail.text)}`));
     }
     lines.push('');
     for (const item of upcoming) {
       lines.push(escapeLine(item.text));
-      item.details.forEach(detail => lines.push(`- ${escapeLine(detail)}`));
+      item.details.forEach(detail => lines.push(`- [${detail.completed ? 'x' : ' '}] ${escapeDetail(detail.text)}`));
     }
     return lines.join('\n');
   });
@@ -113,7 +136,7 @@ export function validateDocument(document: TodoDocument) {
   for (const day of document.days) {
     if (!validDate(day.date)) throw new Error(`Invalid date: ${day.date}`);
     for (const item of day.items) {
-      for (const line of [item.text, ...item.details]) {
+      for (const line of [item.text, ...item.details.map(detail => detail.text)]) {
         if (!line.trim() || /[\r\n]/.test(line)) throw new Error('Every item and detail must be one nonempty line.');
       }
     }

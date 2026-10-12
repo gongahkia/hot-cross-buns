@@ -24,7 +24,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
   const download = await downloadPromise;
   const text = await readFile(await download.path(), 'utf8');
-  expect(text).toContain(`${dateOffset(0)}\nReview paper #work\n- send feedback\n\nCall Alex\n`);
+  expect(text).toContain(`${dateOffset(0)}\nReview paper #work\n- [x] send feedback\n\nCall Alex\n`);
   await expect(page.getByRole('button', { name: 'Start focus timer' })).toHaveCount(0);
 });
 
@@ -216,6 +216,10 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
   await page.mouse.down();
   await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + destination!.height / 2, { steps: 20 });
+  const preview = await page.locator('[aria-label="Dragging Transfer me"]').boundingBox();
+  expect(preview).toBeTruthy();
+  expect(preview!.y).toBeGreaterThan(source!.y + 40);
+  expect(preview!.x + preview!.width).toBeLessThanOrEqual(1280);
   await page.mouse.up();
   const destinationSection = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
   await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
@@ -235,4 +239,58 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await page.reload();
   await expect(todaySection.getByRole('group', { name: 'Destination task' })).toBeVisible();
   await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
+});
+
+test('tracks detail progress, completes the parent, and round-trips detail markers', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nProgress task\n- [x] first step\n- [ ] second step\n`) });
+  const parent = page.getByRole('group', { name: 'Progress task' });
+  await expect(parent.getByRole('button', { name: 'Complete Progress task' })).toHaveAttribute('aria-description', '1 of 2 details done');
+  await expect(parent.getByRole('button', { name: 'Collapse details for Progress task' })).toBeVisible();
+  const text = parent.getByRole('textbox', { name: 'Edit Progress task' });
+  const more = parent.getByRole('button', { name: 'More actions for Progress task' });
+  const toggle = parent.getByRole('button', { name: 'Collapse details for Progress task' });
+  const [textBox, toggleBox, moreBox] = await Promise.all([text.boundingBox(), toggle.boundingBox(), more.boundingBox()]);
+  expect(toggleBox!.x).toBeGreaterThan(textBox!.x);
+  expect(toggleBox!.x + toggleBox!.width).toBeLessThanOrEqual(moreBox!.x + 1);
+  await parent.getByRole('button', { name: 'Complete detail second step' }).click();
+  await expect(parent.getByRole('button', { name: 'Reopen Progress task' })).toBeVisible();
+  await expect(text).toHaveCSS('text-decoration-line', 'line-through');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  const exported = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(exported).toContain('- [x] first step\n- [x] second step');
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Reopen detail second step' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reopen detail second step' }).click();
+  await expect(page.getByRole('button', { name: 'Complete Progress task' })).toBeVisible();
+});
+
+test('formats date headings independently of TODO.txt and focuses app search with Ctrl/Cmd+F', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Find this task');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  const today = dateOffset(0);
+  await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(new Date(`${today}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }));
+  const previous = await page.getByRole('button', { name: 'Previous day' }).boundingBox();
+  const importButton = await page.getByRole('button', { name: 'Import TODO.txt' }).boundingBox();
+  const search = await page.getByRole('searchbox', { name: 'Search journal' }).boundingBox();
+  expect(Math.abs(previous!.y - importButton!.y)).toBeLessThan(2);
+  expect(Math.abs(previous!.y - search!.y)).toBeLessThan(2);
+  await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
+  await page.keyboard.press('Control+f');
+  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
+  await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
+  await page.keyboard.press('Meta+f');
+  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
+  await page.getByRole('button', { name: 'Jing settings' }).click();
+  await page.getByLabel('Date headings').selectOption('iso');
+  await page.getByRole('button', { name: 'close' }).click();
+  await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
+  await page.reload();
+  await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain(`${today}\n\nFind this task\n`);
 });

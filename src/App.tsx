@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
+import { createPortal } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled from 'styled-components';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
@@ -8,15 +10,16 @@ import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
 import { CalendarPanel } from './components/CalendarPanel';
+import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
-const Header = styled.header`display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-bottom: 20px;`;
+const Header = styled.header`display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px;`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
-const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 6px;}`;
+const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 6px;}`;
 const DateControl = styled.div`position: relative; display: flex; align-items: center; width: 155px; min-width: 0; min-height: 44px; border-radius: 7px; background: var(--date-bg); @media(max-width:600px){width:100%;}`;
 const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 11px; border: 0; border-radius: 7px 0 0 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; &:hover { background: var(--soft); }`;
 const DateCalendar = styled.button`width: 44px; min-height: 44px; display: grid; place-items: center; flex: none; border: 0; border-radius: 0 7px 7px 0; background: transparent; color: var(--ink); &:hover { background: var(--soft); }`;
@@ -29,6 +32,9 @@ const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1p
 const DaySection = styled.section`margin: 0 0 38px; scroll-margin-top: 20px;`;
 const DayTitle = styled.h2<{ $over?: boolean }>`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
+const DragPreview = styled.div`display:flex; align-items:center; gap:8px; min-height:44px; width:100%; padding:7px 12px; border:1px solid var(--focus); border-radius:8px; background:var(--surface); color:var(--ink); box-shadow:0 12px 30px #0005; font-size:15px; pointer-events:none;`;
+const PreviewCircle = styled.span<{ $done:boolean }>`display:grid; place-items:center; width:15px; height:15px; flex:none; border:1px solid ${({$done})=>$done?'var(--link)':'var(--checkbox)'}; border-radius:50%; background:${({$done})=>$done?'var(--link)':'transparent'}; color:var(--paper);`;
+const PreviewText = styled.span<{ $done:boolean }>`min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${({$done})=>$done?'var(--muted)':'var(--ink)'}; text-decoration:${({$done})=>$done?'line-through':'none'};`;
 const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 64px;`;
 const Divider = styled.div`height: 1px; margin: 15px 0 13px 64px; background: var(--line);`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
@@ -38,17 +44,17 @@ const Notice = styled(Note)`display: flex; align-items: center; justify-content:
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
 const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
-const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const taskCollisionDetection: CollisionDetection = args => {
   const underPointer = pointerWithin(args);
   return underPointer.length ? underPointer : closestCenter(args);
 };
 
-function DateHeading({ date, today }: { date: string; today: string }) {
+function DateHeading({ date, today, format, highlighted }: { date: string; today: string; format: DateFormat; highlighted: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date:${date}` });
-  return <DayTitle ref={setNodeRef} $over={isOver} data-drop-date={date} title="Drop a task here to move it to this date">
-    <DateBadge dateTime={date}>{date}</DateBadge><span>{dateLabel(date,today)}</span>
+  return <DayTitle ref={setNodeRef} $over={isOver || highlighted} data-drop-date={date} title="Drop a task here to move it to this date">
+    <DateBadge dateTime={date}>{formatDateHeading(date,format)}</DateBadge><span>{dateLabel(date,today)}</span>
   </DayTitle>;
 }
 
@@ -75,9 +81,12 @@ export default function App() {
   const [state, setState] = useState<TodoState | null>(null);
   const current = useRef<TodoState>(emptyState());
   const [selectedDate, setSelectedDate] = useState(todayString);
+  const [dateFormat, setDateFormatState] = useState(getDateFormat);
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [review, setReview] = useState<FileReviewState | null>(null);
@@ -87,6 +96,7 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
   const today = todayString();
@@ -123,10 +133,15 @@ export default function App() {
   const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(current.current.document); void commitState({ ...current.current, document: next }); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        searchInput.current?.focus();
+        searchInput.current?.select();
+        return;
+      }
       const target = event.target as HTMLElement;
       if (target.closest('input,textarea,[contenteditable=true]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') { event.preventDefault(); document.getElementById('journal-search')?.focus(); }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -241,13 +256,15 @@ export default function App() {
   };
   const reparse = async () => { setIssues([]); setReview(null); try { await imported(rawEdit, review?.handle ?? null, review?.mode ?? 'import', review?.observedText ?? null); } catch (error) { setMessage(String(error)); } };
   const documentData = state?.document ?? emptyDocument();
-  const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details].flatMap(tagsIn))))].sort(), [documentData]);
+  const draggingItem = draggingId ? documentData.days.flatMap(day => day.items).find(item => item.id === draggingId) : null;
+  const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
+  const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
   const visibleDays = useMemo(() => {
     const dates = new Set([selectedDate, ...documentData.days.map(day => day.date)]);
     return [selectedDate, ...[...dates].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))].map(date => ({ date, items: documentData.days.find(day => day.date === date)?.items ?? [] }));
   }, [documentData, selectedDate]);
   const matches = (item: TodoItem) => {
-    const content = [item.text, ...item.details].join(' ').toLowerCase();
+    const content = [item.text, ...item.details.map(detail => detail.text)].join(' ').toLowerCase();
     return (!query || content.includes(query.toLowerCase())) && (!tag || tagsIn(content).includes(tag));
   };
   const hasResults = visibleDays.some(day => day.items.some(matches));
@@ -255,14 +272,7 @@ export default function App() {
   return <Page>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Jing daily journal</VisuallyHidden>
-    <Header><Tools>
-      <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
-      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => void download()}><Download size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title="Save connected TODO.txt" aria-label="Save connected TODO.txt" disabled={busy || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
-      <Icon title="Jing settings" aria-label="Jing settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
-    </Tools></Header>
-    <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
+    <Header>
     <Toolbar>
       <Icon aria-label="Previous day" onClick={() => setSelectedDate(shiftDate(selectedDate,-1))}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef}>
@@ -271,30 +281,44 @@ export default function App() {
         {dateOpen && <DatePopover><CalendarPanel label="Choose journal date" value={selectedDate} onSelect={value => { setSelectedDate(value); setDateOpen(false); }}/></DatePopover>}
       </DateControl>
       <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
-      <SearchWrap><SearchField id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)}/>
+      <SearchWrap><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}
       </SearchWrap>
     </Toolbar>
+    <Tools>
+      <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
+      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => void download()}><Download size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title="Save connected TODO.txt" aria-label="Save connected TODO.txt" disabled={busy || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
+      <Icon title="Jing settings" aria-label="Jing settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
+    </Tools>
+    </Header>
+    <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search. <Button onClick={() => { setQuery(''); setTag(null); }}>clear filters</Button></EmptyResults>}
-    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection} onDragEnd={dropItem}>
+    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
+      onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
+      onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}
+      onDragCancel={() => { setDraggingId(null); setDragOverDate(null); }}
+      onDragEnd={event => { dropItem(event); setDraggingId(null); setDragOverDate(null); }}>
     {visibleDays.map(day => {
       const completed = day.items.filter(item => item.completed && matches(item));
       const upcoming = day.items.filter(item => !item.completed && matches(item));
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
-        <DateHeading date={day.date} today={today}/>
+        <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date}/>
         {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
         <DayItems date={day.date} today={today} selected={day.date === selectedDate} completed={completed} upcoming={upcoming} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)}/>
         </>}
         {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;
     })}
+    {createPortal(<DragOverlay dropAnimation={null} modifiers={[restrictToWindowEdges]} style={{ width: 'min(360px, calc(100vw - 32px))' }} zIndex={40}>{draggingItem && <DragPreview aria-label={`Dragging ${draggingItem.text}`}><PreviewCircle $done={draggingItem.completed}>{draggingItem.completed ? '✓' : null}</PreviewCircle><PreviewText $done={draggingItem.completed}>{draggingItem.text}</PreviewText></DragPreview>}</DragOverlay>, window.document.body)}
     </DndContext>
     </div>
-    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)}/>
+    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
     <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}
       onClose={() => { setReview(null); setIssues([]); }} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}

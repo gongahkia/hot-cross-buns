@@ -121,7 +121,7 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
     })();
     for (const item of selected) {
       if (!item) continue;
-      day.items.push({ ...item, id: day.items.some(existing => existing.id === item.id) ? newId() : item.id, details: [...item.details] });
+      day.items.push({ ...item, id: day.items.some(existing => existing.id === item.id) ? newId() : item.id, details: item.details.map(detail => ({ ...detail })) });
     }
   }
   document.days = document.days.filter(day => day.items.length);
@@ -137,7 +137,7 @@ export function fileBaseline(proposal: MergeProposal) {
       document.days.push(created);
       return created;
     })();
-    day.items.push({ ...row.file, id: row.local?.id ?? row.file.id, details: [...row.file.details] });
+    day.items.push({ ...row.file, id: row.local?.id ?? row.file.id, details: row.file.details.map(detail => ({ ...detail })) });
   }
   return document;
 }
