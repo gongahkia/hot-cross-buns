@@ -2,14 +2,15 @@ export type AppFont = 'sohne' | 'dm-sans' | 'lora' | 'system';
 export type Theme = 'day' | 'night';
 export type DateFormat = 'long' | 'iso' | 'day-first' | 'month-first';
 
-const FONT_KEY = 'jing-font';
-const THEME_KEY = 'jing-theme';
-const DATE_FORMAT_KEY = 'jing-date-format';
+const FONT_KEY = 'hito-font';
+const THEME_KEY = 'hito-theme';
+const DATE_FORMAT_KEY = 'hito-date-format';
+const storedPreference = (key: string) => localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
 const fonts = new Set<AppFont>(['sohne', 'dm-sans', 'lora', 'system']);
 const dateFormats = new Set<DateFormat>(['long', 'iso', 'day-first', 'month-first']);
 
 export function getDateFormat(): DateFormat {
-  const stored = localStorage.getItem(DATE_FORMAT_KEY);
+  const stored = storedPreference(DATE_FORMAT_KEY);
   return stored && dateFormats.has(stored as DateFormat) ? stored as DateFormat : 'long';
 }
 
@@ -26,7 +27,7 @@ export function formatDateHeading(value: string, format: DateFormat) {
 }
 
 export function getFont(): AppFont {
-  const stored = localStorage.getItem(FONT_KEY);
+  const stored = storedPreference(FONT_KEY);
   return stored && fonts.has(stored as AppFont) ? stored as AppFont : 'sohne';
 }
 
@@ -36,7 +37,7 @@ export function setFont(value: AppFont) {
 }
 
 export function getTheme(): Theme {
-  return localStorage.getItem(THEME_KEY) === 'night' ? 'night' : 'day';
+  return storedPreference(THEME_KEY) === 'night' ? 'night' : 'day';
 }
 
 export function setTheme(value: Theme) {

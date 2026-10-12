@@ -10,47 +10,56 @@ export interface TodoFileHandle {
 
 export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; baselineText: string | null; fileHandle: TodoFileHandle | null; revision: number };
 export const emptyState = (): TodoState => ({ document: emptyDocument(), baseline: null, baselineText: null, fileHandle: null, revision: 0 });
-const DB_NAME = 'jing-todo-v1';
+const DB_NAME = 'hito-todo-v1';
+const LEGACY_DB_NAME = 'jing-todo-v1';
 const STORE = 'state';
-const PENDING_KEY = 'jing-todo-pending-v1';
+const PENDING_KEY = 'hito-todo-pending-v1';
+const LEGACY_PENDING_KEY = 'jing-todo-pending-v1';
 let queued: Promise<void> = Promise.resolve();
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(name = DB_NAME): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(name, 1);
     request.onupgradeneeded = () => request.result.createObjectStore(STORE);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-export async function loadTodoState(): Promise<TodoState> {
-  const db = await openDatabase();
+async function readState(name: string): Promise<TodoState | null> {
+  const db = await openDatabase(name);
   try {
-    const saved = await new Promise<TodoState>((resolve, reject) => {
+    return await new Promise<TodoState | null>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly');
       const request = tx.objectStore(STORE).get('current');
-      request.onsuccess = () => resolve(request.result ?? emptyState());
+      request.onsuccess = () => resolve(request.result ?? null);
       request.onerror = () => reject(request.error);
     });
-    let recovered: TodoState | null = null;
+  } finally { db.close(); }
+}
+
+export async function loadTodoState(): Promise<TodoState> {
+  const current = await readState(DB_NAME);
+  const legacy = await readState(LEGACY_DB_NAME);
+  let saved = current && (current.revision ?? 0) >= (legacy?.revision ?? -1) ? current : legacy ?? emptyState();
+  let migrated = saved !== current;
+  for (const key of [PENDING_KEY, LEGACY_PENDING_KEY]) {
     try {
-      const raw = localStorage.getItem(PENDING_KEY);
+      const raw = localStorage.getItem(key);
       if (raw) {
         const pending = JSON.parse(raw) as { revision: number; document: TodoDocument };
         if (Number.isSafeInteger(pending.revision) && pending.revision > (saved.revision ?? 0)) {
           const document = normalizeDocument(pending.document);
           validateDocument(document);
-          recovered = { ...saved, document, revision: pending.revision, baseline: null, baselineText: null, fileHandle: null };
+          saved = { ...saved, document, revision: pending.revision, baseline: null, baselineText: null, fileHandle: null };
+          migrated = true;
         }
       }
     } catch { /* A damaged recovery record must not hide the IndexedDB copy. */ }
-    if (recovered) {
-      void saveTodoState(recovered);
-      return recovered;
-    }
-    return { ...saved, document: normalizeDocument(saved.document), baseline: saved.baseline ? normalizeDocument(saved.baseline) : null, revision: saved.revision ?? 0 };
-  } finally { db.close(); }
+  }
+  const loaded = { ...saved, document: normalizeDocument(saved.document), baseline: saved.baseline ? normalizeDocument(saved.baseline) : null, revision: saved.revision ?? 0 };
+  if (migrated) void saveTodoState(loaded).then(() => localStorage.removeItem(LEGACY_PENDING_KEY)).catch(() => undefined);
+  return loaded;
 }
 
 export function saveTodoState(state: TodoState): Promise<void> {

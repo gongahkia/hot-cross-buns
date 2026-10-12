@@ -18,6 +18,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Call Alex');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.reload();
+  await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen Review paper #work' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Tags' }).getByText('#work')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
@@ -130,6 +131,7 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await more.press('Escape');
   await expect(page.getByRole('button', { name: `Add detail to ${original}` })).toHaveCount(0);
 
+  await page.getByRole('button', { name: 'Open search' }).click();
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('no such line');
   await expect(page.getByText('No lines match this search.')).toBeVisible();
 });
@@ -173,6 +175,7 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
   await expect(page.getByRole('textbox', { name: 'Edit Alpha' })).toHaveCSS('text-decoration-line', 'line-through');
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toHaveCSS('text-decoration-line', 'line-through');
   await page.reload();
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen Alpha' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Complete Beta' })).toBeVisible();
 });
@@ -210,6 +213,8 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`) });
   await page.getByRole('button', { name: 'Complete Transfer me' }).click();
+  await expect(page.getByRole('button', { name: `Collapse done items for ${today}` })).toBeVisible();
+  await page.waitForTimeout(220);
   const source = await page.getByRole('button', { name: 'Drag to reorder Transfer me' }).boundingBox();
   const destination = await page.locator(`[data-drop-date="${tomorrow}"]`).boundingBox();
   expect(source && destination).toBeTruthy();
@@ -222,6 +227,7 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   expect(preview!.x + preview!.width).toBeLessThanOrEqual(1280);
   await page.mouse.up();
   const destinationSection = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
+  if (await destinationSection.getByRole('button', { name: `Expand done items for ${tomorrow}` }).isVisible()) await destinationSection.getByRole('button', { name: `Expand done items for ${tomorrow}` }).click();
   await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
   await expect(destinationSection.getByRole('button', { name: 'Reopen Transfer me' })).toBeVisible();
   await expect(destinationSection.getByRole('textbox', { name: 'Edit detail carry this note' })).toBeVisible();
@@ -237,6 +243,7 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
   await expect(todaySection.getByRole('group', { name: 'Destination task' })).toBeVisible();
   await page.reload();
+  await destinationSection.getByRole('button', { name: `Expand done items for ${tomorrow}` }).click();
   await expect(todaySection.getByRole('group', { name: 'Destination task' })).toBeVisible();
   await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
 });
@@ -262,6 +269,7 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(exported).toContain('- [x] first step\n- [x] second step');
   await page.reload();
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen detail second step' })).toBeVisible();
   await page.getByRole('button', { name: 'Reopen detail second step' }).click();
   await expect(page.getByRole('button', { name: 'Complete Progress task' })).toBeVisible();
@@ -275,7 +283,7 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(new Date(`${today}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }));
   const previous = await page.getByRole('button', { name: 'Previous day' }).boundingBox();
   const importButton = await page.getByRole('button', { name: 'Import TODO.txt' }).boundingBox();
-  const search = await page.getByRole('searchbox', { name: 'Search journal' }).boundingBox();
+  const search = await page.getByRole('button', { name: 'Open search' }).boundingBox();
   expect(Math.abs(previous!.y - importButton!.y)).toBeLessThan(2);
   expect(Math.abs(previous!.y - search!.y)).toBeLessThan(2);
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
@@ -284,13 +292,113 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Meta+f');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-  await page.getByRole('button', { name: 'Jing settings' }).click();
+  await page.getByRole('button', { name: 'Hito settings' }).click();
   await page.getByLabel('Date headings').selectOption('iso');
-  await page.getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   await page.reload();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
   expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain(`${today}\n\nFind this task\n`);
+});
+
+test('hides completed work by default and toggles search without browser find', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nFinished task\n- [x] finished detail\n- [ ] other detail\n\nOpen task\n`) });
+  await page.getByRole('button', { name: 'Complete Finished task' }).click();
+  await page.reload();
+  await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('group', { name: 'Finished task' })).toHaveCount(0);
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
+  await expect(page.getByRole('group', { name: 'Finished task' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reopen Finished task' }).locator('svg')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reopen detail finished detail' }).locator('svg')).toHaveCount(0);
+  await page.getByRole('button', { name: `Collapse done items for ${today}` }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open search' }).click();
+  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
+  await page.getByRole('searchbox', { name: 'Search journal' }).fill('Finished task');
+  await expect(page.getByRole('group', { name: 'Finished task' })).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Search journal' }).fill('nothing matches');
+  await expect(page.getByText('No lines match this search.')).toBeVisible();
+  await page.getByRole('button', { name: 'Close search' }).click();
+  await expect(page.getByRole('group', { name: 'Open task' })).toBeVisible();
+  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
+});
+
+test('migrates a Jing journal and preferences to Hito storage', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
+  await page.evaluate(async date => {
+    localStorage.setItem('jing-theme', 'night');
+    localStorage.setItem('jing-date-format', 'iso');
+    const request = indexedDB.open('jing-todo-v1', 1);
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onupgradeneeded = () => request.result.createObjectStore('state');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('state', 'readwrite');
+      tx.objectStore('state').put({ document: { days: [{ date, items: [{ id: 'legacy-task', text: 'From Jing', details: [], completed: false }] }] }, baseline: null, baselineText: null, fileHandle: null, revision: 42 }, 'current');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, today);
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'From Jing' })).toBeVisible();
+  await expect(page).toHaveTitle('Hito');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
+  await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
+  await expect.poll(() => page.evaluate(async () => {
+    const request = indexedDB.open('hito-todo-v1', 1);
+    const db = await new Promise<IDBDatabase>(resolve => { request.onsuccess = () => resolve(request.result); });
+    const result = await new Promise<{ revision:number } | undefined>(resolve => {
+      const tx = db.transaction('state', 'readonly');
+      const get = tx.objectStore('state').get('current');
+      get.onsuccess = () => resolve(get.result);
+    });
+    db.close();
+    return result?.revision;
+  })).toBe(42);
+});
+
+test('keeps controls usable and within the viewport across mobile and desktop widths', async ({ page }) => {
+  for (const width of [320, 375, 768, 1280]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto('/');
+    await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
+    await page.getByRole('button', { name: 'Open search' }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
+    await page.getByRole('button', { name: 'Choose date' }).click();
+    await expect(page.locator('.rdp-root')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const controlsFit = await page.evaluate(() => ['Open search', 'Close search', 'Choose date', 'Import TODO.txt', 'Hito settings'].every(label => {
+      const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+      if (!button) return true;
+      const box = button.getBoundingClientRect();
+      return box.width >= 40 && box.left >= 0 && box.right <= innerWidth;
+    }));
+    expect(controlsFit).toBe(true);
+  }
+});
+
+test('animates completion and honours reduced motion', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Animated task');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'Complete Animated task' }).click();
+  const strike = page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]');
+  await expect(strike).toBeVisible();
+  expect(await strike.evaluate(element => getComputedStyle(element).animationName)).not.toBe('none');
+  await page.getByRole('button', { name: 'Reopen Animated task' }).click();
+  await expect(page.getByRole('button', { name: 'Complete Animated task' })).toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'Complete Animated task' }).click();
+  const duration = await page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]').evaluate(element => getComputedStyle(element).animationDuration);
+  expect(parseFloat(duration)).toBeLessThan(0.01);
 });

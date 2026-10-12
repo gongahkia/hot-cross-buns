@@ -37,12 +37,12 @@ export function FileReview({ review, issues, rawEdit, choices, busy, onClose, on
       {review?.proposal.conflicts.map(row => <ReviewRow key={row.key}>
         <Note>{row.date}{row.reorderConflict ? ' · order changed on both sides' : ''}</Note>
         <Panes>
-          <Pane><PaneLabel>Jing</PaneLabel>{row.reorderConflict && `position ${row.localOrder + 1}\n`}{itemLabel(row.local)}</Pane>
+          <Pane><PaneLabel>Hito</PaneLabel>{row.reorderConflict && `position ${row.localOrder + 1}\n`}{itemLabel(row.local)}</Pane>
           <Pane><PaneLabel>TODO.txt</PaneLabel>{row.reorderConflict && `position ${row.fileOrder + 1}\n`}{itemLabel(row.file)}</Pane>
         </Panes>
         <ReviewChoices>{(['local','file','both'] as const).map(choice => <ChoiceLabel key={choice}>
           <input type="radio" name={row.key} checked={(choices[row.key] ?? '') === choice} onChange={() => onChoice(row.key, choice)}/>
-          {choice === 'local' ? 'keep Jing' : choice === 'file' ? 'use file' : 'keep both'}
+          {choice === 'local' ? 'keep Hito' : choice === 'file' ? 'use file' : 'keep both'}
         </ChoiceLabel>)}</ReviewChoices>
       </ReviewRow>)}
       <Actions><Button onClick={onClose}>cancel</Button><Button $primary disabled={busy || (review?.proposal.conflicts.some(row => !choices[row.key]) ?? false)} onClick={onApply}>{review?.mode === 'save' ? 'merge and save' : 'apply import'}</Button></Actions>

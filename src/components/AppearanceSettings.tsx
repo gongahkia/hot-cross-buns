@@ -15,7 +15,7 @@ const Actions = styled.div`display: flex; justify-content: flex-end; margin-top:
 export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange }: { open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void }) {
   const [theme, setThemeState] = useState(getTheme);
   const [font, setFontState] = useState(getFont);
-  return <Modal open={open} onClose={onClose} title="Jing settings" compact>
+  return <Modal open={open} onClose={onClose} title="Hito settings" compact>
     <Title>settings</Title>
     <Intro>The journal stays in this browser until you export or save TODO.txt.</Intro>
     <Mode><Button onClick={() => { const next = theme === 'day' ? 'night' : 'day'; setTheme(next); setThemeState(next); }}>{theme === 'day' ? <Moon size={15}/> : <Sun size={15}/>} {theme === 'day' ? 'night' : 'day'} mode</Button></Mode>
