@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import '@daypicker/react/style.css';
 import App from './App';
 import { GlobalStyle } from './styles';
 import { installTouchHaptics } from './haptics';

@@ -133,3 +133,17 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('no such line');
   await expect(page.getByText('No lines match this search.')).toBeVisible();
 });
+
+test('recovers an edit queued just before a reload', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
+  const today = dateOffset(0);
+  await page.evaluate(date => {
+    localStorage.setItem('jing-todo-pending-v1', JSON.stringify({
+      revision: 1000000,
+      document: { days: [{ date, items: [{ id: 'recovered-item', text: 'Recovered pending line', details: [], completed: false }] }] },
+    }));
+  }, today);
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'Recovered pending line' })).toBeVisible();
+});

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import styled from 'styled-components';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
+import { CalendarPanel } from './components/CalendarPanel';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
@@ -13,8 +16,11 @@ const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dv
 const Header = styled.header`display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-bottom: 20px;`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px;`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
-const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
-const DatePicker = styled(Field)`width: 155px; min-width: 0; min-height: 44px; font-size: 13px; border-color: transparent; background: var(--date-bg); @media(max-width:600px){width:100%;}`;
+const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 6px;}`;
+const DateControl = styled.div`position: relative; display: flex; align-items: center; width: 155px; min-width: 0; min-height: 44px; border-radius: 7px; background: var(--date-bg); @media(max-width:600px){width:100%;}`;
+const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 11px; border: 0; border-radius: 7px 0 0 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; &:hover { background: var(--soft); }`;
+const DateCalendar = styled.button`width: 44px; min-height: 44px; display: grid; place-items: center; flex: none; border: 0; border-radius: 0 7px 7px 0; background: transparent; color: var(--ink); &:hover { background: var(--soft); }`;
+const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -45px;}`;
 const SearchWrap = styled.div`position: relative; flex: 1; min-width: 180px; @media(max-width:600px){grid-column: 1 / -1;}`;
 const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; }`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
@@ -23,22 +29,46 @@ const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1p
 const DaySection = styled.section`margin: 0 0 38px; scroll-margin-top: 20px;`;
 const DayTitle = styled.h2`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px;`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
-const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 42px;`;
-const Divider = styled.div`height: 1px; margin: 15px 0 13px 42px; background: var(--line);`;
+const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 64px;`;
+const Divider = styled.div`height: 1px; margin: 15px 0 13px 64px; background: var(--line);`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
-const EmptyDay = styled.p`margin: 12px 0 10px 44px; color: var(--muted); font-size: 13px;`;
+const EmptyDay = styled.p`margin: 12px 0 10px 64px; color: var(--muted); font-size: 13px;`;
 const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
-const DayUnfinished = styled(Note)`margin: 7px 0 5px 42px;`;
+const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+
+function DayItems({ date, today, selected, completed, upcoming, onChange, onMove, onReorder }: {
+  date: string; today: string; selected: boolean; completed: TodoItem[]; upcoming: TodoItem[];
+  onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
+  onMove: (id: string, target: string) => void;
+  onReorder: (active: string, over: string) => void;
+}) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const handleDragEnd = ({ active, over }: DragEndEvent) => { if (over && active.id !== over.id) onReorder(String(active.id), String(over.id)); };
+  return <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    {(completed.length > 0 || selected) && <SectionCaption>done</SectionCaption>}
+    <SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
+      {completed.map(item => <JournalItem key={item.id} item={item} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)}/>)}
+    </SortableContext>
+    <Divider aria-hidden="true"/>
+    {(upcoming.length > 0 || selected) && <SectionCaption>upcoming</SectionCaption>}
+    <SortableContext items={upcoming.map(item => item.id)} strategy={verticalListSortingStrategy}>
+      {upcoming.map(item => <JournalItem key={item.id} item={item} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)}/>)}
+    </SortableContext>
+    {date < today && upcoming.length > 0 && <DayUnfinished>{upcoming.length} unfinished on this day</DayUnfinished>}
+  </DndContext>;
+}
 
 export default function App() {
   const [state, setState] = useState<TodoState | null>(null);
   const current = useRef<TodoState>(emptyState());
   const [selectedDate, setSelectedDate] = useState(todayString);
+  const [dateOpen, setDateOpen] = useState(false);
+  const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -53,8 +83,22 @@ export default function App() {
   const redoStack = useRef<TodoDocument[]>([]);
   const today = todayString();
 
+  useEffect(() => {
+    if (!dateOpen) return;
+    const outside = (event: PointerEvent) => { if (!dateControlRef.current?.contains(event.target as Node)) setDateOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setDateOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [dateOpen]);
+
   useEffect(() => { loadTodoState().then(loaded => { current.current = loaded; setState(loaded); }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
-  const commitState = async (next: TodoState) => { current.current = next; setState(next); await saveTodoState(next); };
+  const commitState = async (next: TodoState) => {
+    const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
+    current.current = stamped;
+    setState(stamped);
+    await saveTodoState(stamped);
+  };
   const edit = (change: (document: TodoDocument) => void) => {
     const before = current.current.document;
     const document = cloneDocument(before);
