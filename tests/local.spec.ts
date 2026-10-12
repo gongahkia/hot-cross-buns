@@ -96,11 +96,40 @@ test('opens and explicitly saves a connected text file when direct access is ava
   await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' }).getByText('External follow-up')).toBeVisible();
   await page.getByLabel('keep both').check();
   await page.getByRole('button', { name: 'merge and save' }).click();
-  await expect(page.getByRole('status').getByText('Saved TODO.txt.')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' })).toBeHidden();
   const merged = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     return (await (await root.getFileHandle('TODO.txt')).getFile()).text();
   });
   expect(merged).toContain('Local follow-up');
   expect(merged).toContain('External follow-up');
+});
+
+test('keeps mobile lines readable and keyboard controls usable', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Skip to journal' })).toBeFocused();
+  await expect(page.getByText('No lines yet. Add the first one below.')).toBeVisible();
+
+  const original = 'A long line that should wrap across the narrow screen while staying one TODO.txt line #mobile';
+  await page.getByRole('textbox', { name: 'New daily item' }).fill(original);
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
+  const editor = page.getByRole('textbox', { name: `Edit ${original}` });
+  await expect.poll(() => editor.evaluate(element => element.scrollHeight > 44)).toBe(true);
+  await editor.fill('Accidental change');
+  await editor.press('Escape');
+  await expect(page.getByRole('group', { name: original })).toBeVisible();
+
+  const more = page.getByRole('button', { name: `More actions for ${original}` });
+  await more.focus();
+  await more.press('Enter');
+  await expect(page.getByRole('button', { name: `Add detail to ${original}` })).toBeVisible();
+  await more.press('Escape');
+  await expect(page.getByRole('button', { name: `Add detail to ${original}` })).toHaveCount(0);
+
+  await page.getByRole('searchbox', { name: 'Search journal' }).fill('no such line');
+  await expect(page.getByText('No lines match this search.')).toBeVisible();
 });

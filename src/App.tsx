@@ -1,11 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Moon, MoreHorizontal, Plus, Save, Settings2, Sun, Trash2, X } from 'lucide-react';
-import { Button, Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
-import { Modal } from './components/Modal';
-import { getFont, getTheme, setFont, setTheme, type AppFont } from './preferences';
+import { CalendarDays, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Settings2, X } from 'lucide-react';
+import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
+import { AppearanceSettings } from './components/AppearanceSettings';
+import { FileReview, type FileReviewState } from './components/FileReview';
+import { AddItem, JournalItem } from './components/DailyItem';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
-import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice, type MergeProposal } from './todoMerge';
+import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
@@ -24,47 +25,13 @@ const DayTitle = styled.h2`display: flex; align-items: center; gap: 10px; font-s
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
 const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 42px;`;
 const Divider = styled.div`height: 1px; margin: 15px 0 13px 42px; background: var(--line);`;
-const ItemRow = styled.div`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; &:hover { background: var(--soft); }`;
-const CheckButton = styled.button<{ $done: boolean }>`width: 40px; height: 40px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; @media(pointer:coarse){width:44px;height:44px;}`;
-const Circle = styled.span<{ $done: boolean }>`display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; background: ${({ $done }) => $done ? 'var(--link)' : 'transparent'}; color: ${({ $done }) => $done ? 'var(--paper)' : 'var(--checkbox)'};`;
-const ItemBody = styled.div`min-width: 0; flex: 1;`;
-const ItemInput = styled.textarea`display: block; width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 9px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: var(--ink); overflow: hidden; resize: none; &:focus { background: var(--field); box-shadow: 0 0 0 1px var(--focus); } @media(pointer:coarse){min-height:44px; padding-top: 11px;}`;
-const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 32px; color: var(--muted); @media(pointer:coarse){min-height:44px;}`;
-const DetailRow = styled.div`display: flex; align-items: center; gap: 6px; margin-left: 3px; &:hover button { opacity: 1; }`;
-const Dash = styled.span`color: var(--muted); font-size: 13px;`;
-const MoveDate = styled(Field)`width: 150px; min-height: 40px; font-size: 13px; @media(pointer:coarse){min-height:44px;}`;
-const Mini = styled.button`display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; &:hover { color: var(--link); background: var(--date-bg); } @media(pointer:coarse){width:44px;height:44px;}`;
-const ActionWrap = styled.div`position: relative; flex: none;`;
-const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
-const ActionMenu = styled.div`position: absolute; right: 0; top: 40px; z-index: 10; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0002;`;
-const Action = styled.button`width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; &:hover { background: var(--soft); } @media(pointer:coarse){min-height:44px;}`;
-const AddForm = styled.form`display: flex; align-items: center; gap: 4px; margin-left: 40px; max-width: calc(100% - 40px);`;
-const AddInput = styled(Field)`min-height: 40px; border-color: transparent; background: transparent; padding-left: 2px; &:focus { background: var(--field); border-color: var(--focus); } @media(pointer:coarse){min-height:44px;}`;
-const ModalTitle = styled.h2`font-size: 22px; margin-bottom: 12px;`;
-const ModalActions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px;`;
-const PaneGrid = styled.div`display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; @media(max-width:550px){grid-template-columns: 1fr;}`;
-const Pane = styled.div`min-width: 0; min-height: 75px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere;`;
-const ReviewRow = styled.div`padding: 13px 0; border-bottom: 1px solid var(--line);`;
-const ReviewChoices = styled.div`display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px;`;
-const RawText = styled.textarea`width: 100%; min-height: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 12px/1.5 ui-monospace,monospace; resize: vertical;`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
-const UnfinishedNote = styled(Note)`margin: 0 0 3px 2px;`;
-
-function LineField({ detail = false, value, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${element.scrollHeight}px`;
-  }, [value]);
-  const Component = detail ? DetailInput : ItemInput;
-  return <Component ref={ref} rows={1} value={value} {...props}/>;
-}
-
-type Review = { raw: string; file: TodoDocument; proposal: MergeProposal; handle: TodoFileHandle | null; mode: 'import' | 'save'; observedText: string | null };
+const EmptyDay = styled.p`margin: 12px 0 10px 44px; color: var(--muted); font-size: 13px;`;
+const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
+const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
+const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
+const DayUnfinished = styled(Note)`margin: 7px 0 5px 42px;`;
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
-const itemLabel = (item: TodoItem | null) => item ? `${item.completed ? 'done' : 'upcoming'}  ${item.text}${item.details.map(detail => `\n  - ${detail}`).join('')}` : '(deleted / absent)';
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
@@ -74,10 +41,8 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState<string | null>(null);
-  const [theme, setThemeState] = useState(getTheme);
-  const [font, setFontState] = useState(getFont);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [review, setReview] = useState<Review | null>(null);
+  const [review, setReview] = useState<FileReviewState | null>(null);
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
   const [issues, setIssues] = useState<ParseIssue[]>([]);
@@ -140,9 +105,9 @@ export default function App() {
   };
   const imported = async (raw: string, handle: TodoFileHandle | null, mode: 'import' | 'save', observedText: string | null = null) => {
     const parsed = parseTodoText(raw);
-    if (parsed.issues.length) { setRawEdit(raw); setIssues(parsed.issues); setReview({ raw, file: parsed.document, proposal: { rows: [], conflicts: [] }, handle, mode, observedText }); return; }
+    if (parsed.issues.length) { setRawEdit(raw); setIssues(parsed.issues); setReview({ raw, proposal: { rows: [], conflicts: [] }, handle, mode, observedText }); return; }
     const proposal = proposeMerge(current.current.document, parsed.document, current.current.baseline);
-    if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, file: parsed.document, proposal, handle, mode, observedText }); return; }
+    if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, proposal, handle, mode, observedText }); return; }
     const merged = resolveMerge(proposal, {});
     if (mode === 'save' && handle) await saveToHandle(handle, merged, observedText ?? raw);
     else { await commitState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
@@ -206,6 +171,7 @@ export default function App() {
     const content = [item.text, ...item.details].join(' ').toLowerCase();
     return (!query || content.includes(query.toLowerCase())) && (!tag || tagsIn(content).includes(tag));
   };
+  const hasResults = visibleDays.some(day => day.items.some(matches));
   if (!state) return <Page><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
   return <Page>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
@@ -228,96 +194,31 @@ export default function App() {
       </SearchWrap>
     </Toolbar>
     {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
-    {message && <Note role="status" style={{ marginBottom: 14 }}>{message} <button aria-label="Dismiss message" onClick={() => setMessage('')} style={{ border: 0, background: 'transparent', color: 'inherit' }}>×</button></Note>}
+    {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
+    {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search. <Button onClick={() => { setQuery(''); setTag(null); }}>clear filters</Button></EmptyResults>}
     {visibleDays.map(day => {
       const completed = day.items.filter(item => item.completed && matches(item));
       const upcoming = day.items.filter(item => !item.completed && matches(item));
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DayTitle><DateBadge dateTime={day.date}>{day.date}</DateBadge><span>{dateLabel(day.date,today)}</span></DayTitle>
+        {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
         {(completed.length > 0 || day.date === selectedDate) && <SectionCaption>done</SectionCaption>}
         {completed.map(item => <JournalItem key={item.id} item={item} date={day.date} today={today} onChange={change => mutateItem(day.date,item.id,change)} onMove={target => moveItem(day.date,item.id,target)}/>)}
-        <Divider aria-label="Completed and upcoming divider"/>
+        <Divider aria-hidden="true"/>
         {(upcoming.length > 0 || day.date === selectedDate) && <SectionCaption>upcoming</SectionCaption>}
         {upcoming.map(item => <JournalItem key={item.id} item={item} date={day.date} today={today} onChange={change => mutateItem(day.date,item.id,change)} onMove={target => moveItem(day.date,item.id,target)}/>)}
-        {day.date < today && upcoming.length > 0 && <Note style={{ margin: '7px 0 5px 42px' }}>{upcoming.length} unfinished on this day</Note>}
+        {day.date < today && upcoming.length > 0 && <DayUnfinished>{upcoming.length} unfinished on this day</DayUnfinished>}
+        </>}
         {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;
     })}
     </div>
-    <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Jing settings" compact>
-      <ModalTitle>settings</ModalTitle>
-      <p style={{ fontSize: 13, marginBottom: 15 }}>The journal stays in this browser until you export or save TODO.txt.</p>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}><Button onClick={() => { const next = theme === 'day' ? 'night' : 'day'; setTheme(next); setThemeState(next); }}>{theme === 'day' ? <Moon size={15}/> : <Sun size={15}/>} {theme === 'day' ? 'night' : 'day'} mode</Button></div>
-      <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>Font<select value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }} style={{ minHeight: 38, background: 'var(--field)', border: '1px solid var(--line)', borderRadius: 7 }}><option value="sohne">Sohne</option><option value="dm-sans">DM Sans</option><option value="lora">Lora</option><option value="system">System</option></select></label>
-      <ModalActions><Button onClick={() => setSettingsOpen(false)}>close</Button></ModalActions>
-    </Modal>
-    <Modal open={!!review} onClose={() => { setReview(null); setIssues([]); }} title="Review TODO.txt import" wide>
-      <ModalTitle>{review?.mode === 'save' ? 'Review file changes' : 'Review TODO.txt import'}</ModalTitle>
-      {!!issues.length ? <><InlineError>{issues.length} format issue{issues.length === 1 ? '' : 's'} need correction before import.</InlineError>{issues.map(issue => <Note key={`${issue.line}-${issue.message}`}>Line {issue.line}: {issue.message}</Note>)}<RawText aria-label="Edit imported TODO.txt" value={rawEdit} onChange={event => setRawEdit(event.target.value)}/><ModalActions><Button onClick={() => setReview(null)}>cancel</Button><Button $primary onClick={() => void reparse()}>check file</Button></ModalActions></> : <>
-        <Note>{review?.proposal.conflicts.length ?? 0} item{review?.proposal.conflicts.length === 1 ? '' : 's'} need a decision. Clear changes will merge automatically.</Note>
-        <PaneGrid style={{ marginTop: 12 }}><strong style={{ fontSize: 12 }}>Jing</strong><strong style={{ fontSize: 12 }}>TODO.txt</strong></PaneGrid>
-        {review?.proposal.conflicts.map(row => <ReviewRow key={row.key}><Note>{row.date}{row.reorderConflict ? ' · order changed on both sides' : ''}</Note><PaneGrid><Pane>{row.reorderConflict && `position ${row.localOrder + 1}\n`}{itemLabel(row.local)}</Pane><Pane>{row.reorderConflict && `position ${row.fileOrder + 1}\n`}{itemLabel(row.file)}</Pane></PaneGrid><ReviewChoices>
-          {(['local','file','both'] as const).map(choice => <label key={choice}><input type="radio" name={row.key} checked={(choices[row.key] ?? '') === choice} onChange={() => setChoices(previous => ({ ...previous, [row.key]: choice }))}/> {choice === 'local' ? 'keep Jing' : choice === 'file' ? 'use file' : 'keep both'}</label>)}
-        </ReviewChoices></ReviewRow>)}
-        <ModalActions><Button onClick={() => setReview(null)}>cancel</Button><Button $primary disabled={busy || (review?.proposal.conflicts.some(row => !choices[row.key]) ?? false)} onClick={() => void applyReview()}>{review?.mode === 'save' ? 'merge and save' : 'apply import'}</Button></ModalActions>
-      </>}
-    </Modal>
+    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)}/>
+    <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}
+      onClose={() => { setReview(null); setIssues([]); }} onRawEdit={setRawEdit}
+      onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
+      onReparse={() => void reparse()} onApply={() => void applyReview()}/>
   </Page>;
-}
-
-function AddItem({ onAdd }: { onAdd: (text: string) => void }) {
-  const [text, setText] = useState('');
-  return <AddForm onSubmit={event => { event.preventDefault(); if (text.trim()) { onAdd(text); setText(''); } }}><AddInput aria-label="New daily item" placeholder="Add a line to this day…" value={text} onChange={event => setText(event.target.value)}/><Mini aria-label="Add daily item" type="submit"><Plus size={16}/></Mini></AddForm>;
-}
-
-function JournalItem({ item, date, today, onChange, onMove }: { item: TodoItem; date: string; today: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void }) {
-  const [text, setText] = useState(item.text);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const cancelText = useRef(false);
-  const cancelDetail = useRef(false);
-  const [moveOpen, setMoveOpen] = useState(false);
-  const [moveDate, setMoveDate] = useState(date);
-  const [addingDetail, setAddingDetail] = useState(false);
-  const [detailDraft, setDetailDraft] = useState('');
-  useEffect(() => setText(item.text), [item.text]);
-  useEffect(() => {
-    if (!menuOpen) return;
-    const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
-  }, [menuOpen]);
-  const saveText = () => { if (cancelText.current) { cancelText.current = false; setText(item.text); return; } const value = text.trim(); if (value && value !== item.text) onChange(item => { item.text = value; }); else setText(item.text); };
-  const closeMenu = (action: () => void) => { setMenuOpen(false); action(); };
-  return <ItemRow role="group" aria-label={item.text}>
-    <CheckButton $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} onClick={() => onChange(item => { item.completed = !item.completed; })}><Circle $done={item.completed}>{item.completed && <Check size={12}/>}</Circle></CheckButton>
-    <ItemBody>
-      <LineField aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/>
-      {item.details.map((detail,index) => <Detail key={`${item.id}-${index}`} value={detail} onSave={value => onChange(item => { item.details[index] = value; })} onDelete={() => onChange(item => { item.details.splice(index,1); })}/>)}
-      {addingDetail && <DetailRow><Dash>-</Dash><LineField detail autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelDetail.current = true; event.currentTarget.blur(); } }} onBlur={() => { if (!cancelDetail.current && detailDraft.trim()) onChange(item => { item.details.push(detailDraft.trim()); }); cancelDetail.current = false; setDetailDraft(''); setAddingDetail(false); }}/></DetailRow>}
-      {moveOpen && <DetailRow><Dash>move to</Dash><MoveDate aria-label={`Move ${item.text} to date`} type="date" value={moveDate} onChange={event => setMoveDate(event.target.value)}/><Mini aria-label="Confirm move" onClick={() => { if (validDate(moveDate)) { onMove(moveDate); setMoveOpen(false); } }}><Check size={14}/></Mini></DetailRow>}
-      {date < today && !item.completed && <UnfinishedNote>unfinished</UnfinishedNote>}
-    </ItemBody>
-    <ActionWrap ref={menuRef}>
-      <MoreButton aria-label={`More actions for ${item.text}`} aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}><MoreHorizontal size={17}/></MoreButton>
-      {menuOpen && <ActionMenu aria-label={`Actions for ${item.text}`}>
-        <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => setAddingDetail(true))}><Plus size={15}/> add detail</Action>
-        <Action aria-label={`Move ${item.text}`} onClick={() => closeMenu(() => setMoveOpen(value => !value))}><CalendarDays size={15}/> move to date</Action>
-        <Action aria-label={`Move ${item.text} up`} onClick={() => closeMenu(() => onChange((item, items) => { const index = items.indexOf(item); let previous = -1; for (let position = index - 1; position >= 0; position--) { if (items[position].completed === item.completed) { previous = position; break; } } if (previous >= 0) [items[previous], items[index]] = [items[index], items[previous]]; }))}><ArrowUp size={15}/> move up</Action>
-        <Action aria-label={`Move ${item.text} down`} onClick={() => closeMenu(() => onChange((item, items) => { const index = items.indexOf(item); const next = items.findIndex((candidate, position) => position > index && candidate.completed === item.completed); if (next >= 0) [items[next], items[index]] = [items[index], items[next]]; }))}><ArrowDown size={15}/> move down</Action>
-        <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(() => onChange((item, items) => { items.splice(items.indexOf(item),1); }))}><Trash2 size={15}/> delete</Action>
-      </ActionMenu>}
-    </ActionWrap>
-  </ItemRow>;
-}
-
-function Detail({ value, onSave, onDelete }: { value: string; onSave: (value: string) => void; onDelete: () => void }) {
-  const [draft, setDraft] = useState(value);
-  const cancelled = useRef(false);
-  useEffect(() => setDraft(value), [value]);
-  return <DetailRow><Dash>-</Dash><LineField detail aria-label={`Edit detail ${value}`} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { if (cancelled.current) { cancelled.current = false; setDraft(value); return; } if (draft.trim() && draft.trim() !== value) onSave(draft.trim()); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelled.current = true; event.currentTarget.blur(); } }}/><Mini title="Delete detail" aria-label={`Delete detail ${value}`} onClick={onDelete}><X size={13}/></Mini></DetailRow>;
 }
