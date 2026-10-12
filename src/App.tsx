@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import styled from 'styled-components';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Settings2, X } from 'lucide-react';
@@ -20,14 +20,14 @@ const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; 
 const DateControl = styled.div`position: relative; display: flex; align-items: center; width: 155px; min-width: 0; min-height: 44px; border-radius: 7px; background: var(--date-bg); @media(max-width:600px){width:100%;}`;
 const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 11px; border: 0; border-radius: 7px 0 0 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; &:hover { background: var(--soft); }`;
 const DateCalendar = styled.button`width: 44px; min-height: 44px; display: grid; place-items: center; flex: none; border: 0; border-radius: 0 7px 7px 0; background: transparent; color: var(--ink); &:hover { background: var(--soft); }`;
-const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -45px;}`;
+const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
 const SearchWrap = styled.div`position: relative; flex: 1; min-width: 180px; @media(max-width:600px){grid-column: 1 / -1;}`;
 const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; }`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const DaySection = styled.section`margin: 0 0 38px; scroll-margin-top: 20px;`;
-const DayTitle = styled.h2`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px;`;
+const DayTitle = styled.h2<{ $over?: boolean }>`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
 const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 64px;`;
 const Divider = styled.div`height: 1px; margin: 15px 0 13px 64px; background: var(--line);`;
@@ -40,16 +40,24 @@ const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const taskCollisionDetection: CollisionDetection = args => {
+  const underPointer = pointerWithin(args);
+  return underPointer.length ? underPointer : closestCenter(args);
+};
 
-function DayItems({ date, today, selected, completed, upcoming, onChange, onMove, onReorder }: {
+function DateHeading({ date, today }: { date: string; today: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `date:${date}` });
+  return <DayTitle ref={setNodeRef} $over={isOver} data-drop-date={date} title="Drop a task here to move it to this date">
+    <DateBadge dateTime={date}>{date}</DateBadge><span>{dateLabel(date,today)}</span>
+  </DayTitle>;
+}
+
+function DayItems({ date, today, selected, completed, upcoming, onChange, onMove }: {
   date: string; today: string; selected: boolean; completed: TodoItem[]; upcoming: TodoItem[];
   onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
   onMove: (id: string, target: string) => void;
-  onReorder: (active: string, over: string) => void;
 }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
-  const handleDragEnd = ({ active, over }: DragEndEvent) => { if (over && active.id !== over.id) onReorder(String(active.id), String(over.id)); };
-  return <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+  return <>
     {(completed.length > 0 || selected) && <SectionCaption>done</SectionCaption>}
     <SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
       {completed.map(item => <JournalItem key={item.id} item={item} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)}/>)}
@@ -60,7 +68,7 @@ function DayItems({ date, today, selected, completed, upcoming, onChange, onMove
       {upcoming.map(item => <JournalItem key={item.id} item={item} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)}/>)}
     </SortableContext>
     {date < today && upcoming.length > 0 && <DayUnfinished>{upcoming.length} unfinished on this day</DayUnfinished>}
-  </DndContext>;
+  </>;
 }
 
 export default function App() {
@@ -82,6 +90,7 @@ export default function App() {
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
   const today = todayString();
+  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -127,6 +136,32 @@ export default function App() {
     const item = items?.find(item => item.id === id);
     if (items && item) change(item, items);
   });
+  const dropItem = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    edit(document => {
+      const source = document.days.find(day => day.items.some(item => item.id === activeId));
+      if (!source) return;
+      const targetDate = overId.startsWith('date:')
+        ? overId.slice(5)
+        : document.days.find(day => day.items.some(item => item.id === overId))?.date;
+      if (!targetDate || !validDate(targetDate)) return;
+      const from = source.items.findIndex(item => item.id === activeId);
+      const sourceDate = source.date;
+      const [moved] = source.items.splice(from, 1);
+      let destination = document.days.find(day => day.date === targetDate);
+      if (!destination) { destination = { date: targetDate, items: [] }; document.days.push(destination); }
+      const target = destination.items.find(item => item.id === overId);
+      if (target) {
+        const beforeTarget = sourceDate !== targetDate || from > destination.items.indexOf(target);
+        if (sourceDate === targetDate) moved.completed = target.completed;
+        destination.items.splice(destination.items.indexOf(target) + (beforeTarget ? 0 : 1), 0, moved);
+      } else destination.items.push(moved);
+      document.days = document.days.filter(day => day.items.length);
+      document.days.sort((a,b) => a.date.localeCompare(b.date));
+    });
+  };
   const addItem = (date: string, text: string) => { if (!text.trim()) return; edit(document => {
     let day = document.days.find(day => day.date === date);
     if (!day) { day = { date, items: [] }; document.days.push(day); document.days.sort((a,b) => a.date.localeCompare(b.date)); }
@@ -230,9 +265,12 @@ export default function App() {
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     <Toolbar>
       <Icon aria-label="Previous day" onClick={() => setSelectedDate(shiftDate(selectedDate,-1))}><ChevronLeft size={17}/></Icon>
-      <DatePicker aria-label="Selected date" type="date" value={selectedDate} onChange={event => validDate(event.target.value) && setSelectedDate(event.target.value)}/>
+      <DateControl ref={dateControlRef}>
+        <DateText aria-label={`Go to today from ${selectedDate}`} title="Go to today" onClick={() => { setSelectedDate(todayString()); setDateOpen(false); }}>{new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</DateText>
+        <DateCalendar aria-label="Choose date" aria-expanded={dateOpen} title="Choose date" onClick={() => setDateOpen(value => !value)}><CalendarDays size={17}/></DateCalendar>
+        {dateOpen && <DatePopover><CalendarPanel label="Choose journal date" value={selectedDate} onSelect={value => { setSelectedDate(value); setDateOpen(false); }}/></DatePopover>}
+      </DateControl>
       <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
-      <Icon aria-label="Today" title="Today" onClick={() => setSelectedDate(todayString())}><CalendarDays size={17}/></Icon>
       <SearchWrap><SearchField id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}
       </SearchWrap>
@@ -241,23 +279,20 @@ export default function App() {
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search. <Button onClick={() => { setQuery(''); setTag(null); }}>clear filters</Button></EmptyResults>}
+    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection} onDragEnd={dropItem}>
     {visibleDays.map(day => {
       const completed = day.items.filter(item => item.completed && matches(item));
       const upcoming = day.items.filter(item => !item.completed && matches(item));
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
-        <DayTitle><DateBadge dateTime={day.date}>{day.date}</DateBadge><span>{dateLabel(day.date,today)}</span></DayTitle>
+        <DateHeading date={day.date} today={today}/>
         {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
-        {(completed.length > 0 || day.date === selectedDate) && <SectionCaption>done</SectionCaption>}
-        {completed.map(item => <JournalItem key={item.id} item={item} date={day.date} today={today} onChange={change => mutateItem(day.date,item.id,change)} onMove={target => moveItem(day.date,item.id,target)}/>)}
-        <Divider aria-hidden="true"/>
-        {(upcoming.length > 0 || day.date === selectedDate) && <SectionCaption>upcoming</SectionCaption>}
-        {upcoming.map(item => <JournalItem key={item.id} item={item} date={day.date} today={today} onChange={change => mutateItem(day.date,item.id,change)} onMove={target => moveItem(day.date,item.id,target)}/>)}
-        {day.date < today && upcoming.length > 0 && <DayUnfinished>{upcoming.length} unfinished on this day</DayUnfinished>}
+        <DayItems date={day.date} today={today} selected={day.date === selectedDate} completed={completed} upcoming={upcoming} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)}/>
         </>}
         {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;
     })}
+    </DndContext>
     </div>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)}/>
     <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}

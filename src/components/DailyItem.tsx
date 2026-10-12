@@ -21,7 +21,7 @@ const ActionWrap = styled.div`position: static; flex: none;`;
 const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
 const ActionMenu = styled.div`position: fixed; z-index: 30; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0003;`;
 const Action = styled.button`width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; &:hover, &[aria-expanded='true'] { background: var(--soft); } @media(pointer:coarse){min-height:44px;}`;
-const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px){left: auto; right: 0; top: calc(100% + 8px);}`;
+const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px){left: auto; right: 0; top: calc(100% + 8px); max-height: calc(100dvh - 160px); overflow: auto;}`;
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const AddForm = styled.form`display: flex; align-items: center; gap: 4px; margin-left: 60px; max-width: calc(100% - 60px); @media(pointer:coarse){margin-left:84px;max-width:calc(100% - 84px);}`;
@@ -29,7 +29,7 @@ const AddInput = styled(Field)`min-height: 40px; border-color: transparent; back
 const DetailToggle = styled.button`display: inline-flex; align-items: center; gap: 3px; min-height: 26px; padding: 0 3px; margin: 0 0 1px 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;}`;
 const UnfinishedNote = styled.p`margin: 0 0 3px 2px; font-size: 12px; color: var(--muted);`;
 
-function LineField({ detail = false, value, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string }) {
+function LineField({ detail = false, value, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string; $done?: boolean }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const element = ref.current;
@@ -65,7 +65,7 @@ export function JournalItem({ item, date, today, onChange, onMove }: { item: Tod
     if (!menuOpen) return;
     const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) { setMenuOpen(false); setMoveOpen(false); } };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMenuOpen(false); setMoveOpen(false); moreRef.current?.focus(); } };
-    const scroll = () => { setMenuOpen(false); setMoveOpen(false); };
+    const scroll = (event: Event) => { if (event.target instanceof Node && menuRef.current?.contains(event.target)) return; setMenuOpen(false); setMoveOpen(false); };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     window.addEventListener('scroll', scroll, true);
@@ -85,7 +85,7 @@ export function JournalItem({ item, date, today, onChange, onMove }: { item: Tod
   const saveText = () => { if (cancelText.current) { cancelText.current = false; setText(item.text); return; } const value = text.trim(); if (value && value !== item.text) onChange(item => { item.text = value; }); else setText(item.text); };
   const closeMenu = (action: () => void) => { setMenuOpen(false); setMoveOpen(false); action(); };
   return <ItemRow ref={setNodeRef} role="group" aria-label={item.text} $dragging={isDragging} style={{ transform: CSS.Transform.toString(transform), transition }}>
-    <Grip ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.text}`} title="Drag to reorder"><GripVertical size={16}/></Grip>
+    <Grip ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.text}`} title="Drag to reorder or move to another date"><GripVertical size={16}/></Grip>
     <CheckButton $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} onClick={() => onChange(item => { item.completed = !item.completed; })}><Circle $done={item.completed}>{item.completed && <Check size={12}/>}</Circle></CheckButton>
     <ItemBody>
       <LineField $done={item.completed} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/>

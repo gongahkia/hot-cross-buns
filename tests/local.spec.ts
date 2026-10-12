@@ -147,3 +147,92 @@ test('recovers an edit queued just before a reload', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('group', { name: 'Recovered pending line' })).toBeVisible();
 });
+
+test('collapses details, sorts tasks, and styles completed work', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nAlpha\n- one detail\n\nBeta\n`) });
+  await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse details for Alpha' }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expand details for Alpha' }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
+
+  const source = await page.getByRole('button', { name: 'Drag to reorder Beta' }).boundingBox();
+  const destination = await page.getByRole('button', { name: 'Drag to reorder Alpha' }).boundingBox();
+  expect(source && destination).toBeTruthy();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + 5, { steps: 15 });
+  await page.mouse.up();
+  await expect(page.locator('section').first().getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
+  await page.reload();
+  await expect(page.locator('section').first().getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
+
+  await page.getByRole('button', { name: 'Complete Alpha' }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit Alpha' })).toHaveCSS('text-decoration-line', 'line-through');
+  await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toHaveCSS('text-decoration-line', 'line-through');
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Reopen Alpha' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Complete Beta' })).toBeVisible();
+});
+
+test('shows a styled calendar and opens move dates beside the actions', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Calendar task');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'Previous day' }).click();
+  await page.getByRole('button', { name: /^Go to today from / }).click();
+  await expect(page.getByRole('button', { name: `Go to today from ${dateOffset(0)}` })).toBeVisible();
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await expect(page.locator('.rdp-root')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.rdp-root')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'More actions for Calendar task' }).click();
+  await expect(page.getByRole('button', { name: 'Move Calendar task up' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Move Calendar task' }).click();
+  await expect(page.locator('.rdp-root')).toBeVisible();
+  const positions = await page.evaluate(() => {
+    const menu = document.querySelector('[aria-label="Actions for Calendar task"]')!.getBoundingClientRect();
+    const calendar = document.querySelector('.rdp-root')!.getBoundingClientRect();
+    return { menuRight: menu.right, calendarLeft: calendar.left };
+  });
+  expect(positions.calendarLeft).toBeGreaterThan(positions.menuRight);
+  await page.locator(`.rdp-day[data-day="${dateOffset(1)}"] button`).click();
+  await page.getByRole('button', { name: 'Move here' }).click();
+  await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${dateOffset(1)}"]`) }).getByRole('group', { name: 'Calendar task' })).toBeVisible();
+});
+
+test('drags a task onto another date heading and keeps its details', async ({ page }) => {
+  const today = dateOffset(0);
+  const tomorrow = dateOffset(1);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`) });
+  await page.getByRole('button', { name: 'Complete Transfer me' }).click();
+  const source = await page.getByRole('button', { name: 'Drag to reorder Transfer me' }).boundingBox();
+  const destination = await page.locator(`[data-drop-date="${tomorrow}"]`).boundingBox();
+  expect(source && destination).toBeTruthy();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + destination!.height / 2, { steps: 20 });
+  await page.mouse.up();
+  const destinationSection = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
+  await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
+  await expect(destinationSection.getByRole('button', { name: 'Reopen Transfer me' })).toBeVisible();
+  await expect(destinationSection.getByRole('textbox', { name: 'Edit detail carry this note' })).toBeVisible();
+  await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Transfer me' })).toHaveCount(0);
+
+  const secondSource = await page.getByRole('button', { name: 'Drag to reorder Destination task' }).boundingBox();
+  const secondDestination = await page.locator(`[data-drop-date="${today}"]`).boundingBox();
+  expect(secondSource && secondDestination).toBeTruthy();
+  await page.mouse.move(secondSource!.x + secondSource!.width / 2, secondSource!.y + secondSource!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(secondDestination!.x + secondDestination!.width / 2, secondDestination!.y + secondDestination!.height / 2, { steps: 20 });
+  await page.mouse.up();
+  const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
+  await expect(todaySection.getByRole('group', { name: 'Destination task' })).toBeVisible();
+  await page.reload();
+  await expect(todaySection.getByRole('group', { name: 'Destination task' })).toBeVisible();
+  await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
+});

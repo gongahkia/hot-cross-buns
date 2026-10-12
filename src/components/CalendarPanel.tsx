@@ -21,6 +21,8 @@ const Surface = styled.div`
   .rdp-weekday { color: var(--muted); }
   @media(pointer:coarse) { .rdp-root { --rdp-day-width: 44px; --rdp-day-height: 44px;
     --rdp-day_button-width: 44px; --rdp-day_button-height: 44px; } }
+  @media(max-width: 390px) { .rdp-root { --rdp-day-width: 38px; --rdp-day-height: 40px;
+    --rdp-day_button-width: 38px; --rdp-day_button-height: 40px; } }
 `;
 
 export function dateFromString(value: string) {
