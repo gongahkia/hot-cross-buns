@@ -81,4 +81,24 @@ test('opens and explicitly saves a connected text file when direct access is ava
     return (await (await root.getFileHandle('TODO.txt')).getFile()).text();
   });
   expect(saved).toContain('Updated connected item');
+
+  await page.getByRole('textbox', { name: 'Edit Updated connected item' }).fill('Local follow-up');
+  await page.getByRole('textbox', { name: 'Edit Updated connected item' }).press('Enter');
+  await page.evaluate(async (date) => {
+    const root = await navigator.storage.getDirectory();
+    const handle = await root.getFileHandle('TODO.txt');
+    const writable = await handle.createWritable();
+    await writable.write(`${date}\n\nExternal follow-up\n`);
+    await writable.close();
+  }, today);
+  await page.getByRole('button', { name: 'Save connected TODO.txt' }).click();
+  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' }).getByText('External follow-up')).toBeVisible();
+  await page.getByLabel('keep both').check();
+  await page.getByRole('button', { name: 'merge and save' }).click();
+  const merged = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    return (await (await root.getFileHandle('TODO.txt')).getFile()).text();
+  });
+  expect(merged).toContain('Local follow-up');
+  expect(merged).toContain('External follow-up');
 });
