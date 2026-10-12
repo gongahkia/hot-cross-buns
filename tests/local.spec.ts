@@ -54,3 +54,31 @@ test('flags malformed text and unfinished work on an earlier date', async ({ pag
   await expect(page.getByRole('group', { name: 'Carry forward manually' })).toBeVisible();
   await expect(page.getByText('1 unfinished on this day')).toBeVisible();
 });
+
+test('opens and explicitly saves a connected text file when direct access is available', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.addInitScript((date) => {
+    (window as Window & { showOpenFilePicker?: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => {
+      const root = await navigator.storage.getDirectory();
+      const handle = await root.getFileHandle('TODO.txt', { create: true });
+      if ((await handle.getFile()).size === 0) {
+        const writable = await handle.createWritable();
+        await writable.write(`${date}\n\nConnected item\n`);
+        await writable.close();
+      }
+      return [handle];
+    };
+  }, today);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open TODO.txt' }).click();
+  await expect(page.getByRole('group', { name: 'Connected item' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Edit Connected item' }).fill('Updated connected item');
+  await page.getByRole('textbox', { name: 'Edit Connected item' }).press('Enter');
+  await page.getByRole('button', { name: 'Save connected TODO.txt' }).click();
+  await expect(page.getByRole('status').getByText('Saved TODO.txt.')).toBeVisible();
+  const saved = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    return (await (await root.getFileHandle('TODO.txt')).getFile()).text();
+  });
+  expect(saved).toContain('Updated connected item');
+});
