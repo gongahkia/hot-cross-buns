@@ -95,6 +95,7 @@ test('opens and explicitly saves a connected text file when direct access is ava
   await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' }).getByText('External follow-up')).toBeVisible();
   await page.getByLabel('keep both').check();
   await page.getByRole('button', { name: 'merge and save' }).click();
+  await expect(page.getByRole('status').getByText('Saved TODO.txt.')).toBeVisible();
   const merged = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     return (await (await root.getFileHandle('TODO.txt')).getFile()).text();

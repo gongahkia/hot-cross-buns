@@ -4,6 +4,7 @@ const port = Number(process.env.JING_TEST_PORT ?? process.env.STILL_TEST_PORT ??
 
 export default defineConfig({
   testDir: './tests',
+  testMatch: '**/*.spec.ts',
   timeout: 30000,
   use: {
     baseURL: `http://127.0.0.1:${port}`,

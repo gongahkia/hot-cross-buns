@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Moon, Plus, Save, Settings2, Sun, Trash2, X } from 'lucide-react';
-import { Button, Field, IconButton, InlineError, Muted, TextButton } from './styles';
+import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Moon, MoreHorizontal, Plus, Save, Settings2, Sun, Trash2, X } from 'lucide-react';
+import { Button, Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
 import { Modal } from './components/Modal';
 import { getFont, getTheme, setFont, setTheme, type AppFont } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
@@ -9,33 +9,36 @@ import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice, type MergeP
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
-const Header = styled.header`display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px;`;
-const Brand = styled.h1`font-size: 28px; letter-spacing: -.06em; line-height: 1;`;
+const Header = styled.header`display: flex; align-items: center; justify-content: flex-end; min-height: 44px; margin-bottom: 20px;`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px;`;
-const Icon = styled(IconButton)`width: 38px; height: 38px; @media(max-width: 600px){width: 34px; height: 34px;}`;
-const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;`;
-const DatePicker = styled(Field)`width: 155px; min-height: 38px; font-size: 13px; border-color: transparent; background: var(--date-bg);`;
-const SearchField = styled(Field)`min-height: 38px; flex: 1; min-width: 180px; font-size: 13px;`;
+const Icon = styled(IconButton)`width: 44px; height: 44px;`;
+const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
+const DatePicker = styled(Field)`width: 155px; min-width: 0; min-height: 44px; font-size: 13px; border-color: transparent; background: var(--date-bg); @media(max-width:600px){width:100%;}`;
+const SearchWrap = styled.div`position: relative; flex: 1; min-width: 180px; @media(max-width:600px){grid-column: 1 / -1;}`;
+const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px;`;
+const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
-const TagPill = styled.button<{ $active: boolean }>`border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px;`;
+const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const DaySection = styled.section`margin: 0 0 38px; scroll-margin-top: 20px;`;
 const DayTitle = styled.h2`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px;`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
 const SectionCaption = styled.p`font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin: 10px 0 3px 42px;`;
 const Divider = styled.div`height: 1px; margin: 15px 0 13px 42px; background: var(--line);`;
-const ItemRow = styled.div`display: flex; align-items: flex-start; gap: 4px; min-height: 34px; border-radius: 7px; &:hover { background: var(--soft); }`;
-const CheckButton = styled.button<{ $done: boolean }>`width: 36px; height: 34px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'};`;
+const ItemRow = styled.div`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; &:hover { background: var(--soft); }`;
+const CheckButton = styled.button<{ $done: boolean }>`width: 40px; height: 40px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; @media(pointer:coarse){width:44px;height:44px;}`;
 const Circle = styled.span<{ $done: boolean }>`display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; background: ${({ $done }) => $done ? 'var(--link)' : 'transparent'}; color: ${({ $done }) => $done ? 'var(--paper)' : 'var(--checkbox)'};`;
 const ItemBody = styled.div`min-width: 0; flex: 1;`;
-const ItemInput = styled.input<{ $done?: boolean }>`width: 100%; min-height: 34px; border: 0; border-radius: 4px; padding: 3px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: var(--ink); text-decoration: ${({ $done }) => $done ? 'none' : 'none'}; &:focus { background: var(--field); box-shadow: 0 0 0 1px var(--focus); }`;
-const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 27px; color: var(--muted);`;
+const ItemInput = styled.input`width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 3px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: var(--ink); &:focus { background: var(--field); box-shadow: 0 0 0 1px var(--focus); } @media(pointer:coarse){min-height:44px;}`;
+const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 32px; color: var(--muted); @media(pointer:coarse){min-height:44px;}`;
 const DetailRow = styled.div`display: flex; align-items: center; gap: 6px; margin-left: 3px; &:hover button { opacity: 1; }`;
 const Dash = styled.span`color: var(--muted); font-size: 13px;`;
-const Mini = styled.button`display: inline-grid; place-items: center; width: 27px; height: 27px; flex: none; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; &:hover { color: var(--link); background: var(--date-bg); }`;
-const HoverActions = styled.div`display: flex; align-items: center; opacity: .2; ${ItemRow}:hover &, ${ItemRow}:focus-within & {opacity: 1;} @media(hover:none){opacity: 1;}`;
+const Mini = styled.button`display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; &:hover { color: var(--link); background: var(--date-bg); } @media(pointer:coarse){width:44px;height:44px;}`;
+const ActionWrap = styled.div`position: relative; flex: none;`;
+const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
+const ActionMenu = styled.div`position: absolute; right: 0; top: 40px; z-index: 10; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0002;`;
+const Action = styled.button`width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; &:hover { background: var(--soft); } @media(pointer:coarse){min-height:44px;}`;
 const AddForm = styled.form`display: flex; align-items: center; gap: 4px; margin-left: 40px; max-width: calc(100% - 40px);`;
-const AddInput = styled(Field)`min-height: 37px; border-color: transparent; background: transparent; padding-left: 2px; &:focus { background: var(--field); border-color: var(--focus); }`;
-const Footer = styled.div`display: flex; flex-wrap: wrap; gap: 6px; padding-top: 20px; border-top: 1px solid var(--line);`;
+const AddInput = styled(Field)`min-height: 40px; border-color: transparent; background: transparent; padding-left: 2px; &:focus { background: var(--field); border-color: var(--focus); } @media(pointer:coarse){min-height:44px;}`;
 const ModalTitle = styled.h2`font-size: 22px; margin-bottom: 12px;`;
 const ModalActions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 20px;`;
 const PaneGrid = styled.div`display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; @media(max-width:550px){grid-template-columns: 1fr;}`;
@@ -183,15 +186,17 @@ export default function App() {
   const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details].flatMap(tagsIn))))].sort(), [documentData]);
   const visibleDays = useMemo(() => {
     const dates = new Set([selectedDate, ...documentData.days.map(day => day.date)]);
-    return [...dates].sort((a,b) => b.localeCompare(a)).map(date => ({ date, items: documentData.days.find(day => day.date === date)?.items ?? [] }));
+    return [selectedDate, ...[...dates].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))].map(date => ({ date, items: documentData.days.find(day => day.date === date)?.items ?? [] }));
   }, [documentData, selectedDate]);
   const matches = (item: TodoItem) => {
     const content = [item.text, ...item.details].join(' ').toLowerCase();
     return (!query || content.includes(query.toLowerCase())) && (!tag || tagsIn(content).includes(tag));
   };
-  if (!state) return <Page><Header><Brand>jing</Brand></Header><Muted>{message || 'Opening journal…'}</Muted></Page>;
+  if (!state) return <Page><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
   return <Page>
-    <Header><Brand>jing</Brand><Tools>
+    <a href="#journal-content" className="skip-link">Skip to journal</a>
+    <VisuallyHidden as="h1">Jing daily journal</VisuallyHidden>
+    <Header><Tools>
       <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
       {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
       <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => void download()}><Download size={17}/></Icon>
@@ -204,11 +209,13 @@ export default function App() {
       <DatePicker aria-label="Selected date" type="date" value={selectedDate} onChange={event => validDate(event.target.value) && setSelectedDate(event.target.value)}/>
       <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
       <Icon aria-label="Today" title="Today" onClick={() => setSelectedDate(todayString())}><CalendarDays size={17}/></Icon>
-      <SearchField id="journal-search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)}/>
-      {query && <Icon aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></Icon>}
+      <SearchWrap><SearchField id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)}/>
+        {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}
+      </SearchWrap>
     </Toolbar>
     {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {message && <Note role="status" style={{ marginBottom: 14 }}>{message} <button aria-label="Dismiss message" onClick={() => setMessage('')} style={{ border: 0, background: 'transparent', color: 'inherit' }}>×</button></Note>}
+    <div id="journal-content" tabIndex={-1}>
     {visibleDays.map(day => {
       const completed = day.items.filter(item => item.completed && matches(item));
       const upcoming = day.items.filter(item => !item.completed && matches(item));
@@ -224,12 +231,7 @@ export default function App() {
         {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;
     })}
-    <Footer>
-      <TextButton onClick={() => importInput.current?.click()}><FileInput size={15}/> import</TextButton>
-      <TextButton onClick={() => void download()}><Download size={15}/> download TODO.txt</TextButton>
-      {supportsDirectFiles() && <TextButton onClick={() => void openFile()}><FolderOpen size={15}/> open file</TextButton>}
-      {supportsDirectFiles() && state.fileHandle && <TextButton onClick={() => void save()}><Save size={15}/> save {state.fileHandle.name}</TextButton>}
-    </Footer>
+    </div>
     <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Jing settings" compact>
       <ModalTitle>settings</ModalTitle>
       <p style={{ fontSize: 13, marginBottom: 15 }}>The journal stays in this browser until you export or save TODO.txt.</p>

@@ -46,7 +46,10 @@ export const GlobalStyle = createGlobalStyle`
   button { -webkit-tap-highlight-color: transparent; }
   button:not(:disabled), summary { cursor: pointer; }
   button:disabled { cursor: wait; opacity: .5; }
-  :focus, :focus-visible { outline: none; }
+  :focus:not(:focus-visible) { outline: none; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .skip-link { position: fixed; z-index: 100; top: 8px; left: 8px; padding: 8px 12px; border-radius: 6px; background: var(--surface); color: var(--ink); transform: translateY(-150%); }
+  .skip-link:focus { transform: translateY(0); }
   ::selection { background: var(--selection); }
   h1, h2, h3, p { margin: 0; }
   h1, h2, h3 { text-wrap: balance; font-weight: 400; }
