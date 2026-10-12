@@ -1,88 +1,38 @@
-[![](https://img.shields.io/badge/hot_cross_buns_1.0.0-passing-green)](https://github.com/gongahkia/hot-cross-buns/releases/tag/1.0.0) 
-![](https://github.com/gongahkia/hot-cross-buns/actions/workflows/verify.yml/badge.svg)
+# Jing
 
-# `Hot Cross Buns` 🍞
+This repository contains the React frontend only. It does not include a database, API server, authentication service, calendar proxy, or server-side backup implementation.
 
-A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://calendar.google.com/calendar/) and [Tasks](https://tasks.google.com/tasks/).
+## Development
 
-## Stack
-
-* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Electron](https://www.electronjs.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
-* Backend: [Node.js](https://nodejs.org/en), [SQLite](https://www.sqlite.org/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
-* Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/)
-* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Electron Vite](https://electron-vite.org/), [Vite](https://vite.dev/), [electron-builder](https://www.electron.build/)
-* API: [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks)
-
-## Features
-
-* In-app browser view
-* Split-pane workspaces
-* 50 curated colorschemes 
-* Keyboard-first navigation
-* Comprehensive undo/redo tree
-* Local notes, tags, full-text search
-* Multi-account Google support out-of-the-box
-* Command Palette for quick commands and indexed search
-* Syncs across Google Tasks *(task lists & subtasks)*
-* Syncs across Google Calendar *(agenda, day, week & monthly views)*
-
-## GIF
-
-<div align="center">
-  <video width="85%" src="https://github.com/user-attachments/assets/5ecca4da-dd8a-47f9-a648-306b5d39ee7b" controls muted playsinline preload="metadata"></video>
-</div>
-
-## Architecture
-
-![](assets/reference/hot-cross-buns-architecture.png)
-
-## Usage
-
-The below instructions are for building `Hot Cross Buns` locally from source.
-
-1. First execute the below commands to clone `Hot Cross Buns`.
-
-```console
-$ git clone https://github.com/gongahkia/hot-cross-buns && cd hot-cross-buns
+```sh
+npm install
+npm run dev
 ```
 
-2. Then run the below to run `Hot Cross Buns` on your machine.
+With no data source configured, the application starts in an explicit unconnected state. To connect an HTTP service, copy `.env.example` to `.env.local` and set:
 
-```console
-$ corepack enable
-$ corepack pnpm install
-$ corepack pnpm dev
+```sh
+VITE_API_BASE_URL=https://example.com/api
 ```
 
-3. Optionally run the below to run `Hot Cross Buns`' comprehensive [test suite](./tests).
+The existing UI request contract is centralized in `src/api.ts`. Transport selection lives in `src/dataSource.ts`; call `configureDataSource()` before rendering to install a non-HTTP adapter.
 
-```console
-$ corepack pnpm test:unit
-$ corepack pnpm test:db
-$ corepack pnpm test:security
+## Data model
+
+Jing does not reduce everything to one TODO file. The frontend renders a journal response with two main collections:
+
+- `tasks`: active to-dos shown in the task outline.
+- `days`: dated journal pages whose `entries` can be notes or completed tasks, plus focus sessions and calendar events.
+
+`src/types.ts` defines that contract; it is not a storage file. UI components call the domain helpers in `src/api.ts`, which normalize responses and pass requests to the adapter in `src/dataSource.ts`. The default adapter talks to `VITE_API_BASE_URL`. A host application can instead install its own adapter with `configureDataSource()` before React renders.
+
+Only UI preferences, editing drafts, and undo metadata are stored in browser `localStorage`. Journal entries and tasks need to be supplied by the configured data source.
+
+## Build
+
+```sh
+npm run build
+npm run preview
 ```
 
-4. Open [Google Cloud Console](https://console.cloud.google.com/) and do the following.
-    1. Create or select a Google Cloud project, then enable the [Google Calendar API](https://console.cloud.google.com/marketplace/product/google/calendar-json.googleapis.com) and [Google Tasks API](https://console.cloud.google.com/marketplace/product/google/tasks.googleapis.com).
-    2. Under **Google Auth platform**, configure the OAuth consent screen as **External**, supply the required app details, and add your Google account as a test user while the app is in testing.
-    3. Under **Clients**, create an OAuth client with application type **Desktop app**. 
-    4. Copy the desktop client ID. The client secret is optional. 
-5. Finally, within `Hot Cross Buns`, open **Settings → Profile**, save the desktop OAuth client ID (and optional client secret), then complete browser consent.
-
-## Support
-
-| Operating system | Support |
-| --- | --- |
-| macOS | ✅ Supported |
-| Linux | ✅ Supported |
-| Windows (WSL2) | 🧪 Experimental |
-
-## Other docs
-
-* [Product requirements](docs/product/prd.md)
-* [Google sync specification](docs/specs/google-sync.md)
-* [Local data specification](docs/specs/local-data.md)
-* [Native parity](docs/specs/native-parity.md)
-* [Google Workspace integrations](docs/google-workspace-integrations.md)
-* [Privacy and threat model](docs/security/privacy-and-threat-model.md)
-* [QA plan](docs/testing/qa-plan.md)
+Vite writes the static application to `dist/`. Any static hosting provider can serve that directory.

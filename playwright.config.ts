@@ -1,15 +1,18 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig } from '@playwright/test';
+
+const port = Number(process.env.JING_TEST_PORT ?? process.env.STILL_TEST_PORT ?? 4173);
 
 export default defineConfig({
-  testDir: "tests/smoke",
-  // Profile directories isolate data; Electron menus and global shortcuts still
-  // share one desktop. Keep app fixtures sequential on the host.
-  workers: 1,
-  timeout: 30_000,
-  reporter: [["list"]],
-  outputDir: "output/playwright",
+  testDir: './tests',
+  timeout: 30000,
   use: {
-    screenshot: "only-on-failure",
-    trace: "retain-on-failure"
-  }
+    baseURL: `http://127.0.0.1:${port}`,
+    channel: 'chrome',
+    viewport: { width: 1280, height: 1000 },
+  },
+  webServer: {
+    command: `npm run preview -- --port ${port}`,
+    url: `http://127.0.0.1:${port}/`,
+    reuseExistingServer: false,
+  },
 });
