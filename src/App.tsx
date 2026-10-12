@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import styled from 'styled-components';
 import { ArrowDown, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Moon, MoreHorizontal, Plus, Save, Settings2, Sun, Trash2, X } from 'lucide-react';
 import { Button, Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
@@ -15,7 +15,7 @@ const Icon = styled(IconButton)`width: 44px; height: 44px;`;
 const Toolbar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
 const DatePicker = styled(Field)`width: 155px; min-width: 0; min-height: 44px; font-size: 13px; border-color: transparent; background: var(--date-bg); @media(max-width:600px){width:100%;}`;
 const SearchWrap = styled.div`position: relative; flex: 1; min-width: 180px; @media(max-width:600px){grid-column: 1 / -1;}`;
-const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px;`;
+const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; }`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
@@ -28,10 +28,11 @@ const ItemRow = styled.div`position: relative; display: flex; align-items: flex-
 const CheckButton = styled.button<{ $done: boolean }>`width: 40px; height: 40px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; @media(pointer:coarse){width:44px;height:44px;}`;
 const Circle = styled.span<{ $done: boolean }>`display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; background: ${({ $done }) => $done ? 'var(--link)' : 'transparent'}; color: ${({ $done }) => $done ? 'var(--paper)' : 'var(--checkbox)'};`;
 const ItemBody = styled.div`min-width: 0; flex: 1;`;
-const ItemInput = styled.input`width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 3px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: var(--ink); &:focus { background: var(--field); box-shadow: 0 0 0 1px var(--focus); } @media(pointer:coarse){min-height:44px;}`;
+const ItemInput = styled.textarea`display: block; width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 9px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: var(--ink); overflow: hidden; resize: none; &:focus { background: var(--field); box-shadow: 0 0 0 1px var(--focus); } @media(pointer:coarse){min-height:44px; padding-top: 11px;}`;
 const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 32px; color: var(--muted); @media(pointer:coarse){min-height:44px;}`;
 const DetailRow = styled.div`display: flex; align-items: center; gap: 6px; margin-left: 3px; &:hover button { opacity: 1; }`;
 const Dash = styled.span`color: var(--muted); font-size: 13px;`;
+const MoveDate = styled(Field)`width: 150px; min-height: 40px; font-size: 13px; @media(pointer:coarse){min-height:44px;}`;
 const Mini = styled.button`display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; &:hover { color: var(--link); background: var(--date-bg); } @media(pointer:coarse){width:44px;height:44px;}`;
 const ActionWrap = styled.div`position: relative; flex: none;`;
 const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
@@ -47,6 +48,19 @@ const ReviewRow = styled.div`padding: 13px 0; border-bottom: 1px solid var(--lin
 const ReviewChoices = styled.div`display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px;`;
 const RawText = styled.textarea`width: 100%; min-height: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 12px/1.5 ui-monospace,monospace; resize: vertical;`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
+const UnfinishedNote = styled(Note)`margin: 0 0 3px 2px;`;
+
+function LineField({ detail = false, value, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${element.scrollHeight}px`;
+  }, [value]);
+  const Component = detail ? DetailInput : ItemInput;
+  return <Component ref={ref} rows={1} value={value} {...props}/>;
+}
 
 type Review = { raw: string; file: TodoDocument; proposal: MergeProposal; handle: TodoFileHandle | null; mode: 'import' | 'save'; observedText: string | null };
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
@@ -260,33 +274,50 @@ function AddItem({ onAdd }: { onAdd: (text: string) => void }) {
 
 function JournalItem({ item, date, today, onChange, onMove }: { item: TodoItem; date: string; today: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void }) {
   const [text, setText] = useState(item.text);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const cancelText = useRef(false);
+  const cancelDetail = useRef(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveDate, setMoveDate] = useState(date);
   const [addingDetail, setAddingDetail] = useState(false);
   const [detailDraft, setDetailDraft] = useState('');
   useEffect(() => setText(item.text), [item.text]);
-  const saveText = () => { const value = text.trim(); if (value && value !== item.text) onChange(item => { item.text = value; }); else setText(item.text); };
+  useEffect(() => {
+    if (!menuOpen) return;
+    const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [menuOpen]);
+  const saveText = () => { if (cancelText.current) { cancelText.current = false; setText(item.text); return; } const value = text.trim(); if (value && value !== item.text) onChange(item => { item.text = value; }); else setText(item.text); };
+  const closeMenu = (action: () => void) => { setMenuOpen(false); action(); };
   return <ItemRow role="group" aria-label={item.text}>
     <CheckButton $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} onClick={() => onChange(item => { item.completed = !item.completed; })}><Circle $done={item.completed}>{item.completed && <Check size={12}/>}</Circle></CheckButton>
     <ItemBody>
-      <ItemInput $done={item.completed} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value)} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setText(item.text); event.currentTarget.blur(); } }}/>
+      <LineField aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/>
       {item.details.map((detail,index) => <Detail key={`${item.id}-${index}`} value={detail} onSave={value => onChange(item => { item.details[index] = value; })} onDelete={() => onChange(item => { item.details.splice(index,1); })}/>)}
-      {addingDetail && <DetailRow><Dash>-</Dash><DetailInput autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setDetailDraft(''); setAddingDetail(false); } }} onBlur={() => { if (detailDraft.trim()) onChange(item => { item.details.push(detailDraft.trim()); }); setDetailDraft(''); setAddingDetail(false); }}/></DetailRow>}
-      {moveOpen && <DetailRow><Dash>move to</Dash><input aria-label={`Move ${item.text} to date`} type="date" value={moveDate} onChange={event => setMoveDate(event.target.value)}/><Mini aria-label="Confirm move" onClick={() => { if (validDate(moveDate)) { onMove(moveDate); setMoveOpen(false); } }}><Check size={14}/></Mini></DetailRow>}
-      {date < today && !item.completed && <Note style={{ margin: '0 0 3px 2px' }}>unfinished</Note>}
+      {addingDetail && <DetailRow><Dash>-</Dash><LineField detail autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelDetail.current = true; event.currentTarget.blur(); } }} onBlur={() => { if (!cancelDetail.current && detailDraft.trim()) onChange(item => { item.details.push(detailDraft.trim()); }); cancelDetail.current = false; setDetailDraft(''); setAddingDetail(false); }}/></DetailRow>}
+      {moveOpen && <DetailRow><Dash>move to</Dash><MoveDate aria-label={`Move ${item.text} to date`} type="date" value={moveDate} onChange={event => setMoveDate(event.target.value)}/><Mini aria-label="Confirm move" onClick={() => { if (validDate(moveDate)) { onMove(moveDate); setMoveOpen(false); } }}><Check size={14}/></Mini></DetailRow>}
+      {date < today && !item.completed && <UnfinishedNote>unfinished</UnfinishedNote>}
     </ItemBody>
-    <HoverActions>
-      <Mini title="Add detail" aria-label={`Add detail to ${item.text}`} onClick={() => setAddingDetail(true)}><Plus size={14}/></Mini>
-      <Mini title="Move to date" aria-label={`Move ${item.text}`} onClick={() => setMoveOpen(value => !value)}><CalendarDays size={14}/></Mini>
-      <Mini title="Move up" aria-label={`Move ${item.text} up`} onClick={() => onChange((item, items) => { const index = items.indexOf(item); let previous = -1; for (let position = index - 1; position >= 0; position--) { if (items[position].completed === item.completed) { previous = position; break; } } if (previous >= 0) [items[previous], items[index]] = [items[index], items[previous]]; })}><ArrowUp size={13}/></Mini>
-      <Mini title="Move down" aria-label={`Move ${item.text} down`} onClick={() => onChange((item, items) => { const index = items.indexOf(item); const next = items.findIndex((candidate, position) => position > index && candidate.completed === item.completed); if (next >= 0) [items[next], items[index]] = [items[index], items[next]]; })}><ArrowDown size={13}/></Mini>
-      <Mini title="Delete" aria-label={`Delete ${item.text}`} onClick={() => onChange((item, items) => { items.splice(items.indexOf(item),1); })}><Trash2 size={13}/></Mini>
-    </HoverActions>
+    <ActionWrap ref={menuRef}>
+      <MoreButton aria-label={`More actions for ${item.text}`} aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}><MoreHorizontal size={17}/></MoreButton>
+      {menuOpen && <ActionMenu aria-label={`Actions for ${item.text}`}>
+        <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => setAddingDetail(true))}><Plus size={15}/> add detail</Action>
+        <Action aria-label={`Move ${item.text}`} onClick={() => closeMenu(() => setMoveOpen(value => !value))}><CalendarDays size={15}/> move to date</Action>
+        <Action aria-label={`Move ${item.text} up`} onClick={() => closeMenu(() => onChange((item, items) => { const index = items.indexOf(item); let previous = -1; for (let position = index - 1; position >= 0; position--) { if (items[position].completed === item.completed) { previous = position; break; } } if (previous >= 0) [items[previous], items[index]] = [items[index], items[previous]]; }))}><ArrowUp size={15}/> move up</Action>
+        <Action aria-label={`Move ${item.text} down`} onClick={() => closeMenu(() => onChange((item, items) => { const index = items.indexOf(item); const next = items.findIndex((candidate, position) => position > index && candidate.completed === item.completed); if (next >= 0) [items[next], items[index]] = [items[index], items[next]]; }))}><ArrowDown size={15}/> move down</Action>
+        <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(() => onChange((item, items) => { items.splice(items.indexOf(item),1); }))}><Trash2 size={15}/> delete</Action>
+      </ActionMenu>}
+    </ActionWrap>
   </ItemRow>;
 }
 
 function Detail({ value, onSave, onDelete }: { value: string; onSave: (value: string) => void; onDelete: () => void }) {
   const [draft, setDraft] = useState(value);
+  const cancelled = useRef(false);
   useEffect(() => setDraft(value), [value]);
-  return <DetailRow><Dash>-</Dash><DetailInput aria-label={`Edit detail ${value}`} value={draft} onChange={event => setDraft(event.target.value)} onBlur={() => { if (draft.trim() && draft.trim() !== value) onSave(draft.trim()); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setDraft(value); event.currentTarget.blur(); } }}/><Mini title="Delete detail" aria-label={`Delete detail ${value}`} onClick={onDelete}><X size={13}/></Mini></DetailRow>;
+  return <DetailRow><Dash>-</Dash><LineField detail aria-label={`Edit detail ${value}`} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { if (cancelled.current) { cancelled.current = false; setDraft(value); return; } if (draft.trim() && draft.trim() !== value) onSave(draft.trim()); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelled.current = true; event.currentTarget.blur(); } }}/><Mini title="Delete detail" aria-label={`Delete detail ${value}`} onClick={onDelete}><X size={13}/></Mini></DetailRow>;
 }

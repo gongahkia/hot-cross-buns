@@ -10,6 +10,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Review paper #work');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'More actions for Review paper #work' }).click();
   await page.getByRole('button', { name: 'Add detail to Review paper #work' }).click();
   await page.getByRole('textbox', { name: 'New detail for Review paper #work' }).fill('send feedback');
   await page.getByRole('textbox', { name: 'New detail for Review paper #work' }).press('Enter');
