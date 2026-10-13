@@ -5,16 +5,29 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { CalendarDays, ChevronDown, CornerDownRight, GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, ChevronDown, Clock3, CornerDownRight, GripVertical, MoreHorizontal, Plus, Repeat2, Trash2 } from 'lucide-react';
 import { Field, IconButton } from '../styles';
+import { formatRecurrence } from '../recurrence';
+import { parseTimeBlock } from '../timeBlock';
 import { newId, type TodoDetail, type TodoItem } from '../todoText';
 import { CalendarPanel } from './CalendarPanel';
+import { ScheduleEditor } from './ScheduleEditor';
 
 const ItemRow = styled.div<{ $dragging: boolean }>`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; background: ${({ $dragging }) => $dragging ? 'var(--soft)' : 'transparent'}; opacity: ${({ $dragging }) => $dragging ? .35 : 1}; &:hover { background: var(--soft); } [data-row-control] { opacity: 0; transition: opacity 120ms ease-out; } &:hover [data-row-control], &:focus-within [data-row-control] { opacity: 1; } @media(hover:none) { [data-row-control] { opacity: 1; } }`;
 const Grip = styled.button`width: 22px; height: 40px; display: grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:36px;height:44px;}`;
 const CheckButton = styled.button<{ $done: boolean }>`width: 34px; height: 40px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; @media(pointer:coarse){width:44px;height:44px;}`;
-const Circle = styled.span<{ $done: boolean; $progress?: number }>`display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%; background: ${({ $done, $progress = 0 }) => $done ? 'var(--link)' : $progress ? `conic-gradient(var(--link) ${$progress * 100}%, transparent 0)` : 'transparent'}; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; transition: background 180ms ease-out, color 180ms ease-out;`;
+const Circle = styled.span<{ $done: boolean; $progress?: number; $previousProgress?: number }>`
+  --circle-progress: ${({ $done, $progress = 0 }) => `${($done ? 1 : $progress) * 100}%`};
+  display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid currentColor; border-radius: 50%;
+  background: conic-gradient(var(--link) var(--circle-progress), transparent var(--circle-progress));
+  color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'};
+  transition: --circle-progress 280ms cubic-bezier(.2, 0, 0, 1), color 180ms ease-out;
+  @starting-style { --circle-progress: ${({ $previousProgress, $done, $progress = 0 }) => `${($previousProgress ?? ($done ? 1 : $progress)) * 100}%`}; }
+`;
 const ItemBody = styled.div`min-width: 0; flex: 1;`;
+const ItemMain = styled.div`display: flex; align-items: flex-start; min-width: 0; gap: 8px;`;
+const TimeLabel = styled.span`flex: none; padding-top: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; @media(pointer:coarse){padding-top: 12px;}`;
+const RepeatLabel = styled.span`display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px 2px; color: var(--muted); font-size: 11px;`;
 const dimText = keyframes`from {color:var(--ink)} to {color:var(--muted)}`;
 const restoreText = keyframes`from {color:var(--muted)} to {color:var(--ink)}`;
 type CompletionChange = 'complete' | 'reopen' | undefined;
@@ -63,7 +76,7 @@ export function AddItem({ onAdd, autoFocus = false, onCancel, inline = false }: 
 
 export function JournalItem({ item, previousItem, date, today, onChange, onMove, onMakeDetail, onStartNext }: { item: TodoItem; previousItem?:TodoItem; date: string; today: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void; onMakeDetail?: () => void; onStartNext: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
-  const [text, setText] = useState(item.text);
+  const [text, setText] = useState(parseTimeBlock(item.text)?.title ?? item.text);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -72,6 +85,7 @@ export function JournalItem({ item, previousItem, date, today, onChange, onMove,
   const cancelDetail = useRef(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveDate, setMoveDate] = useState(date);
+  const [scheduleEditor, setScheduleEditor] = useState<'time' | 'repeat' | null>(null);
   const [detailInsertAt, setDetailInsertAt] = useState<number | null>(null);
   const [detailDraft, setDetailDraft] = useState('');
   const [detailsExpanded, setDetailsExpanded] = useState(true);
@@ -84,9 +98,11 @@ export function JournalItem({ item, previousItem, date, today, onChange, onMove,
     return `${item.id}:detail:${signature}:${occurrence}`;
   });
   const completedDetails = item.details.filter(detail => detail.completed).length;
+  const timeBlock = parseTimeBlock(item.text);
   const detailProgress = item.details.length ? completedDetails / item.details.length : 0;
+  const previousProgress = previousItem?.details.length ? previousItem.details.filter(detail => detail.completed).length / previousItem.details.length : previousItem?.completed ? 1 : undefined;
   const completionChange:CompletionChange = previousItem && previousItem.completed !== item.completed ? item.completed?'complete':'reopen' : undefined;
-  useEffect(() => setText(item.text), [item.text]);
+  useEffect(() => setText(parseTimeBlock(item.text)?.title ?? item.text), [item.text]);
   useEffect(() => {
     if (!menuOpen) return;
     const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) { setMenuOpen(false); setMoveOpen(false); } };
@@ -104,18 +120,19 @@ export function JournalItem({ item, previousItem, date, today, onChange, onMove,
     const narrow = window.innerWidth <= 540;
     const needed = withCalendar && !narrow ? 512 : 176;
     const left = Math.max(8, Math.min(rect.right - 176, window.innerWidth - needed - 8));
-    const height = withCalendar ? (narrow ? 580 : 430) : 190;
+    const height = withCalendar ? (narrow ? 580 : 430) : 275;
     const top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - height - 8));
     setMenuPosition({ top, left });
   };
-  const saveText = () => { if (cancelText.current) { cancelText.current = false; setText(item.text); return; } const value = text.trim(); if (value && value !== item.text) onChange(item => { item.text = value; }); else setText(item.text); };
+  const saveText = () => { const original = timeBlock?.title ?? item.text; if (cancelText.current) { cancelText.current = false; setText(original); return; } const value = text.trim(); if (value && value !== original) onChange(item => { item.text = timeBlock ? `${timeBlock.start}-${timeBlock.end} ${value}` : value; }); else setText(original); };
   const closeMenu = (action: () => void) => { setMenuOpen(false); setMoveOpen(false); action(); };
   const detailDraftRow = detailInsertAt === null ? null : <DetailRow key="new-detail"><Dash>-</Dash><LineField detail autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelDetail.current = true; event.currentTarget.blur(); } }} onBlur={() => { if (!cancelDetail.current && detailDraft.trim()) onChange(item => { item.details.splice(detailInsertAt, 0, { text: detailDraft.trim(), completed: false }); item.completed = false; }); cancelDetail.current = false; setDetailDraft(''); setDetailInsertAt(null); }}/></DetailRow>;
   return <ItemRow ref={setNodeRef} role="group" aria-label={item.text} data-transition-id={item.id} $dragging={isDragging} style={{ transform: CSS.Transform.toString(transform), transition }}>
     <Grip data-row-control ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.text}`} title="Drag to reorder or move to another date"><GripVertical size={16}/></Grip>
-    <CheckButton data-row-control $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} aria-pressed={item.completed} aria-description={item.details.length ? `${completedDetails} of ${item.details.length} details done` : undefined} onClick={() => onChange(item => { const done = !item.completed; item.completed = done; item.details.forEach(detail => { detail.completed = done; }); })}><Circle $done={item.completed} $progress={detailProgress}/></CheckButton>
+    <CheckButton data-row-control $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} aria-pressed={item.completed} aria-description={item.details.length ? `${completedDetails} of ${item.details.length} details done` : undefined} onClick={() => onChange(item => { const done = !item.completed; item.completed = done; item.details.forEach(detail => { detail.completed = done; }); })}><Circle $done={item.completed} $progress={detailProgress} $previousProgress={previousProgress}/></CheckButton>
     <ItemBody>
-      <LineField $done={item.completed} $completionChange={completionChange} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/>
+      <ItemMain>{timeBlock && <TimeLabel title="Time block">{timeBlock.start}–{timeBlock.end}</TimeLabel>}<LineField $done={item.completed} $completionChange={completionChange} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/></ItemMain>
+      {item.repeat && <RepeatLabel title={`Repeat rule: ${formatRecurrence(item.repeat)}`}><Repeat2 size={12}/>{formatRecurrence(item.repeat)}</RepeatLabel>}
       {!!item.details.length && <DetailsClip id={`details-${item.id}`} $open={detailsExpanded} aria-hidden={!detailsExpanded} inert={!detailsExpanded}><DndContext sensors={detailSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={({active,over}) => {
         if (!over || active.id === over.id) return;
         const from = detailIds.indexOf(String(active.id));
@@ -131,12 +148,15 @@ export function JournalItem({ item, previousItem, date, today, onChange, onMove,
       <MoreButton data-row-control ref={moreRef} aria-label={`More actions for ${item.text}`} aria-expanded={menuOpen} onClick={() => { if (!menuOpen) positionMenu(false); else setMoveOpen(false); setMenuOpen(value => !value); }}><MoreHorizontal size={17}/></MoreButton>
       {menuOpen && <ActionMenu style={menuPosition} aria-label={`Actions for ${item.text}`}>
         <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => { setDetailsExpanded(true); setDetailInsertAt(item.details.length); })}><Plus size={15}/> add detail</Action>
-        <Action aria-label={`Make ${item.text} a detail`} title={onMakeDetail ? undefined : 'Move another item above this one first'} disabled={!onMakeDetail} onClick={() => { if (onMakeDetail) closeMenu(onMakeDetail); }}><CornerDownRight size={15}/> make detail</Action>
+        <Action aria-label={`Make ${item.text} a detail`} title={item.repeat || timeBlock ? 'Remove the repeat rule and time block first' : onMakeDetail ? undefined : 'Move another item above this one first'} disabled={!onMakeDetail || !!item.repeat || !!timeBlock} onClick={() => { if (onMakeDetail) closeMenu(onMakeDetail); }}><CornerDownRight size={15}/> make detail</Action>
+        <Action aria-label={`Set time block for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('time'))}><Clock3 size={15}/> {timeBlock ? 'edit time' : 'add time block'}</Action>
+        <Action aria-label={`Set repeat for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('repeat'))}><Repeat2 size={15}/> {item.repeat ? 'edit repeat' : 'repeat'}</Action>
         <Action aria-label={`Move ${item.text}`} aria-expanded={moveOpen} onClick={() => { if (!moveOpen) { setMoveDate(date); positionMenu(true); } else positionMenu(false); setMoveOpen(value => !value); }}><CalendarDays size={15}/> move to date</Action>
         <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(() => onChange((item, items) => { items.splice(items.indexOf(item),1); }))}><Trash2 size={15}/> delete</Action>
         {moveOpen && <MoveFlyout><CalendarPanel label={`Choose destination for ${item.text}`} value={moveDate} onSelect={setMoveDate}><MoveFooter><span>{moveDate}</span><MoveConfirm type="button" onClick={() => closeMenu(() => onMove(moveDate))}>Move here</MoveConfirm></MoveFooter></CalendarPanel></MoveFlyout>}
       </ActionMenu>}
     </ActionWrap>
+    {scheduleEditor && <ScheduleEditor kind={scheduleEditor} item={item} date={date} onClose={() => setScheduleEditor(null)} onTime={value => onChange(item => { item.text = value; })} onRepeat={rule => onChange(item => { item.repeat = rule; })}/>}
   </ItemRow>;
 }
 
@@ -170,7 +190,7 @@ function Detail({ id, value, completionChange, onToggle, onSave, onStartNext, on
   };
   return <DetailRow ref={setNodeRef} $dragging={isDragging} style={{transform: CSS.Transform.toString(transform), transition}}>
     <DetailGrip data-detail-control ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder detail ${value.text}`} title="Drag to reorder detail"><GripVertical size={13}/></DetailGrip>
-    <DetailCheck $done={value.completed} type="button" aria-label={`${value.completed ? 'Reopen' : 'Complete'} detail ${value.text}`} aria-pressed={value.completed} onClick={onToggle}><Circle $done={value.completed}/></DetailCheck>
+    <DetailCheck $done={value.completed} type="button" aria-label={`${value.completed ? 'Reopen' : 'Complete'} detail ${value.text}`} aria-pressed={value.completed} onClick={onToggle}><Circle $done={value.completed} $previousProgress={completionChange ? (completionChange === 'complete' ? 0 : 1) : undefined}/></DetailCheck>
     <LineField detail $done={value.completed} $completionChange={completionChange} aria-label={`Edit detail ${value.text}`} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { if (cancelled.current) { cancelled.current = false; setDraft(value.text); return; } if (draft.trim() && draft.trim() !== value.text) onSave(draft.trim()); else setDraft(value.text); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext(); } if (event.key === 'Escape') { cancelled.current = true; event.currentTarget.blur(); } }}/>
     <ActionWrap ref={menuRef}><MoreButton data-detail-control ref={moreRef} aria-label={`More actions for detail ${value.text}`} aria-expanded={menuOpen} onClick={openMenu}><MoreHorizontal size={15}/></MoreButton></ActionWrap>
     {menuOpen && createPortal(<ActionMenu ref={menuPanelRef} style={menuPosition} aria-label={`Actions for detail ${value.text}`}><Action aria-label={`Make detail ${value.text} an item`} onClick={() => { setMenuOpen(false); onMakeItem(); }}><CornerDownRight size={15} style={{transform:'rotate(180deg)'}}/> make item</Action><Action aria-label={`Delete detail ${value.text}`} onClick={() => { setMenuOpen(false); onDelete(); }}><Trash2 size={15}/> delete</Action></ActionMenu>, document.body)}

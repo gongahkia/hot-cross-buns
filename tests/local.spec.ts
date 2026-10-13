@@ -255,6 +255,36 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
 });
 
+test('dragging an item between Upcoming and Done updates every detail', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nDone anchor\n\nMove me\n- [x] first\n- [ ] second\n- [ ] third\n\nOpen anchor\n`) });
+  await page.getByRole('button', { name: 'Complete Done anchor' }).click();
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
+
+  const dragOnto = async (source: string, target: string) => {
+    const from = await page.getByRole('button', { name: `Drag to reorder ${source}` }).boundingBox();
+    const to = await page.getByRole('button', { name: `Drag to reorder ${target}` }).boundingBox();
+    expect(from && to).toBeTruthy();
+    await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 20 });
+    await page.mouse.up();
+  };
+
+  await dragOnto('Move me', 'Done anchor');
+  const moved = page.getByRole('group', { name: 'Move me' });
+  await expect(moved.getByRole('button', { name: 'Reopen Move me' })).toHaveAttribute('aria-description', '3 of 3 details done');
+  for (const detail of ['first', 'second', 'third']) await expect(moved.getByRole('button', { name: `Reopen detail ${detail}` })).toBeVisible();
+
+  await dragOnto('Move me', 'Open anchor');
+  await expect(moved.getByRole('button', { name: 'Complete Move me' })).toHaveAttribute('aria-description', '0 of 3 details done');
+  for (const detail of ['first', 'second', 'third']) await expect(moved.getByRole('button', { name: `Complete detail ${detail}` })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'Move me' }).getByRole('button', { name: 'Complete Move me' })).toHaveAttribute('aria-description', '0 of 3 details done');
+});
+
 test('tracks detail progress, completes the parent, and round-trips detail markers', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
@@ -281,6 +311,91 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   await expect(page.getByRole('button', { name: 'Reopen detail second step' })).toBeVisible();
   await page.getByRole('button', { name: 'Reopen detail second step' }).click();
   await expect(page.getByRole('button', { name: 'Complete Progress task' })).toBeVisible();
+});
+
+test('edits a time block and recurrence, creates one next item, and keeps both in TODO.txt', async ({ page }) => {
+  const today = dateOffset(0);
+  const next = dateOffset(3);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Water plants #home');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'More actions for Water plants #home' }).click();
+  await page.getByRole('button', { name: 'Set time block for Water plants #home' }).click();
+  await page.getByRole('dialog', { name: 'Time block for Water plants #home' }).getByLabel('Start time').fill('09:00');
+  await page.getByRole('dialog', { name: 'Time block for Water plants #home' }).getByLabel('End time').fill('09:30');
+  await page.getByRole('dialog', { name: 'Time block for Water plants #home' }).getByRole('button', { name: 'save' }).click();
+  const current = page.getByRole('group', { name: '09:00-09:30 Water plants #home' });
+  await expect(current.getByText('09:00–09:30')).toBeVisible();
+  await expect(current.getByRole('textbox', { name: 'Edit 09:00-09:30 Water plants #home' })).toHaveValue('Water plants #home');
+  await current.getByRole('button', { name: 'More actions for 09:00-09:30 Water plants #home' }).click();
+  await page.getByRole('button', { name: 'Set repeat for 09:00-09:30 Water plants #home' }).click();
+  const editor = page.getByRole('dialog', { name: 'Repeat 09:00-09:30 Water plants #home' });
+  await editor.getByLabel('Repeat rule').selectOption('after');
+  await editor.getByRole('spinbutton', { name: 'Repeat interval' }).fill('3');
+  await editor.getByRole('button', { name: 'save' }).click();
+  await expect(current.getByText('every 3 days after completion')).toBeVisible();
+
+  await current.getByRole('button', { name: 'Complete 09:00-09:30 Water plants #home' }).click();
+  const future = page.locator('section').filter({ has: page.locator(`time[datetime="${next}"]`) }).getByRole('group', { name: '09:00-09:30 Water plants #home' });
+  await expect(future.getByRole('button', { name: 'Complete 09:00-09:30 Water plants #home' })).toBeVisible();
+  await expect(future.getByText('every 3 days after completion')).toBeVisible();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  const raw = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(raw).toContain(`${today}\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
+  expect(raw).toContain(`${next}\n\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
+  await page.reload();
+  await expect(future).toBeVisible();
+});
+
+test('an externally completed recurring item advances once when TODO.txt is imported', async ({ page }) => {
+  const today = dateOffset(0);
+  const tomorrow = dateOffset(1);
+  const pending = `${today}\n\nCheck filter\n  @repeat: daily\n- [ ] inspect it\n`;
+  const completed = `${today}\nCheck filter\n  @repeat: daily\n- [x] inspect it\n\n`;
+  await page.goto('/');
+  const importFile = page.getByLabel('Import a TODO.txt file');
+  await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
+  await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  const nextDay = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
+  await expect(nextDay.getByRole('group', { name: 'Check filter' }).getByRole('button', { name: 'Complete detail inspect it' })).toBeVisible();
+  await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  await expect(nextDay.getByRole('group', { name: 'Check filter' })).toHaveCount(1);
+});
+
+test('animates detail progress wedges in both directions, including when the item moves through Done', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nProgress task\n- [ ] first step\n- [ ] second step\n`) });
+  const parent = page.getByRole('group', { name: 'Progress task' });
+  const circle = () => parent.getByRole('button', { name: /^(Complete|Reopen) Progress task$/ }).locator('span');
+  const fill = () => circle().evaluate(element => parseFloat(getComputedStyle(element).getPropertyValue('--circle-progress')));
+  const isAnimating = () => circle().evaluate(element => element.getAnimations().some(animation => animation instanceof CSSTransition && animation.transitionProperty === '--circle-progress'));
+
+  expect(await fill()).toBe(0);
+  await parent.getByRole('button', { name: 'Complete detail first step' }).click();
+  expect(await isAnimating()).toBe(true);
+  await expect(circle()).toHaveCSS('--circle-progress', '50%');
+
+  await parent.getByRole('button', { name: 'Reopen detail first step' }).click();
+  expect(await isAnimating()).toBe(true);
+  await expect(circle()).toHaveCSS('--circle-progress', '0%');
+
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
+  await parent.getByRole('button', { name: 'Complete detail first step' }).click();
+  await expect(circle()).toHaveCSS('--circle-progress', '50%');
+  await parent.getByRole('button', { name: 'Complete detail second step' }).click();
+  expect(await isAnimating()).toBe(true);
+  await expect(circle()).toHaveCSS('--circle-progress', '100%');
+
+  await parent.getByRole('button', { name: 'Reopen detail second step' }).click();
+  expect(await isAnimating()).toBe(true);
+  await expect(circle()).toHaveCSS('--circle-progress', '50%');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await parent.getByRole('button', { name: 'Reopen detail first step' }).click();
+  expect(await circle().evaluate(element => parseFloat(getComputedStyle(element).transitionDuration))).toBeLessThan(0.01);
+  await expect(circle()).toHaveCSS('--circle-progress', '0%');
 });
 
 test('formats date headings independently of TODO.txt and focuses app search with Ctrl/Cmd+F', async ({ page }) => {

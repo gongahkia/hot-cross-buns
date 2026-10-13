@@ -9,4 +9,3 @@ npm-debug.log*
 test-results/
 .tmp/
 playwright-report/
-AGENTS.md

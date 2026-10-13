@@ -1,6 +1,9 @@
-/** TODO.txt keeps ISO date headings; detail checkboxes extend plain `- detail` lines. */
+/** TODO.txt keeps ISO date headings; detail checkboxes and repeat rules extend item lines. */
+import { formatRecurrence, parseRecurrence, type RecurrenceRule } from './recurrence.ts';
+import { parseTimeBlock } from './timeBlock.ts';
+
 export type TodoDetail = { text: string; completed: boolean };
-export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean };
+export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean; repeat?: RecurrenceRule };
 export type TodoDay = { date: string; items: TodoItem[] };
 export type TodoDocument = { days: TodoDay[] };
 export type ParseIssue = { line: number; message: string };
@@ -18,8 +21,8 @@ export function normalizeDocument(document: TodoDocument): TodoDocument {
       : { text: detail.text, completed: !!detail.completed }),
   })) })) };
 }
-export const itemValue = (item: TodoItem) => JSON.stringify([item.text, item.details, item.completed]);
-export const itemContent = (item: TodoItem) => JSON.stringify([item.text, item.details]);
+export const itemValue = (item: TodoItem) => JSON.stringify([item.text, item.details, item.completed, item.repeat]);
+export const itemContent = (item: TodoItem) => JSON.stringify([item.text, item.details, item.repeat]);
 
 export function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -33,11 +36,11 @@ export function todayString() {
 }
 
 function unescapeLine(line: string) {
-  return /^\\(?:\\|- |\d{4}-\d{2}-\d{2}$|\[(?:x|X| )\] )/.test(line) ? line.slice(1) : line;
+  return /^\\(?:\\|- |  @repeat:|\d{4}-\d{2}-\d{2}$|\[(?:x|X| )\] )/.test(line) ? line.slice(1) : line;
 }
 
 function escapeLine(line: string) {
-  return /^(?:\\|- |\d{4}-\d{2}-\d{2}$)/.test(line) ? `\\${line}` : line;
+  return /^(?:\\|- |  @repeat:|\d{4}-\d{2}-\d{2}$)/.test(line) ? `\\${line}` : line;
 }
 
 function escapeDetail(line: string) {
@@ -91,6 +94,14 @@ export function parseTodoText(raw: string, today = todayString()): ParseResult {
       return;
     }
     if (!day) { issues.push({ line: lineNumber, message: 'Text must follow a valid date heading.' }); return; }
+    if (/^  @repeat:/.test(line)) {
+      if (!lastItem || pendingBlank) { issues.push({ line: lineNumber, message: 'A repeat rule needs an item directly above it.' }); return; }
+      if (lastItem.repeat) { issues.push({ line: lineNumber, message: 'An item can have only one repeat rule.' }); return; }
+      const rule = parseRecurrence(line.slice('  @repeat:'.length));
+      if (!rule) { issues.push({ line: lineNumber, message: 'Invalid repeat rule.' }); return; }
+      lastItem.repeat = rule;
+      return;
+    }
     if (/^- /.test(line)) {
       if (!lastItem) { issues.push({ line: lineNumber, message: 'A detail line needs an item above it.' }); return; }
       if (pendingBlank) { issues.push({ line: lineNumber, message: 'A detail line cannot follow the completed/upcoming divider.' }); return; }
@@ -105,6 +116,7 @@ export function parseTodoText(raw: string, today = todayString()): ParseResult {
     pendingBlank = false;
     const text = unescapeLine(line);
     if (!text.trim()) { issues.push({ line: lineNumber, message: 'Items cannot be empty.' }); return; }
+    if (/^\d{2}:\d{2}-\d{2}:\d{2} /.test(text) && !parseTimeBlock(text)) { issues.push({ line: lineNumber, message: 'Time blocks need valid start and end times on the same day.' }); return; }
     lastItem = { id: newId(), text, details: [], completed: !divider };
     day.items.push(lastItem);
   });
@@ -120,11 +132,13 @@ export function serializeTodoText(document: TodoDocument) {
     const lines = [day.date];
     for (const item of completed) {
       lines.push(escapeLine(item.text));
+      if (item.repeat) lines.push(`  @repeat: ${formatRecurrence(item.repeat)}`);
       item.details.forEach(detail => lines.push(`- [${detail.completed ? 'x' : ' '}] ${escapeDetail(detail.text)}`));
     }
     lines.push('');
     for (const item of upcoming) {
       lines.push(escapeLine(item.text));
+      if (item.repeat) lines.push(`  @repeat: ${formatRecurrence(item.repeat)}`);
       item.details.forEach(detail => lines.push(`- [${detail.completed ? 'x' : ' '}] ${escapeDetail(detail.text)}`));
     }
     return lines.join('\n');
@@ -136,6 +150,8 @@ export function validateDocument(document: TodoDocument) {
   for (const day of document.days) {
     if (!validDate(day.date)) throw new Error(`Invalid date: ${day.date}`);
     for (const item of day.items) {
+      if (item.repeat && parseRecurrence(formatRecurrence(item.repeat)) === null) throw new Error('Invalid repeat rule.');
+      if (/^\d{2}:\d{2}-\d{2}:\d{2} /.test(item.text) && !parseTimeBlock(item.text)) throw new Error('Time blocks need valid start and end times on the same day.');
       for (const line of [item.text, ...item.details.map(detail => detail.text)]) {
         if (!line.trim() || /[\r\n]/.test(line)) throw new Error('Every item and detail must be one nonempty line.');
       }

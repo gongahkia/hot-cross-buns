@@ -13,6 +13,7 @@ import { CalendarPanel } from './components/CalendarPanel';
 import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
+import { advanceRecurrences } from './recurrence';
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
@@ -229,6 +230,7 @@ export default function App() {
     const before = current.current.document;
     const document = cloneDocument(before);
     change(document);
+    advanceRecurrences(before, document, todayString());
     try { validateDocument(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeTodoText(before) === serializeTodoText(document)) return;
     undoStack.current.push(before);
@@ -280,7 +282,10 @@ export default function App() {
       const target = destination.items.find(item => item.id === overId);
       if (target) {
         const beforeTarget = sourceDate !== targetDate || from > destination.items.indexOf(target);
-        if (sourceDate === targetDate) moved.completed = target.completed;
+        if (sourceDate === targetDate && moved.completed !== target.completed) {
+          moved.completed = target.completed;
+          moved.details.forEach(detail => { detail.completed = target.completed; });
+        }
         destination.items.splice(destination.items.indexOf(target) + (beforeTarget ? 0 : 1), 0, moved);
       } else destination.items.push(moved);
       document.days = document.days.filter(day => day.items.length);
@@ -328,6 +333,7 @@ export default function App() {
     const proposal = proposeMerge(current.current.document, parsed.document, current.current.baseline);
     if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, proposal, handle, mode, observedText }); return; }
     const merged = resolveMerge(proposal, {});
+    advanceRecurrences(current.current.document, merged, todayString());
     if (mode === 'save' && handle) await saveToHandle(handle, merged, observedText ?? raw);
     else { await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
   };
@@ -372,6 +378,7 @@ export default function App() {
     setBusy(true);
     try {
       const merged = resolveMerge(review.proposal, choices);
+      advanceRecurrences(current.current.document, merged, todayString());
       if (review.mode === 'save' && review.handle) await saveToHandle(review.handle, merged, review.observedText ?? review.raw);
       else {
         await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal), baselineText: review.raw, fileHandle: review.handle });
