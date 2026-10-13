@@ -4,8 +4,8 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
-import { Field, IconButton, Muted, VisuallyHidden } from './styles';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FileText, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
+import { Button, Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
@@ -18,15 +18,14 @@ import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectF
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
-const Tools = styled.div`display: flex; align-items: center; gap: 2px;`;
-const Icon = styled(IconButton)`width: 44px; height: 44px;`;
+const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
+const Icon = styled(IconButton)<{ $active?:boolean; $dirty?:boolean }>`width: 44px; height: 44px; ${({$active})=>$active?'background:var(--soft); color:var(--ink);':''} ${({$dirty})=>$dirty?'position:relative; &::after { content:""; position:absolute; right:7px; bottom:7px; width:5px; height:5px; border-radius:50%; background:var(--link); }':''}`;
 const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
 const DateControl = styled.div`position: relative; display: flex; align-items: center; width: 155px; min-width: 0; min-height: 44px; @media(max-width:600px){width:100%;}`;
 const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; &:hover { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }`;
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
 const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
-const SearchWrap = styled.div<{ $open:boolean }>`display:flex; align-items:center; min-width:44px; width:${({$open})=>$open?'min(240px, 100%)':'44px'}; flex:${({$open})=>$open?'1 1 180px':'0 0 44px'}; transition:width 180ms ease-out, flex-basis 180ms ease-out; @media(max-width:600px){grid-column:${({$open})=>$open?'1 / -1':'4'}; grid-row:${({$open})=>$open?'2':'1'}; justify-self:${({$open})=>$open?'stretch':'end'}; width:${({$open})=>$open?'100%':'44px'};}`;
-const SearchBox = styled.div<{ $open:boolean }>`position:relative; flex:1; min-width:0; max-width:${({$open})=>$open?'100%':'0'}; opacity:${({$open})=>$open?1:0}; overflow:${({$open})=>$open?'visible':'hidden'}; transition:max-width 180ms ease-out, opacity 140ms ease-out;`;
+const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
 const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; }`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
@@ -49,6 +48,14 @@ const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
 const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
+const RawPane = styled.section`min-width:0; margin-top:4px;`;
+const RawHeading = styled.div`display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:10px;`;
+const RawTitle = styled.h2`font-size:15px; font-weight:600;`;
+const RawActions = styled.div`display:flex; align-items:center; flex-wrap:wrap; gap:8px;`;
+const RawEditor = styled.textarea`display:block; width:100%; min-height:max(360px, calc(100dvh - 190px)); padding:15px 16px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); font:13px/1.6 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; tab-size:2; resize:vertical; white-space:pre-wrap; overflow-wrap:anywhere; &:focus{border-color:var(--focus);} @media(max-width:600px){min-height:max(300px, calc(100dvh - 190px)); padding:12px;}`;
+const RawIssues = styled.div`margin:12px 0;`;
+const RawIssue = styled.p`font-size:12px; line-height:1.5; color:var(--danger); margin:4px 0;`;
+const RawHint = styled.p`font-size:12px; color:var(--muted); margin:8px 0 0;`;
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -146,6 +153,13 @@ export default function App() {
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [rawOpen, setRawOpen] = useState(false);
+  const [rawDraft, setRawDraft] = useState('');
+  const [rawBaseline, setRawBaseline] = useState<string | null>(null);
+  const [rawIssues, setRawIssues] = useState<ParseIssue[]>([]);
+  const [rawError, setRawError] = useState('');
+  const [rawApplying, setRawApplying] = useState(false);
+  const rawBase = useRef<TodoDocument | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -163,7 +177,17 @@ export default function App() {
   const redoStack = useRef<TodoDocument[]>([]);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
+  const rawDirty = rawBaseline !== null && rawDraft !== rawBaseline;
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  useEffect(() => {
+    if (!rawOpen || rawDirty || !state) return;
+    const text = serializeTodoText(state.document);
+    if (text === rawBaseline) return;
+    rawBase.current = cloneDocument(state.document);
+    setRawBaseline(text);
+    setRawDraft(text);
+  }, [state?.document, rawOpen, rawDirty, rawBaseline]);
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -243,12 +267,15 @@ export default function App() {
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        if (rawOpen) return;
         event.preventDefault();
+        setDateOpen(false);
         setSearchOpen(true);
         requestAnimationFrame(() => { searchInput.current?.focus(); searchInput.current?.select(); });
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        if (rawOpen) return;
         event.preventDefault();
         const target = event.target;
         if (target instanceof HTMLTextAreaElement && target.hasAttribute('data-journal-entry')) target.blur();
@@ -389,6 +416,49 @@ export default function App() {
     } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
   };
   const reparse = async () => { setIssues([]); setReview(null); try { await imported(rawEdit, review?.handle ?? null, review?.mode ?? 'import', review?.observedText ?? null); } catch (error) { setMessage(String(error)); } };
+  const resetRawDraft = () => {
+    const document = cloneDocument(current.current.document);
+    rawBase.current = document;
+    const text = serializeTodoText(document);
+    setRawBaseline(text);
+    setRawDraft(text);
+    setRawIssues([]);
+    setRawError('');
+  };
+  const toggleRaw = () => {
+    if (!rawOpen) {
+      if (!rawBase.current || !rawDirty) resetRawDraft();
+      setSearchOpen(false);
+      setQuery('');
+    }
+    setRawOpen(value => !value);
+  };
+  const applyRawDraft = async () => {
+    if (rawApplying) return;
+    const parsed = parseTodoText(rawDraft);
+    setRawIssues(parsed.issues);
+    setRawError('');
+    if (parsed.issues.length) return;
+    setRawApplying(true);
+    try {
+      const proposal = proposeMerge(current.current.document, parsed.document, rawBase.current ?? current.current.document);
+      if (proposal.conflicts.length) {
+        setRawError('The journal changed while this text was open. Review those changes in the journal or discard this draft before applying it.');
+        return;
+      }
+      const merged = resolveMerge(proposal, {});
+      advanceRecurrences(current.current.document, merged, todayString());
+      validateDocument(merged);
+      await commitDocumentState({ ...current.current, document: merged });
+      rawBase.current = cloneDocument(merged);
+      const text = serializeTodoText(merged);
+      setRawBaseline(text);
+      setRawDraft(text);
+      setRawIssues([]);
+      setMessage('TODO.txt changes applied to the journal.');
+    } catch (error) { setRawError(String(error)); }
+    finally { setRawApplying(false); }
+  };
   const documentData = state?.document ?? emptyDocument();
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -417,8 +487,11 @@ export default function App() {
   return <Page>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hito daily journal</VisuallyHidden>
-    <Header $revealed={searchOpen || dateOpen}>
+    <Header $revealed={searchOpen || dateOpen || rawOpen}>
     <Toolbar>
+      <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
+        {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
+      {!searchOpen && <>
       <Icon aria-label="Previous day" onClick={() => setSelectedDate(shiftDate(selectedDate,-1))}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef}>
         <DateText aria-label={`Go to today from ${selectedDate}`} title="Go to today" onClick={() => { setSelectedDate(todayString()); setDateOpen(false); }}>{new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</DateText>
@@ -426,23 +499,32 @@ export default function App() {
         {dateOpen && <DatePopover><CalendarPanel label="Choose journal date" value={selectedDate} onSelect={value => { setSelectedDate(value); setDateOpen(false); }}/></DatePopover>}
       </DateControl>
       <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
-      <SearchWrap $open={searchOpen}><Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
-        <SearchBox id="journal-search-panel" $open={searchOpen} aria-hidden={!searchOpen} inert={!searchOpen}><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
-        {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</SearchBox>
-      </SearchWrap>
+      </>}
     </Toolbar>
     <Tools>
-      <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
-      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => void download()}><Download size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title="Save connected TODO.txt" aria-label="Save connected TODO.txt" disabled={busy || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
+      <Icon ref={searchButton} disabled={rawOpen} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
+      <Icon title={rawOpen ? 'Show journal view' : rawDirty ? 'Show raw TODO.txt (unapplied changes)' : 'Show raw TODO.txt'} aria-label={rawOpen ? 'Show journal view' : 'Show raw TODO.txt'} aria-pressed={rawOpen} $active={rawOpen} $dirty={rawDirty} disabled={rawApplying} onClick={toggleRaw}><FileText size={17}/></Icon>
+      <Icon title={rawDirty ? 'Apply raw edits before importing' : 'Import TODO.txt'} aria-label="Import TODO.txt" disabled={rawDirty} onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title={rawDirty ? 'Apply raw edits before opening another file' : 'Open TODO.txt'} aria-label="Open TODO.txt" disabled={busy || rawDirty} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
+      <Icon title={rawDirty ? 'Apply raw edits before downloading' : 'Download TODO.txt'} aria-label="Download TODO.txt" disabled={rawDirty} onClick={() => void download()}><Download size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title={rawDirty ? 'Apply raw edits before saving' : 'Save connected TODO.txt'} aria-label="Save connected TODO.txt" disabled={busy || rawDirty || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
       <Icon title="Hito settings" aria-label="Hito settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
+    {!rawOpen && !!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
+    {rawOpen ? <RawPane aria-label="Raw TODO.txt editor">
+      <RawHeading><RawTitle>TODO.txt</RawTitle><RawActions>
+        {rawDirty && <Button type="button" disabled={rawApplying} onClick={resetRawDraft}>Discard changes</Button>}
+        <Button $primary type="button" disabled={!rawDirty || rawApplying} onClick={() => void applyRawDraft()}>{rawApplying ? 'Applying…' : 'Apply changes'}</Button>
+      </RawActions></RawHeading>
+      {!!rawIssues.length && <RawIssues role="alert"><InlineError>{rawIssues.length} format issue{rawIssues.length===1?'':'s'} need correction.</InlineError>{rawIssues.map(issue => <RawIssue key={`${issue.line}-${issue.message}`}>Line {issue.line}: {issue.message}</RawIssue>)}</RawIssues>}
+      {rawError && <InlineError role="alert">{rawError}</InlineError>}
+      <RawEditor data-raw-todo aria-label="Edit raw TODO.txt" spellCheck={false} readOnly={rawApplying} value={rawDraft} onChange={event => { setRawDraft(event.target.value); setRawIssues([]); setRawError(''); }} placeholder="TODO.txt is empty. Start with a YYYY-MM-DD date heading."/>
+      <RawHint>{rawDirty ? 'Unapplied text is kept when you switch views.' : 'This is the complete TODO.txt representation of the journal.'}</RawHint>
+    </RawPane> : <>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
@@ -462,6 +544,7 @@ export default function App() {
     })}
     {createPortal(<DragOverlay dropAnimation={null} modifiers={[restrictToWindowEdges]} style={{ width: 'min(360px, calc(100vw - 32px))' }} zIndex={40}>{draggingItem && <DragPreview aria-label={`Dragging ${draggingItem.text}`}><PreviewCircle $done={draggingItem.completed}/><PreviewText $done={draggingItem.completed}>{draggingItem.text}</PreviewText></DragPreview>}</DragOverlay>, window.document.body)}
     </DndContext>
+    </>}
     </div>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
     <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}

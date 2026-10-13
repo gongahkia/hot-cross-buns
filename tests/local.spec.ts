@@ -570,6 +570,7 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   const search = await page.getByRole('button', { name: 'Open search' }).boundingBox();
   expect(Math.abs(previous!.y - importButton!.y)).toBeLessThan(2);
   expect(Math.abs(previous!.y - search!.y)).toBeLessThan(2);
+  expect(search!.x + search!.width).toBeLessThanOrEqual(importButton!.x);
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Control+f');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
@@ -660,10 +661,14 @@ test('keeps controls usable and within the viewport across mobile and desktop wi
     await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
     await page.getByRole('button', { name: 'Open search' }).click();
     await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
+    const searchField = await page.getByRole('searchbox', { name: 'Search journal' }).boundingBox();
+    const searchIcon = await page.getByRole('button', { name: 'Close search' }).boundingBox();
+    expect(searchField!.x).toBeLessThan(searchIcon!.x);
+    await page.getByRole('button', { name: 'Close search' }).click();
     await page.getByRole('button', { name: 'Choose date' }).click();
     await expect(page.locator('.rdp-root')).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controlsFit = await page.evaluate(() => ['Open search', 'Close search', 'Choose date', 'Import TODO.txt', 'Hito settings'].every(label => {
+    const controlsFit = await page.evaluate(() => ['Open search', 'Choose date', 'Import TODO.txt', 'Hito settings'].every(label => {
       const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
       if (!button) return true;
       const box = button.getBoundingClientRect();
@@ -942,4 +947,73 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   expect(unfilteredEditMs).toBeLessThan(5000);
   expect(searchMs).toBeLessThan(5000);
   expect(editMs).toBeLessThan(5000);
+});
+
+test('raw TODO.txt view displays the whole file and applies portable edits', async ({ page }) => {
+  const today = dateOffset(0);
+  const tomorrow = dateOffset(1);
+  const initial = `${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline\n\n${tomorrow}\n\nFollow up\n`;
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
+  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
+  const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
+  await expect(editor).toBeVisible();
+  await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toHaveCount(0);
+  const original = await editor.inputValue();
+  expect(original).toContain(`${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline`);
+  expect(original).toContain(`${tomorrow}\n\nFollow up`);
+  const changed = original.replace('Plan #work', 'Plan revised #work').replace('Outline', 'Draft outline');
+  await editor.fill(changed);
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await expect(page.getByRole('button', { name: 'Apply changes' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Show journal view' }).click();
+  await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Edit detail Draft outline' })).toBeVisible();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toBeVisible();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  expect(await readFile(await (await downloadPromise).path(), 'utf8')).toBe(changed);
+  await page.reload();
+  await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
+});
+
+test('invalid raw TODO.txt stays in the editor without changing the journal', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this task');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
+  const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
+  await editor.fill('2026-02-30\nBad task\n');
+  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await expect(page.getByText('Invalid date: 2026-02-30')).toBeVisible();
+  await page.getByRole('button', { name: 'Show journal view' }).click();
+  await expect(page.getByRole('group', { name: 'Keep this task' })).toBeVisible();
+  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
+  await expect(editor).toHaveValue('2026-02-30\nBad task\n');
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await expect(editor).toHaveValue(/Keep this task/);
+  await expect(page.getByRole('button', { name: 'Apply changes' })).toBeDisabled();
+});
+
+test('completing a recurrence in raw TODO.txt creates one next occurrence', async ({ page }) => {
+  const today = dateOffset(0);
+  const tomorrow = dateOffset(1);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
+  const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
+  await editor.fill(`${today}\n\nWater plants\n  @repeat: daily\n`);
+  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await expect(page.getByRole('button', { name: 'Apply changes' })).toBeDisabled();
+  await editor.fill(`${today}\nWater plants\n  @repeat: daily\n\n`);
+  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await expect(editor).toHaveValue(new RegExp(`${tomorrow}\\n\\nWater plants`));
+  const raw = await editor.inputValue();
+  expect(raw).toContain(`${tomorrow}\n\nWater plants\n  @repeat: daily`);
+  expect((raw.match(/Water plants/g) ?? []).length).toBe(2);
+  await page.getByRole('button', { name: 'Show journal view' }).click();
+  await expect(page.locator(`section:has(time[datetime="${tomorrow}"])`).getByRole('group', { name: 'Water plants' })).toBeVisible();
 });

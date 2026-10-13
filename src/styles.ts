@@ -1,6 +1,8 @@
 import styled, { createGlobalStyle, css } from 'styled-components';
+import { rawFontOptions } from './preferences';
 
 export const GlobalStyle = createGlobalStyle`
+  ${rawFontOptions.map(([id, name]) => `@font-face { font-family: '${name}'; src: url('/fonts/mono/${id}.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }`).join('\n')}
   @property --circle-progress { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
   @font-face { font-family: 'Sohne'; src: url('/fonts/sohne-variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
   @font-face { font-family: 'Sohne'; src: url('/fonts/sohne-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
@@ -10,6 +12,7 @@ export const GlobalStyle = createGlobalStyle`
   @font-face { font-family: 'Lora'; src: url('/fonts/lora-italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
   :root {
     --app-font: 'Sohne', 'Helvetica Neue', Arial, sans-serif; --app-font-weight: 300;
+    --raw-font: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
     color-scheme: light;
     --paper: #f2f1ed; --ink: #242422; --muted: #626762; --line: #d4d2cb; --soft: #e8e6df;
     --surface: #faf9f6; --field: #fffefa; --date-bg: #dfe7ed; --tag-bg: #e8e6df; --tag-ink: #525a56; --tag-selected: #125f9b;
