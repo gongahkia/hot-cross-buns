@@ -39,15 +39,16 @@ export function dateToString(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function CalendarPanel({ value, onSelect, children, label }: {
-  value: string; onSelect: (value: string) => void; children?: ReactNode; label: string;
+export function CalendarPanel({ value, onSelect, children, label, minDate }: {
+  value: string; onSelect: (value: string) => void; children?: ReactNode; label: string; minDate?: string;
 }) {
   const selected = dateFromString(value);
   const year = selected.getFullYear();
-  return <Surface aria-label={label}>
-    <DayPicker mode="single" selected={selected} defaultMonth={selected} captionLayout="dropdown"
+  return <Surface role="group" aria-label={label}>
+    <DayPicker mode="single" required selected={selected} defaultMonth={selected} captionLayout="dropdown"
       startMonth={new Date(Math.min(1900, year - 100), 0)} endMonth={new Date(Math.max(2100, year + 100), 11)}
       today={dateFromString(todayString())} showOutsideDays fixedWeeks
+      disabled={minDate ? { before: dateFromString(minDate) } : undefined}
       onSelect={date => { if (date) onSelect(dateToString(date)); }}/>
     {children}
   </Surface>;
