@@ -710,21 +710,25 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await expect(dialog.getByRole('heading', { name: /settings/i })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: /day mode|night mode/ })).toHaveCount(0);
   await expect(dialog.getByLabel('Color scheme').locator('option')).toHaveCount(52);
-  await expect(dialog.getByLabel('Font').locator('option')).toHaveCount(21);
+  await expect(dialog.getByLabel('Font', { exact: true }).locator('option')).toHaveCount(21);
+  await expect(dialog.getByLabel('TODO.txt font').locator('option')).toHaveCount(20);
   await expect(dialog.getByLabel('Date headings').locator('option')).toHaveCount(20);
   await expect(dialog.getByText('The journal stays in this browser')).toHaveCount(0);
   await expect(dialog.getByText('TODO.txt always keeps')).toHaveCount(0);
   await dialog.getByLabel('Color scheme').selectOption('cat-mocha');
-  await dialog.getByLabel('Font').selectOption('georgia');
+  await dialog.getByLabel('Font', { exact: true }).selectOption('georgia');
+  await dialog.getByLabel('TODO.txt font').selectOption('robotomono');
   await dialog.getByLabel('Date headings').selectOption('iso-dots');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'cat-mocha');
   await expect(page.locator('body')).toHaveCSS('font-family', /Georgia/);
+  await expect(page.locator('html')).toHaveCSS('--raw-font', /Roboto Mono/);
   const today = dateOffset(0);
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
   await dialog.getByRole('button', { name: 'close' }).click();
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'cat-mocha');
   await expect(page.locator('body')).toHaveCSS('font-family', /Georgia/);
+  await expect(page.locator('html')).toHaveCSS('--raw-font', /Roboto Mono/);
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
 });
 
@@ -958,6 +962,11 @@ test('raw TODO.txt view displays the whole file and applies portable edits', asy
   await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
   const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
   await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS('border-top-width', '0px');
+  await expect(editor).toHaveCSS('font-family', /JetBrains Mono/);
+  await expect(page.getByRole('heading', { name: 'TODO.txt' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0);
+  await expect(page.getByText('This is the complete TODO.txt representation of the journal.')).toHaveCount(0);
   await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toHaveCount(0);
   const original = await editor.inputValue();
   expect(original).toContain(`${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline`);
@@ -965,8 +974,7 @@ test('raw TODO.txt view displays the whole file and applies portable edits', asy
   const changed = original.replace('Plan #work', 'Plan revised #work').replace('Outline', 'Draft outline');
   await editor.fill(changed);
   await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Apply changes' }).click();
-  await expect(page.getByRole('button', { name: 'Apply changes' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
   await page.getByRole('button', { name: 'Show journal view' }).click();
   await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Edit detail Draft outline' })).toBeVisible();
@@ -988,15 +996,16 @@ test('invalid raw TODO.txt stays in the editor without changing the journal', as
   await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
   const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
   await editor.fill('2026-02-30\nBad task\n');
-  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await page.reload();
+  await expect(editor).toHaveValue('2026-02-30\nBad task\n');
   await expect(page.getByText('Invalid date: 2026-02-30')).toBeVisible();
   await page.getByRole('button', { name: 'Show journal view' }).click();
   await expect(page.getByRole('group', { name: 'Keep this task' })).toBeVisible();
   await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
   await expect(editor).toHaveValue('2026-02-30\nBad task\n');
-  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await page.getByRole('button', { name: 'Discard draft' }).click();
   await expect(editor).toHaveValue(/Keep this task/);
-  await expect(page.getByRole('button', { name: 'Apply changes' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
 });
 
 test('completing a recurrence in raw TODO.txt creates one next occurrence', async ({ page }) => {
@@ -1006,14 +1015,28 @@ test('completing a recurrence in raw TODO.txt creates one next occurrence', asyn
   await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
   const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
   await editor.fill(`${today}\n\nWater plants\n  @repeat: daily\n`);
-  await page.getByRole('button', { name: 'Apply changes' }).click();
-  await expect(page.getByRole('button', { name: 'Apply changes' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
   await editor.fill(`${today}\nWater plants\n  @repeat: daily\n\n`);
-  await page.getByRole('button', { name: 'Apply changes' }).click();
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Show journal view' }).click();
+  await expect(page.locator(`section:has(time[datetime="${tomorrow}"])`).getByRole('group', { name: 'Water plants' })).toBeVisible();
+  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
   await expect(editor).toHaveValue(new RegExp(`${tomorrow}\\n\\nWater plants`));
   const raw = await editor.inputValue();
   expect(raw).toContain(`${tomorrow}\n\nWater plants\n  @repeat: daily`);
   expect((raw.match(/Water plants/g) ?? []).length).toBe(2);
+});
+
+test('auto-saves a large raw TODO.txt edit after typing pauses', async ({ page }) => {
+  const today = dateOffset(0);
+  const text = `${today}\n\n${Array.from({ length: 1200 }, (_, index) => `Task ${index}`).join('\n')}\n`;
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
+  const start = Date.now();
+  await page.getByRole('textbox', { name: 'Edit raw TODO.txt' }).fill(text.replace('Task 600', 'Task 600 edited'));
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled({ timeout: 6000 });
+  expect(Date.now() - start).toBeLessThan(6000);
   await page.getByRole('button', { name: 'Show journal view' }).click();
-  await expect(page.locator(`section:has(time[datetime="${tomorrow}"])`).getByRole('group', { name: 'Water plants' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Task 600 edited' })).toBeVisible();
 });

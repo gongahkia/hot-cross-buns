@@ -5,7 +5,7 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FileText, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
-import { Button, Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
+import { Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
@@ -48,14 +48,12 @@ const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
 const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
-const RawPane = styled.section`min-width:0; margin-top:4px;`;
-const RawHeading = styled.div`display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:10px;`;
-const RawTitle = styled.h2`font-size:15px; font-weight:600;`;
-const RawActions = styled.div`display:flex; align-items:center; flex-wrap:wrap; gap:8px;`;
-const RawEditor = styled.textarea`display:block; width:100%; min-height:max(360px, calc(100dvh - 190px)); padding:15px 16px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); font:13px/1.6 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; tab-size:2; resize:vertical; white-space:pre-wrap; overflow-wrap:anywhere; &:focus{border-color:var(--focus);} @media(max-width:600px){min-height:max(300px, calc(100dvh - 190px)); padding:12px;}`;
+const RawPane = styled.section`min-width:0; margin-top:12px;`;
+const RawEditor = styled.textarea`display:block; width:100%; min-height:max(360px, calc(100dvh - 155px)); padding:0; border:0; border-radius:0; outline:0; background:transparent; color:var(--ink); font:14px/1.7 var(--raw-font); tab-size:2; resize:none; white-space:pre-wrap; overflow-wrap:anywhere; &:focus-visible{outline:2px solid var(--focus); outline-offset:6px; border-radius:2px;} @media(max-width:600px){min-height:max(300px, calc(100dvh - 155px));}`;
 const RawIssues = styled.div`margin:12px 0;`;
 const RawIssue = styled.p`font-size:12px; line-height:1.5; color:var(--danger); margin:4px 0;`;
-const RawHint = styled.p`font-size:12px; color:var(--muted); margin:8px 0 0;`;
+const RawDiscard = styled.button`margin-top:6px; padding:4px 0; border:0; background:transparent; color:var(--muted); font-size:12px; text-decoration:underline; text-underline-offset:3px; &:hover{color:var(--ink);}`;
+const RAW_DRAFT_KEY = 'hito-raw-draft-v1';
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -160,6 +158,8 @@ export default function App() {
   const [rawError, setRawError] = useState('');
   const [rawApplying, setRawApplying] = useState(false);
   const rawBase = useRef<TodoDocument | null>(null);
+  const rawSyncedRevision = useRef<number | null>(null);
+  const rawApplyingRef = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -182,12 +182,31 @@ export default function App() {
 
   useEffect(() => {
     if (!rawOpen || rawDirty || !state) return;
+    if (state.revision === rawSyncedRevision.current) return;
     const text = serializeTodoText(state.document);
-    if (text === rawBaseline) return;
+    rawSyncedRevision.current = state.revision;
+    if (rawBase.current && text === serializeTodoText(rawBase.current)) return;
     rawBase.current = cloneDocument(state.document);
     setRawBaseline(text);
     setRawDraft(text);
-  }, [state?.document, rawOpen, rawDirty, rawBaseline]);
+  }, [state?.revision, rawOpen, rawDirty]);
+
+  useEffect(() => {
+    if (!rawOpen || !rawDirty || rawApplying) return;
+    const timeout = window.setTimeout(() => void applyRawDraft(rawDraft), rawDraft.length > 100_000 ? 1200 : 750);
+    return () => window.clearTimeout(timeout);
+  }, [rawOpen, rawDirty, rawDraft, rawApplying]);
+
+  useEffect(() => {
+    const preserveDraft = () => {
+      try {
+        if (rawDirty) sessionStorage.setItem(RAW_DRAFT_KEY, rawDraft);
+        else sessionStorage.removeItem(RAW_DRAFT_KEY);
+      } catch { /* Storage quotas should not interrupt navigation. */ }
+    };
+    window.addEventListener('pagehide', preserveDraft);
+    return () => window.removeEventListener('pagehide', preserveDraft);
+  }, [rawDirty, rawDraft]);
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -198,7 +217,21 @@ export default function App() {
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [dateOpen]);
 
-  useEffect(() => { loadTodoState().then(loaded => { current.current = loaded; setState(loaded); }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
+  useEffect(() => { loadTodoState().then(loaded => {
+    current.current = loaded;
+    setState(loaded);
+    try {
+      const pending = sessionStorage.getItem(RAW_DRAFT_KEY);
+      sessionStorage.removeItem(RAW_DRAFT_KEY);
+      if (pending !== null && pending !== serializeTodoText(loaded.document)) {
+        rawBase.current = cloneDocument(loaded.document);
+        rawSyncedRevision.current = loaded.revision;
+        setRawBaseline(serializeTodoText(loaded.document));
+        setRawDraft(pending);
+        setRawOpen(true);
+      }
+    } catch { /* The journal remains available if session storage is blocked. */ }
+  }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
   useEffect(() => { if (state) previousDocument.current = state.document; }, [state?.document]);
   const commitState = async (next: TodoState) => {
     const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
@@ -419,6 +452,7 @@ export default function App() {
   const resetRawDraft = () => {
     const document = cloneDocument(current.current.document);
     rawBase.current = document;
+    rawSyncedRevision.current = current.current.revision;
     const text = serializeTodoText(document);
     setRawBaseline(text);
     setRawDraft(text);
@@ -430,15 +464,18 @@ export default function App() {
       if (!rawBase.current || !rawDirty) resetRawDraft();
       setSearchOpen(false);
       setQuery('');
+    } else if (rawDirty) {
+      void applyRawDraft(rawDraft);
     }
     setRawOpen(value => !value);
   };
-  const applyRawDraft = async () => {
-    if (rawApplying) return;
-    const parsed = parseTodoText(rawDraft);
+  const applyRawDraft = async (draft: string) => {
+    if (rawApplyingRef.current || draft === rawBaseline) return;
+    const parsed = parseTodoText(draft);
     setRawIssues(parsed.issues);
     setRawError('');
     if (parsed.issues.length) return;
+    rawApplyingRef.current = true;
     setRawApplying(true);
     try {
       const proposal = proposeMerge(current.current.document, parsed.document, rawBase.current ?? current.current.document);
@@ -449,15 +486,13 @@ export default function App() {
       const merged = resolveMerge(proposal, {});
       advanceRecurrences(current.current.document, merged, todayString());
       validateDocument(merged);
-      await commitDocumentState({ ...current.current, document: merged });
-      rawBase.current = cloneDocument(merged);
-      const text = serializeTodoText(merged);
-      setRawBaseline(text);
-      setRawDraft(text);
+      if (serializeTodoText(merged) !== serializeTodoText(current.current.document)) await commitDocumentState({ ...current.current, document: merged });
+      rawBase.current = cloneDocument(current.current.document);
+      rawSyncedRevision.current = current.current.revision;
+      setRawBaseline(draft);
       setRawIssues([]);
-      setMessage('TODO.txt changes applied to the journal.');
     } catch (error) { setRawError(String(error)); }
-    finally { setRawApplying(false); }
+    finally { rawApplyingRef.current = false; setRawApplying(false); }
   };
   const documentData = state?.document ?? emptyDocument();
   const priorDocument = previousDocument.current;
@@ -503,7 +538,7 @@ export default function App() {
     </Toolbar>
     <Tools>
       <Icon ref={searchButton} disabled={rawOpen} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
-      <Icon title={rawOpen ? 'Show journal view' : rawDirty ? 'Show raw TODO.txt (unapplied changes)' : 'Show raw TODO.txt'} aria-label={rawOpen ? 'Show journal view' : 'Show raw TODO.txt'} aria-pressed={rawOpen} $active={rawOpen} $dirty={rawDirty} disabled={rawApplying} onClick={toggleRaw}><FileText size={17}/></Icon>
+      <Icon title={rawOpen ? 'Show journal view' : rawDirty ? 'Show raw TODO.txt (unapplied changes)' : 'Show raw TODO.txt'} aria-label={rawOpen ? 'Show journal view' : 'Show raw TODO.txt'} aria-pressed={rawOpen} $active={rawOpen} $dirty={rawDirty} onClick={toggleRaw}><FileText size={17}/></Icon>
       <Icon title={rawDirty ? 'Apply raw edits before importing' : 'Import TODO.txt'} aria-label="Import TODO.txt" disabled={rawDirty} onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
       {supportsDirectFiles() && <Icon title={rawDirty ? 'Apply raw edits before opening another file' : 'Open TODO.txt'} aria-label="Open TODO.txt" disabled={busy || rawDirty} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
       <Icon title={rawDirty ? 'Apply raw edits before downloading' : 'Download TODO.txt'} aria-label="Download TODO.txt" disabled={rawDirty} onClick={() => void download()}><Download size={17}/></Icon>
@@ -515,15 +550,10 @@ export default function App() {
     {!rawOpen && !!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
-    {rawOpen ? <RawPane aria-label="Raw TODO.txt editor">
-      <RawHeading><RawTitle>TODO.txt</RawTitle><RawActions>
-        {rawDirty && <Button type="button" disabled={rawApplying} onClick={resetRawDraft}>Discard changes</Button>}
-        <Button $primary type="button" disabled={!rawDirty || rawApplying} onClick={() => void applyRawDraft()}>{rawApplying ? 'Applying…' : 'Apply changes'}</Button>
-      </RawActions></RawHeading>
-      {!!rawIssues.length && <RawIssues role="alert"><InlineError>{rawIssues.length} format issue{rawIssues.length===1?'':'s'} need correction.</InlineError>{rawIssues.map(issue => <RawIssue key={`${issue.line}-${issue.message}`}>Line {issue.line}: {issue.message}</RawIssue>)}</RawIssues>}
-      {rawError && <InlineError role="alert">{rawError}</InlineError>}
-      <RawEditor data-raw-todo aria-label="Edit raw TODO.txt" spellCheck={false} readOnly={rawApplying} value={rawDraft} onChange={event => { setRawDraft(event.target.value); setRawIssues([]); setRawError(''); }} placeholder="TODO.txt is empty. Start with a YYYY-MM-DD date heading."/>
-      <RawHint>{rawDirty ? 'Unapplied text is kept when you switch views.' : 'This is the complete TODO.txt representation of the journal.'}</RawHint>
+    {rawOpen ? <RawPane aria-label="Raw TODO.txt editor" aria-busy={rawApplying}>
+      {!!rawIssues.length && <RawIssues role="alert"><InlineError>{rawIssues.length} format issue{rawIssues.length===1?'':'s'} need correction.</InlineError>{rawIssues.map(issue => <RawIssue key={`${issue.line}-${issue.message}`}>Line {issue.line}: {issue.message}</RawIssue>)}<RawDiscard type="button" onClick={resetRawDraft}>Discard draft</RawDiscard></RawIssues>}
+      {rawError && <RawIssues><InlineError role="alert">{rawError}</InlineError><RawDiscard type="button" onClick={resetRawDraft}>Discard draft</RawDiscard></RawIssues>}
+      <RawEditor data-raw-todo aria-label="Edit raw TODO.txt" spellCheck={false} readOnly={rawApplying} value={rawDraft} onChange={event => { setRawDraft(event.target.value); setRawIssues([]); setRawError(''); }} onBlur={() => { if (rawDirty) void applyRawDraft(rawDraft); }} placeholder="Start with a YYYY-MM-DD date heading."/>
     </RawPane> : <>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}

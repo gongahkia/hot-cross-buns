@@ -16,8 +16,8 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
   const chooseTheme = (next: Theme) => { setTheme(next); setThemeState(next); };
   return <Modal open={open} onClose={onClose} title="Hito settings" compact>
     <FontField>Color scheme<FontSelect value={theme} onChange={event => chooseTheme(event.target.value as Theme)}><option value="day">Hito Day</option><option value="night">Hito Night</option>{colorThemes.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</FontSelect></FontField>
-    <FontField>Font<FontSelect value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }}>{fontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
-    <FontField>TODO.txt font<FontSelect value={rawFont} onChange={event => { const next = event.target.value as RawFont; setRawFont(next); setRawFontState(next); }}>{rawFontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
+    <FontField>Font<FontSelect aria-label="Font" value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }}>{fontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
+    <FontField>TODO.txt font<FontSelect aria-label="TODO.txt font" value={rawFont} onChange={event => { const next = event.target.value as RawFont; setRawFont(next); setRawFontState(next); }}>{rawFontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <Actions><Button onClick={onClose}>close</Button></Actions>
   </Modal>;
