@@ -58,6 +58,7 @@ export function parseTodoText(raw: string, today = todayString()): ParseResult {
   let sawDivider = false;
   let pendingBlank = false;
   let lastItem: TodoItem | null = null;
+  const seriesOccurrences = new Map<string, number>();
   const implicitDetails = new WeakMap<TodoItem, number[]>();
   const finishDay = () => {
     if (day && pendingBlank) sawDivider = true;
@@ -99,6 +100,12 @@ export function parseTodoText(raw: string, today = todayString()): ParseResult {
       if (lastItem.repeat) { issues.push({ line: lineNumber, message: 'An item can have only one repeat rule.' }); return; }
       const rule = parseRecurrence(line.slice('  @repeat:'.length));
       if (!rule) { issues.push({ line: lineNumber, message: 'Invalid repeat rule.' }); return; }
+      if (rule.kind === 'scheduled') {
+        const key = rule.series + ':' + rule.occurrence;
+        const first = seriesOccurrences.get(key);
+        if (first) issues.push({ line: lineNumber, message: 'Repeated series occurrence; first defined on line ' + first + '.' });
+        else seriesOccurrences.set(key, lineNumber);
+      }
       lastItem.repeat = rule;
       return;
     }
@@ -147,10 +154,16 @@ export function serializeTodoText(document: TodoDocument) {
 }
 
 export function validateDocument(document: TodoDocument) {
+  const seriesOccurrences = new Set<string>();
   for (const day of document.days) {
     if (!validDate(day.date)) throw new Error(`Invalid date: ${day.date}`);
     for (const item of day.items) {
       if (item.repeat && parseRecurrence(formatRecurrence(item.repeat)) === null) throw new Error('Invalid repeat rule.');
+      if (item.repeat?.kind === 'scheduled') {
+        const key = item.repeat.series + ':' + item.repeat.occurrence;
+        if (seriesOccurrences.has(key)) throw new Error('Repeated series occurrence.');
+        seriesOccurrences.add(key);
+      }
       if (/^\d{2}:\d{2}-\d{2}:\d{2} /.test(item.text) && !parseTimeBlock(item.text)) throw new Error('Time blocks need valid start and end times on the same day.');
       for (const line of [item.text, ...item.details.map(detail => detail.text)]) {
         if (!line.trim() || /[\r\n]/.test(line)) throw new Error('Every item and detail must be one nonempty line.');

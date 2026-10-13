@@ -334,6 +334,7 @@ export default function App() {
     if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, proposal, handle, mode, observedText }); return; }
     const merged = resolveMerge(proposal, {});
     advanceRecurrences(current.current.document, merged, todayString());
+    validateDocument(merged);
     if (mode === 'save' && handle) await saveToHandle(handle, merged, observedText ?? raw);
     else { await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
   };
@@ -379,6 +380,7 @@ export default function App() {
     try {
       const merged = resolveMerge(review.proposal, choices);
       advanceRecurrences(current.current.document, merged, todayString());
+      validateDocument(merged);
       if (review.mode === 'save' && review.handle) await saveToHandle(review.handle, merged, review.observedText ?? review.raw);
       else {
         await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal), baselineText: review.raw, fileHandle: review.handle });

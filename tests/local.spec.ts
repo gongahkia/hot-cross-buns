@@ -363,6 +363,148 @@ test('an externally completed recurring item advances once when TODO.txt is impo
   await expect(nextDay.getByRole('group', { name: 'Check filter' })).toHaveCount(1);
 });
 
+test('custom anchored recurrence counts actual items and stops after the selected count', async ({ page }) => {
+  const today = dateOffset(0);
+  const secondDate = dateOffset(14);
+  const thirdDate = dateOffset(28);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Check in');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'More actions for Check in' }).click();
+  await page.getByRole('button', { name: 'Set repeat for Check in' }).click();
+  const editor = page.getByRole('dialog', { name: 'Repeat Check in' });
+  await editor.getByLabel('Repeat rule').selectOption('custom');
+  await editor.getByLabel('Repeat interval').fill('2');
+  await editor.getByRole('radio', { name: 'after' }).check();
+  await editor.getByLabel('Repeat ends after').fill('3');
+  await editor.getByRole('button', { name: 'save' }).click();
+  const first = page.getByRole('group', { name: 'Check in' }).first();
+  await expect(first.getByText('(1/3)')).toBeVisible();
+  await first.getByRole('button', { name: 'Complete Check in' }).click();
+  const second = page.locator('section').filter({ has: page.locator('time[datetime="' + secondDate + '"]') }).getByRole('group', { name: 'Check in' });
+  await expect(second.getByText('(2/3)')).toBeVisible();
+  await second.getByRole('button', { name: 'Complete Check in' }).click();
+  const third = page.locator('section').filter({ has: page.locator('time[datetime="' + thirdDate + '"]') }).getByRole('group', { name: 'Check in' });
+  await expect(third.getByText('(3/3)')).toBeVisible();
+  await third.getByRole('button', { name: 'Complete Check in' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  const raw = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(raw).toContain('; from ' + today + '; series ');
+  expect(raw).toContain('; occurrence 3; ends after 3');
+  expect(raw.match(/; occurrence \d; ends after 3/g)).toHaveLength(3);
+  await page.reload();
+  await expect(page.locator('time[datetime="' + thirdDate + '"]')).toBeVisible();
+});
+
+test('an edited TODO.txt completion advances a custom series only once', async ({ page }) => {
+  const today = dateOffset(0);
+  const next = dateOffset(14);
+  const weekdayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const weekday = weekdayNames[new Date(today + 'T12:00:00Z').getUTCDay()];
+  const line = '  @repeat: every 2 weeks on ' + weekday + '; from ' + today + '; series imported-series; occurrence 1; ends after 2';
+  const pending = today + '\n\nCheck filter\n' + line + '\n';
+  const completed = today + '\nCheck filter\n' + line + '\n\n';
+  await page.goto('/');
+  const input = page.getByLabel('Import a TODO.txt file');
+  await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
+  await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  const successor = page.locator('section').filter({ has: page.locator('time[datetime="' + next + '"]') }).getByRole('group', { name: 'Check filter' });
+  await expect(successor.getByRole('button', { name: 'Complete Check filter' })).toBeVisible();
+  await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  await expect(successor).toHaveCount(1);
+  const promise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  expect(await readFile(await (await promise).path(), 'utf8')).toContain('series imported-series; occurrence 2; ends after 2');
+});
+
+test('custom monthly ordinal and end date survive the repeat editor and TODO.txt', async ({ page }) => {
+  const today = dateOffset(0);
+  const endDate = dateOffset(100);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Committee');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'More actions for Committee' }).click();
+  await page.getByRole('button', { name: 'Set repeat for Committee' }).click();
+  let editor = page.getByRole('dialog', { name: 'Repeat Committee' });
+  await editor.getByLabel('Repeat rule').selectOption('custom');
+  await editor.getByLabel('Repeat unit').selectOption('months');
+  await editor.getByLabel('Monthly pattern').selectOption('weekday');
+  await editor.getByLabel('Monthly ordinal').selectOption('-1');
+  await editor.getByLabel('Monthly weekday').selectOption('fri');
+  await editor.getByRole('radio', { name: 'on' }).check();
+  await editor.getByLabel('Repeat ends on').fill(endDate);
+  await editor.getByRole('button', { name: 'save' }).click();
+  await page.getByRole('button', { name: 'More actions for Committee' }).click();
+  await page.getByRole('button', { name: 'Set repeat for Committee' }).click();
+  editor = page.getByRole('dialog', { name: 'Repeat Committee' });
+  await expect(editor.getByLabel('Monthly ordinal')).toHaveValue('-1');
+  await expect(editor.getByLabel('Monthly weekday')).toHaveValue('fri');
+  await expect(editor.getByLabel('Repeat ends on')).toHaveValue(endDate);
+  await editor.getByRole('button', { name: 'cancel' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  const raw = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(raw).toContain('every 1 month on last fri; from ' + today);
+  expect(raw).toContain('; occurrence 1; ends on ' + endDate);
+});
+
+test('date-based repeat presets serialize their selected calendar pattern', async ({ page }) => {
+  const today = dateOffset(0);
+  const weekdayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const weekday = weekdayNames[new Date(today + 'T12:00:00Z').getUTCDay()];
+  const day = Number(today.slice(8, 10));
+  const ordinal = ['first', 'second', 'third', 'fourth', 'fifth'][Math.ceil(day / 7) - 1];
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Preset item');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  const open = async () => {
+    await page.getByRole('button', { name: 'More actions for Preset item' }).click();
+    await page.getByRole('button', { name: 'Set repeat for Preset item' }).click();
+    return page.getByRole('dialog', { name: 'Repeat Preset item' });
+  };
+  const download = async () => {
+    const promise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+    return readFile(await (await promise).path(), 'utf8');
+  };
+  let editor = await open();
+  await editor.getByLabel('Repeat rule').selectOption('monthlyWeekday');
+  await editor.getByRole('button', { name: 'save' }).click();
+  expect(await download()).toContain('every 1 month on ' + ordinal + ' ' + weekday + '; from ' + today);
+  editor = await open();
+  await editor.getByLabel('Repeat rule').selectOption('yearly');
+  await editor.getByRole('button', { name: 'save' }).click();
+  expect(await download()).toContain('every 1 year on ' + today.slice(5) + '; from ' + today);
+  editor = await open();
+  await editor.getByLabel('Repeat rule').selectOption('weekdays');
+  await editor.getByRole('button', { name: 'save' }).click();
+  expect(await download()).toContain('every 1 week on mon, tue, wed, thu, fri; from ' + today);
+});
+
+test('custom yearly recurrence controls stay reachable on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Annual check');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'More actions for Annual check' }).click();
+  await page.getByRole('button', { name: 'Set repeat for Annual check' }).click();
+  const editor = page.getByRole('dialog', { name: 'Repeat Annual check' });
+  await editor.getByLabel('Repeat rule').selectOption('custom');
+  await editor.getByLabel('Repeat unit').selectOption('years');
+  await editor.getByLabel('Yearly pattern').selectOption('weekday');
+  await editor.getByLabel('Yearly ordinal').selectOption('-1');
+  await editor.getByLabel('Yearly weekday').selectOption('fri');
+  await editor.getByRole('radio', { name: 'after' }).check();
+  await editor.getByLabel('Repeat ends after').fill('3');
+  const box = await editor.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(667);
+  await editor.getByRole('button', { name: 'save' }).click();
+  await expect(page.getByRole('group', { name: 'Annual check' }).getByText('last fri of')).toBeVisible();
+});
+
 test('animates detail progress wedges in both directions, including when the item moves through Done', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');

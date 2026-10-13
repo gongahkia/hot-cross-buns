@@ -1,4 +1,7 @@
 import type { TodoDocument, TodoItem } from './todoText.ts';
+import { describeScheduled, formatScheduled, nextScheduledDate, parseScheduled, type ScheduledRule } from './scheduledRecurrence.ts';
+export { newSeriesId } from './scheduledRecurrence.ts';
+export type { ScheduledRule, ScheduledPattern, ScheduleEnd, Ordinal, Weekday } from './scheduledRecurrence.ts';
 
 const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 type Weekday = typeof weekdays[number];
@@ -10,7 +13,8 @@ export type RecurrenceRule =
   | { kind: 'weekly'; days: Weekday[] }
   | { kind: 'monthly'; day: number }
   | { kind: 'yearly'; month: number; day: number }
-  | { kind: 'after'; every: number; unit: IntervalUnit };
+  | { kind: 'after'; every: number; unit: IntervalUnit }
+  | ScheduledRule;
 
 export function parseRecurrence(raw: string): RecurrenceRule | null {
   const value = raw.trim().toLowerCase();
@@ -31,7 +35,7 @@ export function parseRecurrence(raw: string): RecurrenceRule | null {
   }
   const after = /^every ([1-9]\d*) (days?|weeks?|months?|years?) after completion$/.exec(value);
   if (after && Number(after[1]) <= 999) return { kind: 'after', every: Number(after[1]), unit: `${after[2].replace(/s$/, '')}s` as IntervalUnit };
-  return null;
+  return parseScheduled(value);
 }
 
 export function formatRecurrence(rule: RecurrenceRule): string {
@@ -42,7 +46,12 @@ export function formatRecurrence(rule: RecurrenceRule): string {
     case 'monthly': return `monthly on ${rule.day}`;
     case 'yearly': return `yearly on ${String(rule.month).padStart(2, '0')}-${String(rule.day).padStart(2, '0')}`;
     case 'after': return `every ${rule.every} ${rule.every === 1 ? rule.unit.slice(0, -1) : rule.unit} after completion`;
+    case 'scheduled': return formatScheduled(rule);
   }
+}
+
+export function describeRecurrence(rule: RecurrenceRule): string {
+  return rule.kind === 'scheduled' ? describeScheduled(rule) : formatRecurrence(rule);
 }
 
 const fromDate = (date: string) => new Date(`${date}T12:00:00Z`);
@@ -50,7 +59,8 @@ const toDate = (date: Date) => date.toISOString().slice(0, 10);
 const addDays = (date: string, days: number) => { const next = fromDate(date); next.setUTCDate(next.getUTCDate() + days); return toDate(next); };
 const daysInMonth = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-export function nextRecurrenceDate(rule: RecurrenceRule, afterDate: string): string {
+export function nextRecurrenceDate(rule: RecurrenceRule, afterDate: string): string | null {
+  if (rule.kind === 'scheduled') return nextScheduledDate(rule, afterDate);
   if (rule.kind === 'daily') return addDays(afterDate, 1);
   if (rule.kind === 'weekdays' || rule.kind === 'weekly') {
     for (let offset = 1; offset <= 7; offset++) {
@@ -98,10 +108,14 @@ export function advanceRecurrences(before: TodoDocument, after: TodoDocument, co
   for (const { date, item } of newlyCompleted) {
     const rule = item.repeat!;
     const nextDate = nextRecurrenceDate(rule, completedOn > date ? completedOn : date);
+    if (!nextDate) continue;
+    const nextRule: RecurrenceRule = rule.kind === 'scheduled' ? { ...rule, occurrence: rule.occurrence + 1 } : structuredClone(rule);
+    if (rule.kind === 'scheduled' && after.days.some(day => day.items.some(candidate => candidate.repeat?.kind === 'scheduled'
+      && candidate.repeat.series === rule.series && candidate.repeat.occurrence === rule.occurrence + 1))) continue;
     let day = after.days.find(candidate => candidate.date === nextDate);
     if (!day) { day = { date: nextDate, items: [] }; after.days.push(day); }
-    const sameNext = (candidate: TodoItem) => !candidate.completed && candidate.text === item.text && JSON.stringify(candidate.repeat) === JSON.stringify(rule);
-    if (!day.items.some(sameNext)) day.items.push({ id: crypto.randomUUID(), text: item.text, completed: false, repeat: structuredClone(rule), details: item.details.map(detail => ({ text: detail.text, completed: false })) });
+    const sameNext = (candidate: TodoItem) => !candidate.completed && candidate.text === item.text && JSON.stringify(candidate.repeat) === JSON.stringify(nextRule);
+    if (!day.items.some(sameNext)) day.items.push({ id: crypto.randomUUID(), text: item.text, completed: false, repeat: nextRule, details: item.details.map(detail => ({ text: detail.text, completed: false })) });
   }
   if (newlyCompleted.length) after.days.sort((a, b) => a.date.localeCompare(b.date));
 }

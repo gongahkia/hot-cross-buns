@@ -7,7 +7,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { CalendarDays, ChevronDown, Clock3, CornerDownRight, GripVertical, MoreHorizontal, Plus, Repeat2, Trash2 } from 'lucide-react';
 import { Field, IconButton } from '../styles';
-import { formatRecurrence } from '../recurrence';
+import { describeRecurrence, formatRecurrence } from '../recurrence';
 import { parseTimeBlock } from '../timeBlock';
 import { newId, type TodoDetail, type TodoItem } from '../todoText';
 import { CalendarPanel } from './CalendarPanel';
@@ -132,7 +132,7 @@ export function JournalItem({ item, previousItem, date, today, onChange, onMove,
     <CheckButton data-row-control $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} aria-pressed={item.completed} aria-description={item.details.length ? `${completedDetails} of ${item.details.length} details done` : undefined} onClick={() => onChange(item => { const done = !item.completed; item.completed = done; item.details.forEach(detail => { detail.completed = done; }); })}><Circle $done={item.completed} $progress={detailProgress} $previousProgress={previousProgress}/></CheckButton>
     <ItemBody>
       <ItemMain>{timeBlock && <TimeLabel title="Time block">{timeBlock.start}–{timeBlock.end}</TimeLabel>}<LineField $done={item.completed} $completionChange={completionChange} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/></ItemMain>
-      {item.repeat && <RepeatLabel title={`Repeat rule: ${formatRecurrence(item.repeat)}`}><Repeat2 size={12}/>{formatRecurrence(item.repeat)}</RepeatLabel>}
+      {item.repeat && <RepeatLabel title={`Repeat rule: ${formatRecurrence(item.repeat)}`}><Repeat2 size={12}/>{describeRecurrence(item.repeat)}</RepeatLabel>}
       {!!item.details.length && <DetailsClip id={`details-${item.id}`} $open={detailsExpanded} aria-hidden={!detailsExpanded} inert={!detailsExpanded}><DndContext sensors={detailSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={({active,over}) => {
         if (!over || active.id === over.id) return;
         const from = detailIds.indexOf(String(active.id));
