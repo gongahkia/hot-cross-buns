@@ -13,6 +13,10 @@ const Surface = styled.div`
     --rdp-day_button-width: 38px; --rdp-day_button-height: 38px;
     font-size: 13px; }
   .rdp-month_caption { font-size: 14px; font-weight: 600; }
+  .rdp-dropdown_root { padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+  .rdp-dropdown_root:hover { background: var(--soft); }
+  .rdp-dropdown_root:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .rdp-dropdown_root .rdp-chevron { width: 12px; height: 12px; margin-left: 4px; }
   .rdp-selected { font-size: inherit; }
   .rdp-selected .rdp-day_button { background: var(--link); color: var(--paper); border-color: var(--link); }
   .rdp-day_button:hover:not(:disabled) { background: var(--soft); }
@@ -38,8 +42,11 @@ export function dateToString(date: Date) {
 export function CalendarPanel({ value, onSelect, children, label }: {
   value: string; onSelect: (value: string) => void; children?: ReactNode; label: string;
 }) {
+  const selected = dateFromString(value);
+  const year = selected.getFullYear();
   return <Surface aria-label={label}>
-    <DayPicker mode="single" selected={dateFromString(value)} defaultMonth={dateFromString(value)}
+    <DayPicker mode="single" selected={selected} defaultMonth={selected} captionLayout="dropdown"
+      startMonth={new Date(Math.min(1900, year - 100), 0)} endMonth={new Date(Math.max(2100, year + 100), 11)}
       today={dateFromString(todayString())} showOutsideDays fixedWeeks
       onSelect={date => { if (date) onSelect(dateToString(date)); }}/>
     {children}

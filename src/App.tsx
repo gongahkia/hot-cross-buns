@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
-import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
+import { Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
@@ -16,7 +16,7 @@ import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './to
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
-const Header = styled.header`display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
+const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px;`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
 const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
@@ -25,7 +25,7 @@ const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding:
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
 const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
 const SearchWrap = styled.div<{ $open:boolean }>`display:flex; align-items:center; min-width:44px; width:${({$open})=>$open?'min(240px, 100%)':'44px'}; flex:${({$open})=>$open?'1 1 180px':'0 0 44px'}; transition:width 180ms ease-out, flex-basis 180ms ease-out; @media(max-width:600px){grid-column:${({$open})=>$open?'1 / -1':'4'}; grid-row:${({$open})=>$open?'2':'1'}; justify-self:${({$open})=>$open?'stretch':'end'}; width:${({$open})=>$open?'100%':'44px'};}`;
-const SearchBox = styled.div<{ $open:boolean }>`position:relative; flex:1; min-width:0; max-width:${({$open})=>$open?'100%':'0'}; opacity:${({$open})=>$open?1:0}; overflow:hidden; transition:max-width 180ms ease-out, opacity 140ms ease-out;`;
+const SearchBox = styled.div<{ $open:boolean }>`position:relative; flex:1; min-width:0; max-width:${({$open})=>$open?'100%':'0'}; opacity:${({$open})=>$open?1:0}; overflow:${({$open})=>$open?'visible':'hidden'}; transition:max-width 180ms ease-out, opacity 140ms ease-out;`;
 const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; }`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
@@ -55,6 +55,44 @@ const taskCollisionDetection: CollisionDetection = args => {
   const underPointer = pointerWithin(args);
   return underPointer.length ? underPointer : closestCenter(args);
 };
+type HistoryRow = { element: HTMLElement; left: number; top: number; signature: string };
+const visibleHistoryRows = () => {
+  const visible = new Map<string, HistoryRow>();
+  for (const row of document.querySelectorAll<HTMLElement>('[data-transition-id]')) {
+    if (row.closest('[aria-hidden="true"]')) continue;
+    const bounds = row.getBoundingClientRect();
+    if (bounds.bottom < -48 || bounds.top > window.innerHeight + 48) continue;
+    const signature = [row.getAttribute('aria-label'), ...[...row.querySelectorAll('textarea')].map(field => field.value), ...[...row.querySelectorAll('[aria-pressed]')].map(button => button.getAttribute('aria-pressed'))].join('\u0000');
+    visible.set(row.dataset.transitionId!, { element: row, left: bounds.left, top: bounds.top, signature });
+  }
+  return visible;
+};
+const tagVisibleHistoryRows = (tagged: Set<HTMLElement>) => {
+  for (const [id, { element }] of visibleHistoryRows()) {
+    element.style.viewTransitionName = `hito-item-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    tagged.add(element);
+  }
+};
+const changedHistoryIds = (before: TodoDocument, after: TodoDocument) => {
+  const prior = new Map(before.days.flatMap(day => day.items.map(item => [item.id, JSON.stringify([day.date, item.text, item.completed, item.details])] as const)));
+  const changed = new Set<string>();
+  for (const day of after.days) for (const item of day.items) {
+    if (prior.get(item.id) !== JSON.stringify([day.date, item.text, item.completed, item.details])) changed.add(item.id);
+  }
+  return changed;
+};
+const animateHistoryFallback = (before: Map<string, HistoryRow>, changed: Set<string>) => {
+  for (const [id, after] of visibleHistoryRows()) {
+    const previous = before.get(id);
+    const dx = previous ? Math.max(-24, Math.min(24, previous.left - after.left)) : 0;
+    const dy = previous ? Math.max(-24, Math.min(24, previous.top - after.top)) : 6;
+    if (previous && Math.abs(dx) < 1 && Math.abs(dy) < 1 && previous.signature === after.signature && !changed.has(id)) continue;
+    after.element.animate([
+      { opacity: previous ? .72 : 0, transform: `translate(${dx}px, ${dy}px)` },
+      { opacity: 1, transform: 'translate(0px, 0px)' },
+    ], { duration: 220, easing: 'cubic-bezier(.2, 0, 0, 1)' });
+  }
+};
 
 function DateHeading({ date, today, format, highlighted }: { date: string; today: string; format: DateFormat; highlighted: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date:${date}` });
@@ -63,27 +101,35 @@ function DateHeading({ date, today, format, highlighted }: { date: string; today
   </DayTitle>;
 }
 
-function DayItems({ date, today, selected, filterActive, completed, upcoming, previousItem, onChange, onMove }: {
+function DayItems({ date, today, selected, filterActive, completed, upcoming, previousItem, onChange, onMove, onMakeDetail, onAddAfter }: {
   date: string; today: string; selected: boolean; filterActive:boolean; completed: TodoItem[]; upcoming: TodoItem[];
   previousItem:(id:string)=>TodoItem|undefined;
   onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
   onMove: (id: string, target: string) => void;
+  onMakeDetail: (id: string, parentId: string) => void;
+  onAddAfter: (id: string, text: string) => void;
 }) {
-  const [doneExpanded, setDoneExpanded] = useState(filterActive && completed.length > 0);
-  const previousDoneCount = useRef(completed.length);
+  const [draftAfterId, setDraftAfterId] = useState<string | null>(null);
+  const [doneExpanded, setDoneExpanded] = useState(filterActive);
+  const filterWasActive = useRef(filterActive);
+  const expandedBeforeFilter = useRef(false);
+  const doneVisible = doneExpanded;
   useEffect(() => {
-    if ((filterActive && completed.length > 0) || completed.length > previousDoneCount.current) setDoneExpanded(true);
-    previousDoneCount.current = completed.length;
-  }, [completed.length, filterActive]);
+    if (filterActive && !filterWasActive.current) {
+      expandedBeforeFilter.current = doneExpanded;
+      setDoneExpanded(true);
+    } else if (!filterActive && filterWasActive.current) setDoneExpanded(expandedBeforeFilter.current);
+    filterWasActive.current = filterActive;
+  }, [filterActive]);
   return <>
-    {(completed.length > 0 || selected) && <DoneToggle type="button" aria-expanded={doneExpanded} aria-controls={`done-${date}`} aria-label={`${doneExpanded?'Collapse':'Expand'} done items for ${date}`} onClick={() => setDoneExpanded(value => !value)}><ChevronDown size={14} style={{transform:doneExpanded?'rotate(0deg)':'rotate(-90deg)',transition:'transform 180ms ease-out'}}/><span>done</span><DoneCount aria-hidden="true">{completed.length}</DoneCount></DoneToggle>}
-    <CompletedClip id={`done-${date}`} $open={doneExpanded} aria-hidden={!doneExpanded} inert={!doneExpanded}><div><SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {completed.map(item => <JournalItem key={item.id} item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)}/>)}
+    {(completed.length > 0 || selected) && <DoneToggle type="button" aria-expanded={doneVisible} aria-controls={`done-${date}`} aria-label={`${doneVisible?'Collapse':'Expand'} done items for ${date}`} onClick={() => setDoneExpanded(value => !value)}><ChevronDown size={14} style={{transform:doneVisible?'rotate(0deg)':'rotate(-90deg)',transition:'transform 180ms ease-out'}}/><span>done</span><DoneCount aria-hidden="true">{completed.length}</DoneCount></DoneToggle>}
+    <CompletedClip id={`done-${date}`} $open={doneVisible} aria-hidden={!doneVisible} inert={!doneVisible}><div><SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
+      {completed.map((item,index) => <Fragment key={item.id}><JournalItem item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={index > 0 ? () => onMakeDetail(item.id, completed[index-1].id) : undefined} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext></div></CompletedClip>
     <Divider aria-hidden="true"/>
     {(upcoming.length > 0 || selected) && <SectionCaption>upcoming</SectionCaption>}
     <SortableContext items={upcoming.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {upcoming.map(item => <JournalItem key={item.id} item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)}/>)}
+      {upcoming.map((item,index) => <Fragment key={item.id}><JournalItem item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={index > 0 ? () => onMakeDetail(item.id, upcoming[index-1].id) : undefined} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext>
     {date < today && upcoming.length > 0 && <DayUnfinished>{upcoming.length} unfinished on this day</DayUnfinished>}
   </>;
@@ -114,6 +160,7 @@ export default function App() {
   const searchButton = useRef<HTMLButtonElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
+  const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
@@ -134,6 +181,50 @@ export default function App() {
     setState(stamped);
     await saveTodoState(stamped);
   };
+  const replayState = (documentData: TodoDocument) => {
+    const next = { ...current.current, document: documentData };
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduceMotion && document.startViewTransition) {
+      const active = activeHistoryTransition.current;
+      if (active) {
+        active.transition.skipTransition();
+        active.rows.forEach(row => { row.style.viewTransitionName = 'none'; });
+      }
+      const rows = new Set<HTMLElement>();
+      tagVisibleHistoryRows(rows);
+      const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
+      current.current = stamped;
+      const transition = document.startViewTransition(() => {
+        flushSync(() => setState(stamped));
+        rows.forEach(row => { row.style.viewTransitionName = 'none'; });
+        tagVisibleHistoryRows(rows);
+      });
+      activeHistoryTransition.current = { transition, rows };
+      const clearNames = () => {
+        if (activeHistoryTransition.current?.transition !== transition) return;
+        rows.forEach(row => { row.style.viewTransitionName = 'none'; });
+        activeHistoryTransition.current = null;
+      };
+      void transition.finished.then(clearNames, clearNames);
+      void saveTodoState(stamped).catch(error => setMessage(`Could not save: ${String(error)}`));
+    } else if (!reduceMotion) {
+      const before = visibleHistoryRows();
+      const changed = changedHistoryIds(current.current.document, documentData);
+      const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
+      current.current = stamped;
+      flushSync(() => setState(stamped));
+      animateHistoryFallback(before, changed);
+      void saveTodoState(stamped).catch(error => setMessage(`Could not save: ${String(error)}`));
+    } else void commitState(next).catch(error => setMessage(`Could not save: ${String(error)}`));
+  };
+  const commitDocumentState = async (next: TodoState) => {
+    if (serializeTodoText(current.current.document) !== serializeTodoText(next.document)) {
+      undoStack.current.push(current.current.document);
+      if (undoStack.current.length > 100) undoStack.current.shift();
+      redoStack.current = [];
+    }
+    await commitState(next);
+  };
   const edit = (change: (document: TodoDocument) => void) => {
     const before = current.current.document;
     const document = cloneDocument(before);
@@ -145,8 +236,8 @@ export default function App() {
     redoStack.current = [];
     void commitState({ ...current.current, document }).catch(error => setMessage(`Could not save: ${String(error)}`));
   };
-  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(current.current.document); void commitState({ ...current.current, document: previous }); };
-  const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(current.current.document); void commitState({ ...current.current, document: next }); };
+  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(current.current.document); replayState(previous); };
+  const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(current.current.document); replayState(next); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
@@ -155,9 +246,12 @@ export default function App() {
         requestAnimationFrame(() => { searchInput.current?.focus(); searchInput.current?.select(); });
         return;
       }
-      const target = event.target as HTMLElement;
-      if (target.closest('input,textarea,[contenteditable=true]')) return;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        const target = event.target;
+        if (target instanceof HTMLTextAreaElement && target.hasAttribute('data-journal-entry')) target.blur();
+        event.shiftKey ? redo() : undo();
+      }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -198,6 +292,21 @@ export default function App() {
     if (!day) { day = { date, items: [] }; document.days.push(day); document.days.sort((a,b) => a.date.localeCompare(b.date)); }
     day.items.push({ id: newId(), text: text.trim(), details: [], completed: false });
   }); };
+  const addItemAfter = (date: string, id: string, text: string) => { if (!text.trim()) return; edit(document => {
+    const items = document.days.find(day => day.date === date)?.items;
+    const index = items?.findIndex(item => item.id === id) ?? -1;
+    if (items && index >= 0) items.splice(index + 1, 0, { id: newId(), text: text.trim(), details: [], completed: false });
+  }); };
+  const makeDetail = (date: string, id: string, parentId: string) => edit(document => {
+    const items = document.days.find(day => day.date === date)?.items;
+    const index = items?.findIndex(item => item.id === id) ?? -1;
+    const parentIndex = items?.findIndex(item => item.id === parentId) ?? -1;
+    if (!items || index < 0 || parentIndex < 0 || parentIndex >= index || items[index].completed !== items[parentIndex].completed) return;
+    const [child] = items.splice(index, 1);
+    const parent = items[parentIndex];
+    parent.details.push({ text: child.text, completed: child.completed }, ...child.details);
+    parent.completed = parent.details.every(detail => detail.completed);
+  });
   const moveItem = (date: string, id: string, target: string) => {
     if (!validDate(target) || target === date) return;
     edit(document => {
@@ -220,14 +329,14 @@ export default function App() {
     if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, proposal, handle, mode, observedText }); return; }
     const merged = resolveMerge(proposal, {});
     if (mode === 'save' && handle) await saveToHandle(handle, merged, observedText ?? raw);
-    else { await commitState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
+    else { await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
   };
   const saveToHandle = async (handle: TodoFileHandle, document: TodoDocument, observed: string) => {
     if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted' && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('File access was not granted.');
     const latest = await (await handle.getFile()).text();
     if (latest !== observed) {
       // Keep the user's completed review as the local side of the next merge.
-      await commitState({ ...current.current, document });
+      await commitDocumentState({ ...current.current, document });
       await imported(latest, handle, 'save', latest);
       return;
     }
@@ -235,7 +344,7 @@ export default function App() {
     const writable = await handle.createWritable();
     await writable.write(output);
     await writable.close();
-    await commitState({ ...current.current, document, baseline: cloneDocument(document), baselineText: output, fileHandle: handle });
+    await commitDocumentState({ ...current.current, document, baseline: cloneDocument(document), baselineText: output, fileHandle: handle });
     setReview(null); setMessage(`Saved ${handle.name}.`);
   };
   const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text(), null, 'import'); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } };
@@ -265,7 +374,7 @@ export default function App() {
       const merged = resolveMerge(review.proposal, choices);
       if (review.mode === 'save' && review.handle) await saveToHandle(review.handle, merged, review.observedText ?? review.raw);
       else {
-        await commitState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal), baselineText: review.raw, fileHandle: review.handle });
+        await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal), baselineText: review.raw, fileHandle: review.handle });
         setReview(null); setMessage('TODO.txt imported.');
       }
     } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
@@ -278,19 +387,28 @@ export default function App() {
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
   const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
   const visibleDays = useMemo(() => {
-    const dates = new Set([selectedDate, ...documentData.days.map(day => day.date)]);
-    return [selectedDate, ...[...dates].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))].map(date => ({ date, items: documentData.days.find(day => day.date === date)?.items ?? [] }));
+    const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
+    return [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))].map(date => ({ date, items: daysByDate.get(date)?.items ?? [] }));
   }, [documentData, selectedDate]);
-  const matches = (item: TodoItem) => {
-    const content = [item.text, ...item.details.map(detail => detail.text)].join(' ').toLowerCase();
-    return (!query || content.includes(query.toLowerCase())) && (!tag || tagsIn(content).includes(tag));
-  };
-  const hasResults = visibleDays.some(day => day.items.some(matches));
+  const filteredDays = useMemo(() => {
+    const needle = query.toLowerCase();
+    return visibleDays.map(day => {
+      if (!needle && !tag) return { ...day, completed: day.items.filter(item => item.completed), upcoming: day.items.filter(item => !item.completed) };
+      const completed: TodoItem[] = [];
+      const upcoming: TodoItem[] = [];
+      for (const item of day.items) {
+        const content = `${item.text} ${item.details.map(detail => detail.text).join(' ')}`.toLowerCase();
+        if ((!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag))) (item.completed ? completed : upcoming).push(item);
+      }
+      return { ...day, completed, upcoming };
+    });
+  }, [visibleDays, query, tag]);
+  const hasResults = filteredDays.some(day => day.completed.length + day.upcoming.length > 0);
   if (!state) return <Page><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
   return <Page>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hito daily journal</VisuallyHidden>
-    <Header>
+    <Header $revealed={searchOpen || dateOpen}>
     <Toolbar>
       <Icon aria-label="Previous day" onClick={() => setSelectedDate(shiftDate(selectedDate,-1))}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef}>
@@ -316,20 +434,19 @@ export default function App() {
     {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
-    {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search. <Button onClick={() => { setQuery(''); setTag(null); }}>clear filters</Button></EmptyResults>}
+    {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
       onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}
       onDragCancel={() => { setDraggingId(null); setDragOverDate(null); }}
       onDragEnd={event => { dropItem(event); setDraggingId(null); setDragOverDate(null); }}>
-    {visibleDays.map(day => {
-      const completed = day.items.filter(item => item.completed && matches(item));
-      const upcoming = day.items.filter(item => !item.completed && matches(item));
+    {filteredDays.map(day => {
+      const { completed, upcoming } = day;
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date}/>
         {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
-        <DayItems date={day.date} today={today} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)}/>
+        <DayItems date={day.date} today={today} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
         {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;

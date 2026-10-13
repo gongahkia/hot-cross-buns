@@ -45,6 +45,9 @@ export const GlobalStyle = createGlobalStyle`
   p, li { text-wrap: pretty; }
   svg { flex-shrink: 0; stroke-width: 1.5; }
   a { color: inherit; }
+  ::view-transition-group(*) { animation-duration: 220ms; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+  ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 180ms; animation-timing-function: ease-out; }
+  ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0s; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   }

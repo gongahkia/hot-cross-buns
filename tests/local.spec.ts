@@ -133,7 +133,7 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
 
   await page.getByRole('button', { name: 'Open search' }).click();
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('no such line');
-  await expect(page.getByText('No lines match this search.')).toBeVisible();
+  await expect(page.getByText('No lines match this search')).toBeVisible();
 });
 
 test('recovers an edit queued just before a reload', async ({ page }) => {
@@ -172,6 +172,8 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
   await expect(page.locator('section').first().getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
 
   await page.getByRole('button', { name: 'Complete Alpha' }).click();
+  await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await expect(page.getByRole('textbox', { name: 'Edit Alpha' })).toHaveCSS('text-decoration-line', 'line-through');
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toHaveCSS('text-decoration-line', 'line-through');
   await page.reload();
@@ -213,6 +215,8 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`) });
   await page.getByRole('button', { name: 'Complete Transfer me' }).click();
+  await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await expect(page.getByRole('button', { name: `Collapse done items for ${today}` })).toBeVisible();
   await page.waitForTimeout(220);
   const source = await page.getByRole('button', { name: 'Drag to reorder Transfer me' }).boundingBox();
@@ -226,13 +230,16 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   expect(preview!.y).toBeGreaterThan(source!.y + 40);
   expect(preview!.x + preview!.width).toBeLessThanOrEqual(1280);
   await page.mouse.up();
+  await expect(page.locator('[aria-label="Dragging Transfer me"]')).toHaveCount(0);
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const destinationSection = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
-  if (await destinationSection.getByRole('button', { name: `Expand done items for ${tomorrow}` }).isVisible()) await destinationSection.getByRole('button', { name: `Expand done items for ${tomorrow}` }).click();
+  await destinationSection.getByRole('button', { name: `Expand done items for ${tomorrow}` }).click();
   await expect(destinationSection.getByRole('group', { name: 'Transfer me' })).toBeVisible();
   await expect(destinationSection.getByRole('button', { name: 'Reopen Transfer me' })).toBeVisible();
   await expect(destinationSection.getByRole('textbox', { name: 'Edit detail carry this note' })).toBeVisible();
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Transfer me' })).toHaveCount(0);
 
+  await page.locator(`[data-drop-date="${today}"]`).scrollIntoViewIfNeeded();
   const secondSource = await page.getByRole('button', { name: 'Drag to reorder Destination task' }).boundingBox();
   const secondDestination = await page.locator(`[data-drop-date="${today}"]`).boundingBox();
   expect(secondSource && secondDestination).toBeTruthy();
@@ -261,6 +268,7 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   const [textBox, toggleBox, moreBox] = await Promise.all([text.boundingBox(), toggle.boundingBox(), more.boundingBox()]);
   expect(toggleBox!.x).toBeGreaterThan(textBox!.x);
   expect(toggleBox!.x + toggleBox!.width).toBeLessThanOrEqual(moreBox!.x + 1);
+  await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await parent.getByRole('button', { name: 'Complete detail second step' }).click();
   await expect(parent.getByRole('button', { name: 'Reopen Progress task' })).toBeVisible();
   await expect(text).toHaveCSS('text-decoration-line', 'line-through');
@@ -308,6 +316,8 @@ test('hides completed work by default and toggles search without browser find', 
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nFinished task\n- [x] finished detail\n- [ ] other detail\n\nOpen task\n`) });
   await page.getByRole('button', { name: 'Complete Finished task' }).click();
+  await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('group', { name: 'Finished task' })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('group', { name: 'Finished task' })).toHaveCount(0);
@@ -322,7 +332,7 @@ test('hides completed work by default and toggles search without browser find', 
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('Finished task');
   await expect(page.getByRole('group', { name: 'Finished task' })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('nothing matches');
-  await expect(page.getByText('No lines match this search.')).toBeVisible();
+  await expect(page.getByText('No lines match this search')).toBeVisible();
   await page.getByRole('button', { name: 'Close search' }).click();
   await expect(page.getByRole('group', { name: 'Open task' })).toBeVisible();
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
@@ -391,14 +401,269 @@ test('animates completion and honours reduced motion', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Animated task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
   await page.getByRole('button', { name: 'Complete Animated task' }).click();
   const strike = page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]');
   await expect(strike).toBeVisible();
   expect(await strike.evaluate(element => getComputedStyle(element).animationName)).not.toBe('none');
   await page.getByRole('button', { name: 'Reopen Animated task' }).click();
+  const reopeningStrike = page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]');
+  expect(await reopeningStrike.evaluate(element => getComputedStyle(element).animationName)).not.toBe('none');
   await expect(page.getByRole('button', { name: 'Complete Animated task' })).toBeVisible();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'Complete Animated task' }).click();
   const duration = await page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]').evaluate(element => getComputedStyle(element).animationDuration);
   expect(parseFloat(duration)).toBeLessThan(0.01);
+});
+
+test('reveals the toolbar and persists expanded appearance choices', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
+  const header = page.locator('header');
+  await page.mouse.move(0, 500);
+  await expect(header).toHaveCSS('opacity', '0');
+  await page.getByRole('button', { name: 'Hito settings' }).hover();
+  await expect(header).toHaveCSS('opacity', '1');
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Hito settings' });
+  await expect(dialog.getByRole('heading', { name: /settings/i })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: /day mode|night mode/ })).toHaveCount(0);
+  await expect(dialog.getByLabel('Color scheme').locator('option')).toHaveCount(52);
+  await expect(dialog.getByLabel('Font').locator('option')).toHaveCount(21);
+  await expect(dialog.getByLabel('Date headings').locator('option')).toHaveCount(20);
+  await expect(dialog.getByText('The journal stays in this browser')).toHaveCount(0);
+  await expect(dialog.getByText('TODO.txt always keeps')).toHaveCount(0);
+  await dialog.getByLabel('Color scheme').selectOption('cat-mocha');
+  await dialog.getByLabel('Font').selectOption('georgia');
+  await dialog.getByLabel('Date headings').selectOption('iso-dots');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'cat-mocha');
+  await expect(page.locator('body')).toHaveCSS('font-family', /Georgia/);
+  const today = dateOffset(0);
+  await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
+  await dialog.getByRole('button', { name: 'close' }).click();
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'cat-mocha');
+  await expect(page.locator('body')).toHaveCSS('font-family', /Georgia/);
+  await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
+});
+
+test('calendar stays above journal content and allows month and year selection', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Behind the calendar');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  const calendar = page.getByLabel('Choose journal date');
+  await expect(calendar).toBeVisible();
+  const above = await page.evaluate(() => {
+    const popup = document.querySelector<HTMLElement>('[aria-label="Choose journal date"]')!;
+    const row = document.querySelector<HTMLElement>('[aria-label="Behind the calendar"]')!;
+    const bounds = row.getBoundingClientRect();
+    return popup.contains(document.elementFromPoint(bounds.left + 80, bounds.top + bounds.height / 2));
+  });
+  expect(above).toBe(true);
+  await calendar.getByRole('combobox', { name: 'Choose the Month' }).selectOption('1');
+  await calendar.getByRole('combobox', { name: 'Choose the Year' }).selectOption('2031');
+  await expect(calendar.locator('.rdp-month_caption')).toContainText('February');
+  await expect(calendar.locator('.rdp-month_caption')).toContainText('2031');
+  await calendar.locator('.rdp-day[data-day="2031-02-20"] button').click();
+  await expect(page.getByRole('button', { name: 'Go to today from 2031-02-20' })).toBeVisible();
+});
+
+test('reveals item actions on hover and reorders details within their item', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nParent task\n- first detail\n- second detail\n\nOther task\n- other detail\n`) });
+  const parent = page.getByRole('group', { name: 'Parent task' });
+  const grip = parent.getByRole('button', { name: 'Drag to reorder Parent task' });
+  const check = parent.getByRole('button', { name: 'Complete Parent task' });
+  const more = parent.getByRole('button', { name: 'More actions for Parent task' });
+  const detailMore = parent.getByRole('button', { name: 'More actions for detail first detail' });
+  await page.mouse.move(0, 0);
+  for (const control of [grip, check, more, detailMore]) await expect(control).toHaveCSS('opacity', '0');
+  await parent.hover();
+  for (const control of [grip, check, more]) await expect(control).toHaveCSS('opacity', '1');
+  await parent.getByRole('textbox', { name: 'Edit detail first detail' }).hover();
+  await expect(detailMore).toHaveCSS('opacity', '1');
+  const source = await parent.getByRole('button', { name: 'Drag to reorder detail second detail' }).boundingBox();
+  const target = await parent.getByRole('button', { name: 'Drag to reorder detail first detail' }).boundingBox();
+  expect(source && target).toBeTruthy();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, { steps: 14 });
+  await page.mouse.up();
+  const detailOrder = () => parent.getByRole('textbox', { name: /^Edit detail / }).evaluateAll(elements => elements.map(element => (element as HTMLTextAreaElement).value));
+  await expect.poll(detailOrder).toEqual(['second detail', 'first detail']);
+  const downloadButton = page.getByRole('button', { name: 'Download TODO.txt' });
+  await downloadButton.hover();
+  await expect(page.locator('header')).toHaveCSS('opacity', '1');
+  const downloadPromise = page.waitForEvent('download');
+  await downloadButton.click();
+  await expect(page.getByRole('status').getByText('TODO.txt downloaded.')).toBeVisible({ timeout: 3000 });
+  const exported = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(exported).toContain('Parent task\n- [ ] second detail\n- [ ] first detail');
+  expect(exported).toContain('Other task\n- [ ] other detail');
+  await page.reload();
+  await expect.poll(detailOrder).toEqual(['second detail', 'first detail']);
+});
+
+test('creates siblings with Enter and promotes or demotes through row menus', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nParent\n- first\n- [x] second\n\nFollowing\n`) });
+  const parent = page.getByRole('group', { name: 'Parent' });
+  await expect(parent.getByRole('button', { name: 'Collapse details for Parent' })).toContainText('1/2');
+  const chevron = parent.getByRole('button', { name: 'Collapse details for Parent' }).locator('svg');
+  expect(parseFloat(await chevron.evaluate(element => getComputedStyle(element).transitionDuration))).toBeGreaterThan(0);
+  await parent.getByRole('textbox', { name: 'Edit detail first' }).press('Enter');
+  await page.getByRole('textbox', { name: 'New detail for Parent' }).fill('between');
+  await page.getByRole('textbox', { name: 'New detail for Parent' }).press('Enter');
+  await expect.poll(() => parent.getByRole('textbox', { name: /^Edit detail / }).evaluateAll(elements => elements.map(element => (element as HTMLTextAreaElement).value))).toEqual(['first', 'between', 'second']);
+  await parent.getByRole('button', { name: 'More actions for detail between' }).click();
+  await page.getByRole('button', { name: 'Make detail between an item' }).click();
+  await expect(page.getByRole('group', { name: 'between' })).toBeVisible();
+  await page.getByRole('button', { name: 'More actions for between', exact: true }).click();
+  await page.getByRole('button', { name: 'Make between a detail' }).click();
+  await expect(parent.getByRole('textbox', { name: 'Edit detail between' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'between' })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Edit Following' }).press('Enter');
+  await page.getByRole('textbox', { name: 'New item after current item' }).fill('Next sibling');
+  await page.getByRole('textbox', { name: 'New item after current item' }).press('Enter');
+  await expect(page.getByRole('group', { name: 'Next sibling' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Edit Following' }).press('Enter');
+  await page.getByRole('textbox', { name: 'New item after current item' }).fill('Saved on blur');
+  await page.locator(`time[datetime="${today}"]`).click();
+  await expect(page.getByRole('group', { name: 'Saved on blur' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'Next sibling' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Saved on blur' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Parent' }).getByRole('textbox', { name: 'Edit detail between' })).toBeVisible();
+  await page.getByRole('group', { name: 'Parent' }).getByRole('button', { name: 'More actions for detail between' }).click();
+  await expect(page.getByRole('button', { name: 'Delete detail between' })).toBeVisible();
+  await page.getByRole('button', { name: 'Delete detail between' }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit detail between' })).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('textbox', { name: 'Edit detail between' })).toBeVisible();
+});
+
+test('undoes and redoes journal actions with Ctrl and Cmd while editing', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Undo me');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  const editor = page.getByRole('textbox', { name: 'Edit Undo me' });
+  await editor.fill('Changed');
+  await editor.press('Control+z');
+  await expect(page.getByRole('group', { name: 'Undo me' })).toBeVisible();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.getByRole('group', { name: 'Changed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Complete Changed' }).click();
+  await expect(page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` })).toHaveAttribute('aria-expanded', 'false');
+  await page.keyboard.press('Meta+z');
+  await expect(page.getByRole('button', { name: 'Complete Changed' })).toBeVisible();
+  await page.keyboard.press('Meta+Shift+z');
+  await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
+  await expect(page.getByRole('button', { name: 'Reopen Changed' })).toBeVisible();
+});
+
+test('plays history transitions and skips them when reduced motion is requested', async ({ page }) => {
+  await page.goto('/');
+  test.skip(!(await page.evaluate(() => typeof document.startViewTransition === 'function')), 'View transitions are unavailable in this browser');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Before');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.evaluate(() => {
+    const original = document.startViewTransition.bind(document);
+    const replayWindow = window as Window & { __replays?: ViewTransition[] };
+    replayWindow.__replays = [];
+    document.startViewTransition = update => {
+      const transition = original(update);
+      replayWindow.__replays!.push(transition);
+      return transition;
+    };
+  });
+  const editor = page.getByRole('textbox', { name: 'Edit Before' });
+  await editor.fill('After');
+  await editor.press('Control+z');
+  await expect(page.getByRole('group', { name: 'Before' })).toBeVisible();
+  const duration = await page.evaluate(async () => {
+    const replay = (window as Window & { __replays?: ViewTransition[] }).__replays!.at(-1)!;
+    await replay.ready;
+    const row = document.querySelector<HTMLElement>('[data-transition-id]')!;
+    const name = `hito-item-${row.dataset.transitionId!.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    return parseFloat(getComputedStyle(document.documentElement, `::view-transition-group(${name})`).animationDuration);
+  });
+  expect(duration).toBeGreaterThan(0.1);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.getByRole('group', { name: 'After' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as Window & { __replays?: ViewTransition[] }).__replays!.length)).toBe(2);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('group', { name: 'Before' })).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { __replays?: ViewTransition[] }).__replays!.length)).toBe(2);
+});
+
+test('animates undo in browsers without view transitions', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined }));
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Fallback before');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  const editor = page.getByRole('textbox', { name: 'Edit Fallback before' });
+  await editor.fill('Fallback after');
+  await editor.press('Control+z');
+  const row = page.getByRole('group', { name: 'Fallback before' });
+  await expect(row).toBeVisible();
+  const durations = await row.evaluate(element => element.getAnimations().map(animation => animation.effect?.getTiming().duration));
+  expect(durations).toContain(220);
+  await row.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.getByRole('group', { name: 'Fallback after' })).toBeVisible();
+  expect(await page.getByRole('group', { name: 'Fallback after' }).evaluate(element => element.getAnimations().length)).toBe(0);
+});
+
+test('keeps rapid consecutive undo and redo actions in order', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('First version');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('textbox', { name: 'Edit First version' }).fill('Second version');
+  await page.getByRole('textbox', { name: 'Edit First version' }).press('Tab');
+  await page.getByRole('textbox', { name: 'Edit Second version' }).fill('Third version');
+  await page.getByRole('textbox', { name: 'Edit Second version' }).press('Tab');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('group', { name: 'First version' })).toBeVisible();
+  await page.keyboard.press('Control+Shift+z');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(page.getByRole('group', { name: 'Third version' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'Third version' })).toBeVisible();
+});
+
+test('searches a large journal and keeps edits responsive', async ({ page }) => {
+  test.setTimeout(60000);
+  const today = dateOffset(0);
+  const lines = Array.from({ length: 1200 }, (_, index) => `Task ${String(index).padStart(4, '0')} ${index === 1199 ? 'unique-needle' : 'ordinary'}`);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\n${lines.join('\n\n')}\n`) });
+  await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible();
+  const unfilteredEditStart = Date.now();
+  await page.getByRole('button', { name: `Complete ${lines[1199]}` }).click();
+  await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toContainText('1');
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: `Complete ${lines[1199]}` })).toBeVisible();
+  const unfilteredEditMs = Date.now() - unfilteredEditStart;
+  await page.getByRole('button', { name: 'Open search' }).click();
+  const searchStart = Date.now();
+  await page.getByRole('searchbox', { name: 'Search journal' }).fill('unique-needle');
+  await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible();
+  await expect(page.getByRole('group', { name: lines[0] })).toHaveCount(0);
+  const searchMs = Date.now() - searchStart;
+  const editStart = Date.now();
+  await page.getByRole('button', { name: `Complete ${lines[1199]}` }).click();
+  await expect(page.getByRole('button', { name: `Reopen ${lines[1199]}` })).toBeVisible();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: `Complete ${lines[1199]}` })).toBeVisible();
+  const editMs = Date.now() - editStart;
+  console.log(`Large journal (1200 items): unfiltered complete + undo ${unfilteredEditMs}ms, search ${searchMs}ms, filtered complete + undo ${editMs}ms`);
+  expect(unfilteredEditMs).toBeLessThan(5000);
+  expect(searchMs).toBeLessThan(5000);
+  expect(editMs).toBeLessThan(5000);
 });
