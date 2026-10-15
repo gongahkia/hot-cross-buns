@@ -61,7 +61,12 @@ test('flags malformed text and unfinished work on an earlier date', async ({ pag
   await page.getByRole('textbox', { name: 'Edit imported TODO.txt' }).fill(`${yesterday}\n\nCarry forward manually\n`);
   await page.getByRole('button', { name: 'check file' }).click();
   await expect(page.getByRole('group', { name: 'Carry forward manually' })).toBeVisible();
-  await expect(page.getByText('1 unfinished on this day')).toBeVisible();
+  const notice = page.getByText('1 unfinished on this day');
+  await expect(notice).toBeVisible();
+  await expect(notice.locator('svg')).toBeVisible();
+  const dateHeading = page.locator(`time[datetime="${yesterday}"]`);
+  expect((await notice.boundingBox())!.y).toBeLessThan((await dateHeading.boundingBox())!.y);
+  await expect(page.getByText('unfinished', { exact: true })).toHaveCount(0);
 });
 
 test('opens and explicitly saves a connected text file when direct access is available', async ({ page }) => {

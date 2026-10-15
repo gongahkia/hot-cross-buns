@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
@@ -48,7 +48,7 @@ const EmptyDay = styled.p`margin: 12px 0 10px 64px; color: var(--muted); font-si
 const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
-const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
+const DayUnfinished = styled(Note)`display: flex; align-items: center; gap: 6px; margin: 0 0 7px 8px; color: var(--link); font-variant-numeric: tabular-nums;`;
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
 const downloadTextFile = (text: string, fileName: string) => {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
@@ -141,7 +141,6 @@ function DayItems({ date, today, selected, filterActive, completed, upcoming, pr
     <SortableContext items={upcoming.map(item => item.id)} strategy={verticalListSortingStrategy}>
       {upcoming.map((item,index) => <Fragment key={item.id}><JournalItem item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={index > 0 ? () => onMakeDetail(item.id, upcoming[index-1].id) : undefined} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext>
-    {date < today && upcoming.length > 0 && <DayUnfinished>{upcoming.length} unfinished on this day</DayUnfinished>}
   </>;
 }
 
@@ -481,6 +480,7 @@ export default function App() {
       const { completed, upcoming } = day;
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
+        {day.date < today && upcoming.length > 0 && <DayUnfinished><CircleAlert size={14} aria-hidden="true"/>{upcoming.length} unfinished on this day</DayUnfinished>}
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date}/>
         {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
         <DayItems date={day.date} today={today} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
