@@ -15,6 +15,7 @@ import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { advanceRecurrences } from './recurrence';
+import { parseTimeBlock } from './timeBlock';
 import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
@@ -111,8 +112,8 @@ function DateHeading({ date, today, format, highlighted }: { date: string; today
   </DayTitle>;
 }
 
-function DayItems({ date, today, selected, filterActive, completed, upcoming, previousItem, onChange, onMove, onMakeDetail, onAddAfter }: {
-  date: string; today: string; selected: boolean; filterActive:boolean; completed: TodoItem[]; upcoming: TodoItem[];
+function DayItems({ date, items, selected, filterActive, completed, upcoming, previousItem, onChange, onMove, onMakeDetail, onAddAfter }: {
+  date: string; items: TodoItem[]; selected: boolean; filterActive:boolean; completed: TodoItem[]; upcoming: TodoItem[];
   previousItem:(id:string)=>TodoItem|undefined;
   onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
   onMove: (id: string, target: string) => void;
@@ -134,12 +135,12 @@ function DayItems({ date, today, selected, filterActive, completed, upcoming, pr
   return <>
     {(completed.length > 0 || selected) && <DoneToggle type="button" aria-expanded={doneVisible} aria-controls={`done-${date}`} aria-label={`${doneVisible?'Collapse':'Expand'} done items for ${date}`} onClick={() => setDoneExpanded(value => !value)}><ChevronDown size={14} style={{transform:doneVisible?'rotate(0deg)':'rotate(-90deg)',transition:'transform 180ms ease-out'}}/><span>done</span><DoneCount aria-hidden="true">{completed.length}</DoneCount></DoneToggle>}
     <CompletedClip id={`done-${date}`} $open={doneVisible} aria-hidden={!doneVisible} inert={!doneVisible}><div><SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {completed.map((item,index) => <Fragment key={item.id}><JournalItem item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={index > 0 ? () => onMakeDetail(item.id, completed[index-1].id) : undefined} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
+      {completed.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext></div></CompletedClip>
     <Divider aria-hidden="true"/>
     {(upcoming.length > 0 || selected) && <SectionCaption>upcoming</SectionCaption>}
     <SortableContext items={upcoming.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {upcoming.map((item,index) => <Fragment key={item.id}><JournalItem item={item} previousItem={previousItem(item.id)} date={date} today={today} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={index > 0 ? () => onMakeDetail(item.id, upcoming[index-1].id) : undefined} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
+      {upcoming.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext>
   </>;
 }
@@ -325,10 +326,9 @@ export default function App() {
   const makeDetail = (date: string, id: string, parentId: string) => edit(document => {
     const items = document.days.find(day => day.date === date)?.items;
     const index = items?.findIndex(item => item.id === id) ?? -1;
-    const parentIndex = items?.findIndex(item => item.id === parentId) ?? -1;
-    if (!items || index < 0 || parentIndex < 0 || parentIndex >= index || items[index].completed !== items[parentIndex].completed) return;
+    const parent = items?.find(item => item.id === parentId);
+    if (!items || index < 0 || !parent || id === parentId || items[index].repeat || parseTimeBlock(items[index].text)) return;
     const [child] = items.splice(index, 1);
-    const parent = items[parentIndex];
     parent.details.push({ text: child.text, completed: child.completed }, ...child.details);
     parent.completed = parent.details.every(detail => detail.completed);
   });
@@ -483,7 +483,7 @@ export default function App() {
         {day.date < today && upcoming.length > 0 && <DayUnfinished><CircleAlert size={14} aria-hidden="true"/>{upcoming.length} unfinished on this day</DayUnfinished>}
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date}/>
         {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
-        <DayItems date={day.date} today={today} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
+        <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
         {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;

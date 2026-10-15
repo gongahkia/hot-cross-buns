@@ -827,6 +827,7 @@ test('creates siblings with Enter and promotes or demotes through row menus', as
   await expect(page.getByRole('group', { name: 'between' })).toBeVisible();
   await page.getByRole('button', { name: 'More actions for between', exact: true }).click();
   await page.getByRole('button', { name: 'Make between a detail' }).click();
+  await page.getByRole('button', { name: 'Make between a detail of Parent' }).click();
   await expect(parent.getByRole('textbox', { name: 'Edit detail between' })).toBeVisible();
   await expect(page.getByRole('group', { name: 'between' })).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Edit Following' }).press('Enter');
@@ -847,6 +848,26 @@ test('creates siblings with Enter and promotes or demotes through row menus', as
   await expect(page.getByRole('textbox', { name: 'Edit detail between' })).toHaveCount(0);
   await page.keyboard.press('Control+z');
   await expect(page.getByRole('textbox', { name: 'Edit detail between' })).toBeVisible();
+});
+
+test('make detail can choose a later item on the same date and preserves the choice in TODO.txt', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nFirst\nSecond\nThird\n`) });
+  await page.getByRole('button', { name: 'More actions for First' }).click();
+  await page.getByRole('button', { name: 'Make First a detail' }).click();
+  await expect(page.getByRole('button', { name: 'Make First a detail of First' })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Find parent item' }).fill('Third');
+  await page.getByRole('button', { name: 'Make First a detail of Third' }).click();
+  await expect(page.getByRole('group', { name: 'First' })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Third' }).getByRole('textbox', { name: 'Edit detail First' })).toBeVisible();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await confirmTodoDownload(page);
+  const exported = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(exported).toContain('Third\n- [ ] First');
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'Third' }).getByRole('textbox', { name: 'Edit detail First' })).toBeVisible();
 });
 
 test('undoes and redoes journal actions with Ctrl and Cmd while editing', async ({ page }) => {

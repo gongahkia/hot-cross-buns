@@ -5,7 +5,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { CalendarDays, ChevronDown, Clock3, CornerDownRight, GripVertical, MoreHorizontal, Plus, Repeat2, Trash2 } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronDown, Clock3, CornerDownRight, GripVertical, MoreHorizontal, Plus, Repeat2, Trash2 } from 'lucide-react';
 import { Field, IconButton } from '../styles';
 import { describeRecurrence, formatRecurrence } from '../recurrence';
 import { parseTimeBlock } from '../timeBlock';
@@ -48,6 +48,10 @@ const ActionWrap = styled.div`position: static; display:flex; align-items:flex-s
 const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
 const ActionMenu = styled.div`position: fixed; z-index: 30; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0003;`;
 const Action = styled.button`width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; &:hover:not(:disabled), &[aria-expanded='true'] { background: var(--soft); } &:disabled { color: var(--muted); cursor: default; opacity: .55; } @media(pointer:coarse){min-height:44px;}`;
+const ParentSearch = styled(Field)`width: 100%; min-height: 40px; margin: 3px 0 5px; font-size: 13px; @media(pointer:coarse){min-height:44px;}`;
+const ParentList = styled.div`max-height: min(280px, calc(100dvh - 150px)); overflow-y: auto; overscroll-behavior: contain;`;
+const ParentOption = styled(Action)`display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;`;
+const ParentHint = styled.p`padding: 8px 9px; color: var(--muted); font-size: 12px;`;
 const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px){left: auto; right: 0; top: calc(100% + 8px); max-height: calc(100dvh - 160px); overflow: auto;}`;
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
@@ -73,7 +77,7 @@ export function AddItem({ onAdd, autoFocus = false, onCancel, inline = false }: 
   return <AddForm onSubmit={event => { event.preventDefault(); if (text.trim()) { onAdd(text); setText(''); onCancel?.(); } }}><AddInput autoFocus={autoFocus} aria-label={inline ? 'New item after current item' : 'New daily item'} placeholder={inline ? 'New item…' : 'Add a line to this day…'} value={text} onChange={event => setText(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { cancelled.current = true; onCancel?.(); } }} onBlur={event => { if (inline && !event.currentTarget.form?.contains(event.relatedTarget as Node)) { if (!cancelled.current && text.trim()) onAdd(text); cancelled.current = false; onCancel?.(); } }}/><Mini aria-label="Add daily item" type="submit"><Plus size={16}/></Mini></AddForm>;
 }
 
-export function JournalItem({ item, previousItem, date, today: _today, onChange, onMove, onMakeDetail, onStartNext }: { item: TodoItem; previousItem?:TodoItem; date: string; today: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void; onMakeDetail?: () => void; onStartNext: () => void }) {
+export function JournalItem({ item, parentItems, previousItem, date, onChange, onMove, onMakeDetail, onStartNext }: { item: TodoItem; parentItems: TodoItem[]; previousItem?:TodoItem; date: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void; onMakeDetail: (parentId: string) => void; onStartNext: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const [text, setText] = useState(parseTimeBlock(item.text)?.title ?? item.text);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -83,6 +87,8 @@ export function JournalItem({ item, previousItem, date, today: _today, onChange,
   const cancelText = useRef(false);
   const cancelDetail = useRef(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [parentOpen, setParentOpen] = useState(false);
+  const [parentQuery, setParentQuery] = useState('');
   const [moveDate, setMoveDate] = useState(date);
   const [scheduleEditor, setScheduleEditor] = useState<'time' | 'repeat' | null>(null);
   const [detailInsertAt, setDetailInsertAt] = useState<number | null>(null);
@@ -101,30 +107,32 @@ export function JournalItem({ item, previousItem, date, today: _today, onChange,
   const detailProgress = item.details.length ? completedDetails / item.details.length : 0;
   const previousProgress = previousItem?.details.length ? previousItem.details.filter(detail => detail.completed).length / previousItem.details.length : previousItem?.completed ? 1 : undefined;
   const completionChange:CompletionChange = previousItem && previousItem.completed !== item.completed ? item.completed?'complete':'reopen' : undefined;
+  const parentMatches = parentOpen ? parentItems.filter(candidate => candidate.id !== item.id && candidate.text.toLowerCase().includes(parentQuery.trim().toLowerCase())) : [];
   useEffect(() => setText(parseTimeBlock(item.text)?.title ?? item.text), [item.text]);
   useEffect(() => {
     if (!menuOpen) return;
-    const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) { setMenuOpen(false); setMoveOpen(false); } };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMenuOpen(false); setMoveOpen(false); moreRef.current?.focus(); } };
-    const scroll = (event: Event) => { if (event.target instanceof Node && menuRef.current?.contains(event.target)) return; setMenuOpen(false); setMoveOpen(false); };
+    const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); } };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); moreRef.current?.focus(); } };
+    const scroll = (event: Event) => { if (event.target instanceof Node && menuRef.current?.contains(event.target)) return; setMenuOpen(false); setMoveOpen(false); setParentOpen(false); };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     window.addEventListener('scroll', scroll, true);
     window.addEventListener('resize', scroll);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', scroll); };
   }, [menuOpen]);
-  const positionMenu = (withCalendar: boolean) => {
+  const positionMenu = (withCalendar: boolean, withParents = false) => {
     const rect = moreRef.current?.getBoundingClientRect();
     if (!rect) return;
     const narrow = window.innerWidth <= 540;
-    const needed = withCalendar && !narrow ? 512 : 176;
-    const left = Math.max(8, Math.min(rect.right - 176, window.innerWidth - needed - 8));
-    const height = withCalendar ? (narrow ? 580 : 430) : 275;
+    const menuWidth = withParents ? Math.min(280, window.innerWidth - 16) : 176;
+    const needed = withCalendar && !narrow ? 512 : menuWidth;
+    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - needed - 8));
+    const height = withParents ? Math.min(390, window.innerHeight - 16) : withCalendar ? (narrow ? 580 : 430) : 275;
     const top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - height - 8));
     setMenuPosition({ top, left });
   };
   const saveText = () => { const original = timeBlock?.title ?? item.text; if (cancelText.current) { cancelText.current = false; setText(original); return; } const value = text.trim(); if (value && value !== original) onChange(item => { item.text = timeBlock ? `${timeBlock.start}-${timeBlock.end} ${value}` : value; }); else setText(original); };
-  const closeMenu = (action: () => void) => { setMenuOpen(false); setMoveOpen(false); action(); };
+  const closeMenu = (action: () => void) => { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); action(); };
   const detailDraftRow = detailInsertAt === null ? null : <DetailRow key="new-detail"><Dash>-</Dash><LineField detail autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelDetail.current = true; event.currentTarget.blur(); } }} onBlur={() => { if (!cancelDetail.current && detailDraft.trim()) onChange(item => { item.details.splice(detailInsertAt, 0, { text: detailDraft.trim(), completed: false }); item.completed = false; }); cancelDetail.current = false; setDetailDraft(''); setDetailInsertAt(null); }}/></DetailRow>;
   return <ItemRow ref={setNodeRef} role="group" aria-label={item.text} data-transition-id={item.id} $dragging={isDragging} style={{ transform: CSS.Transform.toString(transform), transition }}>
     <Grip data-row-control ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.text}`} title="Drag to reorder or move to another date"><GripVertical size={16}/></Grip>
@@ -143,15 +151,25 @@ export function JournalItem({ item, previousItem, date, today: _today, onChange,
     </ItemBody>
     <ActionWrap ref={menuRef}>
       {item.details.length > 0 && <DetailToggle $open={detailsExpanded} type="button" aria-expanded={detailsExpanded} aria-controls={`details-${item.id}`} aria-label={`${detailsExpanded ? 'Collapse' : 'Expand'} details for ${item.text}`} title={`${completedDetails} of ${item.details.length} details done`} onClick={() => setDetailsExpanded(value => !value)}><ChevronDown size={14}/><span aria-hidden="true">{completedDetails}/{item.details.length}</span></DetailToggle>}
-      <MoreButton data-row-control ref={moreRef} aria-label={`More actions for ${item.text}`} aria-expanded={menuOpen} onClick={() => { if (!menuOpen) positionMenu(false); else setMoveOpen(false); setMenuOpen(value => !value); }}><MoreHorizontal size={17}/></MoreButton>
-      {menuOpen && <ActionMenu style={menuPosition} aria-label={`Actions for ${item.text}`}>
+      <MoreButton data-row-control ref={moreRef} aria-label={`More actions for ${item.text}`} aria-expanded={menuOpen} onClick={() => { if (!menuOpen) positionMenu(false); else { setMoveOpen(false); setParentOpen(false); } setMenuOpen(value => !value); }}><MoreHorizontal size={17}/></MoreButton>
+      {menuOpen && <ActionMenu style={{ ...menuPosition, width: parentOpen ? 'min(280px, calc(100vw - 16px))' : undefined }} aria-label={`Actions for ${item.text}`}>
+        {parentOpen ? <>
+          <Action aria-label="Back to item actions" onClick={() => { setParentOpen(false); positionMenu(false); moreRef.current?.focus(); }}><ArrowLeft size={15}/> choose parent</Action>
+          <ParentSearch autoFocus aria-label="Find parent item" placeholder="Find an item…" value={parentQuery} onChange={event => setParentQuery(event.target.value)}/>
+          <ParentList aria-label="Choose parent item">
+            {parentMatches.slice(0, 50).map(parent => <ParentOption key={parent.id} title={parent.text} aria-label={`Make ${item.text} a detail of ${parent.text}`} onClick={() => closeMenu(() => onMakeDetail(parent.id))}>{parent.text}</ParentOption>)}
+            {parentMatches.length === 0 && <ParentHint>No items match</ParentHint>}
+            {parentMatches.length > 50 && <ParentHint>Search to see more items</ParentHint>}
+          </ParentList>
+        </> : <>
         <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => { setDetailsExpanded(true); setDetailInsertAt(item.details.length); })}><Plus size={15}/> add detail</Action>
-        <Action aria-label={`Make ${item.text} a detail`} title={item.repeat || timeBlock ? 'Remove the repeat rule and time block first' : onMakeDetail ? undefined : 'Move another item above this one first'} disabled={!onMakeDetail || !!item.repeat || !!timeBlock} onClick={() => { if (onMakeDetail) closeMenu(onMakeDetail); }}><CornerDownRight size={15}/> make detail</Action>
+        <Action aria-label={`Make ${item.text} a detail`} title={item.repeat || timeBlock ? 'Remove the repeat rule and time block first' : parentItems.length < 2 ? 'Add another item to this day first' : undefined} disabled={parentItems.length < 2 || !!item.repeat || !!timeBlock} onClick={() => { setParentQuery(''); setParentOpen(true); positionMenu(false, true); }}><CornerDownRight size={15}/> make detail</Action>
         <Action aria-label={`Set time block for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('time'))}><Clock3 size={15}/> {timeBlock ? 'edit time' : 'add time block'}</Action>
         <Action aria-label={`Set repeat for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('repeat'))}><Repeat2 size={15}/> {item.repeat ? 'edit repeat' : 'repeat'}</Action>
         <Action aria-label={`Move ${item.text}`} aria-expanded={moveOpen} onClick={() => { if (!moveOpen) { setMoveDate(date); positionMenu(true); } else positionMenu(false); setMoveOpen(value => !value); }}><CalendarDays size={15}/> move to date</Action>
         <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(() => onChange((item, items) => { items.splice(items.indexOf(item),1); }))}><Trash2 size={15}/> delete</Action>
         {moveOpen && <MoveFlyout><CalendarPanel label={`Choose destination for ${item.text}`} value={moveDate} onSelect={setMoveDate}><MoveFooter><span>{moveDate}</span><MoveConfirm type="button" onClick={() => closeMenu(() => onMove(moveDate))}>Move here</MoveConfirm></MoveFooter></CalendarPanel></MoveFlyout>}
+        </>}
       </ActionMenu>}
     </ActionWrap>
     {scheduleEditor && <ScheduleEditor kind={scheduleEditor} item={item} date={date} onClose={() => setScheduleEditor(null)} onTime={value => onChange(item => { item.text = value; })} onRepeat={rule => onChange(item => { item.repeat = rule; })}/>}
