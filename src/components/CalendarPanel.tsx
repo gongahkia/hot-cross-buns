@@ -1,4 +1,4 @@
-import { DayPicker } from '@daypicker/react';
+import { DayPicker, labelDayButton } from '@daypicker/react';
 import type { ReactNode } from 'react';
 import styled from 'styled-components';
 import { todayString, validDate } from '../todoText';
@@ -21,6 +21,9 @@ const Surface = styled.div`
   .rdp-selected .rdp-day_button { background: var(--link); color: var(--paper); border-color: var(--link); }
   .rdp-day_button:hover:not(:disabled) { background: var(--soft); }
   .rdp-selected .rdp-day_button:hover { background: var(--link); }
+  .rdp-day.has-unfinished .rdp-day_button { position: relative; }
+  .rdp-day.has-unfinished .rdp-day_button::after { content: ''; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--link); }
+  .rdp-day.has-unfinished.rdp-selected .rdp-day_button::after { background: var(--paper); }
   .rdp-chevron { fill: var(--ink); }
   .rdp-weekday { color: var(--muted); }
   @media(pointer:coarse) { .rdp-root { --rdp-day-width: 44px; --rdp-day-height: 44px;
@@ -39,8 +42,8 @@ export function dateToString(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function CalendarPanel({ value, onSelect, children, label, minDate }: {
-  value: string; onSelect: (value: string) => void; children?: ReactNode; label: string; minDate?: string;
+export function CalendarPanel({ value, onSelect, children, label, minDate, unfinishedDates }: {
+  value: string; onSelect: (value: string) => void; children?: ReactNode; label: string; minDate?: string; unfinishedDates?: ReadonlySet<string>;
 }) {
   const selected = dateFromString(value);
   const year = selected.getFullYear();
@@ -48,6 +51,9 @@ export function CalendarPanel({ value, onSelect, children, label, minDate }: {
     <DayPicker mode="single" required selected={selected} defaultMonth={selected} captionLayout="dropdown"
       startMonth={new Date(Math.min(1900, year - 100), 0)} endMonth={new Date(Math.max(2100, year + 100), 11)}
       today={dateFromString(todayString())} showOutsideDays fixedWeeks
+      modifiers={unfinishedDates ? { unfinished: date => unfinishedDates.has(dateToString(date)) } : undefined}
+      modifiersClassNames={{ unfinished: 'has-unfinished' }}
+      labels={unfinishedDates ? { labelDayButton: (date, modifiers) => `${labelDayButton(date, modifiers)}${modifiers.unfinished ? ', unfinished items' : ''}` } : undefined}
       disabled={minDate ? { before: dateFromString(minDate) } : undefined}
       onSelect={date => { if (date) onSelect(dateToString(date)); }}/>
     {children}

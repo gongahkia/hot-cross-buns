@@ -829,6 +829,39 @@ test('calendar stays above journal content and allows month and year selection',
   await expect(page.getByRole('button', { name: 'Go to today from 2031-02-20' })).toBeVisible();
 });
 
+test('marks unfinished calendar days and keeps existing item editing visually quiet', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.goto('/');
+  const newItem = page.getByRole('textbox', { name: 'New daily item' });
+  await newItem.focus();
+  const lineStyle = await newItem.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, shadow: style.boxShadow, radius: style.borderRadius };
+  });
+  await newItem.fill('First item');
+  await newItem.press('Enter');
+  const editor = page.getByRole('textbox', { name: 'Edit First item' });
+  await editor.focus();
+  await expect(editor).toBeFocused();
+  expect(await editor.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, shadow: style.boxShadow, radius: style.borderRadius };
+  })).toEqual(lineStyle);
+  await editor.fill('Edited item');
+  await editor.press('Tab');
+  await expect(page.getByRole('group', { name: 'Edited item' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  const day = page.locator(`.rdp-day[data-day="${today}"]`);
+  await expect(day).toHaveClass(/has-unfinished/);
+  await expect(day.locator('button')).toHaveAttribute('aria-label', /unfinished items/);
+  expect(await day.locator('button').evaluate(element => getComputedStyle(element, '::after').content)).not.toBe('none');
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await page.getByRole('button', { name: 'Complete Edited item' }).click();
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await expect(day).not.toHaveClass(/has-unfinished/);
+});
+
 test('reveals item actions on hover and reorders details within their item', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');

@@ -417,6 +417,7 @@ export default function App() {
   const draggingItem = draggingId ? documentData.days.flatMap(day => day.items).find(item => item.id === draggingId) : null;
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
   const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
+  const unfinishedDates = useMemo(() => new Set(documentData.days.filter(day => day.items.some(item => !item.completed)).map(day => day.date)), [documentData]);
   const visibleDays = useMemo(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
     const dates = query || tag
@@ -451,7 +452,7 @@ export default function App() {
       <DateControl ref={dateControlRef}>
         <DateText aria-label={`Go to today from ${selectedDate}`} title="Go to today" onClick={() => { setSelectedDate(todayString()); setDateOpen(false); }}>{new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</DateText>
         <DateCalendar aria-label="Choose date" aria-expanded={dateOpen} title="Choose date" onClick={() => setDateOpen(value => !value)}><CalendarDays size={17}/></DateCalendar>
-        {dateOpen && <DatePopover><CalendarPanel label="Choose journal date" value={selectedDate} onSelect={value => { setSelectedDate(value); setDateOpen(false); }}/></DatePopover>}
+        {dateOpen && <DatePopover><CalendarPanel label="Choose journal date" value={selectedDate} unfinishedDates={unfinishedDates} onSelect={value => { setSelectedDate(value); setDateOpen(false); }}/></DatePopover>}
       </DateControl>
       <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
       </>}

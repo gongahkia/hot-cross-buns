@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import { createPortal } from 'react-dom';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -31,7 +31,8 @@ const RepeatLabel = styled.span`display: inline-flex; align-items: center; gap: 
 const dimText = keyframes`from {color:var(--ink)} to {color:var(--muted)}`;
 const restoreText = keyframes`from {color:var(--muted)} to {color:var(--ink)}`;
 type CompletionChange = 'complete' | 'reopen' | undefined;
-const ItemInput = styled.textarea<{ $done?: boolean; $completionChange?:CompletionChange }>`display: block; width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 9px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: ${({ $done }) => $done ? 'var(--muted)' : 'var(--ink)'}; text-decoration: ${({ $done }) => $done ? 'line-through' : 'none'}; text-decoration-color: transparent; overflow: hidden; resize: none; transition: color 180ms ease-out; animation:${({$completionChange})=>$completionChange==='complete'?dimText:$completionChange==='reopen'?restoreText:'none'} 220ms ease-out; &:focus { color: var(--ink); text-decoration: none; background: var(--field); box-shadow: 0 0 0 1px var(--focus); } @media(pointer:coarse){min-height:44px; padding-top: 11px;}`;
+const quietLineFocus = css`&:focus, &:focus-visible { outline: none; border-color: transparent; border-radius: 0; background: transparent; box-shadow: inset 0 -1px 0 var(--focus); }`;
+const ItemInput = styled.textarea<{ $done?: boolean; $completionChange?:CompletionChange }>`display: block; width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 9px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: ${({ $done }) => $done ? 'var(--muted)' : 'var(--ink)'}; text-decoration: ${({ $done }) => $done ? 'line-through' : 'none'}; text-decoration-color: transparent; overflow: hidden; resize: none; transition: color 180ms ease-out; animation:${({$completionChange})=>$completionChange==='complete'?dimText:$completionChange==='reopen'?restoreText:'none'} 220ms ease-out; ${quietLineFocus} &:focus, &:focus-visible { color: var(--ink); text-decoration: none; } @media(pointer:coarse){min-height:44px; padding-top: 11px;}`;
 const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 32px; color: var(--muted); animation:none; @media(pointer:coarse){min-height:44px;}`;
 const drawStrike = keyframes`from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); }`;
 const eraseStrike = keyframes`from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 0 100%); }`;
@@ -55,7 +56,7 @@ const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const AddForm = styled.form<{ $inline: boolean }>`margin: 10px 0 0 64px; width: calc(100% - 64px); ${({$inline}) => $inline && 'margin-top: 0;'} @media(pointer:coarse){margin-left:84px;width:calc(100% - 84px);}`;
-const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } &:focus, &:focus-visible { outline: none; border-color: transparent; border-bottom-color: var(--focus); border-radius: 0; background: transparent; box-shadow: none; }`;
+const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } ${quietLineFocus}`;
 const DetailToggle = styled.button<{ $open:boolean }>`display: inline-flex; align-items: center; justify-content:center; gap: 3px; min-width:48px; min-height:40px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; svg { transform: rotate(${({$open})=>$open?'0':'-90deg'}); transition: transform 180ms ease-out; } &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;min-width:48px;}`;
 
 function LineField({ detail = false, value, $completionChange, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string; $done?: boolean; $completionChange?:CompletionChange }) {
