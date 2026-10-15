@@ -1,5 +1,7 @@
 - multi-day events
 - reschedule events just by dragging them around
+- better search (fuzzy search etc)
+- better filters on search
 - fully cover all functionality/semantics from a google cal and tasks suite
 - make mobile support first class
 - make desktop ux first class
