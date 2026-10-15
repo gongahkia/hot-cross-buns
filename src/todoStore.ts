@@ -1,15 +1,7 @@
 import { emptyDocument, normalizeDocument, validateDocument, type TodoDocument } from './todoText';
 
-export interface TodoFileHandle {
-  name: string;
-  getFile(): Promise<File>;
-  createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
-  queryPermission(options?: { mode: 'readwrite' }): Promise<PermissionState>;
-  requestPermission(options?: { mode: 'readwrite' }): Promise<PermissionState>;
-}
-
-export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; baselineText: string | null; fileHandle: TodoFileHandle | null; revision: number };
-export const emptyState = (): TodoState => ({ document: emptyDocument(), baseline: null, baselineText: null, fileHandle: null, revision: 0 });
+export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; revision: number };
+export const emptyState = (): TodoState => ({ document: emptyDocument(), baseline: null, revision: 0 });
 const DB_NAME = 'hito-todo-v1';
 const LEGACY_DB_NAME = 'jing-todo-v1';
 const STORE = 'state';
@@ -51,19 +43,19 @@ export async function loadTodoState(): Promise<TodoState> {
         if (Number.isSafeInteger(pending.revision) && pending.revision > (saved.revision ?? 0)) {
           const document = normalizeDocument(pending.document);
           validateDocument(document);
-          saved = { ...saved, document, revision: pending.revision, baseline: null, baselineText: null, fileHandle: null };
+          saved = { ...saved, document, revision: pending.revision, baseline: null };
           migrated = true;
         }
       }
     } catch { /* A damaged recovery record must not hide the IndexedDB copy. */ }
   }
-  const loaded = { ...saved, document: normalizeDocument(saved.document), baseline: saved.baseline ? normalizeDocument(saved.baseline) : null, revision: saved.revision ?? 0 };
+  const loaded: TodoState = { document: normalizeDocument(saved.document), baseline: saved.baseline ? normalizeDocument(saved.baseline) : null, revision: saved.revision ?? 0 };
   if (migrated) void saveTodoState(loaded).then(() => localStorage.removeItem(LEGACY_PENDING_KEY)).catch(() => undefined);
   return loaded;
 }
 
 export function saveTodoState(state: TodoState): Promise<void> {
-  const snapshot = { ...state, document: structuredClone(state.document), baseline: state.baseline ? structuredClone(state.baseline) : null };
+  const snapshot: TodoState = { document: structuredClone(state.document), baseline: state.baseline ? structuredClone(state.baseline) : null, revision: state.revision };
   // IndexedDB commits asynchronously. This small recovery record covers a reload
   // before its transaction starts or finishes; IndexedDB remains the main store.
   try { localStorage.setItem(PENDING_KEY, JSON.stringify({ revision: state.revision, document: state.document })); }
@@ -85,14 +77,4 @@ export function saveTodoState(state: TodoState): Promise<void> {
     } catch { /* Recovery cleanup is best effort. */ }
   });
   return queued;
-}
-
-export function pickTodoFile(): Promise<TodoFileHandle> {
-  const picker = (window as Window & { showOpenFilePicker?: (options?: object) => Promise<TodoFileHandle[]> }).showOpenFilePicker;
-  if (!picker) throw new Error('Direct file access is unavailable in this browser. Use Import instead.');
-  return picker({ types: [{ description: 'TODO.txt', accept: { 'text/plain': ['.txt'] } }], multiple: false }).then(handles => handles[0]);
-}
-
-export function supportsDirectFiles() {
-  return typeof (window as Window & { showOpenFilePicker?: unknown }).showOpenFilePicker === 'function';
 }

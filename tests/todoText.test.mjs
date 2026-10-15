@@ -46,3 +46,13 @@ test('invalid dates and orphan details are reported', () => {
   assert.match(parsed.issues[0].message, /Invalid date/);
   assert.match(parsed.issues[1].message, /valid date heading/);
 });
+
+test('empty date headings survive parsing and serialization', () => {
+  const raw = '2026-10-12\n\n2026-10-13\n\n2026-10-14\n\nTask\n';
+  const parsed = parseTodoText(raw, '2026-10-15');
+  assert.deepEqual(parsed.issues, []);
+  assert.deepEqual(parsed.document.days.slice(0, 2).map(day => [day.date, day.items.length, day.keepEmpty]), [
+    ['2026-10-12', 0, true], ['2026-10-13', 0, true],
+  ]);
+  assert.equal(serializeTodoText(parsed.document), raw);
+});

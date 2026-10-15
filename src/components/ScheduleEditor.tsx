@@ -70,7 +70,8 @@ export function ScheduleEditor({ kind, item, date, onClose, onTime, onRepeat }: 
       onRepeat(undefined);
     } else if (mode === 'after') {
       if (!Number.isSafeInteger(afterEvery) || afterEvery < 1 || afterEvery > 999) { setError('Choose an interval from 1 to 999.'); return; }
-      onRepeat({ kind: 'after', every: afterEvery, unit: afterUnit });
+      const existing = item.repeat?.kind === 'after' && item.repeat.series && item.repeat.occurrence ? item.repeat : null;
+      onRepeat({ kind: 'after', every: afterEvery, unit: afterUnit, series: existing?.series ?? newSeriesId(item.text, date), occurrence: existing?.occurrence ?? 1 });
     } else {
       const frequency: Unit = mode === 'daily' ? 'days' : mode === 'weekly' || mode === 'weekdays' ? 'weeks' : mode === 'monthlyWeekday' ? 'months' : mode === 'yearly' ? 'years' : unit;
       const interval = mode === 'custom' ? every : 1;

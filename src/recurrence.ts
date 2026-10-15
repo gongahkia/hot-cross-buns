@@ -1,57 +1,78 @@
-import type { TodoDocument, TodoItem } from './todoText.ts';
-import { describeScheduled, formatScheduled, nextScheduledDate, parseScheduled, type ScheduledRule } from './scheduledRecurrence.ts';
+import type { TodoDocument } from './todoText.ts';
+import { describeScheduled, formatScheduled, newSeriesId, nextScheduledDate, parseScheduled, validSeriesId, type ScheduledRule } from './scheduledRecurrence.ts';
 export { newSeriesId } from './scheduledRecurrence.ts';
 export type { ScheduledRule, ScheduledPattern, ScheduleEnd, Ordinal, Weekday } from './scheduledRecurrence.ts';
 
 const weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 type Weekday = typeof weekdays[number];
 type IntervalUnit = 'days' | 'weeks' | 'months' | 'years';
+type Identity = { series?: string; occurrence?: number };
 
 export type RecurrenceRule =
-  | { kind: 'daily' }
-  | { kind: 'weekdays' }
-  | { kind: 'weekly'; days: Weekday[] }
-  | { kind: 'monthly'; day: number }
-  | { kind: 'yearly'; month: number; day: number }
-  | { kind: 'after'; every: number; unit: IntervalUnit }
+  | ({ kind: 'daily' } & Identity)
+  | ({ kind: 'weekdays' } & Identity)
+  | ({ kind: 'weekly'; days: Weekday[] } & Identity)
+  | ({ kind: 'monthly'; day: number } & Identity)
+  | ({ kind: 'yearly'; month: number; day: number } & Identity)
+  | ({ kind: 'after'; every: number; unit: IntervalUnit } & Identity)
   | ScheduledRule;
 
 export function parseRecurrence(raw: string): RecurrenceRule | null {
   const value = raw.trim().toLowerCase();
-  if (value === 'daily') return { kind: 'daily' };
-  if (value === 'weekdays') return { kind: 'weekdays' };
-  const weekly = /^weekly on (mon|tue|wed|thu|fri|sat|sun)(?:\s*,\s*(?:mon|tue|wed|thu|fri|sat|sun))*$/.exec(value);
-  if (weekly) {
-    const days = [...new Set(value.slice(10).split(/\s*,\s*/) as Weekday[])];
-    return { kind: 'weekly', days: weekdays.filter(day => days.includes(day)) };
+  const scheduled = parseScheduled(value);
+  if (scheduled) return scheduled;
+  const [base, ...clauses] = value.split(/\s*;\s*/);
+  let identity: Identity = {};
+  if (clauses.length) {
+    if (clauses.length !== 2) return null;
+    const values = new Map<string, string>();
+    for (const clause of clauses) {
+      const match = /^(series|occurrence) (.+)$/.exec(clause);
+      if (!match || values.has(match[1])) return null;
+      values.set(match[1], match[2]);
+    }
+    const series = values.get('series') ?? '';
+    const occurrence = Number(values.get('occurrence'));
+    if (!validSeriesId(series) || !Number.isSafeInteger(occurrence) || occurrence < 1 || occurrence > 9999) return null;
+    identity = { series, occurrence };
   }
-  const monthly = /^monthly on (\d{1,2})$/.exec(value);
-  if (monthly && Number(monthly[1]) >= 1 && Number(monthly[1]) <= 31) return { kind: 'monthly', day: Number(monthly[1]) };
-  const yearly = /^yearly on (\d{2})-(\d{2})$/.exec(value);
+  if (base === 'daily') return { kind: 'daily', ...identity };
+  if (base === 'weekdays') return { kind: 'weekdays', ...identity };
+  const weekly = /^weekly on (mon|tue|wed|thu|fri|sat|sun)(?:\s*,\s*(?:mon|tue|wed|thu|fri|sat|sun))*$/.exec(base);
+  if (weekly) {
+    const days = [...new Set(base.slice(10).split(/\s*,\s*/) as Weekday[])];
+    return { kind: 'weekly', days: weekdays.filter(day => days.includes(day)), ...identity };
+  }
+  const monthly = /^monthly on (\d{1,2})$/.exec(base);
+  if (monthly && Number(monthly[1]) >= 1 && Number(monthly[1]) <= 31) return { kind: 'monthly', day: Number(monthly[1]), ...identity };
+  const yearly = /^yearly on (\d{2})-(\d{2})$/.exec(base);
   if (yearly) {
     const month = Number(yearly[1]);
     const day = Number(yearly[2]);
-    if (month >= 1 && month <= 12 && new Date(Date.UTC(2024, month - 1, day)).getUTCMonth() === month - 1 && day >= 1) return { kind: 'yearly', month, day };
+    if (month >= 1 && month <= 12 && new Date(Date.UTC(2024, month - 1, day)).getUTCMonth() === month - 1 && day >= 1) return { kind: 'yearly', month, day, ...identity };
   }
-  const after = /^every ([1-9]\d*) (days?|weeks?|months?|years?) after completion$/.exec(value);
-  if (after && Number(after[1]) <= 999) return { kind: 'after', every: Number(after[1]), unit: `${after[2].replace(/s$/, '')}s` as IntervalUnit };
-  return parseScheduled(value);
+  const after = /^every ([1-9]\d*) (days?|weeks?|months?|years?) after completion$/.exec(base);
+  if (after && Number(after[1]) <= 999) return { kind: 'after', every: Number(after[1]), unit: `${after[2].replace(/s$/, '')}s` as IntervalUnit, ...identity };
+  return null;
 }
 
 export function formatRecurrence(rule: RecurrenceRule): string {
+  if (rule.kind === 'scheduled') return formatScheduled(rule);
+  const identity = rule.series && rule.occurrence ? `; series ${rule.series}; occurrence ${rule.occurrence}` : '';
   switch (rule.kind) {
-    case 'daily': return 'daily';
-    case 'weekdays': return 'weekdays';
-    case 'weekly': return `weekly on ${rule.days.join(', ')}`;
-    case 'monthly': return `monthly on ${rule.day}`;
-    case 'yearly': return `yearly on ${String(rule.month).padStart(2, '0')}-${String(rule.day).padStart(2, '0')}`;
-    case 'after': return `every ${rule.every} ${rule.every === 1 ? rule.unit.slice(0, -1) : rule.unit} after completion`;
-    case 'scheduled': return formatScheduled(rule);
+    case 'daily': return 'daily' + identity;
+    case 'weekdays': return 'weekdays' + identity;
+    case 'weekly': return `weekly on ${rule.days.join(', ')}` + identity;
+    case 'monthly': return `monthly on ${rule.day}` + identity;
+    case 'yearly': return `yearly on ${String(rule.month).padStart(2, '0')}-${String(rule.day).padStart(2, '0')}` + identity;
+    case 'after': return `every ${rule.every} ${rule.every === 1 ? rule.unit.slice(0, -1) : rule.unit} after completion` + identity;
   }
 }
 
 export function describeRecurrence(rule: RecurrenceRule): string {
-  return rule.kind === 'scheduled' ? describeScheduled(rule) : formatRecurrence(rule);
+  if (rule.kind === 'scheduled') return describeScheduled(rule);
+  const { series: _series, occurrence: _occurrence, ...plain } = rule;
+  return formatRecurrence(plain as RecurrenceRule);
 }
 
 const fromDate = (date: string) => new Date(`${date}T12:00:00Z`);
@@ -101,21 +122,44 @@ export function nextRecurrenceDate(rule: RecurrenceRule, afterDate: string): str
   throw new Error(`Cannot calculate recurrence after ${afterDate}`);
 }
 
-/** Generate one next occurrence for an item that just became complete. Never scan old completed items. */
-export function advanceRecurrences(before: TodoDocument, after: TodoDocument, completedOn: string): void {
+/** Stamp fresh completions; imports can also recover older missing successors. */
+export function advanceRecurrences(before: TodoDocument, after: TodoDocument, completedOn: string, recoverImported = false, baseline: TodoDocument | null = null): void {
   const prior = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
-  const newlyCompleted = after.days.flatMap(day => day.items.filter(item => item.completed && item.repeat && prior.get(item.id)?.completed === false).map(item => ({ date: day.date, item })));
-  for (const { date, item } of newlyCompleted) {
-    const rule = item.repeat!;
-    const nextDate = nextRecurrenceDate(rule, completedOn > date ? completedOn : date);
-    if (!nextDate) continue;
-    const nextRule: RecurrenceRule = rule.kind === 'scheduled' ? { ...rule, occurrence: rule.occurrence + 1 } : structuredClone(rule);
-    if (rule.kind === 'scheduled' && after.days.some(day => day.items.some(candidate => candidate.repeat?.kind === 'scheduled'
-      && candidate.repeat.series === rule.series && candidate.repeat.occurrence === rule.occurrence + 1))) continue;
-    let day = after.days.find(candidate => candidate.date === nextDate);
-    if (!day) { day = { date: nextDate, items: [] }; after.days.push(day); }
-    const sameNext = (candidate: TodoItem) => !candidate.completed && candidate.text === item.text && JSON.stringify(candidate.repeat) === JSON.stringify(nextRule);
-    if (!day.items.some(sameNext)) day.items.push({ id: crypto.randomUUID(), text: item.text, completed: false, repeat: nextRule, details: item.details.map(detail => ({ text: detail.text, completed: false })) });
+  const completedKeys = new Set<string>();
+  for (const day of after.days) for (const item of day.items) {
+    const previous = prior.get(item.id);
+    if (previous?.completed && !item.completed) delete item.completedOn;
+    if (!item.completed || !item.repeat || previous?.completed !== false) continue;
+    item.completedOn ??= completedOn;
+    if (!item.repeat.series || !item.repeat.occurrence) item.repeat = { ...item.repeat, series: newSeriesId(item.text, day.date), occurrence: 1 };
+    completedKeys.add(`${item.repeat.series}:${item.repeat.occurrence}`);
   }
-  if (newlyCompleted.length) after.days.sort((a, b) => a.date.localeCompare(b.date));
+  if (recoverImported) {
+    const present = new Set(after.days.flatMap(day => day.items.filter(item => item.repeat?.series && item.repeat.occurrence).map(item => `${item.repeat!.series}:${item.repeat!.occurrence}`)));
+    const removed = new Set(baseline?.days.flatMap(day => day.items.filter(item => item.repeat?.series && item.repeat.occurrence)
+      .map(item => `${item.repeat!.series}:${item.repeat!.occurrence}`).filter(key => !present.has(key))) ?? []);
+    reconcileRecurrences(after, undefined, removed);
+  }
+  else if (completedKeys.size) reconcileRecurrences(after, completedKeys);
+}
+
+/** Reading the same completed series repeatedly creates at most its one missing next item. */
+export function reconcileRecurrences(document: TodoDocument, onlyKeys?: Set<string>, removedKeys?: Set<string>): void {
+  const occurrences = document.days.flatMap(day => day.items.map(item => ({ date: day.date, item })));
+  const seen = new Set(occurrences.filter(({item}) => item.repeat?.series && item.repeat.occurrence).map(({item}) => `${item.repeat!.series}:${item.repeat!.occurrence}`));
+  for (const { date, item } of occurrences) {
+    const rule = item.repeat;
+    if (!item.completed || !item.completedOn || !rule?.series || !rule.occurrence || rule.occurrence >= 9999) continue;
+    if (onlyKeys && !onlyKeys.has(`${rule.series}:${rule.occurrence}`)) continue;
+    const nextKey = `${rule.series}:${rule.occurrence + 1}`;
+    if (seen.has(nextKey) || removedKeys?.has(nextKey)) continue;
+    const nextDate = nextRecurrenceDate(rule, item.completedOn > date ? item.completedOn : date);
+    if (!nextDate) continue;
+    const nextRule: RecurrenceRule = { ...rule, occurrence: rule.occurrence + 1 };
+    let nextDay = document.days.find(candidate => candidate.date === nextDate);
+    if (!nextDay) { nextDay = { date: nextDate, items: [] }; document.days.push(nextDay); }
+    nextDay.items.push({ id: crypto.randomUUID(), text: item.text, completed: false, repeat: nextRule, details: item.details.map(detail => ({ text: detail.text, completed: false })) });
+    seen.add(nextKey);
+  }
+  document.days.sort((a, b) => a.date.localeCompare(b.date));
 }

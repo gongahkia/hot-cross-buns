@@ -31,3 +31,14 @@ test('ambiguous duplicate deletion needs review', () => {
   const proposal = proposeMerge(local, file, baseline);
   assert.ok(proposal.conflicts.length >= 1);
 });
+
+test('an imported empty heading survives merge and a later explicit removal', () => {
+  const empty = { days: [{ date: '2026-10-12', items: [], keepEmpty: true }] };
+  const imported = proposeMerge({ days: [] }, empty, null);
+  assert.deepEqual(resolveMerge(imported, {}).days, empty.days);
+  const removed = proposeMerge(empty, { days: [] }, empty);
+  assert.deepEqual(resolveMerge(removed, {}).days, []);
+  assert.deepEqual(proposeMerge(empty, empty, empty).fileEmptyDates, ['2026-10-12']);
+  const withItem = proposeMerge(empty, doc(item('a', 'New')), empty);
+  assert.equal(resolveMerge(withItem, {}).days[0].keepEmpty, true);
+});

@@ -32,6 +32,7 @@ const daysInMonth = (year: number, month: number) => calendarDate(year, month + 
 const iso = (year: number, month: number, day: number) => String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
 const weekdayIndex = (weekday: Weekday) => weekdays.indexOf(weekday);
 export const validScheduleDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(fromDate(value).getTime()) && toDate(fromDate(value)) === value;
+export const validSeriesId = (value: string) => /^[a-z0-9][a-z0-9-]{0,79}$/.test(value);
 const validMonthDay = (month: number, day: number) => month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth(2024, month);
 
 function parseDays(value: string): Weekday[] | null {
@@ -78,7 +79,7 @@ export function parseScheduled(raw: string): ScheduledRule | null {
   const from = clauses.get('from') ?? '';
   const series = clauses.get('series') ?? '';
   const occurrence = Number(clauses.get('occurrence'));
-  if (!validScheduleDate(from) || !/^[a-z0-9][a-z0-9-]{0,79}$/.test(series) || !Number.isSafeInteger(occurrence) || occurrence < 1 || occurrence > 9999) return null;
+  if (!validScheduleDate(from) || !validSeriesId(series) || !Number.isSafeInteger(occurrence) || occurrence < 1 || occurrence > 9999) return null;
   let end: ScheduleEnd | undefined;
   const ends = clauses.get('ends');
   if (ends) {

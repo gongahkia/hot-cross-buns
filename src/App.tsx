@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, Search, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
@@ -13,11 +13,12 @@ import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
 import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
-import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
+import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
+import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { advanceRecurrences } from './recurrence';
 import { parseTimeBlock } from './timeBlock';
-import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectFiles, type TodoFileHandle, type TodoState } from './todoStore';
+import { emptyState, loadTodoState, saveTodoState, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
@@ -184,7 +185,6 @@ export default function App() {
   const [review, setReview] = useState<FileReviewState | null>(null);
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
-  const [issues, setIssues] = useState<ParseIssue[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
@@ -276,6 +276,7 @@ export default function App() {
     const before = current.current.document;
     const document = cloneDocument(before);
     change(document);
+    document.days = document.days.filter(day => day.items.length || day.keepEmpty);
     advanceRecurrences(before, document, todayString());
     try { validateDocument(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeTodoText(before) === serializeTodoText(document)) return;
@@ -336,7 +337,7 @@ export default function App() {
         }
         destination.items.splice(destination.items.indexOf(target) + (beforeTarget ? 0 : 1), 0, moved);
       } else destination.items.push(moved);
-      document.days = document.days.filter(day => day.items.length);
+      document.days = document.days.filter(day => day.items.length || day.keepEmpty);
       document.days.sort((a,b) => a.date.localeCompare(b.date));
     });
   };
@@ -369,75 +370,63 @@ export default function App() {
       let destination = document.days.find(day => day.date === target);
       if (!destination) { destination = { date: target, items: [] }; document.days.push(destination); }
       destination.items.push(item);
-      document.days = document.days.filter(day => day.items.length);
+      document.days = document.days.filter(day => day.items.length || day.keepEmpty);
       document.days.sort((a,b) => a.date.localeCompare(b.date));
     });
     setSelectedDate(target);
     setViewMode('day');
   };
-  const imported = async (raw: string, handle: TodoFileHandle | null, mode: 'import' | 'save', observedText: string | null = null) => {
-    const parsed = parseTodoText(raw);
-    if (parsed.issues.length) { setRawEdit(raw); setIssues(parsed.issues); setReview({ raw, proposal: { rows: [], conflicts: [] }, handle, mode, observedText }); return; }
-    const proposal = proposeMerge(current.current.document, parsed.document, current.current.baseline);
-    if (proposal.conflicts.length) { setChoices({}); setIssues([]); setReview({ raw, proposal, handle, mode, observedText }); return; }
-    const merged = resolveMerge(proposal, {});
-    advanceRecurrences(current.current.document, merged, todayString());
-    validateDocument(merged);
-    if (mode === 'save' && handle) await saveToHandle(handle, merged, observedText ?? raw);
-    else { await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal), baselineText: raw, fileHandle: handle }); setMessage('TODO.txt imported.'); }
-  };
-  const saveToHandle = async (handle: TodoFileHandle, document: TodoDocument, observed: string) => {
-    if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted' && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('File access was not granted.');
-    const latest = await (await handle.getFile()).text();
-    if (latest !== observed) {
-      // Keep the user's completed review as the local side of the next merge.
-      await commitDocumentState({ ...current.current, document });
-      await imported(latest, handle, 'save', latest);
+  const imported = async (raw: string, original = raw) => {
+    const diagnosis = doctorTodoText(raw);
+    if (diagnosis.findings.length) {
+      setRawEdit(diagnosis.candidate);
+      setReview({ kind: 'doctor', original, checked: diagnosis.candidate, findings: diagnosis.findings });
       return;
     }
-    const output = serializeTodoText(document);
-    const writable = await handle.createWritable();
-    await writable.write(output);
-    await writable.close();
-    await commitDocumentState({ ...current.current, document, baseline: cloneDocument(document), baselineText: output, fileHandle: handle });
-    setReview(null); setMessage(`Saved ${handle.name}.`);
+    const parsed = parseTodoText(raw);
+    if (parsed.issues.length) throw new Error('The TODO.txt doctor found a format issue after review.');
+    const proposal = proposeMerge(current.current.document, parsed.document, current.current.baseline);
+    if (proposal.conflicts.length) { setChoices({}); setReview({ kind: 'merge', raw, proposal }); return; }
+    const merged = resolveMerge(proposal, {});
+    advanceRecurrences(current.current.document, merged, todayString(), true, current.current.baseline);
+    validateDocument(merged);
+    await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal) });
+    setReview(null);
+    setMessage('TODO.txt imported.');
   };
-  const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text(), null, 'import'); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } };
-  const openFile = async () => { setBusy(true); try { const handle = await pickTodoFile(); await imported(await (await handle.getFile()).text(), handle, 'import'); } catch (error) { if ((error as Error).name !== 'AbortError') setMessage(String(error)); } finally { setBusy(false); } };
+  const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text()); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } };
   const download = async (fileName: string, lineEnding: LineEnding) => {
     const output = serializeTodoText(current.current.document);
     const fileText = lineEnding === 'crlf' ? output.replace(/\n/g, '\r\n') : output;
     downloadTextFile(fileText, fileName);
     setExportOpen(false);
-    if (!current.current.fileHandle) await commitState({ ...current.current, baseline: cloneDocument(current.current.document), baselineText: fileText });
+    await commitState({ ...current.current, baseline: cloneDocument(current.current.document) });
     setMessage('TODO.txt downloaded.');
   };
-  const save = async () => {
-    const handle = current.current.fileHandle;
-    if (!handle) { setMessage('Open a TODO.txt file first, or use Download.'); return; }
-    setBusy(true);
-    try {
-      if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted' && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('File access was not granted.');
-      const raw = await (await handle.getFile()).text();
-      if (raw !== current.current.baselineText) await imported(raw, handle, 'save', raw);
-      else await saveToHandle(handle, current.current.document, raw);
-    } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
-  };
   const applyReview = async () => {
-    if (!review || issues.length) return;
+    if (!review) return;
     setBusy(true);
     try {
-      const merged = resolveMerge(review.proposal, choices);
-      advanceRecurrences(current.current.document, merged, todayString());
-      validateDocument(merged);
-      if (review.mode === 'save' && review.handle) await saveToHandle(review.handle, merged, review.observedText ?? review.raw);
-      else {
-        await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal), baselineText: review.raw, fileHandle: review.handle });
-        setReview(null); setMessage('TODO.txt imported.');
+      if (review.kind === 'doctor') {
+        if (rawEdit !== review.checked || review.findings.some(finding => finding.level === 'review')) return;
+        await imported(rawEdit, review.original);
+        return;
       }
+      const merged = resolveMerge(review.proposal, choices);
+      advanceRecurrences(current.current.document, merged, todayString(), true, current.current.baseline);
+      validateDocument(merged);
+      await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal) });
+      setReview(null); setMessage('TODO.txt imported.');
     } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
   };
-  const reparse = async () => { setIssues([]); setReview(null); try { await imported(rawEdit, review?.handle ?? null, review?.mode ?? 'import', review?.observedText ?? null); } catch (error) { setMessage(String(error)); } };
+  const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { setMessage(String(error)); } };
+  const doctorAction = (finding: DoctorFinding, action: DoctorAction, value?: string) => {
+    if (review?.kind !== 'doctor') return;
+    const updated = applyDoctorAction(rawEdit, finding, action, value);
+    const diagnosis = doctorTodoText(updated);
+    setRawEdit(diagnosis.candidate);
+    setReview({ kind: 'doctor', original: review.original, checked: diagnosis.candidate, findings: diagnosis.findings });
+  };
   const documentData = state?.document ?? emptyDocument();
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -498,9 +487,7 @@ export default function App() {
     <Tools>
       <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
       <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
       <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title="Save connected TODO.txt" aria-label="Save connected TODO.txt" disabled={busy || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
       <Icon title="Hito settings" aria-label="Hito settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
@@ -534,9 +521,9 @@ export default function App() {
     </div>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
-    <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}
-      onClose={() => { setReview(null); setIssues([]); }} onRawEdit={setRawEdit}
+    <FileReview review={review} rawEdit={rawEdit} choices={choices} busy={busy}
+      onClose={() => setReview(null)} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
-      onReparse={() => void reparse()} onApply={() => void applyReview()}/>
+      onReparse={() => void reparse()} onApply={() => void applyReview()} onDoctorAction={doctorAction}/>
   </Page>;
 }

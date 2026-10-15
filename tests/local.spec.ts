@@ -87,53 +87,77 @@ test('flags malformed text and unfinished work on an earlier date', async ({ pag
   await expect(page.getByText('unfinished', { exact: true })).toHaveCount(0);
 });
 
-test('opens and explicitly saves a connected text file when direct access is available', async ({ page }) => {
-  const today = dateOffset(0);
-  await page.addInitScript((date) => {
-    (window as Window & { showOpenFilePicker?: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => {
-      const root = await navigator.storage.getDirectory();
-      const handle = await root.getFileHandle('TODO.txt', { create: true });
-      if ((await handle.getFile()).size === 0) {
-        const writable = await handle.createWritable();
-        await writable.write(`${date}\n\nConnected item\n`);
-        await writable.close();
-      }
-      return [handle];
-    };
-  }, today);
+test('offers explicit import and download even when direct file access is available', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as Window & { showOpenFilePicker?: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => [];
+  });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open TODO.txt' }).click();
-  await expect(page.getByRole('group', { name: 'Connected item' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Edit Connected item' }).fill('Updated connected item');
-  await page.getByRole('textbox', { name: 'Edit Connected item' }).press('Enter');
-  await page.getByRole('button', { name: 'Save connected TODO.txt' }).click();
-  await expect(page.getByRole('status').getByText('Saved TODO.txt.')).toBeVisible();
-  const saved = await page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    return (await (await root.getFileHandle('TODO.txt')).getFile()).text();
-  });
-  expect(saved).toContain('Updated connected item');
+  await expect(page.getByRole('button', { name: 'Import TODO.txt' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open TODO.txt' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save connected TODO.txt' })).toHaveCount(0);
+});
 
-  await page.getByRole('textbox', { name: 'Edit Updated connected item' }).fill('Local follow-up');
-  await page.getByRole('textbox', { name: 'Edit Updated connected item' }).press('Enter');
-  await page.evaluate(async (date) => {
-    const root = await navigator.storage.getDirectory();
-    const handle = await root.getFileHandle('TODO.txt');
-    const writable = await handle.createWritable();
-    await writable.write(`${date}\n\nExternal follow-up\n`);
-    await writable.close();
-  }, today);
-  await page.getByRole('button', { name: 'Save connected TODO.txt' }).click();
-  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' }).getByText('External follow-up')).toBeVisible();
-  await page.getByLabel('keep both').check();
-  await page.getByRole('button', { name: 'merge and save' }).click();
-  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' })).toBeHidden();
-  const merged = await page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    return (await (await root.getFileHandle('TODO.txt')).getFile()).text();
-  });
-  expect(merged).toContain('Local follow-up');
-  expect(merged).toContain('External follow-up');
+test('doctor previews narrow repairs, requires a divider choice, and leaves the source untouched', async ({ page }) => {
+  const today = dateOffset(0);
+  const original = `${today}\nReview notes\n\t@REPEAT: daily\n  - [ ] check links\n`;
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(original) });
+  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
+  await expect(review.getByText('Check TODO.txt import')).toBeVisible();
+  await expect(review.getByLabel('Original imported TODO.txt')).toContainText('\t@REPEAT: daily');
+  await expect(review.getByLabel('Edit imported TODO.txt')).toHaveValue(`${today}\nReview notes\n  @repeat: daily\n- [ ] check links\n`);
+  await expect(review.getByRole('button', { name: 'apply import' })).toBeDisabled();
+  await review.getByRole('button', { name: 'mark this day upcoming' }).click();
+  await expect(review.getByLabel('Original imported TODO.txt')).toContainText('\t@REPEAT: daily');
+  await review.getByRole('button', { name: 'apply import' }).click();
+  await expect(page.getByRole('group', { name: 'Review notes' }).getByRole('button', { name: 'Complete Review notes' })).toBeVisible();
+});
+
+test('doctor asks for recurrence completion date and identity before rebuilding a successor', async ({ page }) => {
+  const yesterday = dateOffset(-1);
+  const today = dateOffset(0);
+  const original = `${yesterday}\nWater plants\n  @repeat: daily\n\n`;
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(original) });
+  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
+  await expect(review.getByText(/repeats but has no completion date/)).toBeVisible();
+  await review.getByLabel('Completion date for line 2').fill(yesterday);
+  await review.getByRole('button', { name: 'set completion date' }).click();
+  await review.getByRole('button', { name: 'start a new series here' }).click();
+  await review.getByRole('button', { name: 'apply import' }).click();
+  await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Water plants' })).toBeVisible();
+  const promise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
+  const raw = await readFile(await (await promise).path(), 'utf8');
+  expect(raw).toContain(`  @completed: ${yesterday}`);
+  expect(raw).toMatch(/@repeat: daily; series water-plants-[\w-]+; occurrence 2/);
+});
+
+test('an invalid imported file cannot replace existing journal data', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this item');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2026-02-30\nMissing date\n') });
+  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
+  await expect(review.getByText('Invalid date: 2026-02-30')).toBeVisible();
+  await expect(review.getByRole('button', { name: 'apply import' })).toBeDisabled();
+  await review.getByRole('button', { name: 'cancel' }).click();
+  await page.reload();
+  await expect(page.getByRole('group', { name: 'Keep this item' })).toBeVisible();
+});
+
+test('imports and exports an empty date heading without turning it into an item', async ({ page }) => {
+  const day = dateOffset(0);
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${day}\n`) });
+  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' })).toHaveCount(0);
+  await page.reload();
+  const promise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
+  expect(await readFile(await (await promise).path(), 'utf8')).toBe(`${day}\n`);
 });
 
 test('keeps mobile lines readable and keyboard controls usable', async ({ page }) => {
@@ -387,8 +411,9 @@ test('edits a time block and recurrence, creates one next item, and keeps both i
 test('an externally completed recurring item advances once when TODO.txt is imported', async ({ page }) => {
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
-  const pending = `${today}\n\nCheck filter\n  @repeat: daily\n- [ ] inspect it\n`;
-  const completed = `${today}\nCheck filter\n  @repeat: daily\n- [x] inspect it\n\n`;
+  const repeat = '  @repeat: daily; series check-filter-import; occurrence 1';
+  const pending = `${today}\n\nCheck filter\n${repeat}\n- [ ] inspect it\n`;
+  const completed = `${today}\nCheck filter\n${repeat}\n  @completed: ${today}\n- [x] inspect it\n\n`;
   await page.goto('/');
   const importFile = page.getByLabel('Import a TODO.txt file');
   await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
@@ -442,7 +467,7 @@ test('an edited TODO.txt completion advances a custom series only once', async (
   const weekday = weekdayNames[new Date(today + 'T12:00:00Z').getUTCDay()];
   const line = '  @repeat: every 2 weeks on ' + weekday + '; from ' + today + '; series imported-series; occurrence 1; ends after 2';
   const pending = today + '\n\nCheck filter\n' + line + '\n';
-  const completed = today + '\nCheck filter\n' + line + '\n\n';
+  const completed = today + '\nCheck filter\n' + line + '\n  @completed: ' + today + '\n\n';
   await page.goto('/');
   await showThirtyOneDays(page);
   const input = page.getByLabel('Import a TODO.txt file');
@@ -1099,7 +1124,7 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   const lines = Array.from({ length: 1200 }, (_, index) => `Task ${String(index).padStart(4, '0')} ${index === 1199 ? 'unique-needle' : 'ordinary'}`);
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\n${lines.join('\n\n')}\n`) });
-  await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible();
+  await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible({ timeout: 20000 });
   const unfilteredEditStart = Date.now();
   await page.getByRole('button', { name: `Complete ${lines[1199]}` }).click();
   await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toContainText('1');

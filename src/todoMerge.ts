@@ -5,7 +5,7 @@ export type MergeRow = {
   key: string; date: string; order: number; localOrder: number; fileOrder: number; local: TodoItem | null; file: TodoItem | null;
   conflict: boolean; choice: MergeChoice; reorderConflict?: boolean;
 };
-export type MergeProposal = { rows: MergeRow[]; conflicts: MergeRow[] };
+export type MergeProposal = { rows: MergeRow[]; conflicts: MergeRow[]; emptyDates: string[]; keepEmptyDates: string[]; fileEmptyDates: string[] };
 
 const same = (a: TodoItem | null, b: TodoItem | null) => a === b || (!!a && !!b && itemValue(a) === itemValue(b));
 /** Align text-file items to the last observed file without putting private IDs in TODO.txt. */
@@ -128,12 +128,21 @@ export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: 
     }
   }
   rows.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order || a.key.localeCompare(b.key));
-  return { rows, conflicts: rows.filter(row => row.conflict) };
+  const emptyDates = [...dates].filter(date => {
+    const localHasDate = localByDate.has(date);
+    const fileHasDate = fileByDate.has(date);
+    if (!baseline) return localHasDate || fileHasDate;
+    const baseHasDate = baseByDate.has(date);
+    return localHasDate === baseHasDate ? fileHasDate : fileHasDate === baseHasDate ? localHasDate : localHasDate || fileHasDate;
+  });
+  const keepEmptyDates = emptyDates.filter(date => local.days.find(day => day.date === date)?.keepEmpty || file.days.find(day => day.date === date)?.keepEmpty);
+  return { rows, conflicts: rows.filter(row => row.conflict), emptyDates, keepEmptyDates, fileEmptyDates: file.days.filter(day => !day.items.length).map(day => day.date) };
 }
 
 export function resolveMerge(proposal: MergeProposal, choices: Record<string, MergeChoice>) {
   const document = emptyDocument();
   const days = new Map<string, { date: string; items: TodoItem[] }>();
+  const keepEmpty = new Set(proposal.keepEmptyDates);
   const idsByDate = new Map<string, Set<string>>();
   const ordered = [...proposal.rows].sort((a,b) => {
     const aChoice = choices[a.key] ?? a.choice;
@@ -147,7 +156,7 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
     const selected = choice === 'both' ? [row.local, row.file] : [choice === 'local' ? row.local : row.file];
     let day = days.get(row.date);
     if (!day) {
-      day = { date: row.date, items: [] };
+      day = { date: row.date, items: [], ...(keepEmpty.has(row.date) ? { keepEmpty: true } : {}) };
       days.set(row.date, day);
       idsByDate.set(row.date, new Set());
       document.days.push(day);
@@ -160,7 +169,8 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
       day.items.push({ ...item, id, details: item.details.map(detail => ({ ...detail })) });
     }
   }
-  document.days = document.days.filter(day => day.items.length);
+  for (const date of proposal.emptyDates) if (!days.has(date)) document.days.push({ date, items: [], keepEmpty: true });
+  document.days.sort((a,b) => a.date.localeCompare(b.date));
   return cloneDocument(document);
 }
 
@@ -175,5 +185,7 @@ export function fileBaseline(proposal: MergeProposal) {
     })();
     day.items.push({ ...row.file, id: row.local?.id ?? row.file.id, details: row.file.details.map(detail => ({ ...detail })) });
   }
+  for (const date of proposal.fileEmptyDates) if (!document.days.some(day => day.date === date)) document.days.push({ date, items: [], keepEmpty: true });
+  document.days.sort((a,b) => a.date.localeCompare(b.date));
   return document;
 }
