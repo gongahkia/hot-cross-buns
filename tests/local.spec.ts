@@ -72,6 +72,26 @@ test('confirms a move to Done and offers Undo for item and last-detail completio
   await expect(confirmation).toContainText('Moved to Done: Review notes');
 });
 
+test('completion confirmation enters and exits on dismissal or timeout', async ({ page }) => {
+  test.setTimeout(15000);
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('File report');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'Complete File report' }).click();
+  const confirmation = page.locator('[aria-label="Completion confirmation"]');
+  await expect(confirmation).toHaveAttribute('data-phase', 'visible');
+  await expect(confirmation).toHaveCSS('transition-property', 'opacity, transform');
+  await confirmation.getByRole('button', { name: 'Dismiss completion confirmation' }).click();
+  await expect(confirmation).toHaveAttribute('data-phase', 'leaving');
+  await expect(confirmation).toHaveCount(0);
+
+  await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
+  await page.getByRole('button', { name: 'Reopen File report' }).click();
+  await page.getByRole('button', { name: 'Complete File report' }).click();
+  await expect(confirmation).toHaveAttribute('data-phase', 'visible');
+  await expect(confirmation).toHaveCount(0, { timeout: 7500 });
+});
+
 test('imports, reviews conflicting items, and preserves the file baseline', async ({ page }) => {
   await page.goto('/');
   const today = dateOffset(0);
