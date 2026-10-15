@@ -6,3 +6,6 @@
 - make mobile support first class
 - make desktop ux first class
 - add import scripts for google cal and tasks, just within the repo doesn't have to eb actually within the app, shell script or whatever is best is fine
+- add optional cloud support with guide to one-click deploy to any remote db 
+- add syncing to google drive as well
+- actually dogfood this for a couple of days
