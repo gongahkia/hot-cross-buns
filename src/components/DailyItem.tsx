@@ -59,6 +59,17 @@ const AddForm = styled.form<{ $inline: boolean }>`margin: 10px 0 0 64px; width: 
 const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } ${quietLineFocus} @media(pointer:coarse){font-size:16px; &::placeholder {font-size:13px;}}`;
 const DetailToggle = styled.button<{ $open:boolean }>`display: inline-flex; align-items: center; justify-content:center; gap: 3px; min-width:48px; min-height:40px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; svg { transform: rotate(${({$open})=>$open?'0':'-90deg'}); transition: transform 180ms ease-out; } &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;min-width:48px;} @media(max-width:540px){grid-column:3 / -1;grid-row:3;justify-self:end;}`;
 
+const lineFields = new Set<HTMLTextAreaElement>();
+let lineResizeFrame = 0;
+function resizeLineFields() {
+  if (lineResizeFrame) cancelAnimationFrame(lineResizeFrame);
+  lineResizeFrame = requestAnimationFrame(() => {
+    lineResizeFrame = 0;
+    for (const element of lineFields) element.style.height = 'auto';
+    for (const element of lineFields) element.style.height = `${element.scrollHeight}px`;
+  });
+}
+
 function LineField({ detail = false, value, $completionChange, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string; $done?: boolean; $completionChange?:CompletionChange }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
@@ -69,17 +80,17 @@ function LineField({ detail = false, value, $completionChange, ...props }: Compo
   }, [value]);
   useLayoutEffect(() => {
     const element = ref.current;
-    const shell = element?.parentElement;
-    if (!element || !shell) return;
-    let lastWidth = shell.getBoundingClientRect().width;
-    const observer = new ResizeObserver(([entry]) => {
-      if (Math.abs(entry.contentRect.width - lastWidth) < 0.5) return;
-      lastWidth = entry.contentRect.width;
-      element.style.height = 'auto';
-      element.style.height = `${element.scrollHeight}px`;
-    });
-    observer.observe(shell);
-    return () => observer.disconnect();
+    if (!element) return;
+    if (lineFields.size === 0) window.addEventListener('resize', resizeLineFields);
+    lineFields.add(element);
+    return () => {
+      lineFields.delete(element);
+      if (lineFields.size === 0) {
+        window.removeEventListener('resize', resizeLineFields);
+        cancelAnimationFrame(lineResizeFrame);
+        lineResizeFrame = 0;
+      }
+    };
   }, []);
   const Component = detail ? DetailInput : ItemInput;
   return <LineShell><Component ref={ref} rows={1} value={value} data-journal-entry $completionChange={$completionChange} {...props}/>{(props.$done || $completionChange === 'reopen') && <Strike data-strike aria-hidden="true" $detail={detail} $completionChange={$completionChange}>{value}</Strike>}</LineShell>;
