@@ -1,5 +1,4 @@
 import { colorThemes, type Theme } from './themes';
-import type { DayWindow } from './dayWindow';
 
 const baseFontOptions = [
   ['sohne', 'Sohne', "'Sohne', 'Helvetica Neue', Arial, sans-serif", 300],
@@ -73,19 +72,7 @@ export type DateFormat = (typeof dateFormatOptions)[number][0];
 const FONT_KEY = 'hito-font';
 const THEME_KEY = 'hito-theme';
 const DATE_FORMAT_KEY = 'hito-date-format';
-const DAY_WINDOW_KEY = 'hito-day-window';
 const storedPreference = (key: string) => localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
-
-export function getDayWindow(): DayWindow {
-  const stored = localStorage.getItem(DAY_WINDOW_KEY);
-  if (stored === 'month') return 'month';
-  const count = Number(stored);
-  return Number.isInteger(count) && count >= 1 && count <= 31 ? count : 7;
-}
-
-export function setDayWindow(value: DayWindow) {
-  localStorage.setItem(DAY_WINDOW_KEY, String(value));
-}
 
 export function getDateFormat(): DateFormat {
   const stored = storedPreference(DATE_FORMAT_KEY);

@@ -12,12 +12,20 @@ async function confirmTodoDownload(page: Page) {
   await preview.getByRole('button', { name: 'download' }).click();
 }
 
+async function selectJournalCalendarDate(page: Page, date: string) {
+  const calendar = page.getByLabel('Choose journal date');
+  await calendar.getByRole('combobox', { name: 'Choose the Year' }).selectOption(date.slice(0, 4));
+  await calendar.getByRole('combobox', { name: 'Choose the Month' }).selectOption(String(Number(date.slice(5, 7)) - 1));
+  await calendar.locator(`.rdp-day[data-day="${date}"] button`).click();
+}
+
 async function showThirtyOneDays(page: Page) {
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Hito settings' });
-  await settings.getByLabel('Days shown').selectOption('31');
-  await settings.getByRole('button', { name: 'close' }).click();
-  await expect(settings).toBeHidden();
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await page.getByRole('button', { name: 'Select date range' }).click();
+  await selectJournalCalendarDate(page, dateOffset(0));
+  await selectJournalCalendarDate(page, dateOffset(30));
+  await page.getByRole('button', { name: 'apply' }).click();
+  await expect(page.locator('section')).toHaveCount(31);
 }
 
 test('edits a dated journal and exports a portable TODO.txt', async ({ page }) => {
@@ -766,7 +774,7 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
 });
 
-test('shows the selected week by default and saves the chosen day span', async ({ page }) => {
+test('uses the calendar to switch between the default week, one day, and a selected range', async ({ page }) => {
   const today = dateOffset(0);
   const date = new Date(`${today}T12:00:00`);
   const monday = dateOffset(-((date.getDay() + 6) % 7));
@@ -775,21 +783,48 @@ test('shows the selected week by default and saves the chosen day span', async (
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
   await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', dateOffset(6 - ((date.getDay() + 6) % 7)));
   await page.getByRole('button', { name: 'Hito settings' }).click();
-  const shown = page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Days shown');
-  await expect(shown.locator('option')).toHaveCount(32);
-  await expect(shown).toHaveValue('7');
-  await shown.selectOption('1');
+  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await expect(settings.getByLabel('Days shown')).toHaveCount(0);
+  await settings.getByRole('button', { name: 'close' }).click();
+  await expect(settings).toBeHidden();
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await selectJournalCalendarDate(page, today);
   await expect(page.locator('section')).toHaveCount(1);
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
-  await shown.selectOption('month');
-  const daysRemaining = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() - date.getDate() + 1;
-  await expect(page.locator('section')).toHaveCount(daysRemaining);
-  await shown.selectOption('3');
-  await page.getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await page.getByRole('button', { name: 'Select date range' }).click();
+  await selectJournalCalendarDate(page, today);
+  await selectJournalCalendarDate(page, dateOffset(2));
+  await expect(page.getByRole('button', { name: 'apply' })).toBeEnabled();
+  await page.getByRole('button', { name: 'apply' }).click();
+  await expect(page.locator('section')).toHaveCount(3);
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
+  await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', dateOffset(2));
+  await expect(page.getByRole('button', { name: `Viewing ${today} to ${dateOffset(2)}; go to today` })).toBeVisible();
+  await page.getByRole('button', { name: 'Next range' }).click();
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await page.getByRole('button', { name: 'Select date range' }).click();
+  await expect(page.locator('section')).toHaveCount(1);
+  await page.getByRole('button', { name: 'show week' }).click();
+  await expect(page.locator('section')).toHaveCount(7);
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await page.getByRole('button', { name: 'Select date range' }).click();
+  await page.getByRole('button', { name: 'apply' }).click();
+  await expect(page.locator('section')).toHaveCount(3);
   await page.reload();
   await expect(page.locator('section')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Days shown')).toHaveValue('3');
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  const popup = (await page.getByLabel('Choose journal date').boundingBox())!;
+  expect(popup.x).toBeGreaterThanOrEqual(0);
+  expect(popup.x + popup.width).toBeLessThanOrEqual(320);
+  await page.getByRole('button', { name: 'Select date range' }).click();
+  await expect(page.locator('section')).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('section')).toHaveCount(7);
 });
 
 test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {

@@ -9,10 +9,10 @@ import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
-import { CalendarPanel } from './components/CalendarPanel';
+import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
-import { datesInWindow, shiftDate } from './dayWindow';
-import { formatDateHeading, getDateFormat, getDayWindow, setDateFormat, setDayWindow, type DateFormat } from './preferences';
+import { datesInRange, datesInWeek, shiftDate, shiftRange, type DateSpan } from './dayWindow';
+import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { advanceRecurrences } from './recurrence';
@@ -24,8 +24,8 @@ const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index
 const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
 const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
-const DateControl = styled.div`position: relative; display: flex; align-items: center; width: 155px; min-width: 0; min-height: 44px; @media(max-width:600px){width:100%;}`;
-const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; &:hover { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }`;
+const DateControl = styled.div<{ $range:boolean }>`position: relative; display: flex; align-items: center; width: ${({$range})=>$range?'255px':'155px'}; min-width: 0; min-height: 44px; @media(max-width:600px){width:100%;}`;
+const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; &:hover { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; } .compact{display:none;} @media(max-width:600px){.full{display:none;} .compact{display:inline;}}`;
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
 const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
 const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
@@ -51,6 +51,13 @@ const Notice = styled(Note)`display: flex; align-items: center; justify-content:
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
+const SAVED_RANGE_KEY = 'hito-journal-range-v1';
+const readSavedRange = (): DateSpan | null => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVED_RANGE_KEY) ?? 'null') as DateSpan | null;
+    return saved && validDate(saved.from) && validDate(saved.to) && saved.from <= saved.to ? saved : null;
+  } catch { return null; }
+};
 const downloadTextFile = (text: string, fileName: string) => {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
   const link = document.createElement('a');
@@ -61,6 +68,15 @@ const downloadTextFile = (text: string, fileName: string) => {
 };
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
+const navDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const compactRange = ({ from, to }: DateSpan) => {
+  const start = new Date(`${from}T12:00:00`);
+  const end = new Date(`${to}T12:00:00`);
+  const startLabel = start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+    ? `${start.getDate()}–${end.getDate()} ${end.toLocaleDateString('en-GB', { month: 'short' })}`
+    : `${startLabel}–${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+};
 const taskCollisionDetection: CollisionDetection = args => {
   const underPointer = pointerWithin(args);
   return underPointer.length ? underPointer : closestCenter(args);
@@ -149,9 +165,11 @@ export default function App() {
   const [state, setState] = useState<TodoState | null>(null);
   const current = useRef<TodoState>(emptyState());
   const previousDocument = useRef<TodoDocument | null>(null);
-  const [selectedDate, setSelectedDate] = useState(todayString);
+  const [initialRange] = useState(readSavedRange);
+  const [selectedDate, setSelectedDate] = useState(() => initialRange?.from ?? todayString());
   const [dateFormat, setDateFormatState] = useState(getDateFormat);
-  const [dayWindow, setDayWindowState] = useState(getDayWindow);
+  const [viewMode, setViewMode] = useState<'week' | 'day' | 'range'>(initialRange ? 'range' : 'week');
+  const [activeRange, setActiveRange] = useState<DateSpan | null>(initialRange);
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -176,6 +194,13 @@ export default function App() {
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  useEffect(() => {
+    try {
+      if (viewMode === 'range' && activeRange) localStorage.setItem(SAVED_RANGE_KEY, JSON.stringify(activeRange));
+      else localStorage.removeItem(SAVED_RANGE_KEY);
+    } catch { /* The visible range still works for this session. */ }
+  }, [viewMode, activeRange]);
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -347,6 +372,7 @@ export default function App() {
       document.days.sort((a,b) => a.date.localeCompare(b.date));
     });
     setSelectedDate(target);
+    setViewMode('day');
   };
   const imported = async (raw: string, handle: TodoFileHandle | null, mode: 'import' | 'save', observedText: string | null = null) => {
     const parsed = parseTodoText(raw);
@@ -416,15 +442,23 @@ export default function App() {
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
   const draggingItem = draggingId ? documentData.days.flatMap(day => day.items).find(item => item.id === draggingId) : null;
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
+  const rangeActive = viewMode === 'range' && activeRange !== null;
+  const moveDateView = (direction: -1 | 1) => {
+    if (rangeActive) {
+      const shifted = shiftRange(activeRange, direction * datesInRange(activeRange).length);
+      setActiveRange(shifted);
+      setSelectedDate(shifted.from);
+    } else setSelectedDate(date => shiftDate(date, direction));
+  };
   const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
   const unfinishedDates = useMemo(() => new Set(documentData.days.filter(day => day.items.some(item => !item.completed)).map(day => day.date)), [documentData]);
   const visibleDays = useMemo(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
     const dates = query || tag
       ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
-      : datesInWindow(selectedDate, dayWindow);
+      : rangeActive ? datesInRange(activeRange) : viewMode === 'day' ? [selectedDate] : datesInWeek(selectedDate);
     return dates.map(date => ({ date, items: daysByDate.get(date)?.items ?? [] }));
-  }, [documentData, selectedDate, dayWindow, query, tag]);
+  }, [documentData, selectedDate, viewMode, activeRange, rangeActive, query, tag]);
   const filteredDays = useMemo(() => {
     const needle = query.toLowerCase();
     return visibleDays.map(day => {
@@ -448,13 +482,18 @@ export default function App() {
       <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
       {!searchOpen && <>
-      <Icon aria-label="Previous day" onClick={() => setSelectedDate(shiftDate(selectedDate,-1))}><ChevronLeft size={17}/></Icon>
-      <DateControl ref={dateControlRef}>
-        <DateText aria-label={`Go to today from ${selectedDate}`} title="Go to today" onClick={() => { setSelectedDate(todayString()); setDateOpen(false); }}>{new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</DateText>
+      <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
+      <DateControl ref={dateControlRef} $range={rangeActive}>
+        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { setSelectedDate(todayString()); setViewMode('week'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
         <DateCalendar aria-label="Choose date" aria-expanded={dateOpen} title="Choose date" onClick={() => setDateOpen(value => !value)}><CalendarDays size={17}/></DateCalendar>
-        {dateOpen && <DatePopover><CalendarPanel label="Choose journal date" value={selectedDate} unfinishedDates={unfinishedDates} onSelect={value => { setSelectedDate(value); setDateOpen(false); }}/></DatePopover>}
+        {dateOpen && <DatePopover><JournalDatePicker selectedDate={selectedDate} activeRange={activeRange} rangeActive={rangeActive} unfinishedDates={unfinishedDates}
+          onSelectDate={value => { setSelectedDate(value); setViewMode('day'); setDateOpen(false); }}
+          onShowWeek={() => { setViewMode('week'); setDateOpen(false); }}
+          onExitRange={() => setViewMode('day')}
+          onApplyRange={range => { setActiveRange(range); setSelectedDate(range.from); setViewMode('range'); setDateOpen(false); }}
+          onClose={() => setDateOpen(false)}/></DatePopover>}
       </DateControl>
-      <Icon aria-label="Next day" onClick={() => setSelectedDate(shiftDate(selectedDate,1))}><ChevronRight size={17}/></Icon>
+      <Icon aria-label={rangeActive?'Next range':'Next day'} onClick={() => moveDateView(1)}><ChevronRight size={17}/></Icon>
       </>}
     </Toolbar>
     <Tools>
@@ -495,7 +534,7 @@ export default function App() {
     </DndContext>
     </div>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
-    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }} dayWindow={dayWindow} onDayWindowChange={value => { setDayWindow(value); setDayWindowState(value); }}/>
+    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
     <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}
       onClose={() => { setReview(null); setIssues([]); }} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
