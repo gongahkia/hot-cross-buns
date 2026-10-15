@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, Search, Settings2, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, Search, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
@@ -50,7 +50,11 @@ const Note = styled.p`font-size: 12px; color: var(--muted);`;
 const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
+const CompletionToast = styled.div`position: fixed; z-index: 60; bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 24px); min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 5px 7px 5px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: 0 8px 30px #0002; font-size: 13px;`;
+const CompletionText = styled.span`min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const CompletionUndo = styled.button`min-height: 40px; flex: none; padding: 5px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--link); font-size: 13px; &:hover { background: var(--soft); } @media(pointer:coarse){min-height:44px;}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
+type CompletionNotice = { text: string; document: TodoDocument };
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
 const SAVED_RANGE_KEY = 'hito-journal-range-v1';
 const readSavedRange = (): DateSpan | null => {
@@ -186,6 +190,7 @@ export default function App() {
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
   const [message, setMessage] = useState('');
+  const [completionNotice, setCompletionNotice] = useState<CompletionNotice | null>(null);
   const [busy, setBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -222,6 +227,11 @@ export default function App() {
     } catch { /* The journal remains available if session storage is blocked. */ }
   }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
   useEffect(() => { if (state) previousDocument.current = state.document; }, [state?.document]);
+  useEffect(() => {
+    if (!completionNotice) return;
+    const timeout = window.setTimeout(() => setCompletionNotice(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [completionNotice]);
   const commitState = async (next: TodoState) => {
     const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
     current.current = stamped;
@@ -270,6 +280,7 @@ export default function App() {
       if (undoStack.current.length > 100) undoStack.current.shift();
       redoStack.current = [];
     }
+    setCompletionNotice(null);
     await commitState(next);
   };
   const edit = (change: (document: TodoDocument) => void) => {
@@ -280,13 +291,16 @@ export default function App() {
     advanceRecurrences(before, document, todayString());
     try { validateDocument(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeTodoText(before) === serializeTodoText(document)) return;
+    const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
+    const completed = document.days.flatMap(day => day.items).find(item => item.completed && priorItems.get(item.id)?.completed === false);
     undoStack.current.push(before);
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
     void commitState({ ...current.current, document }).catch(error => setMessage(`Could not save: ${String(error)}`));
+    setCompletionNotice(completed ? { text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : null);
   };
-  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(current.current.document); replayState(previous); };
-  const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(current.current.document); replayState(next); };
+  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setCompletionNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
+  const redo = () => { const next = redoStack.current.pop(); if (!next) return; setCompletionNotice(null); undoStack.current.push(current.current.document); replayState(next); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
@@ -499,6 +513,10 @@ export default function App() {
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
+    {completionNotice && <CompletionToast role="status" aria-label="Completion confirmation"><Check size={16} color="var(--link)" aria-hidden="true"/><CompletionText title={completionNotice.text}>Moved to Done: {completionNotice.text}</CompletionText><CompletionUndo type="button" aria-label={`Undo completion of ${completionNotice.text}`} onClick={() => {
+      if (current.current.document === completionNotice.document) undo();
+      else setCompletionNotice(null);
+    }}>Undo</CompletionUndo></CompletionToast>}
     <div id="journal-content" tabIndex={-1}>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}

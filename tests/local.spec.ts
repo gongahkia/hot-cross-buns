@@ -52,6 +52,26 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Start focus timer' })).toHaveCount(0);
 });
 
+test('confirms a move to Done and offers Undo for item and last-detail completion', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('textbox', { name: 'New daily item' }).fill('Review notes');
+  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: 'Complete Review notes' }).click();
+  const confirmation = page.getByRole('status', { name: 'Completion confirmation' });
+  await expect(confirmation).toContainText('Moved to Done: Review notes');
+  await expect(page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` })).toContainText('1');
+  await confirmation.getByRole('button', { name: 'Undo completion of Review notes' }).click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Complete Review notes' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'More actions for Review notes' }).click();
+  await page.getByRole('button', { name: 'Add detail to Review notes' }).click();
+  await page.getByRole('textbox', { name: 'New detail for Review notes' }).fill('Check links');
+  await page.getByRole('textbox', { name: 'New detail for Review notes' }).press('Enter');
+  await page.getByRole('button', { name: 'Complete detail Check links' }).click();
+  await expect(confirmation).toContainText('Moved to Done: Review notes');
+});
+
 test('imports, reviews conflicting items, and preserves the file baseline', async ({ page }) => {
   await page.goto('/');
   const today = dateOffset(0);
@@ -332,10 +352,12 @@ test('dragging an item between Upcoming and Done updates every detail', async ({
 
   await dragOnto('Move me', 'Done anchor');
   const moved = page.getByRole('group', { name: 'Move me' });
+  await expect(page.getByRole('status', { name: 'Completion confirmation' })).toContainText('Moved to Done: Move me');
   await expect(moved.getByRole('button', { name: 'Reopen Move me' })).toHaveAttribute('aria-description', '3 of 3 details done');
   for (const detail of ['first', 'second', 'third']) await expect(moved.getByRole('button', { name: `Reopen detail ${detail}` })).toBeVisible();
 
   await dragOnto('Move me', 'Open anchor');
+  await expect(page.getByRole('status', { name: 'Completion confirmation' })).toHaveCount(0);
   await expect(moved.getByRole('button', { name: 'Complete Move me' })).toHaveAttribute('aria-description', '0 of 3 details done');
   for (const detail of ['first', 'second', 'third']) await expect(moved.getByRole('button', { name: `Complete detail ${detail}` })).toBeVisible();
 
