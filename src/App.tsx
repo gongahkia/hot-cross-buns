@@ -9,7 +9,7 @@ import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { CompletionFeedback } from './components/CompletionFeedback';
 import { FileReview, type FileReviewState } from './components/FileReview';
-import { AddItem, JournalItem } from './components/DailyItem';
+import { AddItem, JournalItem, useJournalFieldResize } from './components/DailyItem';
 import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
@@ -166,6 +166,7 @@ function DayItems({ date, items, selected, filterActive, completed, upcoming, pr
 }
 
 export default function App() {
+  useJournalFieldResize();
   const [state, setState] = useState<TodoState | null>(null);
   const current = useRef<TodoState>(emptyState());
   const previousDocument = useRef<TodoDocument | null>(null);

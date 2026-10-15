@@ -52,22 +52,27 @@ const ParentSearch = styled(Field)`width: 100%; min-height: 40px; margin: 3px 0 
 const ParentList = styled.div`max-height: min(280px, calc(100dvh - 150px)); overflow-y: auto; overscroll-behavior: contain;`;
 const ParentOption = styled(Action)`display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;`;
 const ParentHint = styled.p`padding: 8px 9px; color: var(--muted); font-size: 12px;`;
-const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px), (max-height: 500px){position:fixed; left:50%; right:auto; top:max(8px, env(safe-area-inset-top)); transform:translateX(-50%); width:min(360px, calc(100vw - 16px)); max-height:calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))); overflow:auto; overscroll-behavior:contain;}`;
+const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px), (max-width: 900px) and (max-height: 500px){position:fixed; left:50%; right:auto; top:max(8px, env(safe-area-inset-top)); transform:translateX(-50%); width:min(360px, calc(100vw - 16px)); max-height:calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))); overflow:auto; overscroll-behavior:contain;}`;
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const AddForm = styled.form<{ $inline: boolean }>`margin: 10px 0 0 64px; width: calc(100% - 64px); ${({$inline}) => $inline && 'margin-top: 0;'} @media(pointer:coarse){margin-left:84px;width:calc(100% - 84px);}`;
 const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } ${quietLineFocus} @media(pointer:coarse){font-size:16px; &::placeholder {font-size:13px;}}`;
 const DetailToggle = styled.button<{ $open:boolean }>`display: inline-flex; align-items: center; justify-content:center; gap: 3px; min-width:48px; min-height:40px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; svg { transform: rotate(${({$open})=>$open?'0':'-90deg'}); transition: transform 180ms ease-out; } &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;min-width:48px;} @media(max-width:540px){grid-column:3 / -1;grid-row:3;justify-self:end;}`;
 
-const lineFields = new Set<HTMLTextAreaElement>();
-let lineResizeFrame = 0;
-function resizeLineFields() {
-  if (lineResizeFrame) cancelAnimationFrame(lineResizeFrame);
-  lineResizeFrame = requestAnimationFrame(() => {
-    lineResizeFrame = 0;
-    for (const element of lineFields) element.style.height = 'auto';
-    for (const element of lineFields) element.style.height = `${element.scrollHeight}px`;
-  });
+export function useJournalFieldResize() {
+  useEffect(() => {
+    let frame = 0;
+    const resize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const fields = document.querySelectorAll<HTMLTextAreaElement>('textarea[data-journal-entry]');
+        fields.forEach(element => { element.style.height = 'auto'; });
+        fields.forEach(element => { element.style.height = `${element.scrollHeight}px`; });
+      });
+    };
+    window.addEventListener('resize', resize);
+    return () => { window.removeEventListener('resize', resize); cancelAnimationFrame(frame); };
+  }, []);
 }
 
 function LineField({ detail = false, value, $completionChange, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string; $done?: boolean; $completionChange?:CompletionChange }) {
@@ -78,20 +83,6 @@ function LineField({ detail = false, value, $completionChange, ...props }: Compo
     element.style.height = 'auto';
     element.style.height = `${element.scrollHeight}px`;
   }, [value]);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    if (lineFields.size === 0) window.addEventListener('resize', resizeLineFields);
-    lineFields.add(element);
-    return () => {
-      lineFields.delete(element);
-      if (lineFields.size === 0) {
-        window.removeEventListener('resize', resizeLineFields);
-        cancelAnimationFrame(lineResizeFrame);
-        lineResizeFrame = 0;
-      }
-    };
-  }, []);
   const Component = detail ? DetailInput : ItemInput;
   return <LineShell><Component ref={ref} rows={1} value={value} data-journal-entry $completionChange={$completionChange} {...props}/>{(props.$done || $completionChange === 'reopen') && <Strike data-strike aria-hidden="true" $detail={detail} $completionChange={$completionChange}>{value}</Strike>}</LineShell>;
 }
