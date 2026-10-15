@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import time
@@ -22,6 +23,8 @@ CALENDAR_EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/{calenda
 TASK_LISTS_URL = "https://tasks.googleapis.com/tasks/v1/users/@me/lists"
 TASKS_URL = "https://tasks.googleapis.com/tasks/v1/lists/{task_list_id}/tasks"
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ENV_KEYS = ("CLIENT_ID", "CLIENT_SECRET")
 
 CALENDAR_LIST_QUERY = {"maxResults": 250, "showHidden": True}
 EVENTS_QUERY = {
@@ -48,9 +51,63 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def authenticate(credentials_file: Path) -> Any:
-    if not credentials_file.is_file():
+def env_client_config(env_file: Path) -> dict[str, Any]:
+    """Read the two Desktop client values without executing the env file."""
+    if not env_file.is_file():
+        raise FileNotFoundError(f"Environment file not found: {env_file}")
+    values: dict[str, str] = {}
+    for number, line in enumerate(env_file.read_text(encoding="utf-8-sig").splitlines(), 1):
+        match = re.match(r"\s*(?:export\s+)?(CLIENT_ID|CLIENT_SECRET)\s*=\s*(.*)$", line)
+        if not match:
+            continue
+        key, raw = match.groups()
+        if key in values:
+            raise SnapshotError(f"Duplicate {key} in {env_file} on line {number}")
+        raw = raw.strip()
+        if raw.startswith(("'", '"')):
+            if len(raw) < 2 or not raw.endswith(raw[0]):
+                raise SnapshotError(f"Unclosed quoted {key} in {env_file} on line {number}")
+            value = raw[1:-1]
+        else:
+            value = re.split(r"\s+#", raw, maxsplit=1)[0].rstrip()
+        if not value:
+            raise SnapshotError(f"Empty {key} in {env_file} on line {number}")
+        values[key] = value
+    missing = [key for key in ENV_KEYS if key not in values]
+    if missing:
+        raise SnapshotError(f"Missing {', '.join(missing)} in {env_file}")
+    return {
+        "installed": {
+            "client_id": values["CLIENT_ID"],
+            "client_secret": values["CLIENT_SECRET"],
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost"],
+        }
+    }
+
+
+def choose_credentials(prompt: Any = input) -> tuple[Path | None, Path | None]:
+    """Prompt for a source and path when neither CLI source was supplied."""
+    default = "2" if (REPO_ROOT / ".env").is_file() else "1"
+    while True:
+        answer = prompt(f"Credential source: [1] Desktop client JSON, [2] env file [{default}]: ").strip().lower()
+        answer = answer or default
+        if answer in {"1", "json"}:
+            default_path = REPO_ROOT / "credentials.json"
+            path = prompt(f"Desktop client JSON path [{default_path}]: ").strip()
+            return Path(path).expanduser() if path else default_path, None
+        if answer in {"2", "env"}:
+            default_path = REPO_ROOT / ".env"
+            path = prompt(f"Environment file path [{default_path}]: ").strip()
+            return None, Path(path).expanduser() if path else default_path
+        print("Choose 1 or 2.", file=sys.stderr)
+
+
+def authenticate(credentials_file: Path | None, env_file: Path | None = None) -> Any:
+    if credentials_file is not None and not credentials_file.is_file():
         raise FileNotFoundError(f"OAuth client JSON not found: {credentials_file}")
+    config = env_client_config(env_file) if env_file is not None else None
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow
         from google.auth.transport.requests import AuthorizedSession
@@ -59,9 +116,12 @@ def authenticate(credentials_file: Path) -> Any:
             "Install the Python dependencies in scripts/google_snapshot_requirements.txt first."
         ) from error
 
-    flow = InstalledAppFlow.from_client_secrets_file(
-        str(credentials_file), [CALENDAR_SCOPE, TASKS_SCOPE]
-    )
+    if config is not None:
+        flow = InstalledAppFlow.from_client_config(config, [CALENDAR_SCOPE, TASKS_SCOPE])
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            str(credentials_file), [CALENDAR_SCOPE, TASKS_SCOPE]
+        )
     # This is deliberately one-time: no refresh token or access token is saved.
     return AuthorizedSession(flow.run_local_server(port=0))
 
@@ -194,8 +254,12 @@ def export_snapshot(session: Any, destination: Path) -> dict[str, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--credentials", required=True, type=Path, help="Desktop OAuth client JSON from Google Cloud"
+    sources = parser.add_mutually_exclusive_group()
+    sources.add_argument(
+        "--credentials", type=Path, help="Desktop OAuth client JSON from Google Cloud"
+    )
+    sources.add_argument(
+        "--env-file", type=Path, help="Env file containing CLIENT_ID and CLIENT_SECRET"
     )
     parser.add_argument(
         "--output", type=Path,
@@ -208,7 +272,13 @@ def main() -> int:
     try:
         if destination.exists():
             raise FileExistsError(f"Output already exists: {destination}")
-        session = authenticate(args.credentials)
+        credentials, env_file = args.credentials, args.env_file
+        if credentials is None and env_file is None:
+            if not sys.stdin.isatty():
+                raise SnapshotError("Choose --credentials or --env-file when running without a terminal")
+            credentials, env_file = choose_credentials()
+        print("Opening Google sign-in for read-only Calendar and Tasks access...", flush=True)
+        session = authenticate(credentials, env_file)
         counts = export_snapshot(session, destination)
     except Exception as error:
         print(f"Google snapshot failed: {error}", file=sys.stderr)

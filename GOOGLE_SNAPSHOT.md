@@ -5,7 +5,7 @@
 ## Set up
 
 1. In a Google Cloud project, enable **Google Calendar API** and **Google Tasks API**.
-2. Configure the OAuth consent screen and create an OAuth client with application type **Desktop app**. Download its client JSON. An API key or a client ID alone cannot grant access to your private calendars and tasks. Google’s [Calendar Python quickstart](https://developers.google.com/workspace/calendar/api/quickstart/python) walks through these steps.
+2. Configure the OAuth consent screen and create or reuse an OAuth client with application type **Desktop app**. An API key or a client ID alone cannot grant access to your private calendars and tasks. Google’s [Calendar Python quickstart](https://developers.google.com/workspace/calendar/api/quickstart/python) walks through these steps.
 3. Install the script’s Python dependencies:
 
    ```sh
@@ -13,11 +13,14 @@
    .local/google-venv/bin/python -m pip install -r scripts/google_snapshot_requirements.txt
    ```
 
-4. Run the pull, pointing to the downloaded Desktop client JSON:
+4. Run the pull. In a terminal, the script asks whether to use the downloaded Desktop client JSON or an env file, then asks for its path. The env path defaults to this repository's `.env`. For automated runs, specify a source directly:
 
    ```sh
    .local/google-venv/bin/python scripts/pull_google_snapshot.py --credentials /path/to/client_secret.json
+   .local/google-venv/bin/python scripts/pull_google_snapshot.py --env-file .env
    ```
+
+   The env file needs `CLIENT_ID=...` and `CLIENT_SECRET=...` from the **same Desktop app OAuth client**. Plain or single/double quoted values are accepted. The script reads these values as text; it does not run the env file or write another copy of them. Keep the env file private, for example with `chmod 600 .env` on macOS/Linux. The JSON and env methods request the same read-only scopes and still require you to complete browser sign-in and consent.
 
 The script opens Google’s consent page in your browser. It requests only `calendar.readonly` and `tasks.readonly`. Each run asks you to sign in again; it does not save OAuth access or refresh tokens. Use `--output /path/to/snapshot.json` to choose a destination. The default is a timestamped JSON file under `.local/`, which Git ignores.
 

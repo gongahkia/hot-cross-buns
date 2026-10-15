@@ -15,7 +15,10 @@ from scripts.pull_google_snapshot import (
     TASK_LISTS_URL,
     TASKS_QUERY,
     TASKS_URL,
+    REPO_ROOT,
     SnapshotError,
+    choose_credentials,
+    env_client_config,
     export_snapshot,
     get_json,
     pages,
@@ -49,6 +52,37 @@ class ScriptedSession:
 
 
 class GoogleSnapshotTests(unittest.TestCase):
+    def test_env_client_values_build_installed_oauth_config_without_running_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / ".env"
+            env_file.write_text(
+                "UNRELATED=$(exit 1)\nexport CLIENT_ID='desktop-id'\n"
+                'CLIENT_SECRET="secret#value"\n', encoding="utf-8"
+            )
+            config = env_client_config(env_file)
+            self.assertEqual(config["installed"]["client_id"], "desktop-id")
+            self.assertEqual(config["installed"]["client_secret"], "secret#value")
+            self.assertEqual(config["installed"]["redirect_uris"], ["http://localhost"])
+
+    def test_env_client_values_reject_missing_and_duplicate_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / ".env"
+            env_file.write_text("CLIENT_ID=id\n", encoding="utf-8")
+            with self.assertRaisesRegex(SnapshotError, "Missing CLIENT_SECRET"):
+                env_client_config(env_file)
+            env_file.write_text("CLIENT_ID=id\nCLIENT_SECRET=first\nCLIENT_SECRET=second\n", encoding="utf-8")
+            with self.assertRaisesRegex(SnapshotError, "Duplicate CLIENT_SECRET"):
+                env_client_config(env_file)
+
+    def test_interactive_source_selection_uses_repo_default_and_custom_path(self):
+        answers = iter(["2", ""])
+        self.assertEqual(choose_credentials(lambda _: next(answers)), (None, REPO_ROOT / ".env"))
+        answers = iter(["json", "~/desktop-client.json"])
+        self.assertEqual(
+            choose_credentials(lambda _: next(answers)),
+            (Path("~/desktop-client.json").expanduser(), None),
+        )
+
     def test_pulls_every_page_and_preserves_raw_calendar_and_task_records(self):
         first_calendar = {"id": "personal@example.com", "summary": "Personal ✨", "hidden": True}
         second_calendar = {"id": "other/calendar", "summary": "Other"}
