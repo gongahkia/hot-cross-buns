@@ -5,7 +5,7 @@ import type { DateSpan } from '../dayWindow';
 import { CalendarPanel, dateFromString, dateToString } from './CalendarPanel';
 
 const Controls = styled.div`display:flex; align-items:center; justify-content:flex-end; padding:2px 4px 6px;`;
-const RangeToggle = styled.button<{ $active:boolean }>`min-height:40px; padding:6px 10px; border:0; border-radius:6px; background:${({$active})=>$active?'var(--date-bg)':'transparent'}; color:${({$active})=>$active?'var(--link)':'var(--muted)'}; font-size:12px; &:hover{background:var(--soft); color:var(--ink);}`;
+const RangeToggle = styled.button<{ $active:boolean }>`min-height:40px; padding:6px 10px; border:0; border-radius:6px; background:${({$active})=>$active?'var(--date-bg)':'transparent'}; color:${({$active})=>$active?'var(--link)':'var(--muted)'}; font-size:12px; &:hover{background:var(--soft); color:var(--ink);} @media(pointer:coarse){min-height:44px;}`;
 
 export function JournalDatePicker({ selectedDate, activeRange, rangeActive, unfinishedDates, onSelectDate, onToggleRange, onSelectRange }: {
   selectedDate: string;

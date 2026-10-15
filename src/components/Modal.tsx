@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { VisuallyHidden } from '../styles';
 
 const Sheet = styled.dialog<{ $visible: boolean; $wide: boolean; $compact: boolean; $preview: boolean }>`
-  width: min(${({ $preview, $wide, $compact }) => $preview ? '1100px' : $compact ? '420px' : $wide ? '720px' : '620px'}, calc(100vw - 32px)); max-height: calc(100dvh - 40px);
+  width: min(${({ $preview, $wide, $compact }) => $preview ? '1100px' : $compact ? '420px' : $wide ? '720px' : '620px'}, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 40px);
   padding: ${({ $compact }) => $compact ? '12px' : '32px'}; border: 0; border-radius: 16px; color: var(--ink); background: var(--surface);
   box-shadow: ${({ $compact }) => $compact ? '' : '0 0 0 1px #00000008,'} 0 16px 60px #202a2526; overflow-y: auto;
   opacity: ${({ $visible }) => $visible ? 1 : 0}; transform: translateY(${({ $visible }) => $visible ? '0' : '8px'});

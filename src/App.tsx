@@ -31,7 +31,7 @@ const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding:
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
 const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
 const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
-const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; }`;
+const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; } @media(pointer:coarse){font-size:16px;}`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
@@ -39,6 +39,7 @@ const dayEnter = keyframes`from { opacity:.45; transform:translateY(5px); } to {
 const DaySection = styled.section<{ $selected:boolean }>`margin: 0 0 38px; scroll-margin-top: 20px; animation:${({$selected})=>$selected?dayEnter:'none'} 180ms ease-out;`;
 const DayTitle = styled.h2<{ $over?: boolean }>`display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
+const DayName = styled.span<{ $hideOnMobile: boolean }>`@media(max-width:600px){display:${({$hideOnMobile})=>$hideOnMobile?'none':'inline'};}`;
 const DragPreview = styled.div`display:flex; align-items:center; gap:8px; min-height:44px; width:100%; padding:7px 12px; border:1px solid var(--focus); border-radius:8px; background:var(--surface); color:var(--ink); box-shadow:0 12px 30px #0005; font-size:15px; pointer-events:none;`;
 const PreviewCircle = styled.span<{ $done:boolean }>`display:grid; place-items:center; width:15px; height:15px; flex:none; border:1px solid ${({$done})=>$done?'var(--link)':'var(--checkbox)'}; border-radius:50%; background:${({$done})=>$done?'var(--link)':'transparent'}; color:var(--paper);`;
 const PreviewText = styled.span<{ $done:boolean }>`min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${({$done})=>$done?'var(--muted)':'var(--ink)'}; text-decoration:${({$done})=>$done?'line-through':'none'};`;
@@ -50,7 +51,7 @@ const Divider = styled.div`height: 1px; margin: 15px 0 13px 64px; background: va
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
 const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
-const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
+const Dismiss = styled.button`width: 32px; height: 32px; flex:none; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);} @media(pointer:coarse){width:44px;height:44px;}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
 type CompletionNotice = { text: string; document: TodoDocument };
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
@@ -126,7 +127,7 @@ const animateHistoryFallback = (before: Map<string, HistoryRow>, changed: Set<st
 function DateHeading({ date, today, format, highlighted, unfinished }: { date: string; today: string; format: DateFormat; highlighted: boolean; unfinished: number }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date:${date}` });
   return <DayTitle ref={setNodeRef} $over={isOver || highlighted} data-drop-date={date} title="Drop a task here to move it to this date">
-    <DateBadge dateTime={date}>{formatDateHeading(date,format)}</DateBadge><span>{dateLabel(date,today)}</span>
+    <DateBadge dateTime={date}>{formatDateHeading(date,format)}</DateBadge><DayName $hideOnMobile={date !== today && format.includes('weekday')}>{dateLabel(date,today)}</DayName>
     {date < today && unfinished > 0 && <DayUnfinished title={`${unfinished} unfinished on this day`} aria-label={`${unfinished} unfinished on this day`}><CircleAlert size={14} aria-hidden="true"/><span className="long-label">{unfinished} unfinished on this day</span><span className="short-label" aria-hidden="true">{unfinished}</span></DayUnfinished>}
   </DayTitle>;
 }

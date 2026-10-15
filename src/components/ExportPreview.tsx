@@ -30,6 +30,7 @@ const Label = styled.label`display: grid; gap: 6px; font-size: 13px;`;
 const Select = styled.select`
   min-height: 44px; width: 100%; padding: 8px 10px;
   border: 1px solid var(--line); border-radius: 7px; background: var(--field); color: var(--ink);
+  @media(pointer:coarse) { font-size:16px; }
 `;
 const Check = styled.label`display: flex; align-items: center; gap: 9px; min-height: 44px; font-size: 13px; cursor: pointer;`;
 const Note = styled.p`color: var(--muted); font-size: 12px; line-height: 1.5;`;

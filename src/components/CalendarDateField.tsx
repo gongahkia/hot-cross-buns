@@ -21,6 +21,7 @@ const Popup = styled.div`
   width: max-content; max-width: 100%;
   animation: calendar-appear 150ms ease-out both;
   @keyframes calendar-appear { from { opacity: 0; transform: translateY(-4px); } }
+  @media (max-width: 350px) { width: calc(100vw - 16px); max-width: none; margin-left: -16px; }
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
 

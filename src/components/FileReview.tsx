@@ -18,12 +18,12 @@ const PaneLabel = styled.strong`display: block; margin-bottom: 7px; color: var(-
 const ReviewRow = styled.div`padding: 13px 0; border-bottom: 1px solid var(--line);`;
 const ReviewChoices = styled.div`display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px;`;
 const ChoiceLabel = styled.label`display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; @media(pointer:coarse){min-height:44px;}`;
-const RawText = styled.textarea`width: 100%; min-height: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 12px/1.5 ui-monospace,monospace; resize: vertical;`;
+const RawText = styled.textarea`width: 100%; min-height: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); font: 12px/1.5 ui-monospace,monospace; resize: vertical; @media(pointer:coarse){font-size:16px;}`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
 const Original = styled.pre`max-height: 250px; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace,monospace;`;
 const Finding = styled.div`padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12px;`;
 const FindingActions = styled.div`display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px;`;
-const DateInput = styled.input`min-height: 40px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink);`;
+const DateInput = styled.input`min-height: 40px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); @media(pointer:coarse){min-height:44px;font-size:16px;}`;
 const SmallButton = styled(Button)`min-height: 40px; padding: 6px 9px;`;
 
 const itemLabel = (item: TodoItem | null) => item ? `${item.completed ? 'done' : 'upcoming'}  ${item.text}${item.details.map(detail => `\n  - [${detail.completed ? 'x' : ' '}] ${detail.text}`).join('')}` : '(deleted / absent)';

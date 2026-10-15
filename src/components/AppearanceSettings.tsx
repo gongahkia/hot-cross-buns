@@ -6,7 +6,7 @@ import { colorThemes, type Theme } from '../themes';
 import { Modal } from './Modal';
 
 const FontField = styled.label`display: grid; gap: 6px; margin-top: 14px; font-size: 13px;`;
-const FontSelect = styled.select`width: 100%; min-height: 44px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; padding: 0 8px;`;
+const FontSelect = styled.select`width: 100%; min-height: 44px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; padding: 0 8px; @media(pointer:coarse){font-size:16px;}`;
 const Actions = styled.div`display: flex; justify-content: flex-end; margin-top: 20px;`;
 
 export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange }: { open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void }) {

@@ -30,10 +30,12 @@ const Surface = styled.div`
   .rdp-day.has-unfinished.rdp-selected:not(.rdp-range_middle) .rdp-day_button::after { background: var(--paper); }
   .rdp-chevron { fill: var(--ink); }
   .rdp-weekday { color: var(--muted); }
+  @media(pointer:coarse) { .rdp-button_previous, .rdp-button_next { width:44px; height:44px; } .rdp-dropdown { font-size:16px; } }
   @media(pointer:coarse) { .rdp-root { --rdp-day-width: 44px; --rdp-day-height: 44px;
     --rdp-day_button-width: 44px; --rdp-day_button-height: 44px; } }
-  @media(max-width: 390px) { .rdp-root { --rdp-day-width: 38px; --rdp-day-height: 40px;
-    --rdp-day_button-width: 38px; --rdp-day_button-height: 40px; } }
+  @media(max-width: 390px) { padding: 4px; .rdp-day { padding: 0; } }
+  @media(max-width: 350px) { .rdp-root { --rdp-day-width: 42px; --rdp-day-height: 44px;
+    --rdp-day_button-width: 42px; --rdp-day_button-height: 44px; } }
 `;
 
 export function dateFromString(value: string) {

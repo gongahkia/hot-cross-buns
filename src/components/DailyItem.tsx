@@ -13,8 +13,8 @@ import { newId, type TodoDetail, type TodoItem } from '../todoText';
 import { CalendarPanel } from './CalendarPanel';
 import { ScheduleEditor } from './ScheduleEditor';
 
-const ItemRow = styled.div<{ $dragging: boolean }>`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; background: ${({ $dragging }) => $dragging ? 'var(--soft)' : 'transparent'}; opacity: ${({ $dragging }) => $dragging ? .35 : 1}; &:hover { background: var(--soft); } [data-row-control] { opacity: 0; transition: opacity 120ms ease-out; } &:hover [data-row-control], &:focus-within [data-row-control] { opacity: 1; } @media(hover:none) { [data-row-control] { opacity: 1; } }`;
-const Grip = styled.button`width: 22px; height: 40px; display: grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:36px;height:44px;}`;
+const ItemRow = styled.div<{ $dragging: boolean }>`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; background: ${({ $dragging }) => $dragging ? 'var(--soft)' : 'transparent'}; opacity: ${({ $dragging }) => $dragging ? .35 : 1}; &:hover { background: var(--soft); } [data-row-control] { opacity: 0; transition: opacity 120ms ease-out; } &:hover [data-row-control], &:focus-within [data-row-control] { opacity: 1; } @media(hover:none) { [data-row-control] { opacity: 1; } } @media(max-width:540px){display:grid; grid-template-columns:max-content max-content minmax(0,1fr) 44px; column-gap:4px; row-gap:0;}`;
+const Grip = styled.button`width: 22px; height: 40px; display: grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:44px;height:44px;}`;
 const CheckButton = styled.button<{ $done: boolean }>`width: 34px; height: 40px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; @media(pointer:coarse){width:44px;height:44px;}`;
 const Circle = styled.span<{ $done: boolean; $progress?: number; $previousProgress?: number }>`
   --circle-progress: ${({ $done, $progress = 0 }) => `${($done ? 1 : $progress) * 100}%`};
@@ -24,40 +24,40 @@ const Circle = styled.span<{ $done: boolean; $progress?: number; $previousProgre
   transition: --circle-progress 280ms cubic-bezier(.2, 0, 0, 1), color 180ms ease-out;
   @starting-style { --circle-progress: ${({ $previousProgress, $done, $progress = 0 }) => `${($previousProgress ?? ($done ? 1 : $progress)) * 100}%`}; }
 `;
-const ItemBody = styled.div`min-width: 0; flex: 1;`;
-const ItemMain = styled.div`display: flex; align-items: flex-start; min-width: 0; gap: 8px;`;
-const TimeLabel = styled.span`flex: none; padding-top: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; @media(pointer:coarse){padding-top: 12px;}`;
-const RepeatLabel = styled.span`display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px 2px; color: var(--muted); font-size: 11px;`;
+const ItemBody = styled.div`min-width: 0; flex: 1; @media(max-width:540px){display:contents;}`;
+const ItemMain = styled.div`display: flex; align-items: flex-start; min-width: 0; gap: 8px; @media(max-width:540px){grid-column:3; grid-row:1; flex-direction:column; gap:0;}`;
+const TimeLabel = styled.span`flex: none; padding-top: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; @media(pointer:coarse){padding-top: 12px;} @media(max-width:540px){padding-top:0;}`;
+const RepeatLabel = styled.span`display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px 2px; color: var(--muted); font-size: 11px; @media(max-width:540px){grid-column:3 / -1; grid-row:2;}`;
 const dimText = keyframes`from {color:var(--ink)} to {color:var(--muted)}`;
 const restoreText = keyframes`from {color:var(--muted)} to {color:var(--ink)}`;
 type CompletionChange = 'complete' | 'reopen' | undefined;
 const quietLineFocus = css`&:focus, &:focus-visible { outline: none; border-color: transparent; border-radius: 0; background: transparent; box-shadow: inset 0 -1px 0 var(--focus); }`;
-const ItemInput = styled.textarea<{ $done?: boolean; $completionChange?:CompletionChange }>`display: block; width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 9px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: ${({ $done }) => $done ? 'var(--muted)' : 'var(--ink)'}; text-decoration: ${({ $done }) => $done ? 'line-through' : 'none'}; text-decoration-color: transparent; overflow: hidden; resize: none; transition: color 180ms ease-out; animation:${({$completionChange})=>$completionChange==='complete'?dimText:$completionChange==='reopen'?restoreText:'none'} 220ms ease-out; ${quietLineFocus} &:focus, &:focus-visible { color: var(--ink); text-decoration: none; } @media(pointer:coarse){min-height:44px; padding-top: 11px;}`;
-const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 32px; color: var(--muted); animation:none; @media(pointer:coarse){min-height:44px;}`;
+const ItemInput = styled.textarea<{ $done?: boolean; $completionChange?:CompletionChange }>`display: block; width: 100%; min-height: 40px; border: 0; border-radius: 4px; padding: 9px 2px; background: transparent; font-size: 15px; line-height: 1.4; color: ${({ $done }) => $done ? 'var(--muted)' : 'var(--ink)'}; text-decoration: ${({ $done }) => $done ? 'line-through' : 'none'}; text-decoration-color: transparent; overflow: hidden; resize: none; transition: color 180ms ease-out; animation:${({$completionChange})=>$completionChange==='complete'?dimText:$completionChange==='reopen'?restoreText:'none'} 220ms ease-out; ${quietLineFocus} &:focus, &:focus-visible { color: var(--ink); text-decoration: none; } @media(pointer:coarse){min-height:44px; padding-top: 11px; font-size:16px;}`;
+const DetailInput = styled(ItemInput)`font-size: 13px; min-height: 32px; color: var(--muted); animation:none; @media(pointer:coarse){min-height:44px; font-size:16px;}`;
 const drawStrike = keyframes`from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); }`;
 const eraseStrike = keyframes`from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 0 100%); }`;
 const LineShell = styled.div`position: relative; width: 100%; min-width: 0; flex: 1; &:focus-within [data-strike] { opacity: 0; }`;
-const Strike = styled.span<{ $detail: boolean; $completionChange?:CompletionChange }>`position: absolute; inset: 0; z-index: 1; padding: 9px 2px; color: transparent; text-decoration: line-through; text-decoration-color: var(--muted); text-decoration-thickness: 1px; font-size: ${({$detail})=>$detail?'13px':'15px'}; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; animation:${({$completionChange})=>$completionChange==='complete'?drawStrike:$completionChange==='reopen'?eraseStrike:'none'} 240ms ease-out both; transition: opacity 100ms ease-out; @media(pointer:coarse){padding-top:11px;}`;
-const DetailsClip = styled.div<{ $open:boolean }>`display:grid; grid-template-rows:${({$open})=>$open?'1fr':'0fr'}; opacity:${({$open})=>$open?1:0}; transition:grid-template-rows 190ms ease-out, opacity 150ms ease-out; > div { min-height:0; overflow:hidden; }`;
+const Strike = styled.span<{ $detail: boolean; $completionChange?:CompletionChange }>`position: absolute; inset: 0; z-index: 1; padding: 9px 2px; color: transparent; text-decoration: line-through; text-decoration-color: var(--muted); text-decoration-thickness: 1px; font-size: ${({$detail})=>$detail?'13px':'15px'}; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none; animation:${({$completionChange})=>$completionChange==='complete'?drawStrike:$completionChange==='reopen'?eraseStrike:'none'} 240ms ease-out both; transition: opacity 100ms ease-out; @media(pointer:coarse){padding-top:11px;font-size:16px;}`;
+const DetailsClip = styled.div<{ $open:boolean }>`display:grid; grid-template-rows:${({$open})=>$open?'1fr':'0fr'}; opacity:${({$open})=>$open?1:0}; transition:grid-template-rows 190ms ease-out, opacity 150ms ease-out; > div { min-height:0; overflow:hidden; } @media(max-width:540px){grid-column:1 / -1; grid-row:4; min-width:0;}`;
 const DetailList = styled.div`position: relative;`;
 const DetailRow = styled.div<{ $dragging?:boolean }>`display: flex; align-items: center; gap: 6px; margin-left: 3px; border-radius: 6px; background: ${({$dragging})=>$dragging?'var(--date-bg)':'transparent'}; z-index: ${({$dragging})=>$dragging?1:0}; position: relative; [data-detail-control] { opacity: 0; transition: opacity 120ms ease-out; } &:hover [data-detail-control], &:focus-within [data-detail-control] { opacity: 1; } @media(hover:none) { [data-detail-control] { opacity: 1; } }`;
-const DetailDraftRow = styled(DetailRow)`padding-left: 60px; @media(pointer:coarse){padding-left:88px;}`;
-const DetailGrip = styled.button`width: 20px; min-width: 20px; min-height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:32px;min-width:32px;min-height:44px;}`;
+const DetailDraftRow = styled(DetailRow)`padding-left: 60px; @media(pointer:coarse){padding-left:88px;} @media(max-width:540px){grid-column:1 / -1; grid-row:4; min-width:0;}`;
+const DetailGrip = styled.button`width: 20px; min-width: 20px; min-height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:44px;min-width:44px;min-height:44px;}`;
 const DetailCheck = styled.button<{ $done:boolean }>`width:28px; min-width:28px; min-height:32px; display:grid; place-items:center; padding:0; border:0; border-radius:5px; background:transparent; color:${({$done})=>$done?'var(--link)':'var(--checkbox)'}; &:hover{background:var(--soft);} @media(pointer:coarse){width:44px;min-width:44px;min-height:44px;}`;
-const ActionWrap = styled.div`position: static; display:flex; align-items:flex-start; flex: none;`;
-const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
+const ActionWrap = styled.div`position: static; display:flex; align-items:flex-start; flex: none; @media(max-width:540px){display:contents;}`;
+const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;} @media(max-width:540px){grid-column:4;grid-row:1;}`;
 const ActionMenu = styled.div`position: fixed; z-index: 30; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0003;`;
 const Action = styled.button`width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; &:hover:not(:disabled), &[aria-expanded='true'] { background: var(--soft); } &:disabled { color: var(--muted); cursor: default; opacity: .55; } @media(pointer:coarse){min-height:44px;}`;
-const ParentSearch = styled(Field)`width: 100%; min-height: 40px; margin: 3px 0 5px; font-size: 13px; @media(pointer:coarse){min-height:44px;}`;
+const ParentSearch = styled(Field)`width: 100%; min-height: 40px; margin: 3px 0 5px; font-size: 13px; @media(pointer:coarse){min-height:44px; font-size:16px;}`;
 const ParentList = styled.div`max-height: min(280px, calc(100dvh - 150px)); overflow-y: auto; overscroll-behavior: contain;`;
 const ParentOption = styled(Action)`display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;`;
 const ParentHint = styled.p`padding: 8px 9px; color: var(--muted); font-size: 12px;`;
-const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px){left: auto; right: 0; top: calc(100% + 8px); max-height: calc(100dvh - 160px); overflow: auto;}`;
+const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px), (max-height: 500px){position:fixed; left:50%; right:auto; top:max(8px, env(safe-area-inset-top)); transform:translateX(-50%); width:min(360px, calc(100vw - 16px)); max-height:calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))); overflow:auto; overscroll-behavior:contain;}`;
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const AddForm = styled.form<{ $inline: boolean }>`margin: 10px 0 0 64px; width: calc(100% - 64px); ${({$inline}) => $inline && 'margin-top: 0;'} @media(pointer:coarse){margin-left:84px;width:calc(100% - 84px);}`;
-const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } ${quietLineFocus}`;
-const DetailToggle = styled.button<{ $open:boolean }>`display: inline-flex; align-items: center; justify-content:center; gap: 3px; min-width:48px; min-height:40px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; svg { transform: rotate(${({$open})=>$open?'0':'-90deg'}); transition: transform 180ms ease-out; } &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;min-width:48px;}`;
+const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } ${quietLineFocus} @media(pointer:coarse){font-size:16px; &::placeholder {font-size:13px;}}`;
+const DetailToggle = styled.button<{ $open:boolean }>`display: inline-flex; align-items: center; justify-content:center; gap: 3px; min-width:48px; min-height:40px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; svg { transform: rotate(${({$open})=>$open?'0':'-90deg'}); transition: transform 180ms ease-out; } &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;min-width:48px;} @media(max-width:540px){grid-column:3 / -1;grid-row:3;justify-self:end;}`;
 
 function LineField({ detail = false, value, $completionChange, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string; $done?: boolean; $completionChange?:CompletionChange }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -67,6 +67,20 @@ function LineField({ detail = false, value, $completionChange, ...props }: Compo
     element.style.height = 'auto';
     element.style.height = `${element.scrollHeight}px`;
   }, [value]);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    const shell = element?.parentElement;
+    if (!element || !shell) return;
+    let lastWidth = shell.getBoundingClientRect().width;
+    const observer = new ResizeObserver(([entry]) => {
+      if (Math.abs(entry.contentRect.width - lastWidth) < 0.5) return;
+      lastWidth = entry.contentRect.width;
+      element.style.height = 'auto';
+      element.style.height = `${element.scrollHeight}px`;
+    });
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
   const Component = detail ? DetailInput : ItemInput;
   return <LineShell><Component ref={ref} rows={1} value={value} data-journal-entry $completionChange={$completionChange} {...props}/>{(props.$done || $completionChange === 'reopen') && <Strike data-strike aria-hidden="true" $detail={detail} $completionChange={$completionChange}>{value}</Strike>}</LineShell>;
 }

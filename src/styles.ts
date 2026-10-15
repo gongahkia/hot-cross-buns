@@ -76,6 +76,7 @@ export const Muted = styled.p`font-size: 13px; color: var(--muted);`;
 export const Field = styled.input`
   width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 7px;
   padding: 8px 11px; background: var(--field); font-size: 14px; min-width: 0;
+  @media(pointer:coarse) { font-size: 16px; }
 `;
 export const InlineError = styled.p`font-size: 13px; color: var(--danger); margin: 12px 0;`;
 export const VisuallyHidden = styled.span`
