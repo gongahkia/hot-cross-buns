@@ -4,12 +4,13 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FileText, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
-import { Field, IconButton, InlineError, Muted, VisuallyHidden } from './styles';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileInput, FolderOpen, Save, Search, Settings2, X } from 'lucide-react';
+import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
 import { CalendarPanel } from './components/CalendarPanel';
+import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
@@ -19,7 +20,7 @@ import { emptyState, loadTodoState, pickTodoFile, saveTodoState, supportsDirectF
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
-const Icon = styled(IconButton)<{ $active?:boolean; $dirty?:boolean }>`width: 44px; height: 44px; ${({$active})=>$active?'background:var(--soft); color:var(--ink);':''} ${({$dirty})=>$dirty?'position:relative; &::after { content:""; position:absolute; right:7px; bottom:7px; width:5px; height:5px; border-radius:50%; background:var(--link); }':''}`;
+const Icon = styled(IconButton)`width: 44px; height: 44px;`;
 const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
 const DateControl = styled.div`position: relative; display: flex; align-items: center; width: 155px; min-width: 0; min-height: 44px; @media(max-width:600px){width:100%;}`;
 const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; &:hover { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }`;
@@ -48,12 +49,15 @@ const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
 const DayUnfinished = styled(Note)`margin: 7px 0 5px 64px;`;
-const RawPane = styled.section`min-width:0; margin-top:12px;`;
-const RawEditor = styled.textarea`display:block; width:100%; min-height:max(360px, calc(100dvh - 155px)); padding:0; border:0; border-radius:0; outline:0; background:transparent; color:var(--ink); font:14px/1.7 var(--raw-font); tab-size:2; resize:none; white-space:pre-wrap; overflow-wrap:anywhere; &:focus-visible{outline:2px solid var(--focus); outline-offset:6px; border-radius:2px;} @media(max-width:600px){min-height:max(300px, calc(100dvh - 155px));}`;
-const RawIssues = styled.div`margin:12px 0;`;
-const RawIssue = styled.p`font-size:12px; line-height:1.5; color:var(--danger); margin:4px 0;`;
-const RawDiscard = styled.button`margin-top:6px; padding:4px 0; border:0; background:transparent; color:var(--muted); font-size:12px; text-decoration:underline; text-underline-offset:3px; &:hover{color:var(--ink);}`;
-const RAW_DRAFT_KEY = 'hito-raw-draft-v1';
+const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
+const downloadTextFile = (text: string, fileName: string) => {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
 const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -151,15 +155,8 @@ export default function App() {
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [rawOpen, setRawOpen] = useState(false);
-  const [rawDraft, setRawDraft] = useState('');
-  const [rawBaseline, setRawBaseline] = useState<string | null>(null);
-  const [rawIssues, setRawIssues] = useState<ParseIssue[]>([]);
-  const [rawError, setRawError] = useState('');
-  const [rawApplying, setRawApplying] = useState(false);
-  const rawBase = useRef<TodoDocument | null>(null);
-  const rawSyncedRevision = useRef<number | null>(null);
-  const rawApplyingRef = useRef(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [legacyRawDraft, setLegacyRawDraft] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -177,36 +174,7 @@ export default function App() {
   const redoStack = useRef<TodoDocument[]>([]);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
-  const rawDirty = rawBaseline !== null && rawDraft !== rawBaseline;
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
-
-  useEffect(() => {
-    if (!rawOpen || rawDirty || !state) return;
-    if (state.revision === rawSyncedRevision.current) return;
-    const text = serializeTodoText(state.document);
-    rawSyncedRevision.current = state.revision;
-    if (rawBase.current && text === serializeTodoText(rawBase.current)) return;
-    rawBase.current = cloneDocument(state.document);
-    setRawBaseline(text);
-    setRawDraft(text);
-  }, [state?.revision, rawOpen, rawDirty]);
-
-  useEffect(() => {
-    if (!rawOpen || !rawDirty || rawApplying) return;
-    const timeout = window.setTimeout(() => void applyRawDraft(rawDraft), rawDraft.length > 100_000 ? 1200 : 750);
-    return () => window.clearTimeout(timeout);
-  }, [rawOpen, rawDirty, rawDraft, rawApplying]);
-
-  useEffect(() => {
-    const preserveDraft = () => {
-      try {
-        if (rawDirty) sessionStorage.setItem(RAW_DRAFT_KEY, rawDraft);
-        else sessionStorage.removeItem(RAW_DRAFT_KEY);
-      } catch { /* Storage quotas should not interrupt navigation. */ }
-    };
-    window.addEventListener('pagehide', preserveDraft);
-    return () => window.removeEventListener('pagehide', preserveDraft);
-  }, [rawDirty, rawDraft]);
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -221,15 +189,9 @@ export default function App() {
     current.current = loaded;
     setState(loaded);
     try {
-      const pending = sessionStorage.getItem(RAW_DRAFT_KEY);
-      sessionStorage.removeItem(RAW_DRAFT_KEY);
-      if (pending !== null && pending !== serializeTodoText(loaded.document)) {
-        rawBase.current = cloneDocument(loaded.document);
-        rawSyncedRevision.current = loaded.revision;
-        setRawBaseline(serializeTodoText(loaded.document));
-        setRawDraft(pending);
-        setRawOpen(true);
-      }
+      const draft = sessionStorage.getItem(LEGACY_RAW_DRAFT_KEY);
+      if (draft === serializeTodoText(loaded.document)) sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY);
+      else if (draft !== null) setLegacyRawDraft(draft);
     } catch { /* The journal remains available if session storage is blocked. */ }
   }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
   useEffect(() => { if (state) previousDocument.current = state.document; }, [state?.document]);
@@ -300,7 +262,6 @@ export default function App() {
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-        if (rawOpen) return;
         event.preventDefault();
         setDateOpen(false);
         setSearchOpen(true);
@@ -308,7 +269,7 @@ export default function App() {
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-        if (rawOpen) return;
+        if (exportOpen) return;
         event.preventDefault();
         const target = event.target;
         if (target instanceof HTMLTextAreaElement && target.hasAttribute('data-journal-entry')) target.blur();
@@ -416,11 +377,12 @@ export default function App() {
   };
   const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text(), null, 'import'); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } };
   const openFile = async () => { setBusy(true); try { const handle = await pickTodoFile(); await imported(await (await handle.getFile()).text(), handle, 'import'); } catch (error) { if ((error as Error).name !== 'AbortError') setMessage(String(error)); } finally { setBusy(false); } };
-  const download = async () => {
+  const download = async (fileName: string, lineEnding: LineEnding) => {
     const output = serializeTodoText(current.current.document);
-    const url = URL.createObjectURL(new Blob([output], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'TODO.txt'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-    if (!current.current.fileHandle) await commitState({ ...current.current, baseline: cloneDocument(current.current.document), baselineText: output });
+    const fileText = lineEnding === 'crlf' ? output.replace(/\n/g, '\r\n') : output;
+    downloadTextFile(fileText, fileName);
+    setExportOpen(false);
+    if (!current.current.fileHandle) await commitState({ ...current.current, baseline: cloneDocument(current.current.document), baselineText: fileText });
     setMessage('TODO.txt downloaded.');
   };
   const save = async () => {
@@ -449,51 +411,6 @@ export default function App() {
     } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
   };
   const reparse = async () => { setIssues([]); setReview(null); try { await imported(rawEdit, review?.handle ?? null, review?.mode ?? 'import', review?.observedText ?? null); } catch (error) { setMessage(String(error)); } };
-  const resetRawDraft = () => {
-    const document = cloneDocument(current.current.document);
-    rawBase.current = document;
-    rawSyncedRevision.current = current.current.revision;
-    const text = serializeTodoText(document);
-    setRawBaseline(text);
-    setRawDraft(text);
-    setRawIssues([]);
-    setRawError('');
-  };
-  const toggleRaw = () => {
-    if (!rawOpen) {
-      if (!rawBase.current || !rawDirty) resetRawDraft();
-      setSearchOpen(false);
-      setQuery('');
-    } else if (rawDirty) {
-      void applyRawDraft(rawDraft);
-    }
-    setRawOpen(value => !value);
-  };
-  const applyRawDraft = async (draft: string) => {
-    if (rawApplyingRef.current || draft === rawBaseline) return;
-    const parsed = parseTodoText(draft);
-    setRawIssues(parsed.issues);
-    setRawError('');
-    if (parsed.issues.length) return;
-    rawApplyingRef.current = true;
-    setRawApplying(true);
-    try {
-      const proposal = proposeMerge(current.current.document, parsed.document, rawBase.current ?? current.current.document);
-      if (proposal.conflicts.length) {
-        setRawError('The journal changed while this text was open. Review those changes in the journal or discard this draft before applying it.');
-        return;
-      }
-      const merged = resolveMerge(proposal, {});
-      advanceRecurrences(current.current.document, merged, todayString());
-      validateDocument(merged);
-      if (serializeTodoText(merged) !== serializeTodoText(current.current.document)) await commitDocumentState({ ...current.current, document: merged });
-      rawBase.current = cloneDocument(current.current.document);
-      rawSyncedRevision.current = current.current.revision;
-      setRawBaseline(draft);
-      setRawIssues([]);
-    } catch (error) { setRawError(String(error)); }
-    finally { rawApplyingRef.current = false; setRawApplying(false); }
-  };
   const documentData = state?.document ?? emptyDocument();
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -522,7 +439,7 @@ export default function App() {
   return <Page>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hito daily journal</VisuallyHidden>
-    <Header $revealed={searchOpen || dateOpen || rawOpen}>
+    <Header $revealed={searchOpen || dateOpen}>
     <Toolbar>
       <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
@@ -537,24 +454,23 @@ export default function App() {
       </>}
     </Toolbar>
     <Tools>
-      <Icon ref={searchButton} disabled={rawOpen} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
-      <Icon title={rawOpen ? 'Show journal view' : rawDirty ? 'Show raw TODO.txt (unapplied changes)' : 'Show raw TODO.txt'} aria-label={rawOpen ? 'Show journal view' : 'Show raw TODO.txt'} aria-pressed={rawOpen} $active={rawOpen} $dirty={rawDirty} onClick={toggleRaw}><FileText size={17}/></Icon>
-      <Icon title={rawDirty ? 'Apply raw edits before importing' : 'Import TODO.txt'} aria-label="Import TODO.txt" disabled={rawDirty} onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title={rawDirty ? 'Apply raw edits before opening another file' : 'Open TODO.txt'} aria-label="Open TODO.txt" disabled={busy || rawDirty} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
-      <Icon title={rawDirty ? 'Apply raw edits before downloading' : 'Download TODO.txt'} aria-label="Download TODO.txt" disabled={rawDirty} onClick={() => void download()}><Download size={17}/></Icon>
-      {supportsDirectFiles() && <Icon title={rawDirty ? 'Apply raw edits before saving' : 'Save connected TODO.txt'} aria-label="Save connected TODO.txt" disabled={busy || rawDirty || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
+      <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
+      <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title="Open TODO.txt" aria-label="Open TODO.txt" disabled={busy} onClick={() => void openFile()}><FolderOpen size={17}/></Icon>}
+      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon>
+      {supportsDirectFiles() && <Icon title="Save connected TODO.txt" aria-label="Save connected TODO.txt" disabled={busy || !state.fileHandle} onClick={() => void save()}><Save size={17}/></Icon>}
       <Icon title="Hito settings" aria-label="Hito settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    {!rawOpen && !!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
+    {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
+    {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
+      downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
+      setLegacyRawDraft(null);
+      try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
+    }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <div id="journal-content" tabIndex={-1}>
-    {rawOpen ? <RawPane aria-label="Raw TODO.txt editor" aria-busy={rawApplying}>
-      {!!rawIssues.length && <RawIssues role="alert"><InlineError>{rawIssues.length} format issue{rawIssues.length===1?'':'s'} need correction.</InlineError>{rawIssues.map(issue => <RawIssue key={`${issue.line}-${issue.message}`}>Line {issue.line}: {issue.message}</RawIssue>)}<RawDiscard type="button" onClick={resetRawDraft}>Discard draft</RawDiscard></RawIssues>}
-      {rawError && <RawIssues><InlineError role="alert">{rawError}</InlineError><RawDiscard type="button" onClick={resetRawDraft}>Discard draft</RawDiscard></RawIssues>}
-      <RawEditor data-raw-todo aria-label="Edit raw TODO.txt" spellCheck={false} readOnly={rawApplying} value={rawDraft} onChange={event => { setRawDraft(event.target.value); setRawIssues([]); setRawError(''); }} onBlur={() => { if (rawDirty) void applyRawDraft(rawDraft); }} placeholder="Start with a YYYY-MM-DD date heading."/>
-    </RawPane> : <>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
@@ -574,8 +490,8 @@ export default function App() {
     })}
     {createPortal(<DragOverlay dropAnimation={null} modifiers={[restrictToWindowEdges]} style={{ width: 'min(360px, calc(100vw - 32px))' }} zIndex={40}>{draggingItem && <DragPreview aria-label={`Dragging ${draggingItem.text}`}><PreviewCircle $done={draggingItem.completed}/><PreviewText $done={draggingItem.completed}>{draggingItem.text}</PreviewText></DragPreview>}</DragOverlay>, window.document.body)}
     </DndContext>
-    </>}
     </div>
+    <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
     <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}
       onClose={() => { setReview(null); setIssues([]); }} onRawEdit={setRawEdit}

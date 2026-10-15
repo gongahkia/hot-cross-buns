@@ -1,9 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 function dateOffset(days: number) {
   const date = new Date(); date.setDate(date.getDate() + days);
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+async function confirmTodoDownload(page: Page) {
+  const preview = page.getByRole('dialog', { name: 'Download TODO.txt' });
+  await expect(preview).toBeVisible();
+  await preview.getByRole('button', { name: 'download' }).click();
 }
 
 test('edits a dated journal and exports a portable TODO.txt', async ({ page }) => {
@@ -23,6 +29,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await expect(page.getByRole('navigation', { name: 'Tags' }).getByText('#work')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await confirmTodoDownload(page);
   const download = await downloadPromise;
   const text = await readFile(await download.path(), 'utf8');
   expect(text).toContain(`${dateOffset(0)}\nReview paper #work\n- [x] send feedback\n\nCall Alex\n`);
@@ -304,6 +311,7 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   await expect(text).toHaveCSS('text-decoration-line', 'line-through');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(exported).toContain('- [x] first step\n- [x] second step');
   await page.reload();
@@ -341,6 +349,7 @@ test('edits a time block and recurrence, creates one next item, and keeps both i
   await expect(future.getByText('every 3 days after completion')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain(`${today}\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
   expect(raw).toContain(`${next}\n\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
@@ -389,6 +398,7 @@ test('custom anchored recurrence counts actual items and stops after the selecte
   await third.getByRole('button', { name: 'Complete Check in' }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain('; from ' + today + '; series ');
   expect(raw).toContain('; occurrence 3; ends after 3');
@@ -415,6 +425,7 @@ test('an edited TODO.txt completion advances a custom series only once', async (
   await expect(successor).toHaveCount(1);
   const promise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
   expect(await readFile(await (await promise).path(), 'utf8')).toContain('series imported-series; occurrence 2; ends after 2');
 });
 
@@ -455,6 +466,7 @@ test('custom monthly ordinal and end date survive the repeat editor and TODO.txt
   await editor.getByRole('button', { name: 'cancel' }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain('every 1 month on last fri; from ' + today);
   expect(raw).toContain('; occurrence 1; ends on ' + endDate);
@@ -477,6 +489,7 @@ test('date-based repeat presets serialize their selected calendar pattern', asyn
   const download = async () => {
     const promise = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+    await confirmTodoDownload(page);
     return readFile(await (await promise).path(), 'utf8');
   };
   let editor = await open();
@@ -585,6 +598,7 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
   expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain(`${today}\n\nFind this task\n`);
 });
 
@@ -783,6 +797,7 @@ test('reveals item actions on hover and reorders details within their item', asy
   await expect(page.locator('header')).toHaveCSS('opacity', '1');
   const downloadPromise = page.waitForEvent('download');
   await downloadButton.click();
+  await confirmTodoDownload(page);
   await expect(page.getByRole('status').getByText('TODO.txt downloaded.')).toBeVisible({ timeout: 3000 });
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(exported).toContain('Parent task\n- [ ] second detail\n- [ ] first detail');
@@ -953,90 +968,84 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   expect(editMs).toBeLessThan(5000);
 });
 
-test('raw TODO.txt view displays the whole file and applies portable edits', async ({ page }) => {
+test('TODO.txt preview shows the complete portable file before download', async ({ page }) => {
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
   const initial = `${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline\n\n${tomorrow}\n\nFollow up\n`;
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
-  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
-  const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
-  await expect(editor).toBeVisible();
-  await expect(editor).toHaveCSS('border-top-width', '0px');
-  await expect(editor).toHaveCSS('font-family', /JetBrains Mono/);
-  await expect(page.getByRole('heading', { name: 'TODO.txt' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0);
-  await expect(page.getByText('This is the complete TODO.txt representation of the journal.')).toHaveCount(0);
-  await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toHaveCount(0);
-  const original = await editor.inputValue();
-  expect(original).toContain(`${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline`);
-  expect(original).toContain(`${tomorrow}\n\nFollow up`);
-  const changed = original.replace('Plan #work', 'Plan revised #work').replace('Outline', 'Draft outline');
-  await editor.fill(changed);
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Show journal view' }).click();
-  await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Edit detail Draft outline' })).toBeVisible();
-  await page.keyboard.press('Control+z');
-  await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toBeVisible();
-  await page.keyboard.press('Control+Shift+z');
-  await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
-  const downloadPromise = page.waitForEvent('download');
+  await expect(page.getByRole('button', { name: 'Show raw TODO.txt' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
-  expect(await readFile(await (await downloadPromise).path(), 'utf8')).toBe(changed);
-  await page.reload();
-  await expect(page.getByRole('group', { name: '09:00-09:30 Plan revised #work' })).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
+  const preview = dialog.getByLabel('TODO.txt preview');
+  await expect(preview).toContainText('09:00-09:30 Plan #work');
+  await expect(preview).toContainText('  @repeat: weekly on mon');
+  await expect(preview).toContainText('- [ ] Outline');
+  await expect(preview).toContainText(tomorrow);
+  await expect(dialog.getByLabel('File name')).toHaveValue('TODO.txt');
+  await expect(dialog.getByLabel('Line endings')).toHaveValue('lf');
+  const previewText = await preview.textContent();
+  const downloadPromise = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'download' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('TODO.txt');
+  expect(await readFile(await download.path(), 'utf8')).toBe(previewText);
+  await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toBeVisible();
 });
 
-test('invalid raw TODO.txt stays in the editor without changing the journal', async ({ page }) => {
+test('preview options preserve TODO.txt meaning and reset after closing', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
-  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
-  const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
-  await editor.fill('2026-02-30\nBad task\n');
-  await page.reload();
-  await expect(editor).toHaveValue('2026-02-30\nBad task\n');
-  await expect(page.getByText('Invalid date: 2026-02-30')).toBeVisible();
-  await page.getByRole('button', { name: 'Show journal view' }).click();
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
+  const preview = dialog.getByLabel('TODO.txt preview');
+  const canonical = await preview.textContent();
+  await dialog.getByLabel('File name').fill('My tasks');
+  await dialog.getByLabel('Line endings').selectOption('crlf');
+  await dialog.getByRole('checkbox', { name: 'Wrap long lines in preview' }).uncheck();
+  await expect(preview).toHaveCSS('white-space', 'pre');
+  const downloadPromise = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'download' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('My tasks.txt');
+  const text = await readFile(await download.path(), 'utf8');
+  expect(text).toContain('\r\n');
+  expect(text.replace(/\r\n/g, '\n')).toBe(canonical);
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await expect(dialog.getByLabel('File name')).toHaveValue('TODO.txt');
+  await expect(dialog.getByLabel('Line endings')).toHaveValue('lf');
+  await expect(dialog.getByRole('checkbox', { name: 'Wrap long lines in preview' })).toBeChecked();
+  await dialog.getByRole('button', { name: 'cancel' }).click();
+  await expect(dialog).not.toBeVisible();
   await expect(page.getByRole('group', { name: 'Keep this task' })).toBeVisible();
-  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
-  await expect(editor).toHaveValue('2026-02-30\nBad task\n');
-  await page.getByRole('button', { name: 'Discard draft' }).click();
-  await expect(editor).toHaveValue(/Keep this task/);
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
 });
 
-test('completing a recurrence in raw TODO.txt creates one next occurrence', async ({ page }) => {
-  const today = dateOffset(0);
-  const tomorrow = dateOffset(1);
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
-  const editor = page.getByRole('textbox', { name: 'Edit raw TODO.txt' });
-  await editor.fill(`${today}\n\nWater plants\n  @repeat: daily\n`);
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
-  await editor.fill(`${today}\nWater plants\n  @repeat: daily\n\n`);
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Show journal view' }).click();
-  await expect(page.locator(`section:has(time[datetime="${tomorrow}"])`).getByRole('group', { name: 'Water plants' })).toBeVisible();
-  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
-  await expect(editor).toHaveValue(new RegExp(`${tomorrow}\\n\\nWater plants`));
-  const raw = await editor.inputValue();
-  expect(raw).toContain(`${tomorrow}\n\nWater plants\n  @repeat: daily`);
-  expect((raw.match(/Water plants/g) ?? []).length).toBe(2);
-});
-
-test('auto-saves a large raw TODO.txt edit after typing pauses', async ({ page }) => {
+test('a large TODO.txt preview remains usable on a phone', async ({ page }) => {
   const today = dateOffset(0);
   const text = `${today}\n\n${Array.from({ length: 1200 }, (_, index) => `Task ${index}`).join('\n')}\n`;
+  await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
-  await page.getByRole('button', { name: 'Show raw TODO.txt' }).click();
-  const start = Date.now();
-  await page.getByRole('textbox', { name: 'Edit raw TODO.txt' }).fill(text.replace('Task 600', 'Task 600 edited'));
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeEnabled({ timeout: 6000 });
-  expect(Date.now() - start).toBeLessThan(6000);
-  await page.getByRole('button', { name: 'Show journal view' }).click();
-  await expect(page.getByRole('group', { name: 'Task 600 edited' })).toBeVisible();
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
+  await expect(dialog.getByLabel('TODO.txt preview')).toContainText('Task 1199');
+  const box = await dialog.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(667);
+  await dialog.getByRole('button', { name: 'cancel' }).click();
+});
+
+test('an unfinished draft from the removed editor can still be downloaded', async ({ page }) => {
+  const draft = '2026-02-30\nUnfinished edit\n';
+  await page.addInitScript(value => sessionStorage.setItem('hito-raw-draft-v1', value), draft);
+  await page.goto('/');
+  await expect(page.getByText('An unfinished TODO.txt draft from the old editor is available.')).toBeVisible();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'download draft' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('TODO-draft.txt');
+  expect(await readFile(await download.path(), 'utf8')).toBe(draft);
+  await expect(page.getByRole('button', { name: 'download draft' })).toHaveCount(0);
 });
