@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { Button } from '../styles';
-import { dateFormatOptions, fontOptions, getFont, getRawFont, getTheme, rawFontOptions, setFont, setRawFont, setTheme, type AppFont, type DateFormat, type RawFont } from '../preferences';
+import { dateFormatOptions, fontOptions, getFont, getTheme, setFont, setTheme, type AppFont, type DateFormat } from '../preferences';
 import { colorThemes, type Theme } from '../themes';
 import { Modal } from './Modal';
 
@@ -12,12 +12,10 @@ const Actions = styled.div`display: flex; justify-content: flex-end; margin-top:
 export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange }: { open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void }) {
   const [theme, setThemeState] = useState(getTheme);
   const [font, setFontState] = useState(getFont);
-  const [rawFont, setRawFontState] = useState(getRawFont);
   const chooseTheme = (next: Theme) => { setTheme(next); setThemeState(next); };
   return <Modal open={open} onClose={onClose} title="Hito settings" compact>
     <FontField>Color scheme<FontSelect value={theme} onChange={event => chooseTheme(event.target.value as Theme)}><option value="day">Hito Day</option><option value="night">Hito Night</option>{colorThemes.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</FontSelect></FontField>
     <FontField>Font<FontSelect aria-label="Font" value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }}>{fontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
-    <FontField>TODO.txt font<FontSelect aria-label="TODO.txt font" value={rawFont} onChange={event => { const next = event.target.value as RawFont; setRawFont(next); setRawFontState(next); }}>{rawFontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <Actions><Button onClick={onClose}>close</Button></Actions>
   </Modal>;

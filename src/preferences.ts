@@ -1,6 +1,6 @@
 import { colorThemes, type Theme } from './themes';
 
-export const fontOptions = [
+const baseFontOptions = [
   ['sohne', 'Sohne', "'Sohne', 'Helvetica Neue', Arial, sans-serif", 300],
   ['dm-sans', 'DM Sans', "'DM Sans', system-ui, sans-serif", 400],
   ['lora', 'Lora', "'Lora', Georgia, serif", 400],
@@ -23,7 +23,6 @@ export const fontOptions = [
   ['monaco', 'Monaco', 'Monaco, Consolas, monospace', 400],
   ['courier', 'Courier New', "'Courier New', Courier, monospace", 400],
 ] as const;
-export type AppFont = (typeof fontOptions)[number][0];
 
 // Google Fonts monospace families in popularity order, captured 2026-10-13.
 // The same families are hosted locally in public/fonts/mono.
@@ -49,7 +48,11 @@ export const rawFontOptions = [
   ['redhatmono', 'Red Hat Mono'],
   ['cousine', 'Cousine'],
 ] as const;
-export type RawFont = (typeof rawFontOptions)[number][0];
+export const fontOptions = [
+  ...baseFontOptions,
+  ...rawFontOptions.map(([id, name]) => [id, name, `'${name}', ui-monospace, SFMono-Regular, Consolas, monospace`, 400] as const),
+] as const;
+export type AppFont = (typeof fontOptions)[number][0];
 
 export const dateFormatOptions = [
   ['long', '13 October 2026'], ['long-us', 'October 13, 2026'],
@@ -69,7 +72,6 @@ export type DateFormat = (typeof dateFormatOptions)[number][0];
 const FONT_KEY = 'hito-font';
 const THEME_KEY = 'hito-theme';
 const DATE_FORMAT_KEY = 'hito-date-format';
-const RAW_FONT_KEY = 'hito-raw-font';
 const storedPreference = (key: string) => localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
 
 export function getDateFormat(): DateFormat {
@@ -122,16 +124,6 @@ export function setFont(value: AppFont) {
   applyFont(value);
 }
 
-export function getRawFont(): RawFont {
-  const stored = localStorage.getItem(RAW_FONT_KEY);
-  return rawFontOptions.find(([id]) => id === stored)?.[0] ?? 'jetbrainsmono';
-}
-
-export function setRawFont(value: RawFont) {
-  localStorage.setItem(RAW_FONT_KEY, value);
-  applyRawFont(value);
-}
-
 export function getTheme(): Theme {
   const stored = storedPreference(THEME_KEY);
   return stored === 'day' || stored === 'night' || colorThemes.some(theme => theme.id === stored) ? stored as Theme : 'day';
@@ -144,13 +136,7 @@ export function setTheme(value: Theme) {
 
 export function applyStoredAppearance() {
   applyFont(getFont());
-  applyRawFont(getRawFont());
   applyTheme(getTheme());
-}
-
-function applyRawFont(value: RawFont) {
-  const name = rawFontOptions.find(([id]) => id === value)?.[1] ?? 'JetBrains Mono';
-  document.documentElement.style.setProperty('--raw-font', `'${name}', ui-monospace, SFMono-Regular, Consolas, monospace`);
 }
 
 function applyFont(value: AppFont) {
