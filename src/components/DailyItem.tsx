@@ -43,7 +43,6 @@ const DetailRow = styled.div<{ $dragging?:boolean }>`display: flex; align-items:
 const DetailGrip = styled.button`width: 20px; min-width: 20px; min-height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:32px;min-width:32px;min-height:44px;}`;
 const DetailCheck = styled.button<{ $done:boolean }>`width:28px; min-width:28px; min-height:32px; display:grid; place-items:center; padding:0; border:0; border-radius:5px; background:transparent; color:${({$done})=>$done?'var(--link)':'var(--checkbox)'}; &:hover{background:var(--soft);} @media(pointer:coarse){width:44px;min-width:44px;min-height:44px;}`;
 const Dash = styled.span`color: var(--muted); font-size: 13px;`;
-const Mini = styled.button`display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 5px; color: var(--muted); background: transparent; &:hover { color: var(--link); background: var(--date-bg); } @media(pointer:coarse){width:44px;height:44px;}`;
 const ActionWrap = styled.div`position: static; display:flex; align-items:flex-start; flex: none;`;
 const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;}`;
 const ActionMenu = styled.div`position: fixed; z-index: 30; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0003;`;
@@ -55,8 +54,8 @@ const ParentHint = styled.p`padding: 8px 9px; color: var(--muted); font-size: 12
 const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px){left: auto; right: 0; top: calc(100% + 8px); max-height: calc(100dvh - 160px); overflow: auto;}`;
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
-const AddForm = styled.form`display: flex; align-items: center; gap: 4px; margin-left: 60px; max-width: calc(100% - 60px); @media(pointer:coarse){margin-left:84px;max-width:calc(100% - 84px);}`;
-const AddInput = styled(Field)`min-height: 40px; border-color: transparent; background: transparent; padding-left: 2px; &:focus { background: var(--field); border-color: var(--focus); } @media(pointer:coarse){min-height:44px;}`;
+const AddForm = styled.form<{ $inline: boolean }>`margin: 10px 0 0 64px; width: calc(100% - 64px); ${({$inline}) => $inline && 'margin-top: 0;'} @media(pointer:coarse){margin-left:84px;width:calc(100% - 84px);}`;
+const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 8px 2px; font-size: 13px; &::placeholder { color: var(--muted); opacity: 1; } &:hover { color: var(--ink); } &:focus, &:focus-visible { outline: none; border-color: transparent; border-bottom-color: var(--focus); border-radius: 0; background: transparent; box-shadow: none; }`;
 const DetailToggle = styled.button<{ $open:boolean }>`display: inline-flex; align-items: center; justify-content:center; gap: 3px; min-width:48px; min-height:40px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; svg { transform: rotate(${({$open})=>$open?'0':'-90deg'}); transition: transform 180ms ease-out; } &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){min-height:44px;min-width:48px;}`;
 
 function LineField({ detail = false, value, $completionChange, ...props }: ComponentProps<'textarea'> & { detail?: boolean; value: string; $done?: boolean; $completionChange?:CompletionChange }) {
@@ -71,10 +70,17 @@ function LineField({ detail = false, value, $completionChange, ...props }: Compo
   return <LineShell><Component ref={ref} rows={1} value={value} data-journal-entry $completionChange={$completionChange} {...props}/>{(props.$done || $completionChange === 'reopen') && <Strike data-strike aria-hidden="true" $detail={detail} $completionChange={$completionChange}>{value}</Strike>}</LineShell>;
 }
 
-export function AddItem({ onAdd, autoFocus = false, onCancel, inline = false }: { onAdd: (text: string) => void; autoFocus?: boolean; onCancel?: () => void; inline?: boolean }) {
-  const [text, setText] = useState('');
+export function AddItem({ onAdd, autoFocus = false, onCancel, inline = false, label }: { onAdd: (text: string) => void; autoFocus?: boolean; onCancel?: () => void; inline?: boolean; label?: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const cancelled = useRef(false);
-  return <AddForm onSubmit={event => { event.preventDefault(); if (text.trim()) { onAdd(text); setText(''); onCancel?.(); } }}><AddInput autoFocus={autoFocus} aria-label={inline ? 'New item after current item' : 'New daily item'} placeholder={inline ? 'New item…' : 'Add a line to this day…'} value={text} onChange={event => setText(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { cancelled.current = true; onCancel?.(); } }} onBlur={event => { if (inline && !event.currentTarget.form?.contains(event.relatedTarget as Node)) { if (!cancelled.current && text.trim()) onAdd(text); cancelled.current = false; onCancel?.(); } }}/><Mini aria-label="Add daily item" type="submit"><Plus size={16}/></Mini></AddForm>;
+  const submitted = useRef(false);
+  const finish = () => {
+    if (cancelled.current || submitted.current) return;
+    const value = inputRef.current?.value.trim() ?? '';
+    if (value) { submitted.current = true; onAdd(value); onCancel?.(); }
+    else if (inline) onCancel?.();
+  };
+  return <AddForm $inline={inline} onSubmit={event => { event.preventDefault(); finish(); }}><AddInput ref={inputRef} autoFocus={autoFocus} aria-label={label ?? (inline ? 'New item after current item' : 'New daily item')} placeholder={inline ? 'New item…' : 'No lines yet. Add the first one below.'} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); cancelled.current = true; event.currentTarget.value = ''; onCancel?.(); event.currentTarget.blur(); } }} onBlur={finish}/></AddForm>;
 }
 
 export function JournalItem({ item, parentItems, previousItem, date, onChange, onMove, onMakeDetail, onStartNext }: { item: TodoItem; parentItems: TodoItem[]; previousItem?:TodoItem; date: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onMove: (date: string) => void; onMakeDetail: (parentId: string) => void; onStartNext: () => void }) {
@@ -113,13 +119,18 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
     if (!menuOpen) return;
     const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); } };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); moreRef.current?.focus(); } };
-    const scroll = (event: Event) => { if (event.target instanceof Node && menuRef.current?.contains(event.target)) return; setMenuOpen(false); setMoveOpen(false); setParentOpen(false); };
+    const scroll = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      const anchor = moreRef.current?.getBoundingClientRect();
+      if (!anchor || anchor.bottom < 0 || anchor.top > innerHeight) { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); return; }
+      positionMenu(moveOpen, parentOpen);
+    };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     window.addEventListener('scroll', scroll, true);
     window.addEventListener('resize', scroll);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', scroll); };
-  }, [menuOpen]);
+  }, [menuOpen, moveOpen, parentOpen]);
   const positionMenu = (withCalendar: boolean, withParents = false) => {
     const rect = moreRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -190,18 +201,24 @@ function Detail({ id, value, completionChange, onToggle, onSave, onStartNext, on
     if (!menuOpen) return;
     const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node) && !menuPanelRef.current?.contains(event.target as Node)) setMenuOpen(false); };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMenuOpen(false); moreRef.current?.focus(); } };
-    const scroll = (event: Event) => { if (event.target instanceof Node && menuPanelRef.current?.contains(event.target)) return; setMenuOpen(false); };
+    const scroll = (event: Event) => {
+      if (event.target instanceof Node && menuPanelRef.current?.contains(event.target)) return;
+      const anchor = moreRef.current?.getBoundingClientRect();
+      if (!anchor || anchor.bottom < 0 || anchor.top > innerHeight) { setMenuOpen(false); return; }
+      positionDetailMenu();
+    };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     window.addEventListener('scroll', scroll, true);
     window.addEventListener('resize', scroll);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', scroll); };
   }, [menuOpen]);
+  const positionDetailMenu = () => {
+    const rect = moreRef.current?.getBoundingClientRect();
+    if (rect) setMenuPosition({ top: Math.max(8, Math.min(rect.bottom + 4, innerHeight - 100)), left: Math.max(8, Math.min(rect.right - 176, innerWidth - 184)) });
+  };
   const openMenu = () => {
-    if (!menuOpen) {
-      const rect = moreRef.current?.getBoundingClientRect();
-      if (rect) setMenuPosition({ top: Math.max(8, Math.min(rect.bottom + 4, innerHeight - 100)), left: Math.max(8, Math.min(rect.right - 176, innerWidth - 184)) });
-    }
+    if (!menuOpen) positionDetailMenu();
     setMenuOpen(value => !value);
   };
   return <DetailRow ref={setNodeRef} $dragging={isDragging} style={{transform: CSS.Transform.toString(transform), transition}}>

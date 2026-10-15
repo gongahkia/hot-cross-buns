@@ -12,6 +12,14 @@ async function confirmTodoDownload(page: Page) {
   await preview.getByRole('button', { name: 'download' }).click();
 }
 
+async function showThirtyOneDays(page: Page) {
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await settings.getByLabel('Days shown').selectOption('31');
+  await settings.getByRole('button', { name: 'close' }).click();
+  await expect(settings).toBeHidden();
+}
+
 test('edits a dated journal and exports a portable TODO.txt', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Review paper #work');
@@ -21,8 +29,10 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await page.getByRole('textbox', { name: 'New detail for Review paper #work' }).fill('send feedback');
   await page.getByRole('textbox', { name: 'New detail for Review paper #work' }).press('Enter');
   await page.getByRole('button', { name: 'Complete Review paper #work' }).click();
-  await page.getByRole('textbox', { name: 'New daily item' }).fill('Call Alex');
-  await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
+  await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
+  await page.getByRole('textbox', { name: 'Edit Review paper #work' }).press('Enter');
+  await page.getByRole('textbox', { name: 'New item after current item' }).fill('Call Alex');
+  await page.getByRole('textbox', { name: 'New item after current item' }).press('Enter');
   await page.reload();
   await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen Review paper #work' })).toBeVisible();
@@ -61,11 +71,13 @@ test('flags malformed text and unfinished work on an earlier date', async ({ pag
   await page.getByRole('textbox', { name: 'Edit imported TODO.txt' }).fill(`${yesterday}\n\nCarry forward manually\n`);
   await page.getByRole('button', { name: 'check file' }).click();
   await expect(page.getByRole('group', { name: 'Carry forward manually' })).toBeVisible();
-  const notice = page.getByText('1 unfinished on this day');
+  const notice = page.locator('span[title="1 unfinished on this day"]');
   await expect(notice).toBeVisible();
   await expect(notice.locator('svg')).toBeVisible();
   const dateHeading = page.locator(`time[datetime="${yesterday}"]`);
-  expect((await notice.boundingBox())!.y).toBeLessThan((await dateHeading.boundingBox())!.y);
+  const badge = (await dateHeading.boundingBox())!;
+  expect((await notice.boundingBox())!.x).toBeGreaterThan(badge.x + badge.width);
+  expect(Math.abs((await notice.boundingBox())!.y - (await dateHeading.boundingBox())!.y)).toBeLessThan(20);
   await expect(page.getByText('unfinished', { exact: true })).toHaveCount(0);
 });
 
@@ -124,7 +136,7 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Skip to journal' })).toBeFocused();
-  await expect(page.getByText('No lines yet. Add the first one below.')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'New daily item' })).toHaveAttribute('placeholder', 'No lines yet. Add the first one below.');
 
   const original = 'A long line that should wrap across the narrow screen while staying one TODO.txt line #mobile';
   await page.getByRole('textbox', { name: 'New daily item' }).fill(original);
@@ -179,9 +191,10 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
   await page.mouse.down();
   await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + 5, { steps: 15 });
   await page.mouse.up();
-  await expect(page.locator('section').first().getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
+  const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
+  await expect(todaySection.getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
   await page.reload();
-  await expect(page.locator('section').first().getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
+  await expect(todaySection.getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
 
   await page.getByRole('button', { name: 'Complete Alpha' }).click();
   await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
@@ -224,6 +237,7 @@ test('shows a styled calendar and opens move dates beside the actions', async ({
 test('drags a task onto another date heading and keeps its details', async ({ page }) => {
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
+  await page.setViewportSize({ width: 1280, height: 1600 });
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`) });
   await page.getByRole('button', { name: 'Complete Transfer me' }).click();
@@ -382,6 +396,7 @@ test('custom anchored recurrence counts actual items and stops after the selecte
   const secondDate = dateOffset(14);
   const thirdDate = dateOffset(28);
   await page.goto('/');
+  await showThirtyOneDays(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Check in');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'More actions for Check in' }).click();
@@ -421,6 +436,7 @@ test('an edited TODO.txt completion advances a custom series only once', async (
   const pending = today + '\n\nCheck filter\n' + line + '\n';
   const completed = today + '\nCheck filter\n' + line + '\n\n';
   await page.goto('/');
+  await showThirtyOneDays(page);
   const input = page.getByLabel('Import a TODO.txt file');
   await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
   await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
@@ -750,6 +766,48 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
 });
 
+test('shows the selected week by default and saves the chosen day span', async ({ page }) => {
+  const today = dateOffset(0);
+  const date = new Date(`${today}T12:00:00`);
+  const monday = dateOffset(-((date.getDay() + 6) % 7));
+  await page.goto('/');
+  await expect(page.locator('section')).toHaveCount(7);
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
+  await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', dateOffset(6 - ((date.getDay() + 6) % 7)));
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  const shown = page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Days shown');
+  await expect(shown.locator('option')).toHaveCount(32);
+  await expect(shown).toHaveValue('7');
+  await shown.selectOption('1');
+  await expect(page.locator('section')).toHaveCount(1);
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
+  await shown.selectOption('month');
+  const daysRemaining = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate() - date.getDate() + 1;
+  await expect(page.locator('section')).toHaveCount(daysRemaining);
+  await shown.selectOption('3');
+  await page.getByRole('button', { name: 'close' }).click();
+  await page.reload();
+  await expect(page.locator('section')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Days shown')).toHaveValue('3');
+});
+
+test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {
+  await page.goto('/');
+  const emptyLine = page.getByRole('textbox', { name: 'New daily item' });
+  await expect(emptyLine).toHaveAttribute('placeholder', 'No lines yet. Add the first one below.');
+  await expect(page.getByRole('button', { name: 'Add daily item' })).toHaveCount(0);
+  await emptyLine.fill('First item');
+  await emptyLine.press('Enter');
+  await expect(page.getByRole('group', { name: 'First item' })).toBeVisible();
+  await expect(emptyLine).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Edit First item' }).press('Enter');
+  await page.getByRole('textbox', { name: 'New item after current item' }).fill('Second item');
+  await page.getByRole('textbox', { name: 'New item after current item' }).press('Enter');
+  await expect(page.getByRole('group', { name: 'Second item' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'New item after current item' })).toHaveCount(0);
+});
+
 test('calendar stays above journal content and allows month and year selection', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Behind the calendar');
@@ -759,9 +817,8 @@ test('calendar stays above journal content and allows month and year selection',
   await expect(calendar).toBeVisible();
   const above = await page.evaluate(() => {
     const popup = document.querySelector<HTMLElement>('[aria-label="Choose journal date"]')!;
-    const row = document.querySelector<HTMLElement>('[aria-label="Behind the calendar"]')!;
-    const bounds = row.getBoundingClientRect();
-    return popup.contains(document.elementFromPoint(bounds.left + 80, bounds.top + bounds.height / 2));
+    const bounds = popup.getBoundingClientRect();
+    return popup.contains(document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
   });
   expect(above).toBe(true);
   await calendar.getByRole('combobox', { name: 'Choose the Month' }).selectOption('1');

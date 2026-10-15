@@ -11,7 +11,8 @@ import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
 import { CalendarPanel } from './components/CalendarPanel';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
-import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
+import { datesInWindow, shiftDate } from './dayWindow';
+import { formatDateHeading, getDateFormat, getDayWindow, setDateFormat, setDayWindow, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { advanceRecurrences } from './recurrence';
@@ -34,7 +35,7 @@ const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bott
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const dayEnter = keyframes`from { opacity:.45; transform:translateY(5px); } to { opacity:1; transform:translateY(0); }`;
 const DaySection = styled.section<{ $selected:boolean }>`margin: 0 0 38px; scroll-margin-top: 20px; animation:${({$selected})=>$selected?dayEnter:'none'} 180ms ease-out;`;
-const DayTitle = styled.h2<{ $over?: boolean }>`display: flex; align-items: center; gap: 10px; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
+const DayTitle = styled.h2<{ $over?: boolean }>`display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
 const DragPreview = styled.div`display:flex; align-items:center; gap:8px; min-height:44px; width:100%; padding:7px 12px; border:1px solid var(--focus); border-radius:8px; background:var(--surface); color:var(--ink); box-shadow:0 12px 30px #0005; font-size:15px; pointer-events:none;`;
 const PreviewCircle = styled.span<{ $done:boolean }>`display:grid; place-items:center; width:15px; height:15px; flex:none; border:1px solid ${({$done})=>$done?'var(--link)':'var(--checkbox)'}; border-radius:50%; background:${({$done})=>$done?'var(--link)':'transparent'}; color:var(--paper);`;
@@ -45,11 +46,10 @@ const DoneCount = styled.span`font-size:11px; letter-spacing:0; font-variant-num
 const CompletedClip = styled.div<{ $open:boolean }>`display:grid; grid-template-rows:${({$open})=>$open?'1fr':'0fr'}; opacity:${({$open})=>$open?1:0}; transition:grid-template-rows 190ms ease-out, opacity 150ms ease-out; > div {min-height:0; overflow:hidden;}`;
 const Divider = styled.div`height: 1px; margin: 15px 0 13px 64px; background: var(--line);`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
-const EmptyDay = styled.p`margin: 12px 0 10px 64px; color: var(--muted); font-size: 13px;`;
 const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);}`;
-const DayUnfinished = styled(Note)`display: flex; align-items: center; gap: 6px; margin: 0 0 7px 8px; color: var(--link); font-variant-numeric: tabular-nums;`;
+const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
 const downloadTextFile = (text: string, fileName: string) => {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
@@ -61,7 +61,6 @@ const downloadTextFile = (text: string, fileName: string) => {
 };
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
-const shiftDate = (date: string, amount: number) => { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + amount); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const taskCollisionDetection: CollisionDetection = args => {
   const underPointer = pointerWithin(args);
   return underPointer.length ? underPointer : closestCenter(args);
@@ -105,10 +104,11 @@ const animateHistoryFallback = (before: Map<string, HistoryRow>, changed: Set<st
   }
 };
 
-function DateHeading({ date, today, format, highlighted }: { date: string; today: string; format: DateFormat; highlighted: boolean }) {
+function DateHeading({ date, today, format, highlighted, unfinished }: { date: string; today: string; format: DateFormat; highlighted: boolean; unfinished: number }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date:${date}` });
   return <DayTitle ref={setNodeRef} $over={isOver || highlighted} data-drop-date={date} title="Drop a task here to move it to this date">
     <DateBadge dateTime={date}>{formatDateHeading(date,format)}</DateBadge><span>{dateLabel(date,today)}</span>
+    {date < today && unfinished > 0 && <DayUnfinished title={`${unfinished} unfinished on this day`} aria-label={`${unfinished} unfinished on this day`}><CircleAlert size={14} aria-hidden="true"/><span className="long-label">{unfinished} unfinished on this day</span><span className="short-label" aria-hidden="true">{unfinished}</span></DayUnfinished>}
   </DayTitle>;
 }
 
@@ -151,6 +151,7 @@ export default function App() {
   const previousDocument = useRef<TodoDocument | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [dateFormat, setDateFormatState] = useState(getDateFormat);
+  const [dayWindow, setDayWindowState] = useState(getDayWindow);
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -418,8 +419,11 @@ export default function App() {
   const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
   const visibleDays = useMemo(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
-    return [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))].map(date => ({ date, items: daysByDate.get(date)?.items ?? [] }));
-  }, [documentData, selectedDate]);
+    const dates = query || tag
+      ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
+      : datesInWindow(selectedDate, dayWindow);
+    return dates.map(date => ({ date, items: daysByDate.get(date)?.items ?? [] }));
+  }, [documentData, selectedDate, dayWindow, query, tag]);
   const filteredDays = useMemo(() => {
     const needle = query.toLowerCase();
     return visibleDays.map(day => {
@@ -480,19 +484,17 @@ export default function App() {
       const { completed, upcoming } = day;
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
-        {day.date < today && upcoming.length > 0 && <DayUnfinished><CircleAlert size={14} aria-hidden="true"/>{upcoming.length} unfinished on this day</DayUnfinished>}
-        <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date}/>
-        {day.date === selectedDate && day.items.length === 0 && !query && !tag ? <EmptyDay>No lines yet. Add the first one below.</EmptyDay> : <>
+        <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length}/>
+        {day.items.length === 0 && !query && !tag ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
         <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
-        {day.date === selectedDate && !query && !tag && <AddItem onAdd={text => addItem(day.date,text)}/>}
       </DaySection>;
     })}
     {createPortal(<DragOverlay dropAnimation={null} modifiers={[restrictToWindowEdges]} style={{ width: 'min(360px, calc(100vw - 32px))' }} zIndex={40}>{draggingItem && <DragPreview aria-label={`Dragging ${draggingItem.text}`}><PreviewCircle $done={draggingItem.completed}/><PreviewText $done={draggingItem.completed}>{draggingItem.text}</PreviewText></DragPreview>}</DragOverlay>, window.document.body)}
     </DndContext>
     </div>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
-    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
+    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }} dayWindow={dayWindow} onDayWindowChange={value => { setDayWindow(value); setDayWindowState(value); }}/>
     <FileReview review={review} issues={issues} rawEdit={rawEdit} choices={choices} busy={busy}
       onClose={() => { setReview(null); setIssues([]); }} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
