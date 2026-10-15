@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { datesInRange, datesInWeek, shiftRange } from '../src/dayWindow.ts';
+import { datesInRange, datesInWeek, shiftRange, weekRange } from '../src/dayWindow.ts';
 
 test('seven-day view covers the selected Monday through Sunday', () => {
   assert.deepEqual(datesInWeek('2026-10-15'), [
@@ -11,6 +11,7 @@ test('seven-day view covers the selected Monday through Sunday', () => {
     '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29',
     '2026-10-30', '2026-10-31', '2026-11-01',
   ]);
+  assert.deepEqual(weekRange('2026-10-15'), { from: '2026-10-12', to: '2026-10-18' });
 });
 
 test('selected ranges include both endpoints across month and leap-day boundaries', () => {

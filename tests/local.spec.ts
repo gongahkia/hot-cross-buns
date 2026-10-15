@@ -21,10 +21,8 @@ async function selectJournalCalendarDate(page: Page, date: string) {
 
 async function showThirtyOneDays(page: Page) {
   await page.getByRole('button', { name: 'Choose date' }).click();
-  await page.getByRole('button', { name: 'Select date range' }).click();
   await selectJournalCalendarDate(page, dateOffset(0));
   await selectJournalCalendarDate(page, dateOffset(30));
-  await page.getByRole('button', { name: 'apply' }).click();
   await expect(page.locator('section')).toHaveCount(31);
 }
 
@@ -219,9 +217,11 @@ test('shows a styled calendar and opens move dates beside the actions', async ({
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Calendar task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
-  await page.getByRole('button', { name: 'Previous day' }).click();
-  await page.getByRole('button', { name: /^Go to today from / }).click();
-  await expect(page.getByRole('button', { name: `Go to today from ${dateOffset(0)}` })).toBeVisible();
+  await page.getByRole('button', { name: 'Previous range' }).click();
+  await page.getByRole('button', { name: /; go to today$/ }).click();
+  const week = new Date(`${dateOffset(0)}T12:00:00`);
+  const monday = dateOffset(-((week.getDay() + 6) % 7));
+  await expect(page.getByRole('button', { name: `Viewing ${monday} to ${dateOffset(6 - ((week.getDay() + 6) % 7))}; go to today` })).toBeVisible();
   await page.getByRole('button', { name: 'Choose date' }).click();
   await expect(page.locator('.rdp-root')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -607,7 +607,7 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   const today = dateOffset(0);
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(new Date(`${today}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }));
-  const previous = await page.getByRole('button', { name: 'Previous day' }).boundingBox();
+  const previous = await page.getByRole('button', { name: 'Previous range' }).boundingBox();
   const importButton = await page.getByRole('button', { name: 'Import TODO.txt' }).boundingBox();
   const search = await page.getByRole('button', { name: 'Open search' }).boundingBox();
   expect(Math.abs(previous!.y - importButton!.y)).toBeLessThan(2);
@@ -778,40 +778,43 @@ test('uses the calendar to switch between the default week, one day, and a selec
   const today = dateOffset(0);
   const date = new Date(`${today}T12:00:00`);
   const monday = dateOffset(-((date.getDay() + 6) % 7));
+  const sunday = dateOffset(6 - ((date.getDay() + 6) % 7));
   await page.goto('/');
   await expect(page.locator('section')).toHaveCount(7);
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
-  await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', dateOffset(6 - ((date.getDay() + 6) % 7)));
+  await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', sunday);
+  await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
   await page.getByRole('button', { name: 'Hito settings' }).click();
   const settings = page.getByRole('dialog', { name: 'Hito settings' });
   await expect(settings.getByLabel('Days shown')).toHaveCount(0);
   await settings.getByRole('button', { name: 'close' }).click();
   await expect(settings).toBeHidden();
   await page.getByRole('button', { name: 'Choose date' }).click();
-  await selectJournalCalendarDate(page, today);
+  const rangeToggle = page.getByRole('button', { name: 'Select date range' });
+  await expect(rangeToggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator(`.rdp-day[data-day="${monday}"]`)).toHaveClass(/rdp-range_start/);
+  await expect(page.locator(`.rdp-day[data-day="${sunday}"]`)).toHaveClass(/rdp-range_end/);
+  await expect(page.getByRole('button', { name: 'apply', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'cancel', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Choose a day, or show its week.')).toHaveCount(0);
+  await rangeToggle.click();
+  await expect(rangeToggle).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('section')).toHaveCount(1);
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
+  await selectJournalCalendarDate(page, dateOffset(1));
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(1));
   await page.getByRole('button', { name: 'Choose date' }).click();
   await page.getByRole('button', { name: 'Select date range' }).click();
+  await expect(page.locator('section')).toHaveCount(7);
   await selectJournalCalendarDate(page, today);
   await selectJournalCalendarDate(page, dateOffset(2));
-  await expect(page.getByRole('button', { name: 'apply' })).toBeEnabled();
-  await page.getByRole('button', { name: 'apply' }).click();
+  await expect(page.getByLabel('Choose journal date')).toHaveCount(0);
   await expect(page.locator('section')).toHaveCount(3);
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
   await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', dateOffset(2));
   await expect(page.getByRole('button', { name: `Viewing ${today} to ${dateOffset(2)}; go to today` })).toBeVisible();
   await page.getByRole('button', { name: 'Next range' }).click();
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
-  await page.getByRole('button', { name: 'Choose date' }).click();
-  await page.getByRole('button', { name: 'Select date range' }).click();
-  await expect(page.locator('section')).toHaveCount(1);
-  await page.getByRole('button', { name: 'show week' }).click();
-  await expect(page.locator('section')).toHaveCount(7);
-  await page.getByRole('button', { name: 'Choose date' }).click();
-  await page.getByRole('button', { name: 'Select date range' }).click();
-  await page.getByRole('button', { name: 'apply' }).click();
-  await expect(page.locator('section')).toHaveCount(3);
   await page.reload();
   await expect(page.locator('section')).toHaveCount(3);
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
@@ -823,8 +826,10 @@ test('uses the calendar to switch between the default week, one day, and a selec
   expect(popup.x + popup.width).toBeLessThanOrEqual(320);
   await page.getByRole('button', { name: 'Select date range' }).click();
   await expect(page.locator('section')).toHaveCount(1);
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
   await page.reload();
   await expect(page.locator('section')).toHaveCount(7);
+  await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
 });
 
 test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {
@@ -850,6 +855,7 @@ test('calendar stays above journal content and allows month and year selection',
   await page.getByRole('button', { name: 'Choose date' }).click();
   const calendar = page.getByLabel('Choose journal date');
   await expect(calendar).toBeVisible();
+  await calendar.getByRole('button', { name: 'Select date range' }).click();
   const above = await page.evaluate(() => {
     const popup = document.querySelector<HTMLElement>('[aria-label="Choose journal date"]')!;
     const bounds = popup.getBoundingClientRect();

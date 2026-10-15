@@ -16,6 +16,11 @@ export function datesInWeek(selectedDate: string): string[] {
   return Array.from({ length: 7 }, (_, index) => shiftDate(monday, index));
 }
 
+export function weekRange(selectedDate: string): DateSpan {
+  const dates = datesInWeek(selectedDate);
+  return { from: dates[0], to: dates[6] };
+}
+
 export function datesInRange({ from, to }: DateSpan): string[] {
   const dates: string[] = [];
   const first = new Date(`${from}T12:00:00`);

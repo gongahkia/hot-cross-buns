@@ -11,7 +11,7 @@ import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem } from './components/DailyItem';
 import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
-import { datesInRange, datesInWeek, shiftDate, shiftRange, type DateSpan } from './dayWindow';
+import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
 import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem, type ParseIssue } from './todoText';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
@@ -166,10 +166,11 @@ export default function App() {
   const current = useRef<TodoState>(emptyState());
   const previousDocument = useRef<TodoDocument | null>(null);
   const [initialRange] = useState(readSavedRange);
-  const [selectedDate, setSelectedDate] = useState(() => initialRange?.from ?? todayString());
+  const [selectedDate, setSelectedDate] = useState(todayString);
   const [dateFormat, setDateFormatState] = useState(getDateFormat);
-  const [viewMode, setViewMode] = useState<'week' | 'day' | 'range'>(initialRange ? 'range' : 'week');
-  const [activeRange, setActiveRange] = useState<DateSpan | null>(initialRange);
+  const [viewMode, setViewMode] = useState<'day' | 'range'>('range');
+  const [activeRange, setActiveRange] = useState<DateSpan>(() => initialRange ?? weekRange(todayString()));
+  const [rangeCustomized, setRangeCustomized] = useState(!!initialRange);
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -197,10 +198,10 @@ export default function App() {
 
   useEffect(() => {
     try {
-      if (viewMode === 'range' && activeRange) localStorage.setItem(SAVED_RANGE_KEY, JSON.stringify(activeRange));
+      if (viewMode === 'range' && rangeCustomized) localStorage.setItem(SAVED_RANGE_KEY, JSON.stringify(activeRange));
       else localStorage.removeItem(SAVED_RANGE_KEY);
     } catch { /* The visible range still works for this session. */ }
-  }, [viewMode, activeRange]);
+  }, [viewMode, activeRange, rangeCustomized]);
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -442,12 +443,12 @@ export default function App() {
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
   const draggingItem = draggingId ? documentData.days.flatMap(day => day.items).find(item => item.id === draggingId) : null;
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
-  const rangeActive = viewMode === 'range' && activeRange !== null;
+  const rangeActive = viewMode === 'range';
   const moveDateView = (direction: -1 | 1) => {
     if (rangeActive) {
       const shifted = shiftRange(activeRange, direction * datesInRange(activeRange).length);
       setActiveRange(shifted);
-      setSelectedDate(shifted.from);
+      setRangeCustomized(true);
     } else setSelectedDate(date => shiftDate(date, direction));
   };
   const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
@@ -456,7 +457,7 @@ export default function App() {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
     const dates = query || tag
       ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
-      : rangeActive ? datesInRange(activeRange) : viewMode === 'day' ? [selectedDate] : datesInWeek(selectedDate);
+      : rangeActive ? datesInRange(activeRange) : [selectedDate];
     return dates.map(date => ({ date, items: daysByDate.get(date)?.items ?? [] }));
   }, [documentData, selectedDate, viewMode, activeRange, rangeActive, query, tag]);
   const filteredDays = useMemo(() => {
@@ -484,14 +485,12 @@ export default function App() {
       {!searchOpen && <>
       <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef} $range={rangeActive}>
-        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { setSelectedDate(todayString()); setViewMode('week'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
+        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
         <DateCalendar aria-label="Choose date" aria-expanded={dateOpen} title="Choose date" onClick={() => setDateOpen(value => !value)}><CalendarDays size={17}/></DateCalendar>
         {dateOpen && <DatePopover><JournalDatePicker selectedDate={selectedDate} activeRange={activeRange} rangeActive={rangeActive} unfinishedDates={unfinishedDates}
           onSelectDate={value => { setSelectedDate(value); setViewMode('day'); setDateOpen(false); }}
-          onShowWeek={() => { setViewMode('week'); setDateOpen(false); }}
-          onExitRange={() => setViewMode('day')}
-          onApplyRange={range => { setActiveRange(range); setSelectedDate(range.from); setViewMode('range'); setDateOpen(false); }}
-          onClose={() => setDateOpen(false)}/></DatePopover>}
+          onToggleRange={active => { if (!active) setSelectedDate(todayString()); setViewMode(active ? 'range' : 'day'); }}
+          onSelectRange={range => { setActiveRange(range); setRangeCustomized(true); setViewMode('range'); setDateOpen(false); }}/></DatePopover>}
       </DateControl>
       <Icon aria-label={rangeActive?'Next range':'Next day'} onClick={() => moveDateView(1)}><ChevronRight size={17}/></Icon>
       </>}
