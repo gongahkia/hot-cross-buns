@@ -9,3 +9,8 @@ npm-debug.log*
 test-results/
 .tmp/
 playwright-report/
+.local/
+credentials.json
+client_secret*.json
+__pycache__/
+*.py[cod]
