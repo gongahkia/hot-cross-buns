@@ -1,4 +1,5 @@
 - multi-day events
+- have tab and shift tab actually do something
 - reschedule events just by dragging them around
 - better search (fuzzy search etc)
 - better filters on search

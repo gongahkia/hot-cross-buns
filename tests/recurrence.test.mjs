@@ -5,10 +5,10 @@ import { parseTimeBlock, setTimeBlock } from '../src/timeBlock.ts';
 import { parseTodoText, serializeTodoText } from '../src/todoText.ts';
 
 test('human-readable repeat rules and time blocks survive TODO.txt round trips', () => {
-  const raw = '2026-10-13\n\n09:00-09:30 Team sync #work\n  @repeat: weekly on mon, wed, fri\n- [ ] share update\n';
+  const raw = '2026-10-13\n\n09:00-09:30 Team sync #work\n  @repeat: weekly on mon, wed, fri; series team-sync\n- [ ] share update\n';
   const parsed = parseTodoText(raw, '2026-10-13');
   assert.deepEqual(parsed.issues, []);
-  assert.deepEqual(parsed.document.days[0].items[0].repeat, { kind: 'weekly', days: ['mon', 'wed', 'fri'] });
+  assert.deepEqual(parsed.document.days[0].items[0].repeat, { kind: 'weekly', days: ['mon', 'wed', 'fri'], series: 'team-sync' });
   assert.equal(serializeTodoText(parsed.document), raw);
   assert.deepEqual(parseTimeBlock(parsed.document.days[0].items[0].text), { start: '09:00', end: '09:30', title: 'Team sync #work' });
   assert.equal(setTimeBlock('09:00-09:30 Team sync', '10:15', '11:00'), '10:15-11:00 Team sync');
@@ -61,7 +61,7 @@ test('identified simple recurrence and completion date round-trip in readable te
   assert.equal(parsed.document.days[0].items[0].completedOn, '2026-10-15');
   assert.equal(parsed.document.days[0].items[0].repeat.occurrence, 2);
   assert.equal(formatRecurrence(parseRecurrence('DAILY; SERIES Morning-A; OCCURRENCE 1')), 'daily; series morning-a; occurrence 1');
-  assert.equal(parseRecurrence('daily; series a'), null);
+  assert.deepEqual(parseRecurrence('daily; series a'), { kind: 'daily', series: 'a' });
   assert.equal(parseRecurrence('daily; occurrence 1'), null);
 });
 
@@ -79,7 +79,7 @@ test('first import reconstructs one missing successor from a dated completion an
 });
 
 test('existing successor prevents duplication even when renamed or moved', () => {
-  const raw = '2026-10-13\nWater plants\n  @repeat: daily; series watering-a1; occurrence 1\n  @completed: 2026-10-13\n\n2026-10-20\n\nRenamed plants\n  @repeat: daily; series watering-a1; occurrence 2\n';
+  const raw = '2026-10-13\nWater plants\n  @repeat: every 1 day after completion; series watering-a1; occurrence 1\n  @completed: 2026-10-13\n\n2026-10-20\n\nRenamed plants\n  @repeat: every 1 day after completion; series watering-a1; occurrence 2\n';
   const document = parseTodoText(raw, '2026-10-20').document;
   reconcileRecurrences(document);
   assert.equal(document.days.length, 2);
@@ -87,7 +87,7 @@ test('existing successor prevents duplication even when renamed or moved', () =>
 });
 
 test('reopening clears the completion date without removing an existing successor', () => {
-  const rule = parseRecurrence('daily; series watering-a1; occurrence 1');
+  const rule = parseRecurrence('every 1 day after completion; series watering-a1; occurrence 1');
   const before = { days: [
     { date: '2026-10-13', items: [{ id: 'first', text: 'Water plants', completed: true, completedOn: '2026-10-13', repeat: rule, details: [] }] },
     { date: '2026-10-14', items: [{ id: 'second', text: 'Water plants', completed: false, repeat: { ...rule, occurrence: 2 }, details: [] }] },
@@ -100,15 +100,15 @@ test('reopening clears the completion date without removing an existing successo
 });
 
 test('a series at the largest supported occurrence remains valid', () => {
-  const raw = '2026-10-13\nFinal indexed task\n  @repeat: daily; series long-running-series; occurrence 9999\n  @completed: 2026-10-13\n\n';
+  const raw = '2026-10-13\nFinal indexed task\n  @repeat: every 1 day after completion; series long-running-series; occurrence 9999\n  @completed: 2026-10-13\n\n';
   const document = parseTodoText(raw, '2026-10-15').document;
   reconcileRecurrences(document);
   assert.equal(serializeTodoText(document), raw);
 });
 
 test('deleting a generated successor locally does not immediately recreate it', () => {
-  const completed = { id: 'first', text: 'Water plants', completed: true, completedOn: '2026-10-13', repeat: parseRecurrence('daily; series watering-a1; occurrence 1'), details: [] };
-  const successor = { id: 'second', text: 'Water plants', completed: false, repeat: parseRecurrence('daily; series watering-a1; occurrence 2'), details: [] };
+  const completed = { id: 'first', text: 'Water plants', completed: true, completedOn: '2026-10-13', repeat: parseRecurrence('every 1 day after completion; series watering-a1; occurrence 1'), details: [] };
+  const successor = { id: 'second', text: 'Water plants', completed: false, repeat: parseRecurrence('every 1 day after completion; series watering-a1; occurrence 2'), details: [] };
   const before = { days: [
     { date: '2026-10-13', items: [completed] },
     { date: '2026-10-14', items: [successor] },
@@ -121,8 +121,8 @@ test('deleting a generated successor locally does not immediately recreate it', 
 
 test('an imported deletion of a previously seen successor stays deleted', () => {
   const baseline = { days: [
-    { date: '2026-10-13', items: [{ id: 'first', text: 'Water plants', completed: true, completedOn: '2026-10-13', repeat: parseRecurrence('daily; series watering-a1; occurrence 1'), details: [] }] },
-    { date: '2026-10-14', items: [{ id: 'second', text: 'Water plants', completed: false, repeat: parseRecurrence('daily; series watering-a1; occurrence 2'), details: [] }] },
+    { date: '2026-10-13', items: [{ id: 'first', text: 'Water plants', completed: true, completedOn: '2026-10-13', repeat: parseRecurrence('every 1 day after completion; series watering-a1; occurrence 1'), details: [] }] },
+    { date: '2026-10-14', items: [{ id: 'second', text: 'Water plants', completed: false, repeat: parseRecurrence('every 1 day after completion; series watering-a1; occurrence 2'), details: [] }] },
   ] };
   const imported = { days: [structuredClone(baseline.days[0])] };
   advanceRecurrences(baseline, imported, '2026-10-15', true, baseline);

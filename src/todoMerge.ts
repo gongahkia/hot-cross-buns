@@ -5,7 +5,9 @@ export type MergeRow = {
   key: string; date: string; order: number; localOrder: number; fileOrder: number; local: TodoItem | null; file: TodoItem | null;
   conflict: boolean; choice: MergeChoice; reorderConflict?: boolean;
 };
-export type MergeProposal = { rows: MergeRow[]; conflicts: MergeRow[]; emptyDates: string[]; keepEmptyDates: string[]; fileEmptyDates: string[] };
+export type MergeProposal = { rows: MergeRow[]; conflicts: MergeRow[]; emptyDates: string[]; keepEmptyDates: string[]; fileEmptyDates: string[]; undatedNames?: string[]; fileUndatedNames?: string[] };
+const undatedKey = (name: string) => `UNDATED:${name}`;
+const listName = (key: string) => key.slice('UNDATED:'.length);
 
 const same = (a: TodoItem | null, b: TodoItem | null) => a === b || (!!a && !!b && itemValue(a) === itemValue(b));
 /** Align text-file items to the last observed file without putting private IDs in TODO.txt. */
@@ -55,10 +57,14 @@ function align(base: TodoItem[], file: TodoItem[]) {
 
 export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: TodoDocument | null): MergeProposal {
   const rows: MergeRow[] = [];
-  const localByDate = new Map(local.days.map(day => [day.date, day.items] as const));
-  const fileByDate = new Map(file.days.map(day => [day.date, day.items] as const));
-  const baseByDate = new Map(baseline?.days.map(day => [day.date, day.items] as const) ?? []);
-  const dates = new Set([...local.days, ...file.days, ...(baseline?.days ?? [])].map(day => day.date));
+  const groupMap = (document: TodoDocument) => new Map<string, TodoItem[]>([
+    ...document.days.map(day => [day.date, day.items] as [string, TodoItem[]]),
+    ...(document.undated ?? []).map(list => [undatedKey(list.name), list.items] as [string, TodoItem[]]),
+  ]);
+  const localByDate = groupMap(local);
+  const fileByDate = groupMap(file);
+  const baseByDate = baseline ? groupMap(baseline) : new Map<string, TodoItem[]>();
+  const dates = new Set([...localByDate.keys(), ...fileByDate.keys(), ...baseByDate.keys()]);
   for (const date of [...dates].sort()) {
     const localItems = localByDate.get(date) ?? [];
     const fileItems = fileByDate.get(date) ?? [];
@@ -128,15 +134,24 @@ export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: 
     }
   }
   rows.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order || a.key.localeCompare(b.key));
-  const emptyDates = [...dates].filter(date => {
+  const emptyDates = [...dates].filter(date => !date.startsWith('UNDATED:') && (() => {
     const localHasDate = localByDate.has(date);
     const fileHasDate = fileByDate.has(date);
     if (!baseline) return localHasDate || fileHasDate;
     const baseHasDate = baseByDate.has(date);
     return localHasDate === baseHasDate ? fileHasDate : fileHasDate === baseHasDate ? localHasDate : localHasDate || fileHasDate;
-  });
+  })());
   const keepEmptyDates = emptyDates.filter(date => local.days.find(day => day.date === date)?.keepEmpty || file.days.find(day => day.date === date)?.keepEmpty);
-  return { rows, conflicts: rows.filter(row => row.conflict), emptyDates, keepEmptyDates, fileEmptyDates: file.days.filter(day => !day.items.length).map(day => day.date) };
+  return { rows, conflicts: rows.filter(row => row.conflict), emptyDates, keepEmptyDates, fileEmptyDates: file.days.filter(day => !day.items.length).map(day => day.date),
+    undatedNames: [...new Set([...(local.undated ?? []), ...(file.undated ?? []), ...(baseline?.undated ?? [])].map(list => list.name))].filter(name => {
+      const key = undatedKey(name);
+      const localHas = localByDate.has(key);
+      const fileHas = fileByDate.has(key);
+      if (!baseline) return localHas || fileHas;
+      const baseHas = baseByDate.has(key);
+      return localHas === baseHas ? fileHas : fileHas === baseHas ? localHas : localHas || fileHas;
+    }),
+    fileUndatedNames: (file.undated ?? []).map(list => list.name) };
 }
 
 export function resolveMerge(proposal: MergeProposal, choices: Record<string, MergeChoice>) {
@@ -154,6 +169,15 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
   for (const row of ordered) {
     const choice = choices[row.key] ?? row.choice;
     const selected = choice === 'both' ? [row.local, row.file] : [choice === 'local' ? row.local : row.file];
+    if (row.date.startsWith('UNDATED:')) {
+      if (!selected.some(Boolean)) continue;
+      const name = listName(row.date);
+      const list = (document.undated ??= []).find(list => list.name === name) ?? (() => {
+        const created = { name, items: [] as TodoItem[] }; document.undated!.push(created); return created;
+      })();
+      for (const item of selected) if (item) list.items.push({ ...item, id: list.items.some(existing => existing.id === item.id) ? newId() : item.id, details: item.details.map(detail => ({ ...detail })) });
+      continue;
+    }
     let day = days.get(row.date);
     if (!day) {
       day = { date: row.date, items: [], ...(keepEmpty.has(row.date) ? { keepEmpty: true } : {}) };
@@ -170,7 +194,10 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
     }
   }
   for (const date of proposal.emptyDates) if (!days.has(date)) document.days.push({ date, items: [], keepEmpty: true });
+  for (const name of proposal.undatedNames ?? []) if (!document.undated?.some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] });
   document.days.sort((a,b) => a.date.localeCompare(b.date));
+  const fileListOrder = new Map((proposal.fileUndatedNames ?? []).map((name,index) => [name,index]));
+  document.undated?.sort((a,b) => (fileListOrder.get(a.name) ?? Infinity) - (fileListOrder.get(b.name) ?? Infinity));
   return cloneDocument(document);
 }
 
@@ -178,6 +205,14 @@ export function fileBaseline(proposal: MergeProposal) {
   const document = emptyDocument();
   for (const row of [...proposal.rows].sort((a,b) => a.date.localeCompare(b.date) || a.fileOrder - b.fileOrder)) {
     if (!row.file) continue;
+    if (row.date.startsWith('UNDATED:')) {
+      const name = listName(row.date);
+      const list = (document.undated ??= []).find(list => list.name === name) ?? (() => {
+        const created = { name, items: [] as TodoItem[] }; document.undated!.push(created); return created;
+      })();
+      list.items.push({ ...row.file, id: row.local?.id ?? row.file.id, details: row.file.details.map(detail => ({ ...detail })) });
+      continue;
+    }
     const day = document.days.find(candidate => candidate.date === row.date) ?? (() => {
       const created = { date: row.date, items: [] as TodoItem[] };
       document.days.push(created);
@@ -186,6 +221,9 @@ export function fileBaseline(proposal: MergeProposal) {
     day.items.push({ ...row.file, id: row.local?.id ?? row.file.id, details: row.file.details.map(detail => ({ ...detail })) });
   }
   for (const date of proposal.fileEmptyDates) if (!document.days.some(day => day.date === date)) document.days.push({ date, items: [], keepEmpty: true });
+  for (const name of proposal.fileUndatedNames ?? []) if (!document.undated?.some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] });
   document.days.sort((a,b) => a.date.localeCompare(b.date));
+  const fileListOrder = new Map((proposal.fileUndatedNames ?? []).map((name,index) => [name,index]));
+  document.undated?.sort((a,b) => (fileListOrder.get(a.name) ?? Infinity) - (fileListOrder.get(b.name) ?? Infinity));
   return document;
 }

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { createPortal, flushSync } from 'react-dom';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, Search, Settings2, X } from 'lucide-react';
@@ -12,13 +12,17 @@ import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem, useJournalFieldResize } from './components/DailyItem';
 import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
+import { UndatedView } from './components/UndatedView';
+import { Modal } from './components/Modal';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
 import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
 import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
-import { advanceRecurrences } from './recurrence';
+import { advanceRecurrences, nextRecurrenceDate } from './recurrence';
 import { parseTimeBlock } from './timeBlock';
+import { materializeOccurrence, projectItemsForDate, type ViewItem } from './seriesView';
+import { newSeriesId, type RecurrenceRule } from './recurrence';
 import { emptyState, loadTodoState, saveTodoState, type TodoState } from './todoStore';
 
 const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
@@ -53,6 +57,11 @@ const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; flex:none; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);} @media(pointer:coarse){width:44px;height:44px;}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
+const ViewTabs = styled.nav`display:flex;align-items:center;gap:4px;margin:-4px 0 26px;`;
+const ViewTab = styled.button<{ $active:boolean }>`min-height:40px;padding:6px 12px;border:0;border-radius:7px;background:${({$active})=>$active?'var(--date-bg)':'transparent'};color:${({$active})=>$active?'var(--ink)':'var(--muted)'};font-size:13px;font-weight:${({$active})=>$active?600:400};&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;
+const ScopeTitle = styled.h2`margin:4px 4px 12px;font-size:17px;line-height:1.3;text-wrap:balance;`;
+const ScopeHint = styled.p`margin:0 4px 14px;color:var(--muted);font-size:13px;line-height:1.45;`;
+const ScopeOption = styled.button`display:block;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:7px;background:transparent;color:var(--ink);font-size:14px;text-align:left;&:hover,&:focus-visible{background:var(--soft);}`;
 type CompletionNotice = { text: string; document: TodoDocument };
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
 const SAVED_RANGE_KEY = 'hito-journal-range-v1';
@@ -80,6 +89,78 @@ const compactRange = ({ from, to }: DateSpan) => {
   return start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
     ? `${start.getDate()}–${end.getDate()} ${end.toLocaleDateString('en-GB', { month: 'short' })}`
     : `${startLabel}–${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+};
+const weekdayOf = (date: string) => ['sun','mon','tue','wed','thu','fri','sat'][new Date(`${date}T12:00:00Z`).getUTCDay()] as 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun';
+const moveRule = (rule: RecurrenceRule, previous: string, target: string): RecurrenceRule => {
+  const delta = Math.round((Date.parse(`${target}T12:00:00Z`) - Date.parse(`${previous}T12:00:00Z`)) / 86400000);
+  if (rule.kind === 'after') return rule;
+  if (rule.kind === 'scheduled') {
+    const pattern = structuredClone(rule.pattern);
+    if (pattern.unit === 'weeks') {
+      const names = ['mon','tue','wed','thu','fri','sat','sun'] as const;
+      pattern.days = pattern.days.map(day => names[(names.indexOf(day) + delta % 7 + 7) % 7]);
+    } else if (pattern.unit === 'months') {
+      pattern.on = pattern.on.kind === 'weekday' ? { kind: 'weekday', ordinal: pattern.on.ordinal, weekday: weekdayOf(target) } : { kind: 'day', day: Number(target.slice(8)) };
+    } else if (pattern.unit === 'years') {
+      pattern.on = { kind: 'date', month: Number(target.slice(5,7)), day: Number(target.slice(8)) };
+    }
+    return { ...rule, pattern, from: shiftDate(rule.from,delta), ...(rule.end?.kind === 'on' ? { end: { kind: 'on' as const, date: shiftDate(rule.end.date,delta) } } : {}) };
+  }
+  const endsOn = rule.endsOn ? shiftDate(rule.endsOn,delta) : undefined;
+  if (rule.kind === 'weekly') {
+    const names = ['mon','tue','wed','thu','fri','sat','sun'] as const;
+    return { ...rule, days: rule.days.map(day => names[(names.indexOf(day) + delta % 7 + 7) % 7]), endsOn };
+  }
+  if (rule.kind === 'weekdays') {
+    const names = ['mon','tue','wed','thu','fri','sat','sun'] as const;
+    return { kind: 'weekly', days: names.slice(0,5).map(day => names[(names.indexOf(day) + delta % 7 + 7) % 7]), series: rule.series, endsOn };
+  }
+  if (rule.kind === 'monthly') return { ...rule, day: Number(target.slice(8)), endsOn };
+  if (rule.kind === 'yearly') return { ...rule, month: Number(target.slice(5,7)), day: Number(target.slice(8)), endsOn };
+  return { ...rule, endsOn };
+};
+const shiftItemSpan = (item: TodoItem, previous: string, target: string) => {
+  if (!item.span || previous === target) return;
+  const delta = Math.round((Date.parse(`${target}T12:00:00Z`) - Date.parse(`${previous}T12:00:00Z`)) / 86400000);
+  if (item.span.kind === 'all-day' && item.span.through) item.span.through = shiftDate(item.span.through,delta);
+  if (item.span.kind === 'time') item.span.endDate = shiftDate(item.span.endDate,delta);
+};
+const shiftSeriesExceptions = (document: TodoDocument, series: string, first: string, previous: string, target: string) => {
+  const delta = Math.round((Date.parse(`${target}T12:00:00Z`) - Date.parse(`${previous}T12:00:00Z`)) / 86400000);
+  if (!delta) return;
+  const master = document.days.flatMap(day => day.items).find(item => item.repeat?.series === series && item.repeat.kind !== 'after');
+  if (master?.skips) master.skips = master.skips.map(date => date >= first ? shiftDate(date,delta) : date);
+  const moved = document.days.flatMap(day => day.items.filter(item => item.replaces?.series === series && item.replaces.on >= first).map(item => ({ day, item })));
+  for (const { day, item } of moved) {
+    const newDate = shiftDate(day.date,delta);
+    item.replaces!.on = shiftDate(item.replaces!.on,delta);
+    shiftItemSpan(item,day.date,newDate);
+    day.items.splice(day.items.indexOf(item),1);
+    let destination = document.days.find(candidate => candidate.date === newDate);
+    if (!destination) { destination = { date: newDate, items: [] }; document.days.push(destination); }
+    destination.items.push(item);
+  }
+};
+const detachRecurringOverride = (document: TodoDocument, item: TodoItem) => {
+  if (!item.replaces || !item.repeat) return;
+  const { series, on } = item.replaces;
+  const master = document.days.flatMap(day => day.items).find(candidate => candidate.repeat?.series === series && candidate.repeat.kind !== 'after');
+  if (master && !master.skips?.includes(on)) (master.skips ??= []).push(on);
+  item.replaces = undefined;
+  item.repeat = { ...item.repeat, series: newSeriesId(item.text,on),
+    ...(item.repeat.kind === 'after' ? { occurrence: 1 } : {}) };
+};
+const remainingCount = (rule: RecurrenceRule, start: string, split: string): number | null => {
+  if (rule.kind !== 'scheduled' || rule.end?.kind !== 'after') return null;
+  let date = start;
+  let preceding = 0;
+  while (date < split && preceding < rule.end.count) {
+    preceding++;
+    const next = nextRecurrenceDate(rule,date);
+    if (!next || next <= date) break;
+    date = next;
+  }
+  return rule.end.count - preceding;
 };
 const taskCollisionDetection: CollisionDetection = args => {
   const underPointer = pointerWithin(args);
@@ -132,13 +213,17 @@ function DateHeading({ date, today, format, highlighted, unfinished }: { date: s
   </DayTitle>;
 }
 
-function DayItems({ date, items, selected, filterActive, completed, upcoming, previousItem, onChange, onMove, onMakeDetail, onAddAfter }: {
+function DayItems({ date, items, selected, filterActive, completed, upcoming, previousItem, onChange, onEdit, onDelete, onMove, onMakeDetail, onAddAfter, onMakeUndated, undatedListNames }: {
   date: string; items: TodoItem[]; selected: boolean; filterActive:boolean; completed: TodoItem[]; upcoming: TodoItem[];
   previousItem:(id:string)=>TodoItem|undefined;
   onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
+  onEdit: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
+  onDelete: (id: string) => void;
   onMove: (id: string, target: string) => void;
   onMakeDetail: (id: string, parentId: string) => void;
   onAddAfter: (id: string, text: string) => void;
+  onMakeUndated: (id: string, list: string) => void;
+  undatedListNames: string[];
 }) {
   const [draftAfterId, setDraftAfterId] = useState<string | null>(null);
   const [doneExpanded, setDoneExpanded] = useState(filterActive);
@@ -155,12 +240,12 @@ function DayItems({ date, items, selected, filterActive, completed, upcoming, pr
   return <>
     {(completed.length > 0 || selected) && <DoneToggle type="button" aria-expanded={doneVisible} aria-controls={`done-${date}`} aria-label={`${doneVisible?'Collapse':'Expand'} done items for ${date}`} onClick={() => setDoneExpanded(value => !value)}><ChevronDown size={14} style={{transform:doneVisible?'rotate(0deg)':'rotate(-90deg)',transition:'transform 180ms ease-out'}}/><span>done</span><DoneCount aria-hidden="true">{completed.length}</DoneCount></DoneToggle>}
     <CompletedClip id={`done-${date}`} $open={doneVisible} aria-hidden={!doneVisible} inert={!doneVisible}><div><SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {completed.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
+      {completed.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onEdit={change => onEdit(item.id,change)} onDelete={() => onDelete(item.id)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onMakeUndated={list => onMakeUndated(item.id,list)} undatedListNames={undatedListNames} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext></div></CompletedClip>
     <Divider aria-hidden="true"/>
     {(upcoming.length > 0 || selected) && <SectionCaption>upcoming</SectionCaption>}
     <SortableContext items={upcoming.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {upcoming.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
+      {upcoming.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onEdit={change => onEdit(item.id,change)} onDelete={() => onDelete(item.id)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onMakeUndated={list => onMakeUndated(item.id,list)} undatedListNames={undatedListNames} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext>
   </>;
 }
@@ -174,6 +259,11 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [dateFormat, setDateFormatState] = useState(getDateFormat);
   const [viewMode, setViewMode] = useState<'day' | 'range'>('range');
+  const [activeTab, setActiveTab] = useState<'dated' | 'undated'>('dated');
+  const [scopePrompt, setScopePrompt] = useState<{ date: string; id: string; label: string } | null>(null);
+  const scopedChange = useRef<((item: TodoItem, items: TodoItem[]) => void) | null>(null);
+  const scopedMove = useRef<string | null>(null);
+  const scopedDelete = useRef(false);
   const [activeRange, setActiveRange] = useState<DateSpan>(() => initialRange ?? weekRange(todayString()));
   const [rangeCustomized, setRangeCustomized] = useState(!!initialRange);
   const [dateOpen, setDateOpen] = useState(false);
@@ -322,14 +412,177 @@ export default function App() {
     return () => window.removeEventListener('keydown', key);
   });
   const mutateItem = (date: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => edit(document => {
-    const items = document.days.find(day => day.date === date)?.items;
-    const item = items?.find(item => item.id === id);
-    if (items && item) change(item, items);
+    const view = projectItemsForDate(document, date).find(item => item.id === id);
+    if (!view) return;
+    if (view.projection?.kind === 'series') {
+      const destinationDate = view.projection.originalDate;
+      let destination = document.days.find(day => day.date === destinationDate);
+      if (!destination) { destination = { date: destinationDate, items: [] }; document.days.push(destination); }
+      const override = materializeOccurrence(view);
+      destination.items.push(override);
+      change(override, destination.items);
+      detachRecurringOverride(document,override);
+      return;
+    }
+    const source = document.days.find(day => day.items.some(item => item.id === (view.projection?.masterId ?? id)));
+    const item = source?.items.find(item => item.id === (view.projection?.masterId ?? id));
+    if (source && item) { change(item, source.items); detachRecurringOverride(document,item); }
   });
+  const requestScopedEdit = (date: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => {
+    const view = projectItemsForDate(current.current.document, date).find(item => item.id === id);
+    if (!view || (!view.repeat || view.repeat.kind === 'after') && !view.replaces) { mutateItem(date,id,change); return; }
+    scopedChange.current = change;
+    setScopePrompt({ date, id, label: parseTimeBlock(view.text)?.title ?? view.text });
+  };
+  const deleteItem = (date: string, id: string) => {
+    const view = projectItemsForDate(current.current.document,date).find(item => item.id === id);
+    if (!view) return;
+    if ((!view.repeat || view.repeat.kind === 'after') && !view.replaces) {
+      mutateItem(date,id,(item,items) => { items.splice(items.indexOf(item),1); });
+      return;
+    }
+    scopedDelete.current = true;
+    scopedChange.current = () => undefined;
+    setScopePrompt({ date, id, label: parseTimeBlock(view.text)?.title ?? view.text });
+  };
+  const applyScope = (scope: 'this' | 'following' | 'all') => {
+    const pending = scopePrompt; const change = scopedChange.current;
+    const moveTarget = scopedMove.current;
+    const deleting = scopedDelete.current;
+    setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false;
+    if (!pending || !change) return;
+    const { date, id } = pending;
+    const before = current.current.document;
+    const view = projectItemsForDate(before,date).find(item => item.id === id);
+    if (!view) return;
+    const originalDate = view.projection?.originalDate ?? view.replaces?.on ?? date;
+    const series = view.projection?.series ?? view.replaces?.series ?? view.repeat?.series;
+    if (!series) { mutateItem(date,id,change); return; }
+    if (deleting) {
+      edit(document => {
+        const masterDay = document.days.find(day => day.items.some(item => item.repeat?.series === series && item.repeat.kind !== 'after'));
+        const master = masterDay?.items.find(item => item.repeat?.series === series && item.repeat.kind !== 'after');
+        if (!master || !masterDay) return;
+        if (scope === 'all' || scope === 'following' && originalDate <= masterDay.date) {
+          masterDay.items.splice(masterDay.items.indexOf(master),1);
+          for (const day of document.days) day.items = day.items.filter(item => item.replaces?.series !== series);
+          return;
+        }
+        if (scope === 'following') {
+          const cutoff = shiftDate(originalDate,-1);
+          if (master.repeat?.kind === 'scheduled') master.repeat = { ...master.repeat, end: { kind: 'on', date: cutoff } };
+          else if (master.repeat) master.repeat = { ...master.repeat, endsOn: cutoff };
+          master.skips = master.skips?.filter(value => value < originalDate);
+          for (const day of document.days) day.items = day.items.filter(item => !(item.replaces?.series === series && item.replaces.on >= originalDate));
+          return;
+        }
+        if (!master.skips?.includes(originalDate)) (master.skips ??= []).push(originalDate);
+        for (const day of document.days) day.items = day.items.filter(item => !(item.replaces?.series === series && item.replaces.on === originalDate));
+      });
+      return;
+    }
+    if (scope === 'this') {
+      if (moveTarget) {
+        edit(document => {
+          const currentView = projectItemsForDate(document,date).find(item => item.id === id);
+          if (!currentView) return;
+          let moved: TodoItem;
+          let movedFrom = originalDate;
+          if (currentView.replaces) {
+            const source = document.days.find(day => day.items.some(item => item.id === id));
+            if (!source) return;
+            movedFrom = source.date;
+            moved = source.items.splice(source.items.findIndex(item => item.id === id),1)[0];
+          } else if (currentView.projection?.kind === 'series') moved = materializeOccurrence(currentView);
+          else {
+            const master = document.days.flatMap(day => day.items).find(item => item.id === id);
+            if (!master) return;
+            moved = { ...structuredClone(master), id: newId(), repeat: undefined, skips: undefined, replaces: { series, on: originalDate } };
+          }
+          let destination = document.days.find(day => day.date === moveTarget);
+          if (!destination) { destination = { date: moveTarget, items: [] }; document.days.push(destination); }
+          shiftItemSpan(moved,movedFrom,moveTarget);
+          destination.items.push(moved);
+        });
+        setSelectedDate(moveTarget); setViewMode('day');
+        return;
+      }
+      if (view.projection?.kind === 'series') { mutateItem(date,id,change); return; }
+      if (view.replaces) { mutateItem(date,id,change); return; }
+      edit(document => {
+        const master = document.days.flatMap(day => day.items).find(item => item.id === id);
+        if (!master) return;
+        const day = document.days.find(day => day.date === date)!;
+        const override: TodoItem = { ...structuredClone(master), id: newId(), repeat: undefined, skips: undefined, replaces: { series, on: originalDate } };
+        day.items.push(override); change(override,day.items); detachRecurringOverride(document,override);
+      });
+      return;
+    }
+    edit(document => {
+      const masterDay = document.days.find(day => day.items.some(item => item.repeat?.series === series && item.repeat.kind !== 'after'));
+      const master = masterDay?.items.find(item => item.repeat?.series === series && item.repeat.kind !== 'after');
+      if (!master || !masterDay?.date) return;
+      if (scope === 'all' || originalDate <= masterDay.date) {
+        change(master,masterDay.items);
+        if (!master.repeat || master.repeat.kind === 'after') {
+          for (const day of document.days) for (const item of day.items) if (item.replaces?.series === series) item.replaces = undefined;
+          master.skips = undefined;
+        }
+        if (moveTarget && master.repeat) {
+          const movedDate = shiftDate(masterDay.date,Math.round((Date.parse(`${moveTarget}T12:00:00Z`) - Date.parse(`${originalDate}T12:00:00Z`)) / 86400000));
+          shiftSeriesExceptions(document,series,masterDay.date,masterDay.date,movedDate);
+          master.repeat = moveRule(master.repeat,masterDay.date,movedDate);
+          shiftItemSpan(master,masterDay.date,movedDate);
+          masterDay.items.splice(masterDay.items.indexOf(master),1);
+          let destination = document.days.find(day => day.date === movedDate);
+          if (!destination) { destination = { date: movedDate, items: [] }; document.days.push(destination); }
+          destination.items.push(master);
+        }
+        return;
+      }
+      const cutoff = shiftDate(originalDate,-1);
+      const rule = master.repeat!;
+      const oldSkips = master.skips ?? [];
+      const newSeries = newSeriesId(master.text,originalDate);
+      const count = remainingCount(rule,masterDay.date,originalDate);
+      const nextRule: RecurrenceRule = rule.kind === 'scheduled'
+        ? { ...structuredClone(rule), from: originalDate, series: newSeries, occurrence: 1,
+          ...(count !== null ? { end: { kind: 'after' as const, count } } : {}) }
+        : { ...structuredClone(rule), series: newSeries, occurrence: undefined, endsOn: undefined };
+      if (rule.kind === 'scheduled') master.repeat = { ...rule, end: { kind: 'on', date: cutoff } };
+      else master.repeat = { ...rule, endsOn: cutoff };
+      master.skips = oldSkips.filter(value => value < originalDate);
+      const next: TodoItem = { ...structuredClone(master), id: newId(), repeat: nextRule, completed: false, completedOn: undefined,
+        details: master.details.map(detail => ({ text: detail.text, completed: false })), skips: oldSkips.filter(value => value >= originalDate) };
+      shiftItemSpan(next,masterDay.date,originalDate);
+      let target = document.days.find(day => day.date === originalDate);
+      if (!target) { target = { date: originalDate, items: [] }; document.days.push(target); }
+      target.items.push(next);
+      for (const day of document.days) for (const item of day.items) if (item.replaces?.series === series && item.replaces.on >= originalDate) item.replaces.series = newSeries;
+      change(next,target.items);
+      if (!next.repeat || next.repeat.kind === 'after') {
+        for (const day of document.days) for (const item of day.items) if (item.replaces?.series === newSeries) item.replaces = undefined;
+        next.skips = undefined;
+      }
+      if (moveTarget && next.repeat) {
+        shiftSeriesExceptions(document,newSeries,originalDate,originalDate,moveTarget);
+        next.repeat = moveRule(next.repeat,originalDate,moveTarget);
+        shiftItemSpan(next,originalDate,moveTarget);
+        target.items.splice(target.items.indexOf(next),1);
+        let destination = document.days.find(day => day.date === moveTarget);
+        if (!destination) { destination = { date: moveTarget, items: [] }; document.days.push(destination); }
+        destination.items.push(next);
+      }
+    });
+    if (moveTarget) { setSelectedDate(moveTarget); setViewMode('day'); }
+  };
   const dropItem = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     const activeId = String(active.id);
     const overId = String(over.id);
+    const visibleSource = visibleDays.find(day => day.items.some(item => item.id === activeId))?.date;
+    const visibleTarget = dateForDrop(overId) ?? visibleDays.find(day => day.items.some(item => item.id === overId))?.date;
+    if (visibleSource && visibleTarget && visibleSource !== visibleTarget) { moveItem(visibleSource,activeId,visibleTarget,true); return; }
     edit(document => {
       const source = document.days.find(day => day.items.some(item => item.id === activeId));
       if (!source) return;
@@ -365,22 +618,81 @@ export default function App() {
     const index = items?.findIndex(item => item.id === id) ?? -1;
     if (items && index >= 0) items.splice(index + 1, 0, { id: newId(), text: text.trim(), details: [], completed: false });
   }); };
+  const editUndated = (listName: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => edit(document => {
+    const items = document.undated?.find(list => list.name === listName)?.items;
+    const item = items?.find(item => item.id === id);
+    if (items && item) change(item,items);
+  });
+  const addUndated = (listName: string, text: string) => edit(document => {
+    let list = document.undated?.find(list => list.name === listName);
+    if (!list) { list = { name: listName, items: [] }; (document.undated ??= []).push(list); }
+    list.items.push({ id: newId(), text, details: [], completed: false });
+  });
+  const dateUndated = (listName: string, id: string, date: string) => {
+    edit(document => {
+      const list = document.undated?.find(list => list.name === listName);
+      const index = list?.items.findIndex(item => item.id === id) ?? -1;
+      if (!list || index < 0) return;
+      const [item] = list.items.splice(index,1);
+      let day = document.days.find(day => day.date === date);
+      if (!day) { day = { date, items: [] }; document.days.push(day); }
+      day.items.push({ ...item, completed: false, details: item.details.map(detail => ({ ...detail, completed: false })) });
+    });
+    setActiveTab('dated'); setSelectedDate(date); setViewMode('day');
+  };
+  const makeUndated = (date: string, id: string, listName: string) => {
+    edit(document => {
+      const view = projectItemsForDate(document,date).find(item => item.id === id);
+      if (!view) return;
+      const source = document.days.find(day => day.items.some(item => item.id === (view.projection?.masterId ?? id)));
+      const stored = source?.items.find(item => item.id === (view.projection?.masterId ?? id));
+      if (!source || !stored) return;
+      if (view.replaces) {
+        const master = document.days.flatMap(day => day.items).find(item => item.repeat?.series === view.replaces!.series);
+        if (master && !master.skips?.includes(view.replaces.on)) (master.skips ??= []).push(view.replaces.on);
+        source.items.splice(source.items.indexOf(stored),1);
+      } else if (view.repeat?.series && view.repeat.kind !== 'after') {
+        const occurrence = view.projection?.originalDate ?? date;
+        if (!stored.skips?.includes(occurrence)) (stored.skips ??= []).push(occurrence);
+      } else source.items.splice(source.items.indexOf(stored),1);
+      let list = document.undated?.find(list => list.name === listName);
+      if (!list) { list = { name: listName, items: [] }; (document.undated ??= []).push(list); }
+      const copy = { ...structuredClone(view), id: newId(), repeat: undefined, skips: undefined, replaces: undefined, completed: false, completedOn: undefined, span: undefined,
+        details: view.details.map(detail => ({ text: detail.text, completed: false })) };
+      delete (copy as ViewItem).projection;
+      const time = parseTimeBlock(copy.text);
+      if (time) { copy.text = time.title; copy.details.unshift({ text: `Time: ${time.start}–${time.end}`, completed: false }); }
+      if (view.span) copy.details.unshift({ text: `Span: ${view.span.kind === 'all-day' ? `all-day${view.span.through ? ` through ${view.span.through}` : ''}` : `${view.span.start} to ${view.span.endDate} ${view.span.end}`}`, completed: false });
+      list.items.push(copy);
+    });
+    setActiveTab('undated');
+  };
   const makeDetail = (date: string, id: string, parentId: string) => edit(document => {
     const items = document.days.find(day => day.date === date)?.items;
     const index = items?.findIndex(item => item.id === id) ?? -1;
     const parent = items?.find(item => item.id === parentId);
-    if (!items || index < 0 || !parent || id === parentId || items[index].repeat || parseTimeBlock(items[index].text)) return;
+    if (!items || index < 0 || !parent || id === parentId || items[index].repeat || items[index].span || items[index].replaces || parseTimeBlock(items[index].text)) return;
     const [child] = items.splice(index, 1);
     parent.details.push({ text: child.text, completed: child.completed }, ...child.details);
     parent.completed = parent.details.every(detail => detail.completed);
   });
-  const moveItem = (date: string, id: string, target: string) => {
+  const moveItem = (date: string, id: string, target: string, keepRange = false) => {
     if (!validDate(target) || target === date) return;
+    const candidate = projectItemsForDate(current.current.document,date).find(item => item.id === id);
+    if (candidate && ((candidate.repeat && candidate.repeat.kind !== 'after') || candidate.replaces)) {
+      scopedMove.current = target;
+      scopedChange.current = () => undefined;
+      setScopePrompt({ date, id, label: parseTimeBlock(candidate.text)?.title ?? candidate.text });
+      return;
+    }
     edit(document => {
-      const source = document.days.find(day => day.date === date);
-      const index = source?.items.findIndex(item => item.id === id) ?? -1;
+      const view = projectItemsForDate(document,date).find(item => item.id === id);
+      if (!view) return;
+      const source = document.days.find(day => day.items.some(item => item.id === (view.projection?.masterId ?? id)));
+      const index = source?.items.findIndex(item => item.id === (view.projection?.masterId ?? id)) ?? -1;
       if (!source || index < 0) return;
-      const [item] = source.items.splice(index, 1);
+      const item = view.projection?.kind === 'series' ? materializeOccurrence(view) : source.items.splice(index, 1)[0];
+      shiftItemSpan(item,source.date,target);
       let destination = document.days.find(day => day.date === target);
       if (!destination) { destination = { date: target, items: [] }; document.days.push(destination); }
       destination.items.push(item);
@@ -388,7 +700,7 @@ export default function App() {
       document.days.sort((a,b) => a.date.localeCompare(b.date));
     });
     setSelectedDate(target);
-    setViewMode('day');
+    if (!keepRange) setViewMode('day');
   };
   const imported = async (raw: string, original = raw) => {
     const diagnosis = doctorTodoText(raw);
@@ -444,7 +756,7 @@ export default function App() {
   const documentData = state?.document ?? emptyDocument();
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
-  const draggingItem = draggingId ? documentData.days.flatMap(day => day.items).find(item => item.id === draggingId) : null;
+  const draggingItem = draggingId ? [...documentData.days.flatMap(day => day.items), ...datesInRange(activeRange).flatMap(date => projectItemsForDate(documentData,date))].find(item => item.id === draggingId) : null;
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
   const rangeActive = viewMode === 'range';
   const moveDateView = (direction: -1 | 1) => {
@@ -454,14 +766,14 @@ export default function App() {
       setRangeCustomized(true);
     } else setSelectedDate(date => shiftDate(date, direction));
   };
-  const allTags = useMemo(() => [...new Set(documentData.days.flatMap(day => day.items.flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn))))].sort(), [documentData]);
-  const unfinishedDates = useMemo(() => new Set(documentData.days.filter(day => day.items.some(item => !item.completed)).map(day => day.date)), [documentData]);
+  const allTags = useMemo(() => [...new Set([...documentData.days.flatMap(day => day.items), ...(documentData.undated ?? []).flatMap(list => list.items)].flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn)))].sort(), [documentData]);
+  const unfinishedDates = useMemo(() => ({ has: (date: string) => projectItemsForDate(documentData,date).some(item => !item.completed) }), [documentData]);
   const visibleDays = useMemo(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
     const dates = query || tag
       ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
       : rangeActive ? datesInRange(activeRange) : [selectedDate];
-    return dates.map(date => ({ date, items: daysByDate.get(date)?.items ?? [] }));
+    return dates.map(date => ({ date, items: projectItemsForDate(documentData,date) }));
   }, [documentData, selectedDate, viewMode, activeRange, rangeActive, query, tag]);
   const filteredDays = useMemo(() => {
     const needle = query.toLowerCase();
@@ -485,7 +797,7 @@ export default function App() {
     <Toolbar>
       <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
-      {!searchOpen && <>
+      {!searchOpen && activeTab === 'dated' && <>
       <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef} $range={rangeActive}>
         <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
@@ -506,6 +818,7 @@ export default function App() {
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
+    <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab></ViewTabs>
     {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
@@ -518,8 +831,27 @@ export default function App() {
       else setCompletionNotice(null);
     }}/>
     <div id="journal-content" tabIndex={-1}>
+    {activeTab === 'undated' ? <UndatedView lists={documentData.undated} query={query} tag={tag}
+      onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
+      onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
+      onAdd={addUndated}
+      onReorderItems={(list,fromId,toId) => edit(document => {
+        const items = document.undated?.find(entry => entry.name === list)?.items;
+        if (!items) return;
+        const from = items.findIndex(item => item.id === fromId);
+        const to = items.findIndex(item => item.id === toId);
+        if (from >= 0 && to >= 0) items.splice(0,items.length,...arrayMove(items,from,to));
+      })}
+      onEdit={(list,id,text) => editUndated(list,id,item => { item.text = text; })}
+      onAddDetail={(list,id,text) => editUndated(list,id,item => { item.details.push({ text, completed: false }); })}
+      onEditDetail={(list,id,index,text) => editUndated(list,id,item => { item.details[index].text = text; })}
+      onDeleteDetail={(list,id,index) => editUndated(list,id,item => { item.details.splice(index,1); })}
+      onReorderDetails={(list,id,from,to) => editUndated(list,id,item => { item.details = arrayMove(item.details,from,to); })}
+      onDate={dateUndated}
+      onDelete={(list,id) => editUndated(list,id,(_,items) => { items.splice(items.findIndex(item => item.id === id),1); })}/>
+    : <>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
-    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
+    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection} autoScroll={false}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
       onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}
       onDragCancel={() => { setDraggingId(null); setDragOverDate(null); }}
@@ -530,13 +862,20 @@ export default function App() {
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length}/>
         {day.items.length === 0 && !query && !tag ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
-        <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
+        <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
       </DaySection>;
     })}
     {createPortal(<DragOverlay dropAnimation={null} modifiers={[restrictToWindowEdges]} style={{ width: 'min(360px, calc(100vw - 32px))' }} zIndex={40}>{draggingItem && <DragPreview aria-label={`Dragging ${draggingItem.text}`}><PreviewCircle $done={draggingItem.completed}/><PreviewText $done={draggingItem.completed}>{draggingItem.text}</PreviewText></DragPreview>}</DragOverlay>, window.document.body)}
     </DndContext>
+    </>}
     </div>
+    <Modal open={!!scopePrompt} onClose={() => { setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false; }} title="Choose recurring edit scope" compact>
+      <ScopeTitle>Change “{scopePrompt?.label}”</ScopeTitle><ScopeHint>Choose which occurrences this change applies to.</ScopeHint>
+      <ScopeOption onClick={() => applyScope('this')}>This item</ScopeOption>
+      <ScopeOption onClick={() => applyScope('following')}>This and following items</ScopeOption>
+      <ScopeOption onClick={() => applyScope('all')}>All items</ScopeOption>
+    </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
     <FileReview review={review} rawEdit={rawEdit} choices={choices} busy={busy}

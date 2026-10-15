@@ -3,6 +3,7 @@ import test from 'node:test';
 import { advanceRecurrences, formatRecurrence, parseRecurrence } from '../src/recurrence.ts';
 import { nextScheduledDate } from '../src/scheduledRecurrence.ts';
 import { parseTodoText, serializeTodoText } from '../src/todoText.ts';
+import { projectItemsForDate } from '../src/seriesView.ts';
 
 function scheduled(text) {
   const rule = parseRecurrence(text);
@@ -42,7 +43,7 @@ test('monthly and yearly rules handle ordinal weekdays and missing dates', () =>
   assert.equal(nextScheduledDate(scheduled('every 2 months on 31; from 2026-01-31; series month-end; occurrence 1'), '2026-01-31'), '2026-03-31');
 });
 
-test('end date is inclusive and count covers actual created items, not skipped slots', () => {
+test('end date and count bound projected dates without creating stored copies', () => {
   const dated = scheduled('every 2 weeks on wed; from 2026-10-14; series dated; occurrence 1; ends on 2026-10-28');
   assert.equal(nextScheduledDate(dated, '2026-10-14'), '2026-10-28');
   assert.equal(nextScheduledDate(dated, '2026-10-28'), null);
@@ -51,38 +52,24 @@ test('end date is inclusive and count covers actual created items, not skipped s
   const lateAfter = structuredClone(lateBefore);
   lateAfter.days[0].items[0].completed = true;
   advanceRecurrences(lateBefore, lateAfter, '2026-10-30');
-  assert.equal(lateAfter.days[1].date, '2026-11-11');
-  assert.equal(lateAfter.days[1].items[0].repeat.occurrence, 2);
+  assert.equal(lateAfter.days.length, 1);
+  assert.equal(projectItemsForDate(lateAfter,'2026-10-28').length,1);
+  assert.equal(projectItemsForDate(lateAfter,'2026-11-11').length,0);
   const rule = scheduled('every 2 weeks on wed; from 2026-10-14; series counted; occurrence 1; ends after 3');
-  let document = { days: [{ date: '2026-10-14', items: [{ id: 'first', text: '09:00-09:30 Check in', completed: false, repeat: rule, details: [{ text: 'prepare', completed: false }] }] }] };
-  for (const [date, nextDate, number] of [['2026-10-14', '2026-10-28', 2], ['2026-10-28', '2026-11-11', 3]]) {
-    const before = structuredClone(document);
-    const item = document.days.find(day => day.date === date).items[0];
-    item.completed = true;
-    item.details[0].completed = true;
-    advanceRecurrences(before, document, date);
-    const next = document.days.find(day => day.date === nextDate).items[0];
-    assert.equal(next.repeat.occurrence, number);
-    assert.equal(next.completed, false);
-    assert.deepEqual(next.details, [{ text: 'prepare', completed: false }]);
-  }
-  const before = structuredClone(document);
-  document.days.find(day => day.date === '2026-11-11').items[0].completed = true;
-  advanceRecurrences(before, document, '2026-11-25');
-  assert.equal(document.days.length, 3);
+  const document = { days: [{ date: '2026-10-14', items: [{ id: 'first', text: '09:00-09:30 Check in', completed: false, repeat: rule, details: [{ text: 'prepare', completed: false }] }] }] };
+  for (const date of ['2026-10-14','2026-10-28','2026-11-11']) assert.equal(projectItemsForDate(document,date).length,1);
+  assert.equal(projectItemsForDate(document,'2026-11-25').length,0);
+  assert.equal(document.days.length,1);
 });
 
-test('series identity prevents duplicate successors after reopening an older item', () => {
+test('completing a scheduled item leaves future dates virtual', () => {
   const rule = scheduled('every 1 week on wed; from 2026-10-14; series sync; occurrence 1');
-  const successor = { ...rule, occurrence: 2 };
-  const before = { days: [
-    { date: '2026-10-14', items: [{ id: 'old', text: 'Sync', completed: false, repeat: rule, details: [] }] },
-    { date: '2026-10-21', items: [{ id: 'next', text: 'Renamed sync', completed: false, repeat: successor, details: [] }] },
-  ] };
+  const before = { days: [{ date: '2026-10-14', items: [{ id: 'old', text: 'Sync', completed: false, repeat: rule, details: [] }] }] };
   const after = structuredClone(before);
   after.days[0].items[0].completed = true;
   advanceRecurrences(before, after, '2026-10-14');
-  assert.equal(after.days[1].items.length, 1);
+  assert.equal(after.days.length,1);
+  assert.equal(projectItemsForDate(after,'2026-10-21')[0].completed,false);
 });
 
 test('malformed and repeated series metadata are reported on import', () => {

@@ -42,3 +42,13 @@ test('an imported empty heading survives merge and a later explicit removal', ()
   const withItem = proposeMerge(empty, doc(item('a', 'New')), empty);
   assert.equal(resolveMerge(withItem, {}).days[0].keepEmpty, true);
 });
+
+test('undated list edits and empty list removal survive import merge', () => {
+  const baseline = { days: [], undated: [{ name: 'Ideas', items: [item('a','Draft')] }, { name: 'Empty', items: [] }] };
+  const local = { days: [], undated: [{ name: 'Ideas', items: [item('a','Draft locally')] }, { name: 'Empty', items: [] }] };
+  const file = { days: [], undated: [{ name: 'Ideas', items: [item('external-a','Draft')] }] };
+  const proposal = proposeMerge(local,file,baseline);
+  assert.equal(proposal.conflicts.length,0);
+  assert.deepEqual(resolveMerge(proposal,{}).undated.map(list => [list.name,list.items.map(entry => entry.text)]), [['Ideas',['Draft locally']]]);
+  assert.deepEqual(proposeMerge(baseline,baseline,baseline).fileUndatedNames,['Ideas','Empty']);
+});

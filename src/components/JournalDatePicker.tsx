@@ -11,7 +11,7 @@ export function JournalDatePicker({ selectedDate, activeRange, rangeActive, unfi
   selectedDate: string;
   activeRange: DateSpan;
   rangeActive: boolean;
-  unfinishedDates: ReadonlySet<string>;
+  unfinishedDates: { has: (date: string) => boolean };
   onSelectDate: (date: string) => void;
   onToggleRange: (active: boolean) => void;
   onSelectRange: (range: DateSpan) => void;

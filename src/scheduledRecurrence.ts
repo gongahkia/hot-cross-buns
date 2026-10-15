@@ -4,7 +4,7 @@ export type Ordinal = 1 | 2 | 3 | 4 | 5 | -1;
 export type ScheduledPattern =
   | { unit: 'days' }
   | { unit: 'weeks'; days: Weekday[] }
-  | { unit: 'months'; on: { kind: 'day'; day: number } | { kind: 'weekday'; ordinal: Ordinal; weekday: Weekday } }
+  | { unit: 'months'; on: { kind: 'day'; day: number } | { kind: 'last-day' } | { kind: 'weekday'; ordinal: Ordinal; weekday: Weekday } }
   | { unit: 'years'; on: { kind: 'date'; month: number; day: number } | { kind: 'weekday'; month: number; ordinal: Ordinal; weekday: Weekday } };
 export type ScheduleEnd = { kind: 'on'; date: string } | { kind: 'after'; count: number };
 export type ScheduledRule = {
@@ -14,6 +14,7 @@ export type ScheduledRule = {
   from: string;
   series: string;
   occurrence: number;
+  weekStarts?: Weekday;
   end?: ScheduleEnd;
 };
 
@@ -24,7 +25,7 @@ const fromDate = (date: string) => new Date(date + 'T12:00:00Z');
 const toDate = (date: Date) => date.toISOString().slice(0, 10);
 const addDays = (date: string, days: number) => { const next = fromDate(date); next.setUTCDate(next.getUTCDate() + days); return toDate(next); };
 const daysBetween = (from: string, to: string) => Math.round((fromDate(to).getTime() - fromDate(from).getTime()) / 86400000);
-const mondayOf = (date: string) => addDays(date, -((fromDate(date).getUTCDay() + 6) % 7));
+const weekOf = (date: string, first: Weekday) => addDays(date, -((fromDate(date).getUTCDay() + 6 - weekdayIndex(first) + 7) % 7));
 const monthIndex = (date: string) => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
 const monthParts = (index: number) => ({ year: Math.floor(index / 12), month: index % 12 + 1 });
 const calendarDate = (year: number, month: number, day: number) => { const date = new Date(0); date.setUTCFullYear(year, month - 1, day); return date; };
@@ -43,7 +44,7 @@ function parseDays(value: string): Weekday[] | null {
 
 export function parseScheduled(raw: string): ScheduledRule | null {
   const parts = raw.split(/\s*;\s*/);
-  if (parts.length < 4 || parts.length > 5) return null;
+  if (parts.length < 3 || parts.length > 6) return null;
   const first = /^every ([1-9]\d*) (days?|weeks?|months?|years?)(?: on (.+))?$/.exec(parts[0]);
   if (!first || Number(first[1]) > 999) return null;
   const every = Number(first[1]);
@@ -60,7 +61,8 @@ export function parseScheduled(raw: string): ScheduledRule | null {
   } else if (unit === 'months') {
     const day = on && /^(\d{1,2})$/.exec(on);
     const ordinal = on && /^(first|second|third|fourth|fifth|last) (mon|tue|wed|thu|fri|sat|sun)$/.exec(on);
-    if (day && Number(day[1]) >= 1 && Number(day[1]) <= 31) pattern = { unit, on: { kind: 'day', day: Number(day[1]) } };
+    if (on === 'last day') pattern = { unit, on: { kind: 'last-day' } };
+    else if (day && Number(day[1]) >= 1 && Number(day[1]) <= 31) pattern = { unit, on: { kind: 'day', day: Number(day[1]) } };
     else if (ordinal) pattern = { unit, on: { kind: 'weekday', ordinal: ordinals[ordinal[1]], weekday: ordinal[2] as Weekday } };
     else return null;
   } else {
@@ -72,14 +74,16 @@ export function parseScheduled(raw: string): ScheduledRule | null {
   }
   const clauses = new Map<string, string>();
   for (const clause of parts.slice(1)) {
-    const match = /^(from|series|occurrence|ends) (.+)$/.exec(clause);
+    const match = /^(from|series|occurrence|ends|week starts) (.+)$/.exec(clause);
     if (!match || clauses.has(match[1])) return null;
     clauses.set(match[1], match[2]);
   }
   const from = clauses.get('from') ?? '';
   const series = clauses.get('series') ?? '';
-  const occurrence = Number(clauses.get('occurrence'));
+  const occurrence = Number(clauses.get('occurrence') ?? '1');
   if (!validScheduleDate(from) || !validSeriesId(series) || !Number.isSafeInteger(occurrence) || occurrence < 1 || occurrence > 9999) return null;
+  const weekStarts = clauses.get('week starts');
+  if (weekStarts && (pattern.unit !== 'weeks' || !weekdays.includes(weekStarts as Weekday))) return null;
   let end: ScheduleEnd | undefined;
   const ends = clauses.get('ends');
   if (ends) {
@@ -89,14 +93,15 @@ export function parseScheduled(raw: string): ScheduledRule | null {
     else if (date && validScheduleDate(date[1])) end = { kind: 'on', date: date[1] };
     else return null;
   }
-  return { kind: 'scheduled', every, pattern, from, series, occurrence, ...(end ? { end } : {}) };
+  return { kind: 'scheduled', every, pattern, from, series, occurrence,
+    ...(weekStarts && weekStarts !== 'mon' ? { weekStarts: weekStarts as Weekday } : {}), ...(end ? { end } : {}) };
 }
 
 function patternText(rule: ScheduledRule): string {
   const { pattern } = rule;
   let suffix = '';
   if (pattern.unit === 'weeks') suffix = ' on ' + pattern.days.join(', ');
-  if (pattern.unit === 'months') suffix = pattern.on.kind === 'day' ? ' on ' + pattern.on.day : ' on ' + ordinalNames[pattern.on.ordinal] + ' ' + pattern.on.weekday;
+  if (pattern.unit === 'months') suffix = pattern.on.kind === 'day' ? ' on ' + pattern.on.day : pattern.on.kind === 'last-day' ? ' on last day' : ' on ' + ordinalNames[pattern.on.ordinal] + ' ' + pattern.on.weekday;
   if (pattern.unit === 'years') suffix = pattern.on.kind === 'date'
     ? ' on ' + String(pattern.on.month).padStart(2, '0') + '-' + String(pattern.on.day).padStart(2, '0')
     : ' on ' + ordinalNames[pattern.on.ordinal] + ' ' + pattern.on.weekday + ' of ' + monthNames[pattern.on.month - 1];
@@ -104,13 +109,14 @@ function patternText(rule: ScheduledRule): string {
 }
 
 export function formatScheduled(rule: ScheduledRule): string {
-  return patternText(rule) + '; from ' + rule.from + '; series ' + rule.series + '; occurrence ' + rule.occurrence
+  return patternText(rule) + '; from ' + rule.from + '; series ' + rule.series + (rule.occurrence === 1 ? '' : '; occurrence ' + rule.occurrence)
+    + (rule.weekStarts && rule.weekStarts !== 'mon' ? '; week starts ' + rule.weekStarts : '')
     + (rule.end ? '; ends ' + (rule.end.kind === 'on' ? 'on ' + rule.end.date : 'after ' + rule.end.count) : '');
 }
 
 export function describeScheduled(rule: ScheduledRule): string {
   const end = rule.end?.kind === 'on' ? ' until ' + rule.end.date : rule.end?.kind === 'after' ? ' (' + rule.occurrence + '/' + rule.end.count + ')' : '';
-  return patternText(rule) + end;
+  return patternText(rule) + (rule.weekStarts && rule.weekStarts !== 'mon' ? ' · week starts ' + rule.weekStarts : '') + end;
 }
 
 export function newSeriesId(title: string, from: string): string {
@@ -132,7 +138,7 @@ function ordinalDay(year: number, month: number, ordinal: Ordinal, weekday: Week
 function candidateInMonth(pattern: Extract<ScheduledPattern, { unit: 'months' | 'years' }>, year: number, month: number): string | null {
   if (pattern.unit === 'months') {
     const on = pattern.on;
-    const day = on.kind === 'day' ? on.day : ordinalDay(year, month, on.ordinal, on.weekday);
+    const day = on.kind === 'day' ? on.day : on.kind === 'last-day' ? daysInMonth(year, month) : ordinalDay(year, month, on.ordinal, on.weekday);
     return day && day <= daysInMonth(year, month) ? iso(year, month, day) : null;
   }
   const on = pattern.on;
@@ -150,13 +156,13 @@ export function nextScheduledDate(rule: ScheduledRule, afterDate: string): strin
     const steps = Math.max(0, Math.floor(daysBetween(from, afterDate) / every) + 1);
     candidate = addDays(from, steps * every);
   } else if (pattern.unit === 'weeks') {
-    const firstWeek = mondayOf(from);
-    const currentWeek = mondayOf(afterDate);
+    const firstWeek = weekOf(from, rule.weekStarts ?? 'mon');
+    const currentWeek = weekOf(afterDate, rule.weekStarts ?? 'mon');
     const elapsed = Math.max(0, Math.floor(daysBetween(firstWeek, currentWeek) / 7));
     const start = Math.floor(elapsed / every) * every;
     for (let week = start; week <= start + every * 2; week += every) {
       for (const day of pattern.days) {
-        const option = addDays(firstWeek, week * 7 + weekdayIndex(day));
+        const option = addDays(firstWeek, week * 7 + ((weekdayIndex(day) - weekdayIndex(rule.weekStarts ?? 'mon') + 7) % 7));
         if (option > afterDate && option >= from) { candidate = option; break; }
       }
       if (candidate) break;

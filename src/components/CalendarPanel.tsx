@@ -50,7 +50,7 @@ export function dateToString(date: Date) {
 
 export function CalendarPanel({ value, onSelect, children, header, label, minDate, unfinishedDates, range, onRangeSelect }: {
   value: string; onSelect?: (value: string) => void; children?: ReactNode; header?: ReactNode; label: string; minDate?: string;
-  unfinishedDates?: ReadonlySet<string>; range?: DateRange; onRangeSelect?: (range: DateRange | undefined) => void;
+  unfinishedDates?: { has: (date: string) => boolean }; range?: DateRange; onRangeSelect?: (range: DateRange | undefined) => void;
 }) {
   const selected = dateFromString(value);
   const year = selected.getFullYear();

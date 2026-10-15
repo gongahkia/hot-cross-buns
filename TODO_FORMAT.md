@@ -1,13 +1,14 @@
 # Hito TODO.txt format
 
-`TODO.txt` is Hito's portable, human-readable journal. It is UTF-8 plain text. Hito keeps an IndexedDB working copy; explicit import and download move data between that copy and a file. The file contains the complete meaning of tasks, details, time blocks, and recurrence; none of those require hidden browser-only metadata. Browser item IDs are implementation details and are not needed to reconstruct the journal.
+`TODO.txt` is Hito's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
 
-## Example
+## Dated items
+
+A dated section starts with a valid `YYYY-MM-DD` heading. Completed items come first, followed by one blank line, then upcoming items. If all items are upcoming, put the blank line immediately after the heading. If all are done, put it after the last item. An empty date heading is meaningful and survives round trips. Import asks whether items are done or upcoming when a populated section lacks a divider.
 
 ```text
 2026-10-13
 09:00-09:30 Team sync #work
-  @repeat: weekdays
 - [x] share update
 
 Water plants
@@ -19,67 +20,96 @@ Water plants
 14:00-15:30 Write report
 ```
 
-Each section begins with a valid `YYYY-MM-DD` date. Within a day, completed items come first, then one blank line, then upcoming items. Hito writes that canonical arrangement when exporting. Each item is one nonempty line. It can be a task or an appointment; both use the same completion circle. A normal item has no required prefix.
-
-An otherwise empty date heading is meaningful and survives import, browser edits, and export:
-
-```text
-2026-10-15
-```
-
-For a date containing items, a blank line separates completed items above from upcoming items below. Use a blank line immediately after the heading if all items are upcoming, or after the last item if all are done. Import asks you to choose when this divider is missing. A line that would otherwise look like a date, a detail, or metadata can be made a literal item title by prefixing `\`; Hito writes that escape on export when needed.
+Each item is one nonempty logical line. Long lines can wrap visually without a newline in the file. A literal title that looks like a date, detail, structural heading, or metadata can be prefixed with `\`; export writes this escape when needed.
 
 ### Details
 
-Detail lines begin with `- [ ] ` or `- [x] `, directly under their parent item (possibly after its repeat rule). The checkbox records that detail's state. Legacy `- detail` lines are also accepted and inherit their parent's state. Completing a parent completes all details; reopening it reopens all details. Completing the last detail completes the parent.
+Dated details start with `- [ ] ` or `- [x] ` below their item, with no indentation. They can also follow metadata. Completing a parent completes its details; reopening the parent reopens them. Completing the last detail completes its parent. Legacy `- detail` lines are accepted and inherit the parent's state. A location, guest name, meeting link, or description is ordinary detail text; Hito does not assign them separate types.
 
-### Time blocks
+### Time blocks and spans
 
-An optional `HH:MM-HH:MM ` prefix gives an item a time block on its heading's date:
+An optional `HH:MM-HH:MM ` prefix gives an item a same-day time block. Use local 24-hour wall time, leading zeroes, and an end later than the start. A time block creates no alarm or invitation.
 
-```text
-09:00-10:30 Review drafts
-```
-
-Use 24-hour local wall time, leading zeroes, a plain hyphen, and an end time later than the start. Blocks stay within one date. Hito shows the range beside the item and offers an editor; exporting writes the same prefix. The range does not itself create an alarm, invitation, or separate event type. An item without a range is an all-day or floating item on that date.
-
-### Recurrence
-
-A repeat rule is an optional metadata line, indented by exactly two spaces, below its item and before any blank divider. It can appear before or after detail lines; Hito writes it before details. Supported rules are:
+An optional `@span` line says an item occupies a full day or crosses dates:
 
 ```text
-  @repeat: daily
-  @repeat: weekdays
-  @repeat: weekly on mon, wed, fri
-  @repeat: monthly on 15
-  @repeat: yearly on 10-13
-  @repeat: every 3 days after completion
-  @repeat: every 2 weeks after completion
-  @repeat: every 1 month after completion
-  @repeat: every 1 year after completion
-  @repeat: every 2 weeks on wed; from 2026-10-14; series team-sync-20261014-a1b2c3; occurrence 2; ends after 13
-  @repeat: every 1 month on second wed; from 2026-10-14; series team-sync-20261014-d4e5f6; occurrence 1
-  @repeat: every 1 year on last fri of april; from 2026-04-24; series arbor-day-20260424-123abc; occurrence 1; ends on 2030-04-30
-  @repeat: daily; series water-plants-20261013-a1b2c3; occurrence 2
+2026-10-15
+
+Conference
+  @span: all-day
+
+Trip
+  @span: all-day through 2026-10-17
+
+Night shift
+  @span: 22:00 to 2026-10-16 06:00
 ```
 
-Day names are `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`. An after-completion interval can be 1–999 days, weeks, months, or years. Hito's import doctor proposes the canonical spelling for recognizable case and indentation differences. An item can have one repeat rule.
+The `through` date is inclusive. A timed span ends on a later date. Hito displays an item on every covered day but stores it once, under its starting date. A span and a same-day time prefix cannot appear on the same item. A dated item with neither is simply dated; `@span: all-day` makes all-day occupancy explicit.
 
-The extended scheduled form supports `every 1–999 days`, selected weekdays for `weeks`, a numbered day or `first`/`second`/`third`/`fourth`/`fifth`/`last` weekday for `months`, and a `MM-DD` date or ordinal weekday of a named month for `years`. For example, `every 2 months on 15` and `every 1 year on second wed of october` are valid rule beginnings. The `from`, `series`, and `occurrence` clauses are required for this form, in any order. Hito adds them when you use the repeat editor.
+## Undated lists
 
-`from` fixes the day, week, month, or year cycle even when an item is completed late or moved. `series` is a stable, readable identifier shared by all occurrences of that rule; keep it when editing an occurrence, and use a new identifier when making an independent series. `occurrence` is the one-based number of this actual Hito item, from 1 through 9999. The two identity clauses are required for the extended scheduled form and optional for the shorter forms while an item is pending. They become necessary once a recurring item is completed, so an imported file can identify an existing successor even if it was renamed or moved. An optional `ends on YYYY-MM-DD` includes that date; `ends after N` stops after N Hito items including the first. Omit the `ends` clause to repeat indefinitely. Hito rejects a duplicate pair of series identifier and occurrence number in one file.
-Adding a scheduled rule to an existing item begins a new series at occurrence 1. Editing the rule on an older occurrence does not rewrite later items that were already created.
+Undated items live in a distinct section at the end. The list heading groups items; neither these items nor their details have completion circles.
 
-**Every rule creates only one next item when the current item becomes complete.** A completed recurring item records its actual completion date as `  @completed: YYYY-MM-DD`, below the repeat rule. This line is optional on ordinary completed items, but needed for portable recurring completion. Hito can reconstruct a missing direct successor from a completed item with both a completion date and series identity, including on the first import. It checks the `(series, occurrence + 1)` pair first, so reimporting the same file does not duplicate that successor. If an exported file already contains the successor, its title and date remain as edited. Removing a previously seen successor remains a deletion when the edited file is reimported. Hito does not prefill an infinite series. Scheduled rules find the first matching date after completion, skipping missed dates while retaining the original `from` cycle. Skipped dates do not consume an `ends after` count. After-completion interval rules calculate from completion: completing `every 3 days after completion` on October 13 creates one item on October 16. Completion before an item's scheduled day uses that scheduled day as the earliest starting point.
+```text
+UNDATED
 
-The completed occurrence remains in its day, including its repeat rule, completion date, and completed details. The new occurrence has the same title, time block, and schedule, an incremented occurrence number, and fresh unchecked details. An item completed from its main circle, its last detail, a drag into Done, or an imported file change to a previously pending item follows the same rule. For a completed imported rule lacking `@completed` or identity, the doctor asks for the actual date and whether to start a series; it does not guess a completion date. Completion and next-item creation form one undoable change. Reopening an older occurrence later does not erase a later occurrence; use Undo to reverse an accidental completion immediately.
+LIST: Ideas
+Plan a talk
+- possible venue
+- guest list
 
-For `monthly on 31`, months without a 31st are skipped. A fifth weekday is skipped in months that have only four. For `yearly on 02-29`, non-leap years are skipped. After-completion month/year intervals clamp the destination to that month's last day (January 31 plus one month becomes February 28 or 29). A scheduled time block keeps its local clock range on each created item; this format does not store an appointment time zone.
+LIST: Inbox
+Read this later
+```
 
-### Plain-text editing and round trips
+`UNDATED` and `LIST: name` are structural lines. Escape a literal item title matching either form with `\`. Adding a date moves an item into the dated view; making it undated moves it into a selected list. Undo and redo cover accidental moves. The text file records its current placement without a movement history.
 
-The date heading, item line, optional repeat and completion metadata, and detail lines are the source of task meaning. A human can edit them in any text editor, then import the file. Invalid dates, malformed repeat rules, orphan details, and invalid time ranges are reported instead of silently becoming another kind of entry. The import doctor proposes narrow repairs in a working copy and asks for explicit decisions when a repair could change meaning. The original file is never overwritten. See [TODO_DOCTOR.md](TODO_DOCTOR.md) for its complete behavior.
+## Recurrence
 
-**Download TODO.txt** opens a read-only preview of the complete serialized journal. The default download is named `TODO.txt` and uses UTF-8 text with LF line endings. You can change the filename or choose CRLF line endings; both choices preserve the same journal meaning. Wrapping long lines changes only the preview. The file includes every date, item, detail, time block, repeat rule, and recorded recurrence completion date. To edit text directly, edit a downloaded file in a text editor and import it back into Hito. Import validates syntax and reports line-numbered errors before applying changes. If an older version left an unfinished text draft in this browser session, Hito offers it as a separate draft download.
+A repeat rule is an optional metadata line indented by exactly two spaces. An item can have one rule. The human-readable forms include:
 
-The parser and serializer are in [`src/todoText.ts`](src/todoText.ts). Recurrence calculation is in [`src/recurrence.ts`](src/recurrence.ts) and [`src/scheduledRecurrence.ts`](src/scheduledRecurrence.ts); time-block parsing is in [`src/timeBlock.ts`](src/timeBlock.ts). Tests covering round trips and next-occurrence behavior are in [`tests/recurrence.test.mjs`](tests/recurrence.test.mjs) and [`tests/scheduledRecurrence.test.mjs`](tests/scheduledRecurrence.test.mjs).
+```text
+  @repeat: daily; series morning-check
+  @repeat: weekdays; series work-check
+  @repeat: weekly on mon, wed, fri; series standup
+  @repeat: monthly on 15; series monthly-review
+  @repeat: yearly on 10-13; series birthday
+  @repeat: every 2 weeks on wed; from 2026-10-14; series team-sync; ends after 13
+  @repeat: every 2 weeks on sun; from 2026-10-18; series sunday-check; week starts sun
+  @repeat: every 1 month on second wed; from 2026-10-14; series committee
+  @repeat: every 1 month on last day; from 2026-10-31; series month-end
+  @repeat: every 1 year on last fri of april; from 2026-04-24; series arbor-day; ends on 2030-04-30
+  @repeat: every 3 days after completion; series water-plants; occurrence 2
+```
+
+Day names are `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`. The extended scheduled form supports intervals of 1–999 days, weeks, months, or years; selected weekdays for weeks; numbered, last, or ordinal weekdays of a month; and a `MM-DD` or ordinal weekday of a named month for years. `from` fixes the interval cycle. `week starts sun` is optional for multiweek schedules whose weeks begin on Sunday; Monday is the default. `series` is a stable identifier for one stored rule. A short scheduled rule without an identifier gets a stable one on import. `ends on YYYY-MM-DD` is inclusive; `ends after N` limits the count. `occurrence N` identifies the first actual occurrence stored when a count-limited series is imported after its original start.
+
+**Scheduled recurrence is calculated from the rule.** Looking at a future week shows its occurrences without adding copies to TODO.txt or waiting for an earlier occurrence to be completed. Only an occurrence that is completed, moved, edited, or skipped needs a stored exception:
+
+```text
+2026-10-19
+
+09:00-09:30 Weekly standup
+  @repeat: weekly on mon; series weekly-standup
+  @skip: 2026-11-02
+
+2026-10-27
+
+10:00-10:30 Weekly standup
+  @replaces: weekly-standup on 2026-10-26
+```
+
+`@skip` suppresses one date from the rule. `@replaces` identifies the original series date and implicitly suppresses that calculated occurrence; the replacement's own heading gives its current date. A series identifier belongs to one rule, and one original occurrence can have one replacement. Editing a recurring item offers **this item**, **this and following items**, and **all items**. The middle choice ends the old rule before the selected occurrence and starts one new rule there. Explicit prior exceptions remain stored. Completing one occurrence records only that occurrence.
+
+**After-completion recurrence waits for completion.** For `every 3 days after completion`, completing on October 13 creates one successor on October 16. A completed after-completion item records its actual completion date as `  @completed: YYYY-MM-DD`. Its `series` and one-based `occurrence` identify the successor across imports, so an imported completed item does not duplicate an existing successor. The import doctor requests the actual completion date and identity if either is missing; it never guesses. Completion and successor creation form one undoable change.
+
+`monthly on 31` skips months without a 31st. A fifth weekday skips months with only four. `monthly on last day` covers every month. `yearly on 02-29` skips non-leap years. After-completion month and year intervals clamp to the last day of the destination month. This format stores local clock times, not appointment time zones.
+
+## Plain-text editing and round trips
+
+Dates and lists, item lines, optional metadata, and detail lines are the source of meaning. Invalid dates, malformed spans or rules, orphan details, invalid time ranges, and unknown metadata are reported instead of silently becoming another kind of item. The import doctor proposes narrow repairs in a working copy and asks for explicit decisions where meaning could change; it never overwrites the original file. See [TODO_DOCTOR.md](TODO_DOCTOR.md).
+
+**Download TODO.txt** opens a read-only preview of the complete serialized journal. The default file is UTF-8 `TODO.txt` with LF line endings. Filename and CRLF choices do not change meaning; visual wrapping changes only the preview. Edit a downloaded file in a text editor and import it to apply text changes. An unfinished draft left by an older browser editor remains available as a separate download.
+
+Parsing and serialization are in [`src/todoText.ts`](src/todoText.ts). Scheduled occurrence projection is in [`src/seriesView.ts`](src/seriesView.ts); repeat calculations are in [`src/recurrence.ts`](src/recurrence.ts) and [`src/scheduledRecurrence.ts`](src/scheduledRecurrence.ts). The Google snapshot converter is described in [GOOGLE_SNAPSHOT.md](GOOGLE_SNAPSHOT.md).
