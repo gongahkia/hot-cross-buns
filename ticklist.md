@@ -1,0 +1,6 @@
+- multi-day events
+- reschedule events just by dragging them around
+- fully cover all functionality/semantics from a google cal and tasks suite
+- make mobile support first class
+- make desktop ux first class
+- add import scripts for google cal and tasks, just within the repo doesn't have to eb actually within the app, shell script or whatever is best is fine
