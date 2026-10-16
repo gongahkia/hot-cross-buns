@@ -682,6 +682,35 @@ test('reorders undated items and details, and deletes a list with undo', async (
   expect(await download()).not.toContain('LIST: Temporary');
 });
 
+test('undated item and detail deletions show an undo confirmation and restore their original place', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({
+    name: 'TODO.txt', mimeType: 'text/plain',
+    buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n'),
+  });
+  await page.getByRole('button', { name: 'Undated' }).click();
+  const ideas = page.locator('section[aria-label="Ideas"]');
+  const confirmation = page.getByRole('status', { name: 'Deletion confirmation' });
+
+  await ideas.getByRole('button', { name: 'More actions for detail first detail' }).click();
+  await ideas.getByRole('button', { name: 'Delete detail first detail' }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail first detail' })).toHaveCount(0);
+  await expect(confirmation).toContainText('Deleted detail: first detail');
+  await confirmation.getByRole('button', { name: 'Undo deletion of detail first detail' }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail first detail' })).toBeVisible();
+
+  await ideas.getByRole('button', { name: 'More actions for Alpha' }).click();
+  await ideas.getByLabel('Actions for Alpha').getByRole('button', { name: 'delete', exact: true }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit Alpha' })).toHaveCount(0);
+  await expect(confirmation).toContainText('Deleted item: Alpha');
+  await confirmation.getByRole('button', { name: 'Undo deletion of item Alpha' }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit Alpha' })).toBeVisible();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail first detail' })).toBeVisible();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail second detail' })).toBeVisible();
+  await expect.poll(() => ideas.getByRole('textbox', { name: /^Edit (?:Alpha|Beta)$/ }).evaluateAll(elements =>
+    elements.map(element => (element as HTMLTextAreaElement).value))).toEqual(['Alpha', 'Beta']);
+});
+
 test('makes undated items details and promotes details back to items', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- alpha note\nBeta\n- beta note\n\nLIST: Inbox\nGamma\n') });

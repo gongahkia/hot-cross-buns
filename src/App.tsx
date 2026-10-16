@@ -7,7 +7,7 @@ import styled, { keyframes } from 'styled-components';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, Search, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
-import { CompletionFeedback } from './components/CompletionFeedback';
+import { UndoFeedback, type UndoNoticeKind } from './components/UndoFeedback';
 import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem, useJournalFieldResize } from './components/DailyItem';
 import { JournalDatePicker } from './components/JournalDatePicker';
@@ -63,12 +63,13 @@ const HolidayBadge = styled.span`display:inline-flex;align-items:center;gap:5px;
 const HolidayLoadError = styled.p`margin:-12px 0 18px;color:var(--muted);font-size:12px;`;
 const ViewTabs = styled.nav`display:flex;align-items:center;gap:4px;margin:-4px 0 26px;`;
 const ViewTab = styled.button<{ $active:boolean }>`min-height:40px;padding:6px 12px;border:0;border-radius:7px;background:${({$active})=>$active?'var(--date-bg)':'transparent'};color:${({$active})=>$active?'var(--ink)':'var(--muted)'};font-size:13px;font-weight:${({$active})=>$active?600:400};&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;
-const JournalViewport = styled.div<{ $dated:boolean }>`flex:${({$dated})=>$dated?'1':'none'}; min-height:0; overflow-y:${({$dated})=>$dated?'auto':'visible'}; overscroll-behavior:contain; scrollbar-gutter:${({$dated})=>$dated?'stable':'auto'}; padding:0 3px ${({$dated})=>$dated?'24px':'0'} 0; &:focus{outline:none;} @media(max-width:600px){scrollbar-gutter:auto;}`;
+const JournalViewport = styled.div<{ $dated:boolean }>`flex:${({$dated})=>$dated?'1':'none'}; min-height:0; overflow-y:${({$dated})=>$dated?'auto':'visible'}; overscroll-behavior:contain; scrollbar-width:none; padding:0 3px ${({$dated})=>$dated?'24px':'0'} 0; &::-webkit-scrollbar{display:none;} &:focus{outline:none;}`;
 const EarlierLink = styled.button`display:inline-flex;align-items:center;gap:7px;align-self:flex-start;min-height:32px;margin:-14px 0 12px 0;padding:3px 5px;border:0;border-radius:5px;background:transparent;color:var(--link);font-size:12px;font-variant-numeric:tabular-nums;text-align:left;&:hover{text-decoration:underline;text-underline-offset:3px;}@media(pointer:coarse){min-height:44px;margin-top:-16px;}`;
 const ScopeTitle = styled.h2`margin:4px 4px 12px;font-size:17px;line-height:1.3;text-wrap:balance;`;
 const ScopeHint = styled.p`margin:0 4px 14px;color:var(--muted);font-size:13px;line-height:1.45;`;
 const ScopeOption = styled.button`display:block;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:7px;background:transparent;color:var(--ink);font-size:14px;text-align:left;&:hover,&:focus-visible{background:var(--soft);}`;
-type CompletionNotice = { text: string; document: TodoDocument };
+type UndoNotice = { kind: UndoNoticeKind; text: string; document: TodoDocument };
+type DeletionFeedback = { kind: 'item-deletion' | 'detail-deletion'; text: string };
 const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
 const SAVED_RANGE_KEY = 'hito-journal-range-v1';
 const readSavedRange = (): DateSpan | null => {
@@ -301,7 +302,7 @@ export default function App() {
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
   const [message, setMessage] = useState('');
-  const [completionNotice, setCompletionNotice] = useState<CompletionNotice | null>(null);
+  const [feedbackNotice, setFeedbackNotice] = useState<UndoNotice | null>(null);
   const [busy, setBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -366,10 +367,10 @@ export default function App() {
   }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
   useEffect(() => { if (state) previousDocument.current = state.document; }, [state?.document]);
   useEffect(() => {
-    if (!completionNotice) return;
-    const timeout = window.setTimeout(() => setCompletionNotice(null), 6000);
+    if (!feedbackNotice) return;
+    const timeout = window.setTimeout(() => setFeedbackNotice(null), 6000);
     return () => window.clearTimeout(timeout);
-  }, [completionNotice]);
+  }, [feedbackNotice]);
   const commitState = async (next: TodoState) => {
     const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
     current.current = stamped;
@@ -418,10 +419,10 @@ export default function App() {
       if (undoStack.current.length > 100) undoStack.current.shift();
       redoStack.current = [];
     }
-    setCompletionNotice(null);
+    setFeedbackNotice(null);
     await commitState(next);
   };
-  const edit = (change: (document: TodoDocument) => void) => {
+  const edit = (change: (document: TodoDocument) => void, feedback?: DeletionFeedback) => {
     const before = current.current.document;
     const document = cloneDocument(before);
     change(document);
@@ -435,10 +436,10 @@ export default function App() {
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
     void commitState({ ...current.current, document }).catch(error => setMessage(`Could not save: ${String(error)}`));
-    setCompletionNotice(completed ? { text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : null);
+    setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
   };
-  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setCompletionNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
-  const redo = () => { const next = redoStack.current.pop(); if (!next) return; setCompletionNotice(null); undoStack.current.push(current.current.document); replayState(next); };
+  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
+  const redo = () => { const next = redoStack.current.pop(); if (!next) return; setFeedbackNotice(null); undoStack.current.push(current.current.document); replayState(next); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
@@ -666,11 +667,22 @@ export default function App() {
     const index = items?.findIndex(item => item.id === id) ?? -1;
     if (items && index >= 0) items.splice(index + 1, 0, { id: newId(), text: text.trim(), details: [], completed: false });
   }); };
-  const editUndated = (listName: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => edit(document => {
+  const editUndated = (listName: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void, feedback?: DeletionFeedback) => edit(document => {
     const items = document.undated?.find(list => list.name === listName)?.items;
     const item = items?.find(item => item.id === id);
     if (items && item) change(item,items);
-  });
+  }, feedback);
+  const removeUndated = (listName: string, id: string, detailIndex?: number) => {
+    const item = current.current.document.undated?.find(list => list.name === listName)?.items.find(item => item.id === id);
+    if (!item) return;
+    if (detailIndex === undefined) {
+      editUndated(listName,id,(_,items) => { items.splice(items.findIndex(entry => entry.id === id),1); }, { kind: 'item-deletion', text: item.text });
+      return;
+    }
+    const detail = item.details[detailIndex];
+    if (!detail) return;
+    editUndated(listName,id,item => { item.details.splice(detailIndex,1); }, { kind: 'detail-deletion', text: detail.text });
+  };
   const addUndated = (listName: string, text: string) => edit(document => {
     let list = document.undated?.find(list => list.name === listName);
     if (!list) { list = { name: listName, items: [] }; (document.undated ??= []).push(list); }
@@ -906,9 +918,9 @@ export default function App() {
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
-    <CompletionFeedback notice={completionNotice} onDismiss={() => setCompletionNotice(null)} onUndo={() => {
-      if (completionNotice && current.current.document === completionNotice.document) undo();
-      else setCompletionNotice(null);
+    <UndoFeedback notice={feedbackNotice} onDismiss={() => setFeedbackNotice(null)} onUndo={() => {
+      if (feedbackNotice && current.current.document === feedbackNotice.document) undo();
+      else setFeedbackNotice(null);
     }}/>
     {activeTab === 'dated' && !query && !tag && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
       if (pastUnfinishedScope === 'all') {
@@ -931,7 +943,7 @@ export default function App() {
       onEdit={(list,id,text) => editUndated(list,id,item => { item.text = text; })}
       onAddDetail={(list,id,text) => editUndated(list,id,item => { item.details.push({ text, completed: false }); })}
       onEditDetail={(list,id,index,text) => editUndated(list,id,item => { item.details[index].text = text; })}
-      onDeleteDetail={(list,id,index) => editUndated(list,id,item => { item.details.splice(index,1); })}
+      onDeleteDetail={(list,id,index) => removeUndated(list,id,index)}
       onReorderDetails={(list,id,from,to) => editUndated(list,id,item => { item.details = arrayMove(item.details,from,to); })}
       onMakeDetail={(sourceList,id,parentList,parentId) => edit(document => {
         const source = document.undated?.find(list => list.name === sourceList);
@@ -948,7 +960,7 @@ export default function App() {
         items.splice(items.indexOf(item)+1,0,{ id: newId(), text: detail.text, details: [], completed: false });
       })}
       onDate={dateUndated}
-      onDelete={(list,id) => editUndated(list,id,(_,items) => { items.splice(items.findIndex(item => item.id === id),1); })}/>
+      onDelete={(list,id) => removeUndated(list,id)}/>
     : <>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}

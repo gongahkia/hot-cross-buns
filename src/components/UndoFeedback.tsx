@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Check, Undo2, X } from 'lucide-react';
+import { Check, Trash2, Undo2, X } from 'lucide-react';
 
-type Notice = { text: string };
+export type UndoNoticeKind = 'completion' | 'item-deletion' | 'detail-deletion';
+type Notice = { kind: UndoNoticeKind; text: string };
 type Phase = 'entering' | 'visible' | 'leaving';
 
 const Toast = styled.div<{ $phase: Phase }>`
@@ -20,7 +21,7 @@ const Text = styled.span`min-width: 0; overflow: hidden; text-overflow: ellipsis
 const Undo = styled.button`width: 40px; height: 40px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--link); &:hover { background: var(--soft); } @media(pointer:coarse){width:44px;height:44px;}`;
 const Dismiss = styled.button`width: 40px; height: 40px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); &:hover { background: var(--soft); color: var(--ink); } @media(pointer:coarse){width:44px;height:44px;}`;
 
-export function CompletionFeedback({ notice, onUndo, onDismiss }: { notice: Notice | null; onUndo: () => void; onDismiss: () => void }) {
+export function UndoFeedback({ notice, onUndo, onDismiss }: { notice: Notice | null; onUndo: () => void; onDismiss: () => void }) {
   const [displayed, setDisplayed] = useState<Notice | null>(null);
   const [phase, setPhase] = useState<Phase>('entering');
 
@@ -42,10 +43,12 @@ export function CompletionFeedback({ notice, onUndo, onDismiss }: { notice: Noti
   }, [phase, displayed]);
 
   if (!displayed) return null;
-  return <Toast $phase={phase} data-phase={phase} role="status" aria-label="Completion confirmation" aria-hidden={phase !== 'visible'} inert={phase !== 'visible'}>
-    <Check size={16} color="var(--link)" aria-hidden="true"/>
-    <Text title={displayed.text}>Moved to Done: {displayed.text}</Text>
-    <Undo type="button" aria-label={`Undo completion of ${displayed.text}`} title="Undo" onClick={onUndo}><Undo2 size={17} aria-hidden="true"/></Undo>
-    <Dismiss type="button" aria-label="Dismiss completion confirmation" onClick={onDismiss}><X size={15}/></Dismiss>
+  const completion = displayed.kind === 'completion';
+  const action = displayed.kind === 'detail-deletion' ? 'detail' : 'item';
+  return <Toast $phase={phase} data-phase={phase} role="status" aria-label={completion ? 'Completion confirmation' : 'Deletion confirmation'} aria-hidden={phase !== 'visible'} inert={phase !== 'visible'}>
+    {completion ? <Check size={16} color="var(--link)" aria-hidden="true"/> : <Trash2 size={16} color="var(--muted)" aria-hidden="true"/>}
+    <Text title={displayed.text}>{completion ? 'Moved to Done' : `Deleted ${action}`}: {displayed.text}</Text>
+    <Undo type="button" aria-label={completion ? `Undo completion of ${displayed.text}` : `Undo deletion of ${action} ${displayed.text}`} title="Undo" onClick={onUndo}><Undo2 size={17} aria-hidden="true"/></Undo>
+    <Dismiss type="button" aria-label={completion ? 'Dismiss completion confirmation' : 'Dismiss deletion confirmation'} onClick={onDismiss}><X size={15}/></Dismiss>
   </Toast>;
 }
