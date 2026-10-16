@@ -26,20 +26,23 @@ const ParentList = styled.div`max-height:min(280px,50dvh);overflow-y:auto;oversc
 const ParentOption = styled(MenuAction)`display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;`;
 const Actions = styled.div`position:relative;`;
 const Add = styled.input`display:block;width:calc(100% - 58px);min-height:44px;margin-left:58px;padding:10px 2px;border:0;border-radius:4px;background:transparent;color:var(--ink);font:inherit;font-size:15px;line-height:1.45;&:focus{outline:0;box-shadow:inset 0 -1px var(--focus);}::placeholder{color:var(--muted);font-size:13px;}@media(max-width:600px){width:100%;margin-left:0;}@media(pointer:coarse){font-size:16px;}`;
+const AddAfter = styled(Add)`@media(max-width:600px){width:calc(100% - 44px);margin-left:44px;}`;
 const AddDetail = styled(Add)`font-size:13px;@media(pointer:coarse){font-size:16px;}`;
 const AddList = styled.button`min-height:40px;padding:6px 10px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;&:hover{background:var(--soft);color:var(--ink);}`;
 const AddListField = styled(Add)`margin-left:0;width:100%;font-size:13px;@media(pointer:coarse){font-size:16px;}`;
 const EmptyLists = styled.p`margin:12px 0 24px;color:var(--muted);font-size:13px;`;
 
-function DraftText({ value, label, detail, onSave }: { value: string; label: string; detail?: boolean; onSave: (text: string) => void }) {
+function DraftText({ value, label, detail, onSave, onStartNext }: { value: string; label: string; detail?: boolean; onSave: (text: string) => void; onStartNext?: () => void }) {
   const [draft, setDraft] = useState(value);
+  const cancelled = useRef(false);
   useEffect(() => setDraft(value), [value]);
   const Component = detail ? Detail : Text;
-  return <Component key={value} rows={1} aria-label={label} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { const next = draft.trim(); if (next && next !== value) onSave(next); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { setDraft(value); event.currentTarget.blur(); } }}/>
+  return <Component key={value} rows={1} aria-label={label} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { if (cancelled.current) { cancelled.current = false; setDraft(value); return; } const next = draft.trim(); if (next && next !== value) onSave(next); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext?.(); } if (event.key === 'Escape') { cancelled.current = true; event.preventDefault(); event.currentTarget.blur(); } }}/>
 }
 
 type ItemActions = {
   onEdit: (list: string, id: string, text: string) => void;
+  onAddAfter: (list: string, id: string, text: string) => void;
   onAddDetail: (list: string, id: string, text: string) => void;
   onEditDetail: (list: string, id: string, index: number, text: string) => void;
   onDeleteDetail: (list: string, id: string, index: number) => void;
@@ -85,6 +88,7 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
   const [open, setOpen] = useState<'actions' | 'date' | 'parent' | null>(null);
   const [parentQuery, setParentQuery] = useState('');
   const [addDetail, setAddDetail] = useState(false);
+  const [addAfter, setAddAfter] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -107,7 +111,7 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
   return <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, position: 'relative', zIndex: isDragging ? 1 : undefined }}>
     <Row $dragging={isDragging}>
       <Grip data-row-control ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} disabled={disabled} aria-label={'Drag to reorder ' + item.text} title={disabled ? 'Clear filters to reorder' : 'Drag to reorder item'}><GripVertical size={14}/></Grip>
-      <DraftText value={item.text} label={'Edit ' + item.text} onSave={text => actions.onEdit(list,item.id,text)}/>
+      <DraftText value={item.text} label={'Edit ' + item.text} onSave={text => actions.onEdit(list,item.id,text)} onStartNext={() => setAddAfter(true)}/>
       <Actions ref={menuRef}><Icon data-row-control ref={moreRef} aria-label={'More actions for ' + item.text} aria-expanded={open !== null} onClick={() => setOpen(open ? null : 'actions')}><MoreHorizontal size={17}/></Icon>
         {open === 'actions' && <Menu aria-label={'Actions for ' + item.text}>
           <MenuAction onClick={() => { setOpen(null); setAddDetail(true); }}><Plus size={15}/> add detail</MenuAction>
@@ -136,6 +140,7 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
       {item.details.map((detail,index) => <SortableDetail key={detailIds[index]} id={detailIds[index]} detail={detail} index={index} list={list} item={item} disabled={disabled} onEditDetail={actions.onEditDetail} onDeleteDetail={actions.onDeleteDetail} onMakeItem={actions.onMakeItem}/>)}
     </SortableContext></DndContext>
     {addDetail && <AddDetail autoFocus aria-label={'New detail for ' + item.text} placeholder="New detail…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; setAddDetail(false); } }} onBlur={event => { if (event.currentTarget.value.trim()) actions.onAddDetail(list,item.id,event.currentTarget.value.trim()); setAddDetail(false); }}/>}
+    {addAfter && <AddAfter autoFocus aria-label="New item after current item" placeholder="New item…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; event.currentTarget.blur(); } }} onBlur={event => { const text = event.currentTarget.value.trim(); if (text) actions.onAddAfter(list,item.id,text); setAddAfter(false); }}/>}
   </div>;
 }
 

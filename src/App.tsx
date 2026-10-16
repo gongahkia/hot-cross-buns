@@ -688,6 +688,11 @@ export default function App() {
     if (!list) { list = { name: listName, items: [] }; (document.undated ??= []).push(list); }
     list.items.push({ id: newId(), text, details: [], completed: false });
   });
+  const addUndatedAfter = (listName: string, id: string, text: string) => edit(document => {
+    const items = document.undated?.find(list => list.name === listName)?.items;
+    const index = items?.findIndex(item => item.id === id) ?? -1;
+    if (items && index >= 0) items.splice(index + 1, 0, { id: newId(), text, details: [], completed: false });
+  });
   const dateUndated = (listName: string, id: string, date: string) => {
     edit(document => {
       const list = document.undated?.find(list => list.name === listName);
@@ -933,6 +938,7 @@ export default function App() {
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
       onAdd={addUndated}
+      onAddAfter={addUndatedAfter}
       onReorderItems={(list,fromId,toId) => edit(document => {
         const items = document.undated?.find(entry => entry.name === list)?.items;
         if (!items) return;

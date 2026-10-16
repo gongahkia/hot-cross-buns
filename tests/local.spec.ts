@@ -711,6 +711,40 @@ test('undated item and detail deletions show an undo confirmation and restore th
     elements.map(element => (element as HTMLTextAreaElement).value))).toEqual(['Alpha', 'Beta']);
 });
 
+test('Enter on an undated item opens a focused sibling draft and preserves list order', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({
+    name: 'TODO.txt', mimeType: 'text/plain',
+    buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\nBeta\n'),
+  });
+  await page.getByRole('button', { name: 'Undated' }).click();
+  const ideas = page.locator('section[aria-label="Ideas"]');
+  await ideas.getByRole('textbox', { name: 'Edit Alpha' }).fill('Alpha revised');
+  await ideas.getByRole('textbox', { name: 'Edit Alpha' }).press('Enter');
+  const next = ideas.getByRole('textbox', { name: 'New item after current item' });
+  await expect(next).toBeFocused();
+  await next.fill('Between');
+  await next.press('Enter');
+  await expect(next).toHaveCount(0);
+  await expect.poll(() => ideas.getByRole('textbox', { name: /^Edit (?:Alpha revised|Between|Beta)$/ }).evaluateAll(elements =>
+    elements.map(element => (element as HTMLTextAreaElement).value))).toEqual(['Alpha revised', 'Between', 'Beta']);
+
+  await ideas.getByRole('textbox', { name: 'Edit Beta' }).fill('Unwanted edit');
+  await ideas.getByRole('textbox', { name: 'Edit Beta' }).press('Escape');
+  await expect(ideas.getByRole('textbox', { name: 'Edit Beta' })).toHaveValue('Beta');
+  await ideas.getByRole('textbox', { name: 'Edit Beta' }).press('Enter');
+  await expect(next).toBeFocused();
+  await next.fill('Discard me');
+  await next.press('Escape');
+  await expect(next).toHaveCount(0);
+  await expect(ideas.getByRole('textbox', { name: 'Edit Discard me' })).toHaveCount(0);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await confirmTodoDownload(page);
+  expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain('LIST: Ideas\nAlpha revised\n- first detail\nBetween\nBeta');
+});
+
 test('makes undated items details and promotes details back to items', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- alpha note\nBeta\n- beta note\n\nLIST: Inbox\nGamma\n') });
