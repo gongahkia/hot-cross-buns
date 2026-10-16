@@ -1110,6 +1110,66 @@ test('uses the calendar to switch between the default week, one day, and a selec
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
 });
 
+test('dated journal opens at today and earlier unfinished items can be scoped to the range or all dates', async ({ page }) => {
+  const today = dateOffset(0);
+  const yesterday = dateOffset(-1);
+  const older = dateOffset(-10);
+  const tomorrow = dateOffset(1);
+  await page.goto('/');
+  const viewport = page.getByRole('region', { name: 'Dated journal' });
+  await expect.poll(async () => page.evaluate(date => {
+    const journal = document.querySelector('[aria-label="Dated journal"]');
+    const heading = document.querySelector(`[data-journal-date="${date}"]`);
+    if (!journal || !heading) return 999;
+    return Math.round(heading.getBoundingClientRect().top - journal.getBoundingClientRect().top);
+  }, today)).toBeLessThan(25);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2)).toBe(true);
+  expect(await viewport.evaluate(element => element.scrollHeight > element.clientHeight && getComputedStyle(element).overflowY === 'auto')).toBe(true);
+
+  const raw = `${older}\n\nOlder unfinished\n\n${yesterday}\n\nRecent unfinished\n\n${today}\n\nToday item\n`;
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await selectJournalCalendarDate(page, yesterday);
+  await selectJournalCalendarDate(page, tomorrow);
+  await expect(viewport.locator('[data-journal-date]')).toHaveCount(3);
+  const earlier = page.getByRole('button', { name: /1 unfinished from earlier day/ });
+  await expect(earlier).toBeVisible();
+  expect(await viewport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await earlier.click();
+  await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await expect(settings.getByLabel('Earlier unfinished items')).toHaveValue('visible');
+  await settings.getByLabel('Earlier unfinished items').selectOption('all');
+  await settings.getByRole('button', { name: 'close' }).click();
+  const allEarlier = page.getByRole('button', { name: /2 unfinished from earlier days/ });
+  await allEarlier.click();
+  await expect(allEarlier).toHaveAttribute('aria-expanded', 'true');
+  await expect(viewport.locator('[data-journal-date]')).toHaveCount(4);
+  await expect(viewport.locator('[data-journal-date]').first()).toHaveAttribute('data-journal-date', older);
+  await expect(viewport.locator('[data-journal-date]').last()).toHaveAttribute('data-journal-date', tomorrow);
+  await allEarlier.click();
+  await expect(viewport.locator('[data-journal-date]')).toHaveCount(3);
+  await page.reload();
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Earlier unfinished items')).toHaveValue('all');
+});
+
+test('new item typing matches the saved item text size', async ({ page }) => {
+  await page.goto('/');
+  const newDated = page.getByRole('textbox', { name: 'New daily item' });
+  const draftSize = await newDated.evaluate(element => getComputedStyle(element).fontSize);
+  await newDated.fill('Size check');
+  await newDated.press('Enter');
+  await expect(page.getByRole('textbox', { name: 'Edit Size check' })).toHaveCSS('font-size', draftSize);
+  await page.getByRole('button', { name: 'Undated' }).click();
+  const newUndated = page.getByRole('textbox', { name: 'New item in Inbox' });
+  const undatedSize = await newUndated.evaluate(element => getComputedStyle(element).fontSize);
+  await newUndated.fill('Undated size check');
+  await newUndated.press('Enter');
+  await expect(page.getByRole('textbox', { name: 'Edit Undated size check' })).toHaveCSS('font-size', undatedSize);
+});
+
 test('holiday view stays out of TODO.txt, saved holidays round-trip, and week start updates the calendar', async ({ page }) => {
   const today = dateOffset(0);
   await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
@@ -1148,6 +1208,14 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await page.getByRole('button', { name: 'Hito settings' }).click();
   await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Week starts on')).toHaveValue('0');
   await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Use public holidays')).not.toBeChecked();
+  await page.getByRole('dialog', { name: 'Hito settings' }).getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Next range' }).click();
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Week starts on').selectOption('1');
+  await page.getByRole('dialog', { name: 'Hito settings' }).getByRole('button', { name: 'close' }).click();
+  const alignedDate = await page.locator('section').first().locator('time').getAttribute('datetime');
+  expect(new Date(`${alignedDate}T12:00:00`).getDay()).toBe(1);
+  await expect(page.locator('section')).toHaveCount(7);
 });
 
 test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {

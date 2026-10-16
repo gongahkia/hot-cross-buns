@@ -75,6 +75,7 @@ const DATE_FORMAT_KEY = 'hito-date-format';
 const storedPreference = (key: string) => typeof localStorage === 'undefined' ? null : localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
 
 export type HolidayMode = 'saved' | 'view';
+export type PastUnfinishedScope = 'visible' | 'all';
 export type WeekStart = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 const isTimeZone = (value: string) => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; } };
 export const getTimeZone = () => { const value = storedPreference('hito-time-zone'); return value && isTimeZone(value) ? value : 'Asia/Singapore'; };
@@ -87,6 +88,8 @@ export const getHolidayMode = (): HolidayMode => storedPreference('hito-holiday-
 export const setHolidayMode = (value: HolidayMode) => localStorage.setItem('hito-holiday-mode', value);
 export const getHolidaysEnabled = () => storedPreference('hito-holidays-enabled') === 'true';
 export const setHolidaysEnabled = (value: boolean) => localStorage.setItem('hito-holidays-enabled', String(value));
+export const getPastUnfinishedScope = (): PastUnfinishedScope => storedPreference('hito-past-unfinished-scope') === 'all' ? 'all' : 'visible';
+export const setPastUnfinishedScope = (value: PastUnfinishedScope) => localStorage.setItem('hito-past-unfinished-scope', value);
 
 export function getDateFormat(): DateFormat {
   const stored = storedPreference(DATE_FORMAT_KEY);

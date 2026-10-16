@@ -25,9 +25,10 @@ const ParentSearch = styled.input`width:calc(100% - 12px);min-height:40px;margin
 const ParentList = styled.div`max-height:min(280px,50dvh);overflow-y:auto;overscroll-behavior:contain;`;
 const ParentOption = styled(MenuAction)`display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;`;
 const Actions = styled.div`position:relative;`;
-const Add = styled.input`display:block;width:calc(100% - 58px);min-height:44px;margin-left:58px;padding:8px 2px;border:0;border-radius:4px;background:transparent;color:var(--ink);font:inherit;font-size:13px;&:focus{outline:0;box-shadow:inset 0 -1px var(--focus);}::placeholder{color:var(--muted);}@media(max-width:600px){width:100%;margin-left:0;}@media(pointer:coarse){font-size:16px;}`;
+const Add = styled.input`display:block;width:calc(100% - 58px);min-height:44px;margin-left:58px;padding:10px 2px;border:0;border-radius:4px;background:transparent;color:var(--ink);font:inherit;font-size:15px;line-height:1.45;&:focus{outline:0;box-shadow:inset 0 -1px var(--focus);}::placeholder{color:var(--muted);font-size:13px;}@media(max-width:600px){width:100%;margin-left:0;}@media(pointer:coarse){font-size:16px;}`;
+const AddDetail = styled(Add)`font-size:13px;@media(pointer:coarse){font-size:16px;}`;
 const AddList = styled.button`min-height:40px;padding:6px 10px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;&:hover{background:var(--soft);color:var(--ink);}`;
-const AddListField = styled(Add)`margin-left:0;width:100%;`;
+const AddListField = styled(Add)`margin-left:0;width:100%;font-size:13px;@media(pointer:coarse){font-size:16px;}`;
 const EmptyLists = styled.p`margin:12px 0 24px;color:var(--muted);font-size:13px;`;
 
 function DraftText({ value, label, detail, onSave }: { value: string; label: string; detail?: boolean; onSave: (text: string) => void }) {
@@ -134,7 +135,7 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
     }}><SortableContext items={detailIds} strategy={verticalListSortingStrategy}>
       {item.details.map((detail,index) => <SortableDetail key={detailIds[index]} id={detailIds[index]} detail={detail} index={index} list={list} item={item} disabled={disabled} onEditDetail={actions.onEditDetail} onDeleteDetail={actions.onDeleteDetail} onMakeItem={actions.onMakeItem}/>)}
     </SortableContext></DndContext>
-    {addDetail && <Add autoFocus aria-label={'New detail for ' + item.text} placeholder="New detail…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; setAddDetail(false); } }} onBlur={event => { if (event.currentTarget.value.trim()) actions.onAddDetail(list,item.id,event.currentTarget.value.trim()); setAddDetail(false); }}/>}
+    {addDetail && <AddDetail autoFocus aria-label={'New detail for ' + item.text} placeholder="New detail…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; setAddDetail(false); } }} onBlur={event => { if (event.currentTarget.value.trim()) actions.onAddDetail(list,item.id,event.currentTarget.value.trim()); setAddDetail(false); }}/>}
   </div>;
 }
 

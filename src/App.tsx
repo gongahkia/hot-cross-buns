@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -15,7 +15,8 @@ import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
-import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, type DateFormat, type HolidayMode } from './preferences';
+import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, getPastUnfinishedScope, setPastUnfinishedScope, type DateFormat, type HolidayMode, type PastUnfinishedScope } from './preferences';
+import { earlierUnfinishedDays } from './earlierUnfinished';
 import { addSavedHolidays, fetchHolidayYear, type HolidayYear, type PublicHoliday } from './holidays';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
 import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
@@ -26,7 +27,7 @@ import { materializeOccurrence, projectItemsForDate, type ViewItem } from './ser
 import { newSeriesId, type RecurrenceRule } from './recurrence';
 import { emptyState, loadTodoState, saveTodoState, type TodoState } from './todoStore';
 
-const Page = styled.main`width: min(730px, calc(100% - 40px)); min-height: 100dvh; margin: 0 auto; padding: 35px 0 80px; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
+const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
@@ -38,7 +39,7 @@ const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 
 const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
 const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; } @media(pointer:coarse){font-size:16px;}`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
-const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;`;
+const TagRail = styled.nav<{ $bounded:boolean }>`display: flex; gap: 6px; flex-wrap: wrap; max-height:${({$bounded})=>$bounded?'min(120px,24dvh)':'none'}; overflow-y:${({$bounded})=>$bounded?'auto':'visible'}; margin-bottom: 24px;`;
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const dayEnter = keyframes`from { opacity:.45; transform:translateY(5px); } to { opacity:1; transform:translateY(0); }`;
 const DaySection = styled.section<{ $selected:boolean }>`margin: 0 0 38px; scroll-margin-top: 20px; animation:${({$selected})=>$selected?dayEnter:'none'} 180ms ease-out;`;
@@ -59,8 +60,11 @@ const Notice = styled(Note)`display: flex; align-items: center; justify-content:
 const Dismiss = styled.button`width: 32px; height: 32px; flex:none; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);} @media(pointer:coarse){width:44px;height:44px;}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
 const HolidayBadge = styled.span`display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:min(210px,38vw);padding:4px 8px;border-radius:999px;background:var(--soft);color:var(--muted);font-size:11px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;>span{min-width:0;overflow:hidden;text-overflow:ellipsis;}@media(max-width:600px){max-width:44vw;}`;
+const HolidayLoadError = styled.p`margin:-12px 0 18px;color:var(--muted);font-size:12px;`;
 const ViewTabs = styled.nav`display:flex;align-items:center;gap:4px;margin:-4px 0 26px;`;
 const ViewTab = styled.button<{ $active:boolean }>`min-height:40px;padding:6px 12px;border:0;border-radius:7px;background:${({$active})=>$active?'var(--date-bg)':'transparent'};color:${({$active})=>$active?'var(--ink)':'var(--muted)'};font-size:13px;font-weight:${({$active})=>$active?600:400};&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;
+const JournalViewport = styled.div<{ $dated:boolean }>`flex:${({$dated})=>$dated?'1':'none'}; min-height:0; overflow-y:${({$dated})=>$dated?'auto':'visible'}; overscroll-behavior:contain; scrollbar-gutter:${({$dated})=>$dated?'stable':'auto'}; padding:0 3px ${({$dated})=>$dated?'24px':'0'} 0; &:focus{outline:none;} @media(max-width:600px){scrollbar-gutter:auto;}`;
+const EarlierLink = styled.button`display:inline-flex;align-items:center;gap:7px;align-self:flex-start;min-height:32px;margin:-14px 0 12px 0;padding:3px 5px;border:0;border-radius:5px;background:transparent;color:var(--link);font-size:12px;font-variant-numeric:tabular-nums;text-align:left;&:hover{text-decoration:underline;text-underline-offset:3px;}@media(pointer:coarse){min-height:44px;margin-top:-16px;}`;
 const ScopeTitle = styled.h2`margin:4px 4px 12px;font-size:17px;line-height:1.3;text-wrap:balance;`;
 const ScopeHint = styled.p`margin:0 4px 14px;color:var(--muted);font-size:13px;line-height:1.45;`;
 const ScopeOption = styled.button`display:block;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:7px;background:transparent;color:var(--ink);font-size:14px;text-align:left;&:hover,&:focus-visible{background:var(--soft);}`;
@@ -267,6 +271,7 @@ export default function App() {
   const [holidayCountry, setHolidayCountryState] = useState(getHolidayCountry);
   const [holidayMode, setHolidayModeState] = useState<HolidayMode>(getHolidayMode);
   const [holidaysEnabled, setHolidaysEnabledState] = useState(getHolidaysEnabled);
+  const [pastUnfinishedScope, setPastUnfinishedScopeState] = useState<PastUnfinishedScope>(getPastUnfinishedScope);
   const [holidayStatus, setHolidayStatus] = useState('');
   const [viewHolidays, setViewHolidays] = useState<Record<string, PublicHoliday[]>>({});
   const viewHolidayCache = useRef<Map<string, Promise<HolidayYear>>>(new Map());
@@ -279,6 +284,9 @@ export default function App() {
   const scopedDelete = useRef(false);
   const [activeRange, setActiveRange] = useState<DateSpan>(() => initialRange ?? weekRange(todayString(), getWeekStart()));
   const [rangeCustomized, setRangeCustomized] = useState(!!initialRange);
+  const [expandedEarlierKey, setExpandedEarlierKey] = useState<string | null>(null);
+  const journalViewport = useRef<HTMLDivElement>(null);
+  const positionedView = useRef<string | null>(null);
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -808,13 +816,19 @@ export default function App() {
   };
   const allTags = useMemo(() => [...new Set([...documentData.days.flatMap(day => day.items), ...(documentData.undated ?? []).flatMap(list => list.items)].flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn)))].sort(), [documentData]);
   const unfinishedDates = useMemo(() => ({ has: (date: string) => projectItemsForDate(documentData,date).some(item => !item.completed) }), [documentData]);
+  const baseDates = useMemo(() => rangeActive ? datesInRange(activeRange) : [selectedDate], [rangeActive, activeRange, selectedDate]);
+  const earlierViewKey = `${viewMode}:${activeRange.from}:${activeRange.to}:${selectedDate}`;
+  const globalEarlierDays = useMemo(() => pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData,today) : [], [pastUnfinishedScope, state?.document, today]);
+  const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey && !query && !tag;
   const visibleDays = useMemo(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
     const dates = query || tag
       ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
-      : rangeActive ? datesInRange(activeRange) : [selectedDate];
+      : expandedEarlier
+        ? [...new Set([...globalEarlierDays.map(day => day.date).filter(date => !baseDates.includes(date)), ...baseDates])].sort()
+        : baseDates;
     return dates.map(date => ({ date, items: projectItemsForDate(documentData,date) }));
-  }, [documentData, selectedDate, viewMode, activeRange, rangeActive, query, tag]);
+  }, [documentData, selectedDate, query, tag, expandedEarlier, globalEarlierDays, baseDates]);
   const filteredDays = useMemo(() => {
     const needle = query.toLowerCase();
     return visibleDays.map(day => {
@@ -828,9 +842,34 @@ export default function App() {
       return { ...day, completed, upcoming };
     });
   }, [visibleDays, query, tag]);
+  const visibleEarlier = filteredDays.filter(day => day.date < today && baseDates.includes(day.date) && day.upcoming.length);
+  const earlierCount = pastUnfinishedScope === 'all'
+    ? globalEarlierDays.reduce((total, day) => total + day.count, 0)
+    : visibleEarlier.reduce((total, day) => total + day.upcoming.length, 0);
+  const earlierDayCount = pastUnfinishedScope === 'all' ? globalEarlierDays.length : visibleEarlier.length;
+  const scrollToJournalDate = (date: string, smooth = false) => {
+    const viewport = journalViewport.current;
+    const target = [...(viewport?.querySelectorAll<HTMLElement>('[data-journal-date]') ?? [])].find(element => element.dataset.journalDate === date);
+    if (!viewport || !target) return;
+    const targetTop = viewport.scrollTop + target.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+    viewport.style.paddingBottom = `${Math.max(24, viewport.clientHeight - target.offsetHeight + 12)}px`;
+    viewport.scrollTo({ top: targetTop, behavior: smooth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' });
+  };
+  useLayoutEffect(() => {
+    if (!state || !journalViewport.current) return;
+    const key = `${activeTab}:${earlierViewKey}:${query}:${tag ?? ''}:${expandedEarlier}`;
+    if (positionedView.current === key) return;
+    positionedView.current = key;
+    const viewport = journalViewport.current;
+    viewport.style.paddingBottom = activeTab === 'dated' ? '24px' : '0px';
+    viewport.scrollTop = 0;
+    if (activeTab !== 'dated' || query || tag) return;
+    if (expandedEarlier && globalEarlierDays.length) scrollToJournalDate(globalEarlierDays[0].date);
+    else if (baseDates.includes(today)) scrollToJournalDate(today);
+  }, [state !== null, activeTab, earlierViewKey, query, tag, expandedEarlier, today, baseDates, globalEarlierDays]);
   const hasResults = filteredDays.some(day => day.completed.length + day.upcoming.length > 0);
-  if (!state) return <Page><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
-  return <Page>
+  if (!state) return <Page $dated><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
+  return <Page $dated={activeTab === 'dated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hito daily journal</VisuallyHidden>
     <Header $revealed={searchOpen || dateOpen}>
@@ -854,12 +893,13 @@ export default function App() {
       <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
       <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
       <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon>
-      <Icon title="Hito settings" aria-label="Hito settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></Icon>
+      <Icon title="Hito settings" aria-label="Hito settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab></ViewTabs>
-    {!!allTags.length && <TagRail aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
+    {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
+    {!!allTags.length && <TagRail $bounded={activeTab === 'dated'} aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
       setLegacyRawDraft(null);
@@ -870,7 +910,13 @@ export default function App() {
       if (completionNotice && current.current.document === completionNotice.document) undo();
       else setCompletionNotice(null);
     }}/>
-    <div id="journal-content" tabIndex={-1}>
+    {activeTab === 'dated' && !query && !tag && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
+      if (pastUnfinishedScope === 'all') {
+        if (expandedEarlier) setExpandedEarlierKey(null);
+        else setExpandedEarlierKey(earlierViewKey);
+      } else if (visibleEarlier.length) scrollToJournalDate(visibleEarlier[0].date,true);
+    }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
+    <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab === 'dated'} tabIndex={-1} role="region" aria-label={activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
     {activeTab === 'undated' ? <UndatedView lists={documentData.undated} query={query} tag={tag}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
@@ -905,7 +951,7 @@ export default function App() {
       onDelete={(list,id) => editUndated(list,id,(_,items) => { items.splice(items.findIndex(item => item.id === id),1); })}/>
     : <>
     {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
-    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection} autoScroll={false}
+    <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
       onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}
       onDragCancel={() => { setDraggingId(null); setDragOverDate(null); }}
@@ -913,7 +959,7 @@ export default function App() {
     {filteredDays.map(day => {
       const { completed, upcoming } = day;
       if ((query || tag) && !completed.length && !upcoming.length) return null;
-      return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
+      return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} data-journal-date={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[day.date] ?? [] : []}/>
         {day.items.length === 0 && !query && !tag ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
         <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
@@ -923,7 +969,7 @@ export default function App() {
     {createPortal(<DragOverlay dropAnimation={null} modifiers={[restrictToWindowEdges]} style={{ width: 'min(360px, calc(100vw - 32px))' }} zIndex={40}>{draggingItem && <DragPreview aria-label={`Dragging ${draggingItem.text}`}><PreviewCircle $done={draggingItem.completed}/><PreviewText $done={draggingItem.completed}>{draggingItem.text}</PreviewText></DragPreview>}</DragOverlay>, window.document.body)}
     </DndContext>
     </>}
-    </div>
+    </JournalViewport>
     <Modal open={!!scopePrompt} onClose={() => { setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false; }} title="Choose recurring edit scope" compact>
       <ScopeTitle>Change “{scopePrompt?.label}”</ScopeTitle><ScopeHint>Choose which occurrences this change applies to.</ScopeHint>
       <ScopeOption onClick={() => applyScope('this')}>This item</ScopeOption>
@@ -933,7 +979,13 @@ export default function App() {
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
       timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
-      weekStart={weekStart} onWeekStartChange={value => { setWeekStart(value); setWeekStartState(value); if (!rangeCustomized) setActiveRange(weekRange(selectedDate, value)); }}
+      weekStart={weekStart} onWeekStartChange={value => {
+        setWeekStart(value); setWeekStartState(value);
+        if (!rangeCustomized) setActiveRange(weekRange(selectedDate, value));
+        else if (datesInRange(activeRange).length === 7 && activeRange.from === weekRange(activeRange.from, weekStart).from)
+          setActiveRange(weekRange(shiftDate(activeRange.from, 3), value));
+      }}
+      pastUnfinishedScope={pastUnfinishedScope} onPastUnfinishedScopeChange={value => { setPastUnfinishedScope(value); setPastUnfinishedScopeState(value); setExpandedEarlierKey(null); }}
       holidaysEnabled={holidaysEnabled} onHolidaysEnabledChange={value => { if (!value) holidayImport.current?.abort(); setHolidaysEnabled(value); setHolidaysEnabledState(value); setHolidayStatus(''); }}
       holidayMode={holidayMode} onHolidayModeChange={value => { if (value !== 'saved') holidayImport.current?.abort(); setHolidayMode(value); setHolidayModeState(value); setHolidayStatus(''); }}
       holidayCountry={holidayCountry} onHolidayCountryChange={value => { holidayImport.current?.abort(); setHolidayCountry(value); setHolidayCountryState(value); setViewHolidays({}); setHolidayStatus(''); }}

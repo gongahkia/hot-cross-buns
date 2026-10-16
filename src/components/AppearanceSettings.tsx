@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import { Button } from '../styles';
-import { dateFormatOptions, fontOptions, getFont, getTheme, setFont, setTheme, type AppFont, type DateFormat, type HolidayMode, type WeekStart } from '../preferences';
+import { dateFormatOptions, fontOptions, getFont, getTheme, setFont, setTheme, type AppFont, type DateFormat, type HolidayMode, type PastUnfinishedScope, type WeekStart } from '../preferences';
 import { holidayCountries } from '../holidayCountries';
 import { todayString } from '../todoText';
 import { colorThemes, type Theme } from '../themes';
@@ -17,9 +17,10 @@ const Hint = styled.p`margin:7px 0 0;color:var(--muted);font-size:12px;line-heig
 const ImportButton = styled(Button)`margin-top:12px;min-height:44px;`;
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus }: {
+export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, pastUnfinishedScope, onPastUnfinishedScopeChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus }: {
   open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void;
   timeZone: string; onTimeZoneChange: (value: string) => void; weekStart: WeekStart; onWeekStartChange: (value: WeekStart) => void;
+  pastUnfinishedScope: PastUnfinishedScope; onPastUnfinishedScopeChange: (value: PastUnfinishedScope) => void;
   holidaysEnabled: boolean; onHolidaysEnabledChange: (value: boolean) => void; holidayMode: HolidayMode; onHolidayModeChange: (value: HolidayMode) => void;
   holidayCountry: string; onHolidayCountryChange: (value: string) => void; onImportHolidays: (country: string, year: number) => void; holidayStatus: string;
 }) {
@@ -35,6 +36,8 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
     <FontField>Time zone<FontSelect value={timeZone} onChange={event => onTimeZoneChange(event.target.value)}>{Intl.supportedValuesOf('timeZone').map(zone => <option key={zone} value={zone}>{zone.replaceAll('_', ' ')}</option>)}</FontSelect></FontField>
     <Hint>This sets which date counts as today. Item times remain the wall times written in TODO.txt.</Hint>
     <FontField>Week starts on<FontSelect value={weekStart} onChange={event => onWeekStartChange(Number(event.target.value) as WeekStart)}>{weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}</FontSelect></FontField>
+    <FontField>Earlier unfinished items<FontSelect value={pastUnfinishedScope} onChange={event => onPastUnfinishedScopeChange(event.target.value as PastUnfinishedScope)}><option value="visible">Current visible range</option><option value="all">Every earlier date</option></FontSelect></FontField>
+    <Hint>Choose which earlier items appear in the count above the dated journal.</Hint>
     <SectionTitle>Public holidays</SectionTitle>
     <CheckField><input type="checkbox" checked={holidaysEnabled} onChange={event => { onHolidaysEnabledChange(event.target.checked); if (event.target.checked && holidayMode === 'saved') onImportHolidays(holidayCountry, holidayYear); }}/>Use public holidays</CheckField>
     <FontField>How to use holidays<FontSelect value={holidayMode} onChange={event => { const next = event.target.value as HolidayMode; onHolidayModeChange(next); if (holidaysEnabled && next === 'saved') onImportHolidays(holidayCountry, holidayYear); }}><option value="saved">Add as Hito items</option><option value="view">Show on dates only</option></FontSelect></FontField>
