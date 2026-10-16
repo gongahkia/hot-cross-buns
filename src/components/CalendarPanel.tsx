@@ -2,6 +2,7 @@ import { DayPicker, labelDayButton, type DateRange } from '@daypicker/react';
 import type { ReactNode } from 'react';
 import styled from 'styled-components';
 import { todayString, validDate } from '../todoText';
+import { getWeekStart } from '../preferences';
 
 const Surface = styled.div`
   width: max-content; max-width: calc(100vw - 16px); padding: 12px;
@@ -60,6 +61,7 @@ export function CalendarPanel({ value, onSelect, children, header, label, minDat
     startMonth: new Date(Math.min(1900, year - 100), 0),
     endMonth: new Date(Math.max(2100, year + 100), 11),
     today: dateFromString(todayString()),
+    weekStartsOn: getWeekStart(),
     showOutsideDays: true,
     fixedWeeks: true,
     modifiers: unfinishedDates ? { unfinished: (date: Date) => unfinishedDates.has(dateToString(date)) } : undefined,

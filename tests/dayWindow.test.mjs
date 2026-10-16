@@ -12,6 +12,8 @@ test('seven-day view covers the selected Monday through Sunday', () => {
     '2026-10-30', '2026-10-31', '2026-11-01',
   ]);
   assert.deepEqual(weekRange('2026-10-15'), { from: '2026-10-12', to: '2026-10-18' });
+  assert.deepEqual(weekRange('2026-10-15', 0), { from: '2026-10-11', to: '2026-10-17' });
+  assert.deepEqual(weekRange('2026-10-15', 6), { from: '2026-10-10', to: '2026-10-16' });
 });
 
 test('selected ranges include both endpoints across month and leap-day boundaries', () => {

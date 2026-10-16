@@ -682,6 +682,74 @@ test('reorders undated items and details, and deletes a list with undo', async (
   expect(await download()).not.toContain('LIST: Temporary');
 });
 
+test('makes undated items details and promotes details back to items', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- alpha note\nBeta\n- beta note\n\nLIST: Inbox\nGamma\n') });
+  await page.getByRole('button', { name: 'Undated' }).click();
+  const ideas = page.locator('section[aria-label="Ideas"]');
+  const inbox = page.locator('section[aria-label="Inbox"]');
+  await ideas.getByRole('button', { name: 'More actions for Alpha', exact: true }).click();
+  await page.getByRole('button', { name: 'Make Alpha a detail', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Make Alpha a detail of Alpha in Ideas' })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Find parent item' }).fill('Beta');
+  await page.getByRole('button', { name: 'Make Alpha a detail of Beta in Ideas' }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit Alpha' })).toHaveCount(0);
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail Alpha', exact: true })).toBeVisible();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail alpha note' })).toBeVisible();
+
+  await inbox.getByRole('button', { name: 'More actions for Gamma' }).click();
+  await page.getByRole('button', { name: 'Make Gamma a detail', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Find parent item' }).fill('Beta');
+  await page.getByRole('button', { name: 'Make Gamma a detail of Beta in Ideas' }).click();
+  await expect(inbox.getByRole('textbox', { name: 'Edit Gamma' })).toHaveCount(0);
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail Gamma' })).toBeVisible();
+
+  await ideas.getByRole('button', { name: 'More actions for detail alpha note' }).click();
+  await page.getByRole('button', { name: 'Make detail alpha note an item' }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit alpha note' })).toBeVisible();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail alpha note' })).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail alpha note' })).toBeVisible();
+  await page.keyboard.press('Control+Shift+z');
+  await expect(ideas.getByRole('textbox', { name: 'Edit alpha note' })).toBeVisible();
+
+  const button = page.getByRole('button', { name: 'Download TODO.txt' });
+  await button.hover();
+  await expect(page.locator('header')).toHaveCSS('opacity', '1');
+  const downloadPromise = page.waitForEvent('download');
+  await button.click();
+  await confirmTodoDownload(page);
+  const exported = await readFile(await (await downloadPromise).path(), 'utf8');
+  expect(exported).toContain('LIST: Ideas\nBeta\n- beta note\n- Alpha\n- Gamma\nalpha note');
+  expect(exported).toContain('LIST: Inbox\n');
+  await page.reload();
+  await page.getByRole('button', { name: 'Undated' }).click();
+  await expect(ideas.getByRole('textbox', { name: 'Edit alpha note' })).toBeVisible();
+  await expect(ideas.getByRole('textbox', { name: 'Edit detail Gamma' })).toBeVisible();
+});
+
+test('undated make-detail picker and promotion fit on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/');
+  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Thoughts\nOne\nTwo\n') });
+  await page.getByRole('button', { name: 'Undated' }).click();
+  await page.getByRole('button', { name: 'More actions for One' }).click();
+  await page.getByRole('button', { name: 'Make One a detail', exact: true }).click();
+  const picker = page.getByRole('textbox', { name: 'Find parent item' });
+  await expect(picker).toBeVisible();
+  const bounds = await picker.boundingBox();
+  expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 375).toBeTruthy();
+  await picker.press('Escape');
+  await expect(page.getByRole('button', { name: 'More actions for One' })).toBeFocused();
+  await page.getByRole('button', { name: 'More actions for One' }).click();
+  await page.getByRole('button', { name: 'Make One a detail', exact: true }).click();
+  await page.getByRole('button', { name: 'Make One a detail of Two in Thoughts' }).click();
+  await page.getByRole('button', { name: 'More actions for detail One' }).click();
+  await page.getByRole('button', { name: 'Make detail One an item' }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit One', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+});
+
 test('splits a count-limited series when editing this and following items', async ({ page }) => {
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
@@ -1040,6 +1108,46 @@ test('uses the calendar to switch between the default week, one day, and a selec
   await page.reload();
   await expect(page.locator('section')).toHaveCount(7);
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
+});
+
+test('holiday view stays out of TODO.txt, saved holidays round-trip, and week start updates the calendar', async ({ page }) => {
+  const today = dateOffset(0);
+  await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await expect(settings.getByLabel('Time zone')).toHaveValue('Asia/Singapore');
+  await expect(settings.getByLabel('Week starts on')).toHaveValue('1');
+  await expect(settings.getByLabel('Holiday country')).toHaveValue('SG');
+  await expect(settings.getByLabel('How to use holidays')).toHaveValue('saved');
+  await settings.getByLabel('Week starts on').selectOption('0');
+  await settings.getByLabel('How to use holidays').selectOption('view');
+  await settings.getByLabel('Use public holidays').check();
+  await settings.getByRole('button', { name: 'close' }).click();
+  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(-new Date(`${today}T12:00:00`).getDay()));
+  await expect(page.locator('h2').filter({ hasText: 'Test Holiday' })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await expect(page.getByLabel('Choose journal date').locator('.rdp-weekday').first()).toContainText('Su');
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).not.toContainText('Test Holiday');
+  await page.getByRole('dialog', { name: 'Download TODO.txt' }).press('Escape');
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await settings.getByLabel('How to use holidays').selectOption('saved');
+  await expect(settings.getByRole('status')).toContainText('1 holiday added');
+  await settings.getByLabel('Use public holidays').uncheck();
+  await settings.getByRole('button', { name: 'close' }).click();
+  await expect(page.getByText('Test Holiday')).toBeVisible();
+  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('Test Holiday');
+  await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('@span: all-day');
+  await page.reload();
+  await expect(page.getByText('Test Holiday')).toBeVisible();
+  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Week starts on')).toHaveValue('0');
+  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Use public holidays')).not.toBeChecked();
 });
 
 test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {

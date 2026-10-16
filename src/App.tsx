@@ -15,7 +15,8 @@ import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
-import { formatDateHeading, getDateFormat, setDateFormat, type DateFormat } from './preferences';
+import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, type DateFormat, type HolidayMode } from './preferences';
+import { addSavedHolidays, fetchHolidayYear, type HolidayYear, type PublicHoliday } from './holidays';
 import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
 import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
@@ -41,7 +42,7 @@ const TagRail = styled.nav`display: flex; gap: 6px; flex-wrap: wrap; margin-bott
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const dayEnter = keyframes`from { opacity:.45; transform:translateY(5px); } to { opacity:1; transform:translateY(0); }`;
 const DaySection = styled.section<{ $selected:boolean }>`margin: 0 0 38px; scroll-margin-top: 20px; animation:${({$selected})=>$selected?dayEnter:'none'} 180ms ease-out;`;
-const DayTitle = styled.h2<{ $over?: boolean }>`display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
+const DayTitle = styled.h2<{ $over?: boolean; $holiday?: boolean }>`display: flex; align-items: center; flex-wrap:${({$holiday})=>$holiday?'wrap':'nowrap'}; gap: 10px; min-width: 0; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
 const DateBadge = styled.time`padding: 4px 8px; background: var(--date-bg); border-radius: 9px;`;
 const DayName = styled.span<{ $hideOnMobile: boolean }>`@media(max-width:600px){display:${({$hideOnMobile})=>$hideOnMobile?'none':'inline'};}`;
 const DragPreview = styled.div`display:flex; align-items:center; gap:8px; min-height:44px; width:100%; padding:7px 12px; border:1px solid var(--focus); border-radius:8px; background:var(--surface); color:var(--ink); box-shadow:0 12px 30px #0005; font-size:15px; pointer-events:none;`;
@@ -57,6 +58,7 @@ const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; flex:none; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);} @media(pointer:coarse){width:44px;height:44px;}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
+const HolidayBadge = styled.span`display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:min(210px,38vw);padding:4px 8px;border-radius:999px;background:var(--soft);color:var(--muted);font-size:11px;font-weight:400;line-height:1.2;white-space:nowrap;overflow:hidden;>span{min-width:0;overflow:hidden;text-overflow:ellipsis;}@media(max-width:600px){max-width:44vw;}`;
 const ViewTabs = styled.nav`display:flex;align-items:center;gap:4px;margin:-4px 0 26px;`;
 const ViewTab = styled.button<{ $active:boolean }>`min-height:40px;padding:6px 12px;border:0;border-radius:7px;background:${({$active})=>$active?'var(--date-bg)':'transparent'};color:${({$active})=>$active?'var(--ink)':'var(--muted)'};font-size:13px;font-weight:${({$active})=>$active?600:400};&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;
 const ScopeTitle = styled.h2`margin:4px 4px 12px;font-size:17px;line-height:1.3;text-wrap:balance;`;
@@ -205,10 +207,12 @@ const animateHistoryFallback = (before: Map<string, HistoryRow>, changed: Set<st
   }
 };
 
-function DateHeading({ date, today, format, highlighted, unfinished }: { date: string; today: string; format: DateFormat; highlighted: boolean; unfinished: number }) {
+function DateHeading({ date, today, format, highlighted, unfinished, holidays }: { date: string; today: string; format: DateFormat; highlighted: boolean; unfinished: number; holidays: PublicHoliday[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: `date:${date}` });
-  return <DayTitle ref={setNodeRef} $over={isOver || highlighted} data-drop-date={date} title="Drop a task here to move it to this date">
+  const holidayNames = holidays.map(holiday => holiday.name).join(' · ');
+  return <DayTitle ref={setNodeRef} $over={isOver || highlighted} $holiday={!!holidays.length} data-drop-date={date} title="Drop a task here to move it to this date">
     <DateBadge dateTime={date}>{formatDateHeading(date,format)}</DateBadge><DayName $hideOnMobile={date !== today && format.includes('weekday')}>{dateLabel(date,today)}</DayName>
+    {!!holidays.length && <HolidayBadge title={holidayNames} aria-label={`Public holiday: ${holidayNames}`}><CalendarDays size={12} aria-hidden="true"/><span>{holidayNames}</span></HolidayBadge>}
     {date < today && unfinished > 0 && <DayUnfinished title={`${unfinished} unfinished on this day`} aria-label={`${unfinished} unfinished on this day`}><CircleAlert size={14} aria-hidden="true"/><span className="long-label">{unfinished} unfinished on this day</span><span className="short-label" aria-hidden="true">{unfinished}</span></DayUnfinished>}
   </DayTitle>;
 }
@@ -258,13 +262,22 @@ export default function App() {
   const [initialRange] = useState(readSavedRange);
   const [selectedDate, setSelectedDate] = useState(todayString);
   const [dateFormat, setDateFormatState] = useState(getDateFormat);
+  const [timeZone, setTimeZoneState] = useState(getTimeZone);
+  const [weekStart, setWeekStartState] = useState(getWeekStart);
+  const [holidayCountry, setHolidayCountryState] = useState(getHolidayCountry);
+  const [holidayMode, setHolidayModeState] = useState<HolidayMode>(getHolidayMode);
+  const [holidaysEnabled, setHolidaysEnabledState] = useState(getHolidaysEnabled);
+  const [holidayStatus, setHolidayStatus] = useState('');
+  const [viewHolidays, setViewHolidays] = useState<Record<string, PublicHoliday[]>>({});
+  const viewHolidayCache = useRef<Map<string, Promise<HolidayYear>>>(new Map());
+  const holidayImport = useRef<AbortController | null>(null);
   const [viewMode, setViewMode] = useState<'day' | 'range'>('range');
   const [activeTab, setActiveTab] = useState<'dated' | 'undated'>('dated');
   const [scopePrompt, setScopePrompt] = useState<{ date: string; id: string; label: string } | null>(null);
   const scopedChange = useRef<((item: TodoItem, items: TodoItem[]) => void) | null>(null);
   const scopedMove = useRef<string | null>(null);
   const scopedDelete = useRef(false);
-  const [activeRange, setActiveRange] = useState<DateSpan>(() => initialRange ?? weekRange(todayString()));
+  const [activeRange, setActiveRange] = useState<DateSpan>(() => initialRange ?? weekRange(todayString(), getWeekStart()));
   const [rangeCustomized, setRangeCustomized] = useState(!!initialRange);
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
@@ -289,6 +302,33 @@ export default function App() {
   const redoStack = useRef<TodoDocument[]>([]);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
+  const shownHolidayYears = (viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]).map(date => Number(date.slice(0, 4)));
+  const holidayYearsKey = [...new Set(shownHolidayYears)].join(',');
+  useEffect(() => {
+    if (!holidaysEnabled || holidayMode !== 'view') { setViewHolidays({}); return; }
+    let active = true;
+    const yearsShown = holidayYearsKey.split(',').filter(Boolean);
+    if (!yearsShown.every(year => viewHolidayCache.current.has(`${holidayCountry}:${year}`))) setViewHolidays({});
+    const requests = yearsShown.map(year => {
+      const key = `${holidayCountry}:${year}`;
+      let request = viewHolidayCache.current.get(key);
+      if (!request) {
+        request = fetchHolidayYear(holidayCountry, Number(year));
+        viewHolidayCache.current.set(key, request);
+        void request.catch(() => viewHolidayCache.current.delete(key));
+      }
+      return request;
+    });
+    void Promise.all(requests)
+      .then(years => { if (active) {
+        const byDate: Record<string, PublicHoliday[]> = {};
+        years.flatMap(result => result.holidays).forEach(holiday => (byDate[holiday.date] ??= []).push(holiday));
+        setViewHolidays(byDate);
+        setHolidayStatus('');
+      } })
+      .catch(error => { if (active) setHolidayStatus(`Could not show holidays: ${String(error)}`); });
+    return () => { active = false; };
+  }, [holidaysEnabled, holidayMode, holidayCountry, holidayYearsKey]);
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
@@ -800,7 +840,7 @@ export default function App() {
       {!searchOpen && activeTab === 'dated' && <>
       <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef} $range={rangeActive}>
-        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
+        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today, weekStart)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
         <DateCalendar aria-label="Choose date" aria-expanded={dateOpen} title="Choose date" onClick={() => setDateOpen(value => !value)}><CalendarDays size={17}/></DateCalendar>
         {dateOpen && <DatePopover><JournalDatePicker selectedDate={selectedDate} activeRange={activeRange} rangeActive={rangeActive} unfinishedDates={unfinishedDates}
           onSelectDate={value => { setSelectedDate(value); setViewMode('day'); setDateOpen(false); }}
@@ -847,6 +887,20 @@ export default function App() {
       onEditDetail={(list,id,index,text) => editUndated(list,id,item => { item.details[index].text = text; })}
       onDeleteDetail={(list,id,index) => editUndated(list,id,item => { item.details.splice(index,1); })}
       onReorderDetails={(list,id,from,to) => editUndated(list,id,item => { item.details = arrayMove(item.details,from,to); })}
+      onMakeDetail={(sourceList,id,parentList,parentId) => edit(document => {
+        const source = document.undated?.find(list => list.name === sourceList);
+        const target = document.undated?.find(list => list.name === parentList);
+        const sourceIndex = source?.items.findIndex(item => item.id === id) ?? -1;
+        const parent = target?.items.find(item => item.id === parentId);
+        if (!source || !target || sourceIndex < 0 || !parent || id === parentId) return;
+        const [moved] = source.items.splice(sourceIndex,1);
+        parent.details.push({ text: moved.text, completed: false }, ...moved.details.map(detail => ({ text: detail.text, completed: false })));
+      })}
+      onMakeItem={(list,id,index) => editUndated(list,id,(item,items) => {
+        if (index < 0 || index >= item.details.length) return;
+        const [detail] = item.details.splice(index,1);
+        items.splice(items.indexOf(item)+1,0,{ id: newId(), text: detail.text, details: [], completed: false });
+      })}
       onDate={dateUndated}
       onDelete={(list,id) => editUndated(list,id,(_,items) => { items.splice(items.findIndex(item => item.id === id),1); })}/>
     : <>
@@ -860,7 +914,7 @@ export default function App() {
       const { completed, upcoming } = day;
       if ((query || tag) && !completed.length && !upcoming.length) return null;
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
-        <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length}/>
+        <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[day.date] ?? [] : []}/>
         {day.items.length === 0 && !query && !tag ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
         <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
@@ -877,7 +931,18 @@ export default function App() {
       <ScopeOption onClick={() => applyScope('all')}>All items</ScopeOption>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
-    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}/>
+    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
+      timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
+      weekStart={weekStart} onWeekStartChange={value => { setWeekStart(value); setWeekStartState(value); if (!rangeCustomized) setActiveRange(weekRange(selectedDate, value)); }}
+      holidaysEnabled={holidaysEnabled} onHolidaysEnabledChange={value => { if (!value) holidayImport.current?.abort(); setHolidaysEnabled(value); setHolidaysEnabledState(value); setHolidayStatus(''); }}
+      holidayMode={holidayMode} onHolidayModeChange={value => { if (value !== 'saved') holidayImport.current?.abort(); setHolidayMode(value); setHolidayModeState(value); setHolidayStatus(''); }}
+      holidayCountry={holidayCountry} onHolidayCountryChange={value => { holidayImport.current?.abort(); setHolidayCountry(value); setHolidayCountryState(value); setViewHolidays({}); setHolidayStatus(''); }}
+      holidayStatus={holidayStatus} onImportHolidays={(country, year) => { holidayImport.current?.abort(); const controller = new AbortController(); holidayImport.current = controller; setHolidayStatus(`Loading ${year} holidays…`); void fetchHolidayYear(country, year, controller.signal).then(({ holidays, source }) => {
+        if (controller.signal.aborted) return;
+        let added = 0;
+        edit(document => { added = addSavedHolidays(document, holidays, todayString(), newId); });
+        setHolidayStatus(`${added} ${added === 1 ? 'holiday' : 'holidays'} added from ${source}${holidays.length > added ? `; ${holidays.length - added} already present` : ''}.`);
+      }).catch(error => { if (!controller.signal.aborted) setHolidayStatus(`Could not add holidays: ${String(error)}`); }).finally(() => { if (holidayImport.current === controller) holidayImport.current = null; }); }}/>
     <FileReview review={review} rawEdit={rawEdit} choices={choices} busy={busy}
       onClose={() => setReview(null)} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}

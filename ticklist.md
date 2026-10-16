@@ -1,11 +1,16 @@
 - multi-day events
 - have tab and shift tab actually do something
+- add tags via a hashtag system
 - reschedule events just by dragging them around
 - better search (fuzzy search etc)
 - better filters on search
 - fully cover all functionality/semantics from a google cal and tasks suite (what is it able to do)
-- make mobile support first class
+- add auto-deletion mechancis as required if users dont want to persist too long a todo.txt file
+- add size indicator of file size at the bottom right hand corner of the app (same way that notes.io does it)
+- add command palette as first class support
+- support/have quick-adding of tasks via command palette with natural language parser (same as how confluence docs do it)
 - make desktop ux first class
+- make mobile support first class
 - add import scripts for google cal and tasks, just within the repo doesn't have to eb actually within the app, shell script or whatever is best is fine
 - add optional cloud support with guide to one-click deploy to any remote db 
 - add syncing to google drive as well

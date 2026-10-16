@@ -10,14 +10,14 @@ export function shiftDate(date: string, amount: number) {
   return dateString(day);
 }
 
-export function datesInWeek(selectedDate: string): string[] {
+export function datesInWeek(selectedDate: string, weekStartsOn = 1): string[] {
   const selected = new Date(`${selectedDate}T12:00:00`);
-  const monday = shiftDate(selectedDate, -((selected.getDay() + 6) % 7));
-  return Array.from({ length: 7 }, (_, index) => shiftDate(monday, index));
+  const first = shiftDate(selectedDate, -((selected.getDay() - weekStartsOn + 7) % 7));
+  return Array.from({ length: 7 }, (_, index) => shiftDate(first, index));
 }
 
-export function weekRange(selectedDate: string): DateSpan {
-  const dates = datesInWeek(selectedDate);
+export function weekRange(selectedDate: string, weekStartsOn = 1): DateSpan {
+  const dates = datesInWeek(selectedDate, weekStartsOn);
   return { from: dates[0], to: dates[6] };
 }
 

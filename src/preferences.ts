@@ -1,4 +1,4 @@
-import { colorThemes, type Theme } from './themes';
+import { colorThemes, type Theme } from './themes.ts';
 
 const baseFontOptions = [
   ['sohne', 'Sohne', "'Sohne', 'Helvetica Neue', Arial, sans-serif", 300],
@@ -72,7 +72,21 @@ export type DateFormat = (typeof dateFormatOptions)[number][0];
 const FONT_KEY = 'hito-font';
 const THEME_KEY = 'hito-theme';
 const DATE_FORMAT_KEY = 'hito-date-format';
-const storedPreference = (key: string) => localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
+const storedPreference = (key: string) => typeof localStorage === 'undefined' ? null : localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
+
+export type HolidayMode = 'saved' | 'view';
+export type WeekStart = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+const isTimeZone = (value: string) => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; } };
+export const getTimeZone = () => { const value = storedPreference('hito-time-zone'); return value && isTimeZone(value) ? value : 'Asia/Singapore'; };
+export const setTimeZone = (value: string) => { if (!isTimeZone(value)) throw new Error('Invalid time zone'); localStorage.setItem('hito-time-zone', value); };
+export const getWeekStart = (): WeekStart => { const value = Number(storedPreference('hito-week-start')); return Number.isInteger(value) && value >= 0 && value <= 6 && storedPreference('hito-week-start') !== null ? value as WeekStart : 1; };
+export const setWeekStart = (value: WeekStart) => localStorage.setItem('hito-week-start', String(value));
+export const getHolidayCountry = () => storedPreference('hito-holiday-country') ?? 'SG';
+export const setHolidayCountry = (value: string) => localStorage.setItem('hito-holiday-country', value);
+export const getHolidayMode = (): HolidayMode => storedPreference('hito-holiday-mode') === 'view' ? 'view' : 'saved';
+export const setHolidayMode = (value: HolidayMode) => localStorage.setItem('hito-holiday-mode', value);
+export const getHolidaysEnabled = () => storedPreference('hito-holidays-enabled') === 'true';
+export const setHolidaysEnabled = (value: boolean) => localStorage.setItem('hito-holidays-enabled', String(value));
 
 export function getDateFormat(): DateFormat {
   const stored = storedPreference(DATE_FORMAT_KEY);

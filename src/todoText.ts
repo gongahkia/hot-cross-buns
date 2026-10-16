@@ -1,6 +1,7 @@
 /** TODO.txt keeps ISO date headings; detail checkboxes and repeat rules extend item lines. */
 import { formatRecurrence, parseRecurrence, type RecurrenceRule } from './recurrence.ts';
 import { parseTimeBlock } from './timeBlock.ts';
+import { getTimeZone } from './preferences.ts';
 
 export type TodoDetail = { text: string; completed: boolean };
 export type TodoSpan = { kind: 'all-day'; through?: string } | { kind: 'time'; start: string; endDate: string; end: string };
@@ -56,9 +57,9 @@ function importedSeriesId(text: string, date: string, position: number) {
   return `${slug}-${date.replaceAll('-','')}-${(hash >>> 0).toString(36)}`;
 }
 
-export function todayString() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+export function todayString(date = new Date(), timeZone = getTimeZone()) {
+  const fields = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map(part => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
 }
 
 function unescapeLine(line: string) {

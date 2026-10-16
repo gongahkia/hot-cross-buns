@@ -47,6 +47,8 @@ Night shift
 
 The `through` date is inclusive. A timed span ends on a later date. Hito displays an item on every covered day but stores it once, under its starting date. A span and a same-day time prefix cannot appear on the same item. A dated item with neither is simply dated; `@span: all-day` makes all-day occupancy explicit.
 
+Public holidays saved from Settings use ordinary all-day items. This is a one-time import for the chosen country and year; turning off the holiday setting does not remove saved items. The alternative date-only holiday view does not write to TODO.txt. Settings such as country, time zone, and week start are browser preferences rather than item fields.
+
 ## Undated lists
 
 Undated items live in a distinct section at the end. The list heading groups items; neither these items nor their details have completion circles.
@@ -64,6 +66,8 @@ Read this later
 ```
 
 `UNDATED` and `LIST: name` are structural lines. Escape a literal item title matching either form with `\`. Adding a date moves an item into the dated view; making it undated moves it into a selected list. Undo and redo cover accidental moves. The text file records its current placement without a movement history.
+
+Making an undated item a detail moves its title and existing details under the chosen parent, including one in another list. Promoting a detail creates an item after its parent in the same list. Both changes keep the text in TODO.txt and can be undone.
 
 ## Recurrence
 
