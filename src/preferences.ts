@@ -1,5 +1,6 @@
-import { colorThemes, type Theme } from './themes.ts';
 import type { ScratchpadMapping, ScratchpadMoveMode } from './scratchpad';
+
+export type Theme = 'day' | 'night';
 
 const baseFontOptions = [
   ['sohne', 'Sohne', "'Sohne', 'Helvetica Neue', Arial, sans-serif", 300],
@@ -151,7 +152,7 @@ export function setFont(value: AppFont) {
 
 export function getTheme(): Theme {
   const stored = storedPreference(THEME_KEY);
-  return stored === 'day' || stored === 'night' || colorThemes.some(theme => theme.id === stored) ? stored as Theme : 'day';
+  return stored === 'night' ? 'night' : 'day';
 }
 
 export function setTheme(value: Theme) {
@@ -171,50 +172,10 @@ function applyFont(value: AppFont) {
   document.documentElement.style.setProperty('--app-font-weight', String(option[3]));
 }
 
-const themeVariables = ['paper', 'ink', 'muted', 'line', 'soft', 'surface', 'field', 'date-bg', 'tag-bg', 'tag-ink', 'tag-selected', 'selection', 'focus', 'link', 'checkbox', 'primary', 'primary-hover', 'primary-ink', 'danger', 'backdrop'] as const;
-const channels = (hex: string) => [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
-function luminance(hex: string) {
-  const rgb = channels(hex).map(channel => channel / 255);
-  const luminance = rgb.map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * luminance[0] + 0.7152 * luminance[1] + 0.0722 * luminance[2];
-}
-function contrastRatio(first: string, second: string) {
-  const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-function blendHex(first: string, second: string, portion: number) {
-  const other = channels(second);
-  return `#${channels(first).map((channel, index) => Math.round(channel * portion + other[index] * (1 - portion)).toString(16).padStart(2, '0')).join('')}`;
-}
-function readableAccent(accent: string, ink: string, paper: string, surface: string) {
-  for (let portion = 1; portion >= 0; portion -= 0.05) {
-    const candidate = blendHex(accent, ink, portion);
-    if (contrastRatio(candidate, paper) >= 4.5 && contrastRatio(candidate, surface) >= 4.5) return candidate;
-  }
-  return ink;
-}
-function contrastText(hex: string) {
-  return contrastRatio(hex, '#111318') >= contrastRatio(hex, '#ffffff') ? '#111318' : '#ffffff';
-}
 function applyTheme(value: Theme) {
   const root = document.documentElement;
   root.dataset.theme = value;
-  root.style.colorScheme = value === 'night' || colorThemes.find(theme => theme.id === value)?.mode === 'dark' ? 'dark' : 'light';
-  for (const variable of themeVariables) root.style.removeProperty(`--${variable}`);
-  const palette = colorThemes.find(theme => theme.id === value);
-  if (!palette) return;
-  const [paper, ink, surface, accent] = palette.colors;
-  const mix = (a: string, b: string, percent: number) => `color-mix(in srgb, ${a} ${percent}%, ${b})`;
-  const accessibleAccent = readableAccent(accent, ink, paper, surface);
-  const vars: Record<(typeof themeVariables)[number], string> = {
-    paper, ink, surface, link: accessibleAccent, focus: accessibleAccent, 'tag-selected': accessibleAccent, primary: accessibleAccent,
-    muted: mix(ink, paper, 68), line: mix(ink, paper, 20), soft: mix(ink, paper, 9), field: mix(surface, paper, 78),
-    'date-bg': mix(accent, paper, 15), 'tag-bg': mix(ink, paper, 10), 'tag-ink': mix(ink, paper, 75),
-    selection: mix(accent, paper, 34), checkbox: mix(ink, paper, 56), 'primary-hover': mix(accessibleAccent, ink, 82),
-    'primary-ink': contrastText(accessibleAccent),
-    danger: palette.mode === 'dark' ? '#ff9b91' : '#a53b3b',
-    backdrop: palette.mode === 'dark' ? '#000000aa' : '#20202055',
-  };
-  for (const [key, color] of Object.entries(vars)) root.style.setProperty(`--${key}`, color);
+  root.style.colorScheme = value === 'night' ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', value === 'night' ? '#011627' : '#f2f1ed');
 }
 

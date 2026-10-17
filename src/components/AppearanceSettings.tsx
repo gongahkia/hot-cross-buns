@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import styled from 'styled-components';
+import { Moon, Sun } from 'lucide-react';
 import { Button } from '../styles';
-import { dateFormatOptions, fontOptions, getFont, getTheme, getScratchpadMapping, getScratchpadMoveMode, setFont, setTheme, setScratchpadMapping, setScratchpadMoveMode, type AppFont, type DateFormat, type HolidayMode, type PastUnfinishedScope, type WeekStart } from '../preferences';
+import { dateFormatOptions, fontOptions, getFont, getTheme, getScratchpadMapping, getScratchpadMoveMode, setFont, setTheme, setScratchpadMapping, setScratchpadMoveMode, type AppFont, type DateFormat, type HolidayMode, type PastUnfinishedScope, type Theme, type WeekStart } from '../preferences';
 import type { ScratchpadMapping, ScratchpadMoveMode } from '../scratchpad';
 import { holidayCountries } from '../holidayCountries';
 import { todayString } from '../todoText';
-import { colorThemes, type Theme } from '../themes';
 import { Modal } from './Modal';
 
 const FontField = styled.label`display: grid; gap: 6px; margin-top: 14px; font-size: 13px;`;
@@ -16,6 +16,9 @@ const SectionTitle = styled.h2`font-size:14px; margin:24px 0 8px; padding-top:15
 const CheckField = styled.label`display:flex; align-items:center; gap:10px; min-height:44px; font-size:13px; input{width:18px;height:18px;accent-color:var(--link);}`;
 const Hint = styled.p`margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.45;`;
 const ImportButton = styled(Button)`margin-top:12px;min-height:44px;`;
+const ThemeField = styled.fieldset`border:0;padding:0;margin:14px 0 0;legend{font-size:13px;margin-bottom:6px;}`;
+const ThemeChoices = styled.div`display:inline-flex;gap:4px;padding:3px;border:1px solid var(--line);border-radius:9px;background:var(--soft);`;
+const ThemeButton = styled.button<{ $selected: boolean }>`display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;min-width:94px;padding:0 12px;border:0;border-radius:6px;background:${({ $selected }) => $selected ? 'var(--surface)' : 'transparent'};color:var(--ink);font:inherit;font-size:13px;cursor:pointer;box-shadow:${({ $selected }) => $selected ? '0 1px 3px #00000022' : 'none'};transition:background 140ms ease,box-shadow 140ms ease;&:hover{background:var(--surface);}&:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}svg{width:17px;height:17px;stroke-width:1.8;}`;
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, pastUnfinishedScope, onPastUnfinishedScopeChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus }: {
@@ -32,7 +35,7 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
   const [holidayYear, setHolidayYear] = useState(() => Number(todayString().slice(0, 4)));
   const chooseTheme = (next: Theme) => { setTheme(next); setThemeState(next); };
   return <Modal open={open} onClose={onClose} title="Shio Pan settings" compact>
-    <FontField>Color scheme<FontSelect value={theme} onChange={event => chooseTheme(event.target.value as Theme)}><option value="day">Shio Pan Day</option><option value="night">Shio Pan Night</option>{colorThemes.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</FontSelect></FontField>
+    <ThemeField><legend>Appearance</legend><ThemeChoices role="group" aria-label="Appearance"><ThemeButton type="button" $selected={theme === 'day'} aria-pressed={theme === 'day'} aria-label="Light mode" onClick={() => chooseTheme('day')}><Sun aria-hidden="true"/>Light</ThemeButton><ThemeButton type="button" $selected={theme === 'night'} aria-pressed={theme === 'night'} aria-label="Dark mode" onClick={() => chooseTheme('night')}><Moon aria-hidden="true"/>Dark</ThemeButton></ThemeChoices></ThemeField>
     <FontField>Font<FontSelect aria-label="Font" value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }}>{fontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <SectionTitle>Scratchpad</SectionTitle>

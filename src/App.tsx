@@ -408,11 +408,12 @@ export default function App() {
       void loadTodoState().then(latest => {
         if (pendingJournal.current || generation !== journalGeneration.current) return;
         if (latest.revision <= current.current.revision) return;
-        current.current = latest;
-        undoStack.current = [];
-        redoStack.current = [];
-        setFeedbackNotice(null);
-        setState(latest);
+        const sameDocument = serializeTodoText(latest.document) === serializeTodoText(current.current.document);
+        const sameBaseline = latest.baseline === null && current.current.baseline === null || !!latest.baseline && !!current.current.baseline && serializeTodoText(latest.baseline) === serializeTodoText(current.current.baseline);
+        const synchronized = sameDocument ? { ...latest, document: current.current.document } : latest;
+        current.current = synchronized;
+        if (!sameDocument) { undoStack.current = []; redoStack.current = []; setFeedbackNotice(null); }
+        if (!sameDocument || !sameBaseline) setState(synchronized);
       }).catch(error => setMessage(`Could not refresh journal: ${String(error)}`));
     };
     const onBlur = () => { if (deferred) window.setTimeout(refresh,0); };
@@ -437,8 +438,11 @@ export default function App() {
       try {
         const latest = await loadTodoState();
         if (pendingJournal.current || generation !== journalGeneration.current) return;
-        current.current = latest;
-        setState(latest);
+        const sameDocument = serializeTodoText(latest.document) === serializeTodoText(current.current.document);
+        const sameBaseline = latest.baseline === null && current.current.baseline === null || !!latest.baseline && !!current.current.baseline && serializeTodoText(latest.baseline) === serializeTodoText(current.current.baseline);
+        const synchronized = sameDocument ? { ...latest, document: current.current.document } : latest;
+        current.current = synchronized;
+        if (!sameDocument || !sameBaseline) setState(synchronized);
       } catch (error) { setMessage(`Could not refresh journal: ${String(error)}`); }
     }).catch(() => undefined);
     return task;
@@ -528,6 +532,7 @@ export default function App() {
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
     const stamped = { ...current.current, document, revision: current.current.revision + 1 };
+    previousDocument.current = before;
     current.current = stamped;
     setState(stamped);
     void persistEdit(before,document,change).catch(error => setMessage(`Could not save: ${String(error)}`));
@@ -1042,7 +1047,7 @@ export default function App() {
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     {scratchUndo && <Notice role="status">Scratchpad text became journal items. <Button onClick={() => { void undoScratchpadConversion(scratchUndo).then(({ journal }) => { current.current = journal; setState(journal); setScratchReloadToken(value => value + 1); setScratchUndo(null); setMessage('Conversion undone.'); }).catch(error => { setScratchUndo(null); setMessage(String(error)); }); }}>Undo</Button><Dismiss aria-label="Dismiss conversion undo" onClick={() => setScratchUndo(null)}>×</Dismiss></Notice>}
     <UndoFeedback notice={feedbackNotice} onDismiss={() => setFeedbackNotice(null)} onUndo={() => {
-      if (feedbackNotice && current.current.document === feedbackNotice.document) undo();
+      if (feedbackNotice && serializeTodoText(current.current.document) === serializeTodoText(feedbackNotice.document)) undo();
       else setFeedbackNotice(null);
     }}/>
     {activeTab === 'dated' && !query && !tag && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
