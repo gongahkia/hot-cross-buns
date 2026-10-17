@@ -9,23 +9,53 @@ async function selectText(page: import('@playwright/test').Page, start: number, 
   }, { start, end });
 }
 
+async function openSelectionMenu(page: import('@playwright/test').Page, start: number, end: number) {
+  await selectText(page, start, end);
+  await page.getByRole('textbox', { name: 'Scratchpad text' }).dispatchEvent('contextmenu', { button: 2, clientX: 120, clientY: 160 });
+  await expect(page.getByRole('menu', { name: 'Scratchpad selection actions' })).toBeVisible();
+}
+
+test('scratchpad starts ready to type and right click can copy selected text', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/');
+  const tab = page.getByRole('button', { name: 'Scratchpad', exact: true });
+  await tab.click();
+  await expect(tab.locator('svg')).toHaveCount(0);
+  const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
+  await expect(editor).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Move to dated' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Move to undated' })).toHaveCount(0);
+  await expect(page.getByText(/\d+ characters/)).toHaveCount(0);
+  await editor.fill('Copy this line');
+  await selectText(page, 0, 9);
+  await editor.click({ button: 'right', position: { x: 35, y: 15 } });
+  const menu = page.getByRole('menu', { name: 'Scratchpad selection actions' });
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Copy selection' }).click();
+  await expect(menu).toHaveCount(0);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Copy this');
+  await expect(editor).toHaveValue('Copy this line');
+});
+
 test('moves selected plain text into a dated item and undo restores both sides', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Scratchpad' }).click();
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await expect(editor).toBeEditable();
   await editor.fill('Keep this\nMeeting idea\nAsk Pat');
-  await selectText(page, 10, 30);
-  await page.getByRole('button', { name: 'Move to dated' }).click();
+  await openSelectionMenu(page, 10, 30);
+  await page.getByRole('menuitem', { name: 'Move to dated' }).click();
   await page.getByRole('button', { name: 'Create item' }).click();
   await expect(editor).toHaveValue('Keep this\n');
+  await expect(page.getByRole('status', { name: 'Scratchpad conversion confirmation' })).toContainText('Added scratchpad text to journal');
+  await expect(page.getByText('Scratchpad text became journal items.')).toHaveCount(0);
   await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Meeting idea' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Edit detail Ask Pat' })).toBeVisible();
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
   await expect(page.getByLabel('TODO.txt preview')).not.toContainText('Keep this');
   await page.getByRole('button', { name: 'cancel' }).click();
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo scratchpad conversion' }).click();
   await expect(page.getByRole('group', { name: 'Meeting idea' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toHaveValue('Keep this\nMeeting idea\nAsk Pat');
@@ -41,8 +71,8 @@ test('settings can copy one selected line into an undated list', async ({ page }
   await page.getByRole('button', { name: 'Scratchpad' }).click();
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await editor.fill('Alpha\nBeta');
-  await selectText(page, 0, 10);
-  await page.getByRole('button', { name: 'Move to undated' }).click();
+  await openSelectionMenu(page, 0, 10);
+  await page.getByRole('menuitem', { name: 'Move to undated' }).click();
   const dialog = page.getByRole('dialog', { name: 'Move text to an undated list' });
   await dialog.getByLabel('New destination list').fill('Ideas');
   await dialog.getByLabel('Keep source text').selectOption('copy');
@@ -63,6 +93,7 @@ test('dated popout edits synchronize with the main window', async ({ page }) => 
   await chooser.getByRole('button', { name: 'Open window' }).click();
   const popup = await popupEvent;
   await popup.waitForLoadState();
+  await expect(popup.getByText('Shio Pan · Dated')).toHaveCount(0);
   const add = popup.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Written in popout');
   await add.press('Enter');
@@ -133,8 +164,8 @@ test('one-title mapping joins selected lines into one portable item', async ({ p
   await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'close' }).click();
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   await page.getByRole('textbox', { name: 'Scratchpad text' }).fill('First line\nSecond line');
-  await selectText(page, 0, 22);
-  await page.getByRole('button', { name: 'Move to undated' }).click();
+  await openSelectionMenu(page, 0, 22);
+  await page.getByRole('menuitem', { name: 'Move to undated' }).click();
   await page.getByRole('dialog', { name: 'Move text to an undated list' }).getByRole('button', { name: 'Create item' }).click();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Edit First line Second line' })).toBeVisible();
@@ -156,6 +187,7 @@ test('undated popout shows only chosen lists and edits synchronize', async ({ pa
   await chooser.getByRole('button', { name: 'Open window' }).click();
   const popup = await popupEvent;
   await popup.waitForLoadState();
+  await expect(popup.getByText('Shio Pan · Undated')).toHaveCount(0);
   await expect(popup.getByRole('textbox', { name: 'Edit Idea one' })).toBeVisible();
   await expect(popup.getByRole('textbox', { name: 'Edit Inbox one' })).toHaveCount(0);
   const edit = popup.getByRole('textbox', { name: 'Edit Idea one' });
@@ -193,9 +225,12 @@ test('scratchpad controls remain reachable on a narrow phone', async ({ page }) 
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS('border-top-width', '0px');
+  await expect(editor).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  expect(await editor.getAttribute('placeholder')).toBeNull();
   await editor.fill('Phone capture');
-  await selectText(page, 0, 13);
-  await expect(page.getByRole('button', { name: 'Move to dated' })).toBeInViewport();
-  await expect(page.getByRole('button', { name: 'Move to undated' })).toBeInViewport();
+  await openSelectionMenu(page, 0, 13);
+  await expect(page.getByRole('menuitem', { name: 'Move to dated' })).toBeInViewport();
+  await expect(page.getByRole('menuitem', { name: 'Move to undated' })).toBeInViewport();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });

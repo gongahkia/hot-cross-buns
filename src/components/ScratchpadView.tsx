@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import styled from 'styled-components';
-import { ArrowRight, LockKeyhole, NotebookPen } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowRight, Copy, LockKeyhole } from 'lucide-react';
 import { Button, Field, Muted } from '../styles';
 import { getScratchpadMapping, getScratchpadMoveMode } from '../preferences';
 import { mapScratchpadSelection } from '../scratchpad';
@@ -8,10 +9,10 @@ import { convertScratchpadSelection, loadScratchpadState, saveScratchpadText, su
 import { validDate } from '../todoText';
 import { Modal } from './Modal';
 
-const Wrap = styled.section`display:flex;flex-direction:column;height:100%;min-height:0;gap:12px;`;
-const Toolbar = styled.div`display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:44px;`;
-const Count = styled.span`margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;`;
-const Editor = styled.textarea`display:block;width:100%;flex:1;min-height:220px;padding:16px 18px;resize:none;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;&:focus{outline:2px solid var(--focus);outline-offset:2px;}&:read-only{opacity:.8;}@media(max-width:600px){padding:13px 14px;}`;
+const Wrap = styled.section`display:flex;flex-direction:column;height:100%;min-height:0;`;
+const Editor = styled.textarea`display:block;width:100%;flex:1;min-height:220px;padding:4px 2px;resize:none;border:0;border-radius:0;background:transparent;color:var(--ink);caret-color:var(--ink);font:inherit;font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;&:focus{outline:none;}&:read-only{opacity:.8;}`;
+const ContextMenu = styled.div`position:fixed;z-index:80;display:grid;gap:2px;width:222px;padding:5px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 10px 30px #0003;`;
+const MenuAction = styled.button`display:flex;align-items:center;gap:9px;width:100%;min-height:40px;padding:7px 9px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;&:hover,&:focus-visible{background:var(--soft);}&:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;}svg{width:15px;height:15px;}@media(pointer:coarse){min-height:44px;}`;
 const Row = styled.div`display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0;`;
 const Label = styled.label`display:grid;gap:6px;margin:12px 0;font-size:13px;`;
 const Select = styled.select`min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink);font-size:14px;@media(pointer:coarse){font-size:16px;}`;
@@ -28,6 +29,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   const [editable, setEditable] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; keyboard: boolean } | null>(null);
   const [destination, setDestination] = useState<Destination>(null);
   const [date, setDate] = useState(today);
   const [list, setList] = useState(listNames[0] ?? 'Inbox');
@@ -35,6 +37,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   const [copyMode, setCopyMode] = useState<'cut' | 'copy'>('cut');
   const [message, setMessage] = useState('');
   const editor = useRef<HTMLTextAreaElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const current = useRef<ScratchpadState>({ text: '', revision: 0 });
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
@@ -80,6 +83,19 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     };
   }, []);
   useEffect(() => { if (reloadToken) void refresh().catch(error => setMessage(String(error))); }, [reloadToken]);
+  useEffect(() => { if (editable) editor.current?.focus(); }, [editable]);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = (event: PointerEvent) => { if (!menu.current?.contains(event.target as Node)) setContextMenu(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setContextMenu(null); editor.current?.focus(); } };
+    const scroll = () => setContextMenu(null);
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('scroll', scroll, true);
+    window.addEventListener('resize', scroll);
+    if (contextMenu.keyboard) menu.current?.querySelector('button')?.focus();
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); window.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', scroll); };
+  }, [contextMenu]);
   useEffect(() => {
     const guardPendingSave = (event: BeforeUnloadEvent) => {
       if (!pendingSaves.current) return;
@@ -91,6 +107,8 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   }, []);
   const save = (text: string) => {
     setDraft(text);
+    setSelection(null);
+    setContextMenu(null);
     pendingSaves.current++;
     queue.current = queue.current.then(async () => {
       const next = await saveScratchpadText(current.current.revision, text);
@@ -105,6 +123,38 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     if (!field) return;
     const { selectionStart: start, selectionEnd: end } = field;
     setSelection(start < end ? { start, end, text: field.value.slice(start,end) } : null);
+  };
+  const openContextMenu = (event: MouseEvent<HTMLTextAreaElement>) => {
+    const field = event.currentTarget;
+    const { selectionStart: start, selectionEnd: end } = field;
+    if (!editable || start >= end) return;
+    event.preventDefault();
+    setSelection({ start, end, text: field.value.slice(start,end) });
+    const bounds = field.getBoundingClientRect();
+    setContextMenu({
+      x: Math.max(8, Math.min(event.clientX || bounds.left + 20, window.innerWidth - 230)),
+      y: Math.max(8, Math.min(event.clientY || bounds.top + 20, window.innerHeight - 150)),
+      keyboard: event.clientX === 0 && event.clientY === 0,
+    });
+  };
+  const openDestination = (next: Exclude<Destination, null>) => {
+    setContextMenu(null);
+    setCopyMode('cut');
+    if (next === 'dated') setDate(today);
+    else { setList(listNames[0] ?? 'Inbox'); setNewList(''); }
+    setDestination(next);
+  };
+  const copySelection = async () => {
+    if (!selection) return;
+    try { await navigator.clipboard.writeText(selection.text); }
+    catch {
+      const field = editor.current;
+      field?.focus();
+      field?.setSelectionRange(selection.start, selection.end);
+      if (!document.execCommand('copy')) setMessage('Could not copy the selection.');
+    }
+    setContextMenu(null);
+    editor.current?.focus();
   };
   const convert = async () => {
     if (!destination || !selection || !editable) return;
@@ -127,14 +177,14 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     } catch (error) { setMessage(String(error)); }
   };
   return <Wrap aria-label="Scratchpad">
-    <Toolbar>
-      <Button disabled={!editable || !selection} onClick={() => { setDate(today); setCopyMode('cut'); setDestination('dated'); }}><ArrowRight size={15}/> Move to dated</Button>
-      <Button disabled={!editable || !selection} onClick={() => { setList(listNames[0] ?? 'Inbox'); setNewList(''); setCopyMode('cut'); setDestination('undated'); }}><ArrowRight size={15}/> Move to undated</Button>
-      <Count>{draft.length.toLocaleString()} characters</Count>
-    </Toolbar>
     {!editable && loaded && <Note><LockKeyhole size={14}/> {waiting ? 'Taking over the scratchpad…' : 'The scratchpad is open for editing in another window.'} {!waiting && <Button onClick={() => requestEdit(true)}>Take over editing</Button>}</Note>}
-    <Editor ref={editor} aria-label="Scratchpad text" placeholder="Capture thoughts here. Select text to move it into the journal." value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyUp={rememberSelection} onMouseUp={rememberSelection}/>
-    {message && <Note role="status"><NotebookPen size={14}/>{message}</Note>}
+    <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>
+    {contextMenu && createPortal(<ContextMenu ref={menu} role="menu" aria-label="Scratchpad selection actions" style={{ left: contextMenu.x, top: contextMenu.y }}>
+      <MenuAction type="button" role="menuitem" onClick={() => void copySelection()}><Copy aria-hidden="true"/>Copy selection</MenuAction>
+      <MenuAction type="button" role="menuitem" onClick={() => openDestination('dated')}><ArrowRight aria-hidden="true"/>Move to dated</MenuAction>
+      <MenuAction type="button" role="menuitem" onClick={() => openDestination('undated')}><ArrowRight aria-hidden="true"/>Move to undated</MenuAction>
+    </ContextMenu>, document.body)}
+    {message && <Note role="status">{message}</Note>}
     <Modal open={destination !== null} onClose={() => setDestination(null)} title={destination === 'dated' ? 'Move text to a date' : 'Move text to an undated list'} compact>
       <Muted>{selection?.text.trim().slice(0,120)}{(selection?.text.trim().length ?? 0) > 120 ? '…' : ''}</Muted>
       {destination === 'dated'

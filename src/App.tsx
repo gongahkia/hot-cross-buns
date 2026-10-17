@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, NotebookPen, PanelsTopLeft, Search, Settings2, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, PanelsTopLeft, Search, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { UndoFeedback, type UndoNoticeKind } from './components/UndoFeedback';
@@ -30,7 +30,6 @@ import { emptyState, loadTodoState, mutateTodoState, subscribeStore, undoScratch
 
 const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
-const HeaderBrand = styled.span`align-self:center;margin-right:auto;font-size:13px;color:var(--muted);white-space:nowrap;`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
 const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
@@ -74,7 +73,7 @@ const PopoutField = styled.label`display:grid;gap:6px;margin:12px 0;font-size:13
 const PopoutList = styled.div`display:grid;gap:2px;max-height:45dvh;overflow:auto;`;
 const PopoutCheck = styled.label`display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;input{width:18px;height:18px;accent-color:var(--link);}`;
 const PopoutActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:18px;`;
-type UndoNotice = { kind: UndoNoticeKind; text: string; document: TodoDocument };
+type UndoNotice = { kind: Exclude<UndoNoticeKind, 'scratchpad-conversion'>; text: string; document: TodoDocument };
 type DeletionFeedback = { kind: 'item-deletion' | 'detail-deletion'; text: string };
 type PopoutScope = { kind: 'scratchpad' } | { kind: 'dated'; from: string; to: string } | { kind: 'undated'; lists: string[] };
 const readPopoutScope = (): PopoutScope | null => {
@@ -436,6 +435,12 @@ export default function App() {
     const timeout = window.setTimeout(() => setFeedbackNotice(null), 6000);
     return () => window.clearTimeout(timeout);
   }, [feedbackNotice]);
+  useEffect(() => {
+    if (!scratchUndo) return;
+    const timeout = window.setTimeout(() => setScratchUndo(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [scratchUndo]);
+  const toastNotice = useMemo(() => scratchUndo ? { kind: 'scratchpad-conversion' as const, text: 'Scratchpad text' } : feedbackNotice, [scratchUndo, feedbackNotice]);
   const enqueueJournal = (work: () => Promise<TodoState | null>) => {
     const generation = ++journalGeneration.current;
     pendingJournal.current++;
@@ -461,6 +466,7 @@ export default function App() {
     return { ...next, revision: latest.revision };
   }));
   const commitState = async (next: TodoState) => {
+    setScratchUndo(null);
     const before = current.current;
     const stamped = { ...next, revision: before.revision + 1 };
     current.current = stamped;
@@ -535,6 +541,7 @@ export default function App() {
     advanceRecurrences(before, document, todayString());
     try { validateDocument(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeTodoText(before) === serializeTodoText(document)) return;
+    setScratchUndo(null);
     const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
     const completed = document.days.flatMap(day => day.items).find(item => item.completed && priorItems.get(item.id)?.completed === false);
     undoStack.current.push(before);
@@ -1019,7 +1026,6 @@ export default function App() {
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Shio Pan journal and scratchpad</VisuallyHidden>
     <Header $revealed={!!popout || searchOpen || dateOpen}>
-    {popout && <HeaderBrand>Shio Pan · {activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated' : 'Undated'}</HeaderBrand>}
     <Toolbar>
       <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
@@ -1045,7 +1051,7 @@ export default function App() {
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setSearchOpen(false); setActiveTab('scratchpad'); }}><NotebookPen size={15} style={{verticalAlign:'-2px',marginRight:5}}/>Scratchpad</ViewTab></ViewTabs>}
+    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setSearchOpen(false); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
     {activeTab !== 'scratchpad' && !!allTags.length && <TagRail $bounded={activeTab === 'dated'} aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
@@ -1054,8 +1060,13 @@ export default function App() {
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
-    {scratchUndo && <Notice role="status">Scratchpad text became journal items. <Button onClick={() => { void undoScratchpadConversion(scratchUndo).then(({ journal }) => { current.current = journal; setState(journal); setScratchReloadToken(value => value + 1); setScratchUndo(null); setMessage('Conversion undone.'); }).catch(error => { setScratchUndo(null); setMessage(String(error)); }); }}>Undo</Button><Dismiss aria-label="Dismiss conversion undo" onClick={() => setScratchUndo(null)}>×</Dismiss></Notice>}
-    <UndoFeedback notice={feedbackNotice} onDismiss={() => setFeedbackNotice(null)} onUndo={() => {
+    <UndoFeedback notice={toastNotice} onDismiss={() => { setScratchUndo(null); setFeedbackNotice(null); }} onUndo={() => {
+      if (scratchUndo) {
+        const pending = scratchUndo;
+        setScratchUndo(null);
+        void undoScratchpadConversion(pending).then(({ journal }) => { current.current = journal; setState(journal); setScratchReloadToken(value => value + 1); }).catch(error => setMessage(String(error)));
+        return;
+      }
       if (feedbackNotice && serializeTodoText(current.current.document) === serializeTodoText(feedbackNotice.document)) undo();
       else setFeedbackNotice(null);
     }}/>
@@ -1071,6 +1082,7 @@ export default function App() {
       setState(journal);
       undoStack.current = [];
       redoStack.current = [];
+      setFeedbackNotice(null);
       setScratchUndo(undo);
     }}/>
     : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined} query={query} tag={tag}

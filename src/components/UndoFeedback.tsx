@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Check, Trash2, Undo2, X } from 'lucide-react';
 
-export type UndoNoticeKind = 'completion' | 'item-deletion' | 'detail-deletion';
+export type UndoNoticeKind = 'completion' | 'item-deletion' | 'detail-deletion' | 'scratchpad-conversion';
 type Notice = { kind: UndoNoticeKind; text: string };
 type Phase = 'entering' | 'visible' | 'leaving';
 
@@ -44,11 +44,12 @@ export function UndoFeedback({ notice, onUndo, onDismiss }: { notice: Notice | n
 
   if (!displayed) return null;
   const completion = displayed.kind === 'completion';
+  const conversion = displayed.kind === 'scratchpad-conversion';
   const action = displayed.kind === 'detail-deletion' ? 'detail' : 'item';
-  return <Toast $phase={phase} data-phase={phase} role="status" aria-label={completion ? 'Completion confirmation' : 'Deletion confirmation'} aria-hidden={phase !== 'visible'} inert={phase !== 'visible'}>
-    {completion ? <Check size={16} color="var(--link)" aria-hidden="true"/> : <Trash2 size={16} color="var(--muted)" aria-hidden="true"/>}
-    <Text title={displayed.text}>{completion ? 'Moved to Done' : `Deleted ${action}`}: {displayed.text}</Text>
-    <Undo type="button" aria-label={completion ? `Undo completion of ${displayed.text}` : `Undo deletion of ${action} ${displayed.text}`} title="Undo" onClick={onUndo}><Undo2 size={17} aria-hidden="true"/></Undo>
-    <Dismiss type="button" aria-label={completion ? 'Dismiss completion confirmation' : 'Dismiss deletion confirmation'} onClick={onDismiss}><X size={15}/></Dismiss>
+  return <Toast $phase={phase} data-phase={phase} role="status" aria-label={conversion ? 'Scratchpad conversion confirmation' : completion ? 'Completion confirmation' : 'Deletion confirmation'} aria-hidden={phase !== 'visible'} inert={phase !== 'visible'}>
+    {completion || conversion ? <Check size={16} color="var(--link)" aria-hidden="true"/> : <Trash2 size={16} color="var(--muted)" aria-hidden="true"/>}
+    <Text title={displayed.text}>{conversion ? 'Added scratchpad text to journal' : `${completion ? 'Moved to Done' : `Deleted ${action}`}: ${displayed.text}`}</Text>
+    <Undo type="button" aria-label={conversion ? 'Undo scratchpad conversion' : completion ? `Undo completion of ${displayed.text}` : `Undo deletion of ${action} ${displayed.text}`} title="Undo" onClick={onUndo}><Undo2 size={17} aria-hidden="true"/></Undo>
+    <Dismiss type="button" aria-label={conversion ? 'Dismiss scratchpad confirmation' : completion ? 'Dismiss completion confirmation' : 'Dismiss deletion confirmation'} onClick={onDismiss}><X size={15}/></Dismiss>
   </Toast>;
 }
