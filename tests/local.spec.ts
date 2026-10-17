@@ -363,6 +363,9 @@ test('dragging an item between Upcoming and Done updates every detail', async ({
     await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2);
     await page.mouse.down();
     await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 20 });
+    const settledTarget = await page.getByRole('button', { name: `Drag to reorder ${target}` }).boundingBox();
+    expect(settledTarget).toBeTruthy();
+    await page.mouse.move(settledTarget!.x + settledTarget!.width / 2, settledTarget!.y + settledTarget!.height / 2, { steps: 5 });
     await page.mouse.up();
   };
 
@@ -1078,19 +1081,17 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await expect(dialog.getByRole('group', { name: 'Appearance' }).getByRole('button')).toHaveCount(2);
   await expect(dialog.getByRole('button', { name: 'Light mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.getByRole('button', { name: 'Dark mode' }).locator('svg')).toBeVisible();
-  await expect(dialog.getByLabel('Font', { exact: true }).locator('option')).toHaveCount(41);
+  await expect(dialog.getByLabel('Font', { exact: true })).toHaveCount(0);
   await expect(dialog.getByLabel('TODO.txt font')).toHaveCount(0);
   await expect(dialog.getByLabel('Date headings').locator('option')).toHaveCount(20);
   await expect(dialog.getByText('The journal stays in this browser')).toHaveCount(0);
   await expect(dialog.getByText('TODO.txt always keeps')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Dark mode' }).click();
-  await dialog.getByLabel('Font', { exact: true }).selectOption('georgia');
-  await expect(page.locator('body')).toHaveCSS('font-family', /Georgia/);
-  await dialog.getByLabel('Font', { exact: true }).selectOption('robotomono');
   await dialog.getByLabel('Date headings').selectOption('iso-dots');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#011627');
   await expect(dialog.getByRole('button', { name: 'Dark mode' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('body')).toHaveCSS('font-family', /Roboto Mono/);
+  await expect(page.locator('body')).toHaveCSS('font-family', /Sohne/);
   const today = dateOffset(0);
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
   await dialog.getByRole('button', { name: 'close' }).click();
@@ -1099,10 +1100,12 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await page.getByRole('button', { name: 'Shio Pan settings' }).click();
   await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'Light mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f2f1ed');
   await page.evaluate(() => localStorage.setItem('shio-pan-theme', 'cat-mocha'));
+  await page.evaluate(() => localStorage.setItem('shio-pan-font', 'georgia'));
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
-  await expect(page.locator('body')).toHaveCSS('font-family', /Roboto Mono/);
+  await expect(page.locator('body')).toHaveCSS('font-family', /Sohne/);
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today.replaceAll('-', '.'));
 });
 

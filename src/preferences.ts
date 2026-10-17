@@ -2,60 +2,6 @@ import type { ScratchpadMapping, ScratchpadMoveMode } from './scratchpad';
 
 export type Theme = 'day' | 'night';
 
-const baseFontOptions = [
-  ['sohne', 'Sohne', "'Sohne', 'Helvetica Neue', Arial, sans-serif", 300],
-  ['dm-sans', 'DM Sans', "'DM Sans', system-ui, sans-serif", 400],
-  ['lora', 'Lora', "'Lora', Georgia, serif", 400],
-  ['system', 'System', "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", 400],
-  ['arial', 'Arial', 'Arial, Helvetica, sans-serif', 400],
-  ['helvetica', 'Helvetica Neue', "'Helvetica Neue', Helvetica, Arial, sans-serif", 400],
-  ['avenir', 'Avenir', 'Avenir, Arial, sans-serif', 400],
-  ['futura', 'Futura', 'Futura, Arial, sans-serif', 400],
-  ['gill-sans', 'Gill Sans', "'Gill Sans', Arial, sans-serif", 400],
-  ['trebuchet', 'Trebuchet MS', "'Trebuchet MS', Arial, sans-serif", 400],
-  ['verdana', 'Verdana', 'Verdana, Arial, sans-serif', 400],
-  ['tahoma', 'Tahoma', 'Tahoma, Arial, sans-serif', 400],
-  ['georgia', 'Georgia', 'Georgia, serif', 400],
-  ['baskerville', 'Baskerville', 'Baskerville, Georgia, serif', 400],
-  ['palatino', 'Palatino', "Palatino, 'Palatino Linotype', Georgia, serif", 400],
-  ['times', 'Times New Roman', "'Times New Roman', Times, serif", 400],
-  ['garamond', 'Garamond', 'Garamond, Georgia, serif', 400],
-  ['charter', 'Charter', 'Charter, Georgia, serif', 400],
-  ['menlo', 'Menlo', 'Menlo, Consolas, monospace', 400],
-  ['monaco', 'Monaco', 'Monaco, Consolas, monospace', 400],
-  ['courier', 'Courier New', "'Courier New', Courier, monospace", 400],
-] as const;
-
-// Google Fonts monospace families in popularity order, captured 2026-10-13.
-// The same families are hosted locally in public/fonts/mono.
-export const rawFontOptions = [
-  ['robotomono', 'Roboto Mono'],
-  ['jetbrainsmono', 'JetBrains Mono'],
-  ['inconsolata', 'Inconsolata'],
-  ['sourcecodepro', 'Source Code Pro'],
-  ['ibmplexmono', 'IBM Plex Mono'],
-  ['dmmono', 'DM Mono'],
-  ['spacemono', 'Space Mono'],
-  ['geistmono', 'Geist Mono'],
-  ['courierprime', 'Courier Prime'],
-  ['firacode', 'Fira Code'],
-  ['googlesanscode', 'Google Sans Code'],
-  ['sharetechmono', 'Share Tech Mono'],
-  ['ubuntumono', 'Ubuntu Mono'],
-  ['vt323', 'VT323'],
-  ['cutivemono', 'Cutive Mono'],
-  ['ptmono', 'PT Mono'],
-  ['firamono', 'Fira Mono'],
-  ['anonymouspro', 'Anonymous Pro'],
-  ['redhatmono', 'Red Hat Mono'],
-  ['cousine', 'Cousine'],
-] as const;
-export const fontOptions = [
-  ...baseFontOptions,
-  ...rawFontOptions.map(([id, name]) => [id, name, `'${name}', ui-monospace, SFMono-Regular, Consolas, monospace`, 400] as const),
-] as const;
-export type AppFont = (typeof fontOptions)[number][0];
-
 export const dateFormatOptions = [
   ['long', '13 October 2026'], ['long-us', 'October 13, 2026'],
   ['long-weekday', 'Tuesday, 13 October 2026'], ['long-weekday-us', 'Tuesday, October 13, 2026'],
@@ -71,7 +17,6 @@ export const dateFormatOptions = [
 ] as const;
 export type DateFormat = (typeof dateFormatOptions)[number][0];
 
-const FONT_KEY = 'shio-pan-font';
 const THEME_KEY = 'shio-pan-theme';
 const DATE_FORMAT_KEY = 'shio-pan-date-format';
 const storedPreference = (key: string) => typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
@@ -140,16 +85,6 @@ export function formatDateHeading(value: string, format: DateFormat) {
   }
 }
 
-export function getFont(): AppFont {
-  const stored = storedPreference(FONT_KEY);
-  return fontOptions.find(([id]) => id === stored)?.[0] ?? 'sohne';
-}
-
-export function setFont(value: AppFont) {
-  localStorage.setItem(FONT_KEY, value);
-  applyFont(value);
-}
-
 export function getTheme(): Theme {
   const stored = storedPreference(THEME_KEY);
   return stored === 'night' ? 'night' : 'day';
@@ -161,15 +96,7 @@ export function setTheme(value: Theme) {
 }
 
 export function applyStoredAppearance() {
-  applyFont(getFont());
   applyTheme(getTheme());
-}
-
-function applyFont(value: AppFont) {
-  const option = fontOptions.find(([id]) => id === value) ?? fontOptions[0];
-  document.documentElement.dataset.font = option[0];
-  document.documentElement.style.setProperty('--app-font', option[2]);
-  document.documentElement.style.setProperty('--app-font-weight', String(option[3]));
 }
 
 function applyTheme(value: Theme) {

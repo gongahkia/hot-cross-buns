@@ -1,15 +1,10 @@
 import styled, { createGlobalStyle, css } from 'styled-components';
-import { rawFontOptions } from './preferences';
 
 export const GlobalStyle = createGlobalStyle`
-  ${rawFontOptions.map(([id, name]) => `@font-face { font-family: '${name}'; src: url('/fonts/mono/${id}.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }`).join('\n')}
+  @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/mono/jetbrainsmono.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
   @property --circle-progress { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
   @font-face { font-family: 'Sohne'; src: url('/fonts/sohne-variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
   @font-face { font-family: 'Sohne'; src: url('/fonts/sohne-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
-  @font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
-  @font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-semibold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
-  @font-face { font-family: 'Lora'; src: url('/fonts/lora.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
-  @font-face { font-family: 'Lora'; src: url('/fonts/lora-italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
   :root {
     --app-font: 'Sohne', 'Helvetica Neue', Arial, sans-serif; --app-font-weight: 300;
     --raw-font: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -20,9 +15,6 @@ export const GlobalStyle = createGlobalStyle`
     --primary: #354047; --primary-hover: #49565d; --primary-ink: #ffffff;
     --danger: #99493b; --backdrop: #2d343033;
   }
-  :root[data-font='dm-sans'] { --app-font: 'DM Sans', system-ui, sans-serif; --app-font-weight: 400; }
-  :root[data-font='lora'] { --app-font: 'Lora', Georgia, serif; --app-font-weight: 400; }
-  :root[data-font='system'] { --app-font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --app-font-weight: 400; }
   :root[data-theme='night'] {
     color-scheme: dark;
     --paper: #011627; --ink: #c0c7d1; --muted: #a3b0bf; --line: #294559; --soft: #193447;

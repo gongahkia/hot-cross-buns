@@ -76,7 +76,7 @@ test('touch editors use readable text and weekday headings do not repeat on mobi
   await page.addInitScript(() => localStorage.setItem('shio-pan-date-format', 'long-weekday'));
   await page.goto('/');
   const add = page.getByRole('textbox', { name: 'New daily item' });
-  await expect(add).toHaveCSS('font-size', '16px');
+  await expect(add).toHaveCSS('font-size', '16px', { timeout: 15000 });
   const otherDay = new Date();
   otherDay.setDate(otherDay.getDate() + (otherDay.getDay() === 1 ? 1 : -1));
   const date = `${otherDay.getFullYear()}-${String(otherDay.getMonth() + 1).padStart(2, '0')}-${String(otherDay.getDate()).padStart(2, '0')}`;

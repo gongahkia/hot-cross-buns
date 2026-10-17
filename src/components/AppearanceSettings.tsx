@@ -2,7 +2,7 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { Moon, Sun } from 'lucide-react';
 import { Button } from '../styles';
-import { dateFormatOptions, fontOptions, getFont, getTheme, getScratchpadMapping, getScratchpadMoveMode, setFont, setTheme, setScratchpadMapping, setScratchpadMoveMode, type AppFont, type DateFormat, type HolidayMode, type PastUnfinishedScope, type Theme, type WeekStart } from '../preferences';
+import { dateFormatOptions, getTheme, getScratchpadMapping, getScratchpadMoveMode, setTheme, setScratchpadMapping, setScratchpadMoveMode, type DateFormat, type HolidayMode, type PastUnfinishedScope, type Theme, type WeekStart } from '../preferences';
 import type { ScratchpadMapping, ScratchpadMoveMode } from '../scratchpad';
 import { holidayCountries } from '../holidayCountries';
 import { todayString } from '../todoText';
@@ -29,14 +29,12 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
   holidayCountry: string; onHolidayCountryChange: (value: string) => void; onImportHolidays: (country: string, year: number) => void; holidayStatus: string;
 }) {
   const [theme, setThemeState] = useState(getTheme);
-  const [font, setFontState] = useState(getFont);
   const [scratchpadMapping, setMappingState] = useState(getScratchpadMapping);
   const [scratchpadMoveMode, setMoveModeState] = useState(getScratchpadMoveMode);
   const [holidayYear, setHolidayYear] = useState(() => Number(todayString().slice(0, 4)));
   const chooseTheme = (next: Theme) => { setTheme(next); setThemeState(next); };
   return <Modal open={open} onClose={onClose} title="Shio Pan settings" compact>
     <ThemeField><legend>Appearance</legend><ThemeChoices role="group" aria-label="Appearance"><ThemeButton type="button" $selected={theme === 'day'} aria-pressed={theme === 'day'} aria-label="Light mode" onClick={() => chooseTheme('day')}><Sun aria-hidden="true"/>Light</ThemeButton><ThemeButton type="button" $selected={theme === 'night'} aria-pressed={theme === 'night'} aria-label="Dark mode" onClick={() => chooseTheme('night')}><Moon aria-hidden="true"/>Dark</ThemeButton></ThemeChoices></ThemeField>
-    <FontField>Font<FontSelect aria-label="Font" value={font} onChange={event => { const next = event.target.value as AppFont; setFont(next); setFontState(next); }}>{fontOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <SectionTitle>Scratchpad</SectionTitle>
     <FontField>Selected lines become<FontSelect value={scratchpadMapping} onChange={event => { const value = event.target.value as ScratchpadMapping; setScratchpadMapping(value); setMappingState(value); }}><option value="details">First line as title, rest as details</option><option value="items">One item per nonempty line</option><option value="single">One title joining all lines</option></FontSelect></FontField>
