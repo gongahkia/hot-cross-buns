@@ -35,6 +35,12 @@ test('scratchpad starts ready to type and right click can copy selected text', a
   await expect(menu).toHaveCount(0);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Copy this');
   await expect(editor).toHaveValue('Copy this line');
+  await selectText(page, 0, 9);
+  await editor.press('Shift+F10');
+  await expect(menu.getByRole('menuitem', { name: 'Copy selection' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(editor).toBeFocused();
 });
 
 test('moves selected plain text into a dated item and undo restores both sides', async ({ page }) => {

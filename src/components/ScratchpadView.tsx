@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import styled from 'styled-components';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Copy, LockKeyhole } from 'lucide-react';
@@ -124,18 +124,24 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     const { selectionStart: start, selectionEnd: end } = field;
     setSelection(start < end ? { start, end, text: field.value.slice(start,end) } : null);
   };
-  const openContextMenu = (event: MouseEvent<HTMLTextAreaElement>) => {
-    const field = event.currentTarget;
+  const showSelectionMenu = (field: HTMLTextAreaElement, x: number, y: number, keyboard: boolean) => {
     const { selectionStart: start, selectionEnd: end } = field;
-    if (!editable || start >= end) return;
-    event.preventDefault();
+    if (!editable || start >= end) return false;
     setSelection({ start, end, text: field.value.slice(start,end) });
     const bounds = field.getBoundingClientRect();
     setContextMenu({
-      x: Math.max(8, Math.min(event.clientX || bounds.left + 20, window.innerWidth - 230)),
-      y: Math.max(8, Math.min(event.clientY || bounds.top + 20, window.innerHeight - 150)),
-      keyboard: event.clientX === 0 && event.clientY === 0,
+      x: Math.max(8, Math.min(x || bounds.left + 20, window.innerWidth - 230)),
+      y: Math.max(8, Math.min(y || bounds.top + 20, window.innerHeight - 150)),
+      keyboard,
     });
+    return true;
+  };
+  const openContextMenu = (event: MouseEvent<HTMLTextAreaElement>) => {
+    if (showSelectionMenu(event.currentTarget, event.clientX, event.clientY, false)) event.preventDefault();
+  };
+  const openKeyboardMenu = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+    if (showSelectionMenu(event.currentTarget, 0, 0, true)) event.preventDefault();
   };
   const openDestination = (next: Exclude<Destination, null>) => {
     setContextMenu(null);
@@ -178,7 +184,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   };
   return <Wrap aria-label="Scratchpad">
     {!editable && loaded && <Note><LockKeyhole size={14}/> {waiting ? 'Taking over the scratchpad…' : 'The scratchpad is open for editing in another window.'} {!waiting && <Button onClick={() => requestEdit(true)}>Take over editing</Button>}</Note>}
-    <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>
+    <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>
     {contextMenu && createPortal(<ContextMenu ref={menu} role="menu" aria-label="Scratchpad selection actions" style={{ left: contextMenu.x, top: contextMenu.y }}>
       <MenuAction type="button" role="menuitem" onClick={() => void copySelection()}><Copy aria-hidden="true"/>Copy selection</MenuAction>
       <MenuAction type="button" role="menuitem" onClick={() => openDestination('dated')}><ArrowRight aria-hidden="true"/>Move to dated</MenuAction>
