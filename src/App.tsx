@@ -340,6 +340,7 @@ export default function App() {
   const redoStack = useRef<TodoDocument[]>([]);
   const journalQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingJournal = useRef(0);
+  const journalGeneration = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
   const shownHolidayYears = (viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]).map(date => Number(date.slice(0, 4)));
@@ -397,17 +398,28 @@ export default function App() {
       else if (draft !== null) setLegacyRawDraft(draft);
     } catch { /* The journal remains available if session storage is blocked. */ }
   }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
-  useEffect(() => subscribeStore('journal', () => {
-    if (pendingJournal.current) return;
-    void loadTodoState().then(latest => {
-      if (latest.revision <= current.current.revision) return;
-      current.current = latest;
-      undoStack.current = [];
-      redoStack.current = [];
-      setFeedbackNotice(null);
-      setState(latest);
-    }).catch(error => setMessage(`Could not refresh journal: ${String(error)}`));
-  }), []);
+  useEffect(() => {
+    let deferred = false;
+    const refresh = () => {
+      if (pendingJournal.current) return;
+      if ((document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement) && document.activeElement.hasAttribute('data-journal-entry')) { deferred = true; return; }
+      deferred = false;
+      const generation = journalGeneration.current;
+      void loadTodoState().then(latest => {
+        if (pendingJournal.current || generation !== journalGeneration.current) return;
+        if (latest.revision <= current.current.revision) return;
+        current.current = latest;
+        undoStack.current = [];
+        redoStack.current = [];
+        setFeedbackNotice(null);
+        setState(latest);
+      }).catch(error => setMessage(`Could not refresh journal: ${String(error)}`));
+    };
+    const onBlur = () => { if (deferred) window.setTimeout(refresh,0); };
+    document.addEventListener('focusout',onBlur);
+    const unsubscribe = subscribeStore('journal',refresh);
+    return () => { document.removeEventListener('focusout',onBlur); unsubscribe(); };
+  }, []);
   useEffect(() => { if (state) previousDocument.current = state.document; }, [state?.document]);
   useEffect(() => {
     if (!feedbackNotice) return;
@@ -415,6 +427,7 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [feedbackNotice]);
   const enqueueJournal = (work: () => Promise<TodoState | null>) => {
+    const generation = ++journalGeneration.current;
     pendingJournal.current++;
     const task = journalQueue.current.then(work);
     journalQueue.current = task.then(() => undefined, () => undefined);
@@ -423,6 +436,7 @@ export default function App() {
       if (pendingJournal.current) return;
       try {
         const latest = await loadTodoState();
+        if (pendingJournal.current || generation !== journalGeneration.current) return;
         current.current = latest;
         setState(latest);
       } catch (error) { setMessage(`Could not refresh journal: ${String(error)}`); }

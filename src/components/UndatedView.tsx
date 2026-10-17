@@ -37,7 +37,7 @@ function DraftText({ value, label, detail, onSave, onStartNext }: { value: strin
   const cancelled = useRef(false);
   useEffect(() => setDraft(value), [value]);
   const Component = detail ? Detail : Text;
-  return <Component key={value} rows={1} aria-label={label} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { if (cancelled.current) { cancelled.current = false; setDraft(value); return; } const next = draft.trim(); if (next && next !== value) onSave(next); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext?.(); } if (event.key === 'Escape') { cancelled.current = true; event.preventDefault(); event.currentTarget.blur(); } }}/>
+  return <Component key={value} rows={1} data-journal-entry aria-label={label} value={draft} onChange={event => setDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={() => { if (cancelled.current) { cancelled.current = false; setDraft(value); return; } const next = draft.trim(); if (next && next !== value) onSave(next); else setDraft(value); }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext?.(); } if (event.key === 'Escape') { cancelled.current = true; event.preventDefault(); event.currentTarget.blur(); } }}/>
 }
 
 type ItemActions = {

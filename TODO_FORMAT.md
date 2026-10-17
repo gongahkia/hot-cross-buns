@@ -2,6 +2,8 @@
 
 `TODO.txt` is Shio Pan's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
 
+The scratchpad is separate local browser data. It is not included in TODO.txt; move selected text into dated or undated items to make it portable.
+
 ## Dated items
 
 A dated section starts with a valid `YYYY-MM-DD` heading. Completed items come first, followed by one blank line, then upcoming items. If all items are upcoming, put the blank line immediately after the heading. If all are done, put it after the last item. An empty date heading is meaningful and survives round trips. Import asks whether items are done or upcoming when a populated section lacks a divider.
