@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a read-only Google snapshot into Hito's human-readable TODO.txt."""
+"""Convert a read-only Google snapshot into Shio Pan's human-readable TODO.txt."""
 
 from __future__ import annotations
 
@@ -83,7 +83,7 @@ def rrule_fields(event: dict) -> dict[str, str]:
         fields[key] = value
     allowed = {"FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY", "BYMONTH", "COUNT", "UNTIL", "WKST"}
     if set(fields) - allowed or fields.get("FREQ") not in {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}:
-        raise ConversionError("A Calendar repeat rule cannot yet be represented by Hito.")
+        raise ConversionError("A Calendar repeat rule cannot yet be represented by Shio Pan.")
     return fields
 
 
@@ -107,7 +107,7 @@ def recurrence_matches(fields: dict[str, str], origin: date, candidate: date) ->
     frequency = fields["FREQ"]
     interval = int(fields.get("INTERVAL", "1"))
     if interval < 1 or interval > 999:
-        raise ConversionError("Calendar repeat interval is outside Hito's range.")
+        raise ConversionError("Calendar repeat interval is outside Shio Pan's range.")
     byday = fields.get("BYDAY")
     days = byday.split(",") if byday else []
     if frequency == "DAILY":
@@ -162,7 +162,7 @@ def occurrences(event: dict, fields: dict[str, str], zone: ZoneInfo, as_of: date
     limit = until_limit(fields, start_stamp, zone)
     count_limit = int(fields["COUNT"]) if "COUNT" in fields else None
     if count_limit is not None and (count_limit < 1 or count_limit > 9999):
-        raise ConversionError("Calendar repeat count is outside Hito's range.")
+        raise ConversionError("Calendar repeat count is outside Shio Pan's range.")
     # A bounded scan also catches ended series. It stores just the first needed occurrence.
     end_scan = max(as_of.date() + timedelta(days=366 * 8), origin + timedelta(days=366 * 8))
     if limit:
@@ -273,7 +273,7 @@ def insert_skip(lines: list[str], original: date) -> None:
 
 
 def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple[str, dict[str, int]]:
-    if snapshot.get("format") != "hito-google-raw-v1":
+    if snapshot.get("format") != "shio-pan-google-raw-v1":
         raise ConversionError("Unsupported snapshot format.")
     calendar_entries = records(snapshot["calendarList"])
     zones = {entry["id"]: ZoneInfo(entry.get("timeZone") or "UTC") for entry in calendar_entries}

@@ -206,7 +206,7 @@ def export_snapshot(session: Any, destination: Path) -> dict[str, int]:
     counts: dict[str, int] = {}
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-            output.write('{"format":"hito-google-raw-v1","exportStartedAt":')
+            output.write('{"format":"shio-pan-google-raw-v1","exportStartedAt":')
             json.dump(utc_now(), output)
             output.write(',"apis":{"calendar":"v3","tasks":"v1"},"calendarList":')
             calendar_ids, counts["calendars"] = write_collection(

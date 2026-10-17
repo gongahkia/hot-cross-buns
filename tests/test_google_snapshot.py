@@ -110,7 +110,7 @@ class GoogleSnapshotTests(unittest.TestCase):
             counts = export_snapshot(session, output)
             snapshot = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(counts, {"calendars": 2, "events": 2, "taskLists": 1, "tasks": 2})
-            self.assertEqual(snapshot["format"], "hito-google-raw-v1")
+            self.assertEqual(snapshot["format"], "shio-pan-google-raw-v1")
             self.assertEqual(snapshot["calendarList"]["pages"][0]["items"], [first_calendar])
             self.assertEqual(snapshot["calendarEvents"][0]["events"]["pages"][0]["items"], [recurring])
             self.assertEqual(snapshot["calendarEvents"][0]["events"]["pages"][1]["items"], [cancelled])

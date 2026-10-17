@@ -230,18 +230,14 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await expect(page.getByText('No lines match this search')).toBeVisible();
 });
 
-test('recovers an edit queued just before a reload', async ({ page }) => {
+test('persists a journal edit across reload', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
-  const today = dateOffset(0);
-  await page.evaluate(date => {
-    localStorage.setItem('jing-todo-pending-v1', JSON.stringify({
-      revision: 1000000,
-      document: { days: [{ date, items: [{ id: 'recovered-item', text: 'Recovered pending line', details: [], completed: false }] }] },
-    }));
-  }, today);
+  const add = page.getByRole('textbox', { name: 'New daily item' });
+  await add.fill('Persisted line');
+  await add.press('Enter');
+  await expect(page.getByRole('group', { name: 'Persisted line' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('group', { name: 'Recovered pending line' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Persisted line' })).toBeVisible();
 });
 
 test('collapses details, sorts tasks, and styles completed work', async ({ page }) => {
@@ -960,7 +956,7 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Meta+f');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
   await page.getByLabel('Date headings').selectOption('iso');
   await page.getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
@@ -999,34 +995,19 @@ test('hides completed work by default and toggles search without browser find', 
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
 });
 
-test('migrates a Jing journal and preferences to Hito storage', async ({ page }) => {
+test('uses Shio Pan branding and storage', async ({ page }) => {
   const today = dateOffset(0);
+  await page.addInitScript(() => { localStorage.setItem('shio-pan-theme', 'night'); localStorage.setItem('shio-pan-date-format', 'iso'); });
   await page.goto('/');
-  await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
-  await page.evaluate(async date => {
-    localStorage.setItem('jing-theme', 'night');
-    localStorage.setItem('jing-date-format', 'iso');
-    const request = indexedDB.open('jing-todo-v1', 1);
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      request.onupgradeneeded = () => request.result.createObjectStore('state');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('state', 'readwrite');
-      tx.objectStore('state').put({ document: { days: [{ date, items: [{ id: 'legacy-task', text: 'From Jing', details: [], completed: false }] }] }, baseline: null, baselineText: null, fileHandle: null, revision: 42 }, 'current');
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
-  }, today);
-  await page.reload();
-  await expect(page.getByRole('group', { name: 'From Jing' })).toBeVisible();
-  await expect(page).toHaveTitle('Hito');
+  const add = page.getByRole('textbox', { name: 'New daily item' });
+  await add.fill('Stored under Shio Pan');
+  await add.press('Enter');
+  await expect(page.getByRole('group', { name: 'Stored under Shio Pan' })).toBeVisible();
+  await expect(page).toHaveTitle('Shio Pan');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   await expect.poll(() => page.evaluate(async () => {
-    const request = indexedDB.open('hito-todo-v1', 1);
+    const request = indexedDB.open('shio-pan-v1', 1);
     const db = await new Promise<IDBDatabase>(resolve => { request.onsuccess = () => resolve(request.result); });
     const result = await new Promise<{ revision:number } | undefined>(resolve => {
       const tx = db.transaction('state', 'readonly');
@@ -1035,7 +1016,7 @@ test('migrates a Jing journal and preferences to Hito storage', async ({ page })
     });
     db.close();
     return result?.revision;
-  })).toBe(42);
+  })).toBeGreaterThan(0);
 });
 
 test('keeps controls usable and within the viewport across mobile and desktop widths', async ({ page }) => {
@@ -1052,7 +1033,7 @@ test('keeps controls usable and within the viewport across mobile and desktop wi
     await page.getByRole('button', { name: 'Choose date' }).click();
     await expect(page.locator('.rdp-root')).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controlsFit = await page.evaluate(() => ['Open search', 'Choose date', 'Import TODO.txt', 'Hito settings'].every(label => {
+    const controlsFit = await page.evaluate(() => ['Open search', 'Choose date', 'Import TODO.txt', 'Shio Pan settings'].every(label => {
       const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
       if (!button) return true;
       const box = button.getBoundingClientRect();
@@ -1087,10 +1068,10 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   const header = page.locator('header');
   await page.mouse.move(0, 500);
   await expect(header).toHaveCSS('opacity', '0');
-  await page.getByRole('button', { name: 'Hito settings' }).hover();
+  await page.getByRole('button', { name: 'Shio Pan settings' }).hover();
   await expect(header).toHaveCSS('opacity', '1');
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Hito settings' });
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Shio Pan settings' });
   await expect(dialog.getByRole('heading', { name: /settings/i })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: /day mode|night mode/ })).toHaveCount(0);
   await expect(dialog.getByLabel('Color scheme').locator('option')).toHaveCount(52);
@@ -1125,8 +1106,8 @@ test('uses the calendar to switch between the default week, one day, and a selec
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
   await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', sunday);
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
   await expect(settings.getByLabel('Days shown')).toHaveCount(0);
   await settings.getByRole('button', { name: 'close' }).click();
   await expect(settings).toBeHidden();
@@ -1200,8 +1181,8 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   expect(await viewport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await earlier.click();
   await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
   await expect(settings.getByLabel('Earlier unfinished items')).toHaveValue('visible');
   await settings.getByLabel('Earlier unfinished items').selectOption('all');
   await settings.getByRole('button', { name: 'close' }).click();
@@ -1214,8 +1195,8 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   await allEarlier.click();
   await expect(viewport.locator('[data-journal-date]')).toHaveCount(3);
   await page.reload();
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Earlier unfinished items')).toHaveValue('all');
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Earlier unfinished items')).toHaveValue('all');
 });
 
 test('new item typing matches the saved item text size', async ({ page }) => {
@@ -1237,8 +1218,8 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   const today = dateOffset(0);
   await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Hito settings' });
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
   await expect(settings.getByLabel('Time zone')).toHaveValue('Asia/Singapore');
   await expect(settings.getByLabel('Week starts on')).toHaveValue('1');
   await expect(settings.getByLabel('Holiday country')).toHaveValue('SG');
@@ -1257,7 +1238,7 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).not.toContainText('Test Holiday');
   await page.getByRole('dialog', { name: 'Download TODO.txt' }).press('Escape');
-  await page.getByRole('button', { name: 'Hito settings' }).click();
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
   await settings.getByLabel('How to use holidays').selectOption('saved');
   await expect(settings.getByRole('status')).toContainText('1 holiday added');
   await settings.getByLabel('Use public holidays').uncheck();
@@ -1268,14 +1249,14 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('@span: all-day');
   await page.reload();
   await expect(page.getByText('Test Holiday')).toBeVisible();
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Week starts on')).toHaveValue('0');
-  await expect(page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Use public holidays')).not.toBeChecked();
-  await page.getByRole('dialog', { name: 'Hito settings' }).getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Week starts on')).toHaveValue('0');
+  await expect(page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Use public holidays')).not.toBeChecked();
+  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'close' }).click();
   await page.getByRole('button', { name: 'Next range' }).click();
-  await page.getByRole('button', { name: 'Hito settings' }).click();
-  await page.getByRole('dialog', { name: 'Hito settings' }).getByLabel('Week starts on').selectOption('1');
-  await page.getByRole('dialog', { name: 'Hito settings' }).getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Week starts on').selectOption('1');
+  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'close' }).click();
   const alignedDate = await page.locator('section').first().locator('time').getAttribute('datetime');
   expect(new Date(`${alignedDate}T12:00:00`).getDay()).toBe(1);
   await expect(page.locator('section')).toHaveCount(7);
@@ -1492,7 +1473,7 @@ test('plays history transitions and skips them when reduced motion is requested'
     const replay = (window as Window & { __replays?: ViewTransition[] }).__replays!.at(-1)!;
     await replay.ready;
     const row = document.querySelector<HTMLElement>('[data-transition-id]')!;
-    const name = `hito-item-${row.dataset.transitionId!.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    const name = `shio-pan-item-${row.dataset.transitionId!.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
     return parseFloat(getComputedStyle(document.documentElement, `::view-transition-group(${name})`).animationDuration);
   });
   expect(duration).toBeGreaterThan(0.1);
@@ -1645,7 +1626,7 @@ test('a large TODO.txt preview remains usable on a phone', async ({ page }) => {
 
 test('an unfinished draft from the removed editor can still be downloaded', async ({ page }) => {
   const draft = '2026-02-30\nUnfinished edit\n';
-  await page.addInitScript(value => sessionStorage.setItem('hito-raw-draft-v1', value), draft);
+  await page.addInitScript(value => sessionStorage.setItem('shio-pan-raw-draft-v1', value), draft);
   await page.goto('/');
   await expect(page.getByText('An unfinished TODO.txt draft from the old editor is available.')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');

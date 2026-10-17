@@ -144,8 +144,8 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
   </div>;
 }
 
-export function UndatedView({ lists, query, tag, onAddList, onDeleteList, onAdd, onReorderItems, ...actions }: {
-  lists?: TodoList[]; query: string; tag: string | null; onAddList: (name: string) => void; onDeleteList: (name: string) => void;
+export function UndatedView({ lists, visibleNames, query, tag, onAddList, onDeleteList, onAdd, onReorderItems, ...actions }: {
+  lists?: TodoList[]; visibleNames?: string[]; query: string; tag: string | null; onAddList: (name: string) => void; onDeleteList: (name: string) => void;
   onAdd: (list: string, text: string) => void; onReorderItems: (list: string, from: string, to: string) => void;
 } & ItemActions) {
   const [openList, setOpenList] = useState<string | null>(null);
@@ -153,7 +153,7 @@ export function UndatedView({ lists, query, tag, onAddList, onDeleteList, onAdd,
   const [creatingList, setCreatingList] = useState(false);
   useEffect(() => { setOpenList(null); setConfirmList(null); }, [query,tag]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
-  const shown = lists ?? [{ name: 'Inbox', items: [] }];
+  const shown = (lists ?? [{ name: 'Inbox', items: [] }]).filter(list => !visibleNames || visibleNames.includes(list.name));
   const parents = shown.flatMap(list => list.items.map(item => ({ list: list.name, item })));
   const filtered = shown.map(list => ({ ...list, items: list.items.filter(item => {
     const content = [item.text,...item.details.map(detail => detail.text)].join(' ').toLowerCase();
@@ -162,7 +162,7 @@ export function UndatedView({ lists, query, tag, onAddList, onDeleteList, onAdd,
   const filteredActive = !!(query || tag);
   return <div aria-label="Undated items">
     {filteredActive && !filtered.length && <p role="status">No undated items match this search</p>}
-    {!filteredActive && lists?.length === 0 && <EmptyLists>No lists yet. Add the first one below.</EmptyLists>}
+    {!filteredActive && shown.length === 0 && <EmptyLists>No lists in this view.</EmptyLists>}
     {filtered.map(list => <Section key={list.name} aria-label={list.name}>
       <HeadingRow><Heading>{list.name}</Heading>{!filteredActive && <Actions>
         <ListIcon data-list-control aria-label={'More actions for list ' + list.name} aria-expanded={openList === list.name} onClick={() => { setOpenList(openList === list.name ? null : list.name); setConfirmList(null); }}><MoreHorizontal size={17}/></ListIcon>
@@ -181,7 +181,7 @@ export function UndatedView({ lists, query, tag, onAddList, onDeleteList, onAdd,
       </SortableContext></DndContext>
       {!filteredActive && <Add aria-label={'New item in ' + list.name} placeholder={list.items.length ? 'New item…' : 'No items yet. Add the first one here.'} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} onBlur={event => { if (event.currentTarget.value.trim()) { onAdd(list.name,event.currentTarget.value.trim()); event.currentTarget.value=''; } }}/>}
     </Section>)}
-    {!filteredActive && (creatingList
+    {!filteredActive && !visibleNames && (creatingList
       ? <AddListField autoFocus aria-label="New list name" placeholder="List name…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; event.currentTarget.blur(); } }} onBlur={event => { const name = event.currentTarget.value.trim(); if (name) onAddList(name); setCreatingList(false); }}/>
       : <AddList onClick={() => setCreatingList(true)}>+ new list</AddList>)}
   </div>;

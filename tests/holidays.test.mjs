@@ -37,7 +37,7 @@ test('the international loader calls the documented v4 endpoint', async () => {
   } finally { globalThis.fetch = original; }
 });
 
-test('saved holidays are all-day Hito items, deduplicated and preserved by TODO.txt', () => {
+test('saved holidays are all-day Shio Pan items, deduplicated and preserved by TODO.txt', () => {
   const document = { days: [{ date: '2026-08-10', items: [{ id: 'existing', text: 'My plans', details: [], completed: false }] }] };
   const holidays = [{ date: '2026-08-09', name: 'National Day' }, { date: '2026-08-10', name: 'National Day (observed)' }];
   let next = 0;

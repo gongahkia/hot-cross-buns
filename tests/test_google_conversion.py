@@ -22,7 +22,7 @@ def sample_snapshot():
         "description": "Agenda\nDecisions", "reminders": {"overrides": [{"method": "popup", "minutes": 30}]},
     }
     return {
-        "format": "hito-google-raw-v1",
+        "format": "shio-pan-google-raw-v1",
         "calendarList": collection([{"id": "primary", "timeZone": "Asia/Singapore"}]),
         "taskLists": collection([{"id": "a", "title": "Inbox"}]),
         "tasksByList": [{"taskListId": "a", "tasks": collection([
@@ -100,7 +100,7 @@ class GoogleConversionTests(unittest.TestCase):
         self.assertIn("09:00-09:30 Rescheduled review", output)
         self.assertEqual(counts["moved_standalone"], 1)
 
-    def test_equal_google_list_names_remain_separate_hito_lists(self):
+    def test_equal_google_list_names_remain_separate_shio-pan_lists(self):
         snapshot = sample_snapshot()
         snapshot["taskLists"]["pages"][0]["items"].append({"id": "b", "title": "Inbox"})
         snapshot["tasksByList"].append({"taskListId": "b", "tasks": collection([

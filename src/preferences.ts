@@ -1,4 +1,5 @@
 import { colorThemes, type Theme } from './themes.ts';
+import type { ScratchpadMapping, ScratchpadMoveMode } from './scratchpad';
 
 const baseFontOptions = [
   ['sohne', 'Sohne', "'Sohne', 'Helvetica Neue', Arial, sans-serif", 300],
@@ -69,27 +70,34 @@ export const dateFormatOptions = [
 ] as const;
 export type DateFormat = (typeof dateFormatOptions)[number][0];
 
-const FONT_KEY = 'hito-font';
-const THEME_KEY = 'hito-theme';
-const DATE_FORMAT_KEY = 'hito-date-format';
-const storedPreference = (key: string) => typeof localStorage === 'undefined' ? null : localStorage.getItem(key) ?? localStorage.getItem(key.replace('hito-', 'jing-'));
+const FONT_KEY = 'shio-pan-font';
+const THEME_KEY = 'shio-pan-theme';
+const DATE_FORMAT_KEY = 'shio-pan-date-format';
+const storedPreference = (key: string) => typeof localStorage === 'undefined' ? null : localStorage.getItem(key);
 
 export type HolidayMode = 'saved' | 'view';
 export type PastUnfinishedScope = 'visible' | 'all';
 export type WeekStart = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 const isTimeZone = (value: string) => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; } };
-export const getTimeZone = () => { const value = storedPreference('hito-time-zone'); return value && isTimeZone(value) ? value : 'Asia/Singapore'; };
-export const setTimeZone = (value: string) => { if (!isTimeZone(value)) throw new Error('Invalid time zone'); localStorage.setItem('hito-time-zone', value); };
-export const getWeekStart = (): WeekStart => { const value = Number(storedPreference('hito-week-start')); return Number.isInteger(value) && value >= 0 && value <= 6 && storedPreference('hito-week-start') !== null ? value as WeekStart : 1; };
-export const setWeekStart = (value: WeekStart) => localStorage.setItem('hito-week-start', String(value));
-export const getHolidayCountry = () => storedPreference('hito-holiday-country') ?? 'SG';
-export const setHolidayCountry = (value: string) => localStorage.setItem('hito-holiday-country', value);
-export const getHolidayMode = (): HolidayMode => storedPreference('hito-holiday-mode') === 'view' ? 'view' : 'saved';
-export const setHolidayMode = (value: HolidayMode) => localStorage.setItem('hito-holiday-mode', value);
-export const getHolidaysEnabled = () => storedPreference('hito-holidays-enabled') === 'true';
-export const setHolidaysEnabled = (value: boolean) => localStorage.setItem('hito-holidays-enabled', String(value));
-export const getPastUnfinishedScope = (): PastUnfinishedScope => storedPreference('hito-past-unfinished-scope') === 'all' ? 'all' : 'visible';
-export const setPastUnfinishedScope = (value: PastUnfinishedScope) => localStorage.setItem('hito-past-unfinished-scope', value);
+export const getTimeZone = () => { const value = storedPreference('shio-pan-time-zone'); return value && isTimeZone(value) ? value : 'Asia/Singapore'; };
+export const setTimeZone = (value: string) => { if (!isTimeZone(value)) throw new Error('Invalid time zone'); localStorage.setItem('shio-pan-time-zone', value); };
+export const getWeekStart = (): WeekStart => { const value = Number(storedPreference('shio-pan-week-start')); return Number.isInteger(value) && value >= 0 && value <= 6 && storedPreference('shio-pan-week-start') !== null ? value as WeekStart : 1; };
+export const setWeekStart = (value: WeekStart) => localStorage.setItem('shio-pan-week-start', String(value));
+export const getHolidayCountry = () => storedPreference('shio-pan-holiday-country') ?? 'SG';
+export const setHolidayCountry = (value: string) => localStorage.setItem('shio-pan-holiday-country', value);
+export const getHolidayMode = (): HolidayMode => storedPreference('shio-pan-holiday-mode') === 'view' ? 'view' : 'saved';
+export const setHolidayMode = (value: HolidayMode) => localStorage.setItem('shio-pan-holiday-mode', value);
+export const getHolidaysEnabled = () => storedPreference('shio-pan-holidays-enabled') === 'true';
+export const setHolidaysEnabled = (value: boolean) => localStorage.setItem('shio-pan-holidays-enabled', String(value));
+export const getPastUnfinishedScope = (): PastUnfinishedScope => storedPreference('shio-pan-past-unfinished-scope') === 'all' ? 'all' : 'visible';
+export const setPastUnfinishedScope = (value: PastUnfinishedScope) => localStorage.setItem('shio-pan-past-unfinished-scope', value);
+export const getScratchpadMapping = (): ScratchpadMapping => {
+  const value = storedPreference('shio-pan-scratchpad-mapping');
+  return value === 'items' || value === 'single' ? value : 'details';
+};
+export const setScratchpadMapping = (value: ScratchpadMapping) => localStorage.setItem('shio-pan-scratchpad-mapping', value);
+export const getScratchpadMoveMode = (): ScratchpadMoveMode => storedPreference('shio-pan-scratchpad-move-mode') === 'ask' ? 'ask' : 'cut';
+export const setScratchpadMoveMode = (value: ScratchpadMoveMode) => localStorage.setItem('shio-pan-scratchpad-move-mode', value);
 
 export function getDateFormat(): DateFormat {
   const stored = storedPreference(DATE_FORMAT_KEY);
@@ -209,3 +217,4 @@ function applyTheme(value: Theme) {
   };
   for (const [key, color] of Object.entries(vars)) root.style.setProperty(`--${key}`, color);
 }
+

@@ -41,7 +41,7 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
   return <Modal open={!!review} onClose={onClose} title="Review TODO.txt import" wide>
     <Title>{doctor ? 'Check TODO.txt import' : 'Review TODO.txt import'}</Title>
     {doctor ? <>
-      <Note>The original file remains unchanged. Review the proposed repairs and edit the working text before applying it to Hito.</Note>
+      <Note>The original file remains unchanged. Review the proposed repairs and edit the working text before applying it to Shio Pan.</Note>
       {unchecked && <InlineError>Text changed. Check the file again before importing.</InlineError>}
       {blocking && <InlineError>{doctor.findings.filter(finding => finding.level === 'review').length} issue{doctor.findings.filter(finding => finding.level === 'review').length === 1 ? '' : 's'} need a decision.</InlineError>}
       <div aria-label="TODO.txt doctor findings">{doctor.findings.map((finding, index) => {
@@ -61,12 +61,12 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
       {merge?.proposal.conflicts.map(row => <ReviewRow key={row.key}>
         <Note>{row.date}{row.reorderConflict ? ' · order changed on both sides' : ''}</Note>
         <Panes>
-          <Pane><PaneLabel>Hito</PaneLabel>{row.reorderConflict && `position ${row.localOrder + 1}\n`}{itemLabel(row.local)}</Pane>
+          <Pane><PaneLabel>Shio Pan</PaneLabel>{row.reorderConflict && `position ${row.localOrder + 1}\n`}{itemLabel(row.local)}</Pane>
           <Pane><PaneLabel>TODO.txt</PaneLabel>{row.reorderConflict && `position ${row.fileOrder + 1}\n`}{itemLabel(row.file)}</Pane>
         </Panes>
         <ReviewChoices>{(['local','file','both'] as const).map(choice => <ChoiceLabel key={choice}>
           <input type="radio" name={row.key} checked={(choices[row.key] ?? '') === choice} onChange={() => onChoice(row.key, choice)}/>
-          {choice === 'local' ? 'keep Hito' : choice === 'file' ? 'use file' : 'keep both'}
+          {choice === 'local' ? 'keep Shio Pan' : choice === 'file' ? 'use file' : 'keep both'}
         </ChoiceLabel>)}</ReviewChoices>
       </ReviewRow>)}
       <Actions><Button onClick={onClose}>cancel</Button><Button $primary disabled={busy || (merge?.proposal.conflicts.some(row => !choices[row.key]) ?? false)} onClick={onApply}>apply import</Button></Actions>

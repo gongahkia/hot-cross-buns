@@ -1,8 +1,8 @@
 # One-time Google snapshot
 
-`scripts/pull_google_snapshot.py` saves Google Calendar and Google Tasks API responses as local JSON. It does **not** convert them to Hito `TODO.txt` or change browser data. The later conversion step can inspect this snapshot without making another Google request.
+`scripts/pull_google_snapshot.py` saves Google Calendar and Google Tasks API responses as local JSON. It does **not** convert them to Shio Pan `TODO.txt` or change browser data. The later conversion step can inspect this snapshot without making another Google request.
 
-`scripts/convert_google_snapshot.py` is that separate, offline conversion step. It reads the saved snapshot and writes a new Hito file; it never changes browser data or the snapshot.
+`scripts/convert_google_snapshot.py` is that separate, offline conversion step. It reads the saved snapshot and writes a new Shio Pan file; it never changes browser data or the snapshot.
 
 ## Set up
 
@@ -30,19 +30,19 @@ The script opens Google’s consent page in your browser. It requests only `cale
 
 The snapshot contains each raw, paginated response, the query used for each collection, and UTC start and finish times. It includes the user’s visible and hidden calendar-list entries, events from each listed calendar, task lists, and tasks from each list. Calendar events are **not expanded into recurring instances**, preserving recurring event rules and exceptions. The script requests cancelled events and hidden invitations, plus completed, hidden, deleted, and assigned tasks. These choices follow Google’s [Calendar events list](https://developers.google.com/workspace/calendar/api/v3/reference/events/list) and [Tasks list](https://developers.google.com/workspace/tasks/reference/rest/v1/tasks/list) parameters.
 
-The script follows every `nextPageToken`; a short or empty page does not end the pull. The JSON has format marker `hito-google-raw-v1`. It preserves the API objects as returned, including fields Hito may not support yet.
+The script follows every `nextPageToken`; a short or empty page does not end the pull. The JSON has format marker `shio-pan-google-raw-v1`. It preserves the API objects as returned, including fields Shio Pan may not support yet.
 
 The output is a snapshot of records available through these APIs and the signed-in account’s permissions. Google may omit old deleted data or details of shared calendars that the account cannot read. If any request fails, no new snapshot is published. Existing output files are never replaced. Keep the OAuth client JSON and snapshot private; both the default output directory and common downloaded client JSON names are Git-ignored.
 
 ## Convert the snapshot
 
-The default is open, nondeleted Google Tasks plus upcoming, noncancelled Calendar events. A recurring Calendar series is stored as one Hito rule, with explicit skips and replacements when needed. An occurrence moved from before the import cutoff into the future becomes a standalone upcoming item, so it is not lost when its old series dates are excluded. The converter does not enumerate ordinary future occurrences. Use `--include-past-events` to include past Calendar events as well; completed Tasks remain excluded. `--as-of YYYY-MM-DD` gives a reproducible cutoff at the start of that date in the primary calendar's time zone.
+The default is open, nondeleted Google Tasks plus upcoming, noncancelled Calendar events. A recurring Calendar series is stored as one Shio Pan rule, with explicit skips and replacements when needed. An occurrence moved from before the import cutoff into the future becomes a standalone upcoming item, so it is not lost when its old series dates are excluded. The converter does not enumerate ordinary future occurrences. Use `--include-past-events` to include past Calendar events as well; completed Tasks remain excluded. `--as-of YYYY-MM-DD` gives a reproducible cutoff at the start of that date in the primary calendar's time zone.
 
 ```sh
 python3 scripts/convert_google_snapshot.py .local/google-snapshot-YYYYMMDDTHHMMSSZ.json
 python3 scripts/convert_google_snapshot.py .local/google-snapshot-YYYYMMDDTHHMMSSZ.json --include-past-events --output .local/google-all-events-TODO.txt
 ```
 
-The default output is named after the snapshot with `-TODO.txt` appended and is private to your computer. The destination must not already exist. The script completes conversion in memory before writing a file and stops with an error if it encounters a recurrence rule it cannot represent. Inspect the file with **Import TODO.txt** in Hito; the import doctor reviews it before it changes the browser copy.
+The default output is named after the snapshot with `-TODO.txt` appended and is private to your computer. The destination must not already exist. The script completes conversion in memory before writing a file and stops with an error if it encounters a recurrence rule it cannot represent. Inspect the file with **Import TODO.txt** in Shio Pan; the import doctor reviews it before it changes the browser copy.
 
-Open undated Tasks appear under their Google task list headings in Hito's undated section. Dated Tasks become dated items without a list label. Task notes and Calendar descriptions become ordinary details. Locations and useful meeting links become details too. Calendar all-day and multi-day occupancy use `@span`. Guest/RSVP data, reminders, notification settings, and Google-specific event types are intentionally omitted; Hito has one item primitive, no invitation workflow, and no reminders. The raw snapshot remains available if you later want a different conversion.
+Open undated Tasks appear under their Google task list headings in Shio Pan's undated section. Dated Tasks become dated items without a list label. Task notes and Calendar descriptions become ordinary details. Locations and useful meeting links become details too. Calendar all-day and multi-day occupancy use `@span`. Guest/RSVP data, reminders, notification settings, and Google-specific event types are intentionally omitted; Shio Pan has one item primitive, no invitation workflow, and no reminders. The raw snapshot remains available if you later want a different conversion.

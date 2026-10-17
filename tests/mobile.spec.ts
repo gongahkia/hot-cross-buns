@@ -73,7 +73,7 @@ test('recurrence calendar fits a narrow phone and its controls remain reachable'
 });
 
 test('touch editors use readable text and weekday headings do not repeat on mobile', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('hito-date-format', 'long-weekday'));
+  await page.addInitScript(() => localStorage.setItem('shio-pan-date-format', 'long-weekday'));
   await page.goto('/');
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await expect(add).toHaveCSS('font-size', '16px');

@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, Search, Settings2, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, NotebookPen, PanelsTopLeft, Search, Settings2, X } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { UndoFeedback, type UndoNoticeKind } from './components/UndoFeedback';
@@ -14,21 +14,23 @@ import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
+import { ScratchpadView } from './components/ScratchpadView';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
 import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, getPastUnfinishedScope, setPastUnfinishedScope, type DateFormat, type HolidayMode, type PastUnfinishedScope } from './preferences';
 import { earlierUnfinishedDays } from './earlierUnfinished';
 import { addSavedHolidays, fetchHolidayYear, type HolidayYear, type PublicHoliday } from './holidays';
-import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
+import { cloneDocument, emptyDocument, itemValue, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
 import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { advanceRecurrences, nextRecurrenceDate } from './recurrence';
 import { parseTimeBlock } from './timeBlock';
 import { materializeOccurrence, projectItemsForDate, type ViewItem } from './seriesView';
 import { newSeriesId, type RecurrenceRule } from './recurrence';
-import { emptyState, loadTodoState, saveTodoState, type TodoState } from './todoStore';
+import { emptyState, loadTodoState, mutateTodoState, subscribeStore, undoScratchpadConversion, type ScratchpadUndo, type TodoState } from './todoStore';
 
 const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
+const HeaderBrand = styled.span`align-self:center;margin-right:auto;font-size:13px;color:var(--muted);white-space:nowrap;`;
 const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
 const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
@@ -68,10 +70,26 @@ const EarlierLink = styled.button`display:inline-flex;align-items:center;gap:7px
 const ScopeTitle = styled.h2`margin:4px 4px 12px;font-size:17px;line-height:1.3;text-wrap:balance;`;
 const ScopeHint = styled.p`margin:0 4px 14px;color:var(--muted);font-size:13px;line-height:1.45;`;
 const ScopeOption = styled.button`display:block;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:7px;background:transparent;color:var(--ink);font-size:14px;text-align:left;&:hover,&:focus-visible{background:var(--soft);}`;
+const PopoutField = styled.label`display:grid;gap:6px;margin:12px 0;font-size:13px;`;
+const PopoutList = styled.div`display:grid;gap:2px;max-height:45dvh;overflow:auto;`;
+const PopoutCheck = styled.label`display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;input{width:18px;height:18px;accent-color:var(--link);}`;
+const PopoutActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:18px;`;
 type UndoNotice = { kind: UndoNoticeKind; text: string; document: TodoDocument };
 type DeletionFeedback = { kind: 'item-deletion' | 'detail-deletion'; text: string };
-const LEGACY_RAW_DRAFT_KEY = 'hito-raw-draft-v1';
-const SAVED_RANGE_KEY = 'hito-journal-range-v1';
+type PopoutScope = { kind: 'scratchpad' } | { kind: 'dated'; from: string; to: string } | { kind: 'undated'; lists: string[] };
+const readPopoutScope = (): PopoutScope | null => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('popout') === 'scratchpad') return { kind: 'scratchpad' };
+  if (params.get('popout') === 'dated') {
+    const from = params.get('from') ?? '';
+    const to = params.get('to') ?? from;
+    if (validDate(from) && validDate(to) && from <= to) return { kind: 'dated', from, to };
+  }
+  if (params.get('popout') === 'undated') return { kind: 'undated', lists: params.getAll('list') };
+  return null;
+};
+const LEGACY_RAW_DRAFT_KEY = 'shio-pan-raw-draft-v1';
+const SAVED_RANGE_KEY = 'shio-pan-journal-range-v1';
 const readSavedRange = (): DateSpan | null => {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVED_RANGE_KEY) ?? 'null') as DateSpan | null;
@@ -187,7 +205,7 @@ const visibleHistoryRows = () => {
 };
 const tagVisibleHistoryRows = (tagged: Set<HTMLElement>) => {
   for (const [id, { element }] of visibleHistoryRows()) {
-    element.style.viewTransitionName = `hito-item-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    element.style.viewTransitionName = `shio-pan-item-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
     tagged.add(element);
   }
 };
@@ -199,6 +217,10 @@ const changedHistoryIds = (before: TodoDocument, after: TodoDocument) => {
   }
   return changed;
 };
+const itemSnapshots = (document: TodoDocument) => new Map([
+  ...document.days.flatMap(day => day.items.map(item => [item.id, JSON.stringify([day.date, itemValue(item)])] as const)),
+  ...(document.undated ?? []).flatMap(list => list.items.map(item => [item.id, JSON.stringify([list.name, itemValue(item)])] as const)),
+]);
 const animateHistoryFallback = (before: Map<string, HistoryRow>, changed: Set<string>) => {
   for (const [id, after] of visibleHistoryRows()) {
     const previous = before.get(id);
@@ -261,11 +283,12 @@ function DayItems({ date, items, selected, filterActive, completed, upcoming, pr
 
 export default function App() {
   useJournalFieldResize();
+  const [popout] = useState(readPopoutScope);
   const [state, setState] = useState<TodoState | null>(null);
   const current = useRef<TodoState>(emptyState());
   const previousDocument = useRef<TodoDocument | null>(null);
   const [initialRange] = useState(readSavedRange);
-  const [selectedDate, setSelectedDate] = useState(todayString);
+  const [selectedDate, setSelectedDate] = useState(() => popout?.kind === 'dated' ? popout.from : todayString());
   const [dateFormat, setDateFormatState] = useState(getDateFormat);
   const [timeZone, setTimeZoneState] = useState(getTimeZone);
   const [weekStart, setWeekStartState] = useState(getWeekStart);
@@ -277,14 +300,14 @@ export default function App() {
   const [viewHolidays, setViewHolidays] = useState<Record<string, PublicHoliday[]>>({});
   const viewHolidayCache = useRef<Map<string, Promise<HolidayYear>>>(new Map());
   const holidayImport = useRef<AbortController | null>(null);
-  const [viewMode, setViewMode] = useState<'day' | 'range'>('range');
-  const [activeTab, setActiveTab] = useState<'dated' | 'undated'>('dated');
+  const [viewMode, setViewMode] = useState<'day' | 'range'>(() => popout?.kind === 'dated' && popout.from === popout.to ? 'day' : 'range');
+  const [activeTab, setActiveTab] = useState<'dated' | 'undated' | 'scratchpad'>(() => popout?.kind ?? 'dated');
   const [scopePrompt, setScopePrompt] = useState<{ date: string; id: string; label: string } | null>(null);
   const scopedChange = useRef<((item: TodoItem, items: TodoItem[]) => void) | null>(null);
   const scopedMove = useRef<string | null>(null);
   const scopedDelete = useRef(false);
-  const [activeRange, setActiveRange] = useState<DateSpan>(() => initialRange ?? weekRange(todayString(), getWeekStart()));
-  const [rangeCustomized, setRangeCustomized] = useState(!!initialRange);
+  const [activeRange, setActiveRange] = useState<DateSpan>(() => popout?.kind === 'dated' ? { from: popout.from, to: popout.to } : initialRange ?? weekRange(todayString(), getWeekStart()));
+  const [rangeCustomized, setRangeCustomized] = useState(!!initialRange || popout?.kind === 'dated');
   const [expandedEarlierKey, setExpandedEarlierKey] = useState<string | null>(null);
   const journalViewport = useRef<HTMLDivElement>(null);
   const positionedView = useRef<string | null>(null);
@@ -298,6 +321,12 @@ export default function App() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [popoutChooser, setPopoutChooser] = useState<'dated' | 'undated' | null>(null);
+  const [popoutFrom, setPopoutFrom] = useState(todayString);
+  const [popoutTo, setPopoutTo] = useState(todayString);
+  const [popoutLists, setPopoutLists] = useState<string[]>([]);
+  const [scratchUndo, setScratchUndo] = useState<ScratchpadUndo | null>(null);
+  const [scratchReloadToken, setScratchReloadToken] = useState(0);
   const [review, setReview] = useState<FileReviewState | null>(null);
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
@@ -309,6 +338,8 @@ export default function App() {
   const searchButton = useRef<HTMLButtonElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
+  const journalQueue = useRef<Promise<void>>(Promise.resolve());
+  const pendingJournal = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const today = todayString();
   const shownHolidayYears = (viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]).map(date => Number(date.slice(0, 4)));
@@ -341,11 +372,12 @@ export default function App() {
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
+    if (popout) return;
     try {
       if (viewMode === 'range' && rangeCustomized) localStorage.setItem(SAVED_RANGE_KEY, JSON.stringify(activeRange));
       else localStorage.removeItem(SAVED_RANGE_KEY);
     } catch { /* The visible range still works for this session. */ }
-  }, [viewMode, activeRange, rangeCustomized]);
+  }, [viewMode, activeRange, rangeCustomized, popout]);
 
   useEffect(() => {
     if (!dateOpen) return;
@@ -365,20 +397,66 @@ export default function App() {
       else if (draft !== null) setLegacyRawDraft(draft);
     } catch { /* The journal remains available if session storage is blocked. */ }
   }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
+  useEffect(() => subscribeStore('journal', () => {
+    if (pendingJournal.current) return;
+    void loadTodoState().then(latest => {
+      if (latest.revision <= current.current.revision) return;
+      current.current = latest;
+      undoStack.current = [];
+      redoStack.current = [];
+      setFeedbackNotice(null);
+      setState(latest);
+    }).catch(error => setMessage(`Could not refresh journal: ${String(error)}`));
+  }), []);
   useEffect(() => { if (state) previousDocument.current = state.document; }, [state?.document]);
   useEffect(() => {
     if (!feedbackNotice) return;
     const timeout = window.setTimeout(() => setFeedbackNotice(null), 6000);
     return () => window.clearTimeout(timeout);
   }, [feedbackNotice]);
+  const enqueueJournal = (work: () => Promise<TodoState | null>) => {
+    pendingJournal.current++;
+    const task = journalQueue.current.then(work);
+    journalQueue.current = task.then(() => undefined, () => undefined);
+    void task.finally(async () => {
+      pendingJournal.current--;
+      if (pendingJournal.current) return;
+      try {
+        const latest = await loadTodoState();
+        current.current = latest;
+        setState(latest);
+      } catch (error) { setMessage(`Could not refresh journal: ${String(error)}`); }
+    }).catch(() => undefined);
+    return task;
+  };
+  const persistSnapshot = (next: TodoState, before: TodoState) => enqueueJournal(() => mutateTodoState(latest => {
+    if (serializeTodoText(latest.document) !== serializeTodoText(before.document)) throw new Error('The journal changed in another window. Your edit was not saved; reload and try again.');
+    return { ...next, revision: latest.revision };
+  }));
   const commitState = async (next: TodoState) => {
-    const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
+    const before = current.current;
+    const stamped = { ...next, revision: before.revision + 1 };
     current.current = stamped;
     setState(stamped);
-    await saveTodoState(stamped);
+    await persistSnapshot(stamped, before);
   };
+  const persistEdit = (before: TodoDocument, optimistic: TodoDocument, change: (document: TodoDocument) => void) => enqueueJournal(() => mutateTodoState(latest => {
+    if (serializeTodoText(latest.document) === serializeTodoText(before)) return { ...latest, document: optimistic };
+    const oldItems = itemSnapshots(before);
+    const newItems = itemSnapshots(optimistic);
+    const incomingItems = itemSnapshots(latest.document);
+    const changedIds = new Set([...oldItems.keys(), ...newItems.keys()].filter(id => oldItems.get(id) !== newItems.get(id)));
+    if ([...changedIds].some(id => oldItems.get(id) !== incomingItems.get(id))) throw new Error('The same item changed in another window. Your edit was not saved; reload and try again.');
+    const document = cloneDocument(latest.document);
+    change(document);
+    document.days = document.days.filter(day => day.items.length || day.keepEmpty);
+    advanceRecurrences(latest.document, document, todayString());
+    validateDocument(document);
+    return { ...latest, document };
+  }));
   const replayState = (documentData: TodoDocument) => {
     const next = { ...current.current, document: documentData };
+    const before = current.current;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!reduceMotion && document.startViewTransition) {
       const active = activeHistoryTransition.current;
@@ -402,15 +480,15 @@ export default function App() {
         activeHistoryTransition.current = null;
       };
       void transition.finished.then(clearNames, clearNames);
-      void saveTodoState(stamped).catch(error => setMessage(`Could not save: ${String(error)}`));
+      void persistSnapshot(stamped,before).catch(error => setMessage(`Could not save: ${String(error)}`));
     } else if (!reduceMotion) {
-      const before = visibleHistoryRows();
+      const beforeRows = visibleHistoryRows();
       const changed = changedHistoryIds(current.current.document, documentData);
       const stamped = { ...next, revision: Math.max(current.current.revision, next.revision) + 1 };
       current.current = stamped;
       flushSync(() => setState(stamped));
-      animateHistoryFallback(before, changed);
-      void saveTodoState(stamped).catch(error => setMessage(`Could not save: ${String(error)}`));
+      animateHistoryFallback(beforeRows, changed);
+      void persistSnapshot(stamped,before).catch(error => setMessage(`Could not save: ${String(error)}`));
     } else void commitState(next).catch(error => setMessage(`Could not save: ${String(error)}`));
   };
   const commitDocumentState = async (next: TodoState) => {
@@ -435,7 +513,10 @@ export default function App() {
     undoStack.current.push(before);
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
-    void commitState({ ...current.current, document }).catch(error => setMessage(`Could not save: ${String(error)}`));
+    const stamped = { ...current.current, document, revision: current.current.revision + 1 };
+    current.current = stamped;
+    setState(stamped);
+    void persistEdit(before,document,change).catch(error => setMessage(`Could not save: ${String(error)}`));
     setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
   };
   const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
@@ -831,6 +912,26 @@ export default function App() {
       setRangeCustomized(true);
     } else setSelectedDate(date => shiftDate(date, direction));
   };
+  const openPopout = (scope: PopoutScope) => {
+    const params = new URLSearchParams();
+    params.set('popout', scope.kind);
+    if (scope.kind === 'dated') { params.set('from',scope.from); params.set('to',scope.to); }
+    if (scope.kind === 'undated') scope.lists.forEach(name => params.append('list',name));
+    const url = `${window.location.pathname}?${params}`;
+    const opened = window.open(url, '_blank', 'popup=yes,width=600,height=780');
+    if (!opened) setMessage('The browser blocked the popout. Allow popups for Shio Pan and try again.');
+  };
+  const openPopoutChooser = () => {
+    if (activeTab === 'scratchpad') { openPopout({ kind: 'scratchpad' }); return; }
+    if (activeTab === 'dated') {
+      setPopoutFrom(viewMode === 'range' ? activeRange.from : selectedDate);
+      setPopoutTo(viewMode === 'range' ? activeRange.to : selectedDate);
+      setPopoutChooser('dated');
+    } else {
+      setPopoutLists((documentData.undated ?? []).map(list => list.name));
+      setPopoutChooser('undated');
+    }
+  };
   const allTags = useMemo(() => [...new Set([...documentData.days.flatMap(day => day.items), ...(documentData.undated ?? []).flatMap(list => list.items)].flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn)))].sort(), [documentData]);
   const unfinishedDates = useMemo(() => ({ has: (date: string) => projectItemsForDate(documentData,date).some(item => !item.completed) }), [documentData]);
   const baseDates = useMemo(() => rangeActive ? datesInRange(activeRange) : [selectedDate], [rangeActive, activeRange, selectedDate]);
@@ -886,10 +987,11 @@ export default function App() {
   }, [state !== null, activeTab, earlierViewKey, query, tag, expandedEarlier, today, baseDates, globalEarlierDays]);
   const hasResults = filteredDays.some(day => day.completed.length + day.upcoming.length > 0);
   if (!state) return <Page $dated><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
-  return <Page $dated={activeTab === 'dated'}>
+  return <Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
-    <VisuallyHidden as="h1">Hito daily journal</VisuallyHidden>
-    <Header $revealed={searchOpen || dateOpen}>
+    <VisuallyHidden as="h1">Shio Pan journal and scratchpad</VisuallyHidden>
+    <Header $revealed={!!popout || searchOpen || dateOpen}>
+    {popout && <HeaderBrand>Shio Pan · {activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated' : 'Undated'}</HeaderBrand>}
     <Toolbar>
       <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
@@ -907,22 +1009,24 @@ export default function App() {
       </>}
     </Toolbar>
     <Tools>
-      <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>
-      <Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
-      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon>
-      <Icon title="Hito settings" aria-label="Hito settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
+      {activeTab !== 'scratchpad' && <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>}
+      {!popout && activeTab !== 'scratchpad' && <><Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
+      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon></>}
+      {!popout && <Icon title="Open view in browser window" aria-label="Open view in browser window" onClick={openPopoutChooser}><PanelsTopLeft size={17}/></Icon>}
+      <Icon title="Shio Pan settings" aria-label="Shio Pan settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab></ViewTabs>
+    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setSearchOpen(false); setActiveTab('scratchpad'); }}><NotebookPen size={15} style={{verticalAlign:'-2px',marginRight:5}}/>Scratchpad</ViewTab></ViewTabs>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
-    {!!allTags.length && <TagRail $bounded={activeTab === 'dated'} aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
+    {activeTab !== 'scratchpad' && !!allTags.length && <TagRail $bounded={activeTab === 'dated'} aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
       setLegacyRawDraft(null);
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
+    {scratchUndo && <Notice role="status">Scratchpad text became journal items. <Button onClick={() => { void undoScratchpadConversion(scratchUndo).then(({ journal }) => { current.current = journal; setState(journal); setScratchReloadToken(value => value + 1); setScratchUndo(null); setMessage('Conversion undone.'); }).catch(error => { setScratchUndo(null); setMessage(String(error)); }); }}>Undo</Button><Dismiss aria-label="Dismiss conversion undo" onClick={() => setScratchUndo(null)}>×</Dismiss></Notice>}
     <UndoFeedback notice={feedbackNotice} onDismiss={() => setFeedbackNotice(null)} onUndo={() => {
       if (feedbackNotice && current.current.document === feedbackNotice.document) undo();
       else setFeedbackNotice(null);
@@ -933,8 +1037,15 @@ export default function App() {
         else setExpandedEarlierKey(earlierViewKey);
       } else if (visibleEarlier.length) scrollToJournalDate(visibleEarlier[0].date,true);
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
-    <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab === 'dated'} tabIndex={-1} role="region" aria-label={activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
-    {activeTab === 'undated' ? <UndatedView lists={documentData.undated} query={query} tag={tag}
+    <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
+    {activeTab === 'scratchpad' ? <ScratchpadView listNames={(documentData.undated ?? []).map(list => list.name)} today={today} reloadToken={scratchReloadToken} beforeConvert={() => journalQueue.current} onJournalCommitted={(journal, undo) => {
+      current.current = journal;
+      setState(journal);
+      undoStack.current = [];
+      redoStack.current = [];
+      setScratchUndo(undo);
+    }}/>
+    : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined} query={query} tag={tag}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
       onAdd={addUndated}
@@ -993,6 +1104,18 @@ export default function App() {
       <ScopeOption onClick={() => applyScope('this')}>This item</ScopeOption>
       <ScopeOption onClick={() => applyScope('following')}>This and following items</ScopeOption>
       <ScopeOption onClick={() => applyScope('all')}>All items</ScopeOption>
+    </Modal>
+    <Modal open={popoutChooser !== null} onClose={() => setPopoutChooser(null)} title={popoutChooser === 'dated' ? 'Open dated window' : 'Open undated window'} compact>
+      {popoutChooser === 'dated' ? <>
+        <ScopeHint>Choose any day or date range for this window.</ScopeHint>
+        <PopoutField>From<Field aria-label="Popout start date" type="date" value={popoutFrom} onChange={event => setPopoutFrom(event.target.value)}/></PopoutField>
+        <PopoutField>To<Field aria-label="Popout end date" type="date" value={popoutTo} onChange={event => setPopoutTo(event.target.value)}/></PopoutField>
+      </> : <><ScopeHint>Choose the lists to show in this window.</ScopeHint><PopoutList>{(documentData.undated?.length ? documentData.undated : [{ name: 'Inbox', items: [] }]).map(list => <PopoutCheck key={list.name}><input type="checkbox" checked={popoutLists.includes(list.name)} onChange={event => setPopoutLists(previous => event.target.checked ? [...previous,list.name] : previous.filter(name => name !== list.name))}/>{list.name}</PopoutCheck>)}</PopoutList></>}
+      <PopoutActions><Button onClick={() => setPopoutChooser(null)}>Cancel</Button><Button $primary disabled={popoutChooser === 'dated' ? !validDate(popoutFrom) || !validDate(popoutTo) || popoutFrom > popoutTo : !popoutLists.length} onClick={() => {
+        if (popoutChooser === 'dated') openPopout({ kind: 'dated', from: popoutFrom, to: popoutTo });
+        else if (popoutChooser === 'undated') openPopout({ kind: 'undated', lists: popoutLists });
+        setPopoutChooser(null);
+      }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}

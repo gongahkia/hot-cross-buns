@@ -1,6 +1,6 @@
 # TODO.txt import doctor
 
-The doctor runs before an import changes Hito's IndexedDB working copy. It shows the imported file and a separate editable working copy. It never rewrites the file you selected. Only **Apply import** changes the browser journal. If both the browser journal and file changed the same item, a separate merge review follows the format review.
+The doctor runs before an import changes Shio Pan's IndexedDB working copy. It shows the imported file and a separate editable working copy. It never rewrites the file you selected. Only **Apply import** changes the browser journal. If both the browser journal and file changed the same item, a separate merge review follows the format review.
 
 The doctor proposes narrow repairs when the intended structure is recognizable. Every proposal is shown with its original and replacement text. You can edit the working copy, then choose **Check file** to run the doctor again. You can cancel without applying anything.
 
