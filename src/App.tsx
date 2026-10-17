@@ -399,6 +399,15 @@ export default function App() {
     } catch { /* The journal remains available if session storage is blocked. */ }
   }).catch(error => setMessage(`Could not open IndexedDB: ${String(error)}`)); }, []);
   useEffect(() => {
+    const guardPendingSave = (event: BeforeUnloadEvent) => {
+      if (!pendingJournal.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', guardPendingSave);
+    return () => window.removeEventListener('beforeunload', guardPendingSave);
+  }, []);
+  useEffect(() => {
     let deferred = false;
     const refresh = () => {
       if (pendingJournal.current) return;

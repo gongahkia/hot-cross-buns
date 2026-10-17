@@ -37,6 +37,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   const editor = useRef<HTMLTextAreaElement>(null);
   const current = useRef<ScratchpadState>({ text: '', revision: 0 });
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaves = useRef(0);
   const releaseLock = useRef<(() => void) | null>(null);
   const lockChannel = useRef<BroadcastChannel | null>(null);
   const mounted = useRef(true);
@@ -79,15 +80,25 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     };
   }, []);
   useEffect(() => { if (reloadToken) void refresh().catch(error => setMessage(String(error))); }, [reloadToken]);
+  useEffect(() => {
+    const guardPendingSave = (event: BeforeUnloadEvent) => {
+      if (!pendingSaves.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', guardPendingSave);
+    return () => window.removeEventListener('beforeunload', guardPendingSave);
+  }, []);
   const save = (text: string) => {
     setDraft(text);
+    pendingSaves.current++;
     queue.current = queue.current.then(async () => {
       const next = await saveScratchpadText(current.current.revision, text);
       current.current = next;
     }).catch(async error => {
       setMessage(String(error));
       await refresh();
-    });
+    }).finally(() => { pendingSaves.current--; });
   };
   const rememberSelection = () => {
     const field = editor.current;

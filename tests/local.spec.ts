@@ -12,6 +12,19 @@ async function confirmTodoDownload(page: Page) {
   await preview.getByRole('button', { name: 'download' }).click();
 }
 
+async function storedJournal(page: Page): Promise<{ days: Array<{ date: string; keepEmpty?: boolean; items: Array<{ text: string }> }> } | null> {
+  return page.evaluate(() => new Promise<{ days: Array<{ date: string; keepEmpty?: boolean; items: Array<{ text: string }> }> } | null>(resolve => {
+    const request = indexedDB.open('shio-pan-v1');
+    request.onerror = () => resolve(null);
+    request.onsuccess = () => {
+      const db = request.result;
+      const entry = db.transaction('state', 'readonly').objectStore('state').get('current');
+      entry.onsuccess = () => { db.close(); resolve(entry.result?.document ?? null); };
+      entry.onerror = () => { db.close(); resolve(null); };
+    };
+  }));
+}
+
 async function selectJournalCalendarDate(page: Page, date: string) {
   const calendar = page.getByLabel('Choose journal date');
   await calendar.getByRole('combobox', { name: 'Choose the Year' }).selectOption(date.slice(0, 4));
@@ -39,6 +52,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await page.getByRole('textbox', { name: 'Edit Review paper #work' }).press('Enter');
   await page.getByRole('textbox', { name: 'New item after current item' }).fill('Call Alex');
   await page.getByRole('textbox', { name: 'New item after current item' }).press('Enter');
+  await expect.poll(async () => (await storedJournal(page))?.days.some(day => day.items.some(item => item.text === 'Call Alex')), { timeout: 10000 }).toBe(true);
   await page.reload();
   await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen Review paper #work' })).toBeVisible();
@@ -193,6 +207,7 @@ test('imports and exports an empty date heading without turning it into an item'
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${day}\n`) });
   await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' })).toHaveCount(0);
+  await expect.poll(async () => (await storedJournal(page))?.days.some(entry => entry.date === day && entry.keepEmpty), { timeout: 10000 }).toBe(true);
   await page.reload();
   const promise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
@@ -250,15 +265,23 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
   await page.getByRole('button', { name: 'Expand details for Alpha' }).click();
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
 
-  const source = await page.getByRole('button', { name: 'Drag to reorder Beta' }).boundingBox();
-  const destination = await page.getByRole('button', { name: 'Drag to reorder Alpha' }).boundingBox();
-  expect(source && destination).toBeTruthy();
-  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + 5, { steps: 15 });
-  await page.mouse.up();
   const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const source = await page.getByRole('button', { name: 'Drag to reorder Beta' }).boundingBox();
+    const destination = await page.getByRole('button', { name: 'Drag to reorder Alpha' }).boundingBox();
+    expect(source && destination).toBeTruthy();
+    await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + destination!.height / 2, { steps: 15 });
+    await page.waitForTimeout(220);
+    const settled = await page.getByRole('button', { name: 'Drag to reorder Alpha' }).boundingBox();
+    expect(settled).toBeTruthy();
+    await page.mouse.move(settled!.x + settled!.width / 2, settled!.y + settled!.height / 2, { steps: 5 });
+    await page.mouse.up();
+    if (await todaySection.getByRole('group').first().getAttribute('aria-label') === 'Beta') break;
+  }
   await expect(todaySection.getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
+  await expect.poll(async () => (await storedJournal(page))?.days.find(day => day.date === today)?.items[0]?.text, { timeout: 10000 }).toBe('Beta');
   await page.reload();
   await expect(todaySection.getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
 
@@ -356,26 +379,34 @@ test('dragging an item between Upcoming and Done updates every detail', async ({
   await page.getByRole('button', { name: 'Complete Done anchor' }).click();
   await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
 
-  const dragOnto = async (source: string, target: string) => {
-    const from = await page.getByRole('button', { name: `Drag to reorder ${source}` }).boundingBox();
-    const to = await page.getByRole('button', { name: `Drag to reorder ${target}` }).boundingBox();
-    expect(from && to).toBeTruthy();
-    await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 20 });
-    const settledTarget = await page.getByRole('button', { name: `Drag to reorder ${target}` }).boundingBox();
-    expect(settledTarget).toBeTruthy();
-    await page.mouse.move(settledTarget!.x + settledTarget!.width / 2, settledTarget!.y + settledTarget!.height / 2, { steps: 5 });
-    await page.mouse.up();
+  const dragOnto = async (source: string, target: string, completed: boolean) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const from = await page.getByRole('button', { name: `Drag to reorder ${source}` }).boundingBox();
+      const to = await page.getByRole('button', { name: `Drag to reorder ${target}` }).boundingBox();
+      expect(from && to).toBeTruthy();
+      await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 20 });
+      await page.waitForTimeout(220);
+      const settledTarget = await page.getByRole('button', { name: `Drag to reorder ${target}` }).boundingBox();
+      expect(settledTarget).toBeTruthy();
+      await page.mouse.move(settledTarget!.x + settledTarget!.width / 2, settledTarget!.y + settledTarget!.height / 2, { steps: 5 });
+      await page.mouse.up();
+      try {
+        await expect(page.getByRole('group', { name: source }).getByRole('button', { name: `${completed ? 'Reopen' : 'Complete'} ${source}` })).toBeVisible({ timeout: 500 });
+        return;
+      } catch { /* The animated target may have moved during this gesture. */ }
+    }
+    throw new Error(`Could not drag ${source} onto ${target}`);
   };
 
-  await dragOnto('Move me', 'Done anchor');
+  await dragOnto('Move me', 'Done anchor', true);
   const moved = page.getByRole('group', { name: 'Move me' });
   await expect(page.getByRole('status', { name: 'Completion confirmation' })).toContainText('Moved to Done: Move me');
   await expect(moved.getByRole('button', { name: 'Reopen Move me' })).toHaveAttribute('aria-description', '3 of 3 details done');
   for (const detail of ['first', 'second', 'third']) await expect(moved.getByRole('button', { name: `Reopen detail ${detail}` })).toBeVisible();
 
-  await dragOnto('Move me', 'Open anchor');
+  await dragOnto('Move me', 'Open anchor', false);
   await expect(page.getByRole('status', { name: 'Completion confirmation' })).toHaveCount(0);
   await expect(moved.getByRole('button', { name: 'Complete Move me' })).toHaveAttribute('aria-description', '0 of 3 details done');
   for (const detail of ['first', 'second', 'third']) await expect(moved.getByRole('button', { name: `Complete detail ${detail}` })).toBeVisible();
