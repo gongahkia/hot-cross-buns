@@ -20,8 +20,7 @@ import { plannerLinkTargets } from "../../plannerLinkTargets";
 import {
   addUtcDaysIso,
   dateInputToIso,
-  dateInputValue,
-  startOfUtcDayIso
+  dateInputValue
 } from "../../coreScreenShared";
 import { CalendarSourceSwatch } from "./CalendarEventChips";
 import {
@@ -933,7 +932,7 @@ export function CalendarEventForm({
 
   function setAllDay(allDay: boolean): void {
     if (allDay) {
-      const startsAt = startOfUtcDayIso(draft.startsAt);
+      const startsAt = dateInputToIso(calendarDateTimeLocalInputValue(draft.startsAt, sourceTimeZone).slice(0, 10));
       setDraft({
         ...draft,
         allDay,
@@ -943,7 +942,7 @@ export function CalendarEventForm({
       return;
     }
 
-    const startsAt = `${dateInputValue(draft.startsAt)}T09:00:00.000Z`;
+    const startsAt = calendarDateTimeLocalInputToIso(`${dateInputValue(draft.startsAt)}T09:00`, sourceTimeZone);
     setDraft({
       ...draft,
       allDay,
