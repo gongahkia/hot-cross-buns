@@ -19,25 +19,29 @@ interface PageCache<T, Page> {
 }
 
 /** A small page cache, two concurrent reads, and no queue of stale scroll positions. */
-export function usePagedCollection<T, Page extends CollectionPage<T> = CollectionPage<T>>(queryKey: string, load: (offset: number, limit: number) => Promise<Page>, pageSize = 100): PagedCollection<T, Page> {
+export function usePagedCollection<T, Page extends CollectionPage<T> = CollectionPage<T>>(queryKey: string, load: (offset: number, limit: number) => Promise<Page>, pageSize = 100, enabled = true): PagedCollection<T, Page> {
   const [version, render] = useReducer((value: number) => value + 1, 0);
   const latestLoad = useRef(load);
   latestLoad.current = load;
+  const inFlight = useRef(0);
+  const pumpRef = useRef<() => void>(() => undefined);
   const active = useRef<PageCache<T, Page> | null>(null);
   const cache = useMemo<PageCache<T, Page>>(() => {
     const previous = active.current;
     return {
-      pages: new Map([...(previous?.pages ?? [])].map(([offset, page]) => [offset, { ...page, stale: true }])),
-      pending: new Set(), failed: new Map(), total: previous?.total ?? null, info: previous?.info ?? null,
+      pages: new Map([...(enabled ? previous?.pages ?? [] : [])].map(([offset, page]) => [offset, { ...page, stale: true }])),
+      pending: new Set(), failed: new Map(), total: previous?.total ?? null, info: enabled ? previous?.info ?? null : null,
       wanted: new Set(previous?.wanted ?? [0]), clock: previous?.clock ?? 0
     };
-  }, [queryKey]);
+  }, [queryKey, enabled]);
   active.current = cache;
   const pump = useCallback(() => {
+    if (!enabled || active.current !== cache) return;
     for (const offset of cache.wanted) {
-      if (cache.pending.size >= 2) break;
+      if (inFlight.current >= 2) break;
       if ((cache.pages.has(offset) && !cache.pages.get(offset)!.stale) || cache.pending.has(offset) || cache.failed.has(offset)) continue;
       cache.pending.add(offset);
+      inFlight.current += 1;
       void latestLoad.current(offset, pageSize).then((page) => {
         if (active.current !== cache) return;
         cache.total = page.page.totalKnown;
@@ -53,10 +57,13 @@ export function usePagedCollection<T, Page extends CollectionPage<T> = Collectio
         if (active.current === cache) cache.failed.set(offset, error instanceof Error ? error.message : "This page could not be loaded.");
       }).finally(() => {
         cache.pending.delete(offset);
-        if (active.current === cache) { render(); pump(); }
+        inFlight.current -= 1;
+        if (active.current === cache) render();
+        pumpRef.current();
       });
     }
-  }, [cache, pageSize]);
+  }, [cache, pageSize, enabled]);
+  pumpRef.current = pump;
   const ensure = useCallback((start: number, end: number) => {
     const wanted = new Set<number>();
     const boundedEnd = cache.total === null ? 1 : Math.min(cache.total, end);
@@ -67,10 +74,21 @@ export function usePagedCollection<T, Page extends CollectionPage<T> = Collectio
       // An anomalously tall viewport must not turn into an unbounded prefetch.
       if (wanted.size === 4) break;
     }
+    // An empty list must revalidate after a mutation/query change. Its old
+    // zero count cannot suppress the read that discovers its first new row.
+    if (cache.total === 0 && (!cache.pages.has(0) || cache.pages.get(0)!.stale)) wanted.add(0);
     cache.wanted = wanted;
     pump();
   }, [cache, pageSize, pump]);
-  useEffect(() => { pump(); }, [pump]);
+  useEffect(() => {
+    active.current = cache;
+    pumpRef.current = pump;
+    pump();
+    return () => {
+      cache.pages.clear(); cache.info = null;
+      if (active.current === cache) { active.current = null; pumpRef.current = () => undefined; }
+    };
+  }, [cache, pump]);
   return {
     total: cache.total, info: cache.info, error: cache.failed.values().next().value,
     loadedCount: [...cache.pages.values()].reduce((sum, page) => sum + page.items.length, 0), version,

@@ -27,6 +27,7 @@ export interface TaskViewModel {
   accountId?: string;
   listId: string;
   parentId: string | null;
+  parentTitle?: string;
   title: string;
   detail: string;
   list: string;
@@ -68,6 +69,7 @@ export interface CalendarEventViewModel {
   id: string;
   accountId?: string;
   eventId: string;
+  detailsTruncated?: boolean;
   hcbKind?: "birthday";
   status?: "confirmed" | "tentative" | "cancelled";
   sourceKind?: "event" | "task";

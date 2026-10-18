@@ -29,12 +29,13 @@ Keep test layers separate:
 
 - `test:unit`: domain and renderer unit tests
 - `test:db`: SQLite migration/repository tests
-- `test:ipc`: preload and IPC contract tests
-- `test:mcp`: MCP contract tests
+- `test:security`: main/preload validation and security tests (also covered by the unit suite)
 - `test:smoke`: Playwright Electron smoke tests
 - `test:perf`: local performance smoke tests
 
-The default `test` command should run reliable checks. Expensive performance and packaging checks may be opt-in until release gates require them.
+Vitest uses at most two workers to keep concurrent renderer fixtures and module graphs within a predictable memory bound. Database tests run under Electron’s Node ABI in an isolated temporary directory.
+
+The default `test` command runs the unit suite. Expensive performance and packaging checks may be opt-in until release gates require them.
 
 ## Performance Smoke Tests
 

@@ -4,8 +4,12 @@ import type { MarkdownPlannerLinkTarget } from "./MarkdownPreview";
 
 type CoreSource = ReturnType<typeof useCoreViewModelSource>;
 
+const targetCache = new WeakMap<CoreSource, MarkdownPlannerLinkTarget[]>();
+
 export function plannerLinkTargets(source: CoreSource): MarkdownPlannerLinkTarget[] {
-  return [
+  const cached = targetCache.get(source);
+  if (cached) return cached;
+  const targets = [
     ...source.initialNotes.map(noteLinkTarget),
     ...source.largeTaskWindow.map(taskLinkTarget),
     ...source.calendarAgendaEvents.map(eventLinkTarget),
@@ -22,6 +26,8 @@ export function plannerLinkTargets(source: CoreSource): MarkdownPlannerLinkTarge
       title: calendar.title
     }))
   ];
+  targetCache.set(source, targets);
+  return targets;
 }
 
 function noteLinkTarget(note: NoteViewModel): MarkdownPlannerLinkTarget {

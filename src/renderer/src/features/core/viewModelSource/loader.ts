@@ -141,7 +141,7 @@ export async function loadCoreData(
       (request) => hcb.calendar.listCalendars(request).then((result) => unwrap(result, "Calendars failed"))
     ),
     loadAllPages<CalendarRangeRequest, CalendarRangeResponse>(
-      { start: calendarRange.start, end: calendarRange.end, limit: 500 },
+      { start: calendarRange.start, end: calendarRange.end, limit: 500, summary: true },
       (request) => hcb.calendar.listEvents(request).then((result) => unwrap(result, "Calendar events failed"))
     ),
     loadAllPages<ScheduledTaskBlockListRequest, ScheduledTaskBlockListResponse>(
@@ -309,7 +309,7 @@ async function loadNoteHydration(): Promise<{
   const startedAt = performance.now();
 
   try {
-    const notes = unwrap(await window.hcb!.notes.list({ limit: 50, summary: true }), "Notes failed");
+    const notes = await unwrap(await window.hcb!.notes.list({ limit: 50, summary: true }), "Notes failed");
     const totalKnown = knownTotal(notes.page.totalKnown, notes.items.length);
 
     recordRendererTiming({

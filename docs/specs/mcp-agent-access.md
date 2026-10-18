@@ -1,5 +1,7 @@
 # MCP Agent Access Spec
 
+Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
+
 ## Scope
 
 Hot Cross Buns 2 exposes an opt-in local MCP endpoint for agent clients configured by the user. The endpoint must bind to `127.0.0.1` and must never expose Google tokens, Keychain material, raw credentials, cache encryption keys, or unsanitized diagnostics.

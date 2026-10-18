@@ -1,5 +1,7 @@
 # Core App Spec
 
+Current scope: see the [product contract](../product/current-capabilities.md). Requirements below remain subject to implementation and platform verification; unsupported MCP/agent controls are not exposed.
+
 ## Scope
 
 The core app is the first user-facing implementation target. It covers tasks, calendar, notes, search, command palette, tray/menu-bar entry, global hotkey capture, settings, diagnostics, and basic notifications.
@@ -127,7 +129,7 @@ Required commands:
 - open Settings
 - refresh
 - force full resync
-- toggle MCP server if enabled by settings
+- show only implemented, supported commands
 - copy diagnostics summary
 
 Palette commands should call the same service APIs as visible UI controls.
@@ -158,7 +160,7 @@ Required settings areas:
 - tray/menu-bar behavior
 - local notifications
 - local data controls
-- MCP agent access
+- Backup and local-note recovery
 - diagnostics and recovery
 
 Settings must not expose raw tokens, secrets, cache encryption keys, or full Google diagnostic payloads.
@@ -167,7 +169,7 @@ Settings must not expose raw tokens, secrets, cache encryption keys, or full Goo
 
 - Renderer cannot access Node APIs directly.
 - Every core action uses typed preload IPC.
-- Task/event write flows share the same mutation services used by MCP.
+- Task/event writes use validated worker domain services; future agent integrations must reuse those services.
 - Search returns local cache results without network access.
 - The app can render after restart from local SQLite before fresh sync completes.
 - Section changes must swap to the cached local view immediately; sync and

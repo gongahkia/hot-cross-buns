@@ -45,6 +45,12 @@ export function buildNativeMenuBarSnapshot(
   const tomorrowEvents = events
     .filter((event) => eventStartsBetween(event, tomorrowStart, dayAfterTomorrowStart))
     .sort(compareEventsByStart);
+  const cachedCounts = planner.planningCounts?.();
+  const totals = cachedCounts?.dayStart === todayStart.toISOString() ? cachedCounts : undefined;
+  const overdueCount = totals?.overdueTasks ?? overdueTasks.length;
+  const todayTaskCount = totals?.todayTasks ?? todayTasks.length;
+  const todayEventCount = totals?.todayEvents ?? todayEvents.length;
+  const tomorrowCount = (totals?.tomorrowTasks ?? tomorrowTasks.length) + (totals?.tomorrowEvents ?? tomorrowEvents.length);
   const currentEvent = todayEvents.find((event) => {
     const startsAt = dateFromIso(event.startsAt);
     const endsAt = dateFromIso(event.endsAt);
@@ -64,10 +70,10 @@ export function buildNativeMenuBarSnapshot(
     tomorrowEvents
   });
   const pinnedFilters = menuBarPinnedFilterItems(planner, settings);
-  const todayCount = todayTasks.length + todayEvents.length;
+  const todayCount = todayTaskCount + todayEventCount;
   const calendar =
     settings.menuBarPanelStyle === "calendar"
-      ? menuBarCalendarSnapshot(todayStart, todayEvents, todayTasks, now)
+      ? menuBarCalendarSnapshot(todayStart, todayEvents, todayTasks, now, todayEventCount, todayTaskCount)
       : undefined;
   const accountSnapshot = menuBarAccountSnapshot(account);
   const syncLabel = accountSnapshot?.connectionState === "connected" ? "Synced" : "Local";
@@ -78,22 +84,22 @@ export function buildNativeMenuBarSnapshot(
       ? "Agenda"
       : settings.menuBarPanelStyle === "calendar"
         ? "Calendar"
-        : menuBarTitle(overdueTasks.length, todayCount, currentEvent, nextEvent);
+        : menuBarTitle(overdueCount, todayCount, currentEvent, nextEvent);
   const subtitle =
     settings.menuBarPanelStyle === "adaptive" || settings.menuBarPanelStyle === "calendar"
       ? undefined
       : menuBarSubtitle(
-          overdueTasks.length,
+          overdueCount,
           todayCount,
-          tomorrowTasks.length + tomorrowEvents.length
+          tomorrowCount
         );
   const badgeLabel =
-    settings.showMenuBarBadge && overdueTasks.length > 0
-      ? cappedBadgeLabel(overdueTasks.length)
+    settings.showMenuBarBadge && overdueCount > 0
+      ? cappedBadgeLabel(overdueCount)
       : undefined;
   const dockBadgeLabel =
-    settings.showDockBadge && overdueTasks.length > 0
-      ? cappedBadgeLabel(overdueTasks.length)
+    settings.showDockBadge && overdueCount > 0
+      ? cappedBadgeLabel(overdueCount)
       : undefined;
   const tooltip = statusLabel
     ? `Hot Cross Buns - ${statusLabel}`
@@ -107,7 +113,7 @@ export function buildNativeMenuBarSnapshot(
     calendarIconId: settings.menuBarCalendarIconId,
     calendarDoneMode: settings.menuBarCalendarDoneMode,
     customMenuBarIcons: settings.customMenuBarIcons,
-    calendarDone: isCalendarDone(settings, todayTasks, todayEvents),
+    calendarDone: settings.menuBarCalendarDoneMode === "neverAutoSwitch" ? false : todayTaskCount === 0 && (settings.menuBarCalendarDoneMode === "tasksOnly" || (totals?.todayEventsComplete ?? todayEvents.every((event) => Boolean(event.completedAt)))),
     primaryClickAction: settings.trayClickAction,
     title,
     subtitle,
@@ -155,7 +161,7 @@ function menuBarPinnedFilterItems(
 
 function activeTasks(planner: NativePlannerSnapshotSource): TaskSummary[] {
   try {
-    return planner.listTasks({ status: "active", limit: 100 }).items;
+    return planner.listTasks({ status: "active", limit: 400 }).items;
   } catch {
     return [];
   }
@@ -170,28 +176,13 @@ function calendarEvents(
     return planner.listCalendarEvents({
       start: start.toISOString(),
       end: end.toISOString(),
-      limit: 100
+      limit: 1000
     }).items;
   } catch {
     return [];
   }
 }
 
-function isCalendarDone(
-  settings: SettingsSnapshot,
-  todayTasks: TaskSummary[],
-  todayEvents: CalendarEventSummary[]
-): boolean {
-  if (settings.menuBarCalendarDoneMode === "neverAutoSwitch") {
-    return false;
-  }
-
-  if (settings.menuBarCalendarDoneMode === "tasksOnly") {
-    return todayTasks.length === 0;
-  }
-
-  return todayTasks.length === 0 && todayEvents.every((event) => Boolean(event.completedAt));
-}
 
 function menuBarSections(
   style: SettingsSnapshot["menuBarPanelStyle"],
@@ -360,7 +351,7 @@ function durationText(from: Date, to: Date): string {
 }
 
 function taskDueStatus(now: Date, dueAtIso: string): string {
-  const dueAt = dateFromIso(dueAtIso);
+  const dueAt = taskDateFromIso(dueAtIso);
 
   if (!dueAt) {
     return "due";
@@ -415,7 +406,9 @@ function menuBarCalendarSnapshot(
   selectedDay: Date,
   events: CalendarEventSummary[],
   tasks: TaskSummary[],
-  now: Date
+  now: Date,
+  eventCount = events.length,
+  taskCount = tasks.length
 ): NativeMenuBarSnapshot["calendar"] {
   const sortedEvents = [...events].sort((left, right) => {
     if (left.allDay !== right.allDay) {
@@ -448,8 +441,8 @@ function menuBarCalendarSnapshot(
       day: "numeric",
       month: "short"
     }).format(selectedDay),
-    selectedMeta: `${events.length} event${events.length === 1 ? "" : "s"} - ${tasks.length} task${
-      tasks.length === 1 ? "" : "s"
+    selectedMeta: `${eventCount} event${eventCount === 1 ? "" : "s"} - ${taskCount} task${
+      taskCount === 1 ? "" : "s"
     }`,
     selectedItems:
       selectedItems.length > 0 ? selectedItems : [{ label: "Nothing scheduled", detail: "today" }]
@@ -511,14 +504,19 @@ function addDays(date: Date, days: number): Date {
   return copy;
 }
 
+function taskDateFromIso(value: string): Date | null {
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])) : null;
+}
+
 function taskDueBefore(task: TaskSummary, date: Date): boolean {
-  const dueAt = task.dueAt ? dateFromIso(task.dueAt) : null;
+  const dueAt = task.dueAt ? taskDateFromIso(task.dueAt) : null;
 
   return Boolean(dueAt && dueAt < date);
 }
 
 function taskDueBetween(task: TaskSummary, start: Date, end: Date): boolean {
-  const dueAt = task.dueAt ? dateFromIso(task.dueAt) : null;
+  const dueAt = task.dueAt ? taskDateFromIso(task.dueAt) : null;
 
   return Boolean(dueAt && dueAt >= start && dueAt < end);
 }
@@ -542,13 +540,7 @@ function isoTime(value: string | null | undefined): number {
 }
 
 function dueDetail(value: string, fallback: string): string {
-  const dueAt = dateFromIso(value);
-
-  if (!dueAt) {
-    return fallback;
-  }
-
-  return isLocalMidnight(dueAt) ? fallback : `${fallback} ${formatShortTime(dueAt)}`;
+  return fallback;
 }
 
 function eventDetail(event: CalendarEventSummary): string {

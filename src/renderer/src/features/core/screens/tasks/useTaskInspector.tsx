@@ -146,7 +146,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     taskInspectorCanSaveState.set(canSave);
   }, [taskInspectorCanSaveState]);
   const cachedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
-  const selectedTask = loadedTask?.id === selectedTaskId ? { ...loadedTask, ...(cachedTask?.listId !== "unknown" ? cachedTask : {}), detail: loadedTask.detail } : cachedTask;
+  const selectedTask = loadedTask?.id === selectedTaskId ? { ...loadedTask, ...(cachedTask?.listId !== "unknown" ? cachedTask : {}), detail: loadedTask.detail, parentTitle: cachedTask?.parentTitle ?? loadedTask.parentTitle } : cachedTask;
   const parentOptions = useMemo(
     () => taskParentOptions(source.largeTaskWindow, taskDraftRef.current),
     [source.largeTaskWindow]

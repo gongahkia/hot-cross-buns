@@ -25,6 +25,8 @@ export class WorkspaceClient {
   private readonly pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
   private nextId = 0;
   private failed: Error | null = null;
+  private closing = false;
+  private closePromise: Promise<void> | null = null;
   private settingsSignature = "";
 
   constructor(userDataDirectory: string) {
@@ -49,9 +51,10 @@ export class WorkspaceClient {
       rejectReady(error);
       for (const request of this.pending.values()) request.reject(error);
       this.pending.clear();
+      this.events.emit("syncStatus", { state: "error", pendingMutationCount: 0, summary: error.message, lastErrorCode: "WORKER_STOPPED" });
     };
     this.worker.on("error", fail);
-    this.worker.on("exit", (code) => { if (code !== 0 || this.pending.size) fail(new Error("The workspace worker stopped. Restart Hot Cross Buns to reopen your local data.")); });
+    this.worker.on("exit", () => { fail(new Error(this.closing ? "Hot Cross Buns is closing." : "The workspace worker stopped. Restart Hot Cross Buns to reopen your local data.")); });
     this.worker.on("message", (message: any) => {
       if (message.kind === "ready" || message.kind === "snapshot") {
         this.snapshot = message.snapshot;
@@ -93,16 +96,19 @@ export class WorkspaceClient {
   }
 
   private publishNativeCapabilities(): void {
-    if (this.native) this.worker.postMessage({ kind: "nativeCapabilities", value: this.native.capabilities() });
+    if (this.native && !this.failed && !this.closing) this.worker.postMessage({ kind: "nativeCapabilities", value: this.native.capabilities() });
   }
 
   private async call(target: RuntimeTarget, method: string, args: unknown[]): Promise<any> {
+    if (this.closing) throw new CoreStoreError("Hot Cross Buns is closing.");
     await this.ready;
+    if (this.closing) throw new CoreStoreError("Hot Cross Buns is closing.");
     if (this.failed) throw this.failed;
     return new Promise((resolve, reject) => {
       const id = ++this.nextId;
       this.pending.set(id, { resolve, reject });
-      this.worker.postMessage({ kind: "call", id, target, method, args });
+      try { this.worker.postMessage({ kind: "call", id, target, method, args }); }
+      catch (error) { this.pending.delete(id); reject(error); }
     });
   }
 
@@ -134,14 +140,19 @@ export class WorkspaceClient {
     }
   }
 
-  async close(): Promise<void> {
-    await this.ready.catch(() => undefined);
-    if (this.failed) { await this.worker.terminate(); return; }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 2000);
-      this.events.once("closed", () => { clearTimeout(timer); resolve(); });
-      this.worker.postMessage({ kind: "close" });
-    });
-    await this.worker.terminate();
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closing = true;
+    this.closePromise = (async () => {
+      if (!this.failed) await new Promise<void>((resolve) => {
+        const done = () => { clearTimeout(timer); this.events.off("closed", done); resolve(); };
+        const timer = setTimeout(done, 2000);
+        this.events.once("closed", done);
+        // A close sent during startup is queued until the worker installs its handler.
+        try { this.worker.postMessage({ kind: "close" }); } catch { done(); }
+      });
+      await this.worker.terminate();
+    })();
+    return this.closePromise;
   }
 }

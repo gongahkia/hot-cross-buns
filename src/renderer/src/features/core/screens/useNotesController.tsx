@@ -104,6 +104,8 @@ export function useNotesController(source: CoreViewModelSource): {
   const [starredNoteAt, setStarredNoteAt] = useState<Record<string, number>>(
     () => source.settings.starredNoteAt ?? readLocalStorageNumberRecord(starredNotesAtStorageKey)
   );
+  const pendingNoteCreate = useRef<string | null>(null);
+  const [creatingNote, setCreatingNote] = useState<string | null>(null);
   const [draftCounter, setDraftCounter] = useState(1);
   const createNoteIds = useRef(new Set<string>());
   const conversionCleanupByNoteId = useRef(new Map<string, ConvertSourceCleanup>());
@@ -113,7 +115,7 @@ export function useNotesController(source: CoreViewModelSource): {
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const noteInspectorModeRef = useRef<"view" | "edit">("edit");
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
-  const noteLists = localNoteLists;
+  const noteLists = localNoteLists.length ? localNoteLists : source.noteLists;
   const noteListSignature = noteLists.map((list) => list.id).join("\n");
   const noteTemplateOptions = useMemo<NoteTemplateOption[]>(() => {
     const today = dateInputValue(new Date().toISOString());
@@ -269,6 +271,7 @@ export function useNotesController(source: CoreViewModelSource): {
     noteTemplateOptions,
     notes,
     noteActionError,
+    creatingNote,
     noteInspectorMode,
     selectedNote,
     updateInspector
@@ -302,6 +305,7 @@ export function useNotesController(source: CoreViewModelSource): {
         rules={source.settings.autoTagRules}
         source={source}
         templates={noteTemplateOptions}
+        saving={creatingNote === note.id}
         createMode={createNoteIds.current.has(note.id)}
         error={error}
         ref={noteInspectorBodyRef}
@@ -357,9 +361,9 @@ export function useNotesController(source: CoreViewModelSource): {
             <Trash2 aria-hidden="true" size={14} />
             Discard draft
           </Button>
-          <Button onClick={() => void saveLocalNoteDraft(note.id)} size="sm" variant="primary">
+          <Button disabled={creatingNote === note.id} onClick={() => void saveLocalNoteDraft(note.id)} size="sm" variant="primary">
             <Save aria-hidden="true" size={14} />
-            Create note
+            {creatingNote === note.id ? "Creating…" : "Create note"}
           </Button>
         </>
       );
@@ -408,8 +412,9 @@ export function useNotesController(source: CoreViewModelSource): {
       id: note.id,
       kind: "note",
       onConfirmClose: async () => {
+        if (note.id.startsWith("note-draft-") && !createNoteIds.current.has(note.id)) return true;
         if (noteInspectorModeRef.current === "edit") {
-          return await noteInspectorBodyRef.current?.flush() ?? true;
+          return await flushCurrentNote();
         }
         return true;
       },
@@ -431,8 +436,12 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function flushCurrentNote(): Promise<boolean> {
-    if (currentInspector?.kind !== "note" || noteInspectorModeRef.current !== "edit") return true;
-    return await noteInspectorBodyRef.current?.flush() ?? true;
+    if (noteInspectorModeRef.current !== "edit") return true;
+    const saved = await noteInspectorBodyRef.current?.flush() ?? true;
+    if (!saved) setNoteActionError(selectedNoteId?.startsWith("note-draft-")
+      ? "Use Create note to keep this draft, or Discard draft to remove it."
+      : "Your changes are still open. Retry saving before leaving this note.");
+    return saved;
   }
 
   function retainFullNote(note: NoteViewModel): void {
@@ -657,6 +666,7 @@ export function useNotesController(source: CoreViewModelSource): {
   async function saveLocalNoteDraft(noteId: string): Promise<void> {
     const note = notes.find((candidate) => candidate.id === noteId);
 
+    if (pendingNoteCreate.current) return;
     if (!note) {
       return;
     }
@@ -667,6 +677,9 @@ export function useNotesController(source: CoreViewModelSource): {
       tags: note.tags ?? []
     };
     setNoteActionError(undefined);
+    pendingNoteCreate.current = noteId;
+    setCreatingNote(noteId);
+    try {
     const result = await window.hcb?.notes.create({
       title: draft.title || "Untitled note",
       body: draft.body,
@@ -710,6 +723,12 @@ export function useNotesController(source: CoreViewModelSource): {
     createNoteIds.current.add(persisted.id);
     openNoteInspector(persisted, "edit");
     source.refresh();
+    } catch (error) {
+      setNoteActionError(error instanceof Error ? error.message : "Note was not created.");
+    } finally {
+      pendingNoteCreate.current = null;
+      setCreatingNote(null);
+    }
   }
 
   async function createNoteList(): Promise<void> {
@@ -720,7 +739,7 @@ export function useNotesController(source: CoreViewModelSource): {
       setLocalNoteLists((current) => [...current, result.data]);
       setSelectedNoteViews((current) => [...current, noteListSelection(result.data.id)]);
       source.refresh();
-    }
+    } else setNoteActionError(result?.error.message ?? "Note list was not created.");
   }
 
   async function deleteNoteList(listId: string, title: string): Promise<void> {
@@ -766,7 +785,7 @@ export function useNotesController(source: CoreViewModelSource): {
         current.map((note) => (note.listId === listId ? { ...note, listTitle: displayTitle } : note))
       );
       source.refresh();
-    }
+    } else setNoteActionError(result?.error.message ?? "Note list was not renamed.");
   }
 
   function updateNoteDraft(noteId: string, draft: NoteDraftValue): void {

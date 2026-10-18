@@ -1,5 +1,7 @@
 # Cross-Platform Porting
 
+Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
+
 Hot Cross Buns 2 starts on macOS, then ports to Linux, then Windows. The shared product core must remain platform-neutral before any non-Mac packaging work begins.
 
 ## Porting Order

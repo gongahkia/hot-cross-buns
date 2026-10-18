@@ -14,6 +14,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    minWorkers: 1,
+    maxWorkers: 2,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["./vitest.setup.ts"],
     clearMocks: true,

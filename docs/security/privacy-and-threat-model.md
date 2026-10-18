@@ -1,5 +1,7 @@
 # Privacy And Threat Model
 
+Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
+
 ## Security Posture
 
 Hot Cross Buns 2 is a local-first desktop app that syncs with Google Tasks and Google Calendar. It must protect Google credentials, local personal planning data, and MCP write access.

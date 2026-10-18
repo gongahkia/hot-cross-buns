@@ -63,6 +63,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const calendarInspectorModeRef = useRef<"view" | "edit">("edit");
   const createModeRef = useRef<CalendarCreateMode>("event");
   const createTaskListIdRef = useRef(createTaskListId);
+  const readGeneration = useRef(0);
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
     setDraftState((current) => {
@@ -376,6 +377,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   function openCreate(seed?: CalendarCreateSeed, options: CalendarCreateOptions = {}): void {
+    ++readGeneration.current;
     if (!canReplaceEventInspector()) {
       return;
     }
@@ -394,13 +396,20 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   function openEdit(event: CalendarEventViewModel): void {
-    if (!canReplaceEventInspector()) {
-      return;
-    }
-
-    setCreateMode("event");
-    conversionCleanupRef.current = null;
-    openEventInspector(editCalendarDraft(event), "view");
+    const generation = ++readGeneration.current;
+    if (!canReplaceEventInspector()) return;
+    const open = (complete: CalendarEventViewModel): void => {
+      if (generation !== readGeneration.current) return;
+      setCreateMode("event");
+      conversionCleanupRef.current = null;
+      openEventInspector(editCalendarDraft(complete), "view");
+    };
+    if (!event.detailsTruncated) { open(event); return; }
+    void window.hcb!.calendar.get({ id: event.eventId ?? event.id }).then((result) => {
+      if (generation !== readGeneration.current) return;
+      if (!result.ok) { setCalendarActionError(result.error.message); return; }
+      open({ ...event, notes: result.data.notes ?? result.data.description ?? "", detailsTruncated: false });
+    }).catch(() => { if (generation === readGeneration.current) setCalendarActionError("Calendar event could not be opened."); });
   }
 
   function duplicateEventDraftValue(sourceDraft: CalendarEventDraft): void {

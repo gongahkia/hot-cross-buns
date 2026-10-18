@@ -82,7 +82,7 @@ export function AppShell(): JSX.Element {
 
   const source = useCoreViewModelSource();
   useAppliedTheme(source.settings);
-  const paneWorkspace = usePaneWorkspace();
+  const paneWorkspace = usePaneWorkspace(source);
   const pinnedSearchFilters = useMemo(() => {
     const pinnedIds = new Set(source.settings.pinnedSavedSearchViewIds);
     return source.settings.savedSearchViews

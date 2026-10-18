@@ -1,4 +1,4 @@
-import { Children, isValidElement, useEffect, useId, useState } from "react";
+import { Children, isValidElement, useEffect, useId, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -154,6 +154,7 @@ function markdownChildrenToString(children: ReactNode): string {
 function bodyWithPlannerLinks(body: string): string {
   return body.replace(/(^|[^!])\[\[([^\]]{1,220})\]\]/g, (_match, prefix: string, raw: string) => {
     const link = parsePlannerLink(raw, "wikilink");
+    if (!link) return _match;
     const label = escapeMarkdownLabel(plannerLinkDisplayLabel(link));
     return `${prefix}[${label}](${plannerLinkHref(link)})`;
   });
@@ -177,7 +178,8 @@ function markdownSegments(body: string): MarkdownSegment[] {
     const raw = match[1]?.trim();
 
     if (raw) {
-      segments.push({ kind: "transclusion", link: parsePlannerLink(raw, "transclusion") });
+      const link = parsePlannerLink(raw, "transclusion");
+      segments.push(link ? { kind: "transclusion", link } : { body: match[0], kind: "markdown" });
     } else {
       segments.push({ body: match[0], kind: "markdown" });
     }
@@ -360,6 +362,23 @@ export function MarkdownPreview({
   transclusionDepth = 0,
   variant = "card"
 }: MarkdownPreviewProps): JSX.Element {
+  const linkRequests = useMemo(() => [...body.matchAll(/(!?)\[\[([^\]]{1,220})\]\]/g)].flatMap((match) => {
+    const link = parsePlannerLink(match[2], match[1] ? "transclusion" : "wikilink");
+    return link ? [{ kind: link.kind, label: link.label, ...(link.targetId ? { targetId: link.targetId } : {}), fullBody: false }] : [];
+  }).slice(0, 50), [body]);
+  const linkSignature = JSON.stringify(linkRequests);
+  const [resolvedLinks, setResolvedLinks] = useState<{ signature: string; items: MarkdownPlannerLinkTarget[] }>({ signature: "", items: [] });
+  useEffect(() => {
+    if (!linkRequests.length || !window.hcb?.search?.resolveLinks) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void window.hcb!.search.resolveLinks({ links: linkRequests }).then((result) => {
+        if (active && result.ok) setResolvedLinks({ signature: linkSignature, items: result.data.items });
+      }).catch(() => undefined);
+    }, 150);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [linkSignature]);
+  const availableTargets = resolvedLinks.signature === linkSignature ? [...resolvedLinks.items, ...plannerLinkTargets] : plannerLinkTargets;
   const [lightboxImage, setLightboxImage] = useState<{ alt: string; src: string; title?: string } | null>(null);
 
   useEffect(() => {
@@ -377,13 +396,20 @@ export function MarkdownPreview({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lightboxImage]);
 
+  // Most list previews are plain sentences. Preserve Markdown semantics for
+  // rich text, links, entities and lists without paying a parser cost per row.
+  if (variant === "summary" && body.trim() && !body.includes("\\") && !/[`*_~<>\[\]#|\n@]/.test(body) && !/(?:https?:\/\/|www\.|&(?:#\d+|#x[\da-f]+|\w+);|^\s*(?:[-+]\s|\d+[.)]\s|(?:-{3,}|={3,})\s*$))/i.test(body)) {
+    return <div aria-label={ariaLabel} className={cx("line-clamp-2 break-words text-[var(--text-sm)] leading-snug text-text-muted", className)}>{body.trim()}</div>;
+  }
+
   const isSummary = variant === "summary";
   const components: Components = {
     a({ children, href }) {
       const plannerLink = plannerLinkFromHref(href);
 
       if (plannerLink) {
-        const target = resolvePlannerTarget(plannerLinkTargets, plannerLink);
+        const target = resolvePlannerTarget(availableTargets, plannerLink) ?? (plannerLink.targetId
+          ? { id: plannerLink.targetId, title: plannerLink.label, kind: plannerLink.kind } : null);
 
         if (plannerLink.type === "transclusion") {
           return (
@@ -391,7 +417,7 @@ export function MarkdownPreview({
               depth={transclusionDepth}
               link={plannerLink}
               target={target}
-              targets={plannerLinkTargets}
+              targets={availableTargets}
             />
           );
         }
@@ -408,7 +434,7 @@ export function MarkdownPreview({
             onClick={() => target ? openPlannerTarget(target) : undefined}
             type="button"
           >
-            {target ? target.title : `Broken ${plannerLink.kind}: ${plannerLink.label}`}
+            {target ? target.title : `${plannerLink.kind}: ${plannerLink.label} (unavailable)`}
           </button>
         );
       }
@@ -578,8 +604,8 @@ export function MarkdownPreview({
               depth={transclusionDepth}
               key={`transclusion-${index}`}
               link={segment.link}
-              target={resolvePlannerTarget(plannerLinkTargets, segment.link)}
-              targets={plannerLinkTargets}
+              target={resolvePlannerTarget(availableTargets, segment.link)}
+              targets={availableTargets}
             />
           );
         }
@@ -644,10 +670,25 @@ function PlannerTransclusion({
   target: MarkdownPlannerLinkTarget | null;
   targets: MarkdownPlannerLinkTarget[];
 }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const [fullBody, setFullBody] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    if (!expanded || !target) { setFullBody(null); return; }
+    if (!window.hcb?.search?.resolveLinks) { setFullBody(target.body ?? ""); return; }
+    let active = true;
+    setError(undefined);
+    void window.hcb.search.resolveLinks({ links: [{ kind: target.kind, targetId: target.id, label: target.title, fullBody: true }] }).then((result) => {
+      if (!active) return;
+      if (result.ok && result.data.items[0]) setFullBody(result.data.items[0].body ?? "");
+      else setError(result.ok ? "Embedded item is no longer available." : result.error.message);
+    }).catch(() => { if (active) setError("Embedded content could not be loaded."); });
+    return () => { active = false; };
+  }, [expanded, target?.id, target?.kind]);
   if (!target) {
     return (
       <div className="my-2 rounded-hcbMd border border-warning/60 bg-bg-tertiary p-3 text-[var(--text-sm)] text-warning">
-        Broken embed {link.kind}: {link.label}
+        Embed unavailable · {link.kind}: {link.label}
       </div>
     );
   }
@@ -674,19 +715,10 @@ function PlannerTransclusion({
           {target.kind}
         </span>
       </div>
-      {target.body?.trim() ? (
-        <MarkdownPreview
-          body={target.body}
-          className="border-0 bg-transparent p-0"
-          emptyDescription="No embedded content"
-          emptyTitle="Empty embed"
-          plannerLinkTargets={targets}
-          transclusionDepth={depth + 1}
-          variant="plain"
-        />
-      ) : (
-        <span className="text-[var(--text-sm)] text-text-muted">No embedded content</span>
-      )}
+      <button aria-expanded={expanded} className="min-h-8 text-sm text-accent" onClick={() => setExpanded((value) => !value)} type="button">{expanded ? "Hide embedded content" : "Show embedded content"}</button>
+      {expanded ? error ? <p role="alert" className="text-sm text-danger">{error}</p> : fullBody === null ? <p role="status" className="text-sm text-text-muted">Loading embedded content…</p> : fullBody.trim() ? (
+        <MarkdownPreview body={fullBody} className="border-0 bg-transparent p-0" emptyDescription="No embedded content" emptyTitle="Empty embed" plannerLinkTargets={targets} transclusionDepth={depth + 1} variant="plain" />
+      ) : <span className="text-sm text-text-muted">No embedded content</span> : null}
     </div>
   );
 }

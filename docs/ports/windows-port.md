@@ -1,5 +1,7 @@
 # Windows Port
 
+Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
+
 Windows is the second non-Mac port, after the Linux technical preview. Treat it as its own platform with installer, identity, notification, signing, and SmartScreen requirements.
 
 ## Target Scope

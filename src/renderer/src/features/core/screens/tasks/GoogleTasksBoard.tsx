@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import {
   CalendarClock,
   Clock,
@@ -25,6 +25,7 @@ import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import { PagedVirtualList } from "../../../../components/PagedVirtualList";
+import { useTaskParentCandidates } from "../../../../hooks/useTaskParentCandidates";
 import { usePagedCollection } from "../../../../hooks/usePagedCollection";
 import type { TaskBoardPage, TaskBoardRow as StoredBoardRow } from "@shared/collectionPages";
 import { stableTaskViewModel } from "../../viewModelSource/taskViewModels";
@@ -142,12 +143,28 @@ export function GoogleTasksBoard({
     const visibleIds = new Set(visibleListIds);
     return source.taskLists.filter((list) => visibleIds.has(list.id)).map((list) => ({ id: list.id, list, title: list.title }));
   }, [selectedView.mode, source.taskLists, visibleListIds]);
+  useEffect(() => {
+    if (!selectedTaskId || !window.hcb?.tasks.context) return;
+    let active = true;
+    void window.hcb.tasks.context({ id: selectedTaskId }).then((result) => {
+      if (!active || !result.ok || !result.data.listId) return;
+      const column = containerRef.current?.querySelector<HTMLElement>(`[data-task-list-id="${CSS.escape(result.data.listId)}"]`);
+      column?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [selectedTaskId]);
   const [bulkTitles, setBulkTitles] = useState<Record<string, string>>({});
   const bulkSelectedTaskIds = [...bulkSelectedIds];
   const showBulkSelection = bulkModeActive || bulkSelectedTaskIds.length > 0;
 
   const toggleBulkTask = useCallback((taskId: string, selected: boolean, title?: string): void => {
-    setBulkTitles((current) => ({ ...current, [taskId]: title ?? current[taskId] ?? "Selected task" }));
+    if (selected && bulkSelectedIds.size >= 500 && !bulkSelectedIds.has(taskId)) return;
+    setBulkTitles((current) => {
+      const next = { ...current };
+      if (selected) next[taskId] = title ?? current[taskId] ?? "Selected task";
+      else delete next[taskId];
+      return next;
+    });
     setBulkSelectedIds((current) => {
       const next = new Set(current);
 
@@ -159,7 +176,7 @@ export function GoogleTasksBoard({
 
       return next;
     });
-  }, []);
+  }, [bulkSelectedIds]);
 
   async function bulkReschedule(dueDate: string | null): Promise<void> {
     if (bulkSelectedTaskIds.length === 0 || source.taskMutationPending) {
@@ -172,7 +189,7 @@ export function GoogleTasksBoard({
     });
 
     if (saved) {
-      setBulkSelectedIds(new Set());
+      setBulkSelectedIds(new Set()); setBulkTitles({});
       setBulkModeActive(false);
     }
   }
@@ -206,7 +223,7 @@ export function GoogleTasksBoard({
             customDueDate={bulkCustomDueDate}
             onApplyCustom={() => void bulkReschedule(bulkCustomDueDate || null)}
             onClearSelection={() => {
-              setBulkSelectedIds(new Set());
+              setBulkSelectedIds(new Set()); setBulkTitles({});
               setBulkModeActive(false);
             }}
             onCustomDueDateChange={setBulkCustomDueDate}
@@ -487,7 +504,7 @@ function BoardBulkRescheduleBanner({
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg-primary px-3 py-2">
       <div className="min-w-0 flex-1">
         <div className="text-[var(--text-sm)] font-semibold text-text-primary">
-          {selectedCount} {selectedCount === 1 ? "task" : "tasks"} selected
+          {selectedCount} {selectedCount === 1 ? "task" : "tasks"} selected · maximum 500
         </div>
         <div className="truncate text-[var(--text-xs)] text-text-muted">
           {selectedTitles.slice(0, 3).join(", ")}
@@ -575,6 +592,16 @@ function TaskListColumn({
   singleColumn: boolean;
   title: string;
 }): JSX.Element {
+  const columnRef = useRef<HTMLElement>(null);
+  const lastScrollTop = useRef(0);
+  const [visible, setVisible] = useState(singleColumn || typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    const element = columnRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { root: element.parentElement, rootMargin: "0px 440px" });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
@@ -593,7 +620,23 @@ function TaskListColumn({
     const result = await window.hcb!.tasks.board({ ...(list ? { listId: list.id } : { starred: true }), sort: listSort, completedOpen, collapsedTaskIds: [...collapsedTaskIds], cursor: String(offset), limit });
     if (!result.ok) throw new Error(result.error.message);
     return result.data as TaskBoardPage;
-  });
+  }, 100, visible);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const locateOptions = useRef({ listSort, collapsedTaskIds, completedOpen });
+  locateOptions.current = { listSort, collapsedTaskIds, completedOpen };
+  useEffect(() => {
+    if (!selectedTaskId || !visible) return;
+    let active = true;
+    const options = locateOptions.current;
+    void window.hcb!.tasks.board({ ...(list ? { listId: list.id } : { starred: true }), sort: options.listSort,
+      locateTaskId: selectedTaskId, collapsedTaskIds: [...options.collapsedTaskIds], completedOpen: options.completedOpen, limit: 1 }).then((result) => {
+      if (!active || !result.ok || result.data.locatedIndex == null) return;
+      if (result.data.revealParentId) toggleChildren(result.data.revealParentId, true);
+      if (result.data.revealCompleted) setCompletedOpen(true);
+      setSelectedIndex(result.data.locatedIndex);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [selectedTaskId, visible, list?.id]);
   const showAccounts = showAccountBadges(source);
 
   function handleDragOver(event: DragEvent<HTMLElement>): void {
@@ -624,6 +667,9 @@ function TaskListColumn({
 
   return (
     <section
+      ref={columnRef}
+      data-column-loaded={visible}
+      data-task-list-id={list?.id}
       className={cx(
         "flex max-h-full flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary",
         singleColumn ? "w-full" : "w-[min(420px,calc(100vw-2rem))] shrink-0",
@@ -667,9 +713,13 @@ function TaskListColumn({
         <CheckCircle2 aria-hidden="true" size={18} />
         {list ? "Add a task" : "Add a starred task"}
       </button>
-        <PagedVirtualList
+        {visible ? <PagedVirtualList
+          scrollToIndex={selectedIndex}
+          initialScrollTop={lastScrollTop.current}
+          onScrollPositionChange={(top) => { lastScrollTop.current = top; }}
           ariaLabel={`${title} tasks`}
           collection={collection}
+          getKey={(row) => row.kind === "completed" ? "completed-header" : row.task.id}
           emptyState={<div className="grid min-h-[240px] place-items-center px-6"><EmptyState description={list ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list ? `${title} is empty` : "No starred tasks"} /></div>}
           renderRow={(row) => {
             if (row.kind === "completed") return (
@@ -706,7 +756,7 @@ function TaskListColumn({
               />
             );
           }}
-        />
+        /> : <p className="p-4 text-sm text-text-muted">Scroll here to load this list.</p>}
     </section>
   );
 }
@@ -897,7 +947,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               <MarkdownPreview
                 ariaLabel={`Description for ${task.title}`}
                 body={preview}
-                plannerLinkTargets={plannerLinkTargets(source)}
+                plannerLinkTargets={/\[\[|hcb:|hotcrossbuns:/.test(task.detail) ? plannerLinkTargets(source) : undefined}
                 variant="summary"
               />
             </div>
@@ -1134,29 +1184,18 @@ function TaskActionMenu({
   source: CoreViewModelSource;
   task: TaskViewModel;
 }): JSX.Element {
-  const siblingTasks = source.largeTaskWindow
-    .filter((candidate) =>
-      candidate.listId === task.listId &&
-      candidate.parentId === task.parentId &&
-      candidate.status !== "deleted"
-    )
-    .sort((left, right) =>
-      (left.sortOrder ?? 0) - (right.sortOrder ?? 0) ||
-      (left.updatedAt ?? "").localeCompare(right.updatedAt ?? "") ||
-      left.title.localeCompare(right.title) ||
-      left.id.localeCompare(right.id)
-    );
-  const siblingIndex = siblingTasks.findIndex((candidate) => candidate.id === task.id);
-  const previousSibling = siblingIndex > 0 ? siblingTasks[siblingIndex - 1] : null;
-  const nextSibling = siblingIndex >= 0 ? siblingTasks[siblingIndex + 1] : null;
-  const rootParentCandidates = source.largeTaskWindow
-    .filter((candidate) =>
-      candidate.listId === task.listId &&
-      candidate.parentId === null &&
-      candidate.id !== task.id &&
-      candidate.status !== "deleted"
-    )
-    .sort((left, right) => left.title.localeCompare(right.title));
+  const [context, setContext] = useState<{ previousId: string | null; beforePreviousId: string | null; nextId: string | null } | null>(null);
+  const [contextError, setContextError] = useState<string>();
+  const parents = useTaskParentCandidates(task.listId, task.id);
+  useEffect(() => {
+    let active = true;
+    void window.hcb!.tasks.context({ id: task.id }).then((result) => {
+      if (!active) return;
+      if (result.ok) setContext(result.data);
+      else setContextError(result.error.message);
+    }).catch(() => { if (active) setContextError("Task order could not be loaded."); });
+    return () => { active = false; };
+  }, [task.id]);
 
   function moveWithinList(previousSiblingId: string | null): void {
     onMoveTaskRequest({
@@ -1214,32 +1253,24 @@ function TaskActionMenu({
         Delete
       </MenuButton>
       <MenuSeparator />
-      <MenuButton disabled={!previousSibling} onClick={() => moveWithinList(siblingIndex > 1 ? siblingTasks[siblingIndex - 2]?.id ?? null : null)}>
+      <MenuButton disabled={!context?.previousId} onClick={() => moveWithinList(context?.beforePreviousId ?? null)}>
         <ChevronDown aria-hidden="true" className="rotate-180" size={18} />
         Move up
       </MenuButton>
-      <MenuButton disabled={!nextSibling} onClick={() => moveWithinList(nextSibling?.id ?? null)}>
+      <MenuButton disabled={!context?.nextId} onClick={() => moveWithinList(context?.nextId ?? null)}>
         <ChevronDown aria-hidden="true" size={18} />
         Move down
       </MenuButton>
       <MenuSeparator />
-      {task.parentId ? (
-        <MenuButton disabled>
-          <CornerDownRight aria-hidden="true" size={18} />
-          Subtasks cannot have children
-        </MenuButton>
-      ) : rootParentCandidates.length > 0 ? (
-        rootParentCandidates.slice(0, 8).map((parent) => (
-          <MenuButton key={parent.id} onClick={() => makeSubtask(parent.id)}>
-            <CornerDownRight aria-hidden="true" size={18} />
-            Make subtask of {parent.title}
-          </MenuButton>
-        ))
-      ) : (
-        <MenuButton disabled>
-          <CornerDownRight aria-hidden="true" size={18} />
-          No parent tasks
-        </MenuButton>
+      {contextError ? <p role="alert" className="px-4 text-sm text-danger">{contextError}</p> : null}
+      {task.parentId ? <MenuButton disabled><CornerDownRight aria-hidden size={18} />Subtasks cannot have children</MenuButton> : (
+        <div className="grid gap-1 px-2 py-1">
+          <Input aria-label="Find a parent task" placeholder="Find a parent task…" value={parents.query} onChange={(event) => parents.setQuery(event.target.value)} />
+          <div className="max-h-48 overflow-y-auto">
+            {parents.items.map((parent) => <MenuButton key={parent.id} onClick={() => makeSubtask(parent.id)}><CornerDownRight aria-hidden size={18} />Make subtask of {parent.title}</MenuButton>)}
+          </div>
+          <p role={parents.error ? "alert" : undefined} className="px-2 text-xs text-text-muted">{parents.error ?? (parents.loading ? "Loading parent tasks…" : parents.items.length ? "Up to 30 matches. Type to narrow the list." : "No matching parent tasks")}</p>
+        </div>
       )}
       <MenuSeparator />
       {source.taskLists.map((list) => (

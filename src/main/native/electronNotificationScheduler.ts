@@ -10,6 +10,7 @@ type ElectronNotificationPlatform = "darwin" | "linux" | "win32";
 
 export class ElectronNotificationScheduler {
   private readonly notificationTimers = new Map<string, NodeJS.Timeout>();
+  private readonly delivered = new Set<string>();
   private readonly activeNotifications = new Map<string, Notification>();
 
   constructor(
@@ -26,6 +27,13 @@ export class ElectronNotificationScheduler {
       return undefined;
     }
 
+    if (this.delivered.has(request.id)) return { id: request.id, state: "delivered", cancel: () => this.closeActiveNotification(request.id) };
+    const handle: ScheduledNativeNotification = { id: request.id, state: "pending", cancel: () => {
+      const timer = this.notificationTimers.get(request.id);
+      if (timer) clearTimeout(timer);
+      this.notificationTimers.delete(request.id);
+      this.closeActiveNotification(request.id);
+    } };
     const delayMs = Math.max(0, request.deliveryDate.getTime() - Date.now());
 
     if (delayMs > maxNotificationDelayMs) {
@@ -34,20 +42,13 @@ export class ElectronNotificationScheduler {
 
     const timer = setTimeout(() => {
       this.notificationTimers.delete(request.id);
-      this.show(request, onClick, onFailure);
+      this.show(request, onClick, onFailure, handle);
     }, delayMs);
 
     timer.unref?.();
     this.notificationTimers.set(request.id, timer);
 
-    return {
-      id: request.id,
-      cancel: () => {
-        clearTimeout(timer);
-        this.notificationTimers.delete(request.id);
-        this.closeActiveNotification(request.id);
-      }
-    };
+    return handle;
   }
 
   clear(): void {
@@ -67,7 +68,8 @@ export class ElectronNotificationScheduler {
   private show(
     request: NativeNotificationRequest,
     onClick: () => void,
-    onFailure?: (message: string) => void
+    onFailure?: (message: string) => void,
+    handle?: ScheduledNativeNotification
   ): void {
     try {
       const notification = new Notification(notificationOptions(this.platform, request));
@@ -76,6 +78,11 @@ export class ElectronNotificationScheduler {
       };
 
       this.activeNotifications.set(request.id, notification);
+      notification.on("show", () => {
+        if (handle) handle.state = "delivered";
+        this.delivered.delete(request.id); this.delivered.add(request.id);
+        if (this.delivered.size > 1024) this.delivered.delete(this.delivered.values().next().value!);
+      });
       notification.on("click", () => {
         cleanup();
         onClick();
@@ -83,10 +90,13 @@ export class ElectronNotificationScheduler {
       notification.on("close", cleanup);
       notification.on("failed", (_event, error) => {
         cleanup();
+        if (handle) handle.state = "failed";
+        this.delivered.delete(request.id);
         onFailure?.(notificationFailureMessage(error));
       });
       notification.show();
     } catch (error) {
+      if (handle) handle.state = "failed";
       onFailure?.(notificationFailureMessage(error));
     }
   }

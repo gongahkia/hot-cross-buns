@@ -106,12 +106,13 @@ export function AlertsSettingsTab({
           checked={settings.notificationsEnabled}
           icon={Bell}
           label="Local reminders"
+          description="While HCB is running, prepare up to 40 reminders for the next 24 hours. Task due dates use local midnight; the lead time below applies to Calendar events."
           onChange={(checked) => void enableNotifications(checked)}
           trailing={<Badge>{settings.notificationLeadMinutes} min</Badge>}
         />
-        <SettingsControlRow label="Reminder lead time">
+        <SettingsControlRow label="Calendar reminder lead time">
           <input
-            aria-label="Reminder lead time"
+            aria-label="Calendar reminder lead time"
             className="w-56 accent-[var(--color-accent)]"
             max={240}
             min={0}

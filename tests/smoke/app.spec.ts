@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -93,7 +94,7 @@ test("virtualizes task trees while retaining keyboard navigation", async () => {
   try {
     const page = await electronApp.firstWindow();
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    await page.evaluate(async () => {
+    const fixture = await page.evaluate(async () => {
       const setup = await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual" });
       if (!setup.ok) throw new Error(setup.error.message);
       let parentId = "";
@@ -102,11 +103,14 @@ test("virtualizes task trees while retaining keyboard navigation", async () => {
         if (!result.ok) throw new Error(result.error.message);
         if (index === 0) parentId = result.data.id;
       }
+      let childId = "";
       for (let index = 0; index < 10; index += 1) {
         const result = await window.hcb!.tasks.create({ listId: "inbox", parentId, title: `Child ${index}` });
         if (!result.ok) throw new Error(result.error.message);
+        if (index === 0) childId = result.data.id;
       }
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      return { parentId, childId };
     });
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
     await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-task-count", "210");
@@ -123,8 +127,143 @@ test("virtualizes task trees while retaining keyboard navigation", async () => {
     const overlap = await viewport.locator("[data-virtual-index]").evaluateAll((rows) => rows.some((row, index) => index > 0 && row.getBoundingClientRect().top < rows[index - 1].getBoundingClientRect().bottom - 1));
     expect(overlap).toBe(false);
     await page.screenshot({ path: join(tmpdir(), "hcb-task-board-after.png") });
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "open-task", taskId: id } })), fixture.childId);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(viewport.getByRole("button", { name: "Child 0", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await viewport.focus(); await viewport.press("End");
+    const last = viewport.getByRole("button", { name: "Planner task 199", exact: true });
+    await expect(last).toBeFocused();
+    await last.click({ button: "right" });
+    await expect(page.getByRole("button", { name: "Move up", exact: true })).toBeEnabled();
+    await page.getByRole("textbox", { name: "Find a parent task", exact: true }).fill("Planner task 000");
+    await page.getByRole("button", { name: "Make subtask of Planner task 000", exact: true }).click();
+    await expect.poll(async () => { const result = await page.evaluate(async () => window.hcb!.tasks.list({ query: "Planner task 199", summary: true, limit: 1 })); return result.ok && result.data.items[0]?.parentId; }).toBe(fixture.parentId);
+    const destination = await page.evaluate(async () => {
+      const result = await window.hcb!.tasks.createTaskList({ title: "Destination" });
+      if (!result.ok) throw new Error(result.error.message);
+      window.dispatchEvent(new Event("hcb:core-data-invalidated")); return result.data.id as string;
+    });
+    await expect(page.locator(`[data-task-list-id="${destination}"]`)).toBeVisible();
+    await viewport.focus(); await viewport.press("End");
+    const moving = viewport.getByRole("listitem").filter({ hasText: "Planner task 198" });
+    await moving.dragTo(page.locator(`[data-task-list-id="${destination}"]`));
+    await expect(page.getByRole("list", { name: "Destination tasks", exact: true }).getByRole("button", { name: "Planner task 198", exact: true })).toBeVisible();
+
   } finally {
     await electronApp.close();
+    rmSync(profileDir, { recursive: true, force: true });
+  }
+});
+
+test("bounds offscreen columns and reads full notes beyond the initial cache", async () => {
+  const profileDir = mkdtempSync(join(tmpdir(), "hcb-paging-smoke-"));
+  let electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  try {
+    let page = await electronApp.firstWindow();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    const fixture = await page.evaluate(async () => {
+      await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual" });
+      let lastTaskId = "", lastListId = "", firstNoteId = "";
+      for (let index = 0; index < 20; index += 1) {
+        const list = await window.hcb!.tasks.createTaskList({ title: `List ${String(index).padStart(2, "0")}` });
+        if (!list.ok) throw new Error(list.error.message);
+        const task = await window.hcb!.tasks.create({ listId: list.data.id, title: `Task in list ${index}` });
+        if (!task.ok) throw new Error(task.error.message);
+        lastTaskId = task.data.id; lastListId = list.data.id;
+      }
+      for (let index = 0; index < 230; index += 1) {
+        const note = await window.hcb!.notes.create({ title: `Paged note ${String(index).padStart(3, "0")}`, body: `Full body for note ${index}. ` + "This content stays out of the list cache. ".repeat(100) });
+        if (!note.ok) throw new Error(note.error.message);
+        if (index === 0) firstNoteId = note.data.id;
+      }
+      await window.hcb!.settings.update({ starredNoteIds: [firstNoteId], starredNoteAt: { [firstNoteId]: 1 }, starredTaskIds: [lastTaskId], taskListSorts: { [lastListId]: "title" } });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      return { lastTaskId, lastListId, firstNoteId };
+    });
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
+    await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-task-count", "20");
+    await expect.poll(() => page.locator('[data-column-loaded="true"]').count()).toBeLessThanOrEqual(6);
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "open-task", taskId: id } })), fixture.lastTaskId);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Task in list 19", exact: true })).toBeVisible();
+    await expect.poll(() => page.locator('[data-column-loaded="true"]').count()).toBeLessThanOrEqual(6);
+    const starredNavigation = page.getByRole("button", { name: /^Starred on this device/ });
+    await expect(starredNavigation).toContainText("1");
+    await page.getByRole("button", { name: "Unstar Task in list 19", exact: true }).click();
+    await expect(starredNavigation).toContainText("0");
+    await page.getByRole("button", { name: "Star Task in list 19", exact: true }).click();
+    await expect(starredNavigation).toContainText("1");
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
+    await expect(page.getByRole("button", { name: "Open note Paged note 000", exact: true })).toBeVisible();
+    const viewport = page.getByRole("list", { name: "Notes", exact: true });
+    await expect(viewport).toHaveAttribute("data-total-count", "230");
+    expect(Number(await viewport.getAttribute("data-loaded-count"))).toBeLessThanOrEqual(600);
+    await viewport.focus();
+    await viewport.press("End");
+    await expect(viewport.locator('[data-virtual-index="229"]')).toBeVisible();
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: id } })), fixture.firstNoteId);
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    const body = page.getByRole("textbox", { name: "Note body" });
+    expect((await body.inputValue()).length).toBeGreaterThan(4000);
+    await page.keyboard.press("Escape");
+    await page.screenshot({ path: join(tmpdir(), "hcb-notes-paged-after.png") });
+    await expect.poll(async () => { const result = await page.evaluate(async () => window.hcb!.settings.get()); return result.ok && result.data.paneWorkspace?.root; }).toBeTruthy();
+    const event = await page.evaluate(async () => window.hcb!.calendar.create({ calendarId: "primary", title: "Full event details", description: "Complete event content. ".repeat(200), startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString() }));
+    if (!event.ok) throw new Error(event.error.message);
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
+    await page.evaluate((id) => {
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } }));
+    }, event.data.id);
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    expect((await page.getByRole("textbox", { name: "Event notes", exact: true }).inputValue()).length).toBeGreaterThan(4000);
+    await page.keyboard.press("Escape");
+    await electronApp.close();
+    electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+    page = await electronApp.firstWindow();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    const settings = await page.evaluate(async () => window.hcb!.settings.get());
+    if (!settings.ok) throw new Error(settings.error.message);
+    expect(settings.data.starredNoteIds).toContain(fixture.firstNoteId);
+    expect(settings.data.starredTaskIds).toContain(fixture.lastTaskId);
+    expect(settings.data.taskListSorts[fixture.lastListId]).toBe("title");
+    expect(settings.data.paneWorkspace.root).toBeTruthy();
+    expect(settings.data.paneWorkspace.updatedAt).toBeGreaterThan(0);
+  } finally {
+    await electronApp.close();
+    rmSync(profileDir, { recursive: true, force: true });
+  }
+});
+
+
+test("restores embedded pages paused and releases their web contents on pause", async () => {
+  const server = createServer((_request, response) => { response.writeHead(200, { "Content-Type": "text/html" }); response.end("<html><head><title>Memory fixture</title></head><body>Local reference page</body></html>"); });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address() as { port: number };
+  const profileDir = mkdtempSync(join(tmpdir(), "hcb-web-pause-smoke-"));
+  const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    await page.evaluate(async (url) => {
+      const paneWorkspace = { focusedPaneId: "web-fixture", updatedAt: Date.now(), root: { id: "web-fixture", kind: "leaf", content: { kind: "web", activeTabId: "tab-fixture", tabs: [{ id: "tab-fixture", title: "Memory fixture", url }] } } };
+      await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", paneWorkspace });
+      localStorage.setItem("hcb.paneWorkspace.v1", JSON.stringify(paneWorkspace));
+    }, `http://127.0.0.1:${address.port}`);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Load webpage", exact: true })).toBeVisible();
+    await expect(page.getByTestId("split-webview")).toHaveCount(0);
+    await page.getByRole("button", { name: "Load webpage", exact: true }).click();
+    await expect(page.getByTestId("split-webview")).toHaveCount(1);
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(1);
+    await page.getByRole("button", { name: "Pause page", exact: true }).click();
+    await expect(page.getByTestId("split-webview")).toHaveCount(0);
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(0);
+  } finally {
+    await electronApp.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     rmSync(profileDir, { recursive: true, force: true });
   }
 });

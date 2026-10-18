@@ -4,6 +4,8 @@ export interface NativeWorkspaceSnapshot {
   settings: SettingsSnapshot;
   account: Record<string, any> | null;
   tasks: TaskSummary[];
+  notificationTasks: TaskSummary[];
+  planningCounts: import("@shared/nativePlanning").NativePlanningCounts;
   events: CalendarEventSummary[];
   searchCounts: Record<string, number>;
 }

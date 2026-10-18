@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SetStateAction } from "react";
+import type { CoreViewModelSource } from "../core/coreViewModelSource";
 import type { SectionId } from "../../data/mockPlanner";
 import { writeLocalStorageJSON } from "../core/localStorageHelpers";
 import {
@@ -28,6 +30,7 @@ import {
 } from "./paneWorkspaceModel";
 
 interface PaneWorkspaceState {
+  updatedAt?: number;
   focusedPaneId: string;
   root: PaneNode;
 }
@@ -38,7 +41,7 @@ function readPaneWorkspaceState(): PaneWorkspaceState {
     const stored = sanitizeStoredPaneWorkspace(parsed);
 
     if (stored) {
-      return stored;
+      return { ...stored, updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0 };
     }
   } catch {
     // best-effort persisted UI only
@@ -48,7 +51,7 @@ function readPaneWorkspaceState(): PaneWorkspaceState {
   return { focusedPaneId: root.id, root };
 }
 
-export function usePaneWorkspace(): {
+export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" | "dataState" | "updateSettings">): {
   activeSectionId: SectionId;
   canSplit: boolean;
   closePane: (paneId: string) => void;
@@ -68,7 +71,31 @@ export function usePaneWorkspace(): {
   setSplitRatio: (splitId: string, ratio: number) => void;
   splitPane: (paneId: string, direction: PaneSplitDirection, content?: PaneContent) => void;
 } {
-  const [state, setState] = useState<PaneWorkspaceState>(() => readPaneWorkspaceState());
+  const [state, setWorkspaceState] = useState<PaneWorkspaceState>(() => readPaneWorkspaceState());
+  const setState = useCallback((update: SetStateAction<PaneWorkspaceState>): void => {
+    setWorkspaceState((current) => {
+      const next = typeof update === "function" ? update(current) : update;
+      return next === current ? current : { ...next, updatedAt: Date.now() };
+    });
+  }, []);
+  const hydrated = useRef(false);
+  const [preferencesReady, setPreferencesReady] = useState(!source);
+  useEffect(() => {
+    if (!source || hydrated.current || !["ready", "empty"].includes(source.dataState)) return;
+    hydrated.current = true;
+    const saved = sanitizeStoredPaneWorkspace(source.settings.paneWorkspace);
+    if (saved) {
+      const updatedAt = Number(source.settings.paneWorkspace?.updatedAt) || 0;
+      setWorkspaceState((current) => updatedAt >= (current.updatedAt ?? 0) ? { ...saved, updatedAt } : current);
+    }
+    setPreferencesReady(true);
+  }, [source?.dataState, source?.settings.paneWorkspace]);
+  const savedPreferences = JSON.stringify(source?.settings.paneWorkspace);
+  useEffect(() => {
+    if (!source || !preferencesReady || savedPreferences === JSON.stringify(state)) return;
+    const timer = window.setTimeout(() => { void source.updateSettings({ paneWorkspace: state }); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [preferencesReady, state, savedPreferences, source?.updateSettings]);
   const focusedLeaf = findPaneLeaf(state.root, state.focusedPaneId) ?? firstPaneLeaf(state.root);
   const focusedSectionId = focusedLeaf.content.kind === "section" ? focusedLeaf.content.sectionId : null;
   const activeSectionId = focusedSectionId ?? firstPaneSectionId(state.root);
@@ -81,7 +108,7 @@ export function usePaneWorkspace(): {
 
   const focusPane = useCallback((paneId: string): void => {
     setState((current) =>
-      findPaneLeaf(current.root, paneId)
+      current.focusedPaneId !== paneId && findPaneLeaf(current.root, paneId)
         ? { ...current, focusedPaneId: paneId }
         : current
     );

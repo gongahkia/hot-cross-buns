@@ -8,6 +8,7 @@ export interface CollectionPage<T> {
 export type TaskBoardSort = "myOrder" | "date" | "deadline" | "starred" | "title";
 export interface TaskBoardRequest {
   listId?: string;
+  locateTaskId?: string;
   starred?: boolean;
   sort?: TaskBoardSort;
   completedOpen?: boolean;
@@ -16,4 +17,4 @@ export interface TaskBoardRequest {
   limit?: number;
 }
 export type TaskBoardRow = { kind: "task" | "child"; task: TaskSummary } | { kind: "completed"; count: number };
-export interface TaskBoardPage extends CollectionPage<TaskBoardRow> { rootCount: number; completedRootCount: number }
+export interface TaskBoardPage extends CollectionPage<TaskBoardRow> { rootCount: number; completedRootCount: number; locatedIndex?: number | null; revealParentId?: string; revealCompleted?: boolean }

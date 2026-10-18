@@ -10,6 +10,7 @@ interface BuildNativeNotificationRequestsOptions {
   planner: NativePlannerSnapshotSource;
   now: Date;
   leadMinutes: number;
+  excludeIds?: ReadonlySet<string>;
 }
 
 export function buildNativeNotificationRequests(
@@ -18,9 +19,9 @@ export function buildNativeNotificationRequests(
   const horizon = new Date(options.now.getTime() + notificationHorizonMs);
 
   return [
-    ...taskNotificationRequests(options.planner, options.now, horizon),
-    ...eventNotificationRequests(options.planner, options.now, horizon, options.leadMinutes)
-  ].slice(0, maxScheduledNotifications);
+    ...eventNotificationRequests(options.planner, options.now, horizon, options.leadMinutes),
+    ...taskNotificationRequests(options.planner, options.now, horizon)
+  ].filter((request) => !options.excludeIds?.has(request.id)).sort((left, right) => left.deliveryDate.getTime() - right.deliveryDate.getTime()).slice(0, maxScheduledNotifications);
 }
 
 function taskNotificationRequests(
@@ -30,13 +31,13 @@ function taskNotificationRequests(
 ): NativeNotificationRequest[] {
   try {
     return planner
-      .listTasks({ status: "active", limit: 100 })
+      .listTasks({ status: "active", limit: 400, scope: "notifications" })
       .items.flatMap((task) => {
         if (!task.dueAt) {
           return [];
         }
 
-        const dueAt = dateFromIso(task.dueAt);
+        const dueAt = new Date(`${task.dueAt.slice(0, 10)}T00:00:00`);
 
         if (!dueAt || dueAt.getTime() > horizon.getTime()) {
           return [];
@@ -49,7 +50,7 @@ function taskNotificationRequests(
 
         return [
           {
-            id: `task:${task.id}`,
+            id: `task:${task.id}:${task.dueAt}`,
             title: "Task due",
             body: task.title,
             deliveryDate,
@@ -77,6 +78,7 @@ function eventNotificationRequests(
   try {
     return planner
       .listCalendarEvents({
+        scope: "notifications",
         start: now.toISOString(),
         end: horizon.toISOString(),
         limit: 100
@@ -84,11 +86,11 @@ function eventNotificationRequests(
       .items.flatMap((event) => {
         const startsAt = dateFromIso(event.startsAt);
 
-        if (!startsAt || startsAt.getTime() < now.getTime()) {
+        if (event.completedAt || !startsAt || startsAt.getTime() < now.getTime()) {
           return [];
         }
 
-        const reminderMs = leadMinutes > 0 ? leadMinutes * 60_000 : defaultEventReminderMs;
+        const reminderMs = Number.isFinite(leadMinutes) && leadMinutes >= 0 ? leadMinutes * 60_000 : defaultEventReminderMs;
         const reminderAt = new Date(startsAt.getTime() - reminderMs);
         const deliveryDate =
           reminderAt.getTime() <= now.getTime()
@@ -101,7 +103,7 @@ function eventNotificationRequests(
 
         return [
           {
-            id: `event:${event.id}`,
+            id: `event:${event.id}:${event.startsAt}`,
             title: "Upcoming event",
             body: event.title,
             deliveryDate,

@@ -101,7 +101,7 @@ function mergeHydratedSnapshot(
   return {
     ...current,
     tasks: hydration.tasks ? mergeHydratedTasks(current.tasks, hydration.tasks) : current.tasks,
-    notes: hydration.notes ? mergeById<NoteSummary>(current.notes, hydration.notes) : current.notes,
+    notes: hydration.notes ? mergeById<NoteSummary>(current.notes, hydration.notes).slice(0, 50) : current.notes,
     noteLists: hydration.noteLists
       ? mergeById<NoteListSummary>(current.noteLists, hydration.noteLists)
       : current.noteLists,
@@ -390,7 +390,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
     const loadPromise: Promise<boolean> = Promise.all([
       loadAllPages<CalendarRangeRequest, CalendarRangeResponse>(
-        { start: normalized.start, end: normalized.end, limit: 500 },
+        { start: normalized.start, end: normalized.end, limit: 500, summary: true },
         (request) => window.hcb!.calendar
           .listEvents(request)
           .then((result) => unwrap(result, "Calendar events failed"))
@@ -616,6 +616,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
           }
         },
         (error) => {
+          if (generation !== loadGeneration.current) return;
           const errorMessage = safeHydrationErrorMessage(error);
           setLoadState((current) => ({
             ...current,

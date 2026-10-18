@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { MarkdownPreview, hasRenderableMixedMarkup, markdownFromMixedMarkup } from "./MarkdownPreview";
 
 describe("MarkdownPreview", () => {
+  it("keeps plain list previews lightweight while retaining rich formatting", () => {
+    const view = render(<MarkdownPreview ariaLabel="List preview" body="A plain planning sentence." variant="summary" />);
+    expect(screen.getByLabelText("List preview")).toHaveTextContent("A plain planning sentence.");
+    view.rerender(<MarkdownPreview ariaLabel="List preview" body="**Planning** with [context](https://example.com)" variant="summary" />);
+    expect(screen.getByRole("link", { name: "context" })).toHaveAttribute("href", "https://example.com");
+    expect(screen.getByText("Planning").tagName).toBe("STRONG");
+  });
+
   it("renders GFM checklist state without permitting a write", () => {
     render(<MarkdownPreview ariaLabel="Event description" body={"- [ ] Prepare agenda\n- [x] Send brief"} />);
 

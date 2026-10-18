@@ -8,32 +8,13 @@ SQLite is not a custom cloud source of truth.
 
 ## Ownership
 
-Only main/worker services may read or write SQLite. Renderer code must request data through typed preload APIs. MCP tools must route through the same domain services as UI actions.
+Only main/worker services may read or write SQLite. Renderer code must request data through typed preload APIs. Any future agent tools must route through the same domain services as UI actions.
 
 ## Schema Strategy
 
-Start from the existing Hot Cross Buns canonical SQLite model:
+The current schema stores account metadata, task lists and tasks, calendars and events, scheduled task blocks, native note lists and notes, tags, settings, sync checkpoints, queued Google mutations, undo records, search-document identities, and FTS indexes. Task planning metadata and tags are stored with their task; local notes do not create Google outbox mutations. Secrets remain outside SQLite.
 
-- `areas`
-- `lists`
-- `tasks`
-- `tags`
-- `task_tags`
-- `headings`
-- `sync_meta`
-
-Hot Cross Buns 2 must add mirror tables for Google account/calendar/event state and local-only notes/settings/mutations.
-
-Required table groups:
-
-- Account metadata: signed-in account profile without tokens.
-- Task mirrors: task lists, tasks, subtasks, tags/headings if retained.
-- Calendar mirrors: calendar lists, events, recurring metadata, event instances if materialized.
-- Notes: local notes and search fields.
-- Settings: app, sync, selected lists/calendars, appearance, hotkeys, tray, MCP.
-- Sync checkpoints: Tasks watermarks and Calendar `nextSyncToken` values.
-- Pending mutations: queued task/event/note operations and retry metadata.
-- Diagnostics metadata: sanitized sync, MCP, and migration state.
+Task and note collections are paginated in SQL. Display reads use previews; full records are fetched explicitly for editors. Indexes support pagination, task hierarchy, and identity-based FTS maintenance. Order-only task updates do not rebuild search documents.
 
 ## Migration Rules
 
@@ -81,15 +62,9 @@ The v1 default may use unencrypted SQLite for non-secret cache data, but the sec
 
 ## Backup And Recovery
 
-Settings must eventually support:
+Settings → Data supports consistent SQLite snapshots, exporting a snapshot, daily backups with retention, opening the backup directory, and local-note recovery with an explicit confirmation phrase. Recovery restores note lists and notes only, retaining current Google credentials, sync queues, and settings. Full snapshots include device stars, list sorting, and workspace preferences. This is not a general portable archive or profile rollback UI.
 
-- copy diagnostics summary
-- clear local Google cache and resync
-- force full resync by clearing checkpoints
-- export portable local data where safe
-- reset MCP token
-
-Do not provide a destructive data control without a confirmation step.
+Force full resync clears sync checkpoints and repulls supported Google resources. Recovery and export errors must report failure rather than a placeholder success. Unsupported MCP-token reset and destructive cache shells are absent.
 
 ## Tests
 

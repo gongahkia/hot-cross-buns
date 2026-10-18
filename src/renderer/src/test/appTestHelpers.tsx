@@ -1150,6 +1150,7 @@ export function seededHcb(): HcbApi {
     const tasks = response.data.items.filter((task) => !task.parentId && task.dueAt && task.dueAt.slice(0, 10) >= request.start.slice(0, 10) && task.dueAt.slice(0, 10) < request.end.slice(0, 10));
     return ok({ items: tasks, page: { limit: request.limit ?? 500, totalKnown: tasks.length } });
   });
+  seededApi.tasks.context = vi.fn(async ({ id }) => ok({ id, previousId: null, beforePreviousId: null, nextId: null }));
   seededApi.tasks.board = vi.fn(async (request) => {
     const response = await seededApi.tasks.list({ status: "all", limit: 1000 });
     if (!response.ok) return response;

@@ -199,7 +199,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     ...legacyApi,
     bootstrap: actions("bootstrap", ["get"]),
     tasks: actions("tasks", [
-      "listTaskLists", "list", "board", "forCalendarRange", "get", "create", "update", "complete", "reopen", "delete",
+      "listTaskLists", "list", "board", "context", "forCalendarRange", "get", "create", "update", "complete", "reopen", "delete",
       "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"
     ]),
     calendar: actions("calendar", [
@@ -209,7 +209,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     ]),
     notes: actions("notes", ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "entityLinks", "listBrokenLinks", "linkSuggest", "legacyMigrationPreview", "importLegacyPseudoNotes"]),
     tags: actions("tags", ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"]),
-    search: actions("search", ["query", "installModel", "uninstallModel", "rebuildIndex"]),
+    search: actions("search", ["query", "resolveLinks", "installModel", "uninstallModel", "rebuildIndex"]),
     settings: {
       ...legacyApi.settings,
       ...actions("settings", [

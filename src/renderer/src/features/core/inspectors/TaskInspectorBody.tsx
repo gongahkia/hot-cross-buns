@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useTaskParentCandidates } from "../../../hooks/useTaskParentCandidates";
 import { useDirtyState } from "../../../components/Inspector";
 import { EmojiInput } from "../../../components/EmojiTextField";
 import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
@@ -173,7 +174,7 @@ export function TaskInspectorDetails({
 }): JSX.Element {
   const listTitle = source.taskLists.find((list) => list.id === draft.listId)?.title ?? "Task list";
   const parentTitle =
-    parentOptions.find((candidate) => candidate.id === draft.parentId)?.title ??
+    parentOptions.find((candidate) => candidate.id === draft.parentId)?.title ?? task?.parentTitle ??
     (draft.parentId ? "Parent task" : "No parent");
   const statusLabel = task?.status === "completed" ? "Completed" : "Open";
   const completed = task?.status === "completed";
@@ -307,6 +308,7 @@ export function TaskInspectorBody({
   onDraftChange: (draft: TaskDraft) => void;
 }): JSX.Element {
   const dirty = useDirtyState<TaskDraft>(draft);
+  const parents = useTaskParentCandidates(dirty.value.listId, dirty.value.id, dirty.value.parentId);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const canSaveTask = useMemo(
     () => canSaveTaskDraft(dirty.value, mutationPending),
@@ -448,8 +450,9 @@ export function TaskInspectorBody({
               <Button disabled={!dirty.value.snoozeUntil} onClick={() => patchDraft({ snoozeUntil: null })} size="sm" variant="ghost">Clear snooze</Button>
             </div>
           </div>
-          <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
-            <span>Parent</span>
+          <div className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
+            <label htmlFor="task-parent-search">Parent · Search within this list</label>
+            <Input id="task-parent-search" aria-label="Find a parent task" value={parents.query} onChange={(event) => parents.setQuery(event.target.value)} placeholder="Find a parent task…" />
             <select
               aria-label="Parent task"
               className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -457,9 +460,10 @@ export function TaskInspectorBody({
               value={dirty.value.parentId}
             >
               <option value="">No parent</option>
-              {parentOptions.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+              {parents.items.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
             </select>
-          </label>
+            <p role={parents.error ? "alert" : undefined} className="text-xs text-text-muted">{parents.error ?? (parents.loading ? "Loading parent tasks…" : "Up to 30 matches. Type to find another task.")}</p>
+          </div>
           <TagInput onChange={(tags) => patchDraft({ tags })} value={dirty.value.tags ?? []} />
           <Button disabled={dirty.value.mode !== "edit"} onClick={onAddSubtask} size="sm" variant="secondary">
             <ListPlus aria-hidden="true" size={14} />

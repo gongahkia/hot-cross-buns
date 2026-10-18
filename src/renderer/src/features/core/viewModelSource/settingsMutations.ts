@@ -1,10 +1,12 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   SettingsRecoveryActionRequest,
   SettingsRecoveryActionResponse,
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
+import { loadAllPages } from "./loader";
+import { unwrap } from "./result";
 import type { CoreDataLoadState, SettingsMutationUiState } from "./types";
 
 interface UseSettingsMutationsOptions {
@@ -30,7 +32,8 @@ export function useSettingsMutations({
     pending: false
   });
 
-  const updateSettings = useCallback(
+  const settingsQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const performSettingsUpdate = useCallback(
     async (request: SettingsUpdateRequest): Promise<boolean> => {
       if (!window.hcb) {
         setSettingsMutation({
@@ -44,12 +47,17 @@ export function useSettingsMutations({
       const result = await window.hcb.settings.update(request);
 
       if (result.ok) {
-        const nativeResult = await window.hcb.native.capabilities();
+        const [nativeResult, taskLists] = await Promise.all([
+          window.hcb.native.capabilities(),
+          request.starredTaskIds === undefined ? Promise.resolve(null) : loadAllPages({ limit: 1000, cursor: undefined as string | undefined },
+            (page) => window.hcb!.tasks.listTaskLists(page).then((result) => unwrap(result, "Task list counts failed"))).catch(() => null)
+        ]);
         setLoadState((current) => ({
           ...current,
           snapshot: {
             ...current.snapshot,
             settings: result.data,
+            ...(taskLists ? { taskLists: taskLists.items } : {}),
             ...(nativeResult.ok ? { native: nativeResult.data } : {})
           }
         }));
@@ -66,6 +74,12 @@ export function useSettingsMutations({
     },
     [refreshDiagnosticsSummary, setLoadState]
   );
+
+  const updateSettings = useCallback((request: SettingsUpdateRequest): Promise<boolean> => {
+    const pending = settingsQueue.current.then(() => performSettingsUpdate(request), () => performSettingsUpdate(request));
+    settingsQueue.current = pending;
+    return pending;
+  }, [performSettingsUpdate]);
 
   const runRecoveryAction = useCallback(
     async (

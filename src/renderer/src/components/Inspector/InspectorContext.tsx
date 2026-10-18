@@ -55,12 +55,23 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
   const currentRef = useRef<InspectorItem | null>(null);
   currentRef.current = current;
 
+  const transition = useRef(0);
   const open = useCallback((item: InspectorItem): void => {
-    setCurrent(item);
+    const generation = ++transition.current;
+    const active = currentRef.current;
+    const commit = () => {
+      if (transition.current !== generation) return;
+      currentRef.current = item;
+      setCurrent(item);
+    };
+    if (active?.onConfirmClose && (active.id !== item.id || active.kind !== item.kind)) {
+      void Promise.resolve(active.onConfirmClose()).then((allowed) => { if (allowed) commit(); }).catch(() => undefined);
+    } else commit();
   }, []);
 
   const close = useCallback(async (): Promise<void> => {
     const active = currentRef.current;
+    const generation = ++transition.current;
 
     if (active?.onConfirmClose) {
       const allow = await active.onConfirmClose();
@@ -69,6 +80,8 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
       }
     }
 
+    if (transition.current !== generation || currentRef.current !== active) return;
+    currentRef.current = null;
     setCurrent(null);
     queueMicrotask(() => active?.returnFocus?.current?.focus());
   }, []);

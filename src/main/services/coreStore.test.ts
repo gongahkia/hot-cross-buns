@@ -1,3 +1,4 @@
+import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -32,6 +33,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const store = createStore();
     const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Alpha", notes: "x".repeat(4000) });
     const child = store.dispatch("tasks", "create", { listId: "inbox", title: "Child", parentId: parent.id });
+    expect(store.dispatch("tasks", "get", { id: child.id }).parentTitle).toBe("Alpha");
     const second = store.dispatch("tasks", "create", { listId: "inbox", title: "Beta" });
     store.dispatch("tasks", "complete", { id: second.id });
     const first = store.dispatch("tasks", "board", { listId: "inbox", sort: "title", limit: 2 });
@@ -46,6 +48,99 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     store.dispatch("settings", "update", { starredTaskIds: [parent.id], starredTaskAt: { [parent.id]: 1 } });
     expect(store.dispatch("tasks", "board", { starred: true, limit: 20 }).page.totalKnown).toBe(2);
     expect(store.dispatch("tasks", "get", { id: parent.id }).notes).toHaveLength(4000);
+    const revealed = store.dispatch("tasks", "board", { listId: "inbox", collapsedTaskIds: [parent.id], locateTaskId: child.id, sort: "title" });
+    expect(revealed.locatedIndex).toBe(1);
+    expect(revealed.revealParentId).toBe(parent.id);
+    expect(store.dispatch("tasks", "board", { listId: "missing", locateTaskId: child.id }).locatedIndex).toBeNull();
+    const completeLocation = store.dispatch("tasks", "board", { listId: "inbox", locateTaskId: second.id });
+    expect(completeLocation.revealCompleted).toBe(true);
+    expect(completeLocation.locatedIndex).toBe(3);
+  });
+
+  it("does not prompt a fresh workspace to migrate ordinary undated tasks", () => {
+    const store = createStore();
+    store.dispatch("tasks", "create", { listId: "inbox", title: "Ordinary task" });
+    const preview = store.dispatch("notes", "legacyMigrationPreview");
+    expect(preview.foundCount).toBe(1);
+    expect(preview.autoPromptEligible).toBe(false);
+  });
+
+  it("pages scoped note previews, keeps full text on demand, and restores device stars", async () => {
+    const store = createStore();
+    const list = store.dispatch("notes", "createNoteList", { title: "Research" });
+    const first = store.dispatch("notes", "create", { listId: list.id, title: "Older", body: "x".repeat(4000) });
+    const otherList = store.dispatch("notes", "createNoteList", { title: "Other" });
+    const second = store.dispatch("notes", "create", { listId: otherList.id, title: "Other list" });
+    store.dispatch("settings", "update", { starredNoteIds: [first.id], starredNoteAt: { [first.id]: 100 } });
+    const page = store.dispatch("notes", "list", { listId: list.id, summary: true, limit: 1 });
+    expect(page.page.totalKnown).toBe(1);
+    expect(page.items[0].id).toBe(first.id);
+    expect(page.items[0].body).toHaveLength(240);
+    expect(store.dispatch("notes", "get", { id: first.id }).body).toHaveLength(4000);
+    expect(store.dispatch("notes", "list", { summary: true }).items[0].id).toBe(first.id);
+    const resolved = store.dispatch("search", "resolveLinks", { links: [{ kind: "note", targetId: first.id, label: "Renamed", fullBody: true }, { kind: "note", label: "Other list" }] });
+    expect(resolved.items.map((item: any) => item.id)).toEqual([first.id, second.id]);
+    expect(resolved.items[0].body).toHaveLength(4000);
+    store.dispatch("settings", "update", { paneWorkspace: { focusedPaneId: "saved-pane", root: { kind: "leaf", id: "saved-pane", content: { kind: "section", sectionId: "notes" } } } });
+    const path = join(stores.at(-1)!.directory, "preferences.sqlite");
+    await store.backupTo(path);
+    const snapshot = new Database(path, { readonly: true });
+    try {
+      const row = snapshot.prepare("SELECT value FROM settings WHERE key='app'").get() as { value: string };
+      expect(JSON.parse(row.value).starredNoteIds).toEqual([first.id]);
+      expect(JSON.parse(row.value).paneWorkspace.focusedPaneId).toBe("saved-pane");
+    } finally { snapshot.close(); }
+  });
+
+  it("keeps exact native counts while returning only relevant text-free previews", () => {
+    const store = createStore();
+    for (let index = 0; index < 240; index += 1) store.dispatch("tasks", "create", { listId: "inbox", title: `Past ${index}`, dueDate: "2026-09-01", notes: "private long body".repeat(100) });
+    const today = store.dispatch("tasks", "create", { listId: "inbox", title: "Due today", dueDate: "2026-10-18" });
+    const tomorrow = store.dispatch("tasks", "create", { listId: "inbox", title: "Due tomorrow", dueDate: "2026-10-19" });
+    const native = store.dispatch("native", "planningData", { now: new Date(2026, 9, 18, 12).toISOString() });
+    expect(native.counts.overdueTasks).toBe(240);
+    expect(native.counts.todayTasks).toBe(1);
+    expect(native.counts.tomorrowTasks).toBe(1);
+    expect(native.tasks.some((task: any) => task.id === today.id)).toBe(true);
+    expect(native.tasks.some((task: any) => task.id === tomorrow.id)).toBe(true);
+    expect(native.tasks).toHaveLength(102);
+    expect(JSON.stringify(native)).not.toContain("private long body");
+    expect(store.dispatch("search", "count", { query: "Past" }).count).toBe(240);
+  });
+
+  it("rejects task hierarchy changes that would hide existing content", () => {
+    const store = createStore();
+    const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Parent" });
+    const child = store.dispatch("tasks", "create", { listId: "inbox", title: "Child", parentId: parent.id });
+    const other = store.dispatch("tasks", "create", { listId: "inbox", title: "Other" });
+    expect(() => store.dispatch("tasks", "update", { id: parent.id, parentId: parent.id })).toThrow("own parent");
+    expect(() => store.dispatch("tasks", "create", { title: "Grandchild", listId: "inbox", parentId: child.id })).toThrow("top-level");
+    expect(() => store.dispatch("tasks", "update", { id: parent.id, parentId: other.id })).toThrow("subtasks first");
+    expect(() => store.dispatch("tasks", "delete", { id: parent.id })).toThrow("subtasks first");
+    expect(store.dispatch("tasks", "board", { listId: "inbox" }).page.totalKnown).toBe(3);
+  });
+
+  it("returns event description previews while preserving full editor content", () => {
+    const store = createStore();
+    const event = store.dispatch("calendar", "create", { calendarId: "primary", title: "Long description", description: "x".repeat(4000), startsAt: "2026-10-18T09:00:00Z", endsAt: "2026-10-18T10:00:00Z" });
+    const request = { start: "2026-10-18T00:00:00Z", end: "2026-10-19T00:00:00Z" };
+    const summary = store.dispatch("calendar", "listEvents", { ...request, summary: true });
+    expect(summary.items[0].notes).toHaveLength(240);
+    expect(summary.items[0].detailsTruncated).toBe(true);
+    expect(store.dispatch("calendar", "get", { id: event.id }).notes).toHaveLength(4000);
+    expect(store.dispatch("calendar", "listEvents", request).items[0].notes).toHaveLength(4000);
+  });
+
+  it("looks up task order outside the renderer's first page", () => {
+    const store = createStore();
+    const tasks = Array.from({ length: 205 }, (_, index) => store.dispatch("tasks", "create", { listId: "inbox", title: `Task ${index}` }));
+    // Persist an explicit ordering, independent of UUID ties within one timestamp.
+    store.dispatch("tasks", "move", { id: tasks[202].id, listId: "inbox", parentId: null, previousSiblingId: tasks[201].id });
+    const context = store.dispatch("tasks", "context", { id: tasks[202].id });
+    expect(context.previousId).toBe(tasks[201].id);
+    expect(context.beforePreviousId).toBeTruthy();
+    store.dispatch("tasks", "move", { id: tasks[202].id, listId: "inbox", parentId: null, previousSiblingId: context.beforePreviousId });
+    expect(store.dispatch("tasks", "context", { id: tasks[201].id }).previousId).toBe(tasks[202].id);
   });
 
   it("applies bulk reschedule and sibling moves using the renderer payload names", () => {

@@ -1,5 +1,7 @@
 # Platform Strategy
 
+Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
+
 ## Scope
 
 Hot Cross Buns 2 starts as a macOS app and must be designed for Windows and Linux expansion. Platform behavior belongs behind adapters so core product logic is shared.

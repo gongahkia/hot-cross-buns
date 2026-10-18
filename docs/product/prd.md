@@ -2,25 +2,27 @@
 
 ## Product Summary
 
-Hot Cross Buns 2 is a keyboard-first desktop planner backed by Google Tasks and Google Calendar. It helps one user capture tasks quickly, plan across tasks and calendar events, keep lightweight notes, and optionally expose controlled local MCP tools to their own agent clients.
+Hot Cross Buns is a keyboard-first desktop planner backed by Google Tasks and Google Calendar. Its additional value is a combined capture, scheduling, local-context, and review workflow. The [current product contract](current-capabilities.md) defines shipped capabilities and data ownership. Local MCP/agent access remains future work.
 
 The first release is a macOS core app. The product direction must support future Windows and Linux releases without rewriting the app architecture.
 
 ## Target Users
 
 - The primary user is an individual desktop power user who lives in Google Tasks and Google Calendar.
-- The secondary user is an agent-driven workflow user who wants local MCP tools for planning and task/calendar actions.
+- A future audience is an agent-driven workflow user; MCP capabilities are not available in the current release.
 - The maintainer/user is also a developer who needs fast local builds, clear debugging, and agent-friendly specs.
 
 ## Goals
 
 - Rebuild the app on a stack with a faster edit-debug loop than the Swift implementation.
-- Preserve the core value of Hot Cross Buns: fast capture, calendar/task planning, keyboard navigation, local cache, Google sync, and agent access.
+- Preserve the core value of Hot Cross Buns: fast capture, calendar/task planning, keyboard navigation, local cache, Google sync, and local planning context.
 - Make the implementation easy for future agents to extend safely.
 - Keep Google Tasks and Calendar as the synced sources of truth.
 - Avoid creating a custom cloud backend in v1.
 
 ## Success Criteria
+
+These are release requirements, not proof of completed platform validation. Current runtime evidence is tracked in the [remediation checklist](../performance/audit-remediation.md).
 
 Mac core app success:
 
@@ -31,9 +33,8 @@ Mac core app success:
 - User can create and search local notes.
 - User can open command palette and quick capture without leaving the keyboard.
 - Tray/menu bar and global hotkey flows work on macOS.
-- Local MCP read tools work behind bearer-token authentication.
-- MCP write tools support dry-run and confirmation.
-- Tests cover domain logic, SQLite migrations, IPC contracts, Google transport mocks, MCP contracts, and launch smoke flows.
+- Unsupported MCP, semantic-search, and agent controls stay hidden and reject privileged calls.
+- Tests cover domain logic, SQLite migrations, IPC contracts, Google transport mocks, worker IPC, and launch smoke flows.
 
 ## V1 Scope
 
@@ -49,8 +50,7 @@ Core v1 includes:
 - Inline description references for Drive files and HCB tasks, events, and notes; explicit local-file uploads to private Drive storage
 - Local cache and sync checkpoints
 - Offline mutation queue
-- Settings for Google, sync, appearance, hotkeys, tray, notifications, MCP, diagnostics
-- Local MCP server
+- Settings for Google, sync, appearance, hotkeys, tray, notifications, backup/recovery, diagnostics
 - Basic local notification scheduling
 - GitHub Releases based preview distribution
 

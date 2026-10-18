@@ -9,6 +9,7 @@ import { recordTiming, timed, timingSnapshot } from "../diagnostics/performance"
 import { getStartupTimings, markStartupTiming } from "../startupTiming";
 import { appLogger } from "../diagnostics/appLogger";
 import { CoreStoreError } from "./coreStoreError";
+import { taskOrderBetween } from "./taskOrder";
 import { taskBoardPage } from "./taskBoardQuery";
 import type { TaskSummary } from "@shared/ipc/contracts";
 export { CoreStoreError } from "./coreStoreError";
@@ -196,6 +197,7 @@ const defaultSettings: JsonRecord = {
 
 export class CoreStore {
   private readonly db: Database.Database;
+  private readonly statementCache = new Map<string, Database.Statement>();
   private fullTextSearchAvailable = false;
   private applyingUndo = false;
   private nativeBridge: CoreNativeBridge | null = null;
@@ -221,7 +223,17 @@ export class CoreStore {
     this.seed();
   }
 
+  private statement(sql: string): Database.Statement {
+    const cached = this.statementCache.get(sql);
+    if (cached) { this.statementCache.delete(sql); this.statementCache.set(sql, cached); return cached; }
+    const statement = this.db.prepare(sql);
+    this.statementCache.set(sql, statement);
+    if (this.statementCache.size > 128) this.statementCache.delete(this.statementCache.keys().next().value!);
+    return statement;
+  }
+
   close(): void {
+    this.statementCache.clear();
     this.db.close();
   }
 
@@ -237,9 +249,9 @@ export class CoreStore {
       if (snapshot.pragma("quick_check", { simple: true }) !== "ok") throw new CoreStoreError("The backup failed its integrity check.");
       const version = snapshot.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number };
       if (version.version !== schemaVersion) throw new CoreStoreError("This backup uses a different database version. Open it with a matching version of Hot Cross Buns.");
-      const insertList = this.db.prepare(`INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(@id,@title,@created_at,@updated_at)
+      const insertList = this.statement(`INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(@id,@title,@created_at,@updated_at)
         ON CONFLICT(id) DO UPDATE SET title=excluded.title,updated_at=excluded.updated_at`);
-      const insertNote = this.db.prepare(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at,deleted_at)
+      const insertNote = this.statement(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at,deleted_at)
         VALUES(@id,@title,@body,@list_id,@tags_json,@created_at,@updated_at,NULL)
         ON CONFLICT(id) DO UPDATE SET title=excluded.title,body=excluded.body,list_id=excluded.list_id,tags_json=excluded.tags_json,updated_at=excluded.updated_at,deleted_at=NULL`);
       return this.db.transaction(() => {
@@ -266,7 +278,7 @@ export class CoreStore {
    */
   removeKnownHistoricalSmokeNotes(fixtures: readonly HistoricalSmokeNoteFixture[]): number {
     const confirmed = fixtures.filter(isHistoricalSmokeNoteFixture);
-    const remove = this.db.prepare("DELETE FROM notes WHERE id=? AND title=? AND body=?");
+    const remove = this.statement("DELETE FROM notes WHERE id=? AND title=? AND body=?");
     let removed = 0;
     this.db.transaction(() => {
       for (const fixture of confirmed) removed += remove.run(fixture.id, fixture.title, fixture.body).changes;
@@ -286,12 +298,12 @@ export class CoreStore {
   }
 
   setOAuthClientId(clientId: string): void {
-    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
       .run("google-client", JSON.stringify({ clientId }));
   }
 
   googleAccounts(): JsonRecord[] {
-    return this.db.prepare(`SELECT id AS accountId,google_account_id AS googleAccountId,email,display_name AS displayName,
+    return this.statement(`SELECT id AS accountId,google_account_id AS googleAccountId,email,display_name AS displayName,
       avatar_url AS avatarUrl,connection_state AS connectionState,missing_scopes_json AS missingScopes,
       granted_scopes_json AS grantedScopes,updated_at AS updatedAt,
       (SELECT COUNT(*) FROM outbox WHERE account_id=google_accounts.id AND state IN ('pending','conflict')) AS unresolvedMutationCount
@@ -305,10 +317,10 @@ export class CoreStore {
 
   upsertGoogleAccount(input: JsonRecord): JsonRecord {
     const googleAccountId = requiredText(input.googleAccountId ?? input.id, "Google account id");
-    const existing = this.db.prepare("SELECT id FROM google_accounts WHERE google_account_id=?").get(googleAccountId) as { id: string } | undefined;
+    const existing = this.statement("SELECT id FROM google_accounts WHERE google_account_id=?").get(googleAccountId) as { id: string } | undefined;
     const accountId = existing?.id ?? randomUUID();
     const now = timestamp();
-    this.db.prepare(`INSERT INTO google_accounts(id,google_account_id,email,display_name,avatar_url,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
+    this.statement(`INSERT INTO google_accounts(id,google_account_id,email,display_name,avatar_url,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(google_account_id) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,
       avatar_url=excluded.avatar_url,connection_state=excluded.connection_state,missing_scopes_json=excluded.missing_scopes_json,
       granted_scopes_json=excluded.granted_scopes_json,updated_at=excluded.updated_at`).run(
@@ -323,7 +335,7 @@ export class CoreStore {
   }
 
   updateGoogleAccountState(accountId: string, connectionState: string, message?: string): void {
-    const result = this.db.prepare("UPDATE google_accounts SET connection_state=?,last_error=?,updated_at=? WHERE id=?")
+    const result = this.statement("UPDATE google_accounts SET connection_state=?,last_error=?,updated_at=? WHERE id=?")
       .run(connectionState, message ?? null, timestamp(), accountId);
     if (result.changes === 0) throw new CoreStoreError("Google account no longer exists.");
   }
@@ -344,8 +356,8 @@ export class CoreStore {
    * HCB-owned features and do not belong to the starter account.
    */
   retireLocalFallback(): void {
-    if (!this.db.prepare("SELECT 1 FROM google_accounts WHERE id=?").get(localAccountId)) {
-      this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    if (!this.statement("SELECT 1 FROM google_accounts WHERE id=?").get(localAccountId)) {
+      this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
         .run("local-fallback-retired", "1");
       return;
     }
@@ -355,30 +367,30 @@ export class CoreStore {
     const transaction = this.db.transaction(() => {
       // A task block owns references to both a task and an event, so it must
       // be removed before either local resource table can be cleared.
-      this.db.prepare(`DELETE FROM scheduled_task_blocks
+      this.statement(`DELETE FROM scheduled_task_blocks
         WHERE task_id IN (SELECT id FROM tasks WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?))
            OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE account_id=?))
            OR calendar_id IN (SELECT id FROM calendars WHERE account_id=?)`)
         .run(localAccountId, localAccountId, localAccountId);
-      this.db.prepare("DELETE FROM outbox WHERE account_id=?").run(localAccountId);
-      this.db.prepare("DELETE FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE account_id=?)").run(localAccountId);
-      this.db.prepare("DELETE FROM tasks WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?)").run(localAccountId);
+      this.statement("DELETE FROM outbox WHERE account_id=?").run(localAccountId);
+      this.statement("DELETE FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE account_id=?)").run(localAccountId);
+      this.statement("DELETE FROM tasks WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?)").run(localAccountId);
       // Notes can reference the starter Inbox as an optional grouping. Keep
       // the note, but remove that now-invalid local list reference.
-      this.db.prepare("UPDATE notes SET list_id=NULL WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?)").run(localAccountId);
-      this.db.prepare("DELETE FROM task_lists WHERE account_id=?").run(localAccountId);
-      this.db.prepare("DELETE FROM calendars WHERE account_id=?").run(localAccountId);
-      this.db.prepare("DELETE FROM google_accounts WHERE id=?").run(localAccountId);
-      this.db.prepare("DELETE FROM sync_meta WHERE key LIKE ?").run(`google-sync-token:${localAccountId}:%`);
+      this.statement("UPDATE notes SET list_id=NULL WHERE list_id IN (SELECT id FROM task_lists WHERE account_id=?)").run(localAccountId);
+      this.statement("DELETE FROM task_lists WHERE account_id=?").run(localAccountId);
+      this.statement("DELETE FROM calendars WHERE account_id=?").run(localAccountId);
+      this.statement("DELETE FROM google_accounts WHERE id=?").run(localAccountId);
+      this.statement("DELETE FROM sync_meta WHERE key LIKE ?").run(`google-sync-token:${localAccountId}:%`);
       // Local undo entries could otherwise recreate a resource we just
       // intentionally retired. Preserve any Google history by removing only
       // entries whose forward or inverse payload points at Inbox/Primary.
-      this.db.prepare(`DELETE FROM undo_entries
+      this.statement(`DELETE FROM undo_entries
         WHERE forward_json LIKE ? OR forward_json LIKE ? OR inverse_json LIKE ? OR inverse_json LIKE ?`)
         .run('%"listId":"inbox"%', '%"calendarId":"primary"%', '%"listId":"inbox"%', '%"calendarId":"primary"%');
-      this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
         .run("local-fallback-retired", "1");
-      this.db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      this.statement("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
         .run("app", JSON.stringify(nextSettings));
     });
     transaction();
@@ -387,10 +399,10 @@ export class CoreStore {
 
   previewCrossAccountCopy(input: JsonRecord): JsonRecord {
     const { sourceAccountId, destinationAccountId, destinationCalendarId } = this.crossAccountCopyTargets(input);
-    const taskListCount = Number((this.db.prepare("SELECT COUNT(*) AS count FROM task_lists WHERE account_id=?").get(sourceAccountId) as { count: number }).count);
-    const taskCount = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM tasks task JOIN task_lists list ON list.id=task.list_id
+    const taskListCount = Number((this.statement("SELECT COUNT(*) AS count FROM task_lists WHERE account_id=?").get(sourceAccountId) as { count: number }).count);
+    const taskCount = Number((this.statement(`SELECT COUNT(*) AS count FROM tasks task JOIN task_lists list ON list.id=task.list_id
       WHERE list.account_id=? AND task.status != 'deleted'`).get(sourceAccountId) as { count: number }).count);
-    const events = this.db.prepare("SELECT event_type AS eventType FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE calendar.account_id=?")
+    const events = this.statement("SELECT event_type AS eventType FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE calendar.account_id=?")
       .all(sourceAccountId) as Array<{ eventType?: string }>;
     return {
       sourceAccountId,
@@ -412,12 +424,12 @@ export class CoreStore {
     if (input.confirmation !== "COPY") throw new CoreStoreError("Cross-account copy requires the explicit confirmation word COPY.");
     const preview = this.previewCrossAccountCopy(input);
     const { sourceAccountId, destinationAccountId, destinationCalendarId } = preview;
-    const sourceLists = this.db.prepare("SELECT id,title FROM task_lists WHERE account_id=? ORDER BY title COLLATE NOCASE,id").all(sourceAccountId) as Array<{ id: string; title: string }>;
-    const sourceTasks = this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.priority,task.due_at AS dueAt,
+    const sourceLists = this.statement("SELECT id,title FROM task_lists WHERE account_id=? ORDER BY title COLLATE NOCASE,id").all(sourceAccountId) as Array<{ id: string; title: string }>;
+    const sourceTasks = this.statement(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.priority,task.due_at AS dueAt,
       task.parent_id AS parentId,task.duration_minutes AS durationMinutes,task.locked_schedule AS lockedSchedule,task.snooze_until AS snoozeUntil,task.tags_json AS tags
       FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE list.account_id=? AND task.status != 'deleted'
       ORDER BY task.created_at,task.id`).all(sourceAccountId) as JsonRecord[];
-    const sourceEventIds = (this.db.prepare(`SELECT event.id FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
+    const sourceEventIds = (this.statement(`SELECT event.id FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
       WHERE calendar.account_id=? AND event.event_type='default' ORDER BY event.starts_at,event.id`).all(sourceAccountId) as Array<{ id: string }>).map((row) => row.id);
     const listMap = new Map<string, string>();
     const taskMap = new Map<string, string>();
@@ -483,51 +495,51 @@ export class CoreStore {
    */
   pendingSyncMutations(limit = 100, accountId?: string): PendingSyncMutation[] {
     const accountFilter = accountId ? " AND account_id=?" : "";
-    return (this.db.prepare(`SELECT id,account_id AS accountId,kind,entity_id AS entityId,payload_json AS payload,
+    return (this.statement(`SELECT id,account_id AS accountId,kind,entity_id AS entityId,payload_json AS payload,
       attempts,created_at AS createdAt FROM outbox WHERE state='pending' AND next_attempt_at <= ?${accountFilter}
       ORDER BY created_at,id LIMIT ?`).all(timestamp(), ...(accountId ? [accountId] : []), Math.max(1, Math.min(500, limit))) as any[])
       .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
   }
 
   unresolvedSyncMutationCount(accountId: string): number {
-    const row = this.db.prepare("SELECT COUNT(*) AS count FROM outbox WHERE account_id=? AND state IN ('pending','conflict')")
+    const row = this.statement("SELECT COUNT(*) AS count FROM outbox WHERE account_id=? AND state IN ('pending','conflict')")
       .get(accountId) as { count?: number } | undefined;
     return Number(row?.count ?? 0);
   }
 
   completeSyncMutation(id: string): void {
-    this.db.prepare("UPDATE outbox SET state='delivered',updated_at=?,last_error=NULL WHERE id=?")
+    this.statement("UPDATE outbox SET state='delivered',updated_at=?,last_error=NULL WHERE id=?")
       .run(timestamp(), id);
   }
 
   deferSyncMutation(id: string, error: string, retryable: boolean): void {
-    const row = this.db.prepare("SELECT attempts FROM outbox WHERE id=?").get(id) as { attempts?: number } | undefined;
+    const row = this.statement("SELECT attempts FROM outbox WHERE id=?").get(id) as { attempts?: number } | undefined;
     const attempts = Number(row?.attempts ?? 0) + 1;
     const delayMs = retryable
       ? Math.min(15 * 60_000, 1_000 * (2 ** Math.min(attempts, 8)) + Math.floor(Math.random() * 500))
       : 0;
-    this.db.prepare("UPDATE outbox SET state=?,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
+    this.statement("UPDATE outbox SET state=?,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
       .run(retryable ? "pending" : "conflict", attempts,
         new Date(Date.now() + delayMs).toISOString(), sanitizeSyncError(error), timestamp(), id);
   }
 
   resetGoogleSyncTokens(accountId?: string): void {
     const prefix = accountId ? `google-sync-token:${accountId}:%` : "google-sync-token:%";
-    this.db.prepare("DELETE FROM sync_meta WHERE key LIKE ?").run(prefix);
+    this.statement("DELETE FROM sync_meta WHERE key LIKE ?").run(prefix);
   }
 
   googleSyncToken(accountId: string, key: string): string | null {
-    const row = this.db.prepare("SELECT value FROM sync_meta WHERE key=?").get(`google-sync-token:${accountId}:${key}`) as { value?: string } | undefined;
+    const row = this.statement("SELECT value FROM sync_meta WHERE key=?").get(`google-sync-token:${accountId}:${key}`) as { value?: string } | undefined;
     return row?.value ?? null;
   }
 
   setGoogleSyncToken(accountId: string, key: string, token: string | null): void {
     const metaKey = `google-sync-token:${accountId}:${key}`;
     if (!token) {
-      this.db.prepare("DELETE FROM sync_meta WHERE key=?").run(metaKey);
+      this.statement("DELETE FROM sync_meta WHERE key=?").run(metaKey);
       return;
     }
-    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
       .run(metaKey, token);
   }
 
@@ -542,16 +554,16 @@ export class CoreStore {
   }
 
   setSyncRuntime(status: JsonRecord): void {
-    this.db.prepare("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
       .run("google-sync-runtime", JSON.stringify({ ...status, updatedAt: timestamp() }));
   }
 
   googleTaskListForSync(id: string): JsonRecord | null {
-    return (this.db.prepare("SELECT id,account_id AS accountId,title,google_id AS googleId,google_etag AS googleEtag FROM task_lists WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
+    return (this.statement("SELECT id,account_id AS accountId,title,google_id AS googleId,google_etag AS googleEtag FROM task_lists WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
   }
 
   googleTaskForSync(id: string): JsonRecord | null {
-    const record = this.db.prepare(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.priority,task.due_at AS dueAt,
+    const record = this.statement(`SELECT task.id,task.list_id AS listId,task.title,task.notes,task.status,task.priority,task.due_at AS dueAt,
       task.planned_start AS plannedStart,task.planned_end AS plannedEnd,task.duration_minutes AS durationMinutes,
       task.locked_schedule AS lockedSchedule,task.snooze_until AS snoozeUntil,task.tags_json AS tags,
       task.parent_id AS parentId,task.sort_order AS sortOrder,task.google_id AS googleId,task.google_etag AS googleEtag,
@@ -563,18 +575,18 @@ export class CoreStore {
 
   bindGoogleTaskList(localId: string, remote: JsonRecord): JsonRecord {
     const googleId = requiredText(remote.id, "Google task-list id");
-    const result = this.db.prepare("UPDATE task_lists SET google_id=?,google_etag=?,updated_at=? WHERE id=?")
+    const result = this.statement("UPDATE task_lists SET google_id=?,google_etag=?,updated_at=? WHERE id=?")
       .run(googleId, remote.etag ?? null, remote.updated ?? timestamp(), localId);
     if (result.changes === 0) throw new CoreStoreError("Task list no longer exists");
     return this.googleTaskListForSync(localId)!;
   }
 
   googleCalendarForSync(id: string): JsonRecord | null {
-    return (this.db.prepare("SELECT id,account_id AS accountId,title,color,time_zone AS timeZone,google_id AS googleId,google_etag AS googleEtag FROM calendars WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
+    return (this.statement("SELECT id,account_id AS accountId,title,color,time_zone AS timeZone,google_id AS googleId,google_etag AS googleEtag FROM calendars WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
   }
 
   googleEventForSync(id: string): JsonRecord | null {
-    const record = this.db.prepare(`SELECT event.id,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,
+    const record = this.statement(`SELECT event.id,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,
       event.ends_at AS endsAt,event.all_day AS allDay,event.color_id AS colorId,event.location,event.recurrence_json AS recurrence,
       event.google_recurrence_json AS googleRecurrence,
       event.attendees_json AS attendees,event.reminders_json AS reminders,event.reminders_use_default AS remindersUseDefault,
@@ -611,7 +623,7 @@ export class CoreStore {
   bindGoogleTask(localId: string, remote: JsonRecord): JsonRecord {
     const list = this.googleTaskForSync(localId);
     if (!list) throw new CoreStoreError("Task no longer exists");
-    this.db.prepare(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,google_parent_id=?,sort_order=?,updated_at=? WHERE id=?`)
+    this.statement(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,google_parent_id=?,sort_order=?,updated_at=? WHERE id=?`)
       .run(requiredText(remote.id, "Google task id"), remote.etag ?? null, list.listGoogleId ?? null,
         remote.parent ?? null, remote.position ?? null, remote.updated ?? timestamp(), localId);
     return this.requireTask(localId);
@@ -630,7 +642,7 @@ export class CoreStore {
     const remoteRecurringEventId = typeof remote.recurringEventId === "string"
       ? remote.recurringEventId
       : event.googleRecurringEventId ?? null;
-    this.db.prepare(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
+    this.statement(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
       working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
       .run(
@@ -656,7 +668,7 @@ export class CoreStore {
    */
   replaceGoogleSplitException(localCalendarId: string, previousGoogleId: string, remote: JsonRecord | null): void {
     this.db.transaction(() => {
-      this.db.prepare("DELETE FROM events WHERE calendar_id=? AND google_id=?").run(localCalendarId, previousGoogleId);
+      this.statement("DELETE FROM events WHERE calendar_id=? AND google_id=?").run(localCalendarId, previousGoogleId);
       if (remote) this.upsertGoogleEvent(remote, localCalendarId);
     })();
   }
@@ -668,7 +680,7 @@ export class CoreStore {
     const original = payload.originalMaster && typeof payload.originalMaster === "object"
       ? payload.originalMaster as JsonRecord
       : null;
-    if (!parentEventId || !successorEventId || !original || !this.db.prepare("SELECT 1 FROM events WHERE id=?").get(parentEventId)) return;
+    if (!parentEventId || !successorEventId || !original || !this.statement("SELECT 1 FROM events WHERE id=?").get(parentEventId)) return;
     this.db.transaction(() => {
       this.updateEvent({
         id: parentEventId,
@@ -695,19 +707,19 @@ export class CoreStore {
         workingLocationProperties: original.workingLocationProperties,
         selfResponseStatus: original.selfResponseStatus
       }, { enqueue: false, recordUndo: false });
-      this.db.prepare("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(successorEventId);
-      this.db.prepare("DELETE FROM events WHERE id=?").run(successorEventId);
-      if (successorGoogleId) this.db.prepare("DELETE FROM events WHERE google_recurring_event_id=?").run(successorGoogleId);
+      this.statement("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(successorEventId);
+      this.statement("DELETE FROM events WHERE id=?").run(successorEventId);
+      if (successorGoogleId) this.statement("DELETE FROM events WHERE google_recurring_event_id=?").run(successorGoogleId);
     })();
   }
 
   upsertGoogleTaskList(remote: JsonRecord, accountId: string): JsonRecord {
     const googleId = requiredText(remote.id, "Google task-list id");
     const title = requiredText(remote.title, "Google task-list title");
-    const existing = this.db.prepare("SELECT id FROM task_lists WHERE account_id=? AND google_id=?").get(accountId, googleId) as { id: string } | undefined;
+    const existing = this.statement("SELECT id FROM task_lists WHERE account_id=? AND google_id=?").get(accountId, googleId) as { id: string } | undefined;
     const id = existing?.id ?? randomUUID();
     const now = timestamp();
-    this.db.prepare(`INSERT INTO task_lists(id,account_id,title,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
+    this.statement(`INSERT INTO task_lists(id,account_id,title,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET title=excluded.title,google_id=excluded.google_id,google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
       .run(id, accountId, title, googleId, remote.etag ?? null, now, remote.updated ?? now);
     return this.googleTaskListForSync(id)!;
@@ -717,18 +729,18 @@ export class CoreStore {
     const googleId = requiredText(remote.id, "Google task id");
     const localList = this.googleTaskListForSync(localListId);
     if (!localList) throw new CoreStoreError("Task list no longer exists");
-    const existing = this.db.prepare(`SELECT task.id FROM tasks task JOIN task_lists list ON list.id=task.list_id
+    const existing = this.statement(`SELECT task.id FROM tasks task JOIN task_lists list ON list.id=task.list_id
       WHERE list.account_id=? AND task.google_id=?`).get(localList.accountId, googleId) as { id: string } | undefined;
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("task", localId)) return null;
     const parentId = remote.parent
-      ? (this.db.prepare("SELECT id FROM tasks WHERE list_id=? AND google_id=?").get(localListId, remote.parent) as { id?: string } | undefined)?.id ?? null
+      ? (this.statement("SELECT id FROM tasks WHERE list_id=? AND google_id=?").get(localListId, remote.parent) as { id?: string } | undefined)?.id ?? null
       : null;
     const previous = existing ? this.requireTask(localId) : null;
     const remoteTask = splitHcbTaskMetadata(remote.notes);
     const metadata = remoteTask.metadata;
     const now = timestamp();
-    this.db.prepare(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,
+    this.statement(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,
       locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,google_parent_id,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET list_id=excluded.list_id,title=excluded.title,notes=excluded.notes,status=excluded.status,
@@ -742,7 +754,7 @@ export class CoreStore {
         metadata ? metadata.plannedEnd : previous?.plannedEnd ?? null, metadata ? metadata.durationMinutes : previous?.durationMinutes ?? null, metadata ? Number(metadata.lockedSchedule) : previous?.lockedSchedule ? 1 : 0,
         metadata ? metadata.snoozeUntil : previous?.snoozeUntil ?? null, JSON.stringify(metadata ? metadata.tags : previous?.tags ?? []), remote.position ?? null,
         googleId, remote.etag ?? null, remote.parent ?? null, now, remote.updated ?? now);
-    this.db.prepare("UPDATE tasks SET google_list_id=? WHERE id=?")
+    this.statement("UPDATE tasks SET google_list_id=? WHERE id=?")
       .run(localList.googleId ?? null, localId);
     return this.requireTask(localId);
   }
@@ -752,7 +764,7 @@ export class CoreStore {
   }
 
   reconcileGoogleTaskParents(localListId: string): void {
-    this.db.prepare(`UPDATE tasks SET parent_id=(SELECT parent.id FROM tasks parent WHERE parent.list_id=tasks.list_id AND parent.google_id=tasks.google_parent_id)
+    this.statement(`UPDATE tasks SET parent_id=(SELECT parent.id FROM tasks parent WHERE parent.list_id=tasks.list_id AND parent.google_id=tasks.google_parent_id)
       WHERE list_id=? AND google_parent_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM outbox WHERE entity_id=tasks.id AND kind LIKE 'task.%' AND state IN ('pending','conflict')
       )`).run(localListId);
@@ -765,10 +777,10 @@ export class CoreStore {
   upsertGoogleCalendar(remote: JsonRecord, accountId: string): JsonRecord {
     const googleId = requiredText(remote.id, "Google calendar id");
     const title = requiredText(remote.summary ?? remote.title, "Google calendar title");
-    const existing = this.db.prepare("SELECT id FROM calendars WHERE account_id=? AND google_id=?").get(accountId, googleId) as { id: string } | undefined;
+    const existing = this.statement("SELECT id FROM calendars WHERE account_id=? AND google_id=?").get(accountId, googleId) as { id: string } | undefined;
     const id = existing?.id ?? randomUUID();
     const now = timestamp();
-    this.db.prepare(`INSERT INTO calendars(id,account_id,title,color,time_zone,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
+    this.statement(`INSERT INTO calendars(id,account_id,title,color,time_zone,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET title=excluded.title,color=excluded.color,google_id=excluded.google_id,
       time_zone=excluded.time_zone,google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
       .run(id, accountId, title, remote.backgroundColor ?? remote.color ?? null, remote.timeZone ?? this.settings().defaultTimeZone,
@@ -783,7 +795,7 @@ export class CoreStore {
    */
   pruneGoogleCalendars(accountId: string, activeGoogleIds: readonly string[]): void {
     const activeIds = new Set(activeGoogleIds.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim()));
-    const cached = this.db.prepare("SELECT id,google_id AS googleId FROM calendars WHERE account_id=? AND google_id IS NOT NULL")
+    const cached = this.statement("SELECT id,google_id AS googleId FROM calendars WHERE account_id=? AND google_id IS NOT NULL")
       .all(accountId) as Array<{ id: string; googleId: string }>;
     const removed = cached.filter((calendar) => !activeIds.has(calendar.googleId));
     if (removed.length === 0) return;
@@ -798,34 +810,34 @@ export class CoreStore {
     };
 
     this.db.transaction(() => {
-      const eventIds = (this.db.prepare(`SELECT id FROM events WHERE calendar_id IN (${placeholders})`).all(...calendarIds) as Array<{ id: string }>)
+      const eventIds = (this.statement(`SELECT id FROM events WHERE calendar_id IN (${placeholders})`).all(...calendarIds) as Array<{ id: string }>)
         .map((event) => event.id);
-      const scheduledTaskIds = (this.db.prepare(`SELECT DISTINCT task_id AS taskId FROM scheduled_task_blocks
+      const scheduledTaskIds = (this.statement(`SELECT DISTINCT task_id AS taskId FROM scheduled_task_blocks
         WHERE calendar_id IN (${placeholders}) OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (${placeholders}))`)
         .all(...calendarIds, ...calendarIds) as Array<{ taskId: string }>)
         .map((block) => block.taskId);
 
-      this.db.prepare(`DELETE FROM scheduled_task_blocks
+      this.statement(`DELETE FROM scheduled_task_blocks
         WHERE calendar_id IN (${placeholders}) OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (${placeholders}))`)
         .run(...calendarIds, ...calendarIds);
       for (const taskId of scheduledTaskIds) {
-        this.db.prepare("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), taskId);
+        this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), taskId);
       }
       if (eventIds.length > 0) {
         const eventPlaceholders = eventIds.map(() => "?").join(",");
-        this.db.prepare(`DELETE FROM outbox WHERE account_id=? AND kind LIKE 'event.%' AND entity_id IN (${eventPlaceholders})`)
+        this.statement(`DELETE FROM outbox WHERE account_id=? AND kind LIKE 'event.%' AND entity_id IN (${eventPlaceholders})`)
           .run(accountId, ...eventIds);
       }
-      this.db.prepare(`DELETE FROM events WHERE calendar_id IN (${placeholders})`).run(...calendarIds);
-      this.db.prepare(`DELETE FROM calendars WHERE id IN (${placeholders})`).run(...calendarIds);
+      this.statement(`DELETE FROM events WHERE calendar_id IN (${placeholders})`).run(...calendarIds);
+      this.statement(`DELETE FROM calendars WHERE id IN (${placeholders})`).run(...calendarIds);
       for (const googleId of googleIds) {
-        this.db.prepare("DELETE FROM sync_meta WHERE key=?").run(`google-sync-token:${accountId}:events:${googleId}`);
+        this.statement("DELETE FROM sync_meta WHERE key=?").run(`google-sync-token:${accountId}:events:${googleId}`);
       }
       for (const id of [...calendarIds, ...eventIds]) {
-        this.db.prepare("DELETE FROM undo_entries WHERE forward_json LIKE ? OR inverse_json LIKE ?")
+        this.statement("DELETE FROM undo_entries WHERE forward_json LIKE ? OR inverse_json LIKE ?")
           .run(`%${id}%`, `%${id}%`);
       }
-      this.db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      this.statement("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
         .run("app", JSON.stringify(nextSettings));
     })();
     this.nativeBridge?.applySettings?.(nextSettings);
@@ -833,11 +845,11 @@ export class CoreStore {
 
   upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google event id");
-    const existing = this.db.prepare("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
+    const existing = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("event", localId)) return null;
     if (remote.status === "cancelled") {
-      if (existing) this.db.prepare("DELETE FROM events WHERE id=?").run(localId);
+      if (existing) this.statement("DELETE FROM events WHERE id=?").run(localId);
       return null;
     }
     const previous = existing ? this.requireEvent(localId) : null;
@@ -845,7 +857,7 @@ export class CoreStore {
     const end = eventTimeFromGoogle(remote.end, "Event end");
     const metadata = googleEventMetadata(remote);
     const now = timestamp();
-    this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
+    this.statement(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
       attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,google_id,google_etag,google_recurring_event_id,google_original_start_time,
       conference_json,conference_create_requested,attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,
       working_location_properties_json,self_response_status,created_at,updated_at)
@@ -886,8 +898,10 @@ export class CoreStore {
         return this.page(this.taskLists(), input);
       case "tasks.list":
         return this.listTasks(input);
+      case "tasks.context":
+        return this.taskContext(input);
       case "tasks.board":
-        return taskBoardPage(this.db, input, this.settings(), (row) => taskFromRow(row) as TaskSummary);
+        return taskBoardPage(this.db, input, this.settings(), (row) => taskFromRow(row) as TaskSummary, (sql) => this.statement(sql));
       case "tasks.forCalendarRange":
         return this.listTasks({ ...input, summary: true, status: "all", parentId: null, dueStart: input.start, dueEnd: input.end });
       case "tasks.get":
@@ -972,6 +986,10 @@ export class CoreStore {
         return this.updateTag(input);
       case "tags.delete":
         return this.deleteTag(input);
+      case "search.count":
+        return this.searchCount(input.query ?? "");
+      case "search.resolveLinks":
+        return this.resolveLinks(input);
       case "search.query":
         return this.search(input.query ?? "", input.limit ?? 30);
       case "settings.get":
@@ -1010,6 +1028,8 @@ export class CoreStore {
         return this.applyUndo("undo");
       case "undo.redo":
         return this.applyUndo("redo");
+      case "native.planningData":
+        return this.nativePlanningData(input);
       case "native.capabilities":
         return this.nativeCapabilities();
       case "native.listFontFamilies":
@@ -1050,9 +1070,9 @@ export class CoreStore {
   }
 
   private migrate(): void {
-    const migrationTable = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get();
+    const migrationTable = this.statement("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get();
     const previousVersion = migrationTable
-      ? Number((this.db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version?: number }).version ?? 0)
+      ? Number((this.statement("SELECT MAX(version) AS version FROM schema_migrations").get() as { version?: number }).version ?? 0)
       : 0;
     // Schema v3 was the one intentional developer-cache reset: it changed
     // Google resource identity from global ids to account-scoped ids. Later
@@ -1114,6 +1134,10 @@ export class CoreStore {
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
       );
       CREATE INDEX IF NOT EXISTS notes_page_idx ON notes(deleted_at, updated_at, id);
+      CREATE INDEX IF NOT EXISTS notes_list_page_idx ON notes(list_id,deleted_at,updated_at,id);
+      CREATE INDEX IF NOT EXISTS notes_title_lookup_idx ON notes(title COLLATE NOCASE);
+      CREATE INDEX IF NOT EXISTS tasks_title_lookup_idx ON tasks(title COLLATE NOCASE);
+      CREATE INDEX IF NOT EXISTS events_title_lookup_idx ON events(title COLLATE NOCASE);
       CREATE TABLE IF NOT EXISTS note_lists (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
@@ -1200,12 +1224,13 @@ export class CoreStore {
       CREATE INDEX IF NOT EXISTS tasks_parent_idx ON tasks(parent_id,status,sort_order,id);
     `);
     this.installFullTextSearch();
-    this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
+    this.statement("INSERT OR IGNORE INTO sync_meta(key,value) VALUES('legacy-note-prompt-eligible',?)").run(previousVersion >= 3 ? "true" : "false");
+    this.statement("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
   }
 
   private addColumn(table: "google_accounts" | "task_lists" | "tasks" | "calendars" | "events" | "notes" | "outbox", definition: string): void {
     const column = definition.split(/\s+/, 1)[0];
-    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    const columns = this.statement(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
     if (!columns.some((item) => item.name === column)) {
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
     }
@@ -1218,9 +1243,9 @@ export class CoreStore {
    * Calendar write once canonical lines have been established.
    */
   private backfillCanonicalRecurrenceLines(): void {
-    const rows = this.db.prepare(`SELECT id,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence
+    const rows = this.statement(`SELECT id,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence
       FROM events WHERE google_recurrence_json IS NULL AND recurrence_json IS NOT NULL`).all() as JsonRecord[];
-    const update = this.db.prepare("UPDATE events SET google_recurrence_json=? WHERE id=?");
+    const update = this.statement("UPDATE events SET google_recurrence_json=? WHERE id=?");
     for (const row of rows) {
       const lines = recurrenceLinesFromStored(null, safeJson(row.recurrence, null));
       if (lines) update.run(JSON.stringify(lines), row.id);
@@ -1229,8 +1254,8 @@ export class CoreStore {
 
   private installFullTextSearch(): void {
     try {
-      const version = this.db.prepare("SELECT value FROM sync_meta WHERE key='search-index-version'").get() as { value?: string } | undefined;
-      if (version?.value !== "2") {
+      const version = this.statement("SELECT value FROM sync_meta WHERE key='search-index-version'").get() as { value?: string } | undefined;
+      if (!["2", "3"].includes(version?.value ?? "")) {
         this.db.transaction(() => {
           this.db.exec(`CREATE TABLE IF NOT EXISTS search_documents (
             id INTEGER PRIMARY KEY, domain TEXT NOT NULL, entity_id TEXT NOT NULL, UNIQUE(domain,entity_id)
@@ -1261,7 +1286,27 @@ export class CoreStore {
               JOIN search_documents document ON document.domain='${domain}' AND document.entity_id=source.id WHERE ${predicate === "1=1" ? predicate : `source.${predicate}`};
             `);
           }
-          this.db.prepare("INSERT INTO sync_meta(key,value) VALUES('search-index-version','2') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+          this.statement("INSERT INTO sync_meta(key,value) VALUES('search-index-version','2') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+        })();
+      }
+      if (version?.value !== "3") {
+        this.db.transaction(() => {
+          for (const { table, domain, body, live, changed } of [
+            { table: "tasks", domain: "tasks", body: "notes", live: "new.status != 'deleted'", changed: "old.status IS NOT new.status" },
+            { table: "events", domain: "calendar", body: "description", live: "1=1", changed: "0" },
+            { table: "notes", domain: "notes", body: "body", live: "new.deleted_at IS NULL", changed: "old.deleted_at IS NOT new.deleted_at" }
+          ]) {
+            this.db.exec(`DROP TRIGGER IF EXISTS search_${table}_update;
+              CREATE TRIGGER search_${table}_update AFTER UPDATE ON ${table}
+              WHEN old.title IS NOT new.title OR old.${body} IS NOT new.${body} OR ${changed}
+              BEGIN
+                DELETE FROM search_index WHERE rowid=(SELECT id FROM search_documents WHERE domain='${domain}' AND entity_id=old.id);
+                INSERT INTO search_documents(domain,entity_id) VALUES('${domain}',new.id) ON CONFLICT(domain,entity_id) DO NOTHING;
+                INSERT INTO search_index(rowid,domain,entity_id,title,body)
+                  SELECT id,'${domain}',new.id,new.title,new.${body} FROM search_documents WHERE domain='${domain}' AND entity_id=new.id AND ${live};
+              END;`);
+          }
+          this.statement("INSERT INTO sync_meta(key,value) VALUES('search-index-version','3') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
         })();
       }
       this.fullTextSearchAvailable = true;
@@ -1272,25 +1317,25 @@ export class CoreStore {
 
   private seed(): void {
     const now = timestamp();
-    const localFallbackRetired = Boolean(this.db.prepare("SELECT 1 FROM sync_meta WHERE key=?").get("local-fallback-retired"));
-    const connectedGoogle = Boolean(this.db.prepare("SELECT 1 FROM google_accounts WHERE id != ? AND connection_state='connected' LIMIT 1").get(localAccountId));
+    const localFallbackRetired = Boolean(this.statement("SELECT 1 FROM sync_meta WHERE key=?").get("local-fallback-retired"));
+    const connectedGoogle = Boolean(this.statement("SELECT 1 FROM google_accounts WHERE id != ? AND connection_state='connected' LIMIT 1").get(localAccountId));
     const transaction = this.db.transaction(() => {
-      if (!this.db.prepare("SELECT 1 FROM settings WHERE key = ?").get("app")) {
-        this.db.prepare("INSERT INTO settings(key, value) VALUES (?, ?)").run("app", JSON.stringify(defaultSettings));
+      if (!this.statement("SELECT 1 FROM settings WHERE key = ?").get("app")) {
+        this.statement("INSERT INTO settings(key, value) VALUES (?, ?)").run("app", JSON.stringify(defaultSettings));
       }
-      if (!this.db.prepare("SELECT 1 FROM note_lists LIMIT 1").get()) {
-        this.db.prepare("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)")
+      if (!this.statement("SELECT 1 FROM note_lists LIMIT 1").get()) {
+        this.statement("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)")
           .run("notes", "Notes", now, now);
       }
-      this.db.prepare("UPDATE notes SET list_id='notes' WHERE list_id IS NULL").run();
+      this.statement("UPDATE notes SET list_id='notes' WHERE list_id IS NULL").run();
       if (!localFallbackRetired && !connectedGoogle) {
-        this.db.prepare(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
+        this.statement(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
           VALUES(?,?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", "[]", now, now);
-        if (!this.db.prepare("SELECT 1 FROM task_lists LIMIT 1").get()) {
-          this.db.prepare("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("inbox", localAccountId, "Inbox", now, now);
+        if (!this.statement("SELECT 1 FROM task_lists LIMIT 1").get()) {
+          this.statement("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("inbox", localAccountId, "Inbox", now, now);
         }
-        if (!this.db.prepare("SELECT 1 FROM calendars LIMIT 1").get()) {
-          this.db.prepare("INSERT INTO calendars(id, account_id, title, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run("primary", localAccountId, "Primary", "#4285f4", now, now);
+        if (!this.statement("SELECT 1 FROM calendars LIMIT 1").get()) {
+          this.statement("INSERT INTO calendars(id, account_id, title, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run("primary", localAccountId, "Primary", "#4285f4", now, now);
         }
       }
     });
@@ -1310,7 +1355,7 @@ export class CoreStore {
       deletedTasks: { items: [], page: { limit: 100, totalKnown: 0 } },
       calendarTasks: calendarRange.start && calendarRange.end ? this.listTasks({ status: "all", parentId: null, limit: 500, summary: true, dueStart: calendarRange.start, dueEnd: calendarRange.end }) : { items: [], page: { limit: 500, totalKnown: 0 } },
       calendars: this.page(this.calendars(), { limit: 100 }),
-      events: this.listEvents({ ...calendarRange, limit: calendarRange.limit ?? 500 }),
+      events: this.listEvents({ ...calendarRange, summary: true, limit: calendarRange.limit ?? 500 }),
       scheduledTaskBlocks: this.listScheduledTaskBlocks({ ...calendarRange, limit: 500 }),
       notes: this.listNotes({ limit: 50, summary: true }),
       tags: this.page(this.tags(), { limit: 100 }),
@@ -1328,7 +1373,7 @@ export class CoreStore {
   }
 
   private taskLists(): JsonRecord[] {
-    return (this.db.prepare(`
+    return (this.statement(`
       SELECT list.id, list.account_id AS accountId, list.title, list.updated_at AS updatedAt,
         COUNT(task.id) AS taskCount,
         SUM(CASE WHEN task.status = 'active' THEN 1 ELSE 0 END) AS activeTaskCount,
@@ -1355,10 +1400,10 @@ export class CoreStore {
       values.push(new Date(Date.parse(input.dueStart) - 86400_000).toISOString().slice(0, 10), new Date(Date.parse(input.dueEnd) + 86400_000).toISOString().slice(0, 10));
     }
     const where = conditions.join(" AND ");
-    const total = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM tasks task WHERE ${where}`).get(...values) as { count: number }).count);
-    const rows = this.db.prepare(`
+    const total = Number((this.statement(`SELECT COUNT(*) AS count FROM tasks task WHERE ${where}`).get(...values) as { count: number }).count);
+    const rows = this.statement(`
       SELECT task.id, list.account_id AS accountId, task.list_id AS listId, task.title, ${input.summary ? "substr(task.notes,1,240) AS notes" : "task.notes"}, task.status, task.priority, task.due_at AS dueAt,
-        parent_id AS parentId, planned_start AS plannedStart, planned_end AS plannedEnd,
+        parent_id AS parentId,(SELECT title FROM tasks parent WHERE parent.id=task.parent_id) AS parentTitle, planned_start AS plannedStart, planned_end AS plannedEnd,
         duration_minutes AS durationMinutes, locked_schedule AS lockedSchedule,
         snooze_until AS snoozeUntil, tags_json AS tags, sort_order AS sortOrder, task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE ${where}
@@ -1369,12 +1414,24 @@ export class CoreStore {
   }
 
   private requireTask(id: string): JsonRecord {
-    const row = this.db.prepare(`SELECT task.id, list.account_id AS accountId, task.list_id AS listId, task.title, task.notes, task.status, task.priority, task.due_at AS dueAt,
-      task.parent_id AS parentId, task.planned_start AS plannedStart, task.planned_end AS plannedEnd, task.duration_minutes AS durationMinutes,
+    const row = this.statement(`SELECT task.id, list.account_id AS accountId, task.list_id AS listId, task.title, task.notes, task.status, task.priority, task.due_at AS dueAt,
+      task.parent_id AS parentId,(SELECT title FROM tasks parent WHERE parent.id=task.parent_id) AS parentTitle, task.planned_start AS plannedStart, task.planned_end AS plannedEnd, task.duration_minutes AS durationMinutes,
       task.locked_schedule AS lockedSchedule, task.snooze_until AS snoozeUntil, task.tags_json AS tags, task.sort_order AS sortOrder, task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.id = ?`).get(id);
     if (!row) throw new CoreStoreError("Task no longer exists");
     return taskFromRow(row);
+  }
+
+  private validateTaskParent(taskId: string, listId: string, parentId: unknown): void {
+    if (!parentId) return;
+    if (parentId === taskId) throw new CoreStoreError("A task cannot be its own parent.");
+    const parent = this.statement("SELECT list_id AS listId,parent_id AS parentId,status FROM tasks WHERE id=?").get(parentId) as JsonRecord | undefined;
+    if (!parent || !["active", "completed"].includes(parent.status)) throw new CoreStoreError("Choose an existing parent task.");
+    if (parent.listId !== listId) throw new CoreStoreError("The parent task must be in the same list.");
+    if (parent.parentId) throw new CoreStoreError("Subtasks cannot have children. Choose a top-level parent task.");
+    if (this.statement("SELECT 1 FROM tasks WHERE parent_id=? AND status IN ('active','completed') LIMIT 1").get(taskId)) {
+      throw new CoreStoreError("Move this task's subtasks first; nesting them another level would hide them.");
+    }
   }
 
   private createTask(input: JsonRecord): JsonRecord {
@@ -1382,8 +1439,9 @@ export class CoreStore {
     const id = typeof input.id === "string" ? input.id : randomUUID();
     const listId = input.listId ?? this.defaultWritableTaskListId();
     this.requireList(listId);
+    this.validateTaskParent(id, listId, input.parentId);
     this.db.transaction(() => {
-      this.db.prepare(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,locked_schedule,snooze_until,tags_json,created_at,updated_at)
+      this.statement(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,locked_schedule,snooze_until,tags_json,created_at,updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET list_id=excluded.list_id,title=excluded.title,notes=excluded.notes,
         status='active',priority=excluded.priority,due_at=excluded.due_at,parent_id=excluded.parent_id,planned_start=excluded.planned_start,
         planned_end=excluded.planned_end,duration_minutes=excluded.duration_minutes,locked_schedule=excluded.locked_schedule,
@@ -1405,9 +1463,13 @@ export class CoreStore {
     const nextListId = input.listId ?? previous.listId;
     const nextAccountId = this.accountForTaskList(nextListId);
     if (nextAccountId !== previous.accountId) throw new CoreStoreError("Tasks cannot be moved between Google accounts.");
+    this.validateTaskParent(previous.id, nextListId, input.parentId === undefined ? previous.parentId : input.parentId);
+    if ((nextListId !== previous.listId || input.status === "deleted") && this.statement("SELECT 1 FROM tasks WHERE parent_id=? AND status IN ('active','completed') LIMIT 1").get(previous.id)) {
+      throw new CoreStoreError("Move or delete this task's subtasks first so they remain visible in their list.");
+    }
     const now = timestamp();
     this.db.transaction(() => {
-      this.db.prepare(`UPDATE tasks SET list_id=?, title=?, notes=?, status=?, priority=?, due_at=?, parent_id=?, planned_start=?, planned_end=?,
+      this.statement(`UPDATE tasks SET list_id=?, title=?, notes=?, status=?, priority=?, due_at=?, parent_id=?, planned_start=?, planned_end=?,
         duration_minutes=?, locked_schedule=?, snooze_until=?, tags_json=?, updated_at=? WHERE id=?`).run(
         nextListId, input.title ?? previous.title, input.notes ?? previous.notes,
         input.status ?? previous.status, input.priority ?? previous.priority,
@@ -1440,7 +1502,7 @@ export class CoreStore {
     const now = timestamp();
     const accountId = typeof input.accountId === "string" ? input.accountId : this.defaultWritableAccountId();
     const item = { id: randomUUID(), accountId, title: requiredText(input.title, "List title"), updatedAt: now, taskCount: 0, activeTaskCount: 0 };
-    this.db.prepare("INSERT INTO task_lists(id,account_id,title,created_at,updated_at) VALUES (?,?,?,?,?)").run(item.id, accountId, item.title, now, now);
+    this.statement("INSERT INTO task_lists(id,account_id,title,created_at,updated_at) VALUES (?,?,?,?,?)").run(item.id, accountId, item.title, now, now);
     this.enqueue("taskList.create", item.id, {}, accountId);
     return item;
   }
@@ -1448,7 +1510,7 @@ export class CoreStore {
   private renameTaskList(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "List id");
     const now = timestamp();
-    const result = this.db.prepare("UPDATE task_lists SET title=?, updated_at=? WHERE id=?").run(requiredText(input.title, "List title"), now, id);
+    const result = this.statement("UPDATE task_lists SET title=?, updated_at=? WHERE id=?").run(requiredText(input.title, "List title"), now, id);
     if (result.changes === 0) throw new CoreStoreError("Task list no longer exists");
     this.enqueue("taskList.update", id, {}, this.accountForTaskList(id));
     return this.taskLists().find((item) => item.id === id) ?? (() => { throw new CoreStoreError("Task list no longer exists"); })();
@@ -1460,20 +1522,20 @@ export class CoreStore {
     this.db.transaction(() => {
       const previous = this.googleTaskListForSync(id);
       if (previous?.accountId && previous.accountId !== localAccountId) {
-        const blockEvents = this.db.prepare(`SELECT event.id FROM events event JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id
+        const blockEvents = this.statement(`SELECT event.id FROM events event JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id
           WHERE block.task_id IN (SELECT id FROM tasks WHERE list_id=?)`).all(id) as Array<{ id: string }>;
         for (const event of blockEvents) this.deleteEvent({ id: event.id });
-        this.db.prepare("DELETE FROM scheduled_task_blocks WHERE task_id IN (SELECT id FROM tasks WHERE list_id=?)").run(id);
-        this.db.prepare("DELETE FROM tasks WHERE list_id=?").run(id);
-        this.db.prepare("DELETE FROM task_lists WHERE id=?").run(id);
+        this.statement("DELETE FROM scheduled_task_blocks WHERE task_id IN (SELECT id FROM tasks WHERE list_id=?)").run(id);
+        this.statement("DELETE FROM tasks WHERE list_id=?").run(id);
+        this.statement("DELETE FROM task_lists WHERE id=?").run(id);
         this.enqueue("taskList.delete", id, previous, previous.accountId);
         return;
       }
-      const tasks = this.db.prepare("SELECT id FROM tasks WHERE list_id=?").all(id) as Array<{ id: string }>;
-      this.db.prepare("UPDATE tasks SET list_id='inbox', updated_at=? WHERE list_id=?").run(timestamp(), id);
+      const tasks = this.statement("SELECT id FROM tasks WHERE list_id=?").all(id) as Array<{ id: string }>;
+      this.statement("UPDATE tasks SET list_id='inbox', updated_at=? WHERE list_id=?").run(timestamp(), id);
       const destinationAccountId = this.accountForTaskList("inbox");
       for (const task of tasks) this.enqueue("task.update", task.id, {}, destinationAccountId);
-      this.db.prepare("DELETE FROM task_lists WHERE id=?").run(id);
+      this.statement("DELETE FROM task_lists WHERE id=?").run(id);
       this.enqueue("taskList.delete", id, previous ?? {}, previous?.accountId ?? null);
     })();
     return { id, deleted: true };
@@ -1481,7 +1543,7 @@ export class CoreStore {
 
   private calendars(): JsonRecord[] {
     const selectedCalendars = new Set(this.settings().selectedCalendarIds);
-    return this.db.prepare(`SELECT calendar.id,calendar.account_id AS accountId,calendar.title,calendar.color,calendar.time_zone AS timeZone,calendar.updated_at AS updatedAt,
+    return this.statement(`SELECT calendar.id,calendar.account_id AS accountId,calendar.title,calendar.color,calendar.time_zone AS timeZone,calendar.updated_at AS updatedAt,
       (SELECT COUNT(*) FROM events WHERE events.calendar_id = calendar.id) AS eventCount
       FROM calendars AS calendar ORDER BY calendar.title COLLATE NOCASE`).all().map((calendar: any) => ({
       ...calendar,
@@ -1499,15 +1561,15 @@ export class CoreStore {
     const projectRecurrence = typeof input.start === "string" && typeof input.end === "string";
     const start = input.start ?? "0000-01-01T00:00:00.000Z";
     const end = input.end ?? "9999-12-31T23:59:59.999Z";
-    const revision = Number((this.db.prepare("SELECT total_changes() AS revision").get() as { revision: number }).revision);
+    const revision = Number((this.statement("SELECT total_changes() AS revision").get() as { revision: number }).revision);
     if (revision !== this.eventRangeCacheRevision) {
       this.eventRangeCache.clear();
       this.eventRangeCacheRevision = revision;
     }
-    const cacheKey = JSON.stringify([start, end, projectRecurrence]);
+    const cacheKey = JSON.stringify([start, end, projectRecurrence, Boolean(input.summary)]);
     const cached = this.eventRangeCache.get(cacheKey);
     if (cached) return this.page(cached, input);
-    const rows = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
+    const rows = this.statement(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,${input.summary ? "substr(event.description,1,240)" : "event.description"} AS description,${input.summary ? "length(event.description)>240" : "0"} AS detailsTruncated,event.starts_at AS startsAt,event.ends_at AS endsAt,
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       transparency,visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_recurring_event_id AS recurringEventId,
@@ -1567,7 +1629,7 @@ export class CoreStore {
   }
 
   private requireEvent(id: string): JsonRecord {
-    const row = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
+    const row = this.statement(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       event.transparency,event.visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_recurring_event_id AS googleRecurringEventId,
@@ -1583,7 +1645,7 @@ export class CoreStore {
     const now = timestamp();
     const id = typeof input.id === "string" ? input.id : randomUUID();
     const calendarId = input.calendarId ?? this.defaultWritableCalendarId();
-    if (!this.db.prepare("SELECT 1 FROM calendars WHERE id=?").get(calendarId)) throw new CoreStoreError("Calendar no longer exists");
+    if (!this.statement("SELECT 1 FROM calendars WHERE id=?").get(calendarId)) throw new CoreStoreError("Calendar no longer exists");
     const eventType = normalizedEventType(input.eventType);
     this.assertStatusEventCalendar(calendarId, eventType);
     const statusProperties = normalizedStatusEventProperties(eventType, input);
@@ -1591,7 +1653,7 @@ export class CoreStore {
     const recurrence = recurrenceFromGoogle(recurrenceLines);
     const timeZone = normalizedCalendarEventTimeZone(input.timeZone, this.calendarTimeZone(calendarId));
     this.db.transaction(() => {
-      this.db.prepare(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
+      this.statement(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
         attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,conference_json,conference_create_requested,
         attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,working_location_properties_json,
         self_response_status,created_at,updated_at)
@@ -1665,7 +1727,7 @@ export class CoreStore {
     );
     const now = timestamp();
     this.db.transaction(() => {
-      this.db.prepare(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,google_recurrence_json=?,
+      this.statement(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,google_recurrence_json=?,
         attendees_json=?,reminders_json=?,reminders_use_default=?,transparency=?,visibility=?,time_zone=?,conference_create_requested=?,
         attachments_json=?,attachments_managed=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
         working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`).run(
@@ -1734,7 +1796,7 @@ export class CoreStore {
       selfResponseStatus: input.selfResponseStatus ?? master.selfResponseStatus
     }, { enqueue: false, recordUndo: false });
     this.db.transaction(() => {
-      this.db.prepare("UPDATE events SET google_recurring_event_id=?,google_original_start_time=?,updated_at=? WHERE id=?")
+      this.statement("UPDATE events SET google_recurring_event_id=?,google_original_start_time=?,updated_at=? WHERE id=?")
         .run(master.googleId ?? master.id, originalStartAt, timestamp(), occurrence.id);
       if (options.enqueue !== false) {
         this.enqueue("event.updateOccurrence", occurrence.id, {
@@ -1841,13 +1903,13 @@ export class CoreStore {
   }
 
   private seriesExceptionIdsFrom(calendarId: string, googleRecurringEventId: string, splitAt: string): string[] {
-    return (this.db.prepare(`SELECT id FROM events
+    return (this.statement(`SELECT id FROM events
       WHERE calendar_id=? AND google_recurring_event_id=? AND google_original_start_time IS NOT NULL AND google_original_start_time>=?`)
       .all(calendarId, googleRecurringEventId, splitAt) as Array<{ id: string }>).map((row) => row.id);
   }
 
   private findEventByGoogleId(calendarId: string, googleId: string): JsonRecord | null {
-    const row = this.db.prepare("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(calendarId, googleId) as { id?: string } | undefined;
+    const row = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(calendarId, googleId) as { id?: string } | undefined;
     return row?.id ? this.requireEvent(row.id) : null;
   }
 
@@ -1875,12 +1937,12 @@ export class CoreStore {
     this.db.transaction(() => {
       this.requireEvent(id);
       const previous = this.googleEventForSync(id);
-      const linkedBlocks = this.db.prepare("SELECT task_id AS taskId FROM scheduled_task_blocks WHERE calendar_event_id=?").all(id) as Array<{ taskId: string }>;
-      this.db.prepare("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(id);
+      const linkedBlocks = this.statement("SELECT task_id AS taskId FROM scheduled_task_blocks WHERE calendar_event_id=?").all(id) as Array<{ taskId: string }>;
+      this.statement("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(id);
       for (const block of linkedBlocks) {
-        this.db.prepare("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
+        this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
       }
-      this.db.prepare("DELETE FROM events WHERE id=?").run(id);
+      this.statement("DELETE FROM events WHERE id=?").run(id);
       this.enqueue("event.delete", id, previous ?? {}, previous?.accountId ?? null);
     })();
     this.recordUndo("Delete event", { namespace: "calendar", action: "delete", payload: { id } }, { namespace: "calendar", action: "create", payload: eventCreatePayload(eventBeforeDelete) });
@@ -1890,7 +1952,7 @@ export class CoreStore {
   private listScheduledTaskBlocks(input: JsonRecord): JsonRecord {
     const start = input.start ?? "0000-01-01T00:00:00.000Z";
     const end = input.end ?? "9999-12-31T23:59:59.999Z";
-    const blocks = this.db.prepare(`SELECT block.id,block.task_id AS taskId,block.calendar_event_id AS calendarEventId,
+    const blocks = this.statement(`SELECT block.id,block.task_id AS taskId,block.calendar_event_id AS calendarEventId,
       block.calendar_id AS calendarId,task.title,block.starts_at AS startsAt,block.ends_at AS endsAt,
       CAST((julianday(block.ends_at)-julianday(block.starts_at))*1440 AS INTEGER) AS durationMinutes,
       block.updated_at AS updatedAt FROM scheduled_task_blocks block JOIN tasks task ON task.id=block.task_id
@@ -1899,7 +1961,7 @@ export class CoreStore {
   }
 
   private requireScheduledTaskBlock(id: string): JsonRecord {
-    const block = this.db.prepare(`SELECT block.id,block.task_id AS taskId,block.calendar_event_id AS calendarEventId,
+    const block = this.statement(`SELECT block.id,block.task_id AS taskId,block.calendar_event_id AS calendarEventId,
       block.calendar_id AS calendarId,task.title,block.starts_at AS startsAt,block.ends_at AS endsAt,
       CAST((julianday(block.ends_at)-julianday(block.starts_at))*1440 AS INTEGER) AS durationMinutes,
       block.updated_at AS updatedAt FROM scheduled_task_blocks block JOIN tasks task ON task.id=block.task_id
@@ -1935,9 +1997,9 @@ export class CoreStore {
     }
     const now = timestamp();
     const id = randomUUID();
-    this.db.prepare(`INSERT INTO scheduled_task_blocks(id,task_id,calendar_event_id,calendar_id,starts_at,ends_at,created_at,updated_at)
+    this.statement(`INSERT INTO scheduled_task_blocks(id,task_id,calendar_event_id,calendar_id,starts_at,ends_at,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?)`).run(id, task.id, event.id, calendarId, startsAt, endsAt, now, now);
-    this.db.prepare("UPDATE tasks SET planned_start=?,planned_end=?,duration_minutes=?,updated_at=? WHERE id=?")
+    this.statement("UPDATE tasks SET planned_start=?,planned_end=?,duration_minutes=?,updated_at=? WHERE id=?")
       .run(startsAt, endsAt, durationMinutes, now, task.id);
     const block = this.requireScheduledTaskBlock(id);
     this.recordUndo("Schedule task block", { namespace: "calendar", action: "scheduleTaskBlock", payload: { taskId: task.id, calendarId, startsAt, endsAt } }, { namespace: "calendar", action: "unscheduleTaskBlock", payload: { id } });
@@ -1946,7 +2008,7 @@ export class CoreStore {
 
   private moveScheduledTaskBlock(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Scheduled block id");
-    const block = this.db.prepare(`SELECT id,task_id AS taskId,calendar_event_id AS calendarEventId,calendar_id AS calendarId,
+    const block = this.statement(`SELECT id,task_id AS taskId,calendar_event_id AS calendarEventId,calendar_id AS calendarId,
       starts_at AS startsAt,ends_at AS endsAt FROM scheduled_task_blocks WHERE id=?`).get(id) as JsonRecord | undefined;
     if (!block) throw new CoreStoreError("Scheduled block no longer exists");
     const startsAt = input.startsAt ?? block.startsAt;
@@ -1960,9 +2022,9 @@ export class CoreStore {
     } finally {
       this.applyingUndo = previousUndoState;
     }
-    this.db.prepare("UPDATE scheduled_task_blocks SET calendar_id=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?")
+    this.statement("UPDATE scheduled_task_blocks SET calendar_id=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?")
       .run(calendarId, startsAt, endsAt, timestamp(), id);
-    this.db.prepare("UPDATE tasks SET planned_start=?,planned_end=?,duration_minutes=?,updated_at=? WHERE id=?")
+    this.statement("UPDATE tasks SET planned_start=?,planned_end=?,duration_minutes=?,updated_at=? WHERE id=?")
       .run(startsAt, endsAt, durationMinutes, timestamp(), block.taskId);
     const moved = this.requireScheduledTaskBlock(id);
     this.recordUndo("Move task block", { namespace: "calendar", action: "moveScheduledTaskBlock", payload: { id, calendarId, startsAt, durationMinutes } }, { namespace: "calendar", action: "moveScheduledTaskBlock", payload: { id, calendarId: block.calendarId, startsAt: block.startsAt, durationMinutes: Math.round((Date.parse(block.endsAt) - Date.parse(block.startsAt)) / 60_000) } });
@@ -1971,11 +2033,11 @@ export class CoreStore {
 
   private unscheduleTaskBlock(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Scheduled block id");
-    const block = this.db.prepare("SELECT task_id AS taskId,calendar_event_id AS calendarEventId,calendar_id AS calendarId,starts_at AS startsAt,ends_at AS endsAt FROM scheduled_task_blocks WHERE id=?").get(id) as JsonRecord | undefined;
+    const block = this.statement("SELECT task_id AS taskId,calendar_event_id AS calendarEventId,calendar_id AS calendarId,starts_at AS startsAt,ends_at AS endsAt FROM scheduled_task_blocks WHERE id=?").get(id) as JsonRecord | undefined;
     if (!block) throw new CoreStoreError("Scheduled block no longer exists");
     this.db.transaction(() => {
-      this.db.prepare("DELETE FROM scheduled_task_blocks WHERE id=?").run(id);
-      this.db.prepare("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
+      this.statement("DELETE FROM scheduled_task_blocks WHERE id=?").run(id);
+      this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
     })();
     if (input.deleteCalendarEvent !== false) {
       const previousUndoState = this.applyingUndo;
@@ -2176,7 +2238,7 @@ export class CoreStore {
           throw new CoreStoreError("The task is now snoozed.");
         }
 
-        const existing = this.db.prepare("SELECT id FROM scheduled_task_blocks WHERE task_id=? LIMIT 1")
+        const existing = this.statement("SELECT id FROM scheduled_task_blocks WHERE task_id=? LIMIT 1")
           .get(suggestion.taskId) as { id?: string } | undefined;
         if (existing?.id) {
           this.moveScheduledTaskBlock({
@@ -2243,7 +2305,7 @@ export class CoreStore {
   private busyEvents(start: string, end: string, calendarIds: string[]): JsonRecord[] {
     if (calendarIds.length === 0) return [];
     const placeholders = calendarIds.map(() => "?").join(",");
-    return this.db.prepare(`SELECT id,title,starts_at AS startsAt,ends_at AS endsAt,transparency
+    return this.statement(`SELECT id,title,starts_at AS startsAt,ends_at AS endsAt,transparency
       FROM events WHERE starts_at < ? AND ends_at > ? AND calendar_id IN (${placeholders})
       AND COALESCE(transparency, 'opaque') != 'transparent'`)
       .all(end, start, ...calendarIds) as JsonRecord[];
@@ -2252,7 +2314,7 @@ export class CoreStore {
   private nonBlockingEvents(start: string, end: string, calendarIds: string[]): JsonRecord[] {
     if (calendarIds.length === 0) return [];
     const placeholders = calendarIds.map(() => "?").join(",");
-    return this.db.prepare(`SELECT id,title,starts_at AS startsAt,ends_at AS endsAt,transparency
+    return this.statement(`SELECT id,title,starts_at AS startsAt,ends_at AS endsAt,transparency
       FROM events WHERE starts_at < ? AND ends_at > ? AND calendar_id IN (${placeholders})
       AND transparency = 'transparent'`)
       .all(end, start, ...calendarIds) as JsonRecord[];
@@ -2264,7 +2326,7 @@ export class CoreStore {
   }
 
   private activeSchedulableTasks(scope: SmartScheduleCandidateScope = "allOpen", scheduleDate?: string): JsonRecord[] {
-    const tasks: JsonRecord[] = (this.db.prepare(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
+    const tasks: JsonRecord[] = (this.statement(`SELECT task.id,list.account_id AS accountId,task.list_id AS listId,task.title,task.due_at AS dueAt,
       task.planned_start AS plannedStart,task.planned_end AS plannedEnd,task.duration_minutes AS durationMinutes,task.locked_schedule AS lockedSchedule,
       task.snooze_until AS snoozeUntil,task.priority,task.sort_order AS sortOrder,task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id
@@ -2283,8 +2345,85 @@ export class CoreStore {
   }
 
   private scheduledMinutesForRange(start: string, end: string): number {
-    return Number((this.db.prepare(`SELECT COALESCE(SUM((julianday(MIN(ends_at, ?))-julianday(MAX(starts_at, ?)))*1440),0) AS minutes
+    return Number((this.statement(`SELECT COALESCE(SUM((julianday(MIN(ends_at, ?))-julianday(MAX(starts_at, ?)))*1440),0) AS minutes
       FROM scheduled_task_blocks WHERE starts_at < ? AND ends_at > ?`).get(end, start, end, start) as { minutes: number }).minutes ?? 0);
+  }
+
+  private taskContext(input: JsonRecord): JsonRecord {
+    const task = this.requireTask(requiredText(input.id, "Task id"));
+    const row = this.statement(`WITH siblings AS (
+      SELECT id,LAG(id) OVER sibling_order AS previousId,LAG(id,2) OVER sibling_order AS beforePreviousId,
+        LEAD(id) OVER sibling_order AS nextId FROM tasks
+      WHERE list_id=? AND parent_id IS ? AND status IN ('active','completed')
+      WINDOW sibling_order AS (ORDER BY sort_order IS NULL,sort_order,created_at,id)
+    ) SELECT * FROM siblings WHERE id=?`).get(task.listId, task.parentId ?? null, task.id);
+    return { ...(row as JsonRecord ?? { id: task.id, previousId: null, beforePreviousId: null, nextId: null }), listId: task.listId, parentId: task.parentId };
+  }
+
+  private resolveLinks(input: JsonRecord): JsonRecord {
+    const tables: Record<string, { table: string; body: string; live: string }> = {
+      task: { table: "tasks", body: "notes", live: "status != 'deleted'" },
+      note: { table: "notes", body: "body", live: "deleted_at IS NULL" },
+      event: { table: "events", body: "description", live: "1=1" }
+    };
+    const items: JsonRecord[] = [];
+    for (const link of (input.links ?? []).slice(0, 50)) {
+      const source = tables[link.kind];
+      if (!source) continue;
+      const predicate = link.targetId ? "id=?" : "(id=? OR title=? COLLATE NOCASE)";
+      const key = link.targetId ?? link.label;
+      const row = this.statement(`SELECT id,title,${link.fullBody ? source.body : `substr(${source.body},1,240)`} AS body
+        FROM ${source.table} WHERE ${source.live} AND ${predicate} ORDER BY id LIMIT 1`).get(...(link.targetId ? [key] : [key,key])) as JsonRecord | undefined;
+      if (row) items.push({ ...row, kind: link.kind });
+    }
+    return { items };
+  }
+
+  private nativePlanningData(input: JsonRecord): import("@shared/nativePlanning").NativePlanningData {
+    const now = new Date(input.now ?? timestamp());
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(start); tomorrow.setDate(tomorrow.getDate() + 1);
+    const end = new Date(tomorrow); end.setDate(end.getDate() + 1);
+    const bounds = [start.toISOString(), tomorrow.toISOString(), end.toISOString()];
+    const dayKey = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+    const taskBounds = [dayKey(start), dayKey(tomorrow), dayKey(end)];
+    const counts = this.statement(`SELECT
+      COALESCE(SUM(due_at < ?),0) AS overdueTasks,
+      COALESCE(SUM(due_at >= ? AND due_at < ?),0) AS todayTasks,
+      COALESCE(SUM(due_at >= ? AND due_at < ?),0) AS tomorrowTasks
+      FROM tasks WHERE status='active' AND due_at IS NOT NULL`).get(taskBounds[0], taskBounds[0], taskBounds[1], taskBounds[1], taskBounds[2]) as { overdueTasks: number; todayTasks: number; tomorrowTasks: number };
+    const readTasks = (where: string, parameters: unknown[], limit = 100) => this.statement(`SELECT id,list_id AS listId,title,due_at AS dueAt,status
+      FROM tasks WHERE status='active' AND ${where} ORDER BY due_at,id LIMIT ?`).all(...parameters, limit) as TaskSummary[];
+    const tasks = [
+      ...readTasks("due_at < ?", [taskBounds[0]]),
+      ...readTasks("due_at >= ? AND due_at < ?", [taskBounds[0], taskBounds[1]]),
+      ...readTasks("due_at >= ? AND due_at < ?", [taskBounds[1], taskBounds[2]]),
+      ...readTasks("due_at >= ?", [taskBounds[2]], 1)
+    ];
+    const notificationHorizon = new Date(now.getTime() + 86400_000);
+    const notificationTasks = tasks.filter((task) => task.dueAt && task.dueAt.slice(0, 10) <= dayKey(notificationHorizon));
+    const events: JsonRecord[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = this.listEvents({ start: bounds[0], end: bounds[2], summary: true, limit: 1000, cursor });
+      events.push(...page.items);
+      cursor = page.page.nextCursor;
+    } while (cursor !== undefined);
+    const todayEvents = events.filter((event) => event.startsAt >= bounds[0] && event.startsAt < bounds[1]);
+    const tomorrowEvents = events.filter((event) => event.startsAt >= bounds[1] && event.startsAt < bounds[2]);
+    const current = now.toISOString();
+    const retained = [...new Map([
+      ...todayEvents.slice(0, 100), ...tomorrowEvents.slice(0, 100),
+      ...events.filter((event) => event.startsAt <= current && event.endsAt > current).slice(0, 100),
+      ...events.filter((event) => event.startsAt > current).slice(0, 100)
+    ].map((event) => [event.id, event])).values()].sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+    return {
+      tasks, notificationTasks,
+      events: retained.map((event) => ({ id: event.id, eventId: event.eventId, calendarId: event.calendarId, title: event.title,
+        startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay, completedAt: event.completed ? event.updatedAt : null })),
+      counts: { ...counts, dayStart: bounds[0], todayEvents: todayEvents.length, tomorrowEvents: tomorrowEvents.length,
+        todayEventsComplete: todayEvents.every((event) => event.completed) }
+    };
   }
 
   private listNotes(input: JsonRecord): JsonRecord {
@@ -2295,7 +2434,7 @@ export class CoreStore {
     const settings = this.settings();
     const stars = JSON.stringify(settings.starredNoteIds ?? []);
     const starTimes = JSON.stringify(settings.starredNoteAt ?? {});
-    const rows = this.db.prepare(`SELECT note.id,note.title,${input.summary ? "substr(note.body,1,240)" : "note.body"} AS body,
+    const rows = this.statement(`SELECT note.id,note.title,${input.summary ? "substr(note.body,1,240)" : "note.body"} AS body,
       note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
       FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id
@@ -2303,7 +2442,7 @@ export class CoreStore {
       ORDER BY note.id IN (SELECT value FROM json_each(?)) DESC,
         COALESCE((SELECT value FROM json_each(?) WHERE key=note.id),0) DESC,note.updated_at DESC,note.id LIMIT ? OFFSET ?`)
       .all(...parameters, stars, starTimes, limit, offset) as JsonRecord[];
-    const total = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM notes note WHERE ${where.join(" AND ")}`).get(...parameters) as { count: number }).count);
+    const total = Number((this.statement(`SELECT COUNT(*) AS count FROM notes note WHERE ${where.join(" AND ")}`).get(...parameters) as { count: number }).count);
     return { items: rows.map((row) => this.noteSummary(row)), page: this.pageMetadata(limit, offset, total), lists: this.noteLists() };
   }
 
@@ -2316,6 +2455,7 @@ export class CoreStore {
     const candidates = this.legacyPseudoNoteCandidates();
     const limit = Math.min(Math.max(Number(input.limit ?? 500), 1), 1_000);
     return {
+      autoPromptEligible: (this.statement("SELECT value FROM sync_meta WHERE key='legacy-note-prompt-eligible'").get() as { value?: string } | undefined)?.value === "true",
       foundCount: candidates.length,
       importedCount: this.legacyPseudoNoteImportCount(),
       // Google identifiers remain main-process provenance. The renderer gets
@@ -2341,17 +2481,17 @@ export class CoreStore {
     let listsCreated = 0;
 
     this.db.transaction(() => {
-      const findImported = this.db.prepare(`SELECT native_note_id AS nativeNoteId FROM legacy_note_imports
+      const findImported = this.statement(`SELECT native_note_id AS nativeNoteId FROM legacy_note_imports
         WHERE source_type=? AND source_task_id=?`);
-      const findListMapping = this.db.prepare(`SELECT native_note_list_id AS nativeNoteListId FROM legacy_note_import_lists
+      const findListMapping = this.statement(`SELECT native_note_list_id AS nativeNoteListId FROM legacy_note_import_lists
         WHERE source_task_list_id=?`);
-      const createList = this.db.prepare("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)");
-      const createListMapping = this.db.prepare(`INSERT INTO legacy_note_import_lists(source_task_list_id,native_note_list_id,import_version,created_at)
+      const createList = this.statement("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)");
+      const createListMapping = this.statement(`INSERT INTO legacy_note_import_lists(source_task_list_id,native_note_list_id,import_version,created_at)
         VALUES(?,?,?,?) ON CONFLICT(source_task_list_id) DO UPDATE SET native_note_list_id=excluded.native_note_list_id,
         import_version=excluded.import_version,created_at=excluded.created_at`);
-      const createNote = this.db.prepare(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at)
+      const createNote = this.statement(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?)`);
-      const createProvenance = this.db.prepare(`INSERT INTO legacy_note_imports(
+      const createProvenance = this.statement(`INSERT INTO legacy_note_imports(
         source_type,source_task_id,source_task_list_id,source_google_task_id,source_google_task_list_id,native_note_id,import_version,created_at
       ) VALUES(?,?,?,?,?,?,?,?)`);
 
@@ -2395,7 +2535,7 @@ export class CoreStore {
       ? ""
       : "LEFT JOIN legacy_note_imports imported ON imported.source_type='legacy-google-task-pseudo-note' AND imported.source_task_id=task.id";
     const importedCondition = includeImported ? "" : "AND imported.source_task_id IS NULL";
-    const rows = this.db.prepare(`SELECT task.id AS sourceTaskId,task.list_id AS sourceTaskListId,task.google_id AS sourceGoogleTaskId,
+    const rows = this.statement(`SELECT task.id AS sourceTaskId,task.list_id AS sourceTaskListId,task.google_id AS sourceGoogleTaskId,
       list.google_id AS sourceGoogleTaskListId,list.title AS sourceListTitle,task.title,task.notes AS body,task.tags_json AS tagsJson,
       task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id
@@ -2407,12 +2547,12 @@ export class CoreStore {
   }
 
   private legacyPseudoNoteImportCount(): number {
-    return Number((this.db.prepare("SELECT COUNT(*) AS count FROM legacy_note_imports WHERE source_type=?")
+    return Number((this.statement("SELECT COUNT(*) AS count FROM legacy_note_imports WHERE source_type=?")
       .get(legacyPseudoNoteSourceType) as { count?: number }).count ?? 0);
   }
 
   private requireNote(id: string): JsonRecord {
-    const row = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
+    const row = this.statement(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
       FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id WHERE note.id=? AND note.deleted_at IS NULL`).get(id);
     if (!row) throw new CoreStoreError("Note no longer exists");
@@ -2428,7 +2568,7 @@ export class CoreStore {
     // list rather than rejecting an otherwise safe local write.
     const listId = (requestedListId && this.noteList(requestedListId) ? requestedListId : this.noteLists()[0]?.id);
     if (!listId) throw new CoreStoreError("No note list is available");
-    this.db.prepare("INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").run(id, requiredText(input.title, "Note title"), stringValue(input.body), listId, JSON.stringify(stringArray(input.tags)), now, now);
+    this.statement("INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)").run(id, requiredText(input.title, "Note title"), stringValue(input.body), listId, JSON.stringify(stringArray(input.tags)), now, now);
     return this.requireNote(id);
   }
 
@@ -2436,13 +2576,13 @@ export class CoreStore {
     const current = this.requireNote(requiredText(input.id, "Note id"));
     const listId = input.listId ?? current.listId;
     if (!this.noteList(listId)) throw new CoreStoreError("Note list no longer exists");
-    this.db.prepare("UPDATE notes SET title=?,body=?,list_id=?,tags_json=?,updated_at=? WHERE id=?").run(input.title ?? current.title, input.body ?? current.body, listId, JSON.stringify(input.tags === undefined ? current.tags : stringArray(input.tags)), timestamp(), current.id);
+    this.statement("UPDATE notes SET title=?,body=?,list_id=?,tags_json=?,updated_at=? WHERE id=?").run(input.title ?? current.title, input.body ?? current.body, listId, JSON.stringify(input.tags === undefined ? current.tags : stringArray(input.tags)), timestamp(), current.id);
     return this.requireNote(current.id);
   }
 
   private deleteNote(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Note id");
-    this.db.prepare("UPDATE notes SET deleted_at=?,updated_at=? WHERE id=?").run(timestamp(), timestamp(), id);
+    this.statement("UPDATE notes SET deleted_at=?,updated_at=? WHERE id=?").run(timestamp(), timestamp(), id);
     return { id, deleted: true };
   }
 
@@ -2452,7 +2592,7 @@ export class CoreStore {
   }
 
   private noteLists(): JsonRecord[] {
-    return this.db.prepare(`SELECT list.id,list.title,list.created_at AS createdAt,list.updated_at AS updatedAt,
+    return this.statement(`SELECT list.id,list.title,list.created_at AS createdAt,list.updated_at AS updatedAt,
       COUNT(note.id) AS noteCount FROM note_lists list
       LEFT JOIN notes note ON note.list_id=list.id AND note.deleted_at IS NULL
       GROUP BY list.id ORDER BY list.created_at,list.id`).all() as JsonRecord[];
@@ -2460,13 +2600,13 @@ export class CoreStore {
 
   private noteList(id: unknown): JsonRecord | null {
     if (typeof id !== "string" || !id) return null;
-    return this.db.prepare("SELECT id,title,created_at AS createdAt,updated_at AS updatedAt FROM note_lists WHERE id=?").get(id) as JsonRecord | undefined ?? null;
+    return this.statement("SELECT id,title,created_at AS createdAt,updated_at AS updatedAt FROM note_lists WHERE id=?").get(id) as JsonRecord | undefined ?? null;
   }
 
   private createNoteList(input: JsonRecord): JsonRecord {
     const now = timestamp();
     const list = { id: randomUUID(), title: requiredText(input.title, "Note list title"), createdAt: now, updatedAt: now };
-    this.db.prepare("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)").run(list.id, list.title, now, now);
+    this.statement("INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(?,?,?,?)").run(list.id, list.title, now, now);
     return { ...list, noteCount: 0 };
   }
 
@@ -2475,7 +2615,7 @@ export class CoreStore {
     if (!list) throw new CoreStoreError("Note list no longer exists");
     const title = requiredText(input.title, "Note list title");
     const updatedAt = timestamp();
-    this.db.prepare("UPDATE note_lists SET title=?,updated_at=? WHERE id=?").run(title, updatedAt, list.id);
+    this.statement("UPDATE note_lists SET title=?,updated_at=? WHERE id=?").run(title, updatedAt, list.id);
     return { ...list, title, updatedAt };
   }
 
@@ -2487,34 +2627,44 @@ export class CoreStore {
     if (remaining.length === 0) throw new CoreStoreError("Keep at least one note list");
     const deletedAt = timestamp();
     this.db.transaction(() => {
-      this.db.prepare("UPDATE notes SET deleted_at=?,updated_at=? WHERE list_id=? AND deleted_at IS NULL").run(deletedAt, deletedAt, id);
-      this.db.prepare("DELETE FROM legacy_note_import_lists WHERE native_note_list_id=?").run(id);
-      this.db.prepare("DELETE FROM note_lists WHERE id=?").run(id);
+      this.statement("UPDATE notes SET deleted_at=?,updated_at=? WHERE list_id=? AND deleted_at IS NULL").run(deletedAt, deletedAt, id);
+      this.statement("DELETE FROM legacy_note_import_lists WHERE native_note_list_id=?").run(id);
+      this.statement("DELETE FROM note_lists WHERE id=?").run(id);
     })();
     return { id, deleted: true };
   }
 
   private tags(): JsonRecord[] {
-    return this.db.prepare("SELECT id,title,color,updated_at AS updatedAt FROM tags ORDER BY title COLLATE NOCASE").all() as JsonRecord[];
+    return this.statement("SELECT id,title,color,updated_at AS updatedAt FROM tags ORDER BY title COLLATE NOCASE").all() as JsonRecord[];
   }
 
   private createTag(input: JsonRecord): JsonRecord {
     const now = timestamp();
     const tag = { id: randomUUID(), title: requiredText(input.title ?? input.name, "Tag title"), color: input.color ?? null, updatedAt: now };
-    this.db.prepare("INSERT INTO tags(id,title,color,created_at,updated_at) VALUES(?,?,?,?,?)").run(tag.id, tag.title, tag.color, now, now);
+    this.statement("INSERT INTO tags(id,title,color,created_at,updated_at) VALUES(?,?,?,?,?)").run(tag.id, tag.title, tag.color, now, now);
     return tag;
   }
 
   private updateTag(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Tag id");
-    this.db.prepare("UPDATE tags SET title=?,color=?,updated_at=? WHERE id=?").run(requiredText(input.title ?? input.name, "Tag title"), input.color ?? null, timestamp(), id);
+    this.statement("UPDATE tags SET title=?,color=?,updated_at=? WHERE id=?").run(requiredText(input.title ?? input.name, "Tag title"), input.color ?? null, timestamp(), id);
     return this.tags().find((tag) => tag.id === id) ?? (() => { throw new CoreStoreError("Tag no longer exists"); })();
   }
 
   private deleteTag(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Tag id");
-    this.db.prepare("DELETE FROM tags WHERE id=?").run(id);
+    this.statement("DELETE FROM tags WHERE id=?").run(id);
     return { id, deleted: true };
+  }
+
+  private searchCount(query: string): JsonRecord {
+    const match = ftsQuery(query);
+    if (this.fullTextSearchAvailable && match) return this.statement("SELECT COUNT(*) AS count FROM search_index WHERE search_index MATCH ?").get(match) as JsonRecord;
+    const needle = `%${String(query).trim()}%`;
+    return this.statement(`SELECT
+      (SELECT COUNT(*) FROM tasks WHERE status!='deleted' AND (title LIKE ? OR notes LIKE ?)) +
+      (SELECT COUNT(*) FROM events WHERE title LIKE ? OR description LIKE ?) +
+      (SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?)) AS count`).get(needle, needle, needle, needle, needle, needle) as JsonRecord;
   }
 
   private search(query: string, limit: number): JsonRecord {
@@ -2522,22 +2672,22 @@ export class CoreStore {
     const match = ftsQuery(query);
     if (this.fullTextSearchAvailable && match) {
       return {
-        items: this.db.prepare(`SELECT entity_id AS id,title,snippet(search_index,3,'','','…',32) AS snippet,domain,
+        items: this.statement(`SELECT entity_id AS id,title,snippet(search_index,3,'','','…',32) AS snippet,domain,
           NULL AS snoozeUntil FROM search_index WHERE search_index MATCH ?
           ORDER BY bm25(search_index) LIMIT ?`).all(match, safeLimit) as JsonRecord[]
       };
     }
     const needle = `%${String(query).trim()}%`;
     const items = [
-      ...(this.db.prepare("SELECT id,title,substr(notes,1,240) AS snippet,'tasks' AS domain,snooze_until AS snoozeUntil FROM tasks WHERE status != 'deleted' AND (title LIKE ? OR notes LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
-      ...(this.db.prepare("SELECT id,title,substr(description,1,240) AS snippet,'calendar' AS domain,NULL AS snoozeUntil FROM events WHERE title LIKE ? OR description LIKE ? LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
-      ...(this.db.prepare("SELECT id,title,substr(body,1,240) AS snippet,'notes' AS domain,NULL AS snoozeUntil FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[])
+      ...(this.statement("SELECT id,title,substr(notes,1,240) AS snippet,'tasks' AS domain,snooze_until AS snoozeUntil FROM tasks WHERE status != 'deleted' AND (title LIKE ? OR notes LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
+      ...(this.statement("SELECT id,title,substr(description,1,240) AS snippet,'calendar' AS domain,NULL AS snoozeUntil FROM events WHERE title LIKE ? OR description LIKE ? LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
+      ...(this.statement("SELECT id,title,substr(body,1,240) AS snippet,'notes' AS domain,NULL AS snoozeUntil FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[])
     ].slice(0, safeLimit);
     return { items };
   }
 
   private settings(): JsonRecord {
-    const row = this.db.prepare("SELECT value FROM settings WHERE key=?").get("app") as { value: string } | undefined;
+    const row = this.statement("SELECT value FROM settings WHERE key=?").get("app") as { value: string } | undefined;
     const stored = row ? safeJson(row.value, {}) : {};
     // Earlier builds recorded only a completion timestamp. Preserve that
     // information as an explicit state so skip and completion remain distinct.
@@ -2566,7 +2716,7 @@ export class CoreStore {
       throw new CoreStoreError("Local MCP, semantic search, agent actions, and webhooks are not available in this release.");
     }
     const next = { ...this.settings(), ...input };
-    this.db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("app", JSON.stringify(next));
+    this.statement("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("app", JSON.stringify(next));
     this.nativeBridge?.applySettings?.(next);
     return next;
   }
@@ -2574,7 +2724,7 @@ export class CoreStore {
   private syncStatus(): JsonRecord {
     const pending = this.count("outbox", "state = 'pending'");
     const conflicts = this.count("outbox", "state = 'conflict'");
-    const runtimeRow = this.db.prepare("SELECT value FROM sync_meta WHERE key='google-sync-runtime'").get() as { value?: string } | undefined;
+    const runtimeRow = this.statement("SELECT value FROM sync_meta WHERE key='google-sync-runtime'").get() as { value?: string } | undefined;
     const runtime = safeJson(runtimeRow?.value ?? "{}", {});
     const { pendingMutationCount: _storedPendingMutationCount, ...runtimeWithoutPendingCount } = runtime;
     return {
@@ -2587,7 +2737,7 @@ export class CoreStore {
   }
 
   private googleStatus(): JsonRecord {
-    const client = safeJson((this.db.prepare("SELECT value FROM sync_meta WHERE key=?").get("google-client") as { value?: string } | undefined)?.value ?? "{}", {});
+    const client = safeJson((this.statement("SELECT value FROM sync_meta WHERE key=?").get("google-client") as { value?: string } | undefined)?.value ?? "{}", {});
     const accounts = this.googleAccounts().filter((account) => account.accountId !== localAccountId);
     const account = accounts[0] ?? null;
     return {
@@ -2675,7 +2825,7 @@ export class CoreStore {
 
   private enqueue(kind: string, entityId: string, payload: JsonRecord, accountId: string | null): void {
     const now = timestamp();
-    this.db.prepare(`INSERT INTO outbox(id,account_id,kind,entity_id,payload_json,state,next_attempt_at,created_at,updated_at)
+    this.statement(`INSERT INTO outbox(id,account_id,kind,entity_id,payload_json,state,next_attempt_at,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?)`).run(randomUUID(), accountId, kind, entityId, JSON.stringify(payload), "pending", now, now, now);
   }
 
@@ -2683,25 +2833,25 @@ export class CoreStore {
     if (this.applyingUndo) return;
     const now = timestamp();
     this.db.transaction(() => {
-      this.db.prepare("DELETE FROM undo_entries WHERE state='undone'").run();
-      this.db.prepare(`INSERT INTO undo_entries(id,action,forward_json,inverse_json,state,created_at,updated_at)
+      this.statement("DELETE FROM undo_entries WHERE state='undone'").run();
+      this.statement(`INSERT INTO undo_entries(id,action,forward_json,inverse_json,state,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?)`).run(randomUUID(), action, JSON.stringify(forward), JSON.stringify(inverse), "applied", now, now);
       // A bounded local history avoids surprising database growth from normal
       // keyboard editing while keeping enough depth for power-user sessions.
-      this.db.prepare(`DELETE FROM undo_entries WHERE id IN (SELECT id FROM undo_entries ORDER BY created_at DESC LIMIT -1 OFFSET 200)`).run();
+      this.statement(`DELETE FROM undo_entries WHERE id IN (SELECT id FROM undo_entries ORDER BY created_at DESC LIMIT -1 OFFSET 200)`).run();
     })();
   }
 
   private undoStatus(): JsonRecord {
     return {
-      canUndo: Boolean(this.db.prepare("SELECT 1 FROM undo_entries WHERE state='applied' LIMIT 1").get()),
-      canRedo: Boolean(this.db.prepare("SELECT 1 FROM undo_entries WHERE state='undone' LIMIT 1").get())
+      canUndo: Boolean(this.statement("SELECT 1 FROM undo_entries WHERE state='applied' LIMIT 1").get()),
+      canRedo: Boolean(this.statement("SELECT 1 FROM undo_entries WHERE state='undone' LIMIT 1").get())
     };
   }
 
   private applyUndo(direction: "undo" | "redo"): JsonRecord {
     const state = direction === "undo" ? "applied" : "undone";
-    const entry = this.db.prepare(`SELECT id,action,forward_json AS forwardJson,inverse_json AS inverseJson FROM undo_entries
+    const entry = this.statement(`SELECT id,action,forward_json AS forwardJson,inverse_json AS inverseJson FROM undo_entries
       WHERE state=? ORDER BY created_at DESC LIMIT 1`).get(state) as { id: string; action: string; forwardJson: string; inverseJson: string } | undefined;
     if (!entry) return { action: direction, applied: false, ...this.undoStatus() };
     const operation = safeJson(direction === "undo" ? entry.inverseJson : entry.forwardJson, null) as JsonRecord | null;
@@ -2709,7 +2859,7 @@ export class CoreStore {
     this.applyingUndo = true;
     try {
       this.dispatch(String(operation.namespace), String(operation.action), operation.payload);
-      this.db.prepare("UPDATE undo_entries SET state=?,updated_at=? WHERE id=?")
+      this.statement("UPDATE undo_entries SET state=?,updated_at=? WHERE id=?")
         .run(direction === "undo" ? "undone" : "applied", timestamp(), entry.id);
     } finally {
       this.applyingUndo = false;
@@ -2719,7 +2869,7 @@ export class CoreStore {
 
   private pendingMutationDiagnostics(input: JsonRecord): JsonRecord[] {
     const limit = Math.max(1, Math.min(500, Number(input.limit) || 100));
-    return (this.db.prepare(`SELECT id,kind,entity_id AS entityId,state,attempts,next_attempt_at AS nextAttemptAt,
+    return (this.statement(`SELECT id,kind,entity_id AS entityId,state,attempts,next_attempt_at AS nextAttemptAt,
       last_error AS lastErrorMessage,created_at AS createdAt,updated_at AS updatedAt
       FROM outbox WHERE state IN ('pending','conflict') ORDER BY created_at,id LIMIT ?`).all(limit) as JsonRecord[])
       .map((row) => ({
@@ -2745,7 +2895,7 @@ export class CoreStore {
 
   private mutationHistory(input: JsonRecord): JsonRecord[] {
     const limit = Math.max(1, Math.min(1000, Number(input.limit) || 100));
-    return (this.db.prepare(`SELECT id,kind,entity_id AS entityId,state,attempts,last_error AS message,
+    return (this.statement(`SELECT id,kind,entity_id AS entityId,state,attempts,last_error AS message,
       created_at AS createdAt,updated_at AS updatedAt FROM outbox ORDER BY updated_at DESC,id DESC LIMIT ?`).all(limit) as JsonRecord[])
       .map((row) => ({
         id: row.id,
@@ -2758,14 +2908,14 @@ export class CoreStore {
 
   private retryMutation(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Mutation id");
-    const mutation = this.db.prepare("SELECT kind,entity_id AS entityId FROM outbox WHERE id=?").get(id) as { kind?: string; entityId?: string } | undefined;
+    const mutation = this.statement("SELECT kind,entity_id AS entityId FROM outbox WHERE id=?").get(id) as { kind?: string; entityId?: string } | undefined;
     if (!mutation) throw new CoreStoreError("Pending mutation no longer exists");
     // An explicit keep-local resolution intentionally drops a stale ETag. The
     // next conditional request becomes an overwrite chosen by the user rather
     // than an invisible last-write-wins policy.
-    if (mutation.kind?.startsWith("task.") && mutation.entityId) this.db.prepare("UPDATE tasks SET google_etag=NULL WHERE id=?").run(mutation.entityId);
-    if (mutation.kind?.startsWith("event.") && mutation.entityId) this.db.prepare("UPDATE events SET google_etag=NULL WHERE id=?").run(mutation.entityId);
-    const result = this.db.prepare("UPDATE outbox SET state='pending',next_attempt_at=?,last_error=NULL,updated_at=? WHERE id=?")
+    if (mutation.kind?.startsWith("task.") && mutation.entityId) this.statement("UPDATE tasks SET google_etag=NULL WHERE id=?").run(mutation.entityId);
+    if (mutation.kind?.startsWith("event.") && mutation.entityId) this.statement("UPDATE events SET google_etag=NULL WHERE id=?").run(mutation.entityId);
+    const result = this.statement("UPDATE outbox SET state='pending',next_attempt_at=?,last_error=NULL,updated_at=? WHERE id=?")
       .run(timestamp(), timestamp(), id);
     if (result.changes === 0) throw new CoreStoreError("Pending mutation no longer exists");
     return { id, queued: true };
@@ -2773,14 +2923,14 @@ export class CoreStore {
 
   private cancelMutation(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "Mutation id");
-    const result = this.db.prepare("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=? AND state IN ('pending','conflict')")
+    const result = this.statement("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=? AND state IN ('pending','conflict')")
       .run(timestamp(), id);
     if (result.changes === 0) throw new CoreStoreError("Pending mutation no longer exists");
     return { id, cancelled: true };
   }
 
   private countSyncTokens(): number {
-    return Number((this.db.prepare("SELECT COUNT(*) AS count FROM sync_meta WHERE key LIKE 'google-sync-token:%'").get() as { count: number }).count);
+    return Number((this.statement("SELECT COUNT(*) AS count FROM sync_meta WHERE key LIKE 'google-sync-token:%'").get() as { count: number }).count);
   }
 
   private assertStatusEventCalendar(calendarId: string, eventType: string): void {
@@ -2809,39 +2959,55 @@ export class CoreStore {
   }
 
   private hasPendingEntityMutation(entity: "task" | "event", entityId: string): boolean {
-    return Boolean(this.db.prepare("SELECT 1 FROM outbox WHERE entity_id=? AND kind LIKE ? AND state IN ('pending','conflict') LIMIT 1")
+    return Boolean(this.statement("SELECT 1 FROM outbox WHERE entity_id=? AND kind LIKE ? AND state IN ('pending','conflict') LIMIT 1")
       .get(entityId, `${entity}.%`));
   }
 
   private requireList(id: string): void {
-    if (!this.db.prepare("SELECT 1 FROM task_lists WHERE id=?").get(id)) throw new CoreStoreError("Task list no longer exists");
+    if (!this.statement("SELECT 1 FROM task_lists WHERE id=?").get(id)) throw new CoreStoreError("Task list no longer exists");
   }
 
   private accountForTaskList(listId: string): string {
-    const row = this.db.prepare("SELECT account_id AS accountId FROM task_lists WHERE id=?").get(listId) as { accountId?: string } | undefined;
+    const row = this.statement("SELECT account_id AS accountId FROM task_lists WHERE id=?").get(listId) as { accountId?: string } | undefined;
     if (!row?.accountId) throw new CoreStoreError("Task list no longer exists");
     return row.accountId;
   }
 
   private reorderTask(taskId: string, listId: string, previousTaskId: unknown): void {
-    const rows = this.db.prepare(`SELECT id FROM tasks WHERE list_id=? AND id != ? AND status != 'deleted'
-      ORDER BY sort_order,title COLLATE NOCASE,id`).all(listId, taskId) as Array<{ id: string }>;
-    const priorIndex = typeof previousTaskId === "string" ? rows.findIndex((row) => row.id === previousTaskId) : -1;
-    const insertionIndex = typeof previousTaskId === "string" ? (priorIndex < 0 ? rows.length : priorIndex + 1) : 0;
-    rows.splice(insertionIndex, 0, { id: taskId });
-    const update = this.db.prepare("UPDATE tasks SET sort_order=?,updated_at=? WHERE id=?");
-    const now = timestamp();
-    rows.forEach((row, index) => update.run(String((index + 1) * 1_000).padStart(12, "0"), now, row.id));
+    const task = this.statement("SELECT parent_id AS parentId FROM tasks WHERE id=?").get(taskId) as { parentId: string | null };
+    const scope = [listId, task.parentId];
+    const normalize = (): void => {
+      const siblings = this.statement(`SELECT id FROM tasks WHERE list_id=? AND parent_id IS ? AND status IN ('active','completed')
+        ORDER BY sort_order IS NULL,sort_order,created_at,id`).all(...scope) as Array<{ id: string }>;
+      const update = this.statement("UPDATE tasks SET sort_order=? WHERE id=?");
+      siblings.forEach((sibling, index) => update.run(String((index + 1) * 1000).padStart(16, "0") + "O", sibling.id));
+    };
+    if (this.statement("SELECT 1 FROM tasks WHERE list_id=? AND parent_id IS ? AND status IN ('active','completed') AND sort_order IS NULL LIMIT 1").get(...scope)) normalize();
+    const rank = (): string | null => {
+      let left: string | null = null;
+      if (typeof previousTaskId === "string") {
+        const previous = this.statement("SELECT sort_order AS rank FROM tasks WHERE id=? AND id!=? AND list_id=? AND parent_id IS ? AND status IN ('active','completed')").get(previousTaskId, taskId, ...scope) as { rank: string } | undefined;
+        if (!previous) throw new CoreStoreError("The previous task must be a sibling in this list.");
+        left = previous.rank;
+      }
+      const next = this.statement(`SELECT sort_order AS rank FROM tasks WHERE list_id=? AND parent_id IS ? AND id!=? AND status IN ('active','completed')
+        AND (? IS NULL OR sort_order>?) ORDER BY sort_order,id LIMIT 1`).get(...scope, taskId, left, left) as { rank: string } | undefined;
+      return taskOrderBetween(left, next?.rank ?? null);
+    };
+    let key = rank();
+    if (key === null) { normalize(); key = rank(); }
+    if (key === null) throw new CoreStoreError("Task order could not be updated.");
+    this.statement("UPDATE tasks SET sort_order=? WHERE id=?").run(key, taskId);
   }
 
   private accountForCalendar(calendarId: string): string {
-    const row = this.db.prepare("SELECT account_id AS accountId FROM calendars WHERE id=?").get(calendarId) as { accountId?: string } | undefined;
+    const row = this.statement("SELECT account_id AS accountId FROM calendars WHERE id=?").get(calendarId) as { accountId?: string } | undefined;
     if (!row?.accountId) throw new CoreStoreError("Calendar no longer exists");
     return row.accountId;
   }
 
   private calendarTimeZone(calendarId: string): string {
-    const row = this.db.prepare("SELECT time_zone AS timeZone FROM calendars WHERE id=?").get(calendarId) as { timeZone?: string | null } | undefined;
+    const row = this.statement("SELECT time_zone AS timeZone FROM calendars WHERE id=?").get(calendarId) as { timeZone?: string | null } | undefined;
     if (!row) throw new CoreStoreError("Calendar no longer exists");
     return row.timeZone?.trim() || String(this.settings().defaultTimeZone ?? "UTC");
   }
@@ -2865,7 +3031,7 @@ export class CoreStore {
     if (connectedAccountIds.size > 0) {
       throw new CoreStoreError("Google Tasks has not finished syncing a task list yet.");
     }
-    if (this.db.prepare("SELECT 1 FROM task_lists WHERE id=? AND account_id=?").get("inbox", localAccountId)) return "inbox";
+    if (this.statement("SELECT 1 FROM task_lists WHERE id=? AND account_id=?").get("inbox", localAccountId)) return "inbox";
     throw new CoreStoreError("Connect Google before creating a task.");
   }
 
@@ -2905,7 +3071,7 @@ export class CoreStore {
   }
 
   private count(table: "tasks" | "events" | "notes" | "outbox", where = "1=1"): number {
-    return Number((this.db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE ${where}`).get() as { count: number }).count);
+    return Number((this.statement(`SELECT COUNT(*) AS count FROM ${table} WHERE ${where}`).get() as { count: number }).count);
   }
 }
 
@@ -2942,6 +3108,7 @@ function eventFromRow(row: JsonRecord): JsonRecord {
   return {
     ...row,
     allDay: Boolean(row.allDay),
+    detailsTruncated: Boolean(row.detailsTruncated),
     completed: Boolean(row.completed),
     eventId: row.eventId ?? row.id,
     recurringEventId: row.recurringEventId ?? row.googleRecurringEventId ?? null,

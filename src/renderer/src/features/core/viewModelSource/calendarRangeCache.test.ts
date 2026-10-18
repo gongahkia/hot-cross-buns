@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inCalendarRanges, maximumCalendarRanges, retainCalendarRange } from "./calendarRangeCache";
+import { inCalendarRanges, maximumCalendarRanges, retainCalendarRange, retainedLoadedRanges, taskInCalendarRanges } from "./calendarRangeCache";
 
 describe("Calendar cache", () => {
   it("evicts old months even when every requested month is adjacent", () => {
@@ -15,4 +15,12 @@ describe("Calendar cache", () => {
     expect(inCalendarRanges(events[0], ranges)).toBe(false);
     expect(inCalendarRanges(events.at(-1)!, ranges)).toBe(true);
   });
+  it("keeps late old-month responses outside the retained cache and preserves timezone-boundary due dates", () => {
+    const old = { start: "2025-01-01T00:00:00.000Z", end: "2025-02-01T00:00:00.000Z" };
+    const current = { start: "2026-01-01T16:00:00.000Z", end: "2026-02-01T16:00:00.000Z" };
+    expect(retainedLoadedRanges([old, current], [current])).toEqual([current]);
+    expect(taskInCalendarRanges({ dueAt: "2026-01-01T00:00:00Z" }, [current])).toBe(true);
+    expect(taskInCalendarRanges({ dueAt: "2025-12-01T00:00:00Z" }, [current])).toBe(false);
+  });
+
 });

@@ -15,6 +15,17 @@ describe("Paged virtual collections", () => {
     expect(geometry.total).toBe(64_000_052);
   });
 
+  it("revalidates an empty list when its first item arrives", async () => {
+    function Surface({ revision }: { revision: number }): JSX.Element {
+      const collection = usePagedCollection<number>(String(revision), async () => ({ items: revision ? [42] : [], page: { limit: 100, totalKnown: revision ? 1 : 0 } }));
+      return <PagedVirtualList ariaLabel="Destination" collection={collection} emptyState={<p>Empty list</p>} renderRow={(item) => <button>Item {item}</button>} />;
+    }
+    const view = render(<Surface revision={0} />);
+    await screen.findByText("Empty list");
+    view.rerender(<Surface revision={1} />);
+    await screen.findByRole("button", { name: "Item 42" });
+  });
+
   it("loads distant rows on demand, supports keyboard focus, and evicts old pages", async () => {
     const read = vi.fn(async (offset: number, limit: number) => ({ items: Array.from({ length: Math.min(limit, 10_000 - offset) }, (_, index) => offset + index), page: { limit, totalKnown: 10_000 } }));
     function Surface(): JSX.Element {
@@ -37,4 +48,39 @@ describe("Paged virtual collections", () => {
     expect(read.mock.calls.some(([offset]) => offset === 9900)).toBe(true);
     expect(read.mock.calls.length).toBeLessThan(50);
   });
+});
+
+it("bounds reads across rapid filter changes and releases disabled columns", async () => {
+  const pending: Array<{ query: string; finish: (value: any) => void }> = [];
+  let concurrent = 0, maximum = 0;
+  const read = vi.fn((query: string, offset: number, limit: number) => {
+    concurrent += 1; maximum = Math.max(maximum, concurrent);
+    return new Promise<any>((resolve) => pending.push({ query, finish: (value) => { concurrent -= 1; resolve(value); } }));
+  });
+  function Surface({ query, enabled }: { query: string; enabled: boolean }): JSX.Element {
+    const collection = usePagedCollection<number>(query, (offset, limit) => read(query, offset, limit), 100, enabled);
+    return <><button onClick={() => collection.ensure(0, 350)}>Read window</button><output data-testid="cached">{collection.loadedCount}</output></>;
+  }
+  const view = render(<Surface query="A" enabled />);
+  await act(async () => { pending[0].finish({ items: [1], page: { limit: 100, totalKnown: 400 } }); await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: "Read window" }));
+  expect(read).toHaveBeenCalledTimes(3);
+  view.rerender(<Surface query="B" enabled />);
+  view.rerender(<Surface query="C" enabled />);
+  expect(read).toHaveBeenCalledTimes(3);
+  await act(async () => {
+    pending[1].finish({ items: [1], page: { limit: 100, totalKnown: 400 } });
+    pending[2].finish({ items: [2], page: { limit: 100, totalKnown: 400 } });
+    await Promise.resolve();
+  });
+  expect(read.mock.calls.slice(3).every(([query]) => query === "C")).toBe(true);
+  expect(maximum).toBe(2);
+  expect(screen.getByTestId("cached")).toHaveTextContent("1");
+  view.rerender(<Surface query="C" enabled={false} />);
+  await act(async () => {
+    for (const request of pending.slice(3)) request.finish({ items: [3], page: { limit: 100, totalKnown: 400 } });
+    await Promise.resolve();
+  });
+  expect(screen.getByTestId("cached")).toHaveTextContent("0");
+  expect(maximum).toBe(2);
 });

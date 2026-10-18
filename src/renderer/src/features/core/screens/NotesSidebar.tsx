@@ -41,6 +41,7 @@ export function NotesSidebar({
         <Button
           aria-label="New note"
           className="h-12 min-w-0 flex-1 justify-start rounded-hcbLg shadow-sm"
+          disabled={noteLists.length === 0}
           data-action-id="note.create"
           onClick={onCreateNote}
           title={actionDescription("note.create")}

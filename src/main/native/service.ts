@@ -6,8 +6,7 @@ import type {
   SettingsSnapshot
 } from "@shared/ipc/contracts";
 import type { GoogleAccountConnectionStatusDto } from "../google";
-import { appLogger } from "../diagnostics/appLogger";
-import type { DomainJsonObject, NativeDomainService, WebhookDomainService } from "../services/domainInterfaces";
+import type { NativeDomainService } from "../services/domainInterfaces";
 import { parseHotCrossBunsDeepLink } from "./deepLinks";
 import { normalizeFontFamilies } from "./fontFamilies";
 import { buildNativeMenuBarSnapshot } from "./menuBarSnapshot";
@@ -30,6 +29,7 @@ import {
   type NativeSettingsSource,
   type NativeShellSyncActions,
   type NativeShellWindowActions,
+  type ScheduledNativeNotification,
   type NativeTrayActions
 } from "./types";
 
@@ -45,7 +45,6 @@ export interface NativeShellServiceOptions {
   recordUpdateCheck?: (checkedAt: string) => void;
   windows: NativeShellWindowActions;
   sync: NativeShellSyncActions;
-  webhooks?: Pick<WebhookDomainService, "emit">;
   now?: () => Date;
 }
 
@@ -53,7 +52,9 @@ export class NativeShellService implements NativeDomainService {
   private readonly now: () => Date;
   private status: NativeCapabilitiesResponse;
   private deferredStarted = false;
-  private readonly eventStartingWebhookKeys = new Set<string>();
+  private readonly deliveredNotificationIds = new Set<string>();
+  private appliedSettings: SettingsSnapshot | null = null;
+  private readonly scheduledNotifications = new Map<string, { signature: string; handle: ScheduledNativeNotification }>();
   private registeredGlobalShortcut: string | null = null;
 
   constructor(private readonly options: NativeShellServiceOptions) {
@@ -85,46 +86,26 @@ export class NativeShellService implements NativeDomainService {
   }
 
   applySettings(snapshot: SettingsSnapshot): void {
-    this.status = {
-      ...this.status,
-      mcpStatus: featureStatus("unsupported", "Local MCP access is not available in this release.")
-    };
-
-    if (!snapshot.showTrayIcon) {
-      this.options.adapter.destroyTray();
-      this.status = {
-        ...this.status,
-        trayStatus: featureStatus("disabled", "Menu bar icon is disabled in Settings.")
-      };
-    } else if (this.deferredStarted && this.status.trayStatus.state === "disabled") {
-      this.setupTray();
-    } else if (this.deferredStarted && this.status.trayStatus.state === "ready") {
-      this.setupTray();
+    const previous = this.appliedSettings;
+    this.appliedSettings = snapshot;
+    const trayKeys = ["showTrayIcon", "trayClickAction", "menuBarPanelStyle", "menuBarIconName", "menuBarCalendarIconId", "menuBarCalendarDoneMode", "customMenuBarIcons", "showMenuBarBadge", "showDockBadge"];
+    const trayChanged = !previous || trayKeys.some((key) => JSON.stringify(previous[key]) !== JSON.stringify(snapshot[key]));
+    if (trayChanged) {
+      if (!snapshot.showTrayIcon) {
+        this.options.adapter.destroyTray();
+        this.status = { ...this.status, trayStatus: featureStatus("disabled", "Menu bar icon is disabled in Settings.") };
+      } else if (this.deferredStarted) this.setupTray();
     }
-
-    if (!snapshot.notificationsEnabled) {
-      this.options.adapter.clearScheduledNotifications();
-      this.status = {
-        ...this.status,
-        notificationsStatus: {
-          ...this.status.notificationsStatus,
-          scheduledCount: 0,
-          state: "disabled",
-          message: "Local notifications are disabled in Settings."
-        }
-      };
-    } else if (this.deferredStarted) {
-      this.scheduleNotificationsFromCache();
+    const notificationsChanged = !previous || previous.notificationsEnabled !== snapshot.notificationsEnabled || previous.notificationLeadMinutes !== snapshot.notificationLeadMinutes;
+    if (notificationsChanged) {
+      if (!snapshot.notificationsEnabled) {
+        this.options.adapter.clearScheduledNotifications();
+        this.scheduledNotifications.clear();
+        this.status = { ...this.status, notificationsStatus: { ...this.status.notificationsStatus, scheduledCount: 0, state: "disabled", message: "Local notifications are disabled in Settings." } };
+      } else if (this.deferredStarted) this.scheduleNotificationsFromCache();
     }
-
-    if (this.deferredStarted) {
-      this.syncGlobalShortcut(snapshot);
-      this.applyAutostartSetting(snapshot.startOnLogin);
-    }
-
-    if (!this.deferredStarted) {
-      return;
-    }
+    if (this.deferredStarted && (!previous || previous.keybindings["quickAdd.open"] !== snapshot.keybindings["quickAdd.open"])) this.syncGlobalShortcut(snapshot);
+    if (this.deferredStarted && (!previous || previous.startOnLogin !== snapshot.startOnLogin)) this.applyAutostartSetting(snapshot.startOnLogin);
   }
 
   capabilities(): NativeCapabilitiesResponse {
@@ -451,6 +432,7 @@ export class NativeShellService implements NativeDomainService {
 
     if (!settings.notificationsEnabled) {
       this.options.adapter.clearScheduledNotifications();
+      this.scheduledNotifications.clear();
       this.status = {
         ...this.status,
         notificationsStatus: {
@@ -463,30 +445,42 @@ export class NativeShellService implements NativeDomainService {
       return;
     }
 
-    this.options.adapter.clearScheduledNotifications();
-
+    for (const [id, entry] of this.scheduledNotifications) {
+      if (entry.handle.state === "delivered") {
+        this.deliveredNotificationIds.delete(id); this.deliveredNotificationIds.add(id);
+        if (this.deliveredNotificationIds.size > 1024) this.deliveredNotificationIds.delete(this.deliveredNotificationIds.values().next().value!);
+      }
+    }
     const requests = buildNativeNotificationRequests({
       planner: this.options.planner,
       now: this.now(),
-      leadMinutes: settings.notificationLeadMinutes
+      leadMinutes: settings.notificationLeadMinutes,
+      excludeIds: this.deliveredNotificationIds
     });
+    const wanted = new Set(requests.map((request) => request.id));
+    for (const [id, entry] of this.scheduledNotifications) {
+      if (!wanted.has(id)) { if (entry.handle.state !== "delivered") entry.handle.cancel(); this.scheduledNotifications.delete(id); }
+    }
     let scheduledCount = 0;
     let failedCount = 0;
 
     for (const request of requests) {
+      const signature = JSON.stringify([request.title, request.body, request.action,
+        request.deliveryDate.getTime() <= this.now().getTime() + 1000 ? "immediate" : request.deliveryDate.toISOString()]);
+      const previous = this.scheduledNotifications.get(request.id);
+      if (previous?.signature === signature && previous.handle.state !== "failed") {
+        if (previous.handle.state !== "delivered") scheduledCount += 1;
+        continue;
+      }
+      previous?.handle.cancel();
       const scheduled = this.options.adapter.scheduleNotification(request, () => {
-        if (request.action) {
-          this.options.windows.showMainWindow();
-          this.options.windows.dispatchAction(request.action);
-        }
-      }, (message) => {
-        this.markNotificationFailure(message);
-      });
-
+        if (request.action) { this.options.windows.showMainWindow(); this.options.windows.dispatchAction(request.action); }
+      }, (message) => this.markNotificationFailure(message));
       if (scheduled) {
-        scheduledCount += 1;
-        this.emitEventStartingWebhook(request);
+        this.scheduledNotifications.set(request.id, { signature, handle: scheduled });
+        if (scheduled.state !== "delivered") scheduledCount += 1;
       } else {
+        this.scheduledNotifications.delete(request.id);
         failedCount += 1;
       }
     }
@@ -501,7 +495,7 @@ export class NativeShellService implements NativeDomainService {
           failedCount > 0
             ? `${failedCount} local notification${failedCount === 1 ? "" : "s"} could not be scheduled.`
             : scheduledCount === 0
-            ? "No due tasks or upcoming events are in the next 24 hours."
+            ? requests.length ? "These reminders have already been delivered." : "No due tasks or upcoming events are in the next 24 hours."
             : `${scheduledCount} local notification${scheduledCount === 1 ? "" : "s"} scheduled.`
       }
     };
@@ -575,32 +569,7 @@ export class NativeShellService implements NativeDomainService {
     };
   }
 
-  private emitEventStartingWebhook(request: { id: string; body: string; deliveryDate: Date }): void {
-    if (!request.id.startsWith("event:")) {
-      return;
-    }
 
-    const eventId = request.id.slice("event:".length);
-    const deliveryAt = request.deliveryDate.toISOString();
-    const key = `${eventId}:${deliveryAt}`;
-
-    if (this.eventStartingWebhookKeys.has(key)) {
-      return;
-    }
-
-    this.eventStartingWebhookKeys.add(key);
-    const payload: DomainJsonObject = {
-      id: eventId,
-      title: request.body,
-      notificationDeliveryAt: deliveryAt
-    };
-
-    void Promise.resolve(this.options.webhooks?.emit("event.starting", payload)).catch((error) => {
-      appLogger.warn("event starting webhook emit failed", "webhook", {
-        message: error instanceof Error ? error.message : String(error)
-      });
-    });
-  }
 }
 
 function shouldRunAutomaticUpdateCheck(settings: SettingsSnapshot, now: Date): boolean {

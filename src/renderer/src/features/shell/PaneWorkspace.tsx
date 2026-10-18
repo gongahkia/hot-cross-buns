@@ -382,6 +382,9 @@ function WebPaneContent({
 }): JSX.Element {
   const webviewRef = useRef<WebviewElement | null>(null);
   const activeTab = activeSplitPaneWebTab(content);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const activeKey = `${activeTab.id}:${activeTab.url}`;
+  const pageLoaded = loadedKey === activeKey;
   const [webPageUrl, setWebPageUrl] = useState("");
   const [webPageError, setWebPageError] = useState<string | null>(null);
 
@@ -424,6 +427,7 @@ function WebPaneContent({
 
     setWebPageError(null);
     setWebPageUrl("");
+    setLoadedKey(`${activeTab.id}:${url}`);
     replaceWebContent({
       ...content,
       tabs: content.tabs.map((tab) =>
@@ -465,7 +469,7 @@ function WebPaneContent({
       webview.removeEventListener("did-finish-load", listener);
       webview.removeEventListener("dom-ready", listener);
     };
-  }, [activeTab.id, activeTab.title, activeTab.url, content, onReplacePane, paneId]);
+  }, [activeTab.id, activeTab.title, activeTab.url, content, onReplacePane, paneId, pageLoaded]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -511,9 +515,11 @@ function WebPaneContent({
         <>
           <div className="flex min-h-10 items-center gap-2 border-b border-border px-3 text-[var(--text-xs)] text-text-muted">
             <ExternalLink aria-hidden="true" size={13} />
-            <span className="truncate">{splitPaneUrlLabel(activeTab.url)}</span>
+            <span className="min-w-0 flex-1 truncate">{splitPaneUrlLabel(activeTab.url)}</span>
+            {pageLoaded ? <Button size="sm" variant="ghost" onClick={() => setLoadedKey(null)}>Pause page</Button> : null}
+            <Button size="sm" variant="ghost" onClick={() => void window.hcb?.native.openExternalUrl({ url: activeTab.url })}>Open in browser</Button>
           </div>
-          <webview
+          {pageLoaded ? <webview
             className="min-h-0 flex-1 bg-bg-primary"
             data-testid="split-webview"
             key={`${paneId}:${activeTab.id}:${activeTab.url}`}
@@ -523,7 +529,10 @@ function WebPaneContent({
             }}
             src={activeTab.url}
             webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
-          />
+          /> : <div className="grid min-h-0 flex-1 place-items-center p-6"><div className="grid max-w-sm gap-3 text-center">
+            <p className="text-text-secondary">This webpage is paused. Embedded pages use additional memory; only the tab you load stays active.</p>
+            <Button variant="primary" onClick={() => setLoadedKey(activeKey)}>Load webpage</Button>
+          </div></div>}
         </>
       ) : (
         <div className="grid min-h-0 flex-1 place-items-center p-4">

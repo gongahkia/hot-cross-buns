@@ -81,8 +81,9 @@ app.whenReady().then(async () => {
   const nativeShell = new NativeShellService({
     adapter: await createNativeAdapter(),
     planner: {
-      listTasks: ({ limit }) => ({ items: services.snapshot.tasks.slice(0, limit) }),
-      listCalendarEvents: ({ start, end, limit }) => ({ items: services.snapshot.events.filter((event) => event.startsAt < end && event.endsAt > start).slice(0, limit) }),
+      listTasks: ({ limit, scope }) => ({ items: (scope === "notifications" ? services.snapshot.notificationTasks : services.snapshot.tasks).slice(0, limit) }),
+      planningCounts: () => services.snapshot.planningCounts,
+      listCalendarEvents: ({ start, end, limit, scope }) => ({ items: services.snapshot.events.filter((event) => event.startsAt < end && (scope === "notifications" ? event.startsAt >= start : event.endsAt > start)).slice(0, limit) }),
       search: ({ query }) => ({ items: [], page: { totalKnown: services.snapshot.searchCounts[query] ?? 0 } })
     },
     account: {

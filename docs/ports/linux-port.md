@@ -1,5 +1,7 @@
 # Linux Port
 
+Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
+
 Linux is the first non-Mac port for Hot Cross Buns 2. Treat it as a technical preview before claiming broad Linux parity.
 
 ## Target Scope

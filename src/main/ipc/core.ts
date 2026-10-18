@@ -20,11 +20,11 @@ const requestSchema = z.object({
 
 const actionMap: Record<string, readonly string[]> = {
   bootstrap: ["get"],
-  tasks: ["listTaskLists", "list", "board", "forCalendarRange", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
+  tasks: ["listTaskLists", "list", "board", "context", "forCalendarRange", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
   calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"],
   notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "linkSuggest", "legacyMigrationPreview", "importLegacyPseudoNotes"],
   tags: ["list", "create", "update", "delete"],
-  search: ["query"],
+  search: ["query", "resolveLinks"],
   settings: ["get", "update", "recoveryAction"],
   sync: ["status", "runNow", "forceFullResync"],
   google: ["status", "saveOAuthClient", "beginOAuth", "reconfigureOptionalAccess", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
@@ -52,9 +52,11 @@ const eventWriteSchema = z.object({
 
 export function payloadIsValid(namespace: string, action: string, payload: Record<string, unknown>): boolean {
   if (!actionMap[namespace]?.includes(action)) return false;
+  if (namespace === "tasks" && action === "context") return z.object({ id: idSchema }).strict().safeParse(payload).success;
+  if (namespace === "search" && action === "resolveLinks") return z.object({ links: z.array(z.object({ kind: z.enum(["task","note","event"]), targetId: idSchema.optional(), label: z.string().max(500), fullBody: z.boolean().optional() }).strict()).max(50) }).strict().safeParse(payload).success;
   if (namespace === "tasks" && action === "forCalendarRange") return z.object({ start: isoDateSchema, end: isoDateSchema, limit: z.number().int().min(1).max(1000).optional(), cursor: z.string().regex(/^\d+$/).max(16).optional() }).strict().safeParse(payload).success;
   if (namespace === "tasks" && action === "board") return z.object({
-    listId: idSchema.optional(), starred: z.boolean().optional(), sort: z.enum(["myOrder", "date", "deadline", "starred", "title"]).optional(),
+    listId: idSchema.optional(), locateTaskId: idSchema.optional(), starred: z.boolean().optional(), sort: z.enum(["myOrder", "date", "deadline", "starred", "title"]).optional(),
     completedOpen: z.boolean().optional(), collapsedTaskIds: z.array(idSchema).max(10_000).optional(),
     cursor: z.string().regex(/^\d+$/).max(16).optional(), limit: z.number().int().min(1).max(200).optional()
   }).strict().safeParse(payload).success;
@@ -287,7 +289,7 @@ export function registerCoreIpc(
 function isWriteAction(action: string, payload: Record<string, unknown> = {}): boolean {
   if (action === "smartReschedule") return payload.apply === true;
   return !new Set([
-    "listTaskLists", "list", "board", "forCalendarRange", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
+    "listTaskLists", "list", "board", "context", "forCalendarRange", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
     "exportAvailability", "freeBusy", "scheduleSuggest"
   ]).has(action);
 }

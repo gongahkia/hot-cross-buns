@@ -28,7 +28,7 @@ interface PerfReport {
   resources: ResourceSample[];
 }
 
-interface ResourceSample { phase: string; pssMiB: number | null; processCount: number; renderedTaskRows: number }
+interface ResourceSample { phase: string; pssMiB: number | null; processCount: number; renderedTaskRows: number; rendererHeapMiB: number | null; processes: Array<{ type: string; pssMiB: number }> }
 
 function percentile(values: number[], fraction: number): number {
   if (!values.length) throw new Error("No latency samples were recorded.");
@@ -37,16 +37,34 @@ function percentile(values: number[], fraction: number): number {
 }
 
 async function sampleResources(app: ElectronApplication, page: Page, phase: string): Promise<ResourceSample> {
-  const processes = await app.evaluate(({ app }) => app.getAppMetrics().map((metric) => metric.pid));
+  const processes = await app.evaluate(({ app }) => app.getAppMetrics().map((metric) => ({ pid: metric.pid, type: metric.type })));
   let pssKiB = 0;
-  let measured = 0;
-  if (process.platform === "linux") for (const pid of processes) {
+  const samples: Array<{ type: string; pssMiB: number }> = [];
+  if (process.platform === "linux") for (const process of processes) {
     try {
-      const pss = readFileSync(`/proc/${pid}/smaps_rollup`, "utf8").match(/^Pss:\s+(\d+)/m);
-      if (pss) { pssKiB += Number(pss[1]); measured += 1; }
-    } catch { /* A short-lived utility may have exited between sampling and read. */ }
+      const pss = readFileSync(`/proc/${process.pid}/smaps_rollup`, "utf8").match(/^Pss:\s+(\d+)/m);
+      if (pss) { pssKiB += Number(pss[1]); samples.push({ type: process.type, pssMiB: Math.round(Number(pss[1]) / 1024 * 10) / 10 }); }
+    } catch { /* A utility may exit between sampling and reading. */ }
   }
-  return { phase, pssMiB: measured === processes.length ? Math.round(pssKiB / 1024 * 10) / 10 : null, processCount: processes.length, renderedTaskRows: await page.getByTestId("tasks-board").getByRole("listitem").count() };
+  const session = await page.context().newCDPSession(page);
+  await session.send("Performance.enable");
+  const metrics = await session.send("Performance.getMetrics");
+  const usedHeap = metrics.metrics.find((metric) => metric.name === "JSHeapUsedSize")?.value;
+  await session.detach();
+  const rendererHeapMiB = usedHeap === undefined ? null : Math.round(usedHeap / 104857.6) / 10;
+  return { phase, pssMiB: samples.length === processes.length ? Math.round(pssKiB / 1024 * 10) / 10 : null, processCount: processes.length, renderedTaskRows: await page.getByTestId("tasks-board").getByRole("listitem").count(), rendererHeapMiB, processes: samples };
+}
+
+async function frameSamples(page: Page): Promise<number[]> {
+  return page.evaluate(async () => {
+    const samples: number[] = [];
+    let previous = performance.now();
+    for (let index = 0; index < 60; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const now = performance.now(); samples.push(now - previous); previous = now;
+    }
+    return samples.slice(1);
+  });
 }
 
 function performanceFixtureCount(): number {
@@ -129,6 +147,11 @@ async function run(): Promise<void> {
     await page.getByTestId("calendar-view").waitFor({ state: "visible" });
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     resources.push(await sampleResources(app, page, "idle"));
+    const idleFrames = await frameSamples(page);
+    measurements.push({ name: "idle-frame-p95", durationMs: percentile(idleFrames, 0.95), itemCount: idleFrames.length });
+    const metrics = await page.context().newCDPSession(page);
+    await metrics.send("Performance.enable");
+
 
     await page.evaluate(() => {
       const samples: number[] = [];
@@ -194,6 +217,17 @@ async function run(): Promise<void> {
       }
     }, TASK_COUNT);
 
+    const ordering = await page.evaluate(async (count) => {
+      const board = await window.hcb!.tasks.board({ listId: "inbox", limit: 1, cursor: String(count - 1) });
+      if (!board.ok || !board.data.items[0]?.task) throw new Error("Last task could not be read for ordering measurement.");
+      const id = board.data.items[0].task.id;
+      const context = await window.hcb!.tasks.context({ id });
+      if (!context.ok) throw new Error(context.error.message);
+      return { id, listId: "inbox", parentId: null, previousSiblingId: context.data.previousId };
+    }, TASK_COUNT);
+    await measure(measurements, "task-reorder-initialize", async () => requireSuccess(await page.evaluate(async (request) => window.hcb!.tasks.move(request), ordering), "Initialize task ordering"));
+    await measure(measurements, "task-reorder-warm", async () => requireSuccess(await page.evaluate(async (request) => window.hcb!.tasks.move(request), ordering), "Reorder task"));
+
     const search = await measure(measurements, `fts-search-${TASK_COUNT}-tasks`, async () =>
       requireSuccess(await page.evaluate(async () => window.hcb?.search.query({
         query: "Performance task", limit: 100
@@ -235,17 +269,42 @@ async function run(): Promise<void> {
       await page.getByRole("button", { name: `Performance task ${(TASK_COUNT - 1).toString().padStart(4, "0")}`, exact: true }).waitFor({ state: "visible" });
     }, TASK_COUNT);
 
+    const beforeScrollMetrics = await metrics.send("Performance.getMetrics");
+    const scrollFrames = await taskViewport.evaluate(async (element) => {
+      const samples: number[] = [];
+      let previous = performance.now();
+      for (let index = 1; index <= 120; index += 1) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const now = performance.now(); samples.push(now - previous); previous = now;
+        element.scrollTop = (element.scrollHeight - element.clientHeight) * (index / 120);
+      }
+      return samples.slice(1);
+    });
+    const afterScrollMetrics = await metrics.send("Performance.getMetrics");
+    for (const name of ["ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "TaskDuration"]) {
+      const before = beforeScrollMetrics.metrics.find((metric) => metric.name === name)?.value ?? 0;
+      const after = afterScrollMetrics.metrics.find((metric) => metric.name === name)?.value ?? 0;
+      measurements.push({ name: `tasks-scroll-${name}`, durationMs: Math.round((after - before) * 1000 * 100) / 100 });
+    }
+    measurements.push({ name: "tasks-scroll-frame-p95", durationMs: percentile(scrollFrames, 0.95), itemCount: scrollFrames.length });
+    if (Number(await page.getByTestId("tasks-board").getAttribute("data-cached-task-count")) > 100) throw new Error("Task lookup summaries exceeded their bound.");
+    if (Number(await taskViewport.getAttribute("data-loaded-count")) > 600) throw new Error("Task page cache exceeded its bound.");
     await page.getByRole("button", { name: "New task", exact: true }).click();
     const title = page.getByRole("textbox", { name: "Task title", exact: true });
     await title.waitFor({ state: "visible" });
     await title.focus();
-    const typingSamples: number[] = [];
+    await title.evaluate((element) => {
+      (window as any).__hcbPerfInput = [];
+      element.addEventListener("input", () => {
+        const started = performance.now();
+        requestAnimationFrame(() => requestAnimationFrame(() => (window as any).__hcbPerfInput.push(performance.now() - started)));
+      }, { capture: true });
+    });
     for (const character of "Keep planning responsive") {
-      const started = performance.now();
       await page.keyboard.type(character);
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-      typingSamples.push(performance.now() - started);
     }
+    const typingSamples = await page.evaluate(() => (window as any).__hcbPerfInput as number[]);
     measurements.push({ name: "task-title-input-to-paint-p95", durationMs: percentile(typingSamples, 0.95), itemCount: typingSamples.length });
     await title.fill("");
     await page.getByRole("button", { name: "Close inspector", exact: true }).click();
@@ -256,6 +315,7 @@ async function run(): Promise<void> {
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     }, EVENT_COUNT);
 
+    resources.push(await sampleResources(app, page, "calendar-agenda"));
     const report: PerfReport = {
       generatedAt: new Date().toISOString(),
       status: "passed",

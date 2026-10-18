@@ -49,6 +49,7 @@ export interface NoteTemplateOption {
 
 interface NoteInspectorBodyProps {
   createMode?: boolean;
+  saving?: boolean;
   error?: string;
   note: NoteViewModel;
   notes: NoteViewModel[];
@@ -77,23 +78,7 @@ export function NoteInspectorSummary({
   onOpenNote: (noteId: string) => Promise<void> | void;
   source: ReturnType<typeof useCoreViewModelSource>;
 }): JSX.Element {
-  const noteByNormalizedTitle = useMemo(
-    () => new Map(notes.map((candidate) => [normalizedNoteTitle(candidate.title), candidate])),
-    [notes]
-  );
-  const links = useMemo(() => extractPlannerLinks(note.body), [note.body]);
   const properties = useMemo(() => extractNoteProperties(note.body), [note.body]);
-  const backlinks = useMemo(
-    () =>
-      notes.filter(
-        (candidate) =>
-          candidate.id !== note.id &&
-          extractNoteLinks(candidate.body).some(
-            (title) => normalizedNoteTitle(title) === normalizedNoteTitle(note.title)
-          )
-      ),
-    [note.body, note.id, note.title, notes]
-  );
 
   return (
     <div className="grid gap-5 py-1">
@@ -132,52 +117,6 @@ export function NoteInspectorSummary({
         </div>
       ) : null}
 
-      {links.length > 0 ? (
-        <div className="grid gap-2">
-          <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Links</div>
-          <div className="flex flex-wrap gap-2">
-            {links.map((link) => {
-              const linkedNote = link.kind === "note"
-                ? noteByNormalizedTitle.get(normalizedNoteTitle(link.label))
-                : undefined;
-              const action = linkedNote ? () => void onOpenNote(linkedNote.id) : () => undefined;
-
-              return (
-                <button
-                  aria-label={linkedNote ? `Open linked note ${linkedNote.title}` : `${link.kind} link ${link.label}`}
-                  className={linkButtonClass(linkedNote ? "accent" : "neutral")}
-                  key={`${link.type}-${link.raw}`}
-                  onClick={action}
-                  type="button"
-                >
-                  <Search aria-hidden="true" size={14} />
-                  {linkedNote ? linkedNote.title : `${link.kind}: ${plannerLinkDisplayLabel(link)}`}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-
-      {backlinks.length > 0 ? (
-        <div className="grid gap-2">
-          <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Backlinks</div>
-          <div className="flex flex-wrap gap-2">
-            {backlinks.map((backlink) => (
-              <button
-                aria-label={`Open backlink ${backlink.title}`}
-                className={linkButtonClass("accent")}
-                key={backlink.id}
-                onClick={() => void onOpenNote(backlink.id)}
-                type="button"
-              >
-                <RotateCcw aria-hidden="true" size={14} />
-                {backlink.title}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
     </div>
   );
@@ -194,14 +133,13 @@ function linkButtonClass(tone: "accent" | "warning" | "neutral"): string {
 
 export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspectorBodyProps>(
   function NoteInspectorBody(
-    { createMode = false, error, note, notes, onDraftChange, onOpenNote, onPersist, rules, source, templates = [] },
+    { createMode = false, saving = false, error, note, notes, onDraftChange, onOpenNote, onPersist, rules, source, templates = [] },
     ref
   ): JSX.Element {
     const dirty = useDirtyState<NoteDraftValue>({ title: note.title, body: note.body, tags: note.tags ?? [] });
     const { update } = useInspector();
     const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
     const [selectedTemplateId, setSelectedTemplateId] = useState("blank");
-    const [brokenLinks, setBrokenLinks] = useState<Array<{ linkText: string }>>([]);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const draftRef = useRef<NoteDraftValue>(dirty.value);
     const dirtyRef = useRef(dirty.isDirty);
@@ -209,48 +147,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
     const onDraftChangeRef = useRef(onDraftChange);
     const flushRef = useRef<() => Promise<boolean>>(async () => true);
     const debounceRef = useRef<number | null>(null);
-    const noteByNormalizedTitle = useMemo(
-      () => new Map(notes.map((candidate) => [normalizedNoteTitle(candidate.title), candidate])),
-      [notes]
-    );
-    const links = useMemo(() => extractNoteLinks(dirty.value.body), [dirty.value.body]);
     const properties = useMemo(() => extractNoteProperties(dirty.value.body), [dirty.value.body]);
-    const backlinks = useMemo(
-      () =>
-        notes.filter(
-          (candidate) =>
-            candidate.id !== note.id &&
-            extractNoteLinks(candidate.body).some(
-              (title) => normalizedNoteTitle(title) === normalizedNoteTitle(dirty.value.title)
-            )
-        ),
-      [dirty.value.title, note.id, notes]
-    );
-    const brokenLinkTexts = useMemo(
-      () => new Set(brokenLinks.map((item) => item.linkText)),
-      [brokenLinks]
-    );
-
-    useEffect(() => {
-      if (note.id.startsWith("note-draft-")) {
-        setBrokenLinks([]);
-        return;
-      }
-
-      let cancelled = false;
-
-      void window.hcb?.notes.listBrokenLinks({ noteId: note.id }).then((result) => {
-        if (cancelled || !result?.ok) {
-          return;
-        }
-
-        setBrokenLinks(result.data.items);
-      });
-
-      return () => {
-        cancelled = true;
-      };
-    }, [dirty.value.body, note.id]);
 
 
     useEffect(() => {
@@ -296,19 +193,19 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
         debounceRef.current = null;
       }
 
-      if (!dirtyRef.current && !note.id.startsWith("note-draft-")) {
-        return true;
+      if (note.id.startsWith("note-draft-")) {
+        return draftRef.current.title.trim() === "Untitled note" && draftRef.current.body.trim().length === 0;
       }
-
+      if (!dirtyRef.current) return true;
       const draft = draftRef.current;
       const pending = onPersist(note.id, draft).catch(() => false);
       saveInFlight.current = pending;
       const saved = await pending;
       if (saveInFlight.current === pending) saveInFlight.current = null;
 
-      if (saved) {
-        dirty.reset(draft);
-      }
+      if (saved && noteDraftValuesEqual(draftRef.current, draft)) dirty.reset(draft);
+      // A successful older write must not overwrite text entered while it was pending.
+      if (saved && !noteDraftValuesEqual(draftRef.current, draft)) return flushRef.current();
       return saved;
     }, [dirty.reset, note.id, onPersist]);
 
@@ -375,7 +272,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
     return (
       <div className="grid gap-4">
         <p className="text-[var(--text-xs)] text-text-muted">Stored on this device. Back up in Settings → Data.</p>
-        <div className="grid gap-3">
+        <fieldset disabled={saving} className="grid min-w-0 gap-3">
           <EmojiInput
             aria-label="Note title"
             autoFocus={createMode}
@@ -449,13 +346,13 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
             ) : (
               <span />
             )}
-            {error ? (
+            {error && !note.id.startsWith("note-draft-") ? (
               <Button onClick={() => void flush()} size="sm" variant="danger">
                 Couldn’t save · Retry
               </Button>
             ) : (
               <Badge tone={dirty.isDirty ? "warning" : "success"}>
-                {dirty.isDirty ? "Saving…" : "Saved"}
+                {note.id.startsWith("note-draft-") ? "Draft · use Create note to save" : dirty.isDirty ? "Saving…" : "Saved"}
               </Badge>
             )}
           </div>
@@ -475,7 +372,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
               plannerLinkTargets={plannerLinkTargets(source)}
             />
           )}
-        </div>
+        </fieldset>
 
         {properties.length > 0 ? <div className="grid gap-2">
           <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Properties</div>
@@ -488,76 +385,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           </div>
         </div> : null}
 
-        {links.length > 0 || brokenLinks.length > 0 || backlinks.length > 0 ? <div className="grid gap-3 rounded-hcbMd border border-border bg-bg-tertiary p-3">
-          {links.length > 0 ? (
-          <div className="grid gap-2">
-            <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Links</div>
-            <div className="flex flex-wrap gap-2">
-              {links.map((title) => {
-                  const link = parsePlannerLink(title);
-                  const linkedNote = link.kind === "note"
-                    ? noteByNormalizedTitle.get(normalizedNoteTitle(link.label))
-                    : undefined;
-                  const isBroken = brokenLinkTexts.has(title) || (link.kind === "note" && !linkedNote);
-                  const label = linkedNote?.title ?? link.label;
-                  const action = linkedNote ? () => void onOpenNote(linkedNote.id) : () => undefined;
 
-                  return (
-                    <button
-                      aria-label={linkedNote ? `Open linked note ${linkedNote.title}` : `${link.kind} link ${link.label}`}
-                      className={linkButtonClass(linkedNote ? "accent" : isBroken ? "warning" : "neutral")}
-                      key={title}
-                      onClick={action}
-                      onKeyDown={(event) => handleLinkChipKeyDown(event, action)}
-                      type="button"
-                    >
-                      <Search aria-hidden="true" size={14} />
-                      {linkedNote ? label : `${isBroken ? "Broken" : link.kind}: ${label}`}
-                    </button>
-                  );
-              })}
-            </div>
-          </div>) : null}
-
-          {brokenLinks.length > 0 ? (
-            <div className="grid gap-2">
-              <div className="text-[var(--text-xs)] font-semibold uppercase text-warning">Broken links</div>
-              <div className="flex flex-wrap gap-2">
-                {brokenLinks.map((item) => (
-                  <span
-                    className="inline-flex min-h-8 items-center gap-2 rounded-hcbSm border border-warning bg-bg-tertiary px-2 text-[var(--text-sm)] text-warning"
-                    key={item.linkText}
-                  >
-                    {item.linkText}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {backlinks.length > 0 ? <div className="grid gap-2">
-            <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Backlinks</div>
-            <div className="flex flex-wrap gap-2">
-              {backlinks.map((backlink) => {
-                  const action = () => void onOpenNote(backlink.id);
-
-                  return (
-                    <button
-                      aria-label={`Open backlink ${backlink.title}`}
-                      className={linkButtonClass("accent")}
-                      key={backlink.id}
-                      onClick={action}
-                      onKeyDown={(event) => handleLinkChipKeyDown(event, action)}
-                      type="button"
-                    >
-                      <RotateCcw aria-hidden="true" size={14} />
-                      {backlink.title}
-                    </button>
-                  );
-              })}
-            </div>
-          </div> : null}
-        </div> : null}
       </div>
     );
   }

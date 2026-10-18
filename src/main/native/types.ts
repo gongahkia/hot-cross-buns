@@ -132,6 +132,7 @@ export interface NativeNotificationRequest {
 
 export interface ScheduledNativeNotification {
   id: string;
+  state?: "pending" | "delivered" | "failed";
   cancel: () => void;
 }
 
@@ -166,8 +167,10 @@ export interface NativePlatformAdapter {
 }
 
 export interface NativePlannerSnapshotSource {
-  listTasks: (request: { status: "active"; limit: number }) => { items: TaskSummary[] };
+  listTasks: (request: { status: "active"; limit: number; scope?: "notifications" }) => { items: TaskSummary[] };
+  planningCounts?: () => import("@shared/nativePlanning").NativePlanningCounts;
   listCalendarEvents: (request: {
+    scope?: "notifications";
     start: string;
     end: string;
     limit: number;

@@ -30,21 +30,18 @@ async function start(): Promise<void> {
   let closing = false;
   const snapshot = (): NativeWorkspaceSnapshot => {
     const settings = services.core.dispatch("settings", "get", {});
-    const start = new Date();
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - 7);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 49);
+    const planning = services.core.dispatch("native", "planningData", {}) as import("@shared/nativePlanning").NativePlanningData;
     const searchCounts: Record<string, number> = {};
-    for (const view of settings.savedSearchViews ?? []) {
-      if (settings.pinnedSavedSearchViewIds.includes(view.id)) searchCounts[view.query] = services.core.dispatch("search", "query", { query: view.query, limit: 200 }).items.length;
+    for (const view of (settings.savedSearchViews ?? []).filter((view: any) => settings.pinnedSavedSearchViewIds.includes(view.id)).slice(0, 6)) {
+      searchCounts[view.query] = services.core.dispatch("search", "count", { query: view.query }).count;
     }
     return {
       settings,
       account: services.core.googleAccounts().find((account) => account.accountId !== "local") ?? null,
-      tasks: services.core.dispatch("tasks", "list", { status: "active", limit: 100 }).items,
-      events: services.core.dispatch("calendar", "listEvents", { start: start.toISOString(), end: end.toISOString(), limit: 1000 }).items,
+      tasks: planning.tasks,
+      notificationTasks: planning.notificationTasks,
+      events: planning.events,
+      planningCounts: planning.counts,
       searchCounts
     };
   };
@@ -52,6 +49,8 @@ async function start(): Promise<void> {
     snapshotTimer = null;
     port.postMessage({ kind: "snapshot", snapshot: snapshot() });
   };
+  const clockTimer = setInterval(() => { if (!closing) scheduleSnapshot(); }, 60_000);
+  clockTimer.unref();
   const scheduleSnapshot = () => {
     if (!closing && !snapshotTimer) snapshotTimer = setTimeout(publishSnapshot, 250);
   };
@@ -88,6 +87,7 @@ async function start(): Promise<void> {
     if (message.kind === "nativeCapabilities") { nativeCapabilities = message.value; return; }
     if (message.kind === "close") {
       closing = true;
+      clearInterval(clockTimer);
       if (snapshotTimer) clearTimeout(snapshotTimer);
       await Promise.all([services.googleSync.shutdown(), services.backups.shutdown()]);
       services.core.close();
@@ -97,7 +97,7 @@ async function start(): Promise<void> {
     try {
       if (closing) throw new CoreStoreError("Hot Cross Buns is closing.");
       if (!allowed[message.target]?.has(message.method)) throw new CoreStoreError("Unsupported workspace worker operation.");
-      if (message.target === "core" && message.method === "dispatch" && services.googleOAuth.isReconfiguring() && ["tasks", "calendar"].includes(String(message.args[0])) && !["list", "get", "listTaskLists", "listCalendars", "listEvents"].includes(String(message.args[1]))) {
+      if (message.target === "core" && message.method === "dispatch" && services.googleOAuth.isReconfiguring() && ["tasks", "calendar"].includes(String(message.args[0])) && !["list", "get", "board", "context", "forCalendarRange", "listTaskLists", "listCalendars", "listEvents"].includes(String(message.args[1]))) {
         throw new CoreStoreError("Google access is being reconfigured. Try again after authorization opens.");
       }
       const target = services[message.target] as any;
@@ -105,7 +105,7 @@ async function start(): Promise<void> {
       port.postMessage({ kind: "oauthState", reconfiguring: services.googleOAuth.isReconfiguring() });
       const result = await operation;
       port.postMessage({ kind: "reply", id: message.id, result });
-      if (message.target !== "core" || !["list", "board", "forCalendarRange", "get", "query", "summary", "logs", "status", "listTaskLists", "listCalendars", "listEvents", "listScheduledTaskBlocks", "recordTiming", "markCachedDataRendered"].includes(String(message.args[1]))) scheduleSnapshot();
+      if (message.target !== "core" || !["list", "board", "context", "resolveLinks", "forCalendarRange", "get", "query", "summary", "logs", "status", "listTaskLists", "listCalendars", "listEvents", "listScheduledTaskBlocks", "recordTiming", "markCachedDataRendered"].includes(String(message.args[1]))) scheduleSnapshot();
     } catch (error) {
       port.postMessage({ kind: "reply", id: message.id, error: { name: error instanceof CoreStoreError ? "CoreStoreError" : "Error", message: error instanceof Error ? error.message : "Workspace operation failed." } });
     } finally {
