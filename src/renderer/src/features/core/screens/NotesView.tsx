@@ -6,6 +6,7 @@ import { LegacyNotesMigrationDialog } from "./LegacyNotesMigrationDialog";
 import { NotesBoard } from "./NotesBoard";
 import { NotesSidebar } from "./NotesSidebar";
 import { useAutoCollapsedSidebar } from "./useAutoCollapsedSidebar";
+import { StatusBanner } from "../../../components/primitives";
 import { useNotesController } from "./useNotesController";
 
 export function NotesView(): JSX.Element {
@@ -15,6 +16,7 @@ export function NotesView(): JSX.Element {
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
   const {
+    noteActionError,
     createNote,
     createNoteList,
     deleteNoteList,
@@ -73,7 +75,10 @@ export function NotesView(): JSX.Element {
         noteLists={noteLists}
         selectedNoteViews={selectedNoteViews}
       />
+      <div className="flex min-h-0 flex-col">
+      {noteActionError ? <StatusBanner tone="danger" title="Note action failed" description={noteActionError} /> : null}
       <NotesBoard
+        source={source}
         columns={noteViewColumns}
         onCreateNote={(listId) => void createNote(listId)}
         onDeleteNoteList={(listId, title) => void deleteNoteList(listId, title)}
@@ -86,6 +91,7 @@ export function NotesView(): JSX.Element {
         selectedNoteId={selectedNoteId}
         starredNoteIds={starredNoteIds}
       />
+      </div>
       {legacyMigrationPreview ? (
         <LegacyNotesMigrationDialog
           onDismiss={() => setLegacyMigrationPreview(null)}

@@ -1312,7 +1312,7 @@ export class CoreStore {
       calendars: this.page(this.calendars(), { limit: 100 }),
       events: this.listEvents({ ...calendarRange, limit: calendarRange.limit ?? 500 }),
       scheduledTaskBlocks: this.listScheduledTaskBlocks({ ...calendarRange, limit: 500 }),
-      notes: this.listNotes({ limit: 50 }),
+      notes: this.listNotes({ limit: 50, summary: true }),
       tags: this.page(this.tags(), { limit: 100 }),
       settings: this.settings(),
       syncStatus: this.syncStatus(),
@@ -2289,11 +2289,22 @@ export class CoreStore {
 
   private listNotes(input: JsonRecord): JsonRecord {
     const { limit, offset } = this.pageBounds(input);
-    const rows = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
+    const where = ["note.deleted_at IS NULL"];
+    const parameters: unknown[] = [];
+    if (typeof input.listId === "string") { where.push("note.list_id=?"); parameters.push(input.listId); }
+    const settings = this.settings();
+    const stars = JSON.stringify(settings.starredNoteIds ?? []);
+    const starTimes = JSON.stringify(settings.starredNoteAt ?? {});
+    const rows = this.db.prepare(`SELECT note.id,note.title,${input.summary ? "substr(note.body,1,240)" : "note.body"} AS body,
+      note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
       FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id
-      WHERE note.deleted_at IS NULL ORDER BY note.updated_at DESC,note.id LIMIT ? OFFSET ?`).all(limit, offset) as JsonRecord[];
-    return { items: rows.map((row) => this.noteSummary(row)), page: this.pageMetadata(limit, offset, this.count("notes", "deleted_at IS NULL")), lists: this.noteLists() };
+      WHERE ${where.join(" AND ")}
+      ORDER BY note.id IN (SELECT value FROM json_each(?)) DESC,
+        COALESCE((SELECT value FROM json_each(?) WHERE key=note.id),0) DESC,note.updated_at DESC,note.id LIMIT ? OFFSET ?`)
+      .all(...parameters, stars, starTimes, limit, offset) as JsonRecord[];
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM notes note WHERE ${where.join(" AND ")}`).get(...parameters) as { count: number }).count);
+    return { items: rows.map((row) => this.noteSummary(row)), page: this.pageMetadata(limit, offset, total), lists: this.noteLists() };
   }
 
   /**

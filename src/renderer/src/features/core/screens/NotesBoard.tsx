@@ -3,7 +3,10 @@ import { Copy, MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { FloatingMenu } from "../../../components/FloatingMenu";
 import { Badge, IconButton, Panel, cx } from "../../../components/primitives";
 import { EmptyState } from "../../../components/states";
-import { VirtualizedList } from "../../../components/VirtualizedList";
+import { PagedVirtualList } from "../../../components/PagedVirtualList";
+import { usePagedCollection } from "../../../hooks/usePagedCollection";
+import { noteViewModel } from "../viewModelSource/noteViewModels";
+import type { CoreViewModelSource } from "../coreViewModelSource";
 import type { NoteViewModel } from "../coreViewModels";
 import type { NoteViewColumn } from "./notesTypes";
 
@@ -20,8 +23,10 @@ export function NotesBoard({
   onRenameNoteList,
   onToggleStar,
   selectedNoteId,
-  starredNoteIds
+  starredNoteIds,
+  source
 }: {
+  source: CoreViewModelSource;
   columns: NoteViewColumn[];
   onCreateNote: (listId: string) => void;
   onDeleteNoteList: (listId: string, title: string) => void;
@@ -35,7 +40,7 @@ export function NotesBoard({
   starredNoteIds: ReadonlySet<string>;
 }): JSX.Element {
   return (
-    <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-primary">
+    <div className="h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-hcbLg bg-bg-primary">
       <div
         className={cx(
           "flex h-full min-h-[480px] min-w-0 gap-2 p-2",
@@ -46,65 +51,11 @@ export function NotesBoard({
       >
         {columns.length > 0 ? (
           columns.map((column) => (
-            <Panel
-              action={
-                <NoteColumnAction
-                  count={column.notes.length}
-                  listId={column.listId}
-                  onDeleteNoteList={onDeleteNoteList}
-                  onRenameNoteList={onRenameNoteList}
-                  title={column.title}
-                />
-              }
-              className={cx(
-                "flex max-h-full flex-col overflow-hidden border-border/70 bg-bg-primary shadow-none",
-                columns.length === 1 ? "w-full" : "w-[min(560px,calc(100vw-2rem))] shrink-0"
-              )}
-              description={column.description}
-              key={column.id}
-              onDragLeave={() => undefined}
-              role="listitem"
-              title={column.title}
-            >
-              {column.listId ? (
-                <button
-                  className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  onClick={() => onCreateNote(column.listId)}
-                  type="button"
-                >
-                  <Plus aria-hidden="true" size={18} />
-                  Add a note
-                </button>
-              ) : null}
-              <NoteColumnDropTarget column={column} onMoveNote={onMoveNote}>
-                <VirtualizedList
-                  ariaLabel={column.title}
-                  emptyState={
-                    <EmptyState
-                      description={column.emptyDescription}
-                      title={column.emptyTitle}
-                    />
-                  }
-                  estimateRowHeight={58}
-                  getKey={(note) => note.id}
-                  items={column.notes}
-                  performanceLabel={`notes.${column.id}.list`}
-                  renderRow={(note) => (
-                    <NoteBoardRow
-                      key={note.id}
-                      note={note}
-                      onDeleteNote={onDeleteNote}
-                      onDuplicateNote={onDuplicateNote}
-                      onOpenNote={onOpenNote}
-                      onToggleStar={onToggleStar}
-                      selected={note.id === selectedNoteId}
-                      starred={starredNoteIds.has(note.id)}
-                    />
-                  )}
-                  viewportHeight={520}
-                />
-              </NoteColumnDropTarget>
-            </Panel>
+            <NoteListColumn key={column.id} column={column} source={source} starredNoteIds={starredNoteIds}
+              selectedNoteId={selectedNoteId} single={columns.length === 1}
+              onCreateNote={onCreateNote} onDeleteNoteList={onDeleteNoteList} onDeleteNote={onDeleteNote}
+              onDuplicateNote={onDuplicateNote} onMoveNote={onMoveNote} onOpenNote={onOpenNote}
+              onRenameNoteList={onRenameNoteList} onToggleStar={onToggleStar} />
           ))
         ) : (
           <div className="grid min-h-[360px] min-w-80 flex-1 place-items-center rounded-hcbLg border border-border bg-bg-primary">
@@ -117,6 +68,30 @@ export function NotesBoard({
       </div>
     </div>
   );
+}
+
+function NoteListColumn({ column, source, single, ...actions }: Omit<Parameters<typeof NotesBoard>[0], "columns"> & { column: NoteViewColumn; single: boolean }): JSX.Element {
+  const starSignature = JSON.stringify([...actions.starredNoteIds]);
+  const collection = usePagedCollection<NoteViewModel>(`${column.listId}:${source.noteDataRevision}:${starSignature}`, async (offset, limit) => {
+    const response = await window.hcb!.notes.list({ listId: column.listId, summary: true, limit, cursor: String(offset) });
+    if (!response.ok) throw new Error(response.error.message);
+    return { ...response.data, items: response.data.items.map(noteViewModel) };
+  });
+  const drafts = column.notes.filter((note) => note.id.startsWith("note-draft-"));
+  return <Panel
+    action={<NoteColumnAction count={(collection.total ?? 0) + drafts.length} listId={column.listId} onDeleteNoteList={actions.onDeleteNoteList} onRenameNoteList={actions.onRenameNoteList} title={column.title} />}
+    className={cx("flex max-h-full flex-col overflow-hidden border-border/70 bg-bg-primary shadow-none", single ? "w-full" : "w-[min(560px,calc(100vw-2rem))] shrink-0")}
+    description="Local notes · Starred first, then recently edited" role="listitem" title={column.title}>
+    <button className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent hover:bg-surface-0" onClick={() => actions.onCreateNote(column.listId)} type="button"><Plus aria-hidden size={18} />Add a note</button>
+    <NoteColumnDropTarget column={column} onMoveNote={actions.onMoveNote}>
+      <div className="flex h-full min-h-0 flex-col">
+        {drafts.map((note) => <NoteBoardRow key={note.id} note={note} {...actions} selected={note.id === actions.selectedNoteId} starred={actions.starredNoteIds.has(note.id)} />)}
+        <PagedVirtualList ariaLabel={column.title} collection={collection} estimateRowHeight={72} getKey={(note) => note.id}
+          emptyState={drafts.length ? undefined : <EmptyState description={column.emptyDescription} title={column.emptyTitle} />}
+          renderRow={(note) => <NoteBoardRow key={note.id} note={note} {...actions} selected={note.id === actions.selectedNoteId} starred={actions.starredNoteIds.has(note.id)} />} />
+      </div>
+    </NoteColumnDropTarget>
+  </Panel>;
 }
 
 function NoteColumnAction({
@@ -285,7 +260,7 @@ function NoteBoardRow({
         <IconButton
           className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent [&_svg]:fill-current" : undefined)}
           icon={Star}
-          label={starred ? `Unstar ${note.title}` : `Star ${note.title}`}
+          label={starred ? `Unstar ${note.title} on this device` : `Star ${note.title} on this device`}
           onClick={() => onToggleStar(note.id)}
           variant="ghost"
         />

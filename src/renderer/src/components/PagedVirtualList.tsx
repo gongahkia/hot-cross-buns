@@ -18,11 +18,12 @@ export function sparseRowGeometry(count: number, estimate: number, heights: Read
   return { offset, indexAt, total: offset(count) };
 }
 
-export function PagedVirtualList<T>({ ariaLabel, collection, renderRow, emptyState, estimateRowHeight = 64, scrollToIndex, initialScrollTop = 0, onScrollPositionChange }: {
+export function PagedVirtualList<T>({ ariaLabel, collection, renderRow, emptyState, estimateRowHeight = 64, scrollToIndex, initialScrollTop = 0, onScrollPositionChange, getKey }: {
   ariaLabel: string;
   collection: PagedCollection<T>;
   renderRow: (item: T, index: number) => ReactNode;
   emptyState?: ReactNode;
+  getKey?: (item: T) => string;
   estimateRowHeight?: number;
   scrollToIndex?: number | null;
   initialScrollTop?: number;
@@ -102,7 +103,7 @@ export function PagedVirtualList<T>({ ariaLabel, collection, renderRow, emptySta
               const item = collection.get(index);
               return item === undefined
                 ? <div key={index} aria-hidden className="absolute inset-x-0 rounded-hcbMd bg-surface-0/30" style={{ top: geometry.offset(index), height: estimateRowHeight }} />
-                : <PagedRow key={index} index={index} top={geometry.offset(index)} measure={measure}>{renderRow(item, index)}</PagedRow>;
+                : <PagedRow key={getKey?.(item) ?? index} index={index} top={geometry.offset(index)} measure={measure}>{renderRow(item, index)}</PagedRow>;
             })}
           </div>
         )}

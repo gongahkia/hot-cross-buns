@@ -42,10 +42,6 @@ function initialNoteViews(noteLists: CoreViewModelSource["noteLists"]): NoteBoar
   return first ? [noteListSelection(first.id)] : [];
 }
 
-function displayNote(note: NoteViewModel): NoteViewModel {
-  return note;
-}
-
 function noteFromNative(note: {
   id: string;
   listId: string;
@@ -68,6 +64,7 @@ function noteFromNative(note: {
 }
 
 export function useNotesController(source: CoreViewModelSource): {
+  noteActionError?: string;
   createNote: (listId?: string) => Promise<void>;
   createNoteList: () => Promise<void>;
   deleteNoteList: (listId: string, title: string) => Promise<void>;
@@ -91,7 +88,7 @@ export function useNotesController(source: CoreViewModelSource): {
     open: openInspector,
     update: updateInspector
   } = useInspector();
-  const [notes, setNotes] = useState<NoteViewModel[]>(() => source.initialNotes.map(displayNote));
+  const [notes, setNotes] = useState<NoteViewModel[]>(() => source.initialNotes.map((note) => note));
   const [localNoteLists, setLocalNoteLists] = useState(source.noteLists);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
     source.initialNotes[0]?.id ?? null
@@ -102,14 +99,16 @@ export function useNotesController(source: CoreViewModelSource): {
   const [noteInspectorMode, setNoteInspectorModeState] = useState<"view" | "edit">("edit");
   const [noteActionError, setNoteActionError] = useState<string | undefined>();
   const [starredNoteIds, setStarredNoteIds] = useState<Set<string>>(
-    () => new Set(readLocalStorageStringArray(starredNotesStorageKey))
+    () => new Set<string>(source.settings.starredNoteIds ?? readLocalStorageStringArray(starredNotesStorageKey))
   );
   const [starredNoteAt, setStarredNoteAt] = useState<Record<string, number>>(
-    () => readLocalStorageNumberRecord(starredNotesAtStorageKey)
+    () => source.settings.starredNoteAt ?? readLocalStorageNumberRecord(starredNotesAtStorageKey)
   );
   const [draftCounter, setDraftCounter] = useState(1);
   const createNoteIds = useRef(new Set<string>());
   const conversionCleanupByNoteId = useRef(new Map<string, ConvertSourceCleanup>());
+  const selectionGeneration = useRef(0);
+  const fullNoteId = useRef<string | null>(null);
   const lastNoteEditReportAt = useRef(0);
   const noteInspectorBodyRef = useRef<NoteInspectorBodyHandle | null>(null);
   const noteInspectorModeRef = useRef<"view" | "edit">("edit");
@@ -173,12 +172,22 @@ export function useNotesController(source: CoreViewModelSource): {
   }, [starredNoteAt]);
 
   useEffect(() => {
-    setNotes(source.initialNotes.map(displayNote));
-    setSelectedNoteId((current) =>
-      current && source.initialNotes.some((note) => note.id === current)
-        ? current
-        : source.initialNotes[0]?.id ?? null
-    );
+    if (!Array.isArray(source.settings.starredNoteIds) && starredNoteIds.size > 0) {
+      void source.updateSettings({ starredNoteIds: [...starredNoteIds], starredNoteAt });
+    }
+  }, [source.settings.starredNoteIds, source.updateSettings]);
+
+  useEffect(() => {
+    if (Array.isArray(source.settings.starredNoteIds)) setStarredNoteIds(new Set(source.settings.starredNoteIds));
+    if (source.settings.starredNoteAt) setStarredNoteAt(source.settings.starredNoteAt);
+  }, [source.settings.starredNoteIds, source.settings.starredNoteAt]);
+
+  useEffect(() => {
+    setNotes((current) => {
+      const retained = current.filter((note) => note.id.startsWith("note-draft-") || note.id === fullNoteId.current);
+      const ids = new Set(retained.map((note) => note.id));
+      return [...retained, ...source.initialNotes.filter((note) => !ids.has(note.id))];
+    });
   }, [source.initialNotes]);
 
   useEffect(() => {
@@ -400,7 +409,7 @@ export function useNotesController(source: CoreViewModelSource): {
       kind: "note",
       onConfirmClose: async () => {
         if (noteInspectorModeRef.current === "edit") {
-          await noteInspectorBodyRef.current?.flush();
+          return await noteInspectorBodyRef.current?.flush() ?? true;
         }
         return true;
       },
@@ -409,24 +418,42 @@ export function useNotesController(source: CoreViewModelSource): {
     });
   }
 
+  async function readFullNote(noteId: string): Promise<NoteViewModel | null> {
+    if (noteId.startsWith("note-draft-")) return notes.find((note) => note.id === noteId) ?? null;
+    try {
+      const result = await window.hcb?.notes.get({ id: noteId });
+      if (!result?.ok) throw new Error(result?.error.message ?? "Note could not be opened.");
+      return noteFromNative(result.data);
+    } catch (error) {
+      setNoteActionError(error instanceof Error ? error.message : "Note could not be opened.");
+      return null;
+    }
+  }
+
+  async function flushCurrentNote(): Promise<boolean> {
+    if (currentInspector?.kind !== "note" || noteInspectorModeRef.current !== "edit") return true;
+    return await noteInspectorBodyRef.current?.flush() ?? true;
+  }
+
+  function retainFullNote(note: NoteViewModel): void {
+    fullNoteId.current = note.id;
+    setNotes((current) => [note, ...current.filter((candidate) => candidate.id.startsWith("note-draft-") && candidate.id !== note.id),
+      ...source.initialNotes.filter((candidate) => candidate.id !== note.id)]);
+  }
+
   async function selectNote(noteId: string, mode: "view" | "edit" = "view"): Promise<void> {
-    const note = notes.find((candidate) => candidate.id === noteId);
-
-    if (!note) {
-      return;
-    }
-
-    if (noteInspectorModeRef.current === "edit") {
-      await noteInspectorBodyRef.current?.flush();
-    }
+    const generation = ++selectionGeneration.current;
+    if (!await flushCurrentNote() || generation !== selectionGeneration.current) return;
+    const note = await readFullNote(noteId);
+    if (!note || generation !== selectionGeneration.current) return;
+    retainFullNote(note);
     setSelectedNoteId(note.id);
     openNoteInspector(note, mode);
   }
 
   async function createNote(listId?: string): Promise<void> {
-    if (noteInspectorModeRef.current === "edit") {
-      await noteInspectorBodyRef.current?.flush();
-    }
+    ++selectionGeneration.current;
+    if (!await flushCurrentNote()) return;
 
     const list = noteLists.find((candidate) => candidate.id === listId) ?? noteLists[0];
     if (!list) {
@@ -446,7 +473,7 @@ export function useNotesController(source: CoreViewModelSource): {
     };
 
     setDraftCounter((current) => current + 1);
-    setNotes((current) => [fallbackNote, ...current]);
+    setNotes((current) => [fallbackNote, ...current.filter((note) => !note.id.startsWith("note-draft-"))]);
     setSelectedNoteId(fallbackId);
     createNoteIds.current.add(fallbackId);
     openNoteInspector(fallbackNote, "edit");
@@ -472,7 +499,7 @@ export function useNotesController(source: CoreViewModelSource): {
     };
 
     setDraftCounter((current) => current + 1);
-    setNotes((current) => [fallbackNote, ...current]);
+    setNotes((current) => [fallbackNote, ...current.filter((note) => !note.id.startsWith("note-draft-"))]);
     setSelectedNoteId(fallbackId);
     createNoteIds.current.add(fallbackId);
     openNoteInspector(fallbackNote, "edit");
@@ -492,9 +519,8 @@ export function useNotesController(source: CoreViewModelSource): {
     },
     cleanup?: ConvertSourceCleanup
   ): Promise<void> {
-    if (noteInspectorModeRef.current === "edit") {
-      await noteInspectorBodyRef.current?.flush();
-    }
+    ++selectionGeneration.current;
+    if (!await flushCurrentNote()) return;
 
     const list = noteLists.find((candidate) => candidate.id === seed.listId) ?? noteLists[0];
 
@@ -580,9 +606,8 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function createNoteWithTemplate(title: string, body: string, listId?: string): Promise<void> {
-    if (noteInspectorModeRef.current === "edit") {
-      await noteInspectorBodyRef.current?.flush();
-    }
+    ++selectionGeneration.current;
+    if (!await flushCurrentNote()) return;
 
     const list = noteLists.find((candidate) => candidate.id === listId) ?? noteLists[0];
     if (!list) {
@@ -602,21 +627,18 @@ export function useNotesController(source: CoreViewModelSource): {
     };
 
     setDraftCounter((current) => current + 1);
-    setNotes((current) => [fallbackNote, ...current]);
+    setNotes((current) => [fallbackNote, ...current.filter((note) => !note.id.startsWith("note-draft-"))]);
     setSelectedNoteId(fallbackId);
     createNoteIds.current.add(fallbackId);
     openNoteInspector(fallbackNote, "edit");
   }
 
   async function duplicateNote(noteId: string): Promise<void> {
-    if (noteInspectorModeRef.current === "edit") {
-      await noteInspectorBodyRef.current?.flush();
-    }
+    ++selectionGeneration.current;
+    if (!await flushCurrentNote()) return;
 
-    const note = notes.find((candidate) => candidate.id === noteId);
-    if (!note) {
-      return;
-    }
+    const note = await readFullNote(noteId);
+    if (!note) return;
 
     const liveDraft =
       currentInspector?.kind === "note" && currentInspector.id === note.id
@@ -680,6 +702,7 @@ export function useNotesController(source: CoreViewModelSource): {
       window.alert(`Converted item was saved, but ${cleanupError}`);
     }
     const persisted = noteFromNative(result.data);
+    fullNoteId.current = persisted.id;
 
     setNotes((current) => current.map((candidate) => candidate.id === noteId ? persisted : candidate));
     setSelectedNoteId(persisted.id);
@@ -701,7 +724,7 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function deleteNoteList(listId: string, title: string): Promise<void> {
-    const count = notes.filter((note) => note.listId === listId).length;
+    const count = noteLists.find((list) => list.id === listId)?.noteCount ?? 0;
     if (!window.confirm(`Delete ${title} and ${count} note${count === 1 ? "" : "s"}? This cannot be undone.`)) {
       return;
     }
@@ -709,8 +732,10 @@ export function useNotesController(source: CoreViewModelSource): {
     const result = await window.hcb?.notes.deleteNoteList({ id: listId });
 
     if (!result?.ok) {
+      setNoteActionError(result?.error.message ?? "Note list was not deleted.");
       return;
     }
+    if (selectedNote?.listId === listId) { fullNoteId.current = null; setSelectedNoteId(null); await closeInspector(); }
 
     setLocalNoteLists((current) =>
       current.filter((list) => list.id !== listId)
@@ -796,6 +821,7 @@ export function useNotesController(source: CoreViewModelSource): {
       });
 
       if (!result?.ok) {
+        setNoteActionError(result?.error.message ?? "Note was not saved.");
         return false;
       }
 
@@ -804,6 +830,7 @@ export function useNotesController(source: CoreViewModelSource): {
         window.alert(`Converted item was saved, but ${cleanupError}`);
       }
       const persisted = noteFromNative(result.data);
+      fullNoteId.current = persisted.id;
       setNotes((current) => current.map((candidate) => candidate.id === noteId ? persisted : candidate));
       setSelectedNoteId(persisted.id);
       createNoteIds.current.delete(noteId);
@@ -834,105 +861,43 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function deleteNote(noteId: string): Promise<void> {
-    const note = notes.find((candidate) => candidate.id === noteId);
-
-    if (!note) {
-      return;
+    const result = noteId.startsWith("note-draft-") ? { ok: true } : await window.hcb?.notes.delete({ id: noteId });
+    if (!result?.ok) { setNoteActionError("Note was not deleted."); return; }
+    setNotes((current) => current.filter((candidate) => candidate.id !== noteId));
+    createNoteIds.current.delete(noteId);
+    conversionCleanupByNoteId.current.delete(noteId);
+    if (starredNoteIds.has(noteId)) toggleNoteStar(noteId);
+    if (selectedNoteId === noteId) {
+      ++selectionGeneration.current;
+      fullNoteId.current = null;
+      setSelectedNoteId(null);
+      // The record was deliberately deleted: do not autosave it on close.
+      setNoteInspectorMode("view");
+      await closeInspector();
     }
-
-    if (!note.id.startsWith("note-draft-")) {
-      const result = await window.hcb?.notes.delete({ id: note.id });
-      if (!result?.ok) return;
-      source.refresh();
-    }
-
-    setStarredNoteIds((current) => {
-      if (!current.has(note.id)) {
-        return current;
-      }
-
-      const next = new Set(current);
-      next.delete(note.id);
-      return next;
-    });
-    setStarredNoteAt((current) => {
-      if (!(note.id in current)) {
-        return current;
-      }
-
-      const next = { ...current };
-      delete next[note.id];
-      return next;
-    });
-
-    const nextNotes = notes.filter((candidate) => candidate.id !== note.id);
-    const nextNote = nextNotes[0] ?? null;
-
-    setNotes(nextNotes);
-    setSelectedNoteId(nextNote?.id ?? null);
-    createNoteIds.current.delete(note.id);
-    conversionCleanupByNoteId.current.delete(note.id);
-
-    if (nextNote) {
-      openNoteInspector(nextNote, "view");
-      return;
-    }
-
-    await closeInspector();
+    source.refresh();
   }
 
   function toggleNoteStar(noteId: string): void {
-    setStarredNoteIds((current) => {
-      const next = new Set(current);
-
-      if (next.has(noteId)) {
-        next.delete(noteId);
-        setStarredNoteAt((timestamps) => {
-          const result = { ...timestamps };
-          delete result[noteId];
-          return result;
-        });
-      } else {
-        next.add(noteId);
-        setStarredNoteAt((timestamps) => ({
-          ...timestamps,
-          [noteId]: Date.now()
-        }));
-      }
-
-      return next;
-    });
+    const ids = new Set(starredNoteIds);
+    const timestamps = { ...starredNoteAt };
+    if (ids.has(noteId)) { ids.delete(noteId); delete timestamps[noteId]; }
+    else { ids.add(noteId); timestamps[noteId] = Date.now(); }
+    setStarredNoteIds(ids);
+    setStarredNoteAt(timestamps);
+    void source.updateSettings({ starredNoteIds: [...ids], starredNoteAt: timestamps });
   }
 
   async function moveNoteToList(noteId: string, listId: string): Promise<void> {
-    const note = notes.find((candidate) => candidate.id === noteId);
     const list = noteLists.find((candidate) => candidate.id === listId);
-
-    if (!note || !list) {
-      return;
+    if (!list) return;
+    if (!await flushCurrentNote()) return;
+    if (!noteId.startsWith("note-draft-")) {
+      const result = await window.hcb?.notes.update({ id: noteId, listId });
+      if (!result?.ok) { setNoteActionError(result?.error.message ?? "Note was not moved."); return; }
     }
-
-    setNotes((current) =>
-      current.map((candidate) =>
-        candidate.id === noteId
-          ? { ...candidate, listId, listTitle: list.title }
-          : candidate
-      )
-    );
-
-    if (!note.id.startsWith("note-draft-")) {
-      const result = await window.hcb?.notes.update({ id: note.id, listId });
-
-      if (!result?.ok) {
-        setNotes((current) =>
-          current.map((candidate) =>
-            candidate.id === noteId
-              ? { ...candidate, listId: note.listId, listTitle: note.listTitle }
-              : candidate
-          )
-        );
-      }
-    }
+    setNotes((current) => current.map((candidate) => candidate.id === noteId ? { ...candidate, listId, listTitle: list.title } : candidate));
+    source.refresh();
   }
 
   function toggleNoteView(view: NoteBoardSelection): void {
@@ -940,6 +905,7 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   return {
+    noteActionError,
     createNote,
     createNoteList,
     deleteNoteList,

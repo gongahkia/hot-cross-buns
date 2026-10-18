@@ -36,7 +36,7 @@ export interface NoteDraftValue {
 }
 
 export interface NoteInspectorBodyHandle {
-  flush: () => Promise<void>;
+  flush: () => Promise<boolean>;
   getDraft: () => NoteDraftValue;
 }
 
@@ -207,7 +207,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
     const dirtyRef = useRef(dirty.isDirty);
     const lastNotifiedDraftRef = useRef<NoteDraftValue>(dirty.value);
     const onDraftChangeRef = useRef(onDraftChange);
-    const flushRef = useRef<() => Promise<void>>(async () => undefined);
+    const flushRef = useRef<() => Promise<boolean>>(async () => true);
     const debounceRef = useRef<number | null>(null);
     const noteByNormalizedTitle = useMemo(
       () => new Map(notes.map((candidate) => [normalizedNoteTitle(candidate.title), candidate])),
@@ -288,22 +288,28 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
       });
     }, [dirty.isDirty, dirty.value, note.id, note.updatedLabel, update]);
 
-    const flush = useCallback(async (): Promise<void> => {
+    const saveInFlight = useRef<Promise<boolean> | null>(null);
+    const flush = useCallback(async (): Promise<boolean> => {
+      if (saveInFlight.current) await saveInFlight.current;
       if (debounceRef.current !== null) {
         window.clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
 
-      if (!dirtyRef.current || note.id.startsWith("note-draft-")) {
-        return;
+      if (!dirtyRef.current && !note.id.startsWith("note-draft-")) {
+        return true;
       }
 
       const draft = draftRef.current;
-      const saved = await onPersist(note.id, draft);
+      const pending = onPersist(note.id, draft).catch(() => false);
+      saveInFlight.current = pending;
+      const saved = await pending;
+      if (saveInFlight.current === pending) saveInFlight.current = null;
 
       if (saved) {
         dirty.reset(draft);
       }
+      return saved;
     }, [dirty.reset, note.id, onPersist]);
 
     useEffect(() => {
@@ -331,13 +337,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
         }
       };
     }, [dirty.isDirty, dirty.value, note.id]);
-
-    useEffect(
-      () => () => {
-        void flushRef.current();
-      },
-      []
-    );
 
     useImperativeHandle(
       ref,

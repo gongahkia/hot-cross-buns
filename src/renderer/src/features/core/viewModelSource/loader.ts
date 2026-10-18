@@ -133,18 +133,9 @@ export async function loadCoreData(
       { limit: 100 },
       (request) => hcb.tasks.listTaskLists(request).then((result) => unwrap(result, "Task lists failed"))
     ),
-    loadAllPages<TaskListRequest, TaskListResponse>(
-      { status: "all", limit: 100 },
-      (request) => hcb.tasks.list(request).then((result) => unwrap(result, "Tasks failed"))
-    ),
-    loadAllPages<TaskListRequest, TaskListResponse>(
-      { status: "hidden", limit: 100 },
-      (request) => hcb.tasks.list(request).then((result) => unwrap(result, "Hidden tasks failed"))
-    ),
-    loadAllPages<TaskListRequest, TaskListResponse>(
-      { status: "deleted", limit: 100 },
-      (request) => hcb.tasks.list(request).then((result) => unwrap(result, "Deleted tasks failed"))
-    ),
+    hcb.tasks.list({ status: "all", limit: 100, summary: true }).then((result) => unwrap(result, "Tasks failed")),
+    Promise.resolve({ items: [], page: { totalKnown: 0 } } as TaskListResponse),
+    Promise.resolve({ items: [], page: { totalKnown: 0 } } as TaskListResponse),
     loadAllPages<CalendarListRequest, CalendarListResponse>(
       { limit: 100 },
       (request) => hcb.calendar.listCalendars(request).then((result) => unwrap(result, "Calendars failed"))
@@ -160,10 +151,7 @@ export async function loadCoreData(
           .listScheduledTaskBlocks(request)
           .then((result) => unwrap(result, "Scheduled task blocks failed"))
     ),
-    loadAllPages<NoteListRequest, NoteListResponse>(
-      { limit: 50 },
-      (request) => hcb.notes.list(request).then((result) => unwrap(result, "Notes failed"))
-    ),
+    hcb.notes.list({ limit: 50, summary: true }).then((result) => unwrap(result, "Notes failed")),
     loadAllPages<TagListRequest, TagListResponse>(
       { limit: 100 },
       (request) => hcb.tags.list(request).then((result) => unwrap(result, "Tags failed"))
@@ -321,10 +309,7 @@ async function loadNoteHydration(): Promise<{
   const startedAt = performance.now();
 
   try {
-    const notes = await loadAllPages<NoteListRequest, NoteListResponse>(
-      { limit: 50 },
-      (request) => window.hcb!.notes.list(request).then((result) => unwrap(result, "Notes failed"))
-    );
+    const notes = unwrap(await window.hcb!.notes.list({ limit: 50, summary: true }), "Notes failed");
     const totalKnown = knownTotal(notes.page.totalKnown, notes.items.length);
 
     recordRendererTiming({
