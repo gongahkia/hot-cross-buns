@@ -1,3 +1,4 @@
+import { cachedDateTimeFormat } from "@shared/zonedTime";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import {
   CalendarClock,
@@ -101,10 +102,10 @@ function isFutureSnoozed(task: TaskViewModel): boolean {
 
 function snoozeBadgeLabel(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Snoozed" : `Snoozed ${date.toLocaleString([], {
+  return Number.isNaN(date.getTime()) ? "Snoozed" : `Snoozed ${cachedDateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short"
-  })}`;
+  }).format(date)}`;
 }
 
 export function GoogleTasksBoard({
@@ -854,7 +855,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
 }: GoogleTaskRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
-  const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
+  const scheduleLabel = taskScheduleLabel(task, scheduledBlock, source.settings.defaultTimeZone);
   const preview = taskPreview(task);
   const completed = task.status === "completed";
   const futureSnoozed = isFutureSnoozed(task);
@@ -1228,7 +1229,7 @@ function TaskActionMenu({
     <FloatingMenu anchorPoint={anchorPoint} onClose={onClose} width={320}>
       <MenuButton onClick={onOpen}>
         <Target aria-hidden="true" size={18} />
-        Add deadline
+        Set due date
       </MenuButton>
       <MenuButton disabled={Boolean(task.parentId)} onClick={onAddSubtask}>
         <CornerDownRight aria-hidden="true" size={18} />

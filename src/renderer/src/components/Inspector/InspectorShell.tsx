@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { X } from "lucide-react";
 import { Badge, IconButton, cx } from "../primitives";
@@ -29,7 +29,7 @@ export function InspectorShell(): JSX.Element | null {
   const { current, close, isOpen } = useInspector();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -39,21 +39,41 @@ export function InspectorShell(): JSX.Element | null {
       return;
     }
 
-    const focusable = node.querySelector<HTMLElement>(
-      'input,select,textarea,button,[tabindex]:not([tabindex="-1"]),a[href]'
-    );
-    queueMicrotask(() => focusable?.focus());
-  }, [isOpen, current?.kind, current?.id]);
+    // Respect an editor's own autofocus and complete the fallback handoff
+    // before paint, so immediate typing/Escape cannot land behind the dialog.
+    if (node.contains(document.activeElement)) return;
+    const focusable = node.querySelector<HTMLElement>('input:not([disabled]),textarea:not([disabled]),select:not([disabled])') ??
+      node.querySelector<HTMLElement>('button:not([disabled]),[tabindex]:not([tabindex="-1"]),a[href]');
+    (focusable ?? node).focus();
+  }, [isOpen, current?.kind, current?.id, current?.body]);
 
   const requestClose = useCallback(() => {
     void close();
   }, [close]);
 
-  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (event.key === "Escape") {
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const node = containerRef.current;
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      const focusedDialog = document.activeElement?.closest('[role="dialog"][aria-modal="true"]');
+      if (!node || dialogs[dialogs.length - 1] !== node || (focusedDialog && focusedDialog !== node)) return;
       event.preventDefault();
       requestClose();
-    }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, requestClose]);
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== "Tab" || (event.target as HTMLElement).closest('[role="dialog"]') !== containerRef.current) return;
+    const controls = [...(containerRef.current?.querySelectorAll<HTMLElement>('input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])') ?? [])]
+      .filter((element) => element.getClientRects().length > 0);
+    const first = controls[0], last = controls.at(-1);
+    if (!first || !last) { event.preventDefault(); containerRef.current?.focus(); }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
 
   if (!current) {
@@ -66,7 +86,7 @@ export function InspectorShell(): JSX.Element | null {
     <>
       <div
         aria-hidden="true"
-        className="fixed inset-0 z-40 bg-bg-primary/70 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-bg-primary/80"
         onClick={requestClose}
       />
       <section

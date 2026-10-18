@@ -220,7 +220,8 @@ function buildProjection(snapshot: CoreDataSnapshot, options: CoreViewModelSourc
     scheduledTaskBlockViewModel(
       block,
       calendarTitleById[block.calendarId],
-      conflictTitlesByBlockId.get(block.id) ?? []
+      conflictTitlesByBlockId.get(block.id) ?? [],
+      snapshot.settings.defaultTimeZone
     )
   );
   const rootTasks = tasks.filter((task) => task.parentId === null);

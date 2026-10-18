@@ -388,6 +388,9 @@ export function TaskInspectorBody({
             type="date"
             value={dirty.value.dueDate}
           />
+          {source.taskLists.find((list) => list.id === dirty.value.listId)?.accountId !== "local" ? (
+            <span className="text-[var(--text-xs)] text-text-muted">Date-only Google task day. Google’s native task times and Deadline field aren’t synced here.</span>
+          ) : null}
         </label>
         <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Priority</span>

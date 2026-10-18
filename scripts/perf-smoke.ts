@@ -1,15 +1,21 @@
 import { _electron as electron, expect, type ElectronApplication, type Page } from "@playwright/test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpus, freemem, loadavg, release, tmpdir, totalmem } from "node:os";
 import { join, resolve } from "node:path";
+import { currentZonedDay, zonedDateTimeIso, zonedDayRange } from "../src/shared/zonedTime";
+import { evaluatePerformanceBudgets, type BudgetResult } from "./performanceBudgets";
 
 const FIXTURE_COUNT = performanceFixtureCount();
 const TASK_COUNT = FIXTURE_COUNT;
 const EVENT_COUNT = FIXTURE_COUNT;
+const NOTE_COUNT = FIXTURE_COUNT;
+const heapLimitMiB = performanceHeapLimit();
 // Keep generated events in the currently rendered agenda window. That makes
 // this exercise both the SQLite pagination path and real Calendar rendering,
 // rather than timing an empty calendar after a large write fixture.
-const FIXTURE_START_MS = new Date(new Date().toISOString().slice(0, 10) + "T08:00:00.000Z").getTime();
+let fixtureStartMs = 0;
+let fixtureDay = "";
+let fixtureTimeZone = "UTC";
 const artifactDir = join(process.cwd(), "artifacts", "perf");
 const profileDir = mkdtempSync(join(tmpdir(), "hcb-perf-"));
 const debugPerformanceRun = process.env.HCB_PERF_DEBUG === "1";
@@ -22,10 +28,15 @@ interface Measurement {
 
 interface PerfReport {
   generatedAt: string;
-  status: "passed";
-  fixture: { tasks: number; events: number };
+  status: "passed" | "failed";
+  fixture: { tasks: number; events: number; notes: number; timeZone: string; day: string };
+  environment: { platform: string; arch: string; node: string; osRelease: string; cpu: string; logicalCpus: number; totalMemoryMiB: number; freeMemoryAtStartMiB: number; loadAtStart: number[]; loadAtEnd: number[]; requestedHeapMiB: number | null; actualRendererHeapLimitMiB: number };
   measurements: Measurement[];
   resources: ResourceSample[];
+  budgets: BudgetResult[];
+  noteServiceTimings: Array<{ name: string; durationMs: number }>;
+  latencySamples: { inputToPaintMs: number[]; scrollFrameMs: number[]; mainIpcMs: number[] };
+  inputLongTasks: Array<{ startTimeMs: number; durationMs: number }>;
 }
 
 interface ResourceSample { phase: string; pssMiB: number | null; processCount: number; renderedTaskRows: number; rendererHeapMiB: number | null; processes: Array<{ type: string; pssMiB: number }> }
@@ -77,17 +88,18 @@ function performanceFixtureCount(): number {
   return count;
 }
 
-function eventTime(index: number): { startsAt: string; endsAt: string } {
-  return {
-    startsAt: new Date(FIXTURE_START_MS + index * 60_000).toISOString(),
-    endsAt: new Date(FIXTURE_START_MS + (index + 30) * 60_000).toISOString()
-  };
+function performanceHeapLimit(): number | null {
+  const configured = process.env.HCB_PERF_HEAP_MB;
+  if (configured === undefined) return null;
+  const limit = Number(configured);
+  if (!Number.isInteger(limit) || limit < 64 || limit > 4096) throw new Error("HCB_PERF_HEAP_MB must be an integer between 64 and 4,096.");
+  return limit;
 }
 
 function fixtureRange(): { start: string; end: string } {
   return {
-    start: new Date(FIXTURE_START_MS - 60 * 60_000).toISOString(),
-    end: new Date(FIXTURE_START_MS + (EVENT_COUNT + 60) * 60_000).toISOString()
+    start: new Date(fixtureStartMs - 60 * 60_000).toISOString(),
+    end: new Date(fixtureStartMs + (EVENT_COUNT + 60) * 60_000).toISOString()
   };
 }
 
@@ -102,6 +114,39 @@ async function measure<T>(
   const result = await action();
   measurements.push({ name, durationMs: elapsed(startedAt), ...(itemCount === undefined ? {} : { itemCount }) });
   return result;
+}
+
+/** Time the click handler through real content and paint inside Chromium.
+ * Playwright assertion backoff (100/250/500 ms) otherwise quantizes this
+ * measurement and can report ~900 ms for content that rendered much sooner.
+ */
+async function measureRenderedNavigation(measurements: Measurement[], page: Page, section: "Notes" | "Tasks", count: number, refresh = false): Promise<void> {
+  const durationMs = await page.evaluate(async ({ section, count, refresh }) => {
+    const navigation = document.querySelector('nav[aria-label="Primary"]');
+    const button = [...navigation!.querySelectorAll("button")].find((button) => button.textContent?.trim().startsWith(section))!;
+    const startedAt = performance.now();
+    await new Promise<void>((resolve, reject) => {
+      const observer = new MutationObserver(() => {
+        const viewport = section === "Notes"
+          ? document.querySelector('[role="list"][aria-label="Notes"]') as HTMLElement | null
+          : document.querySelector('[data-testid="tasks-board"]') as HTMLElement | null;
+        const total = section === "Notes" ? viewport?.dataset.totalCount : viewport?.dataset.taskCount;
+        const content = section === "Notes"
+          ? viewport?.querySelector(`button[aria-label="Open note Performance note ${String(count - 1).padStart(4, "0")}"]`)
+          : [...(viewport?.querySelectorAll("button[data-virtual-focus]") ?? [])].find((button) => button.textContent?.trim() === "Performance task 0000");
+        if (total === String(count) && (!refresh || viewport?.dataset.hydrationState === "success") && content?.getClientRects().length) {
+          observer.disconnect(); window.clearTimeout(timer); resolve();
+        }
+      });
+      const timer = window.setTimeout(() => { observer.disconnect(); reject(new Error(`${section} did not render its fixture.`)); }, 60000);
+      observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+      if (refresh) window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      button.click();
+    });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    return Math.round((performance.now() - startedAt) * 100) / 100;
+  }, { section, count, refresh });
+  measurements.push({ name: refresh ? `renderer-cold-hydration-${TASK_COUNT}-tasks-${EVENT_COUNT}-events` : section === "Notes" ? `renderer-notes-${count}-notes` : "renderer-tasks-warm-navigation", durationMs, itemCount: refresh ? TASK_COUNT + EVENT_COUNT : count });
 }
 
 async function requireSuccess<T extends { ok: boolean; data?: unknown; error?: { message?: string } }>(
@@ -124,11 +169,13 @@ async function run(): Promise<void> {
   let app: ElectronApplication | undefined;
   const measurements: Measurement[] = [];
   const resources: ResourceSample[] = [];
+  const loadAtStart = loadavg();
+  const freeMemoryAtStartMiB = Math.round(freemem() / 1048576);
 
   try {
     const launchStartedAt = performance.now();
     app = await electron.launch({
-      args: [resolve(process.cwd()), `--user-data-dir=${profileDir}`, ...(process.env.HCB_PERF_HEAP_MB ? [`--js-flags=--max-old-space-size=${Number(process.env.HCB_PERF_HEAP_MB) || 128}`] : [])],
+      args: [resolve(process.cwd()), `--user-data-dir=${profileDir}`, ...(heapLimitMiB === null ? [] : [`--js-flags=--max-old-space-size=${heapLimitMiB}`])],
       env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" }
     });
     if (debugPerformanceRun) {
@@ -144,6 +191,12 @@ async function run(): Promise<void> {
     await page.getByTestId("app-shell").waitFor({ state: "visible" });
     measurements.push({ name: "cold-shell-visible", durationMs: elapsed(launchStartedAt) });
     await finishOnboarding(page);
+    const settings = await requireSuccess(await page.evaluate(() => window.hcb!.settings.get()), "Fixture settings");
+    fixtureTimeZone = (settings.data as { defaultTimeZone: string }).defaultTimeZone;
+    fixtureDay = currentZonedDay(fixtureTimeZone);
+    fixtureStartMs = Date.parse(zonedDateTimeIso(fixtureDay, 8, 0, fixtureTimeZone));
+    const actualRendererHeapLimitMiB = await page.evaluate(() => Math.round((performance as Performance & { memory: { jsHeapSizeLimit: number } }).memory.jsHeapSizeLimit / 1048576));
+    if (heapLimitMiB !== null && actualRendererHeapLimitMiB > heapLimitMiB + 64) throw new Error(`Renderer ignored the requested heap limit: ${actualRendererHeapLimitMiB} MiB.`);
     await page.getByTestId("calendar-view").waitFor({ state: "visible" });
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     resources.push(await sampleResources(app, page, "idle"));
@@ -164,6 +217,7 @@ async function run(): Promise<void> {
           const result = await window.hcb!.diagnostics.health({});
           if (!result.ok) throw new Error(result.error.message);
           samples.push(performance.now() - started);
+          if (samples.length > 10000) samples.shift();
         } finally { inFlight = false; }
       }, 20);
       (window as any).__hcbPerfHealth = { samples, timer };
@@ -187,9 +241,20 @@ async function run(): Promise<void> {
             const result = await window.hcb!.calendar.create({ calendarId: "primary", title: `Performance event ${index.toString().padStart(4, "0")}`, startsAt: new Date(fixtureStart + index * 60_000).toISOString(), endsAt: new Date(fixtureStart + (index + 30) * 60_000).toISOString(), allDay: false });
             if (!result.ok) throw new Error(result.error.message);
           }
-        }, { start, end: Math.min(start + 100, EVENT_COUNT), fixtureStart: FIXTURE_START_MS });
+        }, { start, end: Math.min(start + 100, EVENT_COUNT), fixtureStart: fixtureStartMs });
       }
     }, EVENT_COUNT);
+
+    await measure(measurements, "create-local-notes", async () => {
+      for (let start = 0; start < NOTE_COUNT; start += 100) {
+        await page.evaluate(async ({ start, end }) => {
+          for (let index = start; index < end; index += 1) {
+            const result = await window.hcb!.notes.create({ title: `Performance note ${index.toString().padStart(4, "0")}`, body: "Full note content retained in SQLite, not in the list. ".repeat(80) });
+            if (!result.ok) throw new Error(result.error.message);
+          }
+        }, { start, end: Math.min(start + 100, NOTE_COUNT) });
+      }
+    }, NOTE_COUNT);
 
     const healthSamples = await page.evaluate(() => {
       const monitor = (window as any).__hcbPerfHealth as { samples: number[]; timer: number };
@@ -251,9 +316,8 @@ async function run(): Promise<void> {
       }
     }, EVENT_COUNT);
 
-    await measure(measurements, `renderer-cold-hydration-${TASK_COUNT}-tasks-${EVENT_COUNT}-events`, async () => {
-      await page.evaluate(() => window.dispatchEvent(new Event("hcb:core-data-invalidated")));
-      await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
+    await measure(measurements, "automation-cold-hydration-and-validation", async () => {
+      await measureRenderedNavigation(measurements, page, "Tasks", TASK_COUNT, true);
       await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-task-count", String(TASK_COUNT), { timeout: 60_000 });
       await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-hydration-state", "success", { timeout: 60_000 });
       await page.getByRole("button", { name: "Performance task 0000", exact: true }).waitFor({ state: "visible" });
@@ -293,8 +357,13 @@ async function run(): Promise<void> {
     const title = page.getByRole("textbox", { name: "Task title", exact: true });
     await title.waitFor({ state: "visible" });
     await title.focus();
+    const beforeInputMetrics = await metrics.send("Performance.getMetrics");
     await title.evaluate((element) => {
       (window as any).__hcbPerfInput = [];
+      (window as any).__hcbPerfInputLongTasks = [];
+      const observer = new PerformanceObserver((list) => (window as any).__hcbPerfInputLongTasks.push(...list.getEntries().map((entry) => ({ startTimeMs: entry.startTime, durationMs: entry.duration }))));
+      observer.observe({ type: "longtask" });
+      (window as any).__hcbPerfInputObserver = observer;
       element.addEventListener("input", () => {
         const started = performance.now();
         requestAnimationFrame(() => requestAnimationFrame(() => (window as any).__hcbPerfInput.push(performance.now() - started)));
@@ -305,14 +374,51 @@ async function run(): Promise<void> {
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     }
     const typingSamples = await page.evaluate(() => (window as any).__hcbPerfInput as number[]);
+    const inputLongTasks = await page.evaluate(() => {
+      (window as any).__hcbPerfInputObserver.disconnect();
+      return (window as any).__hcbPerfInputLongTasks as Array<{ startTimeMs: number; durationMs: number }>;
+    });
+    const afterInputMetrics = await metrics.send("Performance.getMetrics");
+    for (const name of ["ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "TaskDuration"]) {
+      const before = beforeInputMetrics.metrics.find((metric) => metric.name === name)?.value ?? 0;
+      const after = afterInputMetrics.metrics.find((metric) => metric.name === name)?.value ?? 0;
+      measurements.push({ name: `task-title-${name}`, durationMs: Math.round((after - before) * 100000) / 100 });
+    }
     measurements.push({ name: "task-title-input-to-paint-p95", durationMs: percentile(typingSamples, 0.95), itemCount: typingSamples.length });
     await title.fill("");
     await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+
+    await measure(measurements, "automation-notes-navigation-and-validation", async () => {
+      await measureRenderedNavigation(measurements, page, "Notes", NOTE_COUNT);
+      const viewport = page.getByRole("list", { name: "Notes", exact: true });
+      await expect(viewport).toHaveAttribute("data-total-count", String(NOTE_COUNT));
+      await page.getByRole("button", { name: `Open note Performance note ${(NOTE_COUNT - 1).toString().padStart(4, "0")}`, exact: true }).waitFor({ state: "visible" });
+      if (Number(await viewport.getAttribute("data-loaded-count")) > 600) throw new Error("Note page cache exceeded its bound.");
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    }, NOTE_COUNT);
+    resources.push(await sampleResources(app, page, "notes-hydrated"));
+    await measure(measurements, "notes-scroll-to-end", async () => {
+      const viewport = page.getByRole("list", { name: "Notes", exact: true });
+      await viewport.focus(); await viewport.press("End");
+      await expect(viewport.locator(`[data-virtual-index="${NOTE_COUNT - 1}"]`)).toBeVisible();
+    }, NOTE_COUNT);
+    const note = await requireSuccess(await page.evaluate(() => window.hcb!.notes.list({ limit: 1, summary: true })), "Note summary");
+    const firstNote = (note.data as { items: Array<{ id: string; body: string }> }).items[0];
+    if (firstNote.body.length > 240) throw new Error("Full note bodies leaked into list summaries.");
+    const detail = await requireSuccess(await page.evaluate((id) => window.hcb!.notes.get({ id }), firstNote.id), "Full note");
+    if ((detail.data as { body: string }).body.length < 4000) throw new Error("Full note body was lost.");
 
     const visibleEventCount = await measure(measurements, `renderer-calendar-agenda-${EVENT_COUNT}-fixture-events`, async () => {
       await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
       const calendar = page.getByTestId("calendar-view");
       await calendar.waitFor({ state: "visible" });
+      // A benchmark that crosses local midnight still exercises its seeded day.
+      const expectedRange = zonedDayRange(fixtureDay, fixtureTimeZone);
+      for (let attempt = 0; attempt < 2 && await calendar.getAttribute("data-range-start") !== expectedRange.start; attempt += 1) {
+        const actualStart = await calendar.getAttribute("data-range-start");
+        await page.getByRole("button", { name: actualStart! > expectedRange.start ? "Previous day" : "Next day", exact: true }).click();
+      }
+      await expect(calendar).toHaveAttribute("data-range-start", expectedRange.start);
       const windowCount = await page.evaluate(async () => {
         const calendar = document.querySelector('[data-testid="calendar-view"]') as HTMLElement;
         const result = await window.hcb!.calendar.listEvents({ start: calendar.dataset.rangeStart, end: calendar.dataset.rangeEnd, summary: true, limit: 1 });
@@ -327,16 +433,58 @@ async function run(): Promise<void> {
     measurements[measurements.length - 1].itemCount = visibleEventCount;
 
     resources.push(await sampleResources(app, page, "calendar-agenda"));
+    await measure(measurements, "automation-tasks-warm-navigation-and-validation", async () => {
+      await measureRenderedNavigation(measurements, page, "Tasks", TASK_COUNT);
+      await page.getByRole("button", { name: "Performance task 0000", exact: true }).waitFor({ state: "visible" });
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    });
+    const diagnostics = await requireSuccess(await page.evaluate(() => window.hcb!.diagnostics.summary()), "Performance diagnostics");
+    const noteServiceTimings = ((diagnostics.data as { performance?: { timings?: Array<{ name: string; durationMs: number }> } }).performance?.timings ?? [])
+      .filter(({ name }) => ["notes.list", "notes.legacyMigrationPreview"].includes(name)).map(({ name, durationMs }) => ({ name, durationMs }));
+    // Also launch the populated profile. Empty-profile shell launch and a
+    // warm in-process invalidation alone do not prove large-cache startup.
+    await expect.poll(async () => {
+      const result = await page.evaluate(() => window.hcb!.settings.get());
+      if (!result.ok) throw new Error(result.error.message);
+      return result.data.paneWorkspace?.root?.content?.sectionId;
+    }).toBe("tasks");
+    await metrics.detach();
+    await app.close();
+    const restartStartedAt = performance.now();
+    app = await electron.launch({
+      args: [resolve(process.cwd()), `--user-data-dir=${profileDir}`, ...(heapLimitMiB === null ? [] : [`--js-flags=--max-old-space-size=${heapLimitMiB}`])],
+      env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" }
+    });
+    const restartedPage = await app.firstWindow();
+    restartedPage.setDefaultTimeout(60000);
+    await restartedPage.getByTestId("app-shell").waitFor({ state: "visible" });
+    measurements.push({ name: "cached-profile-shell-visible", durationMs: elapsed(restartStartedAt) });
+    await restartedPage.waitForFunction((count) => {
+      const board = document.querySelector('[data-testid="tasks-board"]') as HTMLElement | null;
+      return board?.dataset.taskCount === String(count) && board.dataset.hydrationState === "success" &&
+        [...board.querySelectorAll("button[data-virtual-focus]")].some((button) => button.textContent?.trim() === "Performance task 0000");
+    }, TASK_COUNT);
+    await restartedPage.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    measurements.push({ name: "cached-profile-content-visible", durationMs: elapsed(restartStartedAt), itemCount: TASK_COUNT + EVENT_COUNT + NOTE_COUNT });
+    resources.push(await sampleResources(app, restartedPage, "cached-profile-tasks"));
+    const budgets = evaluatePerformanceBudgets(measurements, resources);
     const report: PerfReport = {
       generatedAt: new Date().toISOString(),
-      status: "passed",
-      fixture: { tasks: TASK_COUNT, events: EVENT_COUNT },
+      status: budgets.some(({ status }) => status === "regression") ? "failed" : "passed",
+      fixture: { tasks: TASK_COUNT, events: EVENT_COUNT, notes: NOTE_COUNT, timeZone: fixtureTimeZone, day: fixtureDay },
+      environment: { platform: process.platform, arch: process.arch, node: process.version, osRelease: release(), cpu: cpus()[0]?.model ?? "unknown", logicalCpus: cpus().length, totalMemoryMiB: Math.round(totalmem() / 1048576), freeMemoryAtStartMiB, loadAtStart, loadAtEnd: loadavg(), requestedHeapMiB: heapLimitMiB, actualRendererHeapLimitMiB },
       measurements,
-      resources
+      resources,
+      budgets,
+      noteServiceTimings,
+      latencySamples: { inputToPaintMs: typingSamples, scrollFrameMs: scrollFrames, mainIpcMs: healthSamples },
+      inputLongTasks
     };
     writeReport(report);
     console.table(measurements);
     console.table(resources);
+    console.table(budgets);
+    if (report.status === "failed") throw new Error("Performance regression ceilings exceeded; see the saved report.");
   } finally {
     await app?.close();
     rmSync(profileDir, { recursive: true, force: true });
@@ -345,7 +493,10 @@ async function run(): Promise<void> {
 
 function writeReport(report: PerfReport): void {
   mkdirSync(artifactDir, { recursive: true });
-  writeFileSync(join(artifactDir, "latest.json"), `${JSON.stringify(report, null, 2)}\n`);
+  if (report.status === "passed") rmSync(join(artifactDir, "latest-failure.txt"), { force: true });
+  const json = `${JSON.stringify(report, null, 2)}\n`;
+  writeFileSync(join(artifactDir, "latest.json"), json);
+  writeFileSync(join(artifactDir, `${report.fixture.tasks}-each${heapLimitMiB === null ? "" : `-heap${heapLimitMiB}`}.json`), json);
   writeFileSync(
     join(artifactDir, "latest.md"),
     [
@@ -353,18 +504,21 @@ function writeReport(report: PerfReport): void {
       "",
       `Generated: ${report.generatedAt}`,
       "",
-      `Fixture: ${report.fixture.tasks} local tasks and ${report.fixture.events} local calendar events.`,
+      `Fixture: ${report.fixture.tasks} local tasks, ${report.fixture.events} local calendar events, and ${report.fixture.notes} local notes.`,
+      `Regression gate: ${report.status}. Target misses are recorded separately from regressions.`,
       "",
       "| Measurement | Duration | Items |",
       "| --- | ---: | ---: |",
-      ...report.measurements.map((item) => `| ${item.name} | ${item.durationMs.toFixed(2)} ms | ${item.itemCount ?? "—"} |`)
+      ...report.measurements.map((item) => `| ${item.name} | ${item.durationMs.toFixed(2)} ms | ${item.itemCount ?? "—"} |`),
+      "", "| Budget | Actual | Target | Regression ceiling | Result |", "| --- | ---: | ---: | ---: | --- |",
+      ...report.budgets.map((item) => `| ${item.name} | ${item.actual} ${item.unit} | ${item.target} | ${item.ceiling} | ${item.status} |`)
     ].join("\n")
   );
 }
 
 void run().catch((error: unknown) => {
   mkdirSync(artifactDir, { recursive: true });
-  writeFileSync(join(artifactDir, "latest-failure.txt"), `${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+  writeFileSync(join(artifactDir, "latest-failure.txt"), `${new Date().toISOString()} — ${FIXTURE_COUNT} items per collection; requested old-space limit: ${heapLimitMiB ?? "default"} MiB\n${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
   console.error(error);
   process.exitCode = 1;
 });

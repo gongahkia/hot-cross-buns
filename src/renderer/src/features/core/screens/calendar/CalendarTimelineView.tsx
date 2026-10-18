@@ -587,7 +587,7 @@ function CalendarTimelineView({
         aria-label={gridLabel}
       >
         <div style={{ minWidth: `${64 + dayColumnMinWidth * Math.max(1, days.length)}px` }}>
-          <div className="sticky top-0 z-40 grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-secondary/95 backdrop-blur-sm">
+          <div className="sticky top-0 z-40 grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-secondary/95">
             <div className="border-r border-border" aria-hidden="true" />
             <div className="grid" style={{ gridTemplateColumns }}>
               {visibleDays.map(({ day }) => (

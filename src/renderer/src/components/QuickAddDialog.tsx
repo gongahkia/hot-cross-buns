@@ -447,7 +447,7 @@ export function QuickAddDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-bg-tertiary/45 px-4 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-start justify-center bg-bg-tertiary/80 px-4 pt-[12vh]"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();

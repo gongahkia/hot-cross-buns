@@ -452,7 +452,7 @@ export function CalendarOverflowPopover({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-bg-tertiary/45 p-3 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-bg-tertiary/80 p-3"
       onClick={(event) => {
         event.stopPropagation();
         onClose();

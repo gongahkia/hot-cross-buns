@@ -625,7 +625,7 @@ export function MarkdownPreview({
         <div
           aria-label="Image preview"
           aria-modal="true"
-          className="fixed inset-0 z-[70] grid place-items-center bg-bg-primary/80 p-6 backdrop-blur-sm"
+          className="fixed inset-0 z-[70] grid place-items-center bg-bg-primary/80 p-6"
           onClick={() => setLightboxImage(null)}
           role="dialog"
         >

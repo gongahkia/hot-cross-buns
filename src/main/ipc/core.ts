@@ -98,7 +98,7 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "notes" && action === "createNoteList") return z.object({ title: z.string().trim().min(1).max(500) }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "renameNoteList") return z.object({ id: idSchema, title: z.string().trim().min(1).max(500) }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "deleteNoteList") return z.object({ id: idSchema }).strict().safeParse(payload).success;
-  if (namespace === "notes" && action === "legacyMigrationPreview") return z.object({ limit: z.number().int().min(1).max(1_000).optional() }).strict().safeParse(payload).success;
+  if (namespace === "notes" && action === "legacyMigrationPreview") return z.object({ automatic: z.boolean().optional(), limit: z.number().int().min(1).max(1_000).optional() }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "importLegacyPseudoNotes") return z.object({ taskIds: z.array(idSchema).min(1).max(1_000) }).strict().safeParse(payload).success;
   if (namespace === "native" && action === "openExternalUrl") return z.object({ url: z.string().url().max(4_096) }).safeParse(payload).success;
   if (namespace === "settings" && action === "recoveryAction") return z.object({

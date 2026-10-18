@@ -57,7 +57,7 @@ export function DiagnosticsOverlay({ initialTab = "overview", onClose }: Diagnos
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-bg-tertiary/45 p-3 backdrop-blur-sm sm:p-5"
+      className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-bg-tertiary/80 p-3 sm:p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();

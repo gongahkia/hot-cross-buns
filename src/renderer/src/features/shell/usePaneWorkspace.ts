@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import type { CoreViewModelSource } from "../core/coreViewModelSource";
 import type { SectionId } from "../../data/mockPlanner";
@@ -178,7 +178,10 @@ export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" |
   }, []);
 
   const replaceFocusedWithSection = useCallback((sectionId: SectionId): void => {
-    setState((current) => {
+    // A primary tab can suspend while its small route module loads. Keep the
+    // current view until it is ready instead of committing a Loading surface
+    // and inheriting React's fallback reveal throttle.
+    startTransition(() => setState((current) => {
       const focusedPane = findPaneLeaf(current.root, current.focusedPaneId);
 
       if (focusedPane?.content.kind === "section" && focusedPane.content.sectionId === sectionId) {
@@ -192,7 +195,7 @@ export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" |
           sectionId
         })
       };
-    });
+    }));
   }, []);
 
   const splitPane = useCallback((

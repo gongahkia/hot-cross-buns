@@ -59,10 +59,36 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
 
   it("does not prompt a fresh workspace to migrate ordinary undated tasks", () => {
     const store = createStore();
-    store.dispatch("tasks", "create", { listId: "inbox", title: "Ordinary task" });
+    store.dispatch("tasks", "create", { listId: "inbox", title: "Ordinary task", notes: "x".repeat(4000) });
     const preview = store.dispatch("notes", "legacyMigrationPreview");
     expect(preview.foundCount).toBe(1);
     expect(preview.autoPromptEligible).toBe(false);
+    expect(preview.items[0].body).toHaveLength(240);
+    expect(store.dispatch("notes", "legacyMigrationPreview", { automatic: true })).toMatchObject({ foundCount: 0, items: [], autoPromptEligible: false });
+  });
+
+  it("pages across note stars without sorting ordinary notes outside the recent-note index", () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    const notes = Array.from({ length: 6 }, (_, index) => {
+      vi.setSystemTime(new Date(2026, 9, 18, 10, index));
+      return store.dispatch("notes", "create", { title: `Note ${index}` });
+    });
+    const other = store.dispatch("notes", "createNoteList", { title: "Other list" });
+    const elsewhere = store.dispatch("notes", "create", { listId: other.id, title: "Elsewhere" });
+    store.dispatch("settings", "update", { starredNoteIds: [notes[0].id, notes[3].id, elsewhere.id], starredNoteAt: { [notes[0].id]: 20, [notes[3].id]: 10, [elsewhere.id]: 30 } });
+    const page = (cursor: number, limit: number) => store.dispatch("notes", "list", { listId: notes[0].listId, summary: true, cursor: String(cursor), limit }).items.map((note: any) => note.title);
+    expect(page(0, 3)).toEqual(["Note 0", "Note 3", "Note 5"]);
+    expect(page(1, 3)).toEqual(["Note 3", "Note 5", "Note 4"]);
+    expect(page(4, 3)).toEqual(["Note 2", "Note 1"]);
+    store.dispatch("settings", "update", { starredNoteIds: [], starredNoteAt: {} });
+    expect(page(0, 3)).toEqual(["Note 5", "Note 4", "Note 3"]);
+    const db = new Database(join(stores.at(-1)!.directory, "hcb.sqlite"), { readonly: true });
+    try {
+      const plan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM notes WHERE list_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id LIMIT 100").all(notes[0].listId) as Array<{ detail: string }>;
+      expect(plan.some((step) => step.detail.includes("notes_list_recent_page_idx"))).toBe(true);
+      expect(plan.some((step) => step.detail.includes("TEMP B-TREE"))).toBe(false);
+    } finally { db.close(); }
   });
 
   it("pages scoped note previews, keeps full text on demand, and restores device stars", async () => {

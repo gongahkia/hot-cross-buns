@@ -6,6 +6,35 @@ import { usePagedCollection } from "../hooks/usePagedCollection";
 afterEach(cleanup);
 
 describe("Paged virtual collections", () => {
+  it("measures a visible row batch with one shared observer", async () => {
+    const OriginalObserver = globalThis.ResizeObserver;
+    const observations: Array<{ callback: ResizeObserverCallback; elements: Set<Element> }> = [];
+    vi.stubGlobal("ResizeObserver", class {
+      observation: typeof observations[number];
+      constructor(callback: ResizeObserverCallback) { this.observation = { callback, elements: new Set() }; observations.push(this.observation); }
+      observe(element: Element): void { this.observation.elements.add(element); }
+      unobserve(element: Element): void { this.observation.elements.delete(element); }
+      disconnect(): void { this.observation.elements.clear(); }
+    });
+    try {
+      function Surface(): JSX.Element {
+        const collection = usePagedCollection<number>("measured", async () => ({ items: [0, 1, 2], page: { limit: 100, totalKnown: 3 } }));
+        return <PagedVirtualList ariaLabel="Measured rows" collection={collection} renderRow={(item) => <button>Row {item}</button>} />;
+      }
+      const view = render(<Surface />);
+      await screen.findByRole("button", { name: "Row 2" });
+      const rows = observations.filter(({ elements }) => [...elements].some((element) => element.hasAttribute("data-virtual-index")));
+      expect(rows).toHaveLength(1);
+      const observer = rows[0];
+      expect(observer.elements.size).toBe(3);
+      await act(async () => observer.callback([...observer.elements].map((element, index) => ({ target: element, borderBoxSize: [{ blockSize: [100, 80, 90][index] }] })) as unknown as ResizeObserverEntry[], {} as ResizeObserver));
+      expect(screen.getByRole("button", { name: "Row 2" }).closest("[data-virtual-index]")).toHaveStyle({ transform: "translateY(180px)" });
+      expect(screen.getByRole("list", { name: "Measured rows" }).firstElementChild).toHaveStyle({ height: "270px" });
+      view.unmount();
+      expect(observer.elements.size).toBe(0);
+    } finally { vi.stubGlobal("ResizeObserver", OriginalObserver); }
+  });
+
   it("computes distant positions from sparse measured heights", () => {
     const heights = new Map([[0, 100], [999_999, 80]]);
     const geometry = sparseRowGeometry(1_000_000, 64, heights);

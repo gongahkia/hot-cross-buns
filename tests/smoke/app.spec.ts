@@ -45,7 +45,6 @@ test("uses the displayed timezone at midnight and preserves the event timezone i
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     const originalDay = currentZonedDay("America/New_York", new Date(early));
     const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", hourCycle: "h23", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(early)).map((part) => [part.type, part.value]));
-    const start = page.getByRole("textbox", { name: "Event starts", exact: true });
     // datetime-local has no implicit ARIA textbox role in Chromium.
     const startInput = page.getByLabel("Event starts", { exact: true });
     await expect(startInput).toHaveValue(`${originalDay}T${parts.hour}:${parts.minute}`);
@@ -240,6 +239,17 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "open-task", taskId: id } })), fixture.lastTaskId);
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "open-task", taskId: id } })), fixture.lastTaskId);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    const closeInspector = page.getByRole("button", { name: "Close inspector", exact: true });
+    await closeInspector.focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByRole("button", { name: "Delete task", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(closeInspector).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Task in list 19", exact: true })).toBeVisible();
     await expect.poll(() => page.locator('[data-column-loaded="true"]').count()).toBeLessThanOrEqual(6);
     const starredNavigation = page.getByRole("button", { name: /^Starred on this device/ });
@@ -260,6 +270,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     const body = page.getByRole("textbox", { name: "Note body" });
     expect((await body.inputValue()).length).toBeGreaterThan(4000);
+    await page.screenshot({ path: join(tmpdir(), "hcb-note-inspector-flat.png") });
     await page.keyboard.press("Escape");
     await page.screenshot({ path: join(tmpdir(), "hcb-notes-paged-after.png") });
     await expect.poll(async () => { const result = await page.evaluate(async () => window.hcb!.settings.get()); return result.ok && result.data.paneWorkspace?.root; }).toBeTruthy();

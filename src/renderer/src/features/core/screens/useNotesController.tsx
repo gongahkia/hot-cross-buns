@@ -737,7 +737,7 @@ export function useNotesController(source: CoreViewModelSource): {
 
     if (result?.ok) {
       setLocalNoteLists((current) => [...current, result.data]);
-      setSelectedNoteViews((current) => [...current, noteListSelection(result.data.id)]);
+      setSelectedNoteViews([noteListSelection(result.data.id)]);
       source.refresh();
     } else setNoteActionError(result?.error.message ?? "Note list was not created.");
   }

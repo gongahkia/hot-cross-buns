@@ -42,7 +42,7 @@ export function LegacyNotesMigrationDialog({
     <div
       aria-label="Legacy notes found"
       aria-modal="true"
-      className="fixed inset-0 z-[75] grid place-items-center overflow-auto bg-bg-primary/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[75] grid place-items-center overflow-auto bg-bg-primary/70 p-4"
       onKeyDown={(event) => {
         if (event.key === "Escape" && !submitting) onDismiss();
       }}

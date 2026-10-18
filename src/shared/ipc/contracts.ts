@@ -129,6 +129,7 @@ export interface LegacyPseudoNoteCandidate {
   updatedAt: string;
 }
 export interface LegacyPseudoNotesMigrationPreview {
+  autoPromptEligible?: boolean;
   foundCount: number;
   importedCount: number;
   items: LegacyPseudoNoteCandidate[];

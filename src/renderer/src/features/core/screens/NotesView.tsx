@@ -36,7 +36,7 @@ export function NotesView(): JSX.Element {
 
   useEffect(() => {
     let active = true;
-    void window.hcb?.notes.legacyMigrationPreview({ limit: 1_000 }).then((result) => {
+    void window.hcb?.notes.legacyMigrationPreview({ automatic: true, limit: 1_000 }).then((result) => {
       if (active && result?.ok && result.data.autoPromptEligible !== false && result.data.foundCount > 0) {
         setLegacyMigrationPreview(result.data as LegacyPseudoNotesMigrationPreview);
       }

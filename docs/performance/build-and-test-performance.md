@@ -39,23 +39,31 @@ The default `test` command runs the unit suite. Expensive performance and packag
 
 ## Performance Smoke Tests
 
-Performance smoke tests should:
+The current suite generates isolated SQLite fixtures with 1,000, 5,000, or 10,000 tasks, events, and full-body local notes. It verifies actual content, task/page bounds, search, complete API pagination, distant scrolling, and Calendar range counts. It does not authorize Google or use a real profile.
 
-- generate local fixture data deterministically
-- avoid Google network calls
-- avoid real user app data paths
-- record timings to a machine-readable artifact
-- compare against soft budgets first
-- become hard gates only after stable baselines exist
-
-Suggested artifacts:
-
-```text
-artifacts/perf/latest.json
-artifacts/perf/latest.md
+```sh
+pnpm test:smoke:1k
+pnpm test:smoke:5k
+pnpm test:smoke:10k
+HCB_PERF_COUNT=10000 HCB_PERF_HEAP_MB=128 pnpm test:perf
 ```
 
-Do not commit generated performance artifacts unless a release checklist specifically asks for a baseline sample.
+On headless Linux, prefix those commands with `xvfb-run -a`. Run fixtures sequentially and keep builds/tests out of the measurement interval. Reports include CPU/OS/memory metadata and system load; this does not remove interference from other applications.
+
+Navigation and initial hydration use browser click-to-content-and-two-animation-frame timing. Automation validation time is recorded separately because assertion retry intervals can inflate latency. Input p95 also measures within Chromium, rather than timing automation round trips. Scroll p95 samples 119 frame intervals; input p95 samples 24 characters. Main health IPC runs repeatedly during all fixture writes. Each fixture also closes and relaunches its populated profile, then waits for real task content and hydration before recording restart latency.
+
+The [budget policy](../../scripts/performanceBudgets.ts) preserves product targets and separate regression ceilings. A ceiling failure exits nonzero after saving the report. Target misses remain explicit even when the regression gate passes. These are engineering guards for this fixture and environment, not universal latency guarantees.
+
+Reports under ignored `artifacts/perf/` include:
+
+- `latest.json` and `latest.md`;
+- `<count>-each.json` for each fixture size;
+- `<count>-each-heap128.json` for the constrained run;
+- `latest-failure.txt` if a run fails.
+
+JSON records process PSS on Linux, process breakdowns, CDP renderer heap usage, the actual JS heap limit, mounted task rows, raw frame/input/IPC samples, typing long tasks, and budget outcomes. PSS is sampled at defined workflow phases, not continuously; the maximum reported sample is not a guarantee about every transient allocation. A V8 old-space limit constrains JavaScript memory and does not cap all Chromium/native memory or simulate whole-machine RAM pressure.
+
+Generated reports stay local. The checked-in [remediation evidence](audit-remediation.md) records the reviewed baseline and its limitations.
 
 ## Bundle And Dependency Hygiene
 

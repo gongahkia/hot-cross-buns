@@ -367,7 +367,7 @@ function OptionalGoogleAccessDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[80] grid place-items-center bg-bg-primary/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] grid place-items-center bg-bg-primary/70 p-4"
       onKeyDown={(event) => {
         if (event.key === "Escape" && !submitting) {
           event.preventDefault();

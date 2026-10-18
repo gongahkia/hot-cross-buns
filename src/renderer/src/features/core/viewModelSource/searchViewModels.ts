@@ -1,3 +1,4 @@
+import { cachedDateTimeFormat } from "@shared/zonedTime";
 import { useEffect, useMemo, useState } from "react";
 import type { SearchResultItem } from "@shared/ipc/contracts";
 import { parseLocalSearchQuery } from "@shared/search/localSearch";
@@ -147,10 +148,10 @@ function snoozeSearchLabel(value: string): string {
 
   return Number.isNaN(date.getTime())
     ? "Snoozed"
-    : `Snoozed ${date.toLocaleString([], {
+    : `Snoozed ${cachedDateTimeFormat(undefined, {
         dateStyle: "medium",
         timeStyle: "short"
-      })}`;
+      }).format(date)}`;
 }
 
 export function idleSearchViewModel(): SearchViewModel {

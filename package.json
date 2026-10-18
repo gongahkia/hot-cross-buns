@@ -2,7 +2,7 @@
   "name": "hot-cross-buns",
   "version": "5.0.1",
   "private": true,
-  "description": "Keyboard-first desktop planner for tasks, calendars, notes, and local agent workflows.",
+  "description": "Keyboard-first desktop planner combining Google Tasks, Calendar, and local notes.",
   "main": "out/main/index.js",
   "packageManager": "pnpm@9.15.4",
   "engines": {

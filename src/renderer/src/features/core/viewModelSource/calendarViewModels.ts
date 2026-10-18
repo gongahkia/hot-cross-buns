@@ -342,7 +342,8 @@ function taskCalendarEndIso(dueDate: string): string {
 export function scheduledTaskBlockViewModel(
   block: ScheduledTaskBlockSummary,
   calendarTitle: string | undefined,
-  conflictTitles: string[] = []
+  conflictTitles: string[] = [],
+  timeZone = "UTC"
 ): ScheduledTaskBlockViewModel {
   return {
     id: block.id,
@@ -351,8 +352,8 @@ export function scheduledTaskBlockViewModel(
     calendarId: block.calendarId,
     title: block.title,
     calendar: calendarTitle ?? block.calendarId,
-    timeLabel: timeLabel(block.startsAt),
-    rangeLabel: `${timeLabel(block.startsAt)}-${timeLabel(block.endsAt)}`,
+    timeLabel: timeLabel(block.startsAt, timeZone),
+    rangeLabel: `${timeLabel(block.startsAt, timeZone)}-${timeLabel(block.endsAt, timeZone)}`,
     startsAt: block.startsAt,
     endsAt: block.endsAt,
     durationMinutes: block.durationMinutes,

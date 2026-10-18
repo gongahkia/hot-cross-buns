@@ -8,9 +8,7 @@ coverage/
 output/
 test-results/
 playwright-report/
-artifacts/perf/latest.json
-artifacts/perf/latest.md
-artifacts/perf/latest-failure.txt
+artifacts/perf/
 .DS_Store
 *.log
 AGENTS.md

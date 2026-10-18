@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { cachedDateTimeFormat } from "@shared/zonedTime";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   AlertTriangle,
@@ -143,7 +144,8 @@ export function taskDurationLabel(minutes: number | null | undefined): string {
 
 export function taskScheduleLabel(
   task: TaskViewModel,
-  scheduledBlock?: ScheduledTaskBlockViewModel
+  scheduledBlock?: ScheduledTaskBlockViewModel,
+  timeZone = "UTC"
 ): string | null {
   if (scheduledBlock) {
     return scheduledBlock.status === "orphaned"
@@ -152,7 +154,7 @@ export function taskScheduleLabel(
   }
 
   if (task.plannedStart && task.plannedEnd) {
-    return `Planned ${timeLabel(task.plannedStart)}-${timeLabel(task.plannedEnd)}`;
+    return `Planned ${timeLabel(task.plannedStart, timeZone)}-${timeLabel(task.plannedEnd, timeZone)}`;
   }
 
   if (task.durationMinutes) {
@@ -694,12 +696,12 @@ export function EventRow({
   );
 }
 
-export function timeLabel(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+export function timeLabel(value: string, timeZone = "UTC"): string {
+  return cachedDateTimeFormat("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-    timeZone: "UTC"
+    timeZone
   }).format(new Date(value));
 }
 

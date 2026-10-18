@@ -59,10 +59,12 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
   const open = useCallback((item: InspectorItem): void => {
     const generation = ++transition.current;
     const active = currentRef.current;
+    const returnFocus = active?.returnFocus !== undefined ? active.returnFocus : document.activeElement instanceof HTMLElement ? { current: document.activeElement } : null;
+    const nextItem = item.returnFocus === undefined ? { ...item, returnFocus } : item;
     const commit = () => {
       if (transition.current !== generation) return;
-      currentRef.current = item;
-      setCurrent(item);
+      currentRef.current = nextItem;
+      setCurrent(nextItem);
     };
     if (active?.onConfirmClose && (active.id !== item.id || active.kind !== item.kind)) {
       void Promise.resolve(active.onConfirmClose()).then((allowed) => { if (allowed) commit(); }).catch(() => undefined);

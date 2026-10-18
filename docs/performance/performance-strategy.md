@@ -55,7 +55,7 @@ Electron's own performance guidance emphasizes profiling running code and optimi
 
 ## Performance Fixtures
 
-The test suite should eventually include deterministic large local datasets:
+The current suite and reviewed baseline are described in [the remediation evidence](audit-remediation.md). Its final fixtures contain 1,000, 5,000, and 10,000 tasks, events, and notes each. The following larger/mixed distributions remain additional stress targets:
 
 - Small: 50 tasks, 20 events, 10 notes
 - Medium: 1000 tasks, 1000 events, 200 notes
@@ -76,7 +76,7 @@ Before Mac v1 release, add a performance smoke suite that records:
 - Calendar month navigation latency against large fixture
 - SQLite query plan checks for core queries
 
-The suite should report numbers even before it fails builds. Hard failure thresholds should be introduced once baseline numbers are stable.
+The suite now reports browser-measured timings and enforces the separate regression ceilings in [performanceBudgets.ts](../../scripts/performanceBudgets.ts). Product target misses remain visible. Additional platform/flow gates above still require their own representative evidence; the Linux synthetic suite does not certify macOS hotkeys or release packaging.
 
 ## Reference Docs
 

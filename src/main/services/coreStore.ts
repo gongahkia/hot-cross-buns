@@ -1135,8 +1135,10 @@ export class CoreStore {
         tags_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
       );
-      CREATE INDEX IF NOT EXISTS notes_page_idx ON notes(deleted_at, updated_at, id);
-      CREATE INDEX IF NOT EXISTS notes_list_page_idx ON notes(list_id,deleted_at,updated_at,id);
+      DROP INDEX IF EXISTS notes_page_idx;
+      CREATE INDEX IF NOT EXISTS notes_recent_page_idx ON notes(deleted_at, updated_at DESC, id);
+      DROP INDEX IF EXISTS notes_list_page_idx;
+      CREATE INDEX IF NOT EXISTS notes_list_recent_page_idx ON notes(list_id,deleted_at,updated_at DESC,id);
       CREATE INDEX IF NOT EXISTS notes_title_lookup_idx ON notes(title COLLATE NOCASE);
       CREATE INDEX IF NOT EXISTS tasks_title_lookup_idx ON tasks(title COLLATE NOCASE);
       CREATE INDEX IF NOT EXISTS events_title_lookup_idx ON events(title COLLATE NOCASE);
@@ -2437,16 +2439,28 @@ export class CoreStore {
     const parameters: unknown[] = [];
     if (typeof input.listId === "string") { where.push("note.list_id=?"); parameters.push(input.listId); }
     const settings = this.settings();
-    const stars = JSON.stringify(settings.starredNoteIds ?? []);
-    const starTimes = JSON.stringify(settings.starredNoteAt ?? {});
-    const rows = this.statement(`SELECT note.id,note.title,${input.summary ? "substr(note.body,1,240)" : "note.body"} AS body,
+    const starredIds = settings.starredNoteIds ?? [];
+    const stars = JSON.stringify(starredIds);
+    const select = `SELECT note.id,note.title,${input.summary ? "substr(note.body,1,240)" : "note.body"} AS body,
       note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
-      FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id
-      WHERE ${where.join(" AND ")}
-      ORDER BY note.id IN (SELECT value FROM json_each(?)) DESC,
-        COALESCE((SELECT value FROM json_each(?) WHERE key=note.id),0) DESC,note.updated_at DESC,note.id LIMIT ? OFFSET ?`)
-      .all(...parameters, stars, starTimes, limit, offset) as JsonRecord[];
+      FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id`;
+    const starredCondition = "note.id IN (SELECT value FROM json_each(?))";
+    const starredCount = starredIds.length ? Number((this.statement(`SELECT COUNT(*) AS count FROM notes note
+      WHERE ${where.join(" AND ")} AND ${starredCondition}`).get(...parameters, stars) as { count: number }).count) : 0;
+    const rows: JsonRecord[] = [];
+    // Sort only the starred subset. Ordinary pages can follow the recent-note
+    // index directly, even with stars present elsewhere in the collection.
+    if (offset < starredCount) {
+      rows.push(...this.statement(`${select} WHERE ${where.join(" AND ")} AND ${starredCondition}
+        ORDER BY COALESCE((SELECT value FROM json_each(?) WHERE key=note.id),0) DESC,note.updated_at DESC,note.id LIMIT ? OFFSET ?`)
+        .all(...parameters, stars, JSON.stringify(settings.starredNoteAt ?? {}), Math.min(limit, starredCount - offset), offset) as JsonRecord[]);
+    }
+    if (rows.length < limit) {
+      rows.push(...this.statement(`${select} WHERE ${where.join(" AND ")}${starredCount ? ` AND NOT (${starredCondition})` : ""}
+        ORDER BY note.updated_at DESC,note.id LIMIT ? OFFSET ?`)
+        .all(...parameters, ...(starredCount ? [stars] : []), limit - rows.length, Math.max(0, offset - starredCount)) as JsonRecord[]);
+    }
     const total = Number((this.statement(`SELECT COUNT(*) AS count FROM notes note WHERE ${where.join(" AND ")}`).get(...parameters) as { count: number }).count);
     return { items: rows.map((row) => this.noteSummary(row)), page: this.pageMetadata(limit, offset, total), lists: this.noteLists() };
   }
@@ -2457,15 +2471,21 @@ export class CoreStore {
    * import never sweeps ordinary or completed Google Tasks into native Notes.
    */
   private legacyPseudoNotesMigrationPreview(input: JsonRecord): JsonRecord {
-    const candidates = this.legacyPseudoNoteCandidates();
+    const autoPromptEligible = (this.statement("SELECT value FROM sync_meta WHERE key='legacy-note-prompt-eligible'").get() as { value?: string } | undefined)?.value === "true";
+    if (input.automatic && !autoPromptEligible) return { autoPromptEligible, foundCount: 0, importedCount: this.legacyPseudoNoteImportCount(), items: [] };
     const limit = Math.min(Math.max(Number(input.limit ?? 500), 1), 1_000);
+    const candidates = this.legacyPseudoNoteCandidates(false, { limit, preview: true });
+    const foundCount = Number((this.statement(`SELECT COUNT(*) AS count FROM tasks task JOIN task_lists list ON list.id=task.list_id
+      WHERE task.status='active' AND task.parent_id IS NULL AND task.due_at IS NULL
+      AND NOT EXISTS(SELECT 1 FROM legacy_note_imports imported WHERE imported.source_type='legacy-google-task-pseudo-note' AND imported.source_task_id=task.id)`)
+      .get() as { count: number }).count);
     return {
-      autoPromptEligible: (this.statement("SELECT value FROM sync_meta WHERE key='legacy-note-prompt-eligible'").get() as { value?: string } | undefined)?.value === "true",
-      foundCount: candidates.length,
+      autoPromptEligible,
+      foundCount,
       importedCount: this.legacyPseudoNoteImportCount(),
       // Google identifiers remain main-process provenance. The renderer gets
       // the stable local source identity it needs for review and selection.
-      items: candidates.slice(0, limit).map(({ sourceGoogleTaskId, sourceGoogleTaskListId, ...candidate }) => candidate)
+      items: candidates.map(({ sourceGoogleTaskId, sourceGoogleTaskListId, ...candidate }) => candidate)
     };
   }
 
@@ -2479,7 +2499,7 @@ export class CoreStore {
     if (requestedTaskIds.length === 0) throw new CoreStoreError("Select at least one legacy note to import.");
     if (requestedTaskIds.length > 1_000) throw new CoreStoreError("Import at most 1,000 legacy notes at a time.");
 
-    const sourceById = new Map(this.legacyPseudoNoteCandidates(true).map((candidate) => [candidate.sourceTaskId, candidate]));
+    const sourceById = new Map(this.legacyPseudoNoteCandidates(true, { taskIds: requestedTaskIds }).map((candidate) => [candidate.sourceTaskId, candidate]));
     const now = timestamp();
     let importedCount = 0;
     let skippedCount = 0;
@@ -2535,19 +2555,21 @@ export class CoreStore {
     return { importedCount, skippedCount, listsCreated, importVersion: legacyPseudoNoteImportVersion };
   }
 
-  private legacyPseudoNoteCandidates(includeImported = false): JsonRecord[] {
+  private legacyPseudoNoteCandidates(includeImported = false, options: { limit?: number; preview?: boolean; taskIds?: string[] } = {}): JsonRecord[] {
     const importedJoin = includeImported
       ? ""
       : "LEFT JOIN legacy_note_imports imported ON imported.source_type='legacy-google-task-pseudo-note' AND imported.source_task_id=task.id";
     const importedCondition = includeImported ? "" : "AND imported.source_task_id IS NULL";
     const rows = this.statement(`SELECT task.id AS sourceTaskId,task.list_id AS sourceTaskListId,task.google_id AS sourceGoogleTaskId,
-      list.google_id AS sourceGoogleTaskListId,list.title AS sourceListTitle,task.title,task.notes AS body,task.tags_json AS tagsJson,
+      list.google_id AS sourceGoogleTaskListId,list.title AS sourceListTitle,task.title,${options.preview ? "substr(task.notes,1,240)" : "task.notes"} AS body,task.tags_json AS tagsJson,
       task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id
       ${importedJoin}
       WHERE task.status='active' AND task.parent_id IS NULL AND task.due_at IS NULL
       ${importedCondition}
-      ORDER BY list.title COLLATE NOCASE,task.updated_at DESC,task.id`).all() as JsonRecord[];
+      ${options.taskIds ? "AND task.id IN (SELECT value FROM json_each(?))" : ""}
+      ORDER BY list.title COLLATE NOCASE,task.updated_at DESC,task.id LIMIT ?`)
+      .all(...(options.taskIds ? [JSON.stringify(options.taskIds)] : []), options.limit ?? 1000) as JsonRecord[];
     return rows.map(({ tagsJson, ...row }) => ({ ...row, tags: stringArray(safeJson(tagsJson, [])) }));
   }
 
