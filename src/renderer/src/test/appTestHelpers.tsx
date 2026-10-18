@@ -1144,6 +1144,34 @@ export function seededHcb(): HcbApi {
     }
   };
 
+  seededApi.tasks.forCalendarRange = vi.fn(async (request) => {
+    const response = await seededApi.tasks.list({ status: "all", limit: 1000 });
+    if (!response.ok) return response;
+    const tasks = response.data.items.filter((task) => !task.parentId && task.dueAt && task.dueAt.slice(0, 10) >= request.start.slice(0, 10) && task.dueAt.slice(0, 10) < request.end.slice(0, 10));
+    return ok({ items: tasks, page: { limit: request.limit ?? 500, totalKnown: tasks.length } });
+  });
+  seededApi.tasks.board = vi.fn(async (request) => {
+    const response = await seededApi.tasks.list({ status: "all", limit: 1000 });
+    if (!response.ok) return response;
+    const tasks = response.data.items;
+    const roots = tasks.filter((task) => !task.parentId && (!request.listId || task.listId === request.listId));
+    const sort = (items) => [...items].sort((left, right) => request.sort === "title" ? left.title.localeCompare(right.title) : 0);
+    const active = sort(roots.filter((task) => task.status !== "completed"));
+    const completed = sort(roots.filter((task) => task.status === "completed"));
+    const rows: any[] = [];
+    const append = (task) => {
+      const children = tasks.filter((child) => child.parentId === task.id);
+      rows.push({ kind: "task", task: { ...task, subtaskCount: children.length, completedSubtaskCount: children.filter((child) => child.status === "completed").length } });
+      if (!request.collapsedTaskIds?.includes(task.id)) rows.push(...children.map((child) => ({ kind: "child", task: child })));
+    };
+    active.forEach(append);
+    if (completed.length) {
+      rows.push({ kind: "completed", count: completed.length });
+      if (request.completedOpen) completed.forEach(append);
+    }
+    const offset = Number(request.cursor ?? 0), limit = request.limit ?? 100;
+    return ok({ items: rows.slice(offset, offset + limit), rootCount: active.length, completedRootCount: completed.length, page: { limit, totalKnown: rows.length, ...(offset + limit < rows.length ? { nextCursor: String(offset + limit) } : {}) } });
+  });
   seededApi.bootstrap = bootstrapFixture(seededApi);
   return seededApi;
 }

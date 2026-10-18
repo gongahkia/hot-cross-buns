@@ -119,6 +119,7 @@ app.whenReady().then(async () => {
     openExternalUrl: async ({ url }) => ({ opened: true, ...(await nativeShell.openExternalUrl({ url })) }),
     checkForUpdates: () => nativeShell.checkForUpdates(),
     rescheduleNotifications: () => nativeShell.rescheduleNotificationsForDiagnostics(),
+    refreshData: () => nativeShell.refreshCachedData(),
     applySettings: (settings) => nativeShell.applySettings(settings as never)
   });
 

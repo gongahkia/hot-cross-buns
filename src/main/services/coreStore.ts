@@ -9,6 +9,8 @@ import { recordTiming, timed, timingSnapshot } from "../diagnostics/performance"
 import { getStartupTimings, markStartupTiming } from "../startupTiming";
 import { appLogger } from "../diagnostics/appLogger";
 import { CoreStoreError } from "./coreStoreError";
+import { taskBoardPage } from "./taskBoardQuery";
+import type { TaskSummary } from "@shared/ipc/contracts";
 export { CoreStoreError } from "./coreStoreError";
 
 type JsonRecord = Record<string, any>;
@@ -21,6 +23,7 @@ export interface CoreNativeBridge {
   applySettings?: (settings: JsonRecord) => void;
   checkForUpdates?: () => Promise<JsonRecord>;
   rescheduleNotifications?: () => JsonRecord;
+  refreshData?: () => void;
 }
 
 export interface PendingSyncMutation {
@@ -883,6 +886,10 @@ export class CoreStore {
         return this.page(this.taskLists(), input);
       case "tasks.list":
         return this.listTasks(input);
+      case "tasks.board":
+        return taskBoardPage(this.db, input, this.settings(), (row) => taskFromRow(row) as TaskSummary);
+      case "tasks.forCalendarRange":
+        return this.listTasks({ ...input, summary: true, status: "all", parentId: null, dueStart: input.start, dueEnd: input.end });
       case "tasks.get":
         return this.requireTask(input.id);
       case "tasks.create":
@@ -1190,6 +1197,7 @@ export class CoreStore {
       CREATE UNIQUE INDEX IF NOT EXISTS calendars_google_account_id_idx ON calendars(account_id,google_id) WHERE google_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS events_google_calendar_id_idx ON events(calendar_id,google_id) WHERE google_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS tasks_order_idx ON tasks((due_at IS NULL),due_at,sort_order,title COLLATE NOCASE,id,status);
+      CREATE INDEX IF NOT EXISTS tasks_parent_idx ON tasks(parent_id,status,sort_order,id);
     `);
     this.installFullTextSearch();
     this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
@@ -1297,9 +1305,10 @@ export class CoreStore {
     const calendarRange = input.calendarRange ?? {};
     return {
       taskLists: this.page(this.taskLists(), { limit: 100 }),
-      tasks: this.listTasks({ status: "all", limit: 100 }),
-      hiddenTasks: this.listTasks({ status: "hidden", limit: 100 }),
-      deletedTasks: this.listTasks({ status: "deleted", limit: 100 }),
+      tasks: this.listTasks({ status: "all", limit: 100, summary: true }),
+      hiddenTasks: { items: [], page: { limit: 100, totalKnown: 0 } },
+      deletedTasks: { items: [], page: { limit: 100, totalKnown: 0 } },
+      calendarTasks: calendarRange.start && calendarRange.end ? this.listTasks({ status: "all", parentId: null, limit: 500, summary: true, dueStart: calendarRange.start, dueEnd: calendarRange.end }) : { items: [], page: { limit: 500, totalKnown: 0 } },
       calendars: this.page(this.calendars(), { limit: 100 }),
       events: this.listEvents({ ...calendarRange, limit: calendarRange.limit ?? 500 }),
       scheduledTaskBlocks: this.listScheduledTaskBlocks({ ...calendarRange, limit: 500 }),
@@ -1322,26 +1331,40 @@ export class CoreStore {
     return (this.db.prepare(`
       SELECT list.id, list.account_id AS accountId, list.title, list.updated_at AS updatedAt,
         COUNT(task.id) AS taskCount,
-        SUM(CASE WHEN task.status = 'active' THEN 1 ELSE 0 END) AS activeTaskCount
+        SUM(CASE WHEN task.status = 'active' THEN 1 ELSE 0 END) AS activeTaskCount,
+        SUM(CASE WHEN task.status='active' AND task.parent_id IS NULL THEN 1 ELSE 0 END) AS activeRootTaskCount,
+        SUM(CASE WHEN task.status='active' AND task.parent_id IS NULL AND task.id IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END) AS starredRootTaskCount
       FROM task_lists list LEFT JOIN tasks task ON task.list_id = list.id
       GROUP BY list.id ORDER BY list.title COLLATE NOCASE
-    `).all() as any[]).map((row) => ({ ...row, taskCount: Number(row.taskCount), activeTaskCount: Number(row.activeTaskCount) }));
+    `).all(JSON.stringify(this.settings().starredTaskIds ?? [])) as any[]).map((row) => ({ ...row, taskCount: Number(row.taskCount), activeTaskCount: Number(row.activeTaskCount), activeRootTaskCount: Number(row.activeRootTaskCount), starredRootTaskCount: Number(row.starredRootTaskCount) }));
   }
 
   private listTasks(input: JsonRecord): JsonRecord {
     const requestedStatus = input.status ?? "all";
     const statuses = requestedStatus === "all" ? ["active", "completed"] : [requestedStatus];
     const { limit, offset } = this.pageBounds(input);
-    const total = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM tasks WHERE status IN (${statuses.map(() => "?").join(",")})`).get(...statuses) as { count: number }).count);
+    const conditions = [`task.status IN (${statuses.map(() => "?").join(",")})`];
+    const values: any[] = [...statuses];
+    if (typeof input.listId === "string") { conditions.push("task.list_id=?"); values.push(input.listId); }
+    if (input.parentId === null) conditions.push("task.parent_id IS NULL");
+    else if (typeof input.parentId === "string") { conditions.push("task.parent_id=?"); values.push(input.parentId); }
+    if (typeof input.query === "string" && input.query.trim()) { conditions.push("task.title LIKE ? ESCAPE '\\'"); values.push(`%${input.query.trim().slice(0, 200).replace(/[\\%_]/g, "\\$&")}%`); }
+    if (typeof input.dueStart === "string" && typeof input.dueEnd === "string") {
+      // Date-only Tasks and zoned Calendar windows can straddle UTC days.
+      conditions.push("task.due_at>=? AND task.due_at<?");
+      values.push(new Date(Date.parse(input.dueStart) - 86400_000).toISOString().slice(0, 10), new Date(Date.parse(input.dueEnd) + 86400_000).toISOString().slice(0, 10));
+    }
+    const where = conditions.join(" AND ");
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM tasks task WHERE ${where}`).get(...values) as { count: number }).count);
     const rows = this.db.prepare(`
-      SELECT task.id, list.account_id AS accountId, task.list_id AS listId, task.title, task.notes, task.status, task.priority, task.due_at AS dueAt,
+      SELECT task.id, list.account_id AS accountId, task.list_id AS listId, task.title, ${input.summary ? "substr(task.notes,1,240) AS notes" : "task.notes"}, task.status, task.priority, task.due_at AS dueAt,
         parent_id AS parentId, planned_start AS plannedStart, planned_end AS plannedEnd,
         duration_minutes AS durationMinutes, locked_schedule AS lockedSchedule,
         snooze_until AS snoozeUntil, tags_json AS tags, sort_order AS sortOrder, task.updated_at AS updatedAt
-      FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.status IN (${statuses.map(() => "?").join(",")})
+      FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE ${where}
       ORDER BY CASE WHEN task.due_at IS NULL THEN 1 ELSE 0 END, task.due_at, task.sort_order, task.title COLLATE NOCASE, task.id
       LIMIT ? OFFSET ?
-    `).all(...statuses, limit, offset) as any[];
+    `).all(...values, limit, offset) as any[];
     return { items: rows.map(taskFromRow), page: this.pageMetadata(limit, offset, total) };
   }
 
@@ -1377,6 +1400,7 @@ export class CoreStore {
   }
 
   private updateTask(input: JsonRecord): JsonRecord {
+    if (input.previousTaskId === undefined && input.previousSiblingId !== undefined) input = { ...input, previousTaskId: input.previousSiblingId };
     const previous = this.requireTask(requiredText(input.id, "Task id"));
     const nextListId = input.listId ?? previous.listId;
     const nextAccountId = this.accountForTaskList(nextListId);
@@ -1401,11 +1425,13 @@ export class CoreStore {
     })();
     const task = this.requireTask(previous.id);
     this.recordUndo("Update task", { namespace: "tasks", action: "update", payload: taskUpdatePayload(task) }, { namespace: "tasks", action: "update", payload: taskUpdatePayload(previous) });
-    return task;
+    return { ...task, previousState: { id: previous.id, listId: previous.listId, parentId: previous.parentId, status: previous.status } };
   }
 
   private bulkReschedule(input: JsonRecord): JsonRecord {
-    const ids = Array.isArray(input.ids) ? input.ids.filter((id): id is string => typeof id === "string") : [];
+    const selected = input.taskIds ?? input.ids;
+    const ids = Array.isArray(selected) ? [...new Set(selected.filter((id): id is string => typeof id === "string"))] : [];
+    if (ids.length === 0 || ids.length > 500) throw new CoreStoreError("Select between 1 and 500 tasks to reschedule.");
     const transaction = this.db.transaction(() => ids.map((id) => this.updateTask({ id, dueDate: input.dueDate })));
     return { items: transaction() };
   }

@@ -106,7 +106,7 @@ export async function loadCoreData(
   const bootstrapDurationMs = performance.now() - bootstrapStartedAt;
 
   if (bootstrap?.ok) {
-    return snapshotFromBootstrap(bootstrap.data, { tasks: true, notes: true });
+    return { ...snapshotFromBootstrap(bootstrap.data), calendarRanges: [calendarRange] };
   }
 
   fallbackReason ??= "failed";
@@ -284,25 +284,9 @@ async function loadTaskHydration(): Promise<{ items: TaskSummary[]; totalKnown: 
   const startedAt = performance.now();
 
   try {
-    const [tasks, hiddenTasks, deletedTasks] = await Promise.all([
-      loadAllPages<TaskListRequest, TaskListResponse>(
-        { status: "all", limit: 100 },
-        (request) => window.hcb!.tasks.list(request).then((result) => unwrap(result, "Tasks failed"))
-      ),
-      loadAllPages<TaskListRequest, TaskListResponse>(
-        { status: "hidden", limit: 100 },
-        (request) => window.hcb!.tasks.list(request).then((result) => unwrap(result, "Hidden tasks failed"))
-      ),
-      loadAllPages<TaskListRequest, TaskListResponse>(
-        { status: "deleted", limit: 100 },
-        (request) => window.hcb!.tasks.list(request).then((result) => unwrap(result, "Deleted tasks failed"))
-      )
-    ]);
-    const items = uniqueTasks([...tasks.items, ...hiddenTasks.items, ...deletedTasks.items]);
-    const totalKnown =
-      knownTotal(tasks.page.totalKnown, tasks.items.length) +
-      knownTotal(hiddenTasks.page.totalKnown, hiddenTasks.items.length) +
-      knownTotal(deletedTasks.page.totalKnown, deletedTasks.items.length);
+    const tasks = await unwrap(await window.hcb!.tasks.list({ status: "all", limit: 100, summary: true }), "Tasks failed");
+    const items = tasks.items;
+    const totalKnown = knownTotal(tasks.page.totalKnown, tasks.items.length);
 
     recordRendererTiming({
       kind: "startup",
@@ -374,6 +358,7 @@ function snapshotFromBootstrap(
 ): CoreDataSnapshot {
   return {
     taskLists: bootstrap.taskLists.items,
+    calendarTasks: bootstrap.calendarTasks?.items ?? [],
     tasks: uniqueTasks([
       ...bootstrap.tasks.items,
       ...bootstrap.hiddenTasks.items,

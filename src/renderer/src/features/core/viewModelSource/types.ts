@@ -57,6 +57,9 @@ import type {
 } from "../coreViewModels";
 
 export interface CoreViewModelSource {
+  taskDataRevision: number;
+  noteDataRevision: number;
+  calendarDataRevision: number;
   activeColorTheme: ColorThemeDefinition;
   activeColorThemeId: ColorThemeDefinition["id"];
   appearanceReady: boolean;
@@ -146,6 +149,8 @@ export interface CalendarRangeLoadRequest {
 export type CoreDataState = "loading" | "ready" | "empty" | "error" | "offline" | "stale";
 
 export interface CoreDataSnapshot {
+  calendarTasks?: TaskSummary[];
+  calendarRanges?: CalendarRangeLoadRequest[];
   taskLists: TaskListSummary[];
   tasks: TaskSummary[];
   calendars: CalendarListSummary[];
@@ -202,6 +207,9 @@ export interface CalendarEventDayIndex {
 }
 
 export interface CoreViewModelSourceOptions {
+  taskDataRevision?: number;
+  noteDataRevision?: number;
+  calendarDataRevision?: number;
   appearanceReady: boolean;
   state: CoreDataState;
   systemPrefersDark: boolean;

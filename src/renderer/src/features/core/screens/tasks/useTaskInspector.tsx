@@ -12,6 +12,7 @@ import {
   type ConvertSourceCleanup
 } from "../../conversionEvents";
 import { copiedTitle } from "../../copyLabels";
+import { stableTaskViewModel } from "../../viewModelSource/taskViewModels";
 import type { TaskViewModel } from "../../coreViewModels";
 import {
   TaskInspectorDetails,
@@ -83,6 +84,7 @@ function TaskInspectorSaveAction({
 }
 
 export interface TaskInspectorController {
+  taskReadError?: string;
   addSubtaskForTask: (task: TaskViewModel | null) => void;
   deleteTask: (taskId: string) => Promise<void>;
   duplicateTask: (taskId: string) => void;
@@ -103,6 +105,9 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     update: updateInspector
   } = useInspector();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [loadedTask, setLoadedTask] = useState<TaskViewModel | null>(null);
+  const [taskReadError, setTaskReadError] = useState<string>();
+  const readGeneration = useRef(0);
   const [draft, setDraftState] = useState<TaskDraft>(() => newTaskDraft(source));
   const [taskInspectorMode, setTaskInspectorModeState] = useState<"view" | "edit">("edit");
   const ownerIdRef = useRef(`task-inspector-${Math.random().toString(36).slice(2)}`);
@@ -140,7 +145,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   const setTaskInspectorCanSave = useCallback((canSave: boolean) => {
     taskInspectorCanSaveState.set(canSave);
   }, [taskInspectorCanSaveState]);
-  const selectedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
+  const cachedTask = selectedTaskId ? source.getTaskById(selectedTaskId) : null;
+  const selectedTask = loadedTask?.id === selectedTaskId ? { ...loadedTask, ...(cachedTask?.listId !== "unknown" ? cachedTask : {}), detail: loadedTask.detail } : cachedTask;
   const parentOptions = useMemo(
     () => taskParentOptions(source.largeTaskWindow, taskDraftRef.current),
     [source.largeTaskWindow]
@@ -324,6 +330,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     if (!canReplaceTaskInspector()) {
       return;
     }
+    readGeneration.current += 1;
 
     const draftSeed = typeof seed === "string" ? { listId: seed } : seed ?? {};
 
@@ -332,23 +339,40 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     openTaskInspector(isTaskDraft(draftSeed) ? draftSeed : newTaskDraft(source, draftSeed), "edit");
   }
 
-  function selectTask(taskId: string): void {
+  async function readTask(taskId: string): Promise<TaskViewModel | null> {
+    setTaskReadError(undefined);
+    try {
+      const result = await window.hcb?.tasks.get({ id: taskId });
+      if (!result?.ok) throw new Error(result?.error.message ?? "The task could not be opened.");
+      return stableTaskViewModel(result.data, source.taskLists.find((list) => list.id === result.data.listId)?.title, [], new Map());
+    } catch (error) {
+      setTaskReadError(error instanceof Error ? error.message : "The task could not be opened.");
+      return null;
+    }
+  }
+
+  async function selectTask(taskId: string): Promise<void> {
     if (!canReplaceTaskInspector()) {
       return;
     }
 
-    const task = source.getTaskById(taskId);
+    const generation = ++readGeneration.current;
+    const task = await readTask(taskId);
+    if (!task || generation !== readGeneration.current || !canReplaceTaskInspector()) return;
+    setLoadedTask(task);
     setSelectedTaskId(taskId);
     conversionCleanupRef.current = null;
     openTaskInspector(editTaskDraft(task), "view");
   }
 
-  function duplicateTask(taskId: string): void {
+  async function duplicateTask(taskId: string): Promise<void> {
     if (!canReplaceTaskInspector()) {
       return;
     }
 
-    const task = source.getTaskById(taskId);
+    const generation = ++readGeneration.current;
+    const task = await readTask(taskId);
+    if (!task || generation !== readGeneration.current || !canReplaceTaskInspector()) return;
     conversionCleanupRef.current = null;
     openDuplicateTaskDraft(duplicateTaskDraft(task));
   }
@@ -458,13 +482,15 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   async function toggleTask(taskId: string): Promise<void> {
-    const task = source.getTaskById(taskId);
+    const task = await readTask(taskId);
+    if (!task) return;
     const startedAt = rendererNow();
     const action = task.status === "completed" ? "reopen" : "complete";
     let saved = false;
 
     if (task.status === "completed") {
       saved = await source.reopenTask(taskId);
+      if (saved) setLoadedTask((current) => current?.id === taskId ? { ...current, status: "open" } : current);
       reportRendererTimingSince("tasks.completion", startedAt, {
         action,
         saved
@@ -473,6 +499,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     }
 
     saved = await source.completeTask(taskId);
+    if (saved) setLoadedTask((current) => current?.id === taskId ? { ...current, status: "completed" } : current);
     if (saved && source.settings.taskCompletionSoundEnabled) {
       playCompletionSound(source.settings.taskCompletionSoundId);
     }
@@ -532,6 +559,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
 
   return {
     addSubtaskForTask,
+    taskReadError,
     deleteTask,
     duplicateTask,
     openNewTask,

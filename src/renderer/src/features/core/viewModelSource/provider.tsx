@@ -10,11 +10,13 @@ import type {
   ScheduledTaskBlockListRequest,
   ScheduledTaskBlockListResponse,
   ScheduledTaskBlockSummary,
-  TaskSummary
+  TaskSummary,
+  TaskListRequest,
+  TaskListResponse
 } from "@shared/ipc/contracts";
 import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import { emptySnapshot } from "./defaults";
-import { inCalendarRanges, retainCalendarRange } from "./calendarRangeCache";
+import { inCalendarRanges, retainCalendarRange, retainedLoadedRanges, taskInCalendarRanges } from "./calendarRangeCache";
 import { dateOnlyFromLocalDate, visibleCalendarRange } from "./dateFormat";
 import { safeHydrationErrorMessage } from "./hydrationError";
 import { hydrateCoreData, loadAllPages, loadCoreData, type CoreDataHydrationSnapshot } from "./loader";
@@ -124,7 +126,7 @@ function mergeHydratedTasks(
     }
   }
 
-  return [...merged.values()];
+  return [...merged.values()].slice(0, 100);
 }
 
 function shouldKeepCurrentTask(current: TaskSummary, hydrated: TaskSummary): boolean {
@@ -169,10 +171,25 @@ function usePreloadCoreSource(): CoreViewModelSource {
   const backgroundHydrationRequested = useRef(false);
   const loadedCalendarRanges = useRef<CalendarRangeLoadRequest[]>([]);
   const pendingCalendarRangeLoads = useRef(new Map<string, Promise<boolean>>());
+  const requestedCalendarRanges = useRef<CalendarRangeLoadRequest[]>([]);
+  const loadGeneration = useRef(0);
+  const calendarGeneration = useRef(0);
+  const [calendarDataRevision, setCalendarDataRevision] = useState(0);
+  const lastSyncCompletion = useRef<string | null>(null);
+  const invalidateCalendar = useCallback(() => {
+    calendarGeneration.current += 1;
+    loadedCalendarRanges.current = [];
+    pendingCalendarRangeLoads.current.clear();
+    setCalendarDataRevision((revision) => revision + 1);
+  }, []);
   const taskViewModelCache = useRef(new Map<string, { signature: string; viewModel: TaskViewModel }>());
   const calendarEventViewModelCache = useRef(
     new Map<string, { signature: string; viewModel: CalendarEventViewModel }>()
   );
+  const taskRevision = useRef(0);
+  const noteRevision = useRef(0);
+  const taskDataRevision = useMemo(() => ++taskRevision.current, [loadState.snapshot.tasks, loadState.snapshot.taskLists]);
+  const noteDataRevision = useMemo(() => ++noteRevision.current, [loadState.snapshot.notes, loadState.snapshot.noteLists]);
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") {
@@ -288,6 +305,11 @@ function usePreloadCoreSource(): CoreViewModelSource {
       return;
     }
 
+    const generation = ++loadGeneration.current;
+    calendarGeneration.current += 1;
+    loadedCalendarRanges.current = [];
+    requestedCalendarRanges.current = [];
+    pendingCalendarRangeLoads.current.clear();
     setLoadState((current) => ({
       ...current,
       state: hasSnapshotData(current.snapshot) ? "stale" : "loading",
@@ -324,8 +346,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
     void loadCoreData(settingsPromise, initialCalendarRange).then(
       (snapshot) => {
-        loadedCalendarRanges.current = [initialCalendarRange];
-        pendingCalendarRangeLoads.current.clear();
+        if (generation !== loadGeneration.current) return;
         setLoadState(() => ({
           appearanceReady: true,
           snapshot,
@@ -334,6 +355,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
         }));
       },
       (error: unknown) => {
+        if (generation !== loadGeneration.current) return;
         setLoadState((current) => ({
           ...current,
           state: hasSnapshotData(current.snapshot) ? "stale" : "error",
@@ -355,9 +377,9 @@ function usePreloadCoreSource(): CoreViewModelSource {
       return Promise.resolve(false);
     }
 
-    if (calendarRangeLoaded(loadedCalendarRanges.current, normalized)) {
-      return Promise.resolve(true);
-    }
+    const generation = calendarGeneration.current;
+    requestedCalendarRanges.current = retainCalendarRange(requestedCalendarRanges.current, normalized);
+    if (calendarRangeLoaded(loadedCalendarRanges.current, normalized)) return Promise.resolve(true);
 
     const key = `${normalized.start}|${normalized.end}`;
     const pending = pendingCalendarRangeLoads.current.get(key);
@@ -366,7 +388,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       return pending;
     }
 
-    const loadPromise = Promise.all([
+    const loadPromise: Promise<boolean> = Promise.all([
       loadAllPages<CalendarRangeRequest, CalendarRangeResponse>(
         { start: normalized.start, end: normalized.end, limit: 500 },
         (request) => window.hcb!.calendar
@@ -378,15 +400,23 @@ function usePreloadCoreSource(): CoreViewModelSource {
         (request) => window.hcb!.calendar
           .listScheduledTaskBlocks(request)
           .then((result) => unwrap(result, "Scheduled task blocks failed"))
+      ),
+      loadAllPages<TaskListRequest, TaskListResponse>(
+        { start: normalized.start, end: normalized.end, limit: 500 },
+        (request) => window.hcb!.tasks.forCalendarRange(request).then((result) => unwrap(result, "Calendar tasks failed"))
       )
     ])
-      .then(([events, scheduledTaskBlocks]) => {
-        loadedCalendarRanges.current = retainCalendarRange(loadedCalendarRanges.current, normalized);
-        const retainedRanges = loadedCalendarRanges.current;
+      .then(([events, scheduledTaskBlocks, calendarTasks]) => {
+        if (generation !== calendarGeneration.current) return false;
+        const retainedRanges = requestedCalendarRanges.current;
+        if (!retainedRanges.some((range) => range.start < normalized.end && range.end > normalized.start)) return false;
+        loadedCalendarRanges.current = retainedLoadedRanges([...loadedCalendarRanges.current, normalized], retainedRanges);
         setLoadState((current) => ({
           ...current,
           snapshot: {
             ...current.snapshot,
+            calendarRanges: retainedRanges,
+            calendarTasks: mergeById<TaskSummary>(current.snapshot.calendarTasks ?? [], calendarTasks.items).filter((task) => taskInCalendarRanges(task, retainedRanges)),
             events: mergeById<CalendarEventSummary>(current.snapshot.events, events.items).filter((event) => inCalendarRanges(event, retainedRanges)),
             scheduledTaskBlocks: mergeById<ScheduledTaskBlockSummary>(
               current.snapshot.scheduledTaskBlocks,
@@ -398,7 +428,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       })
       .catch(() => false)
       .finally(() => {
-        pendingCalendarRangeLoads.current.delete(key);
+        if (pendingCalendarRangeLoads.current.get(key) === loadPromise) pendingCalendarRangeLoads.current.delete(key);
       });
 
     pendingCalendarRangeLoads.current.set(key, loadPromise);
@@ -425,6 +455,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
     moveScheduledTaskBlock,
     unscheduleTaskBlock
   } = useTaskMutations({
+    invalidateCalendar,
     setLoadState,
     refreshSyncStatus,
     refreshUndoStatus
@@ -545,6 +576,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
     backgroundHydrationRequested.current = true;
     const timeout = window.setTimeout(() => {
       const startedAt = performance.now();
+      const generation = loadGeneration.current;
 
       setLoadState((current) => ({
         ...current,
@@ -559,6 +591,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
       void hydrateCoreData().then(
         (hydration) => {
+          if (generation !== loadGeneration.current) return;
           const failed = hydration.failedResources.length > 0;
           setLoadState((current) => ({
             ...current,
@@ -736,8 +769,12 @@ function usePreloadCoreSource(): CoreViewModelSource {
           syncStatus
         }
       }));
+      if (syncStatus.state === "idle" && syncStatus.lastCompletedAt && syncStatus.lastCompletedAt !== lastSyncCompletion.current) {
+        lastSyncCompletion.current = syncStatus.lastCompletedAt;
+        load();
+      }
     });
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     if (
@@ -775,6 +812,9 @@ function usePreloadCoreSource(): CoreViewModelSource {
 
   return useMemo(
     () => buildCoreViewModelSource(loadState.snapshot, {
+      taskDataRevision,
+      noteDataRevision,
+      calendarDataRevision,
       appearanceReady: loadState.appearanceReady,
       state: loadState.state,
       systemPrefersDark: prefersDark,
@@ -821,6 +861,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       unscheduleTaskBlock
     }),
     [
+      calendarDataRevision,
       clearTaskMutationError,
       completeEvent,
       completeTask,

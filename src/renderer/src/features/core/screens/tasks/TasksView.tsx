@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
+import { StatusBanner } from "../../../../components/primitives";
 import { DuplicateReviewPanel } from "../../DuplicateReviewPanel";
 import type { ConvertSourceCleanup } from "../../conversionEvents";
 import {
@@ -22,6 +23,7 @@ import {
   type TaskListSort
 } from "./GoogleTasksBoard";
 import { useTaskInspector } from "./useTaskInspector";
+import { TaskScheduleDialog } from "./TaskScheduleDialog";
 
 export interface TaskSurfaceCommand {
   id: "task.create";
@@ -58,12 +60,14 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     openNewTask,
     selectedTaskId,
     selectTask,
-    toggleTask
+    toggleTask,
+    taskReadError
   } = useTaskInspector(source);
   const [selectedBoardView, setSelectedBoardView] = useState<TaskBoardSelection>({
     mode: "lists",
     listIds: null
   });
+  const [schedulingTask, setSchedulingTask] = useState<TaskViewModel | null>(null);
   const [starredTaskIds, setStarredTaskIds] = useState<Set<string>>(
     () => new Set<string>(source.settings.starredTaskIds ?? readLocalStorageStringArray(starredTasksStorageKey))
   );
@@ -190,16 +194,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   }
 
   function scheduleTask(task: TaskViewModel): void {
-    const calendar = source.calendarSources.find((item) => item.selected) ?? source.calendarSources[0];
-    if (!calendar || source.taskMutationPending) return;
-    const durationMinutes = Math.max(5, Math.min(24 * 60, task.durationMinutes ?? 30));
-    const startsAt = new Date(Math.ceil((Date.now() + 60_000) / (30 * 60_000)) * 30 * 60_000).toISOString();
-    const existing = scheduledBlocksByTask.get(task.id);
-    if (existing) {
-      void source.moveScheduledTaskBlock({ id: existing.id, calendarId: calendar.id, startsAt, durationMinutes });
-      return;
-    }
-    void source.scheduleTaskBlock({ taskId: task.id, calendarId: calendar.id, startsAt, durationMinutes });
+    setSchedulingTask(task);
   }
 
   boardActionsRef.current = {
@@ -273,7 +268,9 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
+      {schedulingTask ? <TaskScheduleDialog key={schedulingTask.id} task={schedulingTask} onClose={() => setSchedulingTask(null)} /> : null}
       <TaskMutationErrorBanner source={source} />
+      {taskReadError ? <StatusBanner title="Task could not be opened" description={taskReadError} tone="warning" /> : null}
       <DuplicateReviewPanel onOpenTask={handleOpenTask} source={source} />
 
       <div className="grid min-h-0 flex-1 gap-3">

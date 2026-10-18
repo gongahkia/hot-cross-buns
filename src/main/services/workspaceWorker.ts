@@ -105,7 +105,7 @@ async function start(): Promise<void> {
       port.postMessage({ kind: "oauthState", reconfiguring: services.googleOAuth.isReconfiguring() });
       const result = await operation;
       port.postMessage({ kind: "reply", id: message.id, result });
-      if (message.target !== "core" || !["list", "get", "query", "summary", "logs", "recordTiming", "markCachedDataRendered"].includes(String(message.args[1]))) scheduleSnapshot();
+      if (message.target !== "core" || !["list", "board", "forCalendarRange", "get", "query", "summary", "logs", "status", "listTaskLists", "listCalendars", "listEvents", "listScheduledTaskBlocks", "recordTiming", "markCachedDataRendered"].includes(String(message.args[1]))) scheduleSnapshot();
     } catch (error) {
       port.postMessage({ kind: "reply", id: message.id, error: { name: error instanceof CoreStoreError ? "CoreStoreError" : "Error", message: error instanceof Error ? error.message : "Workspace operation failed." } });
     } finally {

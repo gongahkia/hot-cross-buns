@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -67,6 +67,20 @@ test("persists a backup and recovers local notes through the worker", async () =
     expect(note.data.body).toBe("Original text");
     const unsupported = await page.evaluate(async () => window.hcb!.search.installModel({ modelId: "unused" }));
     expect(unsupported.ok).toBe(false);
+    const timing = await page.evaluate(async () => window.hcb!.diagnostics.recordTiming({ name: "smoke.timing", kind: "ipc", durationMs: 7.25 }));
+    if (!timing.ok) throw new Error(timing.error.message);
+    expect(timing.data.recorded).toBe(true);
+    const reportPath = join(profileDir, "diagnostics.json");
+    await electronApp.evaluate(({ dialog }, filePath) => {
+      dialog.showSaveDialog = (async () => ({ canceled: false, filePath })) as typeof dialog.showSaveDialog;
+    }, reportPath);
+    const exported = await page.evaluate(async () => window.hcb!.diagnostics.exportBundle());
+    if (!exported.ok) throw new Error(exported.error.message);
+    expect(exported.data.exported).toBe(true);
+    const reportText = readFileSync(reportPath, "utf8");
+    const report = JSON.parse(reportText);
+    expect(report.summary.performance.timings).toContainEqual(expect.objectContaining({ name: "smoke.timing", durationMs: 7.25 }));
+    expect(reportText).not.toContain("Original text");
   } finally {
     await electronApp.close();
     rmSync(profileDir, { recursive: true, force: true });
@@ -105,7 +119,7 @@ test("virtualizes task trees while retaining keyboard navigation", async () => {
     await viewport.press("End");
     await expect(viewport.getByRole("button", { name: "Planner task 199", exact: true })).toBeFocused();
     await page.keyboard.press("Home");
-    await expect(viewport.getByRole("button", { name: "Planner task 000", exact: true })).toBeFocused();
+    await expect(viewport.getByRole("button", { name: /^Planner task 000/ })).toBeFocused();
     const overlap = await viewport.locator("[data-virtual-index]").evaluateAll((rows) => rows.some((row, index) => index > 0 && row.getBoundingClientRect().top < rows[index - 1].getBoundingClientRect().bottom - 1));
     expect(overlap).toBe(false);
     await page.screenshot({ path: join(tmpdir(), "hcb-task-board-after.png") });

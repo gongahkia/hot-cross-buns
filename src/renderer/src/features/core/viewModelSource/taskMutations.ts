@@ -17,18 +17,22 @@ import type {
 } from "@shared/ipc/contracts";
 import { optimisticScheduledBlockPatch } from "./calendarViewModels";
 import { optimisticTaskPatch } from "./taskViewModels";
+import { uniqueTasks } from "./taskViewModels";
+import { taskInCalendarRanges } from "./calendarRangeCache";
 import type { CoreDataLoadState, TaskMutationUiState } from "./types";
 
 interface UseTaskMutationsOptions {
   setLoadState: Dispatch<SetStateAction<CoreDataLoadState>>;
   refreshSyncStatus: () => void;
   refreshUndoStatus: () => void;
+  invalidateCalendar: () => void;
 }
 
 export function useTaskMutations({
   setLoadState,
   refreshSyncStatus,
-  refreshUndoStatus
+  refreshUndoStatus,
+  invalidateCalendar
 }: UseTaskMutationsOptions): {
   taskMutation: TaskMutationUiState;
   clearTaskMutationError: () => void;
@@ -53,13 +57,16 @@ export function useTaskMutations({
   const retryTaskMutation = useRef<() => void>(() => undefined);
 
   const setTasksSnapshot = useCallback((updater: (tasks: TaskSummary[]) => TaskSummary[]) => {
-    setLoadState((current) => ({
-      ...current,
-      snapshot: {
-        ...current.snapshot,
-        tasks: updater(current.snapshot.tasks)
-      }
-    }));
+    setLoadState((current) => {
+      const before = uniqueTasks([...current.snapshot.tasks, ...(current.snapshot.calendarTasks ?? [])]);
+      const known = new Set(before.map((task) => task.id));
+      const lookup = new Set(current.snapshot.tasks.map((task) => task.id));
+      const updated = updater(before).map((task) => ({ ...task, notes: task.notes?.slice(0, 240) }));
+      return { ...current, snapshot: { ...current.snapshot,
+        tasks: updated.filter((task) => lookup.has(task.id) || !known.has(task.id)).slice(0, 100),
+        calendarTasks: updated.filter((task) => taskInCalendarRanges(task, current.snapshot.calendarRanges ?? []))
+      } };
+    });
   }, [setLoadState]);
 
   const setScheduledBlocksSnapshot = useCallback(
@@ -101,29 +108,6 @@ export function useTaskMutations({
     [setLoadState]
   );
 
-  const adjustTaskListCounts = useCallback(
-    (listId: string, taskCountDelta: number, activeTaskCountDelta: number) => {
-      setTaskListsSnapshot((taskLists) =>
-        taskLists.map((taskList) => {
-          if (taskList.id !== listId) {
-            return taskList;
-          }
-
-          return {
-            ...taskList,
-            ...(typeof taskList.taskCount === "number"
-              ? { taskCount: Math.max(0, taskList.taskCount + taskCountDelta) }
-              : {}),
-            ...(typeof taskList.activeTaskCount === "number"
-              ? { activeTaskCount: Math.max(0, taskList.activeTaskCount + activeTaskCountDelta) }
-              : {})
-          };
-        })
-      );
-    },
-    [setTaskListsSnapshot]
-  );
-
   const beginTaskMutation = useCallback((incrementPendingMutationCount = true) => {
     setTaskMutation({ pending: true });
     if (!incrementPendingMutationCount) {
@@ -152,7 +136,35 @@ export function useTaskMutations({
     setTaskMutation({ pending: false });
     refreshSyncStatus();
     refreshUndoStatus();
-  }, [refreshSyncStatus, refreshUndoStatus]);
+    invalidateCalendar();
+  }, [refreshSyncStatus, refreshUndoStatus, invalidateCalendar]);
+
+  const reconcileTaskCounts = useCallback((previous: TaskSummary | undefined, next: TaskSummary, created = false) => {
+    setLoadState((current) => {
+      const stars = new Set(current.snapshot.settings.starredTaskIds ?? []);
+      const active = (task: TaskSummary | undefined) => task && (task.status === "active" || task.status === undefined) ? 1 : 0;
+      const root = (task: TaskSummary | undefined) => active(task) && task?.parentId == null ? 1 : 0;
+      return {
+        ...current,
+        snapshot: {
+          ...current.snapshot,
+          resourceCounts: { ...current.snapshot.resourceCounts, tasks: created ? (current.snapshot.resourceCounts.tasks ?? 0) + 1 : current.snapshot.resourceCounts.tasks },
+          taskLists: current.snapshot.taskLists.map((list) => {
+            const before = previous?.listId === list.id ? previous : undefined;
+            const after = next.listId === list.id ? next : undefined;
+            const activeDelta = active(after) - active(before);
+            const rootDelta = root(after) - root(before);
+            return { ...list,
+              ...(typeof list.taskCount === "number" ? { taskCount: list.taskCount + (created && after ? 1 : 0) + (!created && previous && previous.listId !== next.listId ? (after ? 1 : before ? -1 : 0) : 0) } : {}),
+              ...(typeof list.activeTaskCount === "number" ? { activeTaskCount: Math.max(0, list.activeTaskCount + activeDelta) } : {}),
+              ...(typeof list.activeRootTaskCount === "number" ? { activeRootTaskCount: Math.max(0, list.activeRootTaskCount + rootDelta) } : {}),
+              ...(typeof list.starredRootTaskCount === "number" ? { starredRootTaskCount: Math.max(0, list.starredRootTaskCount + (stars.has(next.id) ? rootDelta : 0)) } : {})
+            };
+          })
+        }
+      };
+    });
+  }, [setLoadState]);
 
   const createTask = useCallback(
     async (request: TaskCreateRequest): Promise<boolean> => {
@@ -172,7 +184,7 @@ export function useTaskMutations({
           startTransition(() => {
             beginTaskMutation();
             setTasksSnapshot((tasks) => [result.data, ...tasks]);
-            adjustTaskListCounts(request.listId, 1, 1);
+            reconcileTaskCounts(undefined, result.data, true);
             finishTaskMutation();
           });
         }, 0);
@@ -182,7 +194,7 @@ export function useTaskMutations({
       failTaskMutation(result.error.message, () => void createTask(request));
       return false;
     },
-    [adjustTaskListCounts, beginTaskMutation, failTaskMutation, finishTaskMutation, setTasksSnapshot]
+    [reconcileTaskCounts, beginTaskMutation, failTaskMutation, finishTaskMutation, setTasksSnapshot]
   );
 
   const updateTask = useCallback(
@@ -203,6 +215,7 @@ export function useTaskMutations({
 
       if (result.ok) {
         setTasksSnapshot((tasks) => tasks.map((task) => (task.id === request.id ? result.data : task)));
+        reconcileTaskCounts(result.data.previousState ?? previousTasks.find((task) => task.id === request.id), result.data);
         finishTaskMutation();
         return true;
       }
@@ -236,6 +249,7 @@ export function useTaskMutations({
 
       if (result.ok) {
         setTasksSnapshot((tasks) => tasks.map((task) => (task.id === taskId ? result.data : task)));
+        reconcileTaskCounts(result.data.previousState ?? previousTasks.find((task) => task.id === taskId), result.data);
         finishTaskMutation();
         return true;
       }
@@ -269,6 +283,7 @@ export function useTaskMutations({
 
       if (result.ok) {
         setTasksSnapshot((tasks) => tasks.map((task) => (task.id === taskId ? result.data : task)));
+        reconcileTaskCounts(result.data.previousState ?? previousTasks.find((task) => task.id === taskId), result.data);
         finishTaskMutation();
         return true;
       }
@@ -357,6 +372,7 @@ export function useTaskMutations({
 
       if (result.ok) {
         setTasksSnapshot((tasks) => tasks.map((task) => (task.id === request.id ? result.data : task)));
+        reconcileTaskCounts(result.data.previousState ?? previousTasks.find((task) => task.id === request.id), result.data);
         finishTaskMutation();
         return true;
       }
@@ -413,15 +429,18 @@ export function useTaskMutations({
 
       let previousTasks: TaskSummary[] = [];
       let previousEvents: CalendarEventSummary[] = [];
+      let previousCalendarTasks: TaskSummary[] = [];
       beginTaskMutation();
       setLoadState((current) => {
         previousTasks = current.snapshot.tasks;
         previousEvents = current.snapshot.events;
+        previousCalendarTasks = current.snapshot.calendarTasks ?? [];
         return {
           ...current,
           snapshot: {
             ...current.snapshot,
             events: current.snapshot.events.filter((event) => event.linkedTaskId !== taskId),
+            calendarTasks: current.snapshot.calendarTasks?.filter((task) => task.id !== taskId),
             tasks: current.snapshot.tasks.filter((task) => task.id !== taskId)
           }
         };
@@ -430,6 +449,7 @@ export function useTaskMutations({
       const result = await window.hcb.tasks.delete({ id: taskId });
 
       if (result.ok) {
+        reconcileTaskCounts(result.data.previousState ?? previousTasks.find((task) => task.id === taskId), result.data);
         finishTaskMutation();
         return true;
       }
@@ -439,6 +459,7 @@ export function useTaskMutations({
         snapshot: {
           ...current.snapshot,
           events: previousEvents,
+          calendarTasks: previousCalendarTasks,
           tasks: previousTasks
         }
       }));

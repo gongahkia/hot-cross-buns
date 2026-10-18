@@ -236,6 +236,8 @@ export interface TaskListSummary {
   title: string;
   taskCount?: number;
   activeTaskCount?: number;
+  activeRootTaskCount?: number;
+  starredRootTaskCount?: number;
   updatedAt?: string;
 }
 export type TaskListsRequest = any;

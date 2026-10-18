@@ -25,6 +25,7 @@ export class WorkspaceClient {
   private readonly pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
   private nextId = 0;
   private failed: Error | null = null;
+  private settingsSignature = "";
 
   constructor(userDataDirectory: string) {
     let resolveReady!: () => void;
@@ -55,7 +56,8 @@ export class WorkspaceClient {
       if (message.kind === "ready" || message.kind === "snapshot") {
         this.snapshot = message.snapshot;
         if (message.kind === "ready") resolveReady();
-        this.native?.applySettings?.(this.snapshot.settings);
+        this.applyNativeSettings(this.snapshot.settings);
+        this.native?.refreshData?.();
         this.publishNativeCapabilities();
       } else if (message.kind === "reply") {
         const reply = message as RuntimeReply;
@@ -66,7 +68,7 @@ export class WorkspaceClient {
       } else if (message.kind === "syncStatus") this.events.emit("syncStatus", message.status);
       else if (message.kind === "settings") {
         if (this.snapshot) this.snapshot = { ...this.snapshot, settings: message.settings };
-        this.native?.applySettings?.(message.settings);
+        this.applyNativeSettings(message.settings);
         this.publishNativeCapabilities();
       } else if (message.kind === "oauthState") this.reconfiguring = message.reconfiguring;
       else if (message.kind === "host") void this.handleHost(message);
@@ -77,8 +79,17 @@ export class WorkspaceClient {
 
   attachNativeBridge(native: CoreNativeBridge): void {
     this.native = native;
-    if (this.snapshot) native.applySettings?.(this.snapshot.settings);
+    this.settingsSignature = "";
+    if (this.snapshot) this.applyNativeSettings(this.snapshot.settings);
     this.publishNativeCapabilities();
+  }
+
+  private applyNativeSettings(settings: Record<string, any>): void {
+    if (!this.native) return;
+    const signature = JSON.stringify(settings);
+    if (signature === this.settingsSignature) return;
+    this.settingsSignature = signature;
+    this.native.applySettings?.(settings);
   }
 
   private publishNativeCapabilities(): void {

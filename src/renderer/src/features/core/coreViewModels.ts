@@ -44,6 +44,8 @@ export interface TaskViewModel {
   status: TaskStatus;
   mutationState?: "synced" | "queued" | "failed";
   subtasks: TaskSubtaskViewModel[];
+  subtaskCount?: number;
+  completedSubtaskCount?: number;
 }
 
 export interface TaskGroupViewModel {

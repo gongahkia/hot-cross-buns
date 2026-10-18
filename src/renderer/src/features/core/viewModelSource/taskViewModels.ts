@@ -178,7 +178,9 @@ export function stableTaskViewModel(
     priority: task.priority ?? (hasFixtureTask ? fixtureTask.priority : "none"),
     status: taskStatusViewModel(task.status),
     mutationState: task.mutationState,
-    subtasks
+    subtasks,
+    subtaskCount: task.subtaskCount,
+    completedSubtaskCount: task.completedSubtaskCount
   };
 
   cache.set(task.id, { signature, viewModel });
@@ -202,6 +204,8 @@ function taskViewModelSignature(
     task.dueAt ?? "",
     task.sortOrder ?? "",
     task.updatedAt ?? "",
+    task.subtaskCount ?? "",
+    task.completedSubtaskCount ?? "",
     task.priority ?? "",
     task.plannedStart ?? "",
     task.plannedEnd ?? "",

@@ -20,7 +20,7 @@ const requestSchema = z.object({
 
 const actionMap: Record<string, readonly string[]> = {
   bootstrap: ["get"],
-  tasks: ["listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
+  tasks: ["listTaskLists", "list", "board", "forCalendarRange", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
   calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"],
   notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "linkSuggest", "legacyMigrationPreview", "importLegacyPseudoNotes"],
   tags: ["list", "create", "update", "delete"],
@@ -52,6 +52,13 @@ const eventWriteSchema = z.object({
 
 export function payloadIsValid(namespace: string, action: string, payload: Record<string, unknown>): boolean {
   if (!actionMap[namespace]?.includes(action)) return false;
+  if (namespace === "tasks" && action === "forCalendarRange") return z.object({ start: isoDateSchema, end: isoDateSchema, limit: z.number().int().min(1).max(1000).optional(), cursor: z.string().regex(/^\d+$/).max(16).optional() }).strict().safeParse(payload).success;
+  if (namespace === "tasks" && action === "board") return z.object({
+    listId: idSchema.optional(), starred: z.boolean().optional(), sort: z.enum(["myOrder", "date", "deadline", "starred", "title"]).optional(),
+    completedOpen: z.boolean().optional(), collapsedTaskIds: z.array(idSchema).max(10_000).optional(),
+    cursor: z.string().regex(/^\d+$/).max(16).optional(), limit: z.number().int().min(1).max(200).optional()
+  }).strict().safeParse(payload).success;
+  if (namespace === "tasks" && action === "bulkReschedule") return z.object({ taskIds: z.array(idSchema).min(1).max(500), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).strict().safeParse(payload).success;
   if (namespace === "tasks" && ["create", "update", "complete", "reopen", "delete", "move"].includes(action)) return taskWriteSchema.safeParse(payload).success;
   if (namespace === "calendar" && ["create", "update", "complete", "reopen"].includes(action)) return eventWriteSchema.safeParse(payload).success;
   if (namespace === "calendar" && action === "scheduleTaskBlock") return z.object({ taskId: idSchema, calendarId: idSchema, startsAt: isoDateSchema, endsAt: isoDateSchema.optional(), durationMinutes: z.number().finite().min(5).max(1_440).optional() }).safeParse(payload).success;
@@ -279,7 +286,7 @@ export function registerCoreIpc(
 function isWriteAction(action: string, payload: Record<string, unknown> = {}): boolean {
   if (action === "smartReschedule") return payload.apply === true;
   return !new Set([
-    "listTaskLists", "list", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
+    "listTaskLists", "list", "board", "forCalendarRange", "get", "listCalendars", "listEvents", "listScheduledTaskBlocks",
     "exportAvailability", "freeBusy", "scheduleSuggest"
   ]).has(action);
 }

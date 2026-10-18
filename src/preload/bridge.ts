@@ -199,7 +199,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     ...legacyApi,
     bootstrap: actions("bootstrap", ["get"]),
     tasks: actions("tasks", [
-      "listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete",
+      "listTaskLists", "list", "board", "forCalendarRange", "get", "create", "update", "complete", "reopen", "delete",
       "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"
     ]),
     calendar: actions("calendar", [

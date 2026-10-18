@@ -24,7 +24,10 @@ import type { TaskListSummary, TaskMoveRequest } from "@shared/ipc/contracts";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
-import { MeasuredVirtualList } from "../../../../components/MeasuredVirtualList";
+import { PagedVirtualList } from "../../../../components/PagedVirtualList";
+import { usePagedCollection } from "../../../../hooks/usePagedCollection";
+import type { TaskBoardPage, TaskBoardRow as StoredBoardRow } from "@shared/collectionPages";
+import { stableTaskViewModel } from "../../viewModelSource/taskViewModels";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { ScheduledTaskBlockViewModel, TaskViewModel } from "../../coreViewModels";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
@@ -81,32 +84,6 @@ const sortLabels: Record<TaskListSort, string> = {
 };
 const taskDragType = "application/x-hcb-task-id";
 
-function sortTasks(
-  tasks: TaskViewModel[],
-  sort: TaskListSort,
-  starred: StarredState
-): TaskViewModel[] {
-  return [...tasks].sort((left, right) => {
-    if (sort === "title") {
-      return left.title.localeCompare(right.title);
-    }
-
-    if (sort === "deadline") {
-      return (left.dueDate ?? "9999-12-31").localeCompare(right.dueDate ?? "9999-12-31");
-    }
-
-    if (sort === "date") {
-      return (Date.parse(right.updatedAt ?? "") || 0) - (Date.parse(left.updatedAt ?? "") || 0);
-    }
-
-    if (sort === "starred") {
-      return (starred.starredAt[right.id] ?? 0) - (starred.starredAt[left.id] ?? 0);
-    }
-
-    return 0;
-  });
-}
-
 function taskPreview(task: TaskViewModel): string {
   const text = task.detail.trim();
 
@@ -158,45 +135,19 @@ export function GoogleTasksBoard({
   const [bulkCustomDueDate, setBulkCustomDueDate] = useState("");
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
-  const taskGroups = useMemo(() => {
-    const active = new Map<string, TaskViewModel[]>();
-    const completed = new Map<string, TaskViewModel[]>();
-    const starredTasks: TaskViewModel[] = [];
-    for (const task of source.largeTaskWindow) {
-      if (task.parentId !== null) continue;
-      const groups = task.status === "open" ? active : task.status === "completed" ? completed : null;
-      if (!groups) continue;
-      const group = groups.get(task.listId) ?? [];
-      group.push(task);
-      groups.set(task.listId, group);
-      if (task.status === "open" && starred.ids.has(task.id)) starredTasks.push(task);
-    }
-    return { active, completed, starredTasks };
-  }, [source.largeTaskWindow, starred.ids]);
-  const starredVisibleCount = taskGroups.starredTasks.length;
+  const starredVisibleCount = source.taskLists.reduce((count, list) => count + (list.starredRootTaskCount ?? 0), 0);
   const visibleListIds = useMemo(() => selectedView.listIds ?? source.taskLists.map((list) => list.id), [selectedView.listIds, source.taskLists]);
   const columns = useMemo(() => {
-    if (selectedView.mode === "starred") return [{ id: "starred", list: null, title: "Starred on this device", tasks: sortTasks(taskGroups.starredTasks, "starred", starred), completedTasks: [] }];
+    if (selectedView.mode === "starred") return [{ id: "starred", list: null, title: "Starred on this device" }];
     const visibleIds = new Set(visibleListIds);
-    return source.taskLists.filter((list) => visibleIds.has(list.id)).map((list) => ({
-      id: list.id, list, title: list.title,
-      tasks: sortTasks(taskGroups.active.get(list.id) ?? [], listSorts[list.id] ?? "myOrder", starred),
-      completedTasks: sortTasks(taskGroups.completed.get(list.id) ?? [], "date", starred)
-    }));
-  }, [listSorts, selectedView.mode, source.taskLists, starred, taskGroups, visibleListIds]);
-  const bulkSelectedTasks = source.largeTaskWindow.filter((task) => bulkSelectedIds.has(task.id));
-  const bulkSelectedIdsInWindow = bulkSelectedTasks.map((task) => task.id);
-  const showBulkSelection = bulkModeActive || bulkSelectedIdsInWindow.length > 0;
+    return source.taskLists.filter((list) => visibleIds.has(list.id)).map((list) => ({ id: list.id, list, title: list.title }));
+  }, [selectedView.mode, source.taskLists, visibleListIds]);
+  const [bulkTitles, setBulkTitles] = useState<Record<string, string>>({});
+  const bulkSelectedTaskIds = [...bulkSelectedIds];
+  const showBulkSelection = bulkModeActive || bulkSelectedTaskIds.length > 0;
 
-  useEffect(() => {
-    setBulkSelectedIds((current) => {
-      const knownIds = new Set(source.largeTaskWindow.map((task) => task.id));
-      const next = new Set([...current].filter((id) => knownIds.has(id)));
-      return next.size === current.size ? current : next;
-    });
-  }, [source.largeTaskWindow]);
-
-  const toggleBulkTask = useCallback((taskId: string, selected: boolean): void => {
+  const toggleBulkTask = useCallback((taskId: string, selected: boolean, title?: string): void => {
+    setBulkTitles((current) => ({ ...current, [taskId]: title ?? current[taskId] ?? "Selected task" }));
     setBulkSelectedIds((current) => {
       const next = new Set(current);
 
@@ -211,12 +162,12 @@ export function GoogleTasksBoard({
   }, []);
 
   async function bulkReschedule(dueDate: string | null): Promise<void> {
-    if (bulkSelectedIdsInWindow.length === 0 || source.taskMutationPending) {
+    if (bulkSelectedTaskIds.length === 0 || source.taskMutationPending) {
       return;
     }
 
     const saved = await source.bulkRescheduleTasks({
-      taskIds: bulkSelectedIdsInWindow,
+      taskIds: bulkSelectedTaskIds,
       dueDate
     });
 
@@ -229,7 +180,8 @@ export function GoogleTasksBoard({
   return (
     <div
       data-testid="tasks-board"
-      data-task-count={source.largeTaskWindow.length}
+      data-task-count={source.resourceCounts.tasks ?? source.largeTaskWindow.length}
+      data-cached-task-count={source.largeTaskWindow.length}
       data-hydration-state={source.hydrationState}
       className={cx(
         "grid min-h-0 flex-1 gap-3",
@@ -249,7 +201,7 @@ export function GoogleTasksBoard({
         visibleListIds={visibleListIds}
       />
       <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
-        {bulkSelectedIdsInWindow.length > 0 ? (
+        {bulkSelectedTaskIds.length > 0 ? (
           <BoardBulkRescheduleBanner
             customDueDate={bulkCustomDueDate}
             onApplyCustom={() => void bulkReschedule(bulkCustomDueDate || null)}
@@ -260,8 +212,8 @@ export function GoogleTasksBoard({
             onCustomDueDateChange={setBulkCustomDueDate}
             onReschedule={(dueDate) => void bulkReschedule(dueDate)}
             pending={source.taskMutationPending}
-            selectedCount={bulkSelectedIdsInWindow.length}
-            selectedTitles={bulkSelectedTasks.map((task) => task.title)}
+            selectedCount={bulkSelectedTaskIds.length}
+            selectedTitles={bulkSelectedTaskIds.map((id) => bulkTitles[id] ?? "Selected task")}
           />
         ) : null}
         <div
@@ -300,9 +252,7 @@ export function GoogleTasksBoard({
                 selectedTaskId={selectedTaskId}
                 source={source}
                 starred={starred}
-                completedTasks={column.completedTasks}
                 singleColumn={columns.length === 1}
-                tasks={column.tasks}
                 title={column.title}
               />
             ))
@@ -349,13 +299,13 @@ function TaskBoardSidebar({
   const listCounts = useMemo(() => {
     const counts = new Map<string, number>();
     let total = 0;
-    for (const task of source.largeTaskWindow) {
-      if (task.parentId !== null || task.status !== "open") continue;
-      counts.set(task.listId, (counts.get(task.listId) ?? 0) + 1);
-      total += 1;
+    for (const list of source.taskLists) {
+      const count = list.activeRootTaskCount ?? list.activeTaskCount ?? 0;
+      counts.set(list.id, count);
+      total += count;
     }
     return { counts, total };
-  }, [source.largeTaskWindow]);
+  }, [source.taskLists]);
 
   function selectAllLists(): void {
     setSelectedView({ mode: "lists", listIds: null });
@@ -570,9 +520,6 @@ function BoardBulkRescheduleBanner({
   );
 }
 
-type BoardRow = { kind: "task" | "child"; task: TaskViewModel } | { kind: "completed" };
-const boardRowKey = (row: BoardRow): string => row.kind === "completed" ? "completed-header" : row.task.id;
-
 function TaskListColumn({
   list,
   listSort,
@@ -598,9 +545,7 @@ function TaskListColumn({
   selectedTaskId,
   source,
   starred,
-  completedTasks,
   singleColumn,
-  tasks,
   title
 }: {
   list: TaskListSummary | null;
@@ -621,15 +566,13 @@ function TaskListColumn({
   onToggleTask: (taskId: string) => void;
   onAddSubtask: (task: TaskViewModel) => void;
   bulkSelectedIds: ReadonlySet<string>;
-  onBulkSelectTask: (taskId: string, selected: boolean) => void;
+  onBulkSelectTask: (taskId: string, selected: boolean, title?: string) => void;
   showBulkSelection: boolean;
   scheduledBlocksByTask: Map<string, ScheduledTaskBlockViewModel>;
   selectedTaskId: string | null;
   source: CoreViewModelSource;
   starred: StarredState;
-  completedTasks: TaskViewModel[];
   singleColumn: boolean;
-  tasks: TaskViewModel[];
   title: string;
 }): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -644,25 +587,13 @@ function TaskListColumn({
       return next;
     });
   }, []);
-  const rows = useMemo(() => {
-    const result: BoardRow[] = [];
-    const append = (task: TaskViewModel) => {
-      result.push({ kind: "task", task });
-      if (!collapsedTaskIds.has(task.id)) {
-        for (const child of task.subtasks) {
-          const subtask = source.getTaskById(child.id);
-          if (subtask.parentId === task.id) result.push({ kind: "child", task: subtask });
-        }
-      }
-    };
-    tasks.forEach(append);
-    if (completedTasks.length) {
-      result.push({ kind: "completed" });
-      if (completedOpen) completedTasks.forEach(append);
-    }
-    return result;
-  }, [tasks, completedTasks, completedOpen, collapsedTaskIds, source.getTaskById]);
-  const hasRows = tasks.length > 0 || completedTasks.length > 0;
+  const viewModels = useMemo(() => new WeakMap<object, TaskViewModel>(), [title]);
+  const queryKey = JSON.stringify([list?.id, listSort, completedOpen, [...collapsedTaskIds], source.taskDataRevision, [...starred.ids], starred.starredAt]);
+  const collection = usePagedCollection<StoredBoardRow, TaskBoardPage>(queryKey, async (offset, limit) => {
+    const result = await window.hcb!.tasks.board({ ...(list ? { listId: list.id } : { starred: true }), sort: listSort, completedOpen, collapsedTaskIds: [...collapsedTaskIds], cursor: String(offset), limit });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.data as TaskBoardPage;
+  });
   const showAccounts = showAccountBadges(source);
 
   function handleDragOver(event: DragEvent<HTMLElement>): void {
@@ -736,20 +667,22 @@ function TaskListColumn({
         <CheckCircle2 aria-hidden="true" size={18} />
         {list ? "Add a task" : "Add a starred task"}
       </button>
-      {hasRows ? (
-        <MeasuredVirtualList
+        <PagedVirtualList
           ariaLabel={`${title} tasks`}
-          items={rows}
-          getKey={boardRowKey}
-          scrollToKey={selectedTaskId}
+          collection={collection}
+          emptyState={<div className="grid min-h-[240px] place-items-center px-6"><EmptyState description={list ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list ? `${title} is empty` : "No starred tasks"} /></div>}
           renderRow={(row) => {
             if (row.kind === "completed") return (
               <button aria-expanded={completedOpen} className="flex h-11 w-full items-center gap-2 border-t border-border px-4 text-left text-text-secondary hover:bg-surface-0" onClick={() => setCompletedOpen((open) => !open)} type="button">
                 {completedOpen ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
-                Completed ({completedTasks.length})
+                Completed ({row.count})
               </button>
             );
-            const task = row.task;
+            let task = viewModels.get(row.task);
+            if (!task) {
+              task = stableTaskViewModel(row.task, title, [], new Map());
+              viewModels.set(row.task, task);
+            }
             if (row.kind === "child") return (
               <TaskChildRow
                 onAddSubtask={onAddSubtask} onCreateList={onCreateList} onDeleteTask={onDeleteTask}
@@ -774,11 +707,6 @@ function TaskListColumn({
             );
           }}
         />
-      ) : (
-        <div className="grid min-h-0 flex-1 place-items-center px-6">
-          <EmptyState description={list ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list ? `${title} is empty` : "No starred tasks"} />
-        </div>
-      )}
     </section>
   );
 }
@@ -836,7 +764,7 @@ interface GoogleTaskRowProps {
   onToggleStar: (taskId: string) => void;
   onToggleTask: (taskId: string) => void;
   onAddSubtask: (task: TaskViewModel) => void;
-  onBulkSelectTask: (taskId: string, selected: boolean) => void;
+  onBulkSelectTask: (taskId: string, selected: boolean, title?: string) => void;
   showBulkSelection: boolean;
   scheduledBlock?: ScheduledTaskBlockViewModel;
   selected: boolean;
@@ -880,10 +808,8 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
   const preview = taskPreview(task);
   const completed = task.status === "completed";
   const futureSnoozed = isFutureSnoozed(task);
-  const childTasks = task.subtasks
-    .map((subtask) => source.getTaskById(subtask.id))
-    .filter((subtask) => subtask.parentId === task.id);
-  const completedChildCount = childTasks.filter((child) => child.status === "completed").length;
+  const childCount = task.subtaskCount ?? task.subtasks.length;
+  const completedChildCount = task.completedSubtaskCount ?? task.subtasks.filter((child) => child.completed).length;
   const childrenId = `task-children-${task.id}`;
 
   function openContextMenu(event: MouseEvent): void {
@@ -914,13 +840,13 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
             aria-label={`Select ${task.title}`}
             checked={bulkSelected}
             className="mt-2 size-4 accent-[var(--color-accent)]"
-            onChange={(event) => onBulkSelectTask(task.id, event.target.checked)}
+            onChange={(event) => onBulkSelectTask(task.id, event.target.checked, task.title)}
             type="checkbox"
           />
         ) : null}
         <TaskCompletionButton completed={completed} onToggle={onToggleTask} task={task} />
         <div className="flex min-w-0 items-start gap-1">
-          {childTasks.length > 0 ? (
+          {childCount > 0 ? (
             <button
               aria-controls={childrenId}
               aria-expanded={childrenOpen}
@@ -938,7 +864,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
             className="min-w-0 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onClick={() => onOpenTask(task.id)}
             onKeyDown={(event) => {
-              if (childTasks.length === 0) return;
+              if (childCount === 0) return;
               if (event.key === "ArrowRight") {
                 event.preventDefault();
                 onToggleChildren(task.id, true);
@@ -955,9 +881,9 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
                 "line-clamp-2 min-w-0 text-[var(--text-md)] font-medium",
                 completed ? "text-text-muted line-through" : "text-text-primary"
               )}>{task.title}</span>
-              {childTasks.length > 0 ? (
+              {childCount > 0 ? (
                 <span className="ml-auto shrink-0 text-[var(--text-xs)] tabular-nums text-text-muted">
-                  {completedChildCount}/{childTasks.length}
+                  {completedChildCount}/{childCount}
                 </span>
               ) : null}
             </div>
@@ -1093,7 +1019,7 @@ function TaskChildRow({
   onCreateList: () => void;
   onDeleteTask: (taskId: string) => void;
   onDuplicateTask: (taskId: string) => void;
-  onBulkSelectTask: (taskId: string, selected: boolean) => void;
+  onBulkSelectTask: (taskId: string, selected: boolean, title?: string) => void;
   onMoveTask: (taskId: string, listId: string) => void;
   onMoveTaskRequest: (request: TaskMoveRequest) => void;
   onOpenTask: (taskId: string) => void;
@@ -1134,7 +1060,7 @@ function TaskChildRow({
           aria-label={`Select ${task.title}`}
           checked={selectedForBulk}
           className="mt-2 size-4 accent-[var(--color-accent)]"
-          onChange={(event) => onBulkSelectTask(task.id, event.target.checked)}
+          onChange={(event) => onBulkSelectTask(task.id, event.target.checked, task.title)}
           type="checkbox"
         />
       ) : null}
@@ -1281,7 +1207,7 @@ function TaskActionMenu({
       </MenuButton>
       <MenuButton onClick={onOpen}>
         <Paperclip aria-hidden="true" size={18} />
-        Attachments
+        Edit notes and links
       </MenuButton>
       <MenuButton onClick={onDelete}>
         <Trash2 aria-hidden="true" size={18} />

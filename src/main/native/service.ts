@@ -131,6 +131,10 @@ export class NativeShellService implements NativeDomainService {
     return structuredClone(this.status);
   }
 
+  refreshCachedData(): void {
+    if (this.deferredStarted && this.options.settings.get().notificationsEnabled) this.scheduleNotificationsFromCache();
+  }
+
   async listFontFamilies(): Promise<NativeFontFamiliesResponse> {
     const families = normalizeFontFamilies(await this.options.adapter.listFontFamilies());
 

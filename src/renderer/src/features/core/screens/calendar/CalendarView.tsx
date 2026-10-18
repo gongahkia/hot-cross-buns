@@ -413,8 +413,8 @@ export function CalendarView({
     let cancelled = false;
 
     if (
-      ((source.dataState === "loading" ||
-        source.dataState === "offline" ||
+      source.dataState === "loading" || source.dataState === "stale" ||
+      ((source.dataState === "offline" ||
         source.dataState === "error") &&
         !source.hasCachedData) ||
       !calendarRangeAllowedByRetention(
@@ -438,6 +438,8 @@ export function CalendarView({
   }, [
     calendarVisibleRange.end,
     calendarVisibleRange.start,
+    source.dataState,
+    source.calendarDataRevision,
     source.ensureCalendarRange,
     source.settings.defaultTimeZone,
     source.settings.eventRetentionDaysBack

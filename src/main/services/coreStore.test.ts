@@ -28,6 +28,35 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("pages task trees, collapsed branches, completed sections, and device stars in SQL", () => {
+    const store = createStore();
+    const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Alpha", notes: "x".repeat(4000) });
+    const child = store.dispatch("tasks", "create", { listId: "inbox", title: "Child", parentId: parent.id });
+    const second = store.dispatch("tasks", "create", { listId: "inbox", title: "Beta" });
+    store.dispatch("tasks", "complete", { id: second.id });
+    const first = store.dispatch("tasks", "board", { listId: "inbox", sort: "title", limit: 2 });
+    expect(first.rootCount).toBe(1);
+    expect(first.page.totalKnown).toBe(3);
+    expect(first.items.map((row: any) => row.task.id)).toEqual([parent.id, child.id]);
+    expect(first.items[0].task.notes).toHaveLength(240);
+    const header = store.dispatch("tasks", "board", { listId: "inbox", limit: 2, cursor: "2", completedOpen: true });
+    expect(header.items).toEqual([expect.objectContaining({ kind: "completed", count: 1 }), expect.objectContaining({ task: expect.objectContaining({ id: second.id }) })]);
+    const collapsed = store.dispatch("tasks", "board", { listId: "inbox", collapsedTaskIds: [parent.id], limit: 20 });
+    expect(collapsed.items.map((row: any) => row.kind)).toEqual(["task", "completed"]);
+    store.dispatch("settings", "update", { starredTaskIds: [parent.id], starredTaskAt: { [parent.id]: 1 } });
+    expect(store.dispatch("tasks", "board", { starred: true, limit: 20 }).page.totalKnown).toBe(2);
+    expect(store.dispatch("tasks", "get", { id: parent.id }).notes).toHaveLength(4000);
+  });
+
+  it("applies bulk reschedule and sibling moves using the renderer payload names", () => {
+    const store = createStore();
+    const tasks = ["A", "B", "C"].map((title) => store.dispatch("tasks", "create", { listId: "inbox", title }));
+    store.dispatch("tasks", "bulkReschedule", { taskIds: tasks.map((task) => task.id), dueDate: "2026-11-01" });
+    for (const task of tasks) expect(store.dispatch("tasks", "get", { id: task.id }).dueAt).toContain("2026-11-01");
+    store.dispatch("tasks", "move", { id: tasks[2].id, listId: "inbox", parentId: null, previousSiblingId: null });
+    expect(store.dispatch("tasks", "board", { listId: "inbox", sort: "myOrder" }).items[0].task.id).toBe(tasks[2].id);
+    expect(() => store.dispatch("tasks", "bulkReschedule", { taskIds: [], dueDate: null })).toThrow("Select between");
+  });
   it("reconciles task parents across provider pages and applies remote planning metadata updates", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "batched-account", connectionState: "connected" });
