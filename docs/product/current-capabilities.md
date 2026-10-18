@@ -21,6 +21,8 @@ The strongest differentiated workflow is **capture → choose what to do → pre
 
 Task trees currently support one subtask level. A task with children must have those children moved or deleted before it can be deleted, moved to another list, or made a subtask. The service rejects operations that would leave invisible children and explains the required action. This restriction is a usability cost compared with a complete subtree-operation workflow.
 
+The Calendar uses one displayed timezone for event labels, grouping, and timeline placement. Each event retains its original timezone for editing and Google recurrence rules. Day windows follow local midnight, including daylight-saving transitions; all-day events remain date-only.
+
 ## Responsiveness contract
 
 Memory use cannot be independent of available physical RAM. The implementation instead avoids loading work in proportion to the total task or note collection:

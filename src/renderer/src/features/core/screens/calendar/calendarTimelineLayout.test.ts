@@ -38,6 +38,15 @@ function timedEvent(id: string, startsAt: string, endsAt: string): CalendarEvent
 }
 
 describe("calendar timed-event collision layout", () => {
+  it("aligns simultaneous events from different original timezones", () => {
+    const first = { ...timedEvent("one", "2026-10-01T09:00:00Z", "2026-10-01T10:00:00Z"), timeZone: "America/New_York", displayTimeZone: "Asia/Singapore" };
+    const second = { ...first, id: "two", eventId: "two", timeZone: "Europe/London" };
+    const layouts = calendarTimelineEventLayouts([first, second], "2026-10-01", 48);
+    expect(layouts).toHaveLength(2);
+    expect(layouts.map((layout) => layout.top)).toEqual([17 * 48, 17 * 48]);
+    expect(layouts.every((layout) => layout.laneCount === 2)).toBe(true);
+  });
+
   it("allows a continuing event to reclaim width after peak concurrency drops", () => {
     const events = [
       timedEvent("A", "2026-10-01T09:00:00.000Z", "2026-10-01T09:30:00.000Z"),

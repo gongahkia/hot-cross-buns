@@ -65,6 +65,12 @@ describe("calendar event day index", () => {
     expect(calendarEventRangeDayKeys(overnight)).toEqual(["2026-10-01"]);
   });
 
+  it("groups events by the display timezone while retaining their original zone", () => {
+    const mixed = event({ id: "mixed", startsAt: "2026-09-30T16:30:00Z", endsAt: "2026-09-30T17:30:00Z", timeZone: "America/New_York", displayTimeZone: "Asia/Singapore" });
+    expect(calendarEventRangeDayKeys(mixed)).toEqual(["2026-10-01"]);
+    expect(mixed.timeZone).toBe("America/New_York");
+  });
+
   it("treats all-day end dates as exclusive and includes every multi-day date", () => {
     const allDay = event({
       id: "all-day",

@@ -92,6 +92,20 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     } finally { snapshot.close(); }
   });
 
+  it("bootstraps the configured local day and includes every list identity", () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-18T02:00:00Z"));
+    const store = createStore();
+    store.dispatch("settings", "update", { defaultTimeZone: "Asia/Singapore" });
+    for (let index = 0; index < 105; index += 1) store.dispatch("tasks", "createTaskList", { title: `List ${index}` });
+    const early = store.dispatch("calendar", "create", { calendarId: "primary", title: "Early local day", startsAt: "2026-10-17T17:00:00Z", endsAt: "2026-10-17T18:00:00Z" });
+    store.dispatch("calendar", "create", { calendarId: "primary", title: "Next local day", startsAt: "2026-10-18T17:00:00Z", endsAt: "2026-10-18T18:00:00Z" });
+    const bootstrap = store.dispatch("bootstrap", "get", { mode: "light" });
+    expect(bootstrap.calendarRange).toEqual({ start: "2026-10-17T16:00:00.000Z", end: "2026-10-18T16:00:00.000Z" });
+    expect(bootstrap.events.items.map((event: any) => event.id)).toEqual([early.id]);
+    expect(bootstrap.taskLists.items).toHaveLength(106);
+    expect(bootstrap.taskLists.page.nextCursor).toBeUndefined();
+  });
+
   it("keeps exact native counts while returning only relevant text-free previews", () => {
     const store = createStore();
     for (let index = 0; index < 240; index += 1) store.dispatch("tasks", "create", { listId: "inbox", title: `Past ${index}`, dueDate: "2026-09-01", notes: "private long body".repeat(100) });
