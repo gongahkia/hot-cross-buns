@@ -147,7 +147,8 @@ test("virtualizes task trees while retaining keyboard navigation", async () => {
     const page = await electronApp.firstWindow();
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const fixture = await page.evaluate(async () => {
-      const setup = await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual" });
+      // Creation timestamps can tie, so use title order for the Home/End assertions.
+      const setup = await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", taskListSorts: { inbox: "title" } });
       if (!setup.ok) throw new Error(setup.error.message);
       let parentId = "";
       for (let index = 0; index < 200; index += 1) {
