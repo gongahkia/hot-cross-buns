@@ -78,7 +78,7 @@ export async function loadAllPages<Request extends CursorRequest, Response exten
 
 export async function loadCoreData(
   settingsPromise?: Promise<SettingsSnapshot>,
-  calendarRange = visibleCalendarRange()
+  requestedCalendarRange?: { start: string; end: string }
 ): Promise<CoreDataSnapshot> {
   if (!window.hcb) {
     throw new Error("Preload bridge is unavailable.");
@@ -93,11 +93,7 @@ export async function loadCoreData(
   const bootstrap = bootstrapGet
     ? await bootstrapGet({
         mode: "light",
-        calendarRange: {
-          start: calendarRange.start,
-          end: calendarRange.end,
-          limit: 500
-        }
+        ...(requestedCalendarRange ? { calendarRange: { ...requestedCalendarRange, limit: 500 } } : {})
       }).catch(() => {
         fallbackReason = "threw";
         return null;
@@ -106,13 +102,14 @@ export async function loadCoreData(
   const bootstrapDurationMs = performance.now() - bootstrapStartedAt;
 
   if (bootstrap?.ok) {
-    return { ...snapshotFromBootstrap(bootstrap.data), calendarRanges: [calendarRange] };
+    return { ...snapshotFromBootstrap(bootstrap.data), calendarRanges: [bootstrap.data.calendarRange ?? requestedCalendarRange ?? visibleCalendarRange(bootstrap.data.settings.defaultTimeZone)] };
   }
 
   fallbackReason ??= "failed";
   const fallbackStartedAt = performance.now();
-  const settingsLoad =
-    settingsPromise ?? hcb.settings.get().then((result) => unwrap(result, "Settings failed"));
+  const settingsLoad = settingsPromise ?? hcb.settings.get().then((result) => unwrap(result, "Settings failed"));
+  const loadedSettings = await settingsLoad;
+  const calendarRange = requestedCalendarRange ?? visibleCalendarRange(loadedSettings.defaultTimeZone);
   const [
     taskLists,
     tasks,

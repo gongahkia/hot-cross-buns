@@ -26,7 +26,7 @@ import { calendarEventRangeDayKeys } from "./calendarEventIndex";
 import { splitAllDayEvents, visibleCalendarEvent } from "./calendarVisibility";
 
 function eventOverlapsHour(event: CalendarEventViewModel, day: string, hour: number): boolean {
-  const timeZone = event.timeZone || "UTC";
+  const timeZone = event.displayTimeZone || event.timeZone || "UTC";
   const startsAt = calendarLocalPoint(event.startsAt, timeZone);
   const endsAt = calendarLocalPoint(event.endsAt, timeZone);
   const hourStart = { dayKey: day, minutes: hour * 60 };
@@ -255,7 +255,7 @@ function calendarEventLocalMinuteRange(
   event: CalendarEventViewModel,
   dayKey: string
 ): { startMinute: number; endMinute: number } | null {
-  const timeZone = event.timeZone || "UTC";
+  const timeZone = event.displayTimeZone || event.timeZone || "UTC";
   const start = calendarLocalPoint(event.startsAt, timeZone);
   const end = calendarLocalPoint(event.endsAt, timeZone);
   const startMinute = start.dayKey < dayKey ? 0 : start.dayKey > dayKey ? 1_440 : start.minutes;

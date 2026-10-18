@@ -90,6 +90,7 @@ export interface CalendarEventViewModel {
   startsAt: string;
   endsAt: string;
   timeZone: string;
+  displayTimeZone?: string;
   allDay: boolean;
   location: string;
   notes: string;

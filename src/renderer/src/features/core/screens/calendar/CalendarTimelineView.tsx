@@ -374,7 +374,7 @@ function CalendarTimelineView({
       const event = source.calendarEventsById[resizeEventId];
 
       if (event) {
-        setDropPreview(calendarTimeBlock(event.startsAt, startsAt, event.timeZone || source.settings.defaultTimeZone));
+        setDropPreview(calendarTimeBlock(event.startsAt, startsAt, event.displayTimeZone || event.timeZone || source.settings.defaultTimeZone));
       }
       return;
     }
@@ -394,7 +394,7 @@ function CalendarTimelineView({
       ? addUtcMinutesIso(nextStartsAt, 24 * 60)
       : new Date(Date.parse(nextStartsAt) + durationMs).toISOString();
 
-    setDropPreview(calendarTimeBlock(nextStartsAt, nextEndsAt, event.timeZone || source.settings.defaultTimeZone));
+    setDropPreview(calendarTimeBlock(nextStartsAt, nextEndsAt, event.displayTimeZone || event.timeZone || source.settings.defaultTimeZone));
   }
 
   function dayKeyForAllDayDrag(dragEvent: DragEvent<HTMLElement>): string | null {

@@ -26,7 +26,7 @@ export function calendarEventRangeDayKeys(event: CalendarEventViewModel): string
     return [];
   }
 
-  const timeZone = event.timeZone || "UTC";
+  const timeZone = event.displayTimeZone || event.timeZone || "UTC";
   const start = calendarLocalPoint(event.startsAt, timeZone);
   const end = calendarLocalPoint(new Date(endMs - 1).toISOString(), timeZone);
   const keys: string[] = [];

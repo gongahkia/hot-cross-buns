@@ -1,13 +1,8 @@
+import { currentZonedDay, zonedDayRange, cachedDateTimeFormat } from "@shared/zonedTime";
 import type { SyncStatusResponse } from "@shared/ipc/contracts";
 
-export function visibleCalendarRange(): { start: string; end: string } {
-  const start = startOfUtcDay(new Date());
-  const end = addUtcDays(start, 1);
-
-  return {
-    start: start.toISOString(),
-    end: end.toISOString()
-  };
+export function visibleCalendarRange(timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"): { start: string; end: string } {
+  return zonedDayRange(currentZonedDay(timeZone), timeZone);
 }
 
 export function startOfUtcDay(date: Date): Date {
@@ -49,7 +44,7 @@ export function dueLabel(value: string | null | undefined, now = new Date()): st
     return "Tomorrow";
   }
 
-  const dateLabel = new Intl.DateTimeFormat(undefined, {
+  const dateLabel = cachedDateTimeFormat(undefined, {
     day: "numeric",
     month: "short",
     year: due.getUTCFullYear() === today.getUTCFullYear() ? undefined : "numeric",
@@ -67,14 +62,14 @@ export function timeLabel(value: string, timeZone = "UTC"): string {
   }
 
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    return cachedDateTimeFormat("en-US", {
       hour: "2-digit",
       hourCycle: "h23",
       minute: "2-digit",
       timeZone
     }).format(date);
   } catch {
-    return new Intl.DateTimeFormat("en-US", {
+    return cachedDateTimeFormat("en-US", {
       hour: "2-digit",
       hourCycle: "h23",
       minute: "2-digit",
@@ -109,7 +104,7 @@ export function shortDateTime(value: string): string {
     return "Unknown";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return cachedDateTimeFormat(undefined, {
     day: "numeric",
     month: "short",
     hour: "numeric",

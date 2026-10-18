@@ -1,3 +1,4 @@
+import { cachedDateTimeFormat } from "@shared/zonedTime";
 import { rrulestr } from "rrule";
 
 /**
@@ -389,7 +390,7 @@ function propertyTimeZone(prefix: string): string | null {
 
 function datePartsInZone(value: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
   try {
-    const parts = new Intl.DateTimeFormat("en-CA", {
+    const parts = cachedDateTimeFormat("en-CA", {
       timeZone,
       year: "numeric",
       month: "2-digit",

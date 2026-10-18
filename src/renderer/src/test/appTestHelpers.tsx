@@ -387,6 +387,7 @@ async function loadAllFixturePages<
 function bootstrapFixture(api: HcbApi): HcbApi["bootstrap"] {
   return {
     get: vi.fn(async (request) => {
+      const calendarRange = request.calendarRange ?? { start: now, end: tomorrowIso };
       const [
         taskLists,
         tasks,
@@ -418,12 +419,12 @@ function bootstrapFixture(api: HcbApi): HcbApi["bootstrap"] {
         loadAllFixturePages({ limit: 100 }, (pageRequest) =>
           api.calendar.listCalendars(pageRequest).then(unwrapFixture)
         ),
-        loadAllFixturePages(request.calendarRange, (pageRequest) =>
+        loadAllFixturePages(calendarRange, (pageRequest) =>
           api.calendar.listEvents(pageRequest).then(unwrapFixture)
         ),
         loadAllFixturePages({
-          start: request.calendarRange.start,
-          end: request.calendarRange.end,
+          start: calendarRange.start,
+          end: calendarRange.end,
           limit: 500
         }, (pageRequest) =>
           api.calendar.listScheduledTaskBlocks(pageRequest).then(unwrapFixture)

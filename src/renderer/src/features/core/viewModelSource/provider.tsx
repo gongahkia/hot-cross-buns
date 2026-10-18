@@ -342,9 +342,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       () => undefined
     );
 
-    const initialCalendarRange = visibleCalendarRange();
-
-    void loadCoreData(settingsPromise, initialCalendarRange).then(
+    void loadCoreData(settingsPromise).then(
       (snapshot) => {
         if (generation !== loadGeneration.current) return;
         setLoadState(() => ({

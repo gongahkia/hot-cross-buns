@@ -309,11 +309,22 @@ async function run(): Promise<void> {
     await title.fill("");
     await page.getByRole("button", { name: "Close inspector", exact: true }).click();
 
-    await measure(measurements, `renderer-calendar-agenda-${EVENT_COUNT}-events`, async () => {
+    const visibleEventCount = await measure(measurements, `renderer-calendar-agenda-${EVENT_COUNT}-fixture-events`, async () => {
       await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
+      const calendar = page.getByTestId("calendar-view");
+      await calendar.waitFor({ state: "visible" });
+      const windowCount = await page.evaluate(async () => {
+        const calendar = document.querySelector('[data-testid="calendar-view"]') as HTMLElement;
+        const result = await window.hcb!.calendar.listEvents({ start: calendar.dataset.rangeStart, end: calendar.dataset.rangeEnd, summary: true, limit: 1 });
+        if (!result.ok) throw new Error(result.error.message);
+        return result.data.page.totalKnown as number;
+      });
+      await expect(calendar).toHaveAttribute("data-visible-event-count", String(windowCount));
       await page.getByText("Performance event 0000", { exact: true }).first().waitFor({ state: "visible" });
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    }, EVENT_COUNT);
+      return windowCount;
+    });
+    measurements[measurements.length - 1].itemCount = visibleEventCount;
 
     resources.push(await sampleResources(app, page, "calendar-agenda"));
     const report: PerfReport = {

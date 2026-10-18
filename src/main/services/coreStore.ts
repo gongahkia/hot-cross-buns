@@ -1,3 +1,4 @@
+import { currentZonedDay, zonedDayRange, cachedDateTimeFormat } from "@shared/zonedTime";
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync } from "node:fs";
@@ -223,6 +224,7 @@ export class CoreStore {
     this.seed();
   }
 
+  /** Cache parameterized statements only; callers bind per invocation and do not retain iterators. */
   private statement(sql: string): Database.Statement {
     const cached = this.statementCache.get(sql);
     if (cached) { this.statementCache.delete(sql); this.statementCache.set(sql, cached); return cached; }
@@ -1347,19 +1349,22 @@ export class CoreStore {
   }
 
   private bootstrap(input: JsonRecord): JsonRecord {
-    const calendarRange = input.calendarRange ?? {};
+    const settings = this.settings();
+    const calendarRange = input.calendarRange?.start && input.calendarRange?.end ? input.calendarRange : zonedDayRange(currentZonedDay(settings.defaultTimeZone), settings.defaultTimeZone);
+    const taskLists = this.taskLists(), calendars = this.calendars(), tags = this.tags();
     return {
-      taskLists: this.page(this.taskLists(), { limit: 100 }),
+      calendarRange,
+      taskLists: { items: taskLists, page: { limit: taskLists.length, totalKnown: taskLists.length } },
       tasks: this.listTasks({ status: "all", limit: 100, summary: true }),
       hiddenTasks: { items: [], page: { limit: 100, totalKnown: 0 } },
       deletedTasks: { items: [], page: { limit: 100, totalKnown: 0 } },
       calendarTasks: calendarRange.start && calendarRange.end ? this.listTasks({ status: "all", parentId: null, limit: 500, summary: true, dueStart: calendarRange.start, dueEnd: calendarRange.end }) : { items: [], page: { limit: 500, totalKnown: 0 } },
-      calendars: this.page(this.calendars(), { limit: 100 }),
+      calendars: { items: calendars, page: { limit: calendars.length, totalKnown: calendars.length } },
       events: this.listEvents({ ...calendarRange, summary: true, limit: calendarRange.limit ?? 500 }),
       scheduledTaskBlocks: this.listScheduledTaskBlocks({ ...calendarRange, limit: 500 }),
       notes: this.listNotes({ limit: 50, summary: true }),
-      tags: this.page(this.tags(), { limit: 100 }),
-      settings: this.settings(),
+      tags: { items: tags, page: { limit: tags.length, totalKnown: tags.length } },
+      settings,
       syncStatus: this.syncStatus(),
       googleStatus: this.googleStatus(),
       undoStatus: this.undoStatus(),
@@ -3459,7 +3464,7 @@ function zonedDateTime(date: string, hour: number, minute: number, timeZone: str
   const [year, month, day] = date.split("-").map(Number);
   if (![year, month, day].every(Number.isFinite)) throw new CoreStoreError("Schedule date is invalid.");
   let instant = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const formatter = new Intl.DateTimeFormat("en-CA", {
+  const formatter = cachedDateTimeFormat("en-CA", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
   });
   // Two passes account for a DST boundary between UTC and the requested wall
@@ -3529,17 +3534,17 @@ function smartScheduleReason(scheduleDate: string, dueDate: string | null): stri
 function formatPlannerDate(value: string): string {
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" }).format(date)
+    ? cachedDateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" }).format(date)
     : value;
 }
 function formatPlannerDateTime(value: string, timeZone: string): string {
   const date = new Date(value);
   return Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(date)
+    ? cachedDateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(date)
     : "a later time";
 }
 function formatAvailabilityTime(value: string, timeZone: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(value));
+  return cachedDateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(value));
 }
 function isFollowingScope(scope: unknown): boolean {
   return scope === "following" || scope === "seriesFuture" || scope === "thisAndFollowing" || scope === "future";

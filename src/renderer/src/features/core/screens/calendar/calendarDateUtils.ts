@@ -1,3 +1,5 @@
+import { zonedDateTimeIso as sharedZonedDateTimeIso } from "@shared/zonedTime";
+import { cachedDateTimeFormat } from "@shared/zonedTime";
 import { startOfUtcDayIso } from "../../coreScreenShared";
 import type { CalendarDayViewModel, CalendarViewId } from "../../coreViewModels";
 
@@ -56,7 +58,7 @@ export function calendarDateTitle(day: CalendarDayViewModel, includeYear = true)
 }
 
 export function calendarDateTitleFromIso(day: string, includeYear = true): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return cachedDateTimeFormat(undefined, {
     day: "numeric",
     month: "long",
     year: includeYear ? "numeric" : undefined,
@@ -70,7 +72,7 @@ export function calendarContextualDateTitleFromIso(day: string, today = calendar
   if (day === calendarAddUtcDays(today, 1)) return "Tomorrow";
   if (day === calendarAddUtcDays(today, -1)) return "Yesterday";
 
-  return new Intl.DateTimeFormat(undefined, {
+  return cachedDateTimeFormat(undefined, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -94,14 +96,14 @@ export function calendarRangeTitle(days: CalendarDayViewModel[]): string {
     start.getUTCMonth() === end.getUTCMonth();
 
   if (sameMonth) {
-    const month = new Intl.DateTimeFormat(undefined, {
+    const month = cachedDateTimeFormat(undefined, {
       month: "long",
       timeZone: "UTC"
     }).format(start);
     return `${month} ${start.getUTCDate()}-${end.getUTCDate()}, ${start.getUTCFullYear()}`;
   }
 
-  const formatter = new Intl.DateTimeFormat(undefined, {
+  const formatter = cachedDateTimeFormat(undefined, {
     day: "numeric",
     month: "short",
     timeZone: "UTC"
@@ -186,7 +188,7 @@ export function calendarMonthOffset(fromDay: string, toDay: string): number {
 }
 
 export function calendarMonthTitle(day: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return cachedDateTimeFormat(undefined, {
     month: "long",
     year: "numeric",
     timeZone: "UTC"
@@ -194,7 +196,7 @@ export function calendarMonthTitle(day: string): string {
 }
 
 export function calendarWeekdayLabel(date: Date, style: "long" | "short" = "short"): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return cachedDateTimeFormat(undefined, {
     weekday: style,
     timeZone: "UTC"
   }).format(date);
@@ -236,7 +238,7 @@ function calendarLocalDateTimeParts(
   timeZone: string
 ): { year: string; month: string; day: string; hour: string; minute: string } {
   try {
-    const formatter = new Intl.DateTimeFormat("en-CA", {
+    const formatter = cachedDateTimeFormat("en-CA", {
       day: "2-digit",
       hour: "2-digit",
       hourCycle: "h23",
@@ -262,38 +264,7 @@ function calendarLocalDateTimeParts(
 }
 
 export function zonedDateTimeIso(dayKey: string, hour: number, minute: number, timeZone: string): string {
-  const [year = 1970, month = 1, day = 1] = dayKey.split("-").map(Number);
-  const baseDate = new Date(Date.UTC(year, month - 1, day));
-  const normalizedMinute = Math.max(0, Math.min(59, minute));
-  const dayOffset = Math.floor(hour / 24);
-  const normalizedHour = ((hour % 24) + 24) % 24;
-
-  baseDate.setUTCDate(baseDate.getUTCDate() + dayOffset);
-
-  const target: CalendarLocalPoint = {
-    dayKey: calendarIsoDate(baseDate),
-    minutes: normalizedHour * 60 + normalizedMinute
-  };
-  let utcMs = Date.UTC(
-    baseDate.getUTCFullYear(),
-    baseDate.getUTCMonth(),
-    baseDate.getUTCDate(),
-    Math.floor(target.minutes / 60),
-    target.minutes % 60
-  );
-
-  for (let index = 0; index < 4; index += 1) {
-    const actual = calendarLocalPoint(new Date(utcMs).toISOString(), timeZone);
-    const deltaMinutes = calendarLocalPointSerial(target) - calendarLocalPointSerial(actual);
-
-    if (deltaMinutes === 0) {
-      break;
-    }
-
-    utcMs += deltaMinutes * 60_000;
-  }
-
-  return new Date(utcMs).toISOString();
+  return sharedZonedDateTimeIso(dayKey, hour, minute, timeZone);
 }
 
 export function compareCalendarLocalPoints(left: CalendarLocalPoint, right: CalendarLocalPoint): number {

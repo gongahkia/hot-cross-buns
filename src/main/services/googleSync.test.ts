@@ -34,6 +34,20 @@ function createService(settings: Record<string, unknown> = {}, pendingWrites: un
 afterEach(() => vi.useRealTimers());
 
 describe("GoogleSyncService", () => {
+  it("waits for an active pull before shutdown completes", async () => {
+    const fixture = createService({ syncMode: "manual" });
+    let release!: () => void;
+    fixture.pullGoogleTasks.mockImplementation(() => new Promise<void>((resolve) => { release = resolve; }));
+    const syncing = fixture.service.runNow({});
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    let closed = false;
+    const closing = fixture.service.shutdown().then(() => { closed = true; });
+    await Promise.resolve();
+    expect(closed).toBe(false);
+    release(); await syncing; await closing;
+    expect(closed).toBe(true);
+  });
+
   it("uses Google modification watermarks and advances them only after every task page succeeds", async () => {
     const previous = "2026-10-01T10:00:00.000Z";
     let failSecondPage = true;

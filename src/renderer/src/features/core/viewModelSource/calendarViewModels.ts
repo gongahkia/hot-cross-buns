@@ -36,6 +36,7 @@ export function stableCalendarEventViewModel(
   cache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>
 ): CalendarEventViewModel {
   const timeZone = event.timeZone?.trim() || calendarTimeZone?.trim() || defaultTimeZone || "UTC";
+  const displayTimeZone = defaultTimeZone || "UTC";
   const displayColor = resolveCalendarEventDisplayColor({
     colorId: event.colorId,
     colorTheme,
@@ -55,6 +56,7 @@ export function stableCalendarEventViewModel(
     event.startsAt,
     event.endsAt,
     timeZone,
+    displayTimeZone,
     event.allDay ? "1" : "0",
     event.location ?? "",
     event.notes ?? "",
@@ -109,13 +111,14 @@ export function stableCalendarEventViewModel(
     displayBackgroundColor: displayColor.background,
     displayForegroundColor: displayColor.foreground,
     completedAt: event.completedAt ?? null,
-    timeLabel: event.allDay ? "All day" : timeLabel(event.startsAt, timeZone),
+    timeLabel: event.allDay ? "All day" : timeLabel(event.startsAt, displayTimeZone),
     rangeLabel: event.allDay
       ? allDayRangeLabel(event.startsAt, event.endsAt)
-      : `${timeLabel(event.startsAt, timeZone)}-${timeLabel(event.endsAt, timeZone)}`,
+      : `${timeLabel(event.startsAt, displayTimeZone)}-${timeLabel(event.endsAt, displayTimeZone)}`,
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     timeZone,
+    displayTimeZone,
     allDay: event.allDay,
     location: event.location?.trim() || (event.allDay ? "All day" : "Scheduled"),
     detailsTruncated: Boolean(event.detailsTruncated),
@@ -233,6 +236,7 @@ export function stableProjectedTaskCalendarEventViewModel(
   cache: Map<string, { signature: string; viewModel: CalendarEventViewModel }>
 ): CalendarEventViewModel {
   const timeZone = event.timeZone?.trim() || defaultTimeZone || "UTC";
+  const displayTimeZone = defaultTimeZone || "UTC";
   const completed = task.status === "completed";
   const signature = [
     event.id,
@@ -252,6 +256,7 @@ export function stableProjectedTaskCalendarEventViewModel(
     (task.tags ?? []).join("\u001f"),
     task.list,
     timeZone,
+    displayTimeZone,
     colorTheme.id
   ].join("\u001c");
   const cached = cache.get(event.id);
@@ -276,13 +281,14 @@ export function stableProjectedTaskCalendarEventViewModel(
     calendarForegroundColor: displayColor.foreground,
     displayBackgroundColor: displayColor.background,
     displayForegroundColor: displayColor.foreground,
-    timeLabel: event.allDay ? (completed ? "Done" : "Due") : timeLabel(event.startsAt, timeZone),
+    timeLabel: event.allDay ? (completed ? "Done" : "Due") : timeLabel(event.startsAt, displayTimeZone),
     rangeLabel: event.allDay
       ? completed ? "Completed task" : "Task due"
-      : `${timeLabel(event.startsAt, timeZone)}-${timeLabel(event.endsAt, timeZone)}`,
+      : `${timeLabel(event.startsAt, displayTimeZone)}-${timeLabel(event.endsAt, displayTimeZone)}`,
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     timeZone,
+    displayTimeZone,
     allDay: event.allDay,
     location: task.list,
     notes: task.detail.trim(),

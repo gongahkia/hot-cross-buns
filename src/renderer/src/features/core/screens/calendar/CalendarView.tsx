@@ -468,7 +468,7 @@ export function CalendarView({
   const availabilityMode = shareAvailabilityVisible && shareAvailabilityOpen;
 
   return (
-    <div data-testid="calendar-view" className="flex h-full min-h-0 flex-col gap-3">
+    <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="flex h-full min-h-0 flex-col gap-3">
       <CalendarHeader
         activeViewId={activeViewId}
         calendarRangeLabel={calendarRangeLabel}
