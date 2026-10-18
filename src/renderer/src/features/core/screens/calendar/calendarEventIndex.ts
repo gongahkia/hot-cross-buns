@@ -92,7 +92,8 @@ export function calendarDayViewForDate(
   index: CalendarEventDayIndex,
   day: string,
   variant: "day" | "range" | "month" = "range",
-  currentMonth?: number
+  currentMonth?: number,
+  todayKey = calendarTodayKey()
 ): CalendarDayViewModel {
   const date = calendarDateFromIsoDate(day);
 
@@ -100,13 +101,13 @@ export function calendarDayViewForDate(
     id: `${variant}-${day}`,
     weekday: calendarWeekdayLabel(date, variant === "day" ? "long" : "short"),
     dateLabel: String(date.getUTCDate()),
-    isToday: day === calendarTodayKey(),
+    isToday: day === todayKey,
     isOutsideMonth: currentMonth === undefined ? false : date.getUTCMonth() !== currentMonth,
     events: calendarEventsForDay(index, day)
   };
 }
 
-export function calendarWeekDaysForDate(index: CalendarEventDayIndex, day: string): CalendarDayViewModel[] {
+export function calendarWeekDaysForDate(index: CalendarEventDayIndex, day: string, todayKey = calendarTodayKey()): CalendarDayViewModel[] {
   const anchor = calendarDateFromIsoDate(day);
   const sunday = new Date(anchor);
   sunday.setUTCDate(anchor.getUTCDate() - anchor.getUTCDay());
@@ -114,25 +115,27 @@ export function calendarWeekDaysForDate(index: CalendarEventDayIndex, day: strin
   return Array.from({ length: 7 }, (_, dayOffset) => {
     const date = new Date(sunday);
     date.setUTCDate(sunday.getUTCDate() + dayOffset);
-    return calendarDayViewForDate(index, calendarIsoDate(date), "range");
+    return calendarDayViewForDate(index, calendarIsoDate(date), "range", undefined, todayKey);
   });
 }
 
 export function calendarRangeDaysForDate(
   index: CalendarEventDayIndex,
   day: string,
-  dayCount: number
+  dayCount: number,
+  todayKey = calendarTodayKey()
 ): CalendarDayViewModel[] {
   const count = Math.max(1, dayCount);
 
   return Array.from({ length: count }, (_, dayOffset) =>
-    calendarDayViewForDate(index, calendarAddUtcDays(day, dayOffset), count === 1 ? "day" : "range")
+    calendarDayViewForDate(index, calendarAddUtcDays(day, dayOffset), count === 1 ? "day" : "range", undefined, todayKey)
   );
 }
 
 export function calendarMonthWeeksForDate(
   index: CalendarEventDayIndex,
-  day: string
+  day: string,
+  todayKey = calendarTodayKey()
 ): CalendarMonthWeekViewModel[] {
   const anchor = calendarDateFromIsoDate(day);
   const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
@@ -144,7 +147,7 @@ export function calendarMonthWeeksForDate(
     days: Array.from({ length: 7 }, (_, dayIndex) => {
       const date = new Date(gridStart);
       date.setUTCDate(gridStart.getUTCDate() + weekIndex * 7 + dayIndex);
-      return calendarDayViewForDate(index, calendarIsoDate(date), "month", first.getUTCMonth());
+      return calendarDayViewForDate(index, calendarIsoDate(date), "month", first.getUTCMonth(), todayKey);
     })
   }));
 }

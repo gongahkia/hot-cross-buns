@@ -12,6 +12,7 @@ import {
   SectionChrome,
   scheduleRendererFrame
 } from "../../coreScreenShared";
+import { calendarDayRange, calendarDaysRange, calendarMonthRange } from "./calendarViewportRange";
 import { CalendarAgendaView } from "./CalendarAgendaView";
 import { CalendarHeader } from "./CalendarHeader";
 import { ShareAvailabilityPanel, SmartReschedulePanel, type SmartSchedulePreview } from "./CalendarSidebar";
@@ -27,6 +28,7 @@ import {
   calendarContextualDateTitleFromIso,
   calendarDayViewForDate,
   calendarDayKey,
+  calendarLocalPoint,
   calendarEventsForDay,
   calendarMonthOffset,
   calendarMonthTitle,
@@ -41,40 +43,8 @@ import { useCalendarEventInspector } from "./useCalendarEventInspector";
 import { useTaskInspector } from "../tasks/useTaskInspector";
 import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from "./types";
 
-function calendarDayRange(day: string): { start: string; end: string } {
-  return {
-    start: `${day}T00:00:00.000Z`,
-    end: `${calendarAddUtcDays(day, 1)}T00:00:00.000Z`
-  };
-}
-
-function calendarRangeForDays(days: readonly CalendarDayViewModel[]): { start: string; end: string } {
-  const dayKeys = days.map(calendarDayKey).sort();
-  const firstDay = dayKeys[0];
-  const lastDay = dayKeys.at(-1);
-
-  if (!firstDay || !lastDay) {
-    return calendarDayRange(calendarCurrentDayKey());
-  }
-
-  return {
-    start: `${firstDay}T00:00:00.000Z`,
-    end: `${calendarAddUtcDays(lastDay, 1)}T00:00:00.000Z`
-  };
-}
-
-function calendarMonthRange(anchorDay: string): { start: string; end: string } {
-  const anchor = calendarDateFromIsoDate(anchorDay);
-  const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
-  const gridStart = new Date(first);
-  gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());
-  const gridEnd = new Date(gridStart);
-  gridEnd.setUTCDate(gridStart.getUTCDate() + 42);
-
-  return {
-    start: gridStart.toISOString(),
-    end: gridEnd.toISOString()
-  };
+function calendarRangeForDays(days: readonly CalendarDayViewModel[], timeZone: string): { start: string; end: string } {
+  return calendarDaysRange(days.map(calendarDayKey), timeZone);
 }
 
 function calendarRangeAllowedByRetention(
@@ -126,6 +96,13 @@ export function CalendarView({
   const [calendarAnchorDate, setCalendarAnchorDate] = useState(() =>
     calendarCurrentDayKey(source.settings.defaultTimeZone)
   );
+  const anchorTimeZone = useRef(source.settings.defaultTimeZone);
+  useEffect(() => {
+    const previous = anchorTimeZone.current;
+    anchorTimeZone.current = source.settings.defaultTimeZone;
+    if (previous !== source.settings.defaultTimeZone) setCalendarAnchorDate((day) => day === calendarCurrentDayKey(previous) ? calendarCurrentDayKey(source.settings.defaultTimeZone) : day);
+  }, [source.settings.defaultTimeZone]);
+  const todayKey = calendarCurrentDayKey(source.settings.defaultTimeZone);
   const [multiDayCount, setMultiDayCount] = useState(3);
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
@@ -196,40 +173,40 @@ export function CalendarView({
     [visibleCalendarEvents]
   );
   const calendarDay = useMemo(
-    () => calendarDayViewForDate(visibleEventDayIndex, calendarAnchorDate, "day"),
-    [calendarAnchorDate, visibleEventDayIndex]
+    () => calendarDayViewForDate(visibleEventDayIndex, calendarAnchorDate, "day", undefined, todayKey),
+    [calendarAnchorDate, visibleEventDayIndex, todayKey]
   );
   const calendarWeekDays = useMemo(
-    () => calendarWeekDaysForDate(visibleEventDayIndex, calendarAnchorDate),
-    [calendarAnchorDate, visibleEventDayIndex]
+    () => calendarWeekDaysForDate(visibleEventDayIndex, calendarAnchorDate, todayKey),
+    [calendarAnchorDate, visibleEventDayIndex, todayKey]
   );
   const calendarMultiDayDays = useMemo(
-    () => calendarRangeDaysForDate(visibleEventDayIndex, calendarAnchorDate, multiDayCount),
-    [calendarAnchorDate, multiDayCount, visibleEventDayIndex]
+    () => calendarRangeDaysForDate(visibleEventDayIndex, calendarAnchorDate, multiDayCount, todayKey),
+    [calendarAnchorDate, multiDayCount, visibleEventDayIndex, todayKey]
   );
   const calendarMonthWeeks = useMemo(
-    () => calendarMonthWeeksForDate(visibleEventDayIndex, calendarAnchorDate),
-    [calendarAnchorDate, visibleEventDayIndex]
+    () => calendarMonthWeeksForDate(visibleEventDayIndex, calendarAnchorDate, todayKey),
+    [calendarAnchorDate, visibleEventDayIndex, todayKey]
   );
   const calendarAgendaEvents = useMemo(
     () => calendarEventsForDay(visibleEventDayIndex, calendarAnchorDate),
-    [calendarAnchorDate, visibleEventDayIndex]
+    [calendarAnchorDate, visibleEventDayIndex, todayKey]
   );
   const calendarVisibleRange = useMemo(() => {
     if (activeViewId === "month") {
-      return calendarRangeForDays(calendarMonthWeeks.flatMap((week) => week.days));
+      return calendarRangeForDays(calendarMonthWeeks.flatMap((week) => week.days), source.settings.defaultTimeZone);
     }
 
     if (activeViewId === "week") {
-      return calendarRangeForDays(calendarWeekDays);
+      return calendarRangeForDays(calendarWeekDays, source.settings.defaultTimeZone);
     }
 
     if (activeViewId === "multiDay") {
-      return calendarRangeForDays(calendarMultiDayDays);
+      return calendarRangeForDays(calendarMultiDayDays, source.settings.defaultTimeZone);
     }
 
-    return calendarDayRange(calendarAnchorDate);
-  }, [activeViewId, calendarAnchorDate, calendarMonthWeeks, calendarMultiDayDays, calendarWeekDays]);
+    return calendarDayRange(calendarAnchorDate, source.settings.defaultTimeZone);
+  }, [activeViewId, calendarAnchorDate, calendarMonthWeeks, calendarMultiDayDays, calendarWeekDays, source.settings.defaultTimeZone]);
   const shareAvailabilityVisible = activeViewId === "day" || activeViewId === "multiDay" || activeViewId === "week";
   const calendarRangeLabel =
     activeViewId === "month"
@@ -273,7 +250,7 @@ export function CalendarView({
     setCalendarAnchorDate((current) => {
       if (activeViewId === "month") {
         const next = calendarAddUtcMonths(current, direction);
-        const nextRange = calendarMonthRange(next);
+        const nextRange = calendarMonthRange(next, source.settings.defaultTimeZone);
         const offset = calendarMonthOffset(calendarCurrentDayKey(source.settings.defaultTimeZone), next);
 
         if (
@@ -320,7 +297,7 @@ export function CalendarView({
     const loadedEvent = findCalendarEventBySearchId(source.calendarEventsById, eventId);
 
     if (loadedEvent) {
-      setCalendarAnchorDate(loadedEvent.startsAt.slice(0, 10));
+      setCalendarAnchorDate(loadedEvent.allDay ? loadedEvent.startsAt.slice(0, 10) : calendarLocalPoint(loadedEvent.startsAt, source.settings.defaultTimeZone).dayKey);
       openEdit(loadedEvent);
       return;
     }
@@ -332,8 +309,8 @@ export function CalendarView({
       return;
     }
 
-    const eventDate = result.data.startsAt.slice(0, 10);
-    const loaded = await source.ensureCalendarRange(calendarDayRange(eventDate));
+    const eventDate = result.data.allDay ? result.data.startsAt.slice(0, 10) : calendarLocalPoint(result.data.startsAt, source.settings.defaultTimeZone).dayKey;
+    const loaded = await source.ensureCalendarRange(calendarDayRange(eventDate, source.settings.defaultTimeZone));
 
     if (!loaded) {
       setCalendarActionError("Calendar event context could not be loaded.");
@@ -470,6 +447,7 @@ export function CalendarView({
   return (
     <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="flex h-full min-h-0 flex-col gap-3">
       <CalendarHeader
+        timeZone={source.settings.defaultTimeZone}
         activeViewId={activeViewId}
         calendarRangeLabel={calendarRangeLabel}
         nextRangeLabel={nextRangeLabel}

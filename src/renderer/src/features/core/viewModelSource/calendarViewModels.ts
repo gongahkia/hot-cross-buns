@@ -1,3 +1,5 @@
+import { currentZonedDay } from "@shared/zonedTime";
+import { calendarEventRangeDayKeys } from "../screens/calendar/calendarEventIndex";
 import {
   calendarEventColorForTheme,
   resolveCalendarEventDisplayColor,
@@ -551,22 +553,9 @@ export function buildCalendarEventDayIndex(events: CalendarEventViewModel[]): Ca
   const eventsByDay = new Map<string, CalendarEventViewModel[]>();
 
   for (const event of events) {
-    const start = new Date(event.startsAt);
-    const end = new Date(event.endsAt);
-
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
-      continue;
-    }
-
-    const cursor = startOfUtcDay(start);
-    const lastDay = startOfUtcDay(new Date(end.getTime() - 1));
-
-    while (cursor.getTime() <= lastDay.getTime()) {
-      const key = dayKey(cursor);
+    for (const key of calendarEventRangeDayKeys(event)) {
       const dayEvents = eventsByDay.get(key) ?? [];
-      dayEvents.push(event);
-      eventsByDay.set(key, dayEvents);
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
+      dayEvents.push(event); eventsByDay.set(key, dayEvents);
     }
   }
 
@@ -586,8 +575,8 @@ export function eventsForDate(index: CalendarEventDayIndex, date: Date): Calenda
   return index.eventsByDay.get(dayKey(date)) ?? [];
 }
 
-export function dayView(index: CalendarEventDayIndex): CalendarDayViewModel {
-  const today = startOfUtcDay(new Date());
+export function dayView(index: CalendarEventDayIndex, timeZone = "UTC"): CalendarDayViewModel {
+  const today = new Date(`${currentZonedDay(timeZone)}T00:00:00.000Z`);
 
   return {
     id: `day-${today.toISOString().slice(0, 10)}`,
@@ -598,8 +587,8 @@ export function dayView(index: CalendarEventDayIndex): CalendarDayViewModel {
   };
 }
 
-export function weekDays(index: CalendarEventDayIndex): CalendarDayViewModel[] {
-  const today = startOfUtcDay(new Date());
+export function weekDays(index: CalendarEventDayIndex, timeZone = "UTC"): CalendarDayViewModel[] {
+  const today = new Date(`${currentZonedDay(timeZone)}T00:00:00.000Z`);
   const sunday = new Date(today);
   sunday.setUTCDate(today.getUTCDate() - today.getUTCDay());
 
@@ -617,8 +606,8 @@ export function weekDays(index: CalendarEventDayIndex): CalendarDayViewModel[] {
   });
 }
 
-export function monthWeeks(index: CalendarEventDayIndex): CalendarMonthWeekViewModel[] {
-  const today = startOfUtcDay(new Date());
+export function monthWeeks(index: CalendarEventDayIndex, timeZone = "UTC"): CalendarMonthWeekViewModel[] {
+  const today = new Date(`${currentZonedDay(timeZone)}T00:00:00.000Z`);
   const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
   const gridStart = new Date(first);
   gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());

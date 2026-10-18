@@ -187,7 +187,7 @@ export function CalendarContextPanel({
               <Badge tone="neutral">{event.allDay ? "All day" : event.rangeLabel}</Badge>
               <Badge tone="neutral">{event.calendar}</Badge>
               {event.timeZone && event.timeZone !== defaultTimeZone ? (
-                <Badge tone="neutral">{event.timeZone}</Badge>
+                <Badge tone="neutral">Event zone: {event.timeZone}</Badge>
               ) : null}
             </span>
             {event.location ? (

@@ -36,6 +36,7 @@ function calendarViewActionId(viewId: CalendarViewId): PlannerActionId {
 
 export function CalendarHeader({
   activeViewId,
+  timeZone,
   calendarRangeLabel,
   nextRangeLabel,
   onCreate,
@@ -51,6 +52,7 @@ export function CalendarHeader({
   visibleCalendarViewIds
 }: {
   activeViewId: CalendarViewId;
+  timeZone: string;
   calendarRangeLabel: string;
   nextRangeLabel: string;
   onCreate: () => void;
@@ -67,6 +69,7 @@ export function CalendarHeader({
 }): JSX.Element {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <span className="text-[var(--text-xs)] text-text-muted" title="Calendar times use this timezone. Event editors retain each event’s original timezone.">{timeZone}</span>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <div
           aria-label="Calendar views"

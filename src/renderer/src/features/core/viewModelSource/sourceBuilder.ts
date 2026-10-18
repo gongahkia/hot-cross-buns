@@ -267,7 +267,7 @@ function buildProjection(snapshot: CoreDataSnapshot, options: CoreViewModelSourc
   );
   return { activeColorTheme, eventsById, calendarItems, scheduledTaskBlocksById, taskById, taskFilterViewModels,
     notes, noteLists, scheduledTaskBlocks, lookupTasks: snapshot.tasks.map((task) => taskById[task.id]),
-    calendarDayView: dayView(eventDayIndex), calendarMonthWeeks: monthWeeks(eventDayIndex), calendarWeekDays: weekDays(eventDayIndex) };
+    calendarDayView: dayView(eventDayIndex, snapshot.settings.defaultTimeZone), calendarMonthWeeks: monthWeeks(eventDayIndex, snapshot.settings.defaultTimeZone), calendarWeekDays: weekDays(eventDayIndex, snapshot.settings.defaultTimeZone) };
 }
 
 function pruneViewModelCache<T extends { id: string }, V>(
