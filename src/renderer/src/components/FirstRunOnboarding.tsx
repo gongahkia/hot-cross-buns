@@ -284,7 +284,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   Welcome to Hot Cross Buns
                 </h3>
                 <p className="hcb-copy mt-3 text-pretty text-[var(--text-md)] text-text-muted">
-                  This setup takes about 2 minutes. You’ll connect Google, choose what to sync, and set your preferences.
+                  Turn tasks into a realistic day: capture work, preview free time with Smart Schedule, then create Calendar blocks. Setup connects Google and chooses what to sync. You’ll need a Google Cloud Desktop OAuth client; creating one may take a few minutes.
                 </p>
               </div>
             </section>

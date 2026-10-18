@@ -24,7 +24,7 @@ import type { TaskListSummary, TaskMoveRequest } from "@shared/ipc/contracts";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
-import { MotionCollapse } from "../../../../components/animate-ui/MotionCollapse";
+import { MeasuredVirtualList } from "../../../../components/MeasuredVirtualList";
 import type { CoreViewModelSource } from "../../coreViewModelSource";
 import type { ScheduledTaskBlockViewModel, TaskViewModel } from "../../coreViewModels";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
@@ -80,26 +80,6 @@ const sortLabels: Record<TaskListSort, string> = {
   title: "Title"
 };
 const taskDragType = "application/x-hcb-task-id";
-
-function activeRootTasks(source: CoreViewModelSource): TaskViewModel[] {
-  return source.largeTaskWindow.filter(
-    (task) => task.parentId === null && task.status === "open"
-  );
-}
-
-function visibleListTasks(source: CoreViewModelSource, listId: string): TaskViewModel[] {
-  return activeRootTasks(source).filter((task) => task.listId === listId);
-}
-
-function completedRootTasks(source: CoreViewModelSource): TaskViewModel[] {
-  return source.largeTaskWindow.filter(
-    (task) => task.parentId === null && task.status === "completed"
-  );
-}
-
-function completedListTasks(source: CoreViewModelSource, listId: string): TaskViewModel[] {
-  return completedRootTasks(source).filter((task) => task.listId === listId);
-}
 
 function sortTasks(
   tasks: TaskViewModel[],
@@ -178,43 +158,32 @@ export function GoogleTasksBoard({
   const [bulkCustomDueDate, setBulkCustomDueDate] = useState("");
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
-  const starredVisibleCount = activeRootTasks(source).filter((task) => starred.ids.has(task.id)).length;
-  const allListIds = source.taskLists.map((list) => list.id);
-  const visibleListIds = selectedView.listIds ?? allListIds;
-  const visibleListIdSet = new Set(visibleListIds);
-  const columns = useMemo(() => {
-    if (selectedView.mode === "starred") {
-      return [
-        {
-          id: "starred",
-          list: null,
-          title: "Starred tasks",
-          tasks: sortTasks(
-            activeRootTasks(source).filter((task) => starred.ids.has(task.id)),
-            "starred",
-            starred
-          ),
-          completedTasks: []
-        }
-      ];
+  const taskGroups = useMemo(() => {
+    const active = new Map<string, TaskViewModel[]>();
+    const completed = new Map<string, TaskViewModel[]>();
+    const starredTasks: TaskViewModel[] = [];
+    for (const task of source.largeTaskWindow) {
+      if (task.parentId !== null) continue;
+      const groups = task.status === "open" ? active : task.status === "completed" ? completed : null;
+      if (!groups) continue;
+      const group = groups.get(task.listId) ?? [];
+      group.push(task);
+      groups.set(task.listId, group);
+      if (task.status === "open" && starred.ids.has(task.id)) starredTasks.push(task);
     }
-
-    const lists = source.taskLists
-      .filter((list) => visibleListIdSet.has(list.id))
-      .filter((list) => selectedView.listIds !== null || visibleListTasks(source, list.id).length > 0 || completedListTasks(source, list.id).length > 0);
-
-    return lists.map((list) => ({
-      id: list.id,
-      list,
-      title: list.title,
-      tasks: sortTasks(
-        visibleListTasks(source, list.id),
-        listSorts[list.id] ?? "myOrder",
-        starred
-      ),
-      completedTasks: sortTasks(completedListTasks(source, list.id), "date", starred)
+    return { active, completed, starredTasks };
+  }, [source.largeTaskWindow, starred.ids]);
+  const starredVisibleCount = taskGroups.starredTasks.length;
+  const visibleListIds = useMemo(() => selectedView.listIds ?? source.taskLists.map((list) => list.id), [selectedView.listIds, source.taskLists]);
+  const columns = useMemo(() => {
+    if (selectedView.mode === "starred") return [{ id: "starred", list: null, title: "Starred on this device", tasks: sortTasks(taskGroups.starredTasks, "starred", starred), completedTasks: [] }];
+    const visibleIds = new Set(visibleListIds);
+    return source.taskLists.filter((list) => visibleIds.has(list.id)).map((list) => ({
+      id: list.id, list, title: list.title,
+      tasks: sortTasks(taskGroups.active.get(list.id) ?? [], listSorts[list.id] ?? "myOrder", starred),
+      completedTasks: sortTasks(taskGroups.completed.get(list.id) ?? [], "date", starred)
     }));
-  }, [listSorts, selectedView.mode, source, starred, visibleListIdSet]);
+  }, [listSorts, selectedView.mode, source.taskLists, starred, taskGroups, visibleListIds]);
   const bulkSelectedTasks = source.largeTaskWindow.filter((task) => bulkSelectedIds.has(task.id));
   const bulkSelectedIdsInWindow = bulkSelectedTasks.map((task) => task.id);
   const showBulkSelection = bulkModeActive || bulkSelectedIdsInWindow.length > 0;
@@ -259,6 +228,9 @@ export function GoogleTasksBoard({
 
   return (
     <div
+      data-testid="tasks-board"
+      data-task-count={source.largeTaskWindow.length}
+      data-hydration-state={source.hydrationState}
       className={cx(
         "grid min-h-0 flex-1 gap-3",
         effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[260px_minmax(0,1fr)]"
@@ -295,7 +267,7 @@ export function GoogleTasksBoard({
         <div
           className={cx(
             "flex h-full min-h-[480px] min-w-0 gap-3 p-3",
-            columns.length <= 1 ? "overflow-y-auto" : "overflow-x-auto"
+            "overflow-x-auto"
           )}
           role="list"
           aria-label={selectedView.mode === "starred" ? "Starred task lists" : "Task lists"}
@@ -374,6 +346,16 @@ function TaskBoardSidebar({
   visibleListIds: string[];
 }): JSX.Element {
   const visibleListIdSet = new Set(visibleListIds);
+  const listCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    let total = 0;
+    for (const task of source.largeTaskWindow) {
+      if (task.parentId !== null || task.status !== "open") continue;
+      counts.set(task.listId, (counts.get(task.listId) ?? 0) + 1);
+      total += 1;
+    }
+    return { counts, total };
+  }, [source.largeTaskWindow]);
 
   function selectAllLists(): void {
     setSelectedView({ mode: "lists", listIds: null });
@@ -418,7 +400,7 @@ function TaskBoardSidebar({
       </div>
       <div className="mt-5 grid gap-1">
         <TaskSidebarButton
-          count={activeRootTasks(source).length}
+          count={listCounts.total}
           icon="all"
           label="All tasks"
           onClick={selectAllLists}
@@ -427,7 +409,7 @@ function TaskBoardSidebar({
         <TaskSidebarButton
           count={starredCount}
           icon="star"
-          label="Starred"
+          label="Starred on this device"
           onClick={selectStarredTasks}
           selected={selectedView.mode === "starred"}
         />
@@ -437,7 +419,7 @@ function TaskBoardSidebar({
         <div className="mt-2 grid gap-1">
           {source.taskLists.map((list) => (
             <TaskListButton
-              count={visibleListTasks(source, list.id).length}
+              count={listCounts.counts.get(list.id) ?? 0}
               key={list.id}
               label={list.title}
               onClick={() => selectList(list.id)}
@@ -588,6 +570,9 @@ function BoardBulkRescheduleBanner({
   );
 }
 
+type BoardRow = { kind: "task" | "child"; task: TaskViewModel } | { kind: "completed" };
+const boardRowKey = (row: BoardRow): string => row.kind === "completed" ? "completed-header" : row.task.id;
+
 function TaskListColumn({
   list,
   listSort,
@@ -650,6 +635,33 @@ function TaskListColumn({
   const [menuOpen, setMenuOpen] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(() => new Set());
+  const toggleChildren = useCallback((id: string, open?: boolean) => {
+    setCollapsedTaskIds((current) => {
+      const next = new Set(current);
+      if (open ?? current.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const rows = useMemo(() => {
+    const result: BoardRow[] = [];
+    const append = (task: TaskViewModel) => {
+      result.push({ kind: "task", task });
+      if (!collapsedTaskIds.has(task.id)) {
+        for (const child of task.subtasks) {
+          const subtask = source.getTaskById(child.id);
+          if (subtask.parentId === task.id) result.push({ kind: "child", task: subtask });
+        }
+      }
+    };
+    tasks.forEach(append);
+    if (completedTasks.length) {
+      result.push({ kind: "completed" });
+      if (completedOpen) completedTasks.forEach(append);
+    }
+    return result;
+  }, [tasks, completedTasks, completedOpen, collapsedTaskIds, source.getTaskById]);
   const hasRows = tasks.length > 0 || completedTasks.length > 0;
   const showAccounts = showAccountBadges(source);
 
@@ -724,93 +736,49 @@ function TaskListColumn({
         <CheckCircle2 aria-hidden="true" size={18} />
         {list ? "Add a task" : "Add a starred task"}
       </button>
-      <div
-        className="min-h-0 flex-1 overflow-y-auto pb-3"
-        role="list"
-        aria-label={`${title} tasks`}
-      >
-        {tasks.length > 0 ? (
-          tasks.map((task) => (
-            <GoogleTaskRow
-              key={task.id}
-              onCreateList={onCreateList}
-              onDeleteTask={onDeleteTask}
-              onDuplicateTask={onDuplicateTask}
-              onMoveTask={onMoveTask}
-              onMoveTaskRequest={onMoveTaskRequest}
-              onOpenTask={onOpenTask}
-              onScheduleTask={onScheduleTask}
-              onToggleStar={onToggleStar}
-              onToggleTask={onToggleTask}
-              onAddSubtask={onAddSubtask}
-              bulkSelected={bulkSelectedIds.has(task.id)}
-              bulkSelectedIds={bulkSelectedIds}
-              onBulkSelectTask={onBulkSelectTask}
-              showBulkSelection={showBulkSelection}
-              scheduledBlock={scheduledBlocksByTask.get(task.id)}
-              selected={selectedTaskId === task.id}
-              selectedTaskId={selectedTaskId}
-              source={source}
-              starred={starred.ids.has(task.id)}
-              task={task}
-              showAccountBadge={showAccounts}
-            />
-          ))
-        ) : null}
-        {completedTasks.length > 0 ? (
-          <div className="border-t border-border/70 pt-2">
-            <button
-              aria-expanded={completedOpen}
-              className="mb-1 flex h-9 w-full items-center gap-2 px-4 text-left text-[var(--text-base)] font-medium text-text-secondary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onClick={() => setCompletedOpen((open) => !open)}
-              type="button"
-            >
-              {completedOpen ? (
-                <ChevronDown aria-hidden="true" size={17} />
-              ) : (
-                <ChevronRight aria-hidden="true" size={17} />
-              )}
-              Completed ({completedTasks.length})
-            </button>
-            {completedOpen
-              ? completedTasks.map((task) => (
-                  <GoogleTaskRow
-                    key={task.id}
-                    onCreateList={onCreateList}
-                    onDeleteTask={onDeleteTask}
-                    onDuplicateTask={onDuplicateTask}
-                    onMoveTask={onMoveTask}
-                    onMoveTaskRequest={onMoveTaskRequest}
-                    onOpenTask={onOpenTask}
-                    onScheduleTask={onScheduleTask}
-                    onToggleStar={onToggleStar}
-                    onToggleTask={onToggleTask}
-                    onAddSubtask={onAddSubtask}
-                    bulkSelected={bulkSelectedIds.has(task.id)}
-                    bulkSelectedIds={bulkSelectedIds}
-                    onBulkSelectTask={onBulkSelectTask}
-                    showBulkSelection={showBulkSelection}
-                    scheduledBlock={scheduledBlocksByTask.get(task.id)}
-                    selected={selectedTaskId === task.id}
-                    selectedTaskId={selectedTaskId}
-                    source={source}
-                    starred={starred.ids.has(task.id)}
-                    task={task}
-                    showAccountBadge={showAccounts}
-                  />
-                ))
-              : null}
-          </div>
-        ) : null}
-        {!hasRows ? (
-          <div className="grid min-h-[320px] place-items-center px-6">
-            <EmptyState
-              description={list ? "Add a task to keep this list moving." : "Star tasks from any list to collect them here."}
-              title={list ? "No tasks yet" : "No starred tasks"}
-            />
-          </div>
-        ) : null}
-      </div>
+      {hasRows ? (
+        <MeasuredVirtualList
+          ariaLabel={`${title} tasks`}
+          items={rows}
+          getKey={boardRowKey}
+          scrollToKey={selectedTaskId}
+          renderRow={(row) => {
+            if (row.kind === "completed") return (
+              <button aria-expanded={completedOpen} className="flex h-11 w-full items-center gap-2 border-t border-border px-4 text-left text-text-secondary hover:bg-surface-0" onClick={() => setCompletedOpen((open) => !open)} type="button">
+                {completedOpen ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
+                Completed ({completedTasks.length})
+              </button>
+            );
+            const task = row.task;
+            if (row.kind === "child") return (
+              <TaskChildRow
+                onAddSubtask={onAddSubtask} onCreateList={onCreateList} onDeleteTask={onDeleteTask}
+                onDuplicateTask={onDuplicateTask} onMoveTask={onMoveTask} onMoveTaskRequest={onMoveTaskRequest}
+                onOpenTask={onOpenTask} onToggleTask={onToggleTask} onBulkSelectTask={onBulkSelectTask}
+                selected={selectedTaskId === task.id} task={task} selectedForBulk={bulkSelectedIds.has(task.id)}
+                showBulkSelection={showBulkSelection} showAccountBadge={showAccounts} source={source}
+              />
+            );
+            return (
+              <GoogleTaskRow
+                onCreateList={onCreateList} onDeleteTask={onDeleteTask} onDuplicateTask={onDuplicateTask}
+                onMoveTask={onMoveTask} onMoveTaskRequest={onMoveTaskRequest} onOpenTask={onOpenTask}
+                onScheduleTask={onScheduleTask} onToggleStar={onToggleStar} onToggleTask={onToggleTask}
+                onAddSubtask={onAddSubtask} bulkSelected={bulkSelectedIds.has(task.id)} bulkSelectedIds={bulkSelectedIds}
+                onBulkSelectTask={onBulkSelectTask} showBulkSelection={showBulkSelection}
+                scheduledBlock={scheduledBlocksByTask.get(task.id)} selected={selectedTaskId === task.id}
+                selectedTaskId={selectedTaskId} source={source} starred={starred.ids.has(task.id)}
+                task={task} showAccountBadge={showAccounts} childrenOpen={!collapsedTaskIds.has(task.id)}
+                onToggleChildren={toggleChildren}
+              />
+            );
+          }}
+        />
+      ) : (
+        <div className="grid min-h-0 flex-1 place-items-center px-6">
+          <EmptyState description={list ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list ? `${title} is empty` : "No starred tasks"} />
+        </div>
+      )}
     </section>
   );
 }
@@ -851,7 +819,6 @@ function ListActionMenu({
       <MenuButton onClick={() => { onDeleteList(list.id); onClose(); }}>Delete list</MenuButton>
       <MenuButton onClick={() => { onStartBulkSelect(); onClose(); }}>Select tasks</MenuButton>
       <MenuSeparator />
-      <MenuButton onClick={() => { window.print(); onClose(); }}>Print list</MenuButton>
     </div>
   );
 }
@@ -878,6 +845,8 @@ interface GoogleTaskRowProps {
   starred: boolean;
   task: TaskViewModel;
   showAccountBadge: boolean;
+  childrenOpen: boolean;
+  onToggleChildren: (id: string, open?: boolean) => void;
 }
 
 const GoogleTaskRow = memo(function GoogleTaskRow({
@@ -901,11 +870,12 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
   source,
   starred,
   task,
-  showAccountBadge
+  showAccountBadge,
+  childrenOpen,
+  onToggleChildren
 }: GoogleTaskRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
-  const [childrenOpen, setChildrenOpen] = useState(true);
   const scheduleLabel = taskScheduleLabel(task, scheduledBlock);
   const preview = taskPreview(task);
   const completed = task.status === "completed";
@@ -956,7 +926,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               aria-expanded={childrenOpen}
               aria-label={`${childrenOpen ? "Collapse" : "Expand"} subtasks for ${task.title}`}
               className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-text-muted hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-              onClick={() => setChildrenOpen((open) => !open)}
+              onClick={() => onToggleChildren(task.id)}
               type="button"
             >
               {childrenOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
@@ -964,17 +934,18 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
           ) : null}
         <div className="min-w-0 flex-1">
           <button
+            data-virtual-focus
             className="min-w-0 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onClick={() => onOpenTask(task.id)}
             onKeyDown={(event) => {
               if (childTasks.length === 0) return;
               if (event.key === "ArrowRight") {
                 event.preventDefault();
-                setChildrenOpen(true);
+                onToggleChildren(task.id, true);
               }
               if (event.key === "ArrowLeft") {
                 event.preventDefault();
-                setChildrenOpen(false);
+                onToggleChildren(task.id, false);
               }
             }}
             type="button"
@@ -1066,38 +1037,15 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
           ) : null}
         </div>
       </div>
-      {childTasks.length > 0 ? (
-        <MotionCollapse open={childrenOpen}>
-        <div aria-label={`Subtasks for ${task.title}`} className="ml-12 border-l border-border/70" id={childrenId} role="list">
-          {childTasks.map((child) => (
-            <TaskChildRow
-              key={child.id}
-              onAddSubtask={onAddSubtask}
-              onCreateList={onCreateList}
-              onDeleteTask={onDeleteTask}
-              onDuplicateTask={onDuplicateTask}
-          onBulkSelectTask={onBulkSelectTask}
-          onMoveTask={onMoveTask}
-              onMoveTaskRequest={onMoveTaskRequest}
-              onOpenTask={onOpenTask}
-              onToggleTask={onToggleTask}
-          selected={selectedTaskId === child.id}
-          task={child}
-          selectedForBulk={bulkSelectedIds.has(child.id)}
-          showBulkSelection={showBulkSelection}
-          showAccountBadge={showAccountBadge}
-              source={source}
-            />
-          ))}
-        </div>
-        </MotionCollapse>
-      ) : null}
+
     </div>
   );
 }, areGoogleTaskRowPropsEqual);
 
 function areGoogleTaskRowPropsEqual(previous: GoogleTaskRowProps, next: GoogleTaskRowProps): boolean {
   return (
+    previous.childrenOpen === next.childrenOpen &&
+    previous.onToggleChildren === next.onToggleChildren &&
     previous.bulkSelected === next.bulkSelected &&
     previous.bulkSelectedIds === next.bulkSelectedIds &&
     previous.onAddSubtask === next.onAddSubtask &&
@@ -1192,6 +1140,7 @@ function TaskChildRow({
       ) : null}
       <TaskCompletionButton completed={completed} onToggle={onToggleTask} task={task} />
       <button
+        data-virtual-focus
         className="min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => onOpenTask(task.id)}
         type="button"

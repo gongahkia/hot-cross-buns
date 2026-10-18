@@ -10,7 +10,8 @@ export const startupTimingSnapshotSchema = z
     appReadyMs: z.number().nonnegative().optional(),
     windowCreatedMs: z.number().nonnegative().optional(),
     rendererLoadedMs: z.number().nonnegative().optional(),
-    shellVisibleMs: z.number().nonnegative().optional()
+    shellVisibleMs: z.number().nonnegative().optional(),
+    cachedDataRenderedMs: z.number().nonnegative().optional()
   })
   .strict();
 

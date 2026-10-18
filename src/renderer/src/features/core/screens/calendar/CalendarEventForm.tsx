@@ -16,7 +16,6 @@ import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../../MarkdownPreview";
 import { TagBadges, TagInput } from "../../TagInput";
 import { AutoTagAudit } from "../../AutoTagAudit";
-import { EntityLinksPanel } from "../../EntityLinksPanel";
 import { plannerLinkTargets } from "../../plannerLinkTargets";
 import {
   addUtcDaysIso,
@@ -858,7 +857,6 @@ export function CalendarEventDetails({
         rules={rules}
       />
 
-      {draft.id ? <EntityLinksPanel entityId={draft.id} entityKind="event" /> : null}
     </div>
   );
 }

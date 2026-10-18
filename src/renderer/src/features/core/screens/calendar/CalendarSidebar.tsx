@@ -548,7 +548,7 @@ export function SmartReschedulePanel({
       <div className="grid gap-3 overflow-auto p-3">
         <div className="grid gap-2">
           <p className="text-[var(--text-xs)] leading-relaxed text-text-secondary">
-            Build a reviewed plan around blocking Calendar events. Nothing changes until you apply it.
+            Find free time around Calendar events and review the plan before applying it. Applying creates linked Calendar event blocks; each task’s due date stays separate in Google Tasks.
           </p>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Date</span>

@@ -8,7 +8,6 @@ import {
   Languages,
   Power,
   RotateCcw,
-  Server,
   ShieldCheck,
   Sparkles
 } from "lucide-react";
@@ -124,68 +123,11 @@ export function GeneralSettingsTab({
           label={t("diagnostics.includePerformance")}
           onChange={(checked) => updateSettings({ diagnosticsIncludePerformance: checked })}
         />
-        <SettingsSwitch
-          checked={settings.rawGoogleDiagnosticsEnabled}
-          description={t("diagnostics.includeGooglePayloads.description")}
-          label={t("diagnostics.includeGooglePayloads")}
-          onChange={(checked) => updateSettings({ rawGoogleDiagnosticsEnabled: checked })}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup title="Agent access">
-        <SettingsSwitch
-          checked={settings.mcpEnabled}
-          icon={Server}
-          label="Local MCP server"
-          onChange={(checked) => updateSettings({ mcpEnabled: checked })}
-        />
-        <SettingsControlRow
-          description="MCP clients must follow this write policy before changes apply."
-          label="Permission mode"
-        >
-          <select
-            aria-label="MCP permission mode"
-            className={settingsSelectClass}
-            onChange={(event) =>
-              updateSettings({
-                mcpPermissionMode: event.target.value as SettingsSnapshot["mcpPermissionMode"]
-              })
-            }
-            value={settings.mcpPermissionMode}
-          >
-            <option value="read-only">Read-only</option>
-            <option value="confirm-writes">Confirm writes</option>
-            <option value="allow-writes">Allow writes</option>
-          </select>
-        </SettingsControlRow>
-        <SettingsControlRow label="Port">
-          <Input
-            aria-label="MCP port"
-            max={65535}
-            min={0}
-            onBlur={(event) => updateSettings({ mcpPort: Number(event.currentTarget.value) || 0 })}
-            defaultValue={String(settings.mcpPort)}
-            type="number"
-          />
-        </SettingsControlRow>
-        <SettingsControlRow
-          description={settings.mcpEnabled ? "The local MCP server is enabled." : "The local MCP server is disabled."}
-          label={settings.mcpEnabled ? "Running" : "Stopped"}
-        >
-          <Button
-            disabled={settingsMutationPending}
-            onClick={() => beginRecoveryAction("resetMcpToken")}
-            variant="secondary"
-          >
-            <RotateCcw aria-hidden="true" size={14} />
-            Reset token
-          </Button>
-        </SettingsControlRow>
       </SettingsGroup>
 
       <SettingsGroup title="Sync">
         <SettingsControlRow
-          description="Refresh cadence for launch, foreground, and periodic app activity."
+          description="Manual syncs only when you refresh. Balanced refreshes every 5 minutes; Near real-time every 30 seconds. Both automatic modes send edits shortly after you make them."
           label="Mode"
         >
           <select

@@ -65,7 +65,7 @@ export function capabilities(): NativePlatformCapabilities {
     supportsDiagnosticsCollection: true,
     supportsCredentialStorage: isMac,
     supportsOAuthLoopback: true,
-    supportsMcpLoopback: true,
+    supportsMcpLoopback: false,
     requiresSignedBuildForNotifications: false
   };
 
@@ -104,10 +104,7 @@ export function capabilities(): NativePlatformCapabilities {
           state: "ready",
           message: "OAuth loopback is wired through the main process and macOS browser handoff."
         },
-        mcpLoopback: {
-          state: "ready",
-          message: "MCP loopback is wired with Keychain-backed bearer-token storage."
-        },
+        mcpLoopback: { state: "unsupported", message: "Local MCP access is not available in this release." },
         packaging: {
           state: app.isPackaged ? "ready" : "pending",
           message: app.isPackaged

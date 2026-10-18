@@ -9,8 +9,6 @@ import { Badge, Button, cx, Input } from "../../../components/primitives";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
 import type { CorePriority, TaskViewModel } from "../coreViewModels";
 import { AutoTagAudit } from "../AutoTagAudit";
-import { AttachmentPanel } from "../AttachmentPanel";
-import { EntityLinksPanel } from "../EntityLinksPanel";
 import { MarkdownPreview, hasRenderableMixedMarkup } from "../MarkdownPreview";
 import { plannerLinkTargets } from "../plannerLinkTargets";
 import { TagBadges, TagInput } from "../TagInput";
@@ -224,9 +222,6 @@ export function TaskInspectorDetails({
         </TaskDetailLine>
       ) : null}
 
-      {(draft.id ?? task?.id) ? (
-        <AttachmentPanel entityId={(draft.id ?? task?.id) as string} entityKind="task" />
-      ) : null}
 
       {draft.dueDate ? (
         <TaskDetailLine icon={CalendarClock} label="Due">
@@ -262,7 +257,6 @@ export function TaskInspectorDetails({
         rules={source.settings.autoTagRules}
       />
 
-      {draft.id ? <EntityLinksPanel entityId={draft.id} entityKind="task" /> : null}
 
       {draft.parentId ? (
         <TaskDetailLine icon={ListPlus}>
@@ -354,6 +348,11 @@ export function TaskInspectorBody({
 
   return (
     <div className="grid min-w-0 gap-3" onKeyDown={handleKeyDown}>
+      <p className="text-[var(--text-xs)] text-text-muted">
+        {source.taskLists.find((list) => list.id === dirty.value.listId)?.accountId === "local"
+          ? "This task is stored on this device."
+          : "Title, notes, and due date sync with Google Tasks. HCB priority, tags, duration, and planning fields are saved in a marked footer in the Google task’s notes."}
+      </p>
       <EmojiInput
         aria-label="Task title"
         autoFocus={dirty.value.mode === "create"}
@@ -466,7 +465,6 @@ export function TaskInspectorBody({
             <ListPlus aria-hidden="true" size={14} />
             Add subtask
           </Button>
-          {dirty.value.id ? <AttachmentPanel editable entityId={dirty.value.id} entityKind="task" /> : null}
         </div>
       ) : null}
     </div>

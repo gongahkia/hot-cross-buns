@@ -3,6 +3,14 @@ import { vi } from "vitest";
 import type { HcbApi } from "./src/shared/preloadApi";
 import { ok } from "./src/shared/result";
 
+// JSDOM has no layout engine; real viewport and row measurements are covered
+// by the Electron performance suite.
+vi.stubGlobal("ResizeObserver", class {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+});
+
 const hcbApi: HcbApi = {
   diagnostics: {
     health: vi.fn(async () =>

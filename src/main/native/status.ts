@@ -52,9 +52,7 @@ export function initialStatus(
     updaterStatus: capabilities.updaterChecks
       ? featureStatus("pending", "Update checks are deferred until the shell is visible.")
       : featureStatus("unsupported", "Preview update checks are not configured for this build."),
-    mcpStatus: settings.mcpEnabled
-      ? featureStatus("pending", "MCP listener startup is deferred until the shell is visible.")
-      : featureStatus("disabled", "MCP local agent access is disabled."),
+    mcpStatus: featureStatus("unsupported", "Local MCP access is not available in this release."),
     capabilityReport: capabilities.capabilityReport,
     deferredStartup: {
       state: "pending"

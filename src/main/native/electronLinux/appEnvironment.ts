@@ -59,7 +59,7 @@ export function capabilities(): NativePlatformCapabilities {
     supportsDiagnosticsCollection: true,
     supportsCredentialStorage: credentialStatus.ok,
     supportsOAuthLoopback: true,
-    supportsMcpLoopback: true,
+    supportsMcpLoopback: false,
     requiresSignedBuildForNotifications: false,
     hasWaylandSession: globalShortcutSupport.hasWaylandSession,
     hasPortalShortcutSupport: globalShortcutSupport.hasPortalShortcutSupport
@@ -134,10 +134,7 @@ export function capabilities(): NativePlatformCapabilities {
           state: "pending",
           message: "OAuth loopback is shared code, but Linux browser handoff and credential storage are not fully validated."
         },
-        mcpLoopback: {
-          state: "pending",
-          message: "MCP loopback is shared code, but Linux bearer-token storage is not fully validated."
-        },
+        mcpLoopback: { state: "unsupported", message: "Local MCP access is not available in this release." },
         packaging: {
           state: process.env.APPIMAGE ? "ready" : "pending",
           message: process.env.APPIMAGE

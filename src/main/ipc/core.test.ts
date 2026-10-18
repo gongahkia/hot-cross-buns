@@ -9,6 +9,13 @@ vi.mock("electron", () => ({
 import { payloadIsValid } from "./core";
 
 describe("core IPC task payload validation", () => {
+  it("rejects unfinished actions instead of accepting a placeholder operation", () => {
+    for (const [namespace, action] of [["search", "installModel"], ["tags", "merge"], ["duplicates", "cleanup"], ["agent", "listActions"], ["settings", "importIcs"]]) {
+      expect(payloadIsValid(namespace, action, {})).toBe(false);
+    }
+    expect(payloadIsValid("settings", "recoveryAction", { action: "backupNow" })).toBe(true);
+    expect(payloadIsValid("settings", "recoveryAction", { action: "resetMcpToken" })).toBe(false);
+  });
   it("accepts the null duration emitted by a new task editor", () => {
     expect(payloadIsValid("tasks", "create", {
       durationMinutes: null,

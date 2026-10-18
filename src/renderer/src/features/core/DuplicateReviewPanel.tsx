@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarDays, Check, FileText, GitMerge, ListChecks, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, FileText, ListChecks, RefreshCw, Trash2, X } from "lucide-react";
 import { Badge, Button, IconButton, cx } from "../../components/primitives";
 import type { CoreViewModelSource } from "./coreViewModelSource";
 import type { CalendarEventViewModel, NoteViewModel, TaskViewModel } from "./coreViewModels";
@@ -79,33 +79,6 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
     }));
   }
 
-  async function mergeGroup(group: DuplicateGroup): Promise<void> {
-    if (group.items.length < 2 || !window.confirm(`Merge ${group.items.length} duplicate ${group.kind}s into the first item?`)) {
-      return;
-    }
-
-    const [winnerItem, ...loserItems] = group.items;
-
-    if (!winnerItem) {
-      return;
-    }
-
-    const merged = await window.hcb?.duplicates.cleanup({
-      kind: group.kind,
-      winnerId: winnerItem.id,
-      loserIds: loserItems.map((item) => item.id)
-    });
-
-    if (!merged?.ok) {
-      window.alert(merged?.error.message ?? "Merge failed.");
-      return;
-    }
-
-    await dismissGroup(group.id);
-    source.refreshUndoStatus();
-    source.refresh();
-  }
-
   return (
     <section className="overflow-hidden rounded-hcbLg border border-border bg-bg-secondary">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
@@ -130,7 +103,6 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
                   <div className="truncate text-[var(--text-sm)] font-semibold text-text-primary">{group.title}</div>
                   <div className="truncate text-[var(--text-xs)] text-text-muted">{group.reason} · {group.keyLabel}</div>
                 </div>
-                <IconButton icon={GitMerge} label="Merge duplicate group" onClick={() => void mergeGroup(group)} variant="ghost" />
                 <IconButton icon={X} label="Dismiss duplicate group" onClick={() => void dismissGroup(group.id)} variant="ghost" />
               </div>
               <div className="grid gap-1.5">

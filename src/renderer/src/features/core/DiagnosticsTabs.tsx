@@ -79,16 +79,11 @@ export function OverviewTab({
 
       {summary?.performance ? (
         <DiagnosticSection title="Performance">
-          <DiagnosticRow label="Last sync" value={durationText(summary.performance.lastSyncDurationMs)} />
-          <DiagnosticRow label="Migration" value={durationText(summary.performance.migrationDurationMs)} />
-          <DiagnosticRow
-            label="Slow queries"
-            value={`${summary.performance.slowQuerySamples.length} sample${summary.performance.slowQuerySamples.length === 1 ? "" : "s"}`}
-          />
-          <DiagnosticRow
-            label="MCP requests"
-            value={String(summary.performance.mcpRequestCounts.totalRequests)}
-          />
+          <DiagnosticRow label="Shell visible" value={durationText(summary.performance.startup?.shellVisibleMs)} />
+          <DiagnosticRow label="Cached data rendered" value={durationText(summary.performance.startup?.cachedDataRenderedMs)} />
+          {(summary.performance.timings ?? []).slice(-8).map((sample, index) => (
+            <DiagnosticRow key={`${sample.recordedAt}-${index}`} label={sample.name} value={durationText(sample.durationMs)} />
+          ))}
         </DiagnosticSection>
       ) : null}
 
@@ -414,10 +409,7 @@ export function LogsTab({
           <ClipboardCopy aria-hidden="true" size={15} />
           Copy all logs
         </Button>
-        <Button onClick={() => void revealLogsFolder()}>
-          <Folder aria-hidden="true" size={15} />
-          Reveal logs folder
-        </Button>
+
         <Button onClick={() => void clearLogs()} variant="danger">
           <Trash2 aria-hidden="true" size={15} />
           Clear logs

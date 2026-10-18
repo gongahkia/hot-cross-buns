@@ -87,9 +87,7 @@ export class NativeShellService implements NativeDomainService {
   applySettings(snapshot: SettingsSnapshot): void {
     this.status = {
       ...this.status,
-      mcpStatus: snapshot.mcpEnabled
-        ? featureStatus("pending", "MCP listener startup is managed by the main runtime service.")
-        : featureStatus("disabled", "MCP local agent access is disabled.")
+      mcpStatus: featureStatus("unsupported", "Local MCP access is not available in this release.")
     };
 
     if (!snapshot.showTrayIcon) {
@@ -555,9 +553,7 @@ export class NativeShellService implements NativeDomainService {
   private updateMcpDeferredStatus(settings: SettingsSnapshot): void {
     this.status = {
       ...this.status,
-      mcpStatus: settings.mcpEnabled
-        ? featureStatus("pending", "MCP listener startup is managed by the main runtime service.")
-        : featureStatus("disabled", "MCP local agent access is disabled.")
+      mcpStatus: featureStatus("unsupported", "Local MCP access is not available in this release.")
     };
   }
 

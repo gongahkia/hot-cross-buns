@@ -27,6 +27,7 @@ import { AppearanceSettingsTab } from "./AppearanceSettingsTab";
 import { AboutSettingsTab } from "./AboutSettingsTab";
 import { AlertsSettingsTab } from "./AlertsSettingsTab";
 import { HotkeysSettingsTab } from "./HotkeysSettingsTab";
+import { DataSettingsTab } from "./DataSettingsTab";
 import { GeneralSettingsTab } from "./GeneralSettingsTab";
 import { ProfileSettingsTab } from "./ProfileSettingsTab";
 import {
@@ -36,7 +37,7 @@ import {
 } from "./SettingsPrimitives";
 import { recoveryPhrase } from "./settingsUtils";
 
-type SettingsTabId = "profile" | "general" | "appearance" | "hotkeys" | "alerts" | "about";
+type SettingsTabId = "data" | "profile" | "general" | "appearance" | "hotkeys" | "alerts" | "about";
 type AutoTagBackgroundNotice = {
   title: string;
   description: string;
@@ -47,6 +48,7 @@ type AutoTagBackgroundNotice = {
 const autoTagTargetKinds: AutoTagTargetKind[] = ["task", "event", "note"];
 
 const settingsSearchTextByTab: Record<SettingsTabId, string> = {
+  data: "Data local notes backup export restore storage device Google planning metadata",
   about: [
     "About",
     "Updates",
@@ -463,7 +465,7 @@ export function SettingsView({
   }
 
   function beginRecoveryAction(action: SettingsRecoveryActionRequest["action"]): void {
-    if (action === "refresh" || action === "resetOnboarding" || action === "checkForUpdates") {
+    if (["refresh", "resetOnboarding", "checkForUpdates", "backupNow", "exportBackup", "openBackupsFolder"].includes(action)) {
       void runRecovery({ action });
       return;
     }
@@ -619,6 +621,7 @@ export function SettingsView({
           label="Profile"
           onClick={() => setSelectedSettingsTab("profile")}
         />
+        <SettingsTabButton active={selectedSettingsTab === "data"} icon={SlidersHorizontal} label="Data" onClick={() => setSelectedSettingsTab("data")} />
         <SettingsTabButton
           active={selectedSettingsTab === "general"}
           icon={SlidersHorizontal}
@@ -742,6 +745,10 @@ export function SettingsView({
             updateSelectedCalendar={updateSelectedCalendar}
             updateSelectedTaskList={updateSelectedTaskList}
           />
+        ) : null}
+
+        {selectedSettingsTab === "data" ? (
+          <DataSettingsTab settings={settings} pending={source.settingsMutationPending} updateSettings={updateSettings} runAction={beginRecoveryAction} />
         ) : null}
 
         {selectedSettingsTab === "general" ? (

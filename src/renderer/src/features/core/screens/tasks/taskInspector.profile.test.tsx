@@ -184,7 +184,8 @@ describe("Task inspector draft persistence", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());
     const taskBoard = screen.getByLabelText("Task board navigation");
     const allTasks = within(taskBoard).getByRole("button", { name: /^All tasks/ });
-    await screen.findByRole("button", { name: "Synthetic performance task 99" });
+    await waitFor(() => expect(screen.getByTestId("tasks-board")).toHaveAttribute("data-task-count", "100"));
+    await screen.findByRole("button", { name: "Synthetic performance task 0" });
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const inspector = await screen.findByTestId("inspector-shell");
     const inspectorQueries = within(inspector);

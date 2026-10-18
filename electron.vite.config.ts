@@ -16,7 +16,8 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          index: fromRoot("src/main/index.ts")
+          index: fromRoot("src/main/index.ts"),
+          workspaceWorker: fromRoot("src/main/services/workspaceWorker.ts")
         }
       }
     }

@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { CoreStore } from "./coreStore";
 import { withHcbTaskMetadata } from "./hcbTaskMetadata";
+import { LocalBackupService } from "./localBackups";
 
 const stores: Array<{ store: CoreStore; directory: string }> = [];
 
@@ -16,6 +17,7 @@ function createStore(): CoreStore {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   for (const { store, directory } of stores.splice(0)) {
     store.close();
     rmSync(directory, { recursive: true, force: true });
@@ -26,6 +28,103 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("reconciles task parents across provider pages and applies remote planning metadata updates", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "batched-account", connectionState: "connected" });
+    const list = store.upsertGoogleTaskList({ id: "batched-list", title: "Inbox" }, account.accountId);
+    store.upsertGoogleTaskBatch([{ id: "child", title: "Child", parent: "parent", status: "needsAction" }], list.id);
+    store.upsertGoogleTaskBatch([{ id: "parent", title: "Parent", status: "needsAction", notes: withHcbTaskMetadata("", { priority: "low" }) }], list.id);
+    store.reconcileGoogleTaskParents(list.id);
+    const tasks = store.dispatch("tasks", "list", { limit: 100 }).items;
+    const parent = tasks.find((task: { title: string }) => task.title === "Parent");
+    const child = tasks.find((task: { title: string }) => task.title === "Child");
+    expect(child.parentId).toBe(parent.id);
+    store.upsertGoogleTaskBatch([{ id: "parent", title: "Parent", status: "needsAction", notes: withHcbTaskMetadata("", { priority: "high", durationMinutes: 45, tags: ["work"] }) }], list.id);
+    expect(store.dispatch("tasks", "get", { id: parent.id })).toMatchObject({ priority: "high", durationMinutes: 45, tags: ["work"] });
+  });
+  it("keeps indexed search current across edits, deletion, restore, and restart", async () => {
+    const store = createStore();
+    expect(store.dispatch("diagnostics", "summary").search.engine).toBe("fts5");
+    const note = store.dispatch("notes", "create", { title: "Nebulous", body: "Original searchable prose" });
+    const snapshot = join(stores.at(-1)!.directory, "snapshot.sqlite");
+    await store.backupTo(snapshot);
+    store.dispatch("notes", "update", { id: note.id, title: "Revised" });
+    expect(store.dispatch("search", "query", { query: "Nebulous" }).items).toHaveLength(0);
+    expect(store.dispatch("search", "query", { query: "Revised" }).items).toHaveLength(1);
+    store.dispatch("notes", "delete", { id: note.id });
+    expect(store.dispatch("search", "query", { query: "Revised" }).items).toHaveLength(0);
+    store.restoreLocalNotes(snapshot);
+    expect(store.dispatch("search", "query", { query: "Nebulous" }).items).toHaveLength(1);
+  });
+  it("paginates task and note collections without dropping or duplicating records", () => {
+    const store = createStore();
+    for (let index = 0; index < 23; index += 1) {
+      store.dispatch("tasks", "create", { title: `Task ${index}`, listId: "inbox" });
+      store.dispatch("notes", "create", { title: `Note ${index}`, body: `Body ${index}` });
+    }
+    for (const namespace of ["tasks", "notes"]) {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = store.dispatch(namespace, "list", { limit: 7, cursor });
+        expect(page.items.length).toBeLessThanOrEqual(7);
+        expect(page.page.totalKnown).toBe(23);
+        ids.push(...page.items.map((item: { id: string }) => item.id));
+        cursor = page.page.nextCursor;
+      } while (cursor);
+      expect(ids).toHaveLength(23);
+      expect(new Set(ids).size).toBe(23);
+    }
+  });
+
+  it("creates real snapshots, restores local notes, and retains Google queues", async () => {
+    const store = createStore();
+    const note = store.dispatch("notes", "create", { title: "Recover me", body: "Original body" });
+    const backups = new LocalBackupService(store, stores.at(-1)!.directory);
+    const filePath = await backups.create();
+    expect(existsSync(filePath)).toBe(true);
+    if (process.platform !== "win32") expect(statSync(filePath).mode & 0o777).toBe(0o600);
+    store.dispatch("notes", "update", { id: note.id, body: "Changed body" });
+    const task = store.dispatch("tasks", "create", { title: "Keep queued task", listId: "inbox" });
+    const before = store.pendingSyncMutations();
+    expect(store.restoreLocalNotes(filePath)).toBe(1);
+    expect(store.dispatch("notes", "get", { id: note.id }).body).toBe("Original body");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("Keep queued task");
+    expect(store.pendingSyncMutations()).toEqual(before);
+    expect(store.dispatch("settings", "get").lastLocalBackupAt).toBeTruthy();
+    expect(() => store.dispatch("settings", "recoveryAction", { action: "nonexistentAction" })).toThrow("not available");
+    store.dispatch("settings", "update", { localBackupRetentionCount: 1 });
+    const latest = await backups.create();
+    expect(existsSync(latest)).toBe(true);
+    expect(existsSync(filePath)).toBe(false);
+    expect(readdirSync(backups.directory).filter((file) => file.endsWith(".sqlite"))).toHaveLength(1);
+  });
+
+  it("creates daily backups only when enabled and due", async () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    const backups = new LocalBackupService(store, stores.at(-1)!.directory);
+    const create = vi.spyOn(backups, "create").mockImplementation(async () => {
+      store.dispatch("settings", "update", { lastLocalBackupAt: new Date().toISOString() });
+      return "test-snapshot";
+    });
+    try {
+      backups.start();
+      await vi.advanceTimersByTimeAsync(3600_000);
+      expect(create).not.toHaveBeenCalled();
+      store.dispatch("settings", "update", { dailyLocalBackupEnabled: true });
+      backups.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(create).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(23 * 3600_000);
+      expect(create).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(3600_000);
+      expect(create).toHaveBeenCalledTimes(2);
+      store.dispatch("settings", "update", { dailyLocalBackupEnabled: false });
+      await vi.advanceTimersByTimeAsync(24 * 3600_000);
+      expect(create).toHaveBeenCalledTimes(2);
+    } finally { backups.stop(); }
+  });
   it("uses a unique temporary database directory for each store", () => {
     const first = createStore();
     const second = createStore();
@@ -409,9 +508,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("persists task blocks, availability, and reversible writes", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Write release notes", durationMinutes: 30 });
-    expect(store.dispatch("notes", "entityLinks", { entityId: task.id, entityKind: "task" })).toEqual({
-      outgoing: [], backlinks: [], broken: []
-    });
+    expect(() => store.dispatch("notes", "entityLinks", { entityId: task.id, entityKind: "task" })).toThrow("Unsupported");
     const block = store.dispatch("calendar", "scheduleTaskBlock", {
       taskId: task.id, calendarId: "primary", startsAt: "2026-10-02T09:00:00.000Z", durationMinutes: 30
     });

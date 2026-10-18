@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GoogleSyncService } from "./googleSync";
 import { googleTaskNotesMaxLength } from "./hcbTaskMetadata";
 
-function createService(): {
+function createService(settings: Record<string, unknown> = {}, pendingWrites: unknown[] = []): {
   deliverOutbox: ReturnType<typeof vi.fn>;
   pullGoogleCalendars: ReturnType<typeof vi.fn>;
   pullGoogleTasks: ReturnType<typeof vi.fn>;
@@ -13,7 +13,8 @@ function createService(): {
 } {
   const store = {
     googleAccounts: () => [{ accountId: "test-account", connectionState: "connected" }],
-    pendingSyncMutations: () => [],
+    dispatch: () => ({ syncMode: "balanced", ...settings }),
+    pendingSyncMutations: () => pendingWrites,
     setSyncRuntime: vi.fn()
   };
   const oauth = { onConnectionChange: vi.fn() };
@@ -30,7 +31,84 @@ function createService(): {
   return { ...internals, service };
 }
 
+afterEach(() => vi.useRealTimers());
+
 describe("GoogleSyncService", () => {
+  it("uses Google modification watermarks and advances them only after every task page succeeds", async () => {
+    const previous = "2026-10-01T10:00:00.000Z";
+    let failSecondPage = true;
+    const requests: URL[] = [];
+    const store = {
+      dispatch: () => ({ syncMode: "balanced", syncCalendarEventsEnabled: false }),
+      googleAccounts: () => [{ accountId: "account", connectionState: "connected" }],
+      pendingSyncMutations: () => [], setSyncRuntime: vi.fn(),
+      upsertGoogleTaskList: () => ({ id: "local-list" }), isSelectedTaskList: () => true,
+      googleSyncToken: () => previous, setGoogleSyncToken: vi.fn(),
+      upsertGoogleTaskBatch: vi.fn(), reconcileGoogleTaskParents: vi.fn()
+    };
+    const googleFetch = vi.fn(async (_account: string, url: URL) => {
+      if (url.pathname.endsWith("/lists")) return Response.json({ items: [{ id: "remote-list", title: "Inbox" }] });
+      requests.push(url);
+      if (!url.searchParams.has("pageToken")) return Response.json({ items: [{ id: "child", parent: "parent", updated: "2026-10-02T10:00:00.000Z" }], nextPageToken: "next" }, { headers: { date: "Fri, 02 Oct 2026 10:00:00 GMT" } });
+      if (failSecondPage) return Response.json({}, { status: 503 });
+      return Response.json({ items: [{ id: "parent", deleted: true, updated: "2026-10-03T10:00:00.000Z" }] });
+    });
+    const service = new GoogleSyncService(store as never, { googleFetch, onConnectionChange: vi.fn() } as never);
+    await expect(service.runNow({ readOnly: true })).rejects.toThrow();
+    expect(store.setGoogleSyncToken).not.toHaveBeenCalled();
+    expect(store.reconcileGoogleTaskParents).not.toHaveBeenCalled();
+    failSecondPage = false;
+    await service.runNow({ readOnly: true });
+    expect(store.setGoogleSyncToken).toHaveBeenCalledWith("account", "tasks-updated:remote-list", "2026-10-02T10:00:00.000Z");
+    expect(store.reconcileGoogleTaskParents).toHaveBeenCalledWith("local-list");
+    for (const request of requests) {
+      expect(request.searchParams.get("updatedMin")).toBe("2026-10-01T09:59:59.000Z");
+      expect(request.searchParams.get("showDeleted")).toBe("true");
+      expect(request.searchParams.get("showHidden")).toBe("true");
+    }
+  });
+  it("keeps manual edits queued and skips automatic refreshes", async () => {
+    vi.useFakeTimers();
+    const { service, pullGoogleTasks } = createService({ syncMode: "manual" });
+    service.startBackgroundSync();
+    service.scheduleAfterLocalMutation();
+    await service.runAutomatic("startup");
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(pullGoogleTasks).not.toHaveBeenCalled();
+    await service.runNow({ reason: "manual" });
+    expect(pullGoogleTasks).toHaveBeenCalledTimes(1);
+    service.stopBackgroundSync();
+  });
+
+  it("uses a 30-second cadence for near real-time and cancels timers on reconfiguration", async () => {
+    vi.useFakeTimers();
+    const settings = { syncMode: "near-real-time" };
+    const { service, pullGoogleTasks } = createService(settings);
+    service.startBackgroundSync();
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(pullGoogleTasks).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(pullGoogleTasks).toHaveBeenCalledTimes(1);
+    settings.syncMode = "manual";
+    service.startBackgroundSync();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(pullGoogleTasks).toHaveBeenCalledTimes(1);
+    service.stopBackgroundSync();
+  });
+
+  it("respects the individual sync service switches", async () => {
+    const { service, pullGoogleTasks, pullGoogleCalendars } = createService({ syncTasksEnabled: false, syncCalendarEventsEnabled: false });
+    await service.runNow();
+    expect(pullGoogleTasks).not.toHaveBeenCalled();
+    expect(pullGoogleCalendars).not.toHaveBeenCalled();
+  });
+
+  it("avoids a second full pull when there are no queued writes", async () => {
+    const { service, pullGoogleTasks, pullGoogleCalendars } = createService();
+    await service.runNow();
+    expect(pullGoogleTasks).toHaveBeenCalledTimes(1);
+    expect(pullGoogleCalendars).toHaveBeenCalledTimes(1);
+  });
   it("uploads a user-selected file resumably to the private HCB Drive folder", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-drive-upload-"));
     const filePath = join(directory, "brief.txt");
@@ -90,7 +168,7 @@ describe("GoogleSyncService", () => {
   });
 
   it("keeps the normal pull-deliver-pull cycle outside read-only mode", async () => {
-    const { deliverOutbox, pullGoogleCalendars, pullGoogleTasks, service } = createService();
+    const { deliverOutbox, pullGoogleCalendars, pullGoogleTasks, service } = createService({}, [{}]);
 
     await service.runNow({ accountId: "test-account" });
 
@@ -103,6 +181,7 @@ describe("GoogleSyncService", () => {
     const requests: URL[] = [];
     const store = {
       googleAccounts: () => [{ accountId: "test-account", connectionState: "connected" }],
+      dispatch: () => ({ syncMode: "balanced" }),
       pendingSyncMutations: () => [],
       setSyncRuntime: vi.fn(),
       upsertGoogleTaskList: vi.fn(() => ({ id: "local-list" })),
@@ -132,6 +211,11 @@ describe("GoogleSyncService", () => {
         throw new Error(`Unexpected ${target}`);
       })
     };
+    Object.assign(store, {
+      upsertGoogleTaskBatch: vi.fn((items: Record<string, any>[], listId: string) => items.forEach((item) => (store.upsertGoogleTask as (...args: any[]) => void)(item, listId))),
+      reconcileGoogleTaskParents: vi.fn(),
+      upsertGoogleEventBatch: vi.fn((items: Record<string, any>[], calendarId: string) => items.forEach((item) => (store.upsertGoogleEvent as (...args: any[]) => void)(item, calendarId)))
+    });
     const service = new GoogleSyncService(store as never, oauth as never);
 
     await service.runNow({ accountId: "test-account", readOnly: true });

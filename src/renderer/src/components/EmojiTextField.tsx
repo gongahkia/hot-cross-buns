@@ -1,6 +1,6 @@
-import data from "@emoji-mart/data";
 import {
   forwardRef,
+  useEffect,
   useMemo,
   useRef,
   useState
@@ -24,7 +24,10 @@ interface EmojiEntry {
   terms: string[];
 }
 
-const emojiEntries = Object.entries(((data as { emojis?: Record<string, unknown> }).emojis ?? {}))
+let emojiEntriesPromise: Promise<EmojiEntry[]> | null = null;
+function loadEmojiEntries(): Promise<EmojiEntry[]> {
+  emojiEntriesPromise ??= import("@emoji-mart/data").then(({ default: data }) => {
+    return Object.entries(((data as { emojis?: Record<string, unknown> }).emojis ?? {}))
   .map(([id, value]) => {
     const emoji = value as {
       id?: string;
@@ -46,6 +49,10 @@ const emojiEntries = Object.entries(((data as { emojis?: Record<string, unknown>
     };
   })
   .filter((entry): entry is EmojiEntry => entry !== null);
+
+  });
+  return emojiEntriesPromise;
+}
 
 function setRefs<T>(node: T, refs: Array<Ref<T> | undefined>): void {
   for (const ref of refs) {
@@ -91,6 +98,14 @@ function useEmojiField(
   const innerRef = useRef<EmojiElement | null>(null);
   const [queryRange, setQueryRange] = useState<{ end: number; query: string; start: number } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [emojiEntries, setEmojiEntries] = useState<EmojiEntry[]>([]);
+  const queryActive = queryRange !== null;
+  useEffect(() => {
+    if (!queryActive || emojiEntries.length > 0) return;
+    let active = true;
+    void loadEmojiEntries().then((entries) => { if (active) setEmojiEntries(entries); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [queryActive, emojiEntries.length]);
   const suggestions = useMemo(() => {
     if (!queryRange) {
       return [];
@@ -99,7 +114,7 @@ function useEmojiField(
     return emojiEntries
       .filter((entry) => entry.terms.some((term) => term.includes(queryRange.query)))
       .slice(0, 8);
-  }, [queryRange]);
+  }, [queryRange, emojiEntries]);
 
   function refreshQuery(nextValue: string, cursor: number): void {
     setQueryRange(emojiQuery(nextValue, cursor));

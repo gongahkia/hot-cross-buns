@@ -99,6 +99,8 @@ export function useSettingsMutations({
         refreshSyncStatus();
         refreshDiagnosticsSummary();
         if (
+          request.action === "refresh" ||
+          request.action === "restoreLocalNotes" ||
           request.action === "clearGoogleCache" ||
           request.action === "forceFullResync" ||
           request.action === "resetOnboarding"

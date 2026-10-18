@@ -15,8 +15,6 @@ import { EmojiInput } from "../../../components/EmojiTextField";
 import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
 import { Badge, Button, cx } from "../../../components/primitives";
 import { AutoTagAudit } from "../AutoTagAudit";
-import { AttachmentPanel } from "../AttachmentPanel";
-import { EntityLinksPanel } from "../EntityLinksPanel";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
 import type { NoteViewModel } from "../coreViewModels";
 import { MarkdownPreview } from "../MarkdownPreview";
@@ -119,7 +117,6 @@ export function NoteInspectorSummary({
         <MarkdownPreview ariaLabel="Note preview" body={note.body} plannerLinkTargets={plannerLinkTargets(source)} />
       ) : <p className="text-[var(--text-base)] text-text-muted">No content</p>}
 
-      <AttachmentPanel entityId={note.id} entityKind="note" />
 
       {properties.length > 0 ? (
         <div className="grid gap-2">
@@ -181,7 +178,6 @@ export function NoteInspectorSummary({
         </div>
       ) : null}
 
-      <EntityLinksPanel entityId={note.id} entityKind="note" />
     </div>
   );
 }
@@ -480,10 +476,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           )}
         </div>
 
-        {!createMode && viewMode === "edit" ? (
-          <AttachmentPanel editable entityId={note.id} entityKind="note" />
-        ) : null}
-
         {properties.length > 0 ? <div className="grid gap-2">
           <div className="text-[var(--text-xs)] font-semibold uppercase text-text-muted">Properties</div>
           <div className="flex flex-wrap gap-2">
@@ -565,7 +557,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
             </div>
           </div> : null}
         </div> : null}
-        {!createMode ? <EntityLinksPanel entityId={note.id} entityKind="note" /> : null}
       </div>
     );
   }

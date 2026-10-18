@@ -6,6 +6,8 @@ import { basename, extname } from "node:path";
 import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
 import { googleTaskNotesMaxLength, googleTaskTitleMaxLength, withHcbTaskMetadata } from "./hcbTaskMetadata";
 import { googleOriginalStartQueryValue } from "./googleRecurrence";
+import { recordTiming } from "../diagnostics/performance";
+import { setImmediate as yieldToRequests } from "node:timers/promises";
 
 type JsonRecord = Record<string, any>;
 type WorkspaceService = "driveSearch" | "driveUpload" | "gmail";
@@ -60,8 +62,10 @@ export class GoogleSyncService {
 
   runNow(input: JsonRecord = {}): Promise<JsonRecord> {
     if (this.inFlight) return this.inFlight;
+    const startedAt = performance.now();
     this.inFlight = this.sync(input).finally(() => {
       this.inFlight = null;
+      recordTiming({ kind: "sync", name: "google.sync", durationMs: performance.now() - startedAt });
     });
     return this.inFlight;
   }
@@ -71,9 +75,22 @@ export class GoogleSyncService {
     return () => this.events.off("status", listener);
   }
 
-  startBackgroundSync(intervalMs = 5 * 60_000): void {
-    if (this.interval) return;
-    this.interval = setInterval(() => void this.runNow({ reason: "interval" }).catch(() => undefined), intervalMs);
+  /** Explicit refresh always works; automatic activity follows the user's mode. */
+  async runAutomatic(reason: string): Promise<void> {
+    if (this.syncSettings().syncMode === "manual") return;
+    await this.runNow({ reason });
+  }
+
+  private syncSettings(): JsonRecord {
+    return this.store.dispatch("settings", "get", {});
+  }
+
+  startBackgroundSync(): void {
+    this.stopBackgroundSync();
+    const mode = this.syncSettings().syncMode;
+    if (mode === "manual") return;
+    const intervalMs = mode === "near-real-time" ? 30_000 : 5 * 60_000;
+    this.interval = setInterval(() => void this.runAutomatic("interval").catch(() => undefined), intervalMs);
     this.interval.unref?.();
   }
 
@@ -84,12 +101,22 @@ export class GoogleSyncService {
     this.writeDebounce = null;
   }
 
+  async shutdown(): Promise<void> {
+    this.stopBackgroundSync();
+    await this.inFlight?.catch(() => undefined);
+  }
+
   scheduleAfterLocalMutation(): void {
     if (this.writeDebounce) clearTimeout(this.writeDebounce);
+    const mode = this.syncSettings().syncMode;
+    if (mode === "manual") {
+      this.writeDebounce = null;
+      return;
+    }
     this.writeDebounce = setTimeout(() => {
       this.writeDebounce = null;
-      void this.runNow({ reason: "local-mutation" }).catch(() => undefined);
-    }, 500);
+      void this.runAutomatic("local-mutation").catch(() => undefined);
+    }, mode === "near-real-time" ? 150 : 500);
   }
 
   async forceFullResync(input: JsonRecord = {}): Promise<JsonRecord> {
@@ -259,17 +286,21 @@ export class GoogleSyncService {
 
     this.publishStatus({ state: "syncing", pendingMutationCount: this.store.pendingSyncMutations().length, offline: false, stale: false });
     try {
+      const settings = this.syncSettings();
       const failures: Error[] = [];
       for (const account of accounts) {
         try {
-          await this.pullGoogleTasks(account.accountId);
-          await this.pullGoogleCalendars(account.accountId);
+          if (settings.syncTasksEnabled !== false) await this.pullGoogleTasks(account.accountId);
+          if (settings.syncCalendarEventsEnabled !== false) await this.pullGoogleCalendars(account.accountId);
           if (!readOnly) {
+            const hasPendingWrites = this.store.pendingSyncMutations(100, account.accountId).length > 0;
             await this.deliverOutbox(account.accountId);
             // Pull once more so remote canonical values, including generated ids
             // and server-normalised recurrence, are reflected after a write batch.
-            await this.pullGoogleTasks(account.accountId);
-            await this.pullGoogleCalendars(account.accountId);
+            if (hasPendingWrites) {
+              if (settings.syncTasksEnabled !== false) await this.pullGoogleTasks(account.accountId);
+              if (settings.syncCalendarEventsEnabled !== false) await this.pullGoogleCalendars(account.accountId);
+            }
           }
         } catch (error: unknown) {
           failures.push(error instanceof Error ? error : new Error("Google sync failed."));
@@ -305,16 +336,27 @@ export class GoogleSyncService {
     for (const remoteList of taskLists) {
       const localList = this.store.upsertGoogleTaskList(remoteList, accountId);
       if (!this.store.isSelectedTaskList(localList.id)) continue;
-      const remoteTasks = await this.allPages(accountId,
+      const key = `tasks-updated:${remoteList.id}`;
+      const previous = this.store.googleSyncToken(accountId, key);
+      const previousUpdate = previous && Number.isFinite(Date.parse(previous)) ? Date.parse(previous) : 0;
+      let checkpoint = previousUpdate;
+      // Checkpoint the first response's server clock, never the newest item
+      // seen on a later page: an earlier page may change during pagination.
+      const updatedMin = previousUpdate ? new Date(previousUpdate - 1000).toISOString() : undefined;
+      await this.streamPages(accountId,
         `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(remoteList.id)}/tasks`,
-        { maxResults: "100", showCompleted: "true", showHidden: "true", showDeleted: "true" }
+        { maxResults: "100", showCompleted: "true", showHidden: "true", showDeleted: "true", ...(updatedMin ? { updatedMin } : {}) },
+        async (tasks) => {
+          this.store.upsertGoogleTaskBatch(tasks, localList.id);
+          await yieldToRequests();
+        },
+        (response) => {
+          const serverTime = Date.parse(response.headers.get("date") ?? "");
+          if (Number.isFinite(serverTime)) checkpoint = Math.max(checkpoint, serverTime);
+        }
       );
-      // Insert parents before children where possible. A second pass assigns a
-      // parent that appeared after its child in a provider page.
-      for (const remoteTask of remoteTasks) this.store.upsertGoogleTask(remoteTask, localList.id);
-      for (const remoteTask of remoteTasks) {
-        if (remoteTask.parent) this.store.upsertGoogleTask(remoteTask, localList.id);
-      }
+      this.store.reconcileGoogleTaskParents(localList.id);
+      if (checkpoint) this.store.setGoogleSyncToken(accountId, key, new Date(checkpoint).toISOString());
     }
   }
 
@@ -350,12 +392,17 @@ export class GoogleSyncService {
     if (syncToken) query.syncToken = syncToken;
 
     try {
-      const page = await this.allPagesWithSyncToken(accountId,
+      const nextSyncToken = await this.streamPages(accountId,
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(googleId)}/events`,
-        query
+        query,
+        async (events) => {
+          for (let index = 0; index < events.length; index += 100) {
+            this.store.upsertGoogleEventBatch(events.slice(index, index + 100), localCalendar.id);
+            await yieldToRequests();
+          }
+        }
       );
-      for (const event of page.items) this.store.upsertGoogleEvent(event, localCalendar.id);
-      if (page.nextSyncToken) this.store.setGoogleSyncToken(accountId, tokenKey, page.nextSyncToken);
+      if (nextSyncToken) this.store.setGoogleSyncToken(accountId, tokenKey, nextSyncToken);
     } catch (error: unknown) {
       if (error instanceof GoogleApiError && error.status === 410 && !retriedAfterReset) {
         this.store.setGoogleSyncToken(accountId, tokenKey, null);
@@ -367,7 +414,10 @@ export class GoogleSyncService {
   }
 
   private async deliverOutbox(accountId: string): Promise<void> {
+    const settings = this.syncSettings();
     for (const mutation of this.store.pendingSyncMutations(100, accountId)) {
+      if ((mutation.kind.startsWith("task") && settings.syncTasksEnabled === false) ||
+          (mutation.kind.startsWith("event") && settings.syncCalendarEventsEnabled === false)) continue;
       try {
         await this.deliverMutation(accountId, mutation);
         this.store.completeSyncMutation(mutation.id);
@@ -822,6 +872,18 @@ export class GoogleSyncService {
     return (await this.allPagesWithSyncToken(accountId, url, query)).items;
   }
 
+  private async streamPages(accountId: string, url: string, query: Record<string, string>, consume: (items: JsonRecord[]) => Promise<void>, firstResponse?: (response: Response) => void): Promise<string | undefined> {
+    let pageToken: string | undefined;
+    let nextSyncToken: string | undefined;
+    do {
+      const page = await this.requestJson<GooglePage>(accountId, url, { query: { ...query, ...(pageToken ? { pageToken } : {}) }, ...(!pageToken && firstResponse ? { observeResponse: firstResponse } : {}) });
+      await consume(page.items ?? []);
+      pageToken = page.nextPageToken;
+      nextSyncToken = page.nextSyncToken ?? nextSyncToken;
+    } while (pageToken);
+    return nextSyncToken;
+  }
+
   private async allPagesWithSyncToken(accountId: string, url: string, query: Record<string, string>): Promise<{ items: JsonRecord[]; nextSyncToken?: string }> {
     const items: JsonRecord[] = [];
     let pageToken: string | undefined;
@@ -835,10 +897,10 @@ export class GoogleSyncService {
     return { items, ...(nextSyncToken ? { nextSyncToken } : {}) };
   }
 
-  private async requestJson<T>(accountId: string, url: string, init: RequestInit & { query?: Record<string, string> } = {}): Promise<T> {
+  private async requestJson<T>(accountId: string, url: string, init: RequestInit & { query?: Record<string, string>; observeResponse?: (response: Response) => void } = {}): Promise<T> {
     const target = new URL(url);
     for (const [key, value] of Object.entries(init.query ?? {})) target.searchParams.set(key, value);
-    const { query: _query, ...requestInit } = init;
+    const { query: _query, observeResponse, ...requestInit } = init;
     let response: Response;
     try {
       response = await this.oauth.googleFetch(accountId, target, requestInit);
@@ -849,6 +911,7 @@ export class GoogleSyncService {
       const detail = await response.text().catch(() => "");
       throw new GoogleApiError(response.status, googleErrorMessage(response.status, detail));
     }
+    observeResponse?.(response);
     if (response.status === 204) return undefined as T;
     return await response.json() as T;
   }

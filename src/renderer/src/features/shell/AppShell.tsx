@@ -139,7 +139,7 @@ export function AppShell(): JSX.Element {
   );
   const googleConnected = source.googleStatus.accounts.some((account) => account.connectionState === "connected");
   const onboardingVisible =
-    (source.settings.onboardingStatus === "pending" || !googleConnected) &&
+    source.settings.onboardingStatus === "pending" &&
     source.dataState !== "loading" &&
     source.dataState !== "offline" &&
     source.dataState !== "error";

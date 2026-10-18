@@ -5,7 +5,6 @@ import type { ConvertSourceCleanup } from "../../conversionEvents";
 import {
   readLocalStorageNumberRecord,
   readLocalStorageStringArray,
-  writeLocalStorageJSON
 } from "../../localStorageHelpers";
 import {
   CacheStatePanel,
@@ -66,12 +65,12 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     listIds: null
   });
   const [starredTaskIds, setStarredTaskIds] = useState<Set<string>>(
-    () => new Set(readLocalStorageStringArray(starredTasksStorageKey))
+    () => new Set<string>(source.settings.starredTaskIds ?? readLocalStorageStringArray(starredTasksStorageKey))
   );
   const [starredTaskAt, setStarredTaskAt] = useState<Record<string, number>>(
-    () => readLocalStorageNumberRecord(starredTasksAtStorageKey)
+    () => source.settings.starredTaskAt ?? readLocalStorageNumberRecord(starredTasksAtStorageKey)
   );
-  const [listSorts, setListSorts] = useState<Record<string, TaskListSort>>({});
+  const [listSorts, setListSorts] = useState<Record<string, TaskListSort>>(source.settings.taskListSorts ?? {});
   const handledCommandNonce = useRef<number | null>(null);
   const boardActionsRef = useRef<TaskBoardActionHandlers | null>(null);
   const scheduledBlocksByTask = useMemo(
@@ -124,12 +123,16 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   }, [openNewTask, selectTask]);
 
   useEffect(() => {
-    writeLocalStorageJSON(starredTasksStorageKey, [...starredTaskIds]);
-  }, [starredTaskIds]);
+    if (!Array.isArray(source.settings.starredTaskIds) && starredTaskIds.size > 0) {
+      void source.updateSettings({ starredTaskIds: [...starredTaskIds], starredTaskAt });
+    }
+  }, [source.settings.starredTaskIds, source.updateSettings]);
 
   useEffect(() => {
-    writeLocalStorageJSON(starredTasksAtStorageKey, starredTaskAt);
-  }, [starredTaskAt]);
+    if (Array.isArray(source.settings.starredTaskIds)) setStarredTaskIds(new Set(source.settings.starredTaskIds));
+    if (source.settings.starredTaskAt) setStarredTaskAt(source.settings.starredTaskAt);
+    if (source.settings.taskListSorts) setListSorts(source.settings.taskListSorts);
+  }, [source.settings.starredTaskIds, source.settings.starredTaskAt, source.settings.taskListSorts]);
 
   function deleteTaskList(taskListId: string): void {
     void source.deleteTaskList(taskListId);
@@ -167,33 +170,19 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   }
 
   function toggleTaskStar(taskId: string): void {
-    setStarredTaskIds((current) => {
-      const next = new Set(current);
-
-      if (next.has(taskId)) {
-        next.delete(taskId);
-        setStarredTaskAt((timestamps) => {
-          const result = { ...timestamps };
-          delete result[taskId];
-          return result;
-        });
-      } else {
-        next.add(taskId);
-        setStarredTaskAt((timestamps) => ({
-          ...timestamps,
-          [taskId]: Date.now()
-        }));
-      }
-
-      return next;
-    });
+    const next = new Set(starredTaskIds);
+    const timestamps = { ...starredTaskAt };
+    if (next.has(taskId)) { next.delete(taskId); delete timestamps[taskId]; }
+    else { next.add(taskId); timestamps[taskId] = Date.now(); }
+    setStarredTaskIds(next);
+    setStarredTaskAt(timestamps);
+    void source.updateSettings({ starredTaskIds: [...next], starredTaskAt: timestamps });
   }
 
   function setListSort(listId: string, sort: TaskListSort): void {
-    setListSorts((current) => ({
-      ...current,
-      [listId]: sort
-    }));
+    const next = { ...listSorts, [listId]: sort };
+    setListSorts(next);
+    void source.updateSettings({ taskListSorts: next });
   }
 
   function moveTaskToList(taskId: string, listId: string): void {

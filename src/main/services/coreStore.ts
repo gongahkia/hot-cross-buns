@@ -5,6 +5,11 @@ import { dirname } from "node:path";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 import { assertIsolatedTestDatabasePath } from "./testDatabasePaths";
+import { recordTiming, timed, timingSnapshot } from "../diagnostics/performance";
+import { getStartupTimings, markStartupTiming } from "../startupTiming";
+import { appLogger } from "../diagnostics/appLogger";
+import { CoreStoreError } from "./coreStoreError";
+export { CoreStoreError } from "./coreStoreError";
 
 type JsonRecord = Record<string, any>;
 
@@ -14,6 +19,8 @@ export interface CoreNativeBridge {
   requestNotificationPermission: () => JsonRecord | Promise<JsonRecord>;
   openExternalUrl: (request: { url: string }) => JsonRecord | Promise<JsonRecord>;
   applySettings?: (settings: JsonRecord) => void;
+  checkForUpdates?: () => Promise<JsonRecord>;
+  rescheduleNotifications?: () => JsonRecord;
 }
 
 export interface PendingSyncMutation {
@@ -180,7 +187,7 @@ const defaultSettings: JsonRecord = {
   semanticSearchMode: "lexical",
   embeddingModelId: "hcb-local-hash-384",
   semanticSearchModels: [],
-  agentActionTrayEnabled: true,
+  agentActionTrayEnabled: false,
   webhooksEnabled: false
 };
 
@@ -196,6 +203,8 @@ export class CoreStore {
    * an app restart cannot accidentally apply an old plan against new data.
    */
   private readonly smartSchedulePlans = new Map<string, SmartSchedulePlan>();
+  private eventRangeCacheRevision = -1;
+  private readonly eventRangeCache = new Map<string, JsonRecord[]>();
 
   constructor(databasePath: string) {
     assertIsolatedTestDatabasePath(databasePath);
@@ -205,12 +214,46 @@ export class CoreStore {
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
     this.db.pragma("synchronous = NORMAL");
-    this.migrate();
+    timed("database.migration", "startup", () => this.migrate());
     this.seed();
   }
 
   close(): void {
     this.db.close();
+  }
+
+  async backupTo(filePath: string): Promise<void> {
+    await this.db.backup(filePath);
+    chmodSync(filePath, 0o600);
+  }
+
+  /** Recover device-only notes without replaying old Google mutation queues. */
+  restoreLocalNotes(filePath: string): number {
+    const snapshot = new Database(filePath, { readonly: true, fileMustExist: true });
+    try {
+      if (snapshot.pragma("quick_check", { simple: true }) !== "ok") throw new CoreStoreError("The backup failed its integrity check.");
+      const version = snapshot.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number };
+      if (version.version !== schemaVersion) throw new CoreStoreError("This backup uses a different database version. Open it with a matching version of Hot Cross Buns.");
+      const insertList = this.db.prepare(`INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(@id,@title,@created_at,@updated_at)
+        ON CONFLICT(id) DO UPDATE SET title=excluded.title,updated_at=excluded.updated_at`);
+      const insertNote = this.db.prepare(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at,deleted_at)
+        VALUES(@id,@title,@body,@list_id,@tags_json,@created_at,@updated_at,NULL)
+        ON CONFLICT(id) DO UPDATE SET title=excluded.title,body=excluded.body,list_id=excluded.list_id,tags_json=excluded.tags_json,updated_at=excluded.updated_at,deleted_at=NULL`);
+      return this.db.transaction(() => {
+        for (const row of snapshot.prepare("SELECT id,title,created_at,updated_at FROM note_lists").iterate()) insertList.run(row);
+        let count = 0;
+        for (const row of snapshot.prepare("SELECT id,title,body,list_id,tags_json,created_at,updated_at FROM notes WHERE deleted_at IS NULL").iterate()) {
+          insertNote.run(row);
+          count += 1;
+        }
+        return count;
+      })();
+    } catch (error) {
+      if (error instanceof CoreStoreError) throw error;
+      throw new CoreStoreError("This file is not a readable Hot Cross Buns backup.");
+    } finally {
+      snapshot.close();
+    }
   }
 
   /**
@@ -686,6 +729,8 @@ export class CoreStore {
       locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,google_parent_id,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET list_id=excluded.list_id,title=excluded.title,notes=excluded.notes,status=excluded.status,
+      priority=excluded.priority,planned_start=excluded.planned_start,planned_end=excluded.planned_end,duration_minutes=excluded.duration_minutes,
+      locked_schedule=excluded.locked_schedule,snooze_until=excluded.snooze_until,tags_json=excluded.tags_json,
       due_at=excluded.due_at,parent_id=excluded.parent_id,sort_order=excluded.sort_order,google_id=excluded.google_id,
       google_etag=excluded.google_etag,google_parent_id=excluded.google_parent_id,updated_at=excluded.updated_at`)
       .run(localId, localListId, remote.title ?? "Untitled task", remoteTask.notes,
@@ -697,6 +742,21 @@ export class CoreStore {
     this.db.prepare("UPDATE tasks SET google_list_id=? WHERE id=?")
       .run(localList.googleId ?? null, localId);
     return this.requireTask(localId);
+  }
+
+  upsertGoogleTaskBatch(tasks: readonly JsonRecord[], localListId: string): void {
+    this.db.transaction(() => { for (const task of tasks) this.upsertGoogleTask(task, localListId); })();
+  }
+
+  reconcileGoogleTaskParents(localListId: string): void {
+    this.db.prepare(`UPDATE tasks SET parent_id=(SELECT parent.id FROM tasks parent WHERE parent.list_id=tasks.list_id AND parent.google_id=tasks.google_parent_id)
+      WHERE list_id=? AND google_parent_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM outbox WHERE entity_id=tasks.id AND kind LIKE 'task.%' AND state IN ('pending','conflict')
+      )`).run(localListId);
+  }
+
+  upsertGoogleEventBatch(events: readonly JsonRecord[], localCalendarId: string): void {
+    this.db.transaction(() => { for (const event of events) this.upsertGoogleEvent(event, localCalendarId); })();
   }
 
   upsertGoogleCalendar(remote: JsonRecord, accountId: string): JsonRecord {
@@ -811,6 +871,11 @@ export class CoreStore {
   }
 
   dispatch(namespace: string, action: string, input: JsonRecord = {}): any {
+    if (namespace === "diagnostics") return this.dispatchOperation(namespace, action, input);
+    return timed(`${namespace}.${action}`, "sqlite_query", () => this.dispatchOperation(namespace, action, input));
+  }
+
+  private dispatchOperation(namespace: string, action: string, input: JsonRecord): any {
     switch (`${namespace}.${action}`) {
       case "bootstrap.get":
         return this.bootstrap(input);
@@ -886,10 +951,6 @@ export class CoreStore {
         return this.renameNoteList(input);
       case "notes.deleteNoteList":
         return this.deleteNoteList(input);
-      case "notes.entityLinks":
-        return { outgoing: [], backlinks: [], broken: [] };
-      case "notes.listBrokenLinks":
-        return { items: [] };
       case "notes.linkSuggest":
         return { items: this.search(input.query ?? "", input.limit ?? 8).items };
       case "notes.legacyMigrationPreview":
@@ -904,13 +965,6 @@ export class CoreStore {
         return this.updateTag(input);
       case "tags.delete":
         return this.deleteTag(input);
-      case "tags.merge":
-      case "tags.bulkApply":
-      case "tags.previewAutoReapply":
-      case "tags.applyAutoReapply":
-        return { items: [], affectedCount: 0, traces: [] };
-      case "tags.analytics":
-        return { items: [] };
       case "search.query":
         return this.search(input.query ?? "", input.limit ?? 30);
       case "settings.get":
@@ -918,17 +972,17 @@ export class CoreStore {
       case "settings.update":
         return this.updateSettings(input);
       case "settings.recoveryAction":
+        if (input.action === "checkForUpdates" && this.nativeBridge?.checkForUpdates) {
+          return this.nativeBridge.checkForUpdates().then((status) => {
+            if (status.state === "error" || status.state === "unsupported") throw new CoreStoreError(status.message ?? "Update check could not complete.");
+            return { completed: true, message: status.message ?? "Update check completed." };
+          });
+        }
         if (input.action === "resetOnboarding") {
           this.updateSettings({ onboardingStatus: "pending", setupCompletedAt: null });
           return { completed: true, message: "Setup assistant will open again." };
         }
-        return { completed: true, message: "The requested local recovery action completed." };
-      case "settings.customizationStatus":
-        return { extensions: [], snippets: [] };
-      case "settings.listAttachments":
-      case "settings.listIcsSubscriptions":
-      case "settings.listLocalPointers":
-        return { items: [] };
+        throw new CoreStoreError("This recovery action is not available.");
       case "sync.status":
         return this.syncStatus();
       case "google.status":
@@ -960,7 +1014,15 @@ export class CoreStore {
       case "diagnostics.summary":
         return this.diagnostics();
       case "diagnostics.logs":
-        return { entries: [], persistedText: "" };
+        return appLogger.snapshot(input);
+      case "diagnostics.clearLogs":
+        appLogger.clear();
+        return { cleared: true, message: "Session logs cleared." };
+      case "diagnostics.copyableSummary":
+        return { text: JSON.stringify(this.diagnostics(), null, 2) };
+      case "diagnostics.rescheduleNotifications":
+        if (!this.nativeBridge?.rescheduleNotifications) throw new CoreStoreError("Notifications are not available in this runtime.");
+        return this.nativeBridge.rescheduleNotifications();
       case "diagnostics.history":
         return { entries: this.mutationHistory(input) };
       case "diagnostics.pendingMutations":
@@ -970,9 +1032,11 @@ export class CoreStore {
       case "diagnostics.cancelPendingMutation":
         return this.cancelMutation(input);
       case "diagnostics.markShellVisible":
+        return markStartupTiming("shellVisibleMs");
       case "diagnostics.markCachedDataRendered":
+        return markStartupTiming("cachedDataRenderedMs");
       case "diagnostics.recordTiming":
-        return { recorded: true };
+        return { recorded: this.settings().diagnosticsIncludePerformance && recordTiming(input) };
       default:
         throw new CoreStoreError(`Unsupported restored UI operation: ${namespace}.${action}`);
     }
@@ -1125,6 +1189,7 @@ export class CoreStore {
       CREATE UNIQUE INDEX IF NOT EXISTS tasks_google_list_id_idx ON tasks(list_id,google_id) WHERE google_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS calendars_google_account_id_idx ON calendars(account_id,google_id) WHERE google_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS events_google_calendar_id_idx ON events(calendar_id,google_id) WHERE google_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS tasks_order_idx ON tasks((due_at IS NULL),due_at,sort_order,title COLLATE NOCASE,id,status);
     `);
     this.installFullTextSearch();
     this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
@@ -1156,60 +1221,43 @@ export class CoreStore {
 
   private installFullTextSearch(): void {
     try {
-      this.db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-          domain UNINDEXED, entity_id UNINDEXED, title, body
-        );
-        CREATE TRIGGER IF NOT EXISTS search_tasks_insert AFTER INSERT ON tasks BEGIN
-          INSERT INTO search_index(domain,entity_id,title,body)
-            SELECT 'tasks',new.id,new.title,new.notes WHERE new.status != 'deleted';
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_tasks_update AFTER UPDATE ON tasks BEGIN
-          DELETE FROM search_index WHERE domain='tasks' AND entity_id=old.id;
-          INSERT INTO search_index(domain,entity_id,title,body)
-            SELECT 'tasks',new.id,new.title,new.notes WHERE new.status != 'deleted';
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_tasks_delete AFTER DELETE ON tasks BEGIN
-          DELETE FROM search_index WHERE domain='tasks' AND entity_id=old.id;
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_events_insert AFTER INSERT ON events BEGIN
-          INSERT INTO search_index(domain,entity_id,title,body) VALUES('calendar',new.id,new.title,new.description);
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_events_update AFTER UPDATE ON events BEGIN
-          DELETE FROM search_index WHERE domain='calendar' AND entity_id=old.id;
-          INSERT INTO search_index(domain,entity_id,title,body) VALUES('calendar',new.id,new.title,new.description);
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_events_delete AFTER DELETE ON events BEGIN
-          DELETE FROM search_index WHERE domain='calendar' AND entity_id=old.id;
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_notes_insert AFTER INSERT ON notes BEGIN
-          INSERT INTO search_index(domain,entity_id,title,body)
-            SELECT 'notes',new.id,new.title,new.body WHERE new.deleted_at IS NULL;
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_notes_update AFTER UPDATE ON notes BEGIN
-          DELETE FROM search_index WHERE domain='notes' AND entity_id=old.id;
-          INSERT INTO search_index(domain,entity_id,title,body)
-            SELECT 'notes',new.id,new.title,new.body WHERE new.deleted_at IS NULL;
-        END;
-        CREATE TRIGGER IF NOT EXISTS search_notes_delete AFTER DELETE ON notes BEGIN
-          DELETE FROM search_index WHERE domain='notes' AND entity_id=old.id;
-        END;
-      `);
       const version = this.db.prepare("SELECT value FROM sync_meta WHERE key='search-index-version'").get() as { value?: string } | undefined;
-      if (version?.value !== "1") {
+      if (version?.value !== "2") {
         this.db.transaction(() => {
-          this.db.prepare("DELETE FROM search_index").run();
-          this.db.prepare("INSERT INTO search_index(domain,entity_id,title,body) SELECT 'tasks',id,title,notes FROM tasks WHERE status != 'deleted'").run();
-          this.db.prepare("INSERT INTO search_index(domain,entity_id,title,body) SELECT 'calendar',id,title,description FROM events").run();
-          this.db.prepare("INSERT INTO search_index(domain,entity_id,title,body) SELECT 'notes',id,title,body FROM notes WHERE deleted_at IS NULL").run();
-          this.db.prepare("INSERT INTO sync_meta(key,value) VALUES('search-index-version','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+          this.db.exec(`CREATE TABLE IF NOT EXISTS search_documents (
+            id INTEGER PRIMARY KEY, domain TEXT NOT NULL, entity_id TEXT NOT NULL, UNIQUE(domain,entity_id)
+          );
+          CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(domain UNINDEXED, entity_id UNINDEXED, title, body);`);
+          for (const table of ["tasks", "events", "notes"]) {
+            for (const action of ["insert", "update", "delete"]) this.db.exec(`DROP TRIGGER IF EXISTS search_${table}_${action}`);
+          }
+          this.db.exec("DELETE FROM search_index; DELETE FROM search_documents;");
+          const sources = [
+            { table: "tasks", domain: "tasks", body: "notes", predicate: "status != 'deleted'" },
+            { table: "events", domain: "calendar", body: "description", predicate: "1=1" },
+            { table: "notes", domain: "notes", body: "body", predicate: "deleted_at IS NULL" }
+          ];
+          for (const { table, domain, body, predicate } of sources) {
+            const live = predicate === "1=1" ? "1=1" : `new.${predicate}`;
+            const insert = `INSERT INTO search_documents(domain,entity_id) VALUES('${domain}',new.id) ON CONFLICT(domain,entity_id) DO NOTHING;
+              INSERT INTO search_index(rowid,domain,entity_id,title,body)
+              SELECT id,'${domain}',new.id,new.title,new.${body} FROM search_documents WHERE domain='${domain}' AND entity_id=new.id AND ${live};`;
+            const remove = `DELETE FROM search_index WHERE rowid=(SELECT id FROM search_documents WHERE domain='${domain}' AND entity_id=old.id);`;
+            this.db.exec(`
+              CREATE TRIGGER search_${table}_insert AFTER INSERT ON ${table} BEGIN ${insert} END;
+              CREATE TRIGGER search_${table}_update AFTER UPDATE ON ${table} BEGIN ${remove} ${insert} END;
+              CREATE TRIGGER search_${table}_delete AFTER DELETE ON ${table} BEGIN ${remove} DELETE FROM search_documents WHERE domain='${domain}' AND entity_id=old.id; END;
+              INSERT INTO search_documents(domain,entity_id) SELECT '${domain}',id FROM ${table};
+              INSERT INTO search_index(rowid,domain,entity_id,title,body)
+              SELECT document.id,'${domain}',source.id,source.title,source.${body} FROM ${table} source
+              JOIN search_documents document ON document.domain='${domain}' AND document.entity_id=source.id WHERE ${predicate === "1=1" ? predicate : `source.${predicate}`};
+            `);
+          }
+          this.db.prepare("INSERT INTO sync_meta(key,value) VALUES('search-index-version','2') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
         })();
       }
       this.fullTextSearchAvailable = true;
     } catch {
-      // FTS5 is present in Electron's bundled SQLite today. Keep a correct,
-      // bounded fallback for unusual platform builds rather than preventing
-      // the planner from opening.
       this.fullTextSearchAvailable = false;
     }
   }
@@ -1283,6 +1331,8 @@ export class CoreStore {
   private listTasks(input: JsonRecord): JsonRecord {
     const requestedStatus = input.status ?? "all";
     const statuses = requestedStatus === "all" ? ["active", "completed"] : [requestedStatus];
+    const { limit, offset } = this.pageBounds(input);
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS count FROM tasks WHERE status IN (${statuses.map(() => "?").join(",")})`).get(...statuses) as { count: number }).count);
     const rows = this.db.prepare(`
       SELECT task.id, list.account_id AS accountId, task.list_id AS listId, task.title, task.notes, task.status, task.priority, task.due_at AS dueAt,
         parent_id AS parentId, planned_start AS plannedStart, planned_end AS plannedEnd,
@@ -1290,8 +1340,9 @@ export class CoreStore {
         snooze_until AS snoozeUntil, tags_json AS tags, sort_order AS sortOrder, task.updated_at AS updatedAt
       FROM tasks task JOIN task_lists list ON list.id=task.list_id WHERE task.status IN (${statuses.map(() => "?").join(",")})
       ORDER BY CASE WHEN task.due_at IS NULL THEN 1 ELSE 0 END, task.due_at, task.sort_order, task.title COLLATE NOCASE, task.id
-    `).all(...statuses) as any[];
-    return this.page(rows.map(taskFromRow), input);
+      LIMIT ? OFFSET ?
+    `).all(...statuses, limit, offset) as any[];
+    return { items: rows.map(taskFromRow), page: this.pageMetadata(limit, offset, total) };
   }
 
   private requireTask(id: string): JsonRecord {
@@ -1422,6 +1473,14 @@ export class CoreStore {
     const projectRecurrence = typeof input.start === "string" && typeof input.end === "string";
     const start = input.start ?? "0000-01-01T00:00:00.000Z";
     const end = input.end ?? "9999-12-31T23:59:59.999Z";
+    const revision = Number((this.db.prepare("SELECT total_changes() AS revision").get() as { revision: number }).revision);
+    if (revision !== this.eventRangeCacheRevision) {
+      this.eventRangeCache.clear();
+      this.eventRangeCacheRevision = revision;
+    }
+    const cacheKey = JSON.stringify([start, end, projectRecurrence]);
+    const cached = this.eventRangeCache.get(cacheKey);
+    if (cached) return this.page(cached, input);
     const rows = this.db.prepare(`SELECT event.id,calendar.account_id AS accountId,event.calendar_id AS calendarId,event.title,event.description,event.starts_at AS startsAt,event.ends_at AS endsAt,
       all_day AS allDay,completed,color_id AS colorId,location,recurrence_json AS recurrence,google_recurrence_json AS googleRecurrence,
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
@@ -1473,9 +1532,12 @@ export class CoreStore {
       if (projectRecurrence && (event.recurrenceLines?.length ?? 0) > 0 && !event.recurringEventId) return false;
       return event.startsAt < end && event.endsAt > start;
     });
-    return this.page([...ordinary, ...virtualOccurrences].sort((left, right) =>
+    const projected = [...ordinary, ...virtualOccurrences].sort((left, right) =>
       left.startsAt.localeCompare(right.startsAt) || left.id.localeCompare(right.id)
-    ), input);
+    );
+    this.eventRangeCache.set(cacheKey, projected);
+    if (this.eventRangeCache.size > 3) this.eventRangeCache.delete(this.eventRangeCache.keys().next().value!);
+    return this.page(projected, input);
   }
 
   private requireEvent(id: string): JsonRecord {
@@ -2200,11 +2262,12 @@ export class CoreStore {
   }
 
   private listNotes(input: JsonRecord): JsonRecord {
+    const { limit, offset } = this.pageBounds(input);
     const rows = this.db.prepare(`SELECT note.id,note.title,note.body,note.list_id AS listId,note.tags_json AS tagsJson,list.title AS listTitle,
       note.created_at AS createdAt,note.updated_at AS updatedAt
       FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id
-      WHERE note.deleted_at IS NULL ORDER BY note.updated_at DESC,note.id`).all() as JsonRecord[];
-    return { ...this.page(rows.map((row) => this.noteSummary(row)), input), lists: this.noteLists() };
+      WHERE note.deleted_at IS NULL ORDER BY note.updated_at DESC,note.id LIMIT ? OFFSET ?`).all(limit, offset) as JsonRecord[];
+    return { items: rows.map((row) => this.noteSummary(row)), page: this.pageMetadata(limit, offset, this.count("notes", "deleted_at IS NULL")), lists: this.noteLists() };
   }
 
   /**
@@ -2422,16 +2485,16 @@ export class CoreStore {
     const match = ftsQuery(query);
     if (this.fullTextSearchAvailable && match) {
       return {
-        items: this.db.prepare(`SELECT entity_id AS id,title,body AS snippet,domain,
+        items: this.db.prepare(`SELECT entity_id AS id,title,snippet(search_index,3,'','','…',32) AS snippet,domain,
           NULL AS snoozeUntil FROM search_index WHERE search_index MATCH ?
           ORDER BY bm25(search_index) LIMIT ?`).all(match, safeLimit) as JsonRecord[]
       };
     }
     const needle = `%${String(query).trim()}%`;
     const items = [
-      ...(this.db.prepare("SELECT id,title,notes AS snippet,'tasks' AS domain,snooze_until AS snoozeUntil FROM tasks WHERE status != 'deleted' AND (title LIKE ? OR notes LIKE ?) LIMIT ?").all(needle, needle, limit) as JsonRecord[]),
-      ...(this.db.prepare("SELECT id,title,description AS snippet,'calendar' AS domain,NULL AS snoozeUntil FROM events WHERE title LIKE ? OR description LIKE ? LIMIT ?").all(needle, needle, limit) as JsonRecord[]),
-      ...(this.db.prepare("SELECT id,title,body AS snippet,'notes' AS domain,NULL AS snoozeUntil FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?) LIMIT ?").all(needle, needle, limit) as JsonRecord[])
+      ...(this.db.prepare("SELECT id,title,substr(notes,1,240) AS snippet,'tasks' AS domain,snooze_until AS snoozeUntil FROM tasks WHERE status != 'deleted' AND (title LIKE ? OR notes LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
+      ...(this.db.prepare("SELECT id,title,substr(description,1,240) AS snippet,'calendar' AS domain,NULL AS snoozeUntil FROM events WHERE title LIKE ? OR description LIKE ? LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
+      ...(this.db.prepare("SELECT id,title,substr(body,1,240) AS snippet,'notes' AS domain,NULL AS snoozeUntil FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[])
     ].slice(0, safeLimit);
     return { items };
   }
@@ -2445,6 +2508,11 @@ export class CoreStore {
     return {
       ...defaultSettings,
       ...stored,
+      mcpEnabled: false,
+      semanticSearchEnabled: false,
+      semanticSearchMode: "lexical",
+      agentActionTrayEnabled: false,
+      webhooksEnabled: false,
       // New defaults need to reach existing installs too. Explicit user
       // overrides (including null, which means intentionally unassigned)
       // always win over a default binding.
@@ -2457,6 +2525,9 @@ export class CoreStore {
   }
 
   private updateSettings(input: JsonRecord): JsonRecord {
+    if (input.mcpEnabled === true || input.semanticSearchEnabled === true || input.agentActionTrayEnabled === true || input.webhooksEnabled === true) {
+      throw new CoreStoreError("Local MCP, semantic search, agent actions, and webhooks are not available in this release.");
+    }
     const next = { ...this.settings(), ...input };
     this.db.prepare("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("app", JSON.stringify(next));
     this.nativeBridge?.applySettings?.(next);
@@ -2546,7 +2617,7 @@ export class CoreStore {
       checkpoints: { totalCount: this.countSyncTokens() },
       pendingMutations: { totalCount: this.count("outbox", "state IN ('pending','conflict')") },
       mcp: { tokenState: "not_configured" },
-      account: { state: "signed_out" },
+      account: { state: this.googleAccounts().some((account) => account.connectionState === "connected") ? "connected" : "signed_out" },
       native: {
         flags: capabilityReport.flags ?? {},
         capabilities: Array.isArray(capabilityReport.capabilities) ? capabilityReport.capabilities : [],
@@ -2559,7 +2630,9 @@ export class CoreStore {
         sensitiveBodies: "omitted"
       },
       build: { version: "5.0.1", environment: "local", commit: "restored", buildDate: null, packageTool: "pnpm" },
-      resourceCounts: { tasks: taskCount, events: eventCount, notes: noteCount }
+      resourceCounts: { tasks: taskCount, events: eventCount, notes: noteCount },
+      search: { engine: this.fullTextSearchAvailable ? "fts5" : "fallback" },
+      ...(this.settings().diagnosticsIncludePerformance ? { performance: { startup: getStartupTimings(), timings: timingSnapshot() } } : {})
     };
   }
 
@@ -2776,15 +2849,22 @@ export class CoreStore {
     throw new CoreStoreError("Connect Google before creating an event.");
   }
 
-  private page(items: JsonRecord[], input: JsonRecord): JsonRecord {
+  private pageBounds(input: JsonRecord): { limit: number; offset: number } {
     // Calendar bootstrap deliberately requests up to 500 items. Preserve that
     // contract (and allow the 1,000-item perf fixture) rather than silently
     // returning a partial range with an ignored next cursor.
-    const limit = Math.max(1, Math.min(1_000, Number(input.limit) || 100));
+    const limit = Math.max(1, Math.min(1_000, Math.floor(Number(input.limit)) || 100));
     const offset = input.cursor ? Number.parseInt(String(input.cursor), 10) : 0;
-    const safeOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-    const next = safeOffset + limit < items.length ? String(safeOffset + limit) : undefined;
-    return { items: items.slice(safeOffset, safeOffset + limit), page: { limit, totalKnown: items.length, ...(next ? { nextCursor: next } : {}) } };
+    return { limit, offset: Number.isSafeInteger(offset) && offset >= 0 ? offset : 0 };
+  }
+
+  private pageMetadata(limit: number, offset: number, total: number): JsonRecord {
+    return { limit, totalKnown: total, ...(offset + limit < total ? { nextCursor: String(offset + limit) } : {}) };
+  }
+
+  private page(items: JsonRecord[], input: JsonRecord): JsonRecord {
+    const { limit, offset } = this.pageBounds(input);
+    return { items: items.slice(offset, offset + limit), page: this.pageMetadata(limit, offset, items.length) };
   }
 
   private count(table: "tasks" | "events" | "notes" | "outbox", where = "1=1"): number {
@@ -2792,7 +2872,6 @@ export class CoreStore {
   }
 }
 
-export class CoreStoreError extends Error {}
 
 function withoutLocalFallbackSelections(settings: JsonRecord): JsonRecord {
   const withoutLocalId = (ids: unknown) => stringArray(ids).filter((id) => id !== "inbox" && id !== "primary");

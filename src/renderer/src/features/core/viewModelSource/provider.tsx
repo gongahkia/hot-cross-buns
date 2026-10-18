@@ -14,6 +14,7 @@ import type {
 } from "@shared/ipc/contracts";
 import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import { emptySnapshot } from "./defaults";
+import { inCalendarRanges, retainCalendarRange } from "./calendarRangeCache";
 import { dateOnlyFromLocalDate, visibleCalendarRange } from "./dateFormat";
 import { safeHydrationErrorMessage } from "./hydrationError";
 import { hydrateCoreData, loadAllPages, loadCoreData, type CoreDataHydrationSnapshot } from "./loader";
@@ -380,19 +381,17 @@ function usePreloadCoreSource(): CoreViewModelSource {
       )
     ])
       .then(([events, scheduledTaskBlocks]) => {
-        loadedCalendarRanges.current = mergedCalendarRanges([
-          ...loadedCalendarRanges.current,
-          normalized
-        ]);
+        loadedCalendarRanges.current = retainCalendarRange(loadedCalendarRanges.current, normalized);
+        const retainedRanges = loadedCalendarRanges.current;
         setLoadState((current) => ({
           ...current,
           snapshot: {
             ...current.snapshot,
-            events: mergeById<CalendarEventSummary>(current.snapshot.events, events.items),
+            events: mergeById<CalendarEventSummary>(current.snapshot.events, events.items).filter((event) => inCalendarRanges(event, retainedRanges)),
             scheduledTaskBlocks: mergeById<ScheduledTaskBlockSummary>(
               current.snapshot.scheduledTaskBlocks,
               scheduledTaskBlocks.items
-            )
+            ).filter((block) => inCalendarRanges(block, retainedRanges))
           }
         }));
         return true;
@@ -602,7 +601,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
           refreshDiagnosticsSummary();
         }
       );
-    }, 1_000);
+    }, 0);
 
     return () => window.clearTimeout(timeout);
   }, [loadState.state, refreshDiagnosticsSummary]);

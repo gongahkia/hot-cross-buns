@@ -3,7 +3,6 @@ import { EventEmitter } from "node:events";
 import { createServer } from "node:http";
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { safeStorage, shell } from "electron";
 import type { GoogleOptionalWorkspaceService } from "@shared/ipc/contracts";
 import { CoreStore, CoreStoreError } from "./coreStore";
 
@@ -19,6 +18,13 @@ interface SecretPayload {
 }
 
 type OptionalWorkspaceService = GoogleOptionalWorkspaceService;
+
+export interface GoogleOAuthPlatform {
+  isEncryptionAvailable: () => boolean | Promise<boolean>;
+  decryptString: (value: Uint8Array) => string | Promise<string>;
+  encryptString: (value: string) => Uint8Array | Promise<Uint8Array>;
+  openExternal: (url: string) => Promise<void>;
+}
 
 interface PendingAuthorization {
   cancelled: boolean;
@@ -67,7 +73,8 @@ export class GoogleOAuthController {
 
   constructor(
     userDataDirectory: string,
-    private readonly store: CoreStore
+    private readonly store: CoreStore,
+    private readonly platform: GoogleOAuthPlatform
   ) {
     this.credentialPath = join(userDataDirectory, "credentials-v1.bin");
   }
@@ -263,7 +270,7 @@ export class GoogleOAuthController {
     authorizationUrl.searchParams.set("access_type", "offline");
     authorizationUrl.searchParams.set("prompt", "consent");
     authorizationUrl.searchParams.set("include_granted_scopes", String(includeGrantedScopes));
-    await shell.openExternal(authorizationUrl.toString());
+    await this.platform.openExternal(authorizationUrl.toString());
     return { callback, clientId, redirectUri, requestedScopes, verifier };
   }
 
@@ -331,10 +338,10 @@ export class GoogleOAuthController {
   private async readSecrets(): Promise<SecretPayload> {
     try {
       const encrypted = await readFile(this.credentialPath);
-      if (!safeStorage.isEncryptionAvailable()) {
+      if (!await this.platform.isEncryptionAvailable()) {
         throw new CoreStoreError("OS credential encryption is unavailable on this device.");
       }
-      return JSON.parse(safeStorage.decryptString(encrypted)) as SecretPayload;
+      return JSON.parse(await this.platform.decryptString(encrypted)) as SecretPayload;
     } catch (error: unknown) {
       if (isMissing(error)) return {};
       throw error;
@@ -342,14 +349,14 @@ export class GoogleOAuthController {
   }
 
   private async writeSecrets(payload: SecretPayload): Promise<void> {
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!await this.platform.isEncryptionAvailable()) {
       throw new CoreStoreError("OS credential encryption is unavailable on this device.");
     }
     const directory = dirname(this.credentialPath);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     await chmod(directory, 0o700);
     const temporary = `${this.credentialPath}.tmp`;
-    await writeFile(temporary, safeStorage.encryptString(JSON.stringify(payload)), { mode: 0o600 });
+    await writeFile(temporary, await this.platform.encryptString(JSON.stringify(payload)), { mode: 0o600 });
     await rename(temporary, this.credentialPath);
   }
 }

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { registerDiagnosticsIpc } from "./ipc/diagnostics";
 import { registerCoreIpc } from "./ipc/core";
 import { configureNavigationLockdown, configureSessionHardening } from "./security";
-import { createServiceContainer } from "./services/serviceContainer";
+import { WorkspaceClient } from "./services/workspaceClient";
 import { markStartupTiming } from "./startupTiming";
 import { createNativeAdapter, NativeShellService } from "./native";
 import { isLiveGoogleReadOnlyTest, isLiveGoogleTest } from "./liveGoogleTestMode";
@@ -67,27 +67,31 @@ app.whenReady().then(async () => {
   const liveGoogleTest = isLiveGoogleTest();
   configureSessionHardening(session.defaultSession);
   registerDiagnosticsIpc();
-  const services = await createServiceContainer(app.getPath("userData"));
-  registerCoreIpc(services.core, services.googleOAuth, services.googleSync);
-  if (!liveGoogleTest) {
-    services.googleSync.startBackgroundSync();
-    void services.googleSync.runNow({ reason: "startup" }).catch(() => undefined);
-  }
+  const services = new WorkspaceClient(app.getPath("userData"));
+  let backgroundStarted = false;
+  registerCoreIpc(services, () => {
+    if (backgroundStarted || liveGoogleTest) return;
+    backgroundStarted = true;
+    void services.googleSync.startBackgroundSync().catch(() => undefined);
+    void services.googleSync.runAutomatic("startup").catch(() => undefined);
+    void services.backups.start().catch(() => undefined);
+  });
   mainWindow = createMainWindow();
+  await services.ready;
   const nativeShell = new NativeShellService({
     adapter: await createNativeAdapter(),
     planner: {
-      listTasks: (request) => services.core.dispatch("tasks", "list", request),
-      listCalendarEvents: (request) => services.core.dispatch("calendar", "listEvents", request),
-      search: (request) => services.core.dispatch("search", "query", request)
+      listTasks: ({ limit }) => ({ items: services.snapshot.tasks.slice(0, limit) }),
+      listCalendarEvents: ({ start, end, limit }) => ({ items: services.snapshot.events.filter((event) => event.startsAt < end && event.endsAt > start).slice(0, limit) }),
+      search: ({ query }) => ({ items: [], page: { totalKnown: services.snapshot.searchCounts[query] ?? 0 } })
     },
     account: {
       latest: () => {
-        const account = services.core.googleAccounts().find((candidate) => candidate.accountId !== "local") ?? null;
+        const account = services.snapshot.account;
         return account ? { email: account.email, displayName: account.displayName, avatarUrl: account.avatarUrl, connectionState: account.connectionState } : null;
       }
     },
-    settings: { get: () => services.core.dispatch("settings", "get", {}) },
+    settings: { get: () => services.snapshot.settings },
     windows: {
       showMainWindow: () => mainWindow?.show(),
       hideMainWindow: () => mainWindow?.hide(),
@@ -100,7 +104,7 @@ app.whenReady().then(async () => {
         isLiveGoogleReadOnlyTest() ? { ...request, readOnly: true } : request
       )
     },
-    recordUpdateCheck: (checkedAt) => services.core.dispatch("settings", "update", { lastUpdateCheckAt: checkedAt })
+    recordUpdateCheck: (checkedAt) => { void services.core.dispatch("settings", "update", { lastUpdateCheckAt: checkedAt }).catch(() => undefined); }
   });
   nativeShell.installAppMenu();
   if (!liveGoogleTest) {
@@ -108,17 +112,28 @@ app.whenReady().then(async () => {
   }
   routeDeepLink = (url) => { nativeShell.handleDeepLink(url); };
   for (const url of pendingDeepLinks.splice(0)) routeDeepLink(url);
-  services.core.attachNativeBridge({
+  services.attachNativeBridge({
     capabilities: () => nativeShell.capabilities(),
     listFontFamilies: () => nativeShell.listFontFamilies(),
     requestNotificationPermission: () => nativeShell.requestNotificationPermission(),
     openExternalUrl: async ({ url }) => ({ opened: true, ...(await nativeShell.openExternalUrl({ url })) }),
+    checkForUpdates: () => nativeShell.checkForUpdates(),
+    rescheduleNotifications: () => nativeShell.rescheduleNotificationsForDiagnostics(),
     applySettings: (settings) => nativeShell.applySettings(settings as never)
+  });
+
+  let quitting = false;
+  app.on("before-quit", (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    quitting = true;
+    nativeShell.dispose();
+    void services.close().finally(() => app.quit());
   });
 
   app.on("activate", () => {
     if (!liveGoogleTest) {
-      void services.googleSync.runNow({ reason: "application-activated" }).catch(() => undefined);
+      void services.googleSync.runAutomatic("application-activated").catch(() => undefined);
     }
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createMainWindow();

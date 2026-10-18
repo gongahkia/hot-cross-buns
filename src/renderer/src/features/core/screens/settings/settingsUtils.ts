@@ -40,6 +40,8 @@ export const fontSurfaceOptions: Array<{ id: FontSurfaceId; label: string }> = [
 ];
 
 export function recoveryPhrase(action: SettingsRecoveryActionRequest["action"]): string {
+  if (action === "restoreLocalNotes") return "RESTORE NOTES";
+
   if (action === "forceFullResync") {
     return "FULL RESYNC";
   }

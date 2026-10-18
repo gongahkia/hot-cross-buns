@@ -63,7 +63,7 @@ export function capabilities(): NativePlatformCapabilities {
     supportsDiagnosticsCollection: true,
     supportsCredentialStorage: credentialStatus.ok,
     supportsOAuthLoopback: true,
-    supportsMcpLoopback: true,
+    supportsMcpLoopback: false,
     requiresSignedBuildForNotifications: true
   };
 
@@ -132,10 +132,7 @@ export function capabilities(): NativePlatformCapabilities {
           state: "pending",
           message: "OAuth loopback is shared code, but Windows browser handoff and firewall behavior require manual QA."
         },
-        mcpLoopback: {
-          state: "pending",
-          message: "MCP loopback is shared code, but Windows Defender/firewall and credential storage require manual QA."
-        },
+        mcpLoopback: { state: "unsupported", message: "Local MCP access is not available in this release." },
         packaging: {
           state: packaged ? "ready" : "pending",
           message: packaged

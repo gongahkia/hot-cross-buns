@@ -11,14 +11,12 @@ const electronMocks = vi.hoisted(() => ({
   openExternal: vi.fn<(url: string) => Promise<void>>(async () => undefined)
 }));
 
-vi.mock("electron", () => ({
-  safeStorage: {
-    decryptString: electronMocks.decryptString,
-    encryptString: electronMocks.encryptString,
-    isEncryptionAvailable: electronMocks.isEncryptionAvailable
-  },
-  shell: { openExternal: electronMocks.openExternal }
-}));
+const testPlatform = {
+  decryptString: (value: Uint8Array) => electronMocks.decryptString(Buffer.from(value)),
+  encryptString: (value: string) => electronMocks.encryptString(value),
+  isEncryptionAvailable: () => electronMocks.isEncryptionAvailable(),
+  openExternal: (url: string) => electronMocks.openExternal(url)
+};
 
 import { GoogleOAuthController } from "./googleOAuth";
 
@@ -37,7 +35,7 @@ describe("GoogleOAuthController", () => {
       dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
       oauthClientId: () => "test-desktop-client-id"
     };
-    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never, testPlatform);
     const internals = controller as unknown as {
       accessToken: ReturnType<typeof vi.fn>;
     };
@@ -61,7 +59,7 @@ describe("GoogleOAuthController", () => {
       dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
       oauthClientId: () => "test-desktop-client-id"
     };
-    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never, testPlatform);
     const tokenFetch = vi.spyOn(globalThis, "fetch");
 
     await controller.begin();
@@ -84,7 +82,7 @@ describe("GoogleOAuthController", () => {
       dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
       oauthClientId: () => "test-desktop-client-id"
     };
-    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never, testPlatform);
 
     await controller.begin({ requestedServices: ["drive", "driveUpload"] });
     await vi.waitFor(() => expect(electronMocks.openExternal).toHaveBeenCalled());
@@ -109,7 +107,7 @@ describe("GoogleOAuthController", () => {
     electronMocks.isEncryptionAvailable.mockReturnValue(true);
     electronMocks.encryptString.mockImplementation((value) => Buffer.from(value));
     electronMocks.decryptString.mockImplementation((value) => value.toString());
-    const controller = new GoogleOAuthController(directory, store as never);
+    const controller = new GoogleOAuthController(directory, store as never, testPlatform);
     const internals = controller as unknown as {
       readSecrets: () => Promise<{ accounts?: Record<string, unknown> }>;
       writeSecrets: (value: unknown) => Promise<void>;
@@ -150,7 +148,7 @@ describe("GoogleOAuthController", () => {
       googleAccount: () => ({ accountId: "google-account", connectionState: "connected" }),
       unresolvedSyncMutationCount: () => 2
     };
-    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never);
+    const controller = new GoogleOAuthController("/tmp/hcb-oauth-test", store as never, testPlatform);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     try {
@@ -178,7 +176,7 @@ describe("GoogleOAuthController", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({ access_token: "access", refresh_token: "refresh", expires_in: 3600, scope: "openid email" }))
       .mockResolvedValueOnce(Response.json({ id: "google-id", email: "person@example.test", name: "Person" }));
-    const controller = new GoogleOAuthController(directory, store as never);
+    const controller = new GoogleOAuthController(directory, store as never, testPlatform);
     const internals = controller as unknown as {
       completeAuthorization: (
         authorization: { callback: { waitForCode: () => Promise<string> }; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string },
@@ -210,7 +208,7 @@ describe("GoogleOAuthController", () => {
 
   it("explains when Google rejects a mismatched OAuth client ID and secret", async () => {
     const directory = mkdtempSync(join(tmpdir(), "hcb-oauth-test-"));
-    const controller = new GoogleOAuthController(directory, {} as never);
+    const controller = new GoogleOAuthController(directory, {} as never, testPlatform);
     const internals = controller as unknown as {
       completeAuthorization: (
         authorization: { callback: { waitForCode: () => Promise<string> }; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string },

@@ -1,8 +1,9 @@
-import { BrowserWindow, dialog, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { copyFile, chmod, writeFile } from "node:fs/promises";
 import { z } from "zod";
-import { CoreStore, CoreStoreError } from "../services/coreStore";
-import { GoogleOAuthController } from "../services/googleOAuth";
-import { GoogleSyncService } from "../services/googleSync";
+import { CoreStoreError } from "../services/coreStoreError";
+import type { WorkspaceClient } from "../services/workspaceClient";
+import { getStartupTimings, markStartupTiming } from "../startupTiming";
 import { appLogger } from "../diagnostics/appLogger";
 import { isLiveGoogleReadOnlyTest, isLiveGoogleTest } from "../liveGoogleTestMode";
 import { conflictError, internalError, ok, validationError } from "@shared/result";
@@ -21,17 +22,17 @@ const actionMap: Record<string, readonly string[]> = {
   bootstrap: ["get"],
   tasks: ["listTaskLists", "list", "get", "create", "update", "complete", "reopen", "delete", "move", "bulkReschedule", "createTaskList", "renameTaskList", "deleteTaskList"],
   calendar: ["listCalendars", "listEvents", "get", "create", "update", "delete", "complete", "reopen", "listScheduledTaskBlocks", "scheduleTaskBlock", "moveScheduledTaskBlock", "unscheduleTaskBlock", "exportAvailability", "freeBusy", "scheduleSuggest", "smartReschedule"],
-  notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "entityLinks", "listBrokenLinks", "linkSuggest", "legacyMigrationPreview", "importLegacyPseudoNotes"],
-  tags: ["list", "create", "update", "delete", "merge", "bulkApply", "previewAutoReapply", "applyAutoReapply", "analytics"],
-  search: ["query", "installModel", "uninstallModel", "rebuildIndex"],
-  settings: ["get", "update", "recoveryAction", "customizationStatus", "logExtensionMessage", "setExtensionEnabled", "setSnippetEnabled", "reloadCustomization", "listAttachments", "addAttachment", "openAttachment", "downloadAttachment", "removeAttachment", "listIcsSubscriptions", "subscribeIcs", "refreshIcsSubscription", "deleteIcsSubscription", "importIcs", "listLocalPointers", "repairLocalPointer", "exportLocalReport", "exportPortableArchive", "previewPortableImport", "importPortableArchive", "hcbVaultRemoteStatus", "hcbVaultRemoteCredentialStatus", "saveHcbVaultRemoteCredentials", "deleteHcbVaultRemoteCredentials", "pullHcbVaultRemote", "pushHcbVaultRemote"],
+  notes: ["list", "get", "create", "update", "delete", "createNoteList", "renameNoteList", "deleteNoteList", "linkSuggest", "legacyMigrationPreview", "importLegacyPseudoNotes"],
+  tags: ["list", "create", "update", "delete"],
+  search: ["query"],
+  settings: ["get", "update", "recoveryAction"],
   sync: ["status", "runNow", "forceFullResync"],
   google: ["status", "saveOAuthClient", "beginOAuth", "reconfigureOptionalAccess", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
   native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
-  diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
-  agent: ["listActions", "applyAction", "rejectAction"],
-  duplicates: ["cleanup"]
+  diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
+  agent: [],
+  duplicates: []
 };
 
 const isoDateSchema = z.string().datetime({ offset: true });
@@ -90,14 +91,18 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "notes" && action === "legacyMigrationPreview") return z.object({ limit: z.number().int().min(1).max(1_000).optional() }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "importLegacyPseudoNotes") return z.object({ taskIds: z.array(idSchema).min(1).max(1_000) }).strict().safeParse(payload).success;
   if (namespace === "native" && action === "openExternalUrl") return z.object({ url: z.string().url().max(4_096) }).safeParse(payload).success;
+  if (namespace === "settings" && action === "recoveryAction") return z.object({
+    action: z.enum(["refresh", "forceFullResync", "resetOnboarding", "checkForUpdates", "backupNow", "exportBackup", "openBackupsFolder", "restoreLocalNotes"]),
+    confirmation: z.object({ accepted: z.boolean(), phrase: z.string().max(100) }).optional()
+  }).strict().safeParse(payload).success;
   return true;
 }
 
 export function registerCoreIpc(
-  store: CoreStore,
-  googleOAuth: GoogleOAuthController,
-  googleSync: GoogleSyncService
+  services: WorkspaceClient,
+  onCachedDataRendered?: () => void
 ): void {
+  const { core: store, googleOAuth, googleSync, backups } = services;
   googleSync.onStatus((status) => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(IPC_CHANNELS.core.syncStatus, status);
@@ -121,12 +126,61 @@ export function registerCoreIpc(
     }
 
     try {
+      await services.ready;
+      if (request.data.namespace === "diagnostics" && request.data.action === "markCachedDataRendered") {
+        const timing = markStartupTiming("cachedDataRenderedMs");
+        onCachedDataRendered?.();
+        return ok(timing);
+      }
+      if (request.data.namespace === "diagnostics" && request.data.action === "exportBundle") {
+        const selected = await dialog.showSaveDialog({ title: "Export diagnostics", defaultPath: "Hot Cross Buns diagnostics.json", filters: [{ name: "JSON", extensions: ["json"] }] });
+        if (selected.canceled || !selected.filePath) return ok({ exported: false, message: "Export cancelled." });
+        const summary = await store.dispatch("diagnostics", "summary");
+        if (summary.performance) summary.performance.startup = getStartupTimings();
+        const bundle = { generatedAt: new Date().toISOString(), summary, logs: await store.dispatch("diagnostics", "logs", {}) };
+        await writeFile(selected.filePath, JSON.stringify(bundle, null, 2), { mode: 0o600 });
+        await chmod(selected.filePath, 0o600);
+        return ok({ exported: true, message: `Diagnostics saved to ${selected.filePath}` });
+      }
+      if (request.data.namespace === "settings" && request.data.action === "recoveryAction") {
+        const action = request.data.payload.action;
+        if (action === "backupNow") {
+          const path = await backups.create();
+          return ok({ completed: true, path, message: `Backup saved to ${path}` });
+        }
+        if (action === "exportBackup") {
+          const selected = await dialog.showSaveDialog({ title: "Export Hot Cross Buns backup", defaultPath: "Hot Cross Buns.sqlite", filters: [{ name: "Hot Cross Buns backup", extensions: ["sqlite"] }] });
+          if (selected.canceled || !selected.filePath) return ok({ completed: false, message: "Export cancelled." });
+          const snapshot = await backups.create();
+          await copyFile(snapshot, selected.filePath);
+          await chmod(selected.filePath, 0o600);
+          return ok({ completed: true, message: `Backup exported to ${selected.filePath}` });
+        }
+        if (action === "openBackupsFolder") {
+          const error = await shell.openPath(backups.directory);
+          if (error) throw new CoreStoreError(error);
+          return ok({ completed: true, message: "Opened the backup folder." });
+        }
+        if (action === "restoreLocalNotes") {
+          const confirmation = z.object({ accepted: z.literal(true), phrase: z.literal("RESTORE NOTES") }).safeParse(request.data.payload.confirmation);
+          if (!confirmation.success) return validationError("Confirm RESTORE NOTES before restoring a backup.");
+          const selected = await dialog.showOpenDialog({ title: "Restore local notes from backup", properties: ["openFile"], filters: [{ name: "Hot Cross Buns backup", extensions: ["sqlite"] }] });
+          if (selected.canceled || !selected.filePaths[0]) return ok({ completed: false, message: "Restore cancelled." });
+          await backups.create();
+          const count = await store.restoreLocalNotes(selected.filePaths[0]);
+          return ok({ completed: true, message: `Restored ${count} local notes. A backup of your previous data was saved first. Google data and queued changes were preserved.` });
+        }
+        if (action === "refresh") {
+          await googleSync.runNow({ reason: "manual" });
+          return ok({ completed: true, message: "Google refresh completed." });
+        }
+      }
       if (request.data.namespace === "google" && request.data.action === "saveOAuthClient") {
         return ok(await googleOAuth.saveClient(request.data.payload));
       }
 
       if (request.data.namespace === "google" && request.data.action === "status") {
-        return ok(googleOAuth.status());
+        return ok(await googleOAuth.status());
       }
 
       if (request.data.namespace === "google" && request.data.action === "beginOAuth") {
@@ -163,8 +217,8 @@ export function registerCoreIpc(
       }
 
       if (request.data.namespace === "google" && request.data.action === "captureGmailMessage") {
-        const task = googleSync.captureGmailMessage(request.data.payload);
-        if (!isLiveGoogleTest()) googleSync.scheduleAfterLocalMutation();
+        const task = await googleSync.captureGmailMessage(request.data.payload);
+        if (!isLiveGoogleTest()) void googleSync.scheduleAfterLocalMutation().catch(() => undefined);
         return ok(task);
       }
 
@@ -189,16 +243,21 @@ export function registerCoreIpc(
       }
 
       const response = await Promise.resolve(store.dispatch(request.data.namespace, request.data.action, request.data.payload));
+      if (request.data.namespace === "diagnostics" && request.data.action === "summary" && response.performance) response.performance.startup = getStartupTimings();
+      if (request.data.namespace === "settings" && request.data.action === "update" && !isLiveGoogleTest()) {
+        if ("syncMode" in request.data.payload) await googleSync.startBackgroundSync();
+        if ("dailyLocalBackupEnabled" in request.data.payload) await backups.start();
+      }
       if (
         (["tasks", "calendar"].includes(request.data.namespace) && isWriteAction(request.data.action, request.data.payload)) ||
         (request.data.namespace === "diagnostics" && request.data.action === "retryPendingMutation")
       ) {
         if (!isLiveGoogleTest()) {
-          googleSync.scheduleAfterLocalMutation();
+          void googleSync.scheduleAfterLocalMutation().catch(() => undefined);
         }
       }
       if (request.data.namespace === "google" && request.data.action === "copyAccountData" && !isLiveGoogleTest()) {
-        googleSync.scheduleAfterLocalMutation();
+        void googleSync.scheduleAfterLocalMutation().catch(() => undefined);
       }
       return ok(response);
     } catch (error: unknown) {
