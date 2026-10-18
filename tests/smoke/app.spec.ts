@@ -3,8 +3,61 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { currentZonedDay, zonedDateTimeIso, zonedDayRange } from "../../src/shared/zonedTime";
 
 test.setTimeout(60_000);
+
+test("uses the displayed timezone at midnight and preserves the event timezone in its editor", async () => {
+  const profileDir = mkdtempSync(join(tmpdir(), "hcb-calendar-zone-smoke-"));
+  const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    const day = currentZonedDay("Asia/Singapore");
+    const range = zonedDayRange(day, "Asia/Singapore");
+    const early = zonedDateTimeIso(day, 0, 30, "Asia/Singapore");
+    const late = zonedDateTimeIso(day, 23, 30, "Asia/Singapore");
+    const next = zonedDateTimeIso(day, 24, 30, "Asia/Singapore");
+    const earlyId = await page.evaluate(async ({ day, early, late, next }) => {
+      const setup = await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", defaultTimeZone: "Asia/Singapore" });
+      if (!setup.ok) throw new Error(setup.error.message);
+      let earlyId = "";
+      for (const [title, startsAt, timeZone] of [["Near local midnight", early, "America/New_York"], ["Late local night", late, "Europe/London"], ["Tomorrow only", next, "UTC"]]) {
+        const result = await window.hcb!.calendar.create({ calendarId: "primary", title, startsAt, endsAt: new Date(Date.parse(startsAt) + 15 * 60000).toISOString(), timeZone, allDay: false });
+        if (!result.ok) throw new Error(result.error.message);
+        if (title === "Near local midnight") earlyId = result.data.id;
+      }
+      const result = await window.hcb!.calendar.create({ calendarId: "primary", title: "Floating all-day date", startsAt: `${day}T00:00:00.000Z`, endsAt: new Date(Date.parse(`${day}T00:00:00.000Z`) + 86400000).toISOString(), allDay: true });
+      if (!result.ok) throw new Error(result.error.message);
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      return earlyId;
+    }, { day, early, late, next });
+    const calendar = page.getByTestId("calendar-view");
+    await expect(calendar).toHaveAttribute("data-range-start", range.start);
+    await expect(calendar).toHaveAttribute("data-range-end", range.end);
+    await expect(calendar).toHaveAttribute("data-visible-event-count", "3");
+    await expect(calendar.getByText("Near local midnight", { exact: true }).first()).toBeVisible();
+    await expect(calendar.getByText("Late local night", { exact: true }).first()).toBeVisible();
+    await expect(calendar.getByText("Floating all-day date", { exact: true }).first()).toBeVisible();
+    await expect(calendar.getByText("Tomorrow only", { exact: true })).toHaveCount(0);
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } })), earlyId);
+    await expect(page.getByRole("dialog").getByText("America/New_York", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    const originalDay = currentZonedDay("America/New_York", new Date(early));
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", hourCycle: "h23", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(early)).map((part) => [part.type, part.value]));
+    const start = page.getByRole("textbox", { name: "Event starts", exact: true });
+    // datetime-local has no implicit ARIA textbox role in Chromium.
+    const startInput = page.getByLabel("Event starts", { exact: true });
+    await expect(startInput).toHaveValue(`${originalDay}T${parts.hour}:${parts.minute}`);
+    await page.getByRole("checkbox", { name: "All day", exact: true }).check();
+    await expect(startInput).toHaveValue(originalDay);
+    await page.getByRole("checkbox", { name: "All day", exact: true }).uncheck();
+    await expect(startInput).toHaveValue(`${originalDay}T09:00`);
+  } finally {
+    await electronApp.close();
+    rmSync(profileDir, { recursive: true, force: true });
+  }
+});
 
 test("launches and renders the planner shell", async () => {
   let electronApp: ElectronApplication | undefined;
