@@ -1,5 +1,6 @@
 - multi-day events
 - have tab and shift tab actually do something
+- consider adding an actual calender viewer if that makes it easier for people to timeblock
 - add tags via a hashtag system
 - reschedule events just by dragging them around
 - better search (fuzzy search etc)
