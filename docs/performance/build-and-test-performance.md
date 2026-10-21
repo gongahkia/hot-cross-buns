@@ -67,6 +67,8 @@ JSON records process PSS on Linux, process breakdowns, CDP renderer heap usage, 
 
 Generated reports stay local. The checked-in [remediation evidence](audit-remediation.md) records the reviewed baseline and its limitations.
 
+The [Google sync follow-up](sync-follow-up.md) records later macOS measurements, final resync verification, retained startup failures, and the remaining live-account and quiet-host checks.
+
 ## Bundle And Dependency Hygiene
 
 - Keep renderer dependencies separate from main-only dependencies.
