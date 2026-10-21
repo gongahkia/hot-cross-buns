@@ -1,7 +1,9 @@
 # Reviewing sync conflicts
 
 Diagnostics → Sync → Compare and resolve fetches current Google content before
-showing local and remote fields together. The decision names the number of
+showing local and remote fields together, including task planning metadata,
+parents/order, Calendar locations, guests, reminders, recurrence and attachments.
+The decision names the number of
 queued changes it affects. Related changes include later writes to the same
 resource, task descendants, tasks in a resolved list, and recurring-series
 successors and exception edits. Deleting a task list also includes its queued
@@ -18,6 +20,11 @@ are restored with their stable IDs, and block times follow the restored event.
 Discarded scheduling operations are removed from planner undo history.
 
 Keep local explicitly clears stale revisions and queues the related writes.
+Calendar move chains are rebased from the actual remote source to the latest
+local destination, keeping their original position in the outbox. Google event
+IDs are scoped to their calendars; equal IDs in unrelated calendars do not
+participate in recovery. Pulls preserve an optimistic move without importing a
+second local copy from its source.
 Descriptions and notes in the comparison are inert text. Credentials, tokens,
 Google identifiers and ETags are not sent in the comparison DTO.
 
@@ -35,14 +42,17 @@ Google identifiers and ETags are not sent in the comparison DTO.
   Google snapshot, or a concurrent sync rejects recovery without cancelling
   writes. Fetch/import failures preserve the queue and local state.
 - Only fingerprints and local revision guards are cached for comparisons; complete
-  account snapshots are released after each request. Unchanged task descendants
-  are not expanded into thousands of comparison rows.
+  account snapshots are released after each request. Reviews display at most
+  20 items at a time, with the full affected count next to the decision buttons.
+  Unchanged task descendants are not expanded into thousands of comparison rows.
 - Recovery reads complete account snapshots for the affected API family, including
   unselected sources. This favors correctness for an infrequent recovery action;
   a large account or an unreadable Calendar can make comparison slow or fail.
 - Keep local follows the existing sync mode: manual mode leaves it queued until
   Refresh. Use Google only reads Google and updates local state; it issues no
   Google create, update or delete requests.
+- Refresh requested during recovery waits for that operation to finish, then
+  performs a sync even if recovery failed. Shutdown waits for both operations.
 - Legacy low-level cancellation resets checkpoints and cancels related entries;
   the reviewed recovery endpoint additionally restores remote content immediately.
 
@@ -50,7 +60,29 @@ Google identifiers and ETags are not sent in the comparison DTO.
 
 Local SQLite/integration coverage includes both recovery choices, later queued
 edits, lost creation responses, list dependencies, stable IDs after deletion,
-Calendar moves, series splits, stale local/Google comparisons, failed fetches,
+Calendar moves (including repeated moves and accepted moves with a lost response),
+equal event IDs in different calendars, series splits, stale local/Google
+comparisons, failed fetches,
 and transactional import rollback. Renderer tests cover explicit review, affected
 counts, inert content, blocked unsafe retry and preserving the review on error.
 No live account or Google writes were used to run these tests.
+
+The final combined release gate on 2026-10-21 passed production build and both
+TypeScript checks, 207 unit tests, 116 native database/integration tests and all
+9 Electron desktop tests. Unit coverage also verifies recovery IPC routing and
+an explicit Refresh waiting for successful or failed conflict recovery.
+The rebuilt unsigned macOS package also passed launch, SQLite/backup integrity,
+deferred editor, native integration, restart and schema-upgrade checks using a
+disposable installation and profile.
+
+
+Calendar creation recovery also preserves local identity: only a matching
+client-generated event ID and HCB private metadata can bind a previously unbound
+local event. Pending local edits remain protected. Lost Google Tasks creation
+responses do not have this identity mechanism and remain fenced as described
+above. Repeated deletes returning 404/410 settle as removed; authorization and
+revision failures retain their conflict.
+
+Clearing an event's Markdown description now sends an explicit empty description
+in PATCH, so an old description cannot return after the next pull. This follows
+Google's documented [PATCH behavior](https://developers.google.com/workspace/calendar/api/v3/reference/events/patch): omitted fields retain their previous value.
