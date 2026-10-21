@@ -18,6 +18,7 @@ import {
   type PlannerWorkspace
 } from "@shared/planner";
 import { IPC_CHANNELS } from "@shared/ipc";
+import { nativeActionSchema } from "@shared/ipc/contracts";
 import {
   settingsDataInfoResultSchema,
   settingsGetResultSchema,
@@ -243,7 +244,11 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     undo: actions("undo", ["status", "undo", "redo"]),
     native: {
       ...actions("native", ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"]),
-      subscribeAction: (_listener: (action: any) => void): (() => void) => () => undefined
+      subscribeAction: (listener: (action: any) => void): (() => void) =>
+        ipc.subscribe?.("hcb:native-action", (payload) => {
+          const parsed = nativeActionSchema.safeParse(payload);
+          if (parsed.success) listener(parsed.data);
+        }) ?? (() => undefined)
     },
     agent: actions("agent", ["listActions", "applyAction", "rejectAction"]),
     duplicates: actions("duplicates", ["cleanup"])

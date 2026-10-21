@@ -402,4 +402,13 @@ function readableForeground(background: string): string {
   return luminance > 145 ? "#111318" : "#ffffff";
 }
 
-export const nativeActionSchema = z.object({ type: z.string() }).passthrough();
+export const nativeActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("openSettings") }),
+  z.object({ type: z.literal("openQuickAdd") }),
+  z.object({ type: z.literal("refresh") }),
+  z.object({ type: z.literal("openRoute"), route: z.union([
+    z.object({ kind: z.enum(["today", "calendar", "tasks", "notes", "settings"]) }),
+    z.object({ kind: z.literal("search"), query: z.string().max(2000).optional() }),
+    z.object({ kind: z.enum(["task", "event", "note"]), id: z.string().trim().min(1).max(1000) })
+  ]) })
+]);

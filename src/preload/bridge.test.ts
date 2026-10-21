@@ -16,6 +16,22 @@ const healthResponse = {
 };
 
 describe("preload bridge", () => {
+  it("forwards validated native actions and returns the IPC unsubscribe function", () => {
+    let deliver: (payload: unknown) => void = () => undefined;
+    const unsubscribe = vi.fn();
+    const listener = vi.fn();
+    const ipc: IpcBridge = { invoke: vi.fn(), subscribe: vi.fn((channel, callback) => {
+      expect(channel).toBe("hcb:native-action"); deliver = callback; return unsubscribe;
+    }) };
+    const dispose = createHcbApi(ipc).native.subscribeAction(listener);
+    deliver({ type: "openRoute", route: { kind: "notes" } });
+    deliver({ type: "openQuickAdd" });
+    deliver({ type: "openRoute" });
+    deliver({ type: "unknown" });
+    deliver({ type: "openRoute", route: { kind: "note", id: "" } });
+    expect(listener.mock.calls).toEqual([[{ type: "openRoute", route: { kind: "notes" } }], [{ type: "openQuickAdd" }]]);
+    dispose(); expect(unsubscribe).toHaveBeenCalledOnce();
+  });
   it("validates and invokes the health check IPC channel", async () => {
     const ipc: IpcBridge = {
       invoke: vi.fn(async () => ok(healthResponse))
