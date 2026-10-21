@@ -69,7 +69,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             About &amp; Help
           </h1>
           <p className="text-muted-foreground mt-2 text-sm text-pretty">
-            Keyboard shortcuts and information about CalendarCN.
+            Keyboard shortcuts and help.
           </p>
 
           <section aria-labelledby="keyboard-shortcuts" className="mt-10">
@@ -98,24 +98,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                 <ShortcutRow key={shortcut.label} {...shortcut} />
               ))}
             </dl>
-          </section>
-
-          <section aria-labelledby="about-calendarcn" className="mt-10 pb-4">
-            <h2 id="about-calendarcn" className="text-sm font-semibold">
-              About CalendarCN
-            </h2>
-            <p className="text-muted-foreground mt-2 text-sm leading-relaxed text-pretty">
-              An open source calendar interface by Victor Nogueira, built with
-              React and shadcn/ui.
-            </p>
-            <a
-              href="https://github.com/vmnog/calendarcn"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex min-h-11 items-center rounded-sm text-sm underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              View source on GitHub
-            </a>
           </section>
         </div>
       </div>

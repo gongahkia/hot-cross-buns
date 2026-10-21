@@ -3,7 +3,6 @@
 import * as React from "react";
 import {
   Eye,
-  Github,
   Link2,
   PanelLeftIcon,
   Plus,
@@ -156,25 +155,6 @@ export function SidebarRight({
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center justify-start gap-1 px-2 py-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-sidebar-foreground"
-                asChild
-              >
-                <a
-                  href="https://github.com/vmnog/calendarcn"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Github className="size-4" />
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Go to repo</TooltipContent>
-          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <ThemeToggle className="text-sidebar-foreground" />

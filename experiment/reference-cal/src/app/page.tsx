@@ -39,7 +39,6 @@ import {
   getCalendarHeaderInfo,
   getVisibleDays,
 } from "@/components/week-view";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ViewDropdown } from "@/components/view-dropdown";
 import { Separator } from "@/components/ui/separator";
@@ -567,13 +566,6 @@ function PageContent({ isWideLayout }: PageContentProps) {
                 </h1>
               </div>
               <div className="flex shrink-0 items-center gap-1 pr-2 @md/header:gap-2 @xl/header:px-4">
-                <Avatar className="hidden size-7 @xl/header:flex">
-                  <AvatarImage
-                    src="https://github.com/vmnog.png"
-                    alt="Victor Nogueira"
-                  />
-                  <AvatarFallback>VN</AvatarFallback>
-                </Avatar>
                 <div className="hidden @xs/header:block">
                   <ViewDropdown
                     view={view}

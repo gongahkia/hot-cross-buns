@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CalendarCN - Beautiful Open Source Calendar for React",
+  title: "Hot Cross Buns",
   description:
     "A beautifully crafted calendar component for React. Built with shadcn/ui and Tailwind CSS, inspired by Notion Calendar. Features week view, dark mode, event colors, and more.",
   keywords: [
