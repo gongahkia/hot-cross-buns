@@ -1,6 +1,5 @@
 import { zonedDateTimeIso as sharedZonedDateTimeIso } from "@shared/zonedTime";
 import { cachedDateTimeFormat } from "@shared/zonedTime";
-import { startOfUtcDayIso } from "../../coreScreenShared";
 import type { CalendarDayViewModel, CalendarViewId } from "../../coreViewModels";
 
 export interface CalendarLocalPoint {
@@ -126,7 +125,7 @@ export function calendarUtcDayOffset(fromDay: string, toDay: string): number {
 }
 
 export function calendarTodayKey(): string {
-  return calendarIsoDate(new Date(startOfUtcDayIso(new Date())));
+  return calendarIsoDate(new Date());
 }
 
 export function calendarCurrentLocalPoint(timeZone = "UTC"): CalendarLocalPoint {
