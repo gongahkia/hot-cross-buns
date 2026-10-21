@@ -12,6 +12,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
 import type { SyncResolutionPreview } from "@shared/syncResolution";
+import { claimedLocalEventId, deterministicGoogleEventId } from "./googleEventIdentity";
 
 type JsonRecord = Record<string, any>;
 type WorkspaceService = "driveSearch" | "driveUpload" | "gmail";
@@ -167,7 +168,7 @@ export class GoogleSyncService {
       const local = entity.local ?? context.mutations.find((mutation) => mutation.entityId === entity.id)?.payload ?? null;
       const remote = entity.kind === "taskList" ? snapshot.lists?.find((list) => list.remote.id === local?.googleId)?.remote
         : entity.kind === "task" ? snapshot.lists?.flatMap((list) => list.tasks).find((task) => task.id === local?.googleId)
-        : snapshot.calendars?.flatMap((calendar) => calendar.events).find((event) => event.id === local?.googleId);
+        : snapshot.calendars?.flatMap((calendar) => calendar.events).find((event) => event.id === local?.googleId || (!local?.googleId && claimedLocalEventId(event) === entity.id));
       return { id: entity.id, kind: entity.kind, title: local?.title ?? "Locally deleted item", local: resolutionFields(entity.kind, entity.local), google: resolutionFields(entity.kind, remote ?? null, true) };
     });
     const split = context.mutations.some((mutation) => mutation.kind === "event.splitSeries");
@@ -1350,13 +1351,6 @@ function calendarAttachments(value: unknown): JsonRecord[] {
       title: typeof attachment.title === "string" && attachment.title ? attachment.title : attachment.fileUrl,
       ...(typeof attachment.mimeType === "string" ? { mimeType: attachment.mimeType } : {})
     }));
-}
-
-function deterministicGoogleEventId(localId: string): string {
-  // Google Calendar event ids use lower-case base32hex. UUID hex is a valid
-  // subset; the prefix makes app-created ids recognisable without exposing
-  // credentials or account identity.
-  return `hcb${String(localId).replace(/[^a-f0-9]/gi, "").toLowerCase()}`.slice(0, 1024);
 }
 
 function googleEventTime(value: string, allDay: boolean, timeZone: unknown): JsonRecord {

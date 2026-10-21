@@ -2,6 +2,7 @@ import { currentZonedDay, zonedDayRange, cachedDateTimeFormat } from "@shared/zo
 import Database from "better-sqlite3";
 import { createHash, randomUUID } from "node:crypto";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
+import { claimedLocalEventId } from "./googleEventIdentity";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
@@ -956,7 +957,14 @@ export class CoreStore {
 
   upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google event id");
-    const existing = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
+    let existing = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
+    const claimedId = claimedLocalEventId(remote);
+    if (!existing && claimedId) {
+      existing = this.statement("SELECT id FROM events WHERE id=? AND calendar_id=? AND google_id IS NULL").get(claimedId, localCalendarId) as { id: string } | undefined;
+      // A lost Calendar creation response can be recovered by its deterministic
+      // ID. Bind identity only: queued local content must survive this pull.
+      if (existing) this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(googleId, remote.etag ?? null, existing.id);
+    }
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("event", localId)) return null;
     if (remote.status === "cancelled") {

@@ -896,5 +896,35 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(eventFixture.store.unresolvedSyncMutationCount(eventFixture.accountId)).toBe(0);
   });
 
+  it("recovers an accepted Calendar creation without a duplicate local event or lost later recurrence edit", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { store, service, calendar, remoteEvents, googleFetch, accountId } = createCalendarFixture();
+    const event = store.dispatch("calendar", "create", { calendarId: calendar.id, title: "Accepted Calendar event", startsAt: "2026-10-22T09:00:00Z", endsAt: "2026-10-22T10:00:00Z" });
+    const transport = googleFetch.getMockImplementation()!;
+    let loseResponse = true;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "POST" && target.pathname.endsWith("/events")) {
+        const body = JSON.parse(String(init.body));
+        if (remoteEvents.has(body.id)) return new Response(null, { status: 409 });
+        remoteEvents.set(body.id, { ...body, etag: "created" });
+        if (loseResponse) { loseResponse = false; throw new TypeError("Response lost after Calendar accepted the event"); }
+        return Response.json(remoteEvents.get(body.id));
+      }
+      if (init?.method === "PATCH") {
+        const remote = remoteEvents.get(target.pathname.split("/").at(-1)!);
+        if (!remote) return new Response(null, { status: 404 });
+        Object.assign(remote, JSON.parse(String(init.body)), { etag: "patched" }); return Response.json(remote);
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
+    expect(store.googleEventForSync(event.id)!.googleId).toBe([...remoteEvents.keys()][0]);
+    store.dispatch("calendar", "update", { id: event.id, recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=3"], description: "Latest local text" });
+    vi.setSystemTime(Date.now() + 60_000); await service.runNow();
+    expect(remoteEvents.size).toBe(1);
+    expect([...remoteEvents.values()][0]).toMatchObject({ description: "Latest local text", recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
 
 });
