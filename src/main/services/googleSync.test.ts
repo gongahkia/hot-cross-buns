@@ -624,4 +624,29 @@ describe("GoogleSyncService", () => {
       .rejects.toThrow(`Google Tasks notes, including HCB planning metadata, are limited to ${googleTaskNotesMaxLength} characters.`);
     expect(googleFetch).not.toHaveBeenCalled();
   });
+
+  it("writes task content after a cross-list move using the destination id and new ETag", async () => {
+    const task = { id: "local", googleId: "old-id", googleListId: "source", listGoogleId: "destination", googleEtag: "old-etag", title: "Edited title", notes: "Edited notes", status: "active" };
+    const googleFetch = vi.fn(async (_account: string, target: URL, _init?: RequestInit) => Response.json({
+      id: "new-id", etag: target.pathname.endsWith("/move") ? "move-etag" : "patch-etag"
+    }));
+    const store = {
+      googleTaskForSync: () => task,
+      bindGoogleTask: (_id: string, remote: { id: string; etag: string }) => Object.assign(task, {
+        googleId: remote.id, googleEtag: remote.etag, googleListId: task.listGoogleId
+      })
+    };
+    const service = new GoogleSyncService(store as never, { onConnectionChange: vi.fn(), googleFetch } as never) as unknown as {
+      pushTask: (account: string, id: string, payload: Record<string, unknown>) => Promise<void>;
+    };
+    await service.pushTask("account", "local", { previousTaskId: null });
+    const [[, moveUrl, moveInit], [, patchUrl, patchInit]] = googleFetch.mock.calls;
+    expect(moveUrl.pathname).toBe("/tasks/v1/lists/source/tasks/old-id/move");
+    expect(moveUrl.searchParams.get("destinationTasklist")).toBe("destination");
+    expect(moveInit?.method).toBe("POST");
+    expect(patchUrl.pathname).toBe("/tasks/v1/lists/destination/tasks/new-id");
+    expect(patchInit?.method).toBe("PATCH");
+    expect(new Headers(patchInit?.headers).get("if-match")).toBe("move-etag");
+    expect(JSON.parse(String(patchInit?.body))).toMatchObject({ title: "Edited title", notes: "Edited notes" });
+  });
 });

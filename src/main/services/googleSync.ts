@@ -526,22 +526,17 @@ export class GoogleSyncService {
       this.store.bindGoogleTask(localId, remote);
       return;
     }
-    if (task.googleListId && task.googleListId !== task.listGoogleId) {
+    const changesList = task.googleListId && task.googleListId !== task.listGoogleId;
+    const changesPosition = Object.prototype.hasOwnProperty.call(mutationPayload, "previousTaskId");
+    if (changesList || (task.googleParentId ?? undefined) !== parent || changesPosition) {
       const previous = typeof mutationPayload.previousTaskId === "string"
         ? await this.remoteParentId(mutationPayload.previousTaskId)
         : undefined;
-      const remote = await this.requestJson<JsonRecord>(accountId, `${taskUrl(task.googleListId, task.googleId)}/move`, {
-        method: "POST", query: { destinationTasklist: task.listGoogleId, ...(parent ? { parent } : {}), ...(previous ? { previous } : {}) }
-      });
-      this.store.bindGoogleTask(localId, remote);
-      return;
-    }
-    if ((task.googleParentId ?? undefined) !== parent) {
-      const previous = typeof mutationPayload.previousTaskId === "string"
-        ? await this.remoteParentId(mutationPayload.previousTaskId)
-        : undefined;
-      const moved = await this.requestJson<JsonRecord>(accountId, `${taskUrl(task.listGoogleId, task.googleId)}/move`, {
-        method: "POST", ...(parent || previous ? { query: { ...(parent ? { parent } : {}), ...(previous ? { previous } : {}) } } : {})
+      const moved = await this.requestJson<JsonRecord>(accountId, `${taskUrl(task.googleListId ?? task.listGoogleId, task.googleId)}/move`, {
+        method: "POST", query: {
+          ...(changesList ? { destinationTasklist: task.listGoogleId } : {}),
+          ...(parent ? { parent } : {}), ...(previous ? { previous } : {})
+        }
       });
       this.store.bindGoogleTask(localId, moved);
       task = this.store.googleTaskForSync(localId);

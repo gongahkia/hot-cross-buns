@@ -42,6 +42,22 @@ function createFixture() {
       }
       return Response.json(task);
     }
+    if (method === "POST" && target.pathname.endsWith("/move")) {
+      const task = remoteTasks.get(target.pathname.split("/").at(-2)!);
+      if (!task) return Response.json({}, { status: 404 });
+      const parent = target.searchParams.get("parent");
+      const siblings = [...remoteTasks.values()].filter((item) => item.id !== task.id && (item.parent ?? null) === parent)
+        .sort((a, b) => a.position.localeCompare(b.position));
+      const previous = target.searchParams.get("previous");
+      const previousIndex = previous ? siblings.findIndex((item) => item.id === previous) : -1;
+      if (previous && previousIndex < 0) return Response.json({}, { status: 400 });
+      if (parent) task.parent = parent;
+      else delete task.parent;
+      siblings.splice(previousIndex + 1, 0, task);
+      siblings.forEach((item, index) => { item.position = String(index + 1).padStart(8, "0"); });
+      task.etag = `v${++revision}`;
+      return Response.json(task);
+    }
     const taskId = target.pathname.split("/").at(-1)!;
     const task = remoteTasks.get(taskId);
     if (method === "PATCH" && task) {
@@ -164,5 +180,36 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ notes: "", priority: "high", dueAt: "2026-10-22T00:00:00.000Z" });
     expect(remoteTasks.get("priority-task")?.notes).not.toContain("Remove only the prose");
     expect(remoteTasks.get("priority-task")?.notes).toContain("[HCB task metadata v1:");
+  });
+
+  it.each([false, true])("syncs sibling order in both directions (subtasks=%s)", async (subtasks) => {
+    const { store, service, importTask, list, googleFetch } = createFixture();
+    const parent = subtasks ? importTask({ id: "parent", title: "Parent" }) : null;
+    const tasks = ["A", "B", "C"].map((title, index) => importTask({
+      id: title, title, position: String(index + 1).padStart(8, "0"), ...(parent ? { parent: "parent" } : {})
+    }));
+    const order = () => store.dispatch("tasks", "list", { listId: list.id, parentId: parent?.id ?? null, status: "all" }).items.map((task: RemoteTask) => task.title);
+    store.dispatch("tasks", "move", { id: tasks[2].id, listId: list.id, previousTaskId: null });
+    expect(order()).toEqual(["C", "A", "B"]);
+    await service.runNow();
+    expect(order()).toEqual(["C", "A", "B"]);
+    const firstMove = googleFetch.mock.calls.find(([, target]) => target.pathname.endsWith("/move"));
+    expect(firstMove?.[1].searchParams.has("previous")).toBe(false);
+    expect(firstMove?.[1].searchParams.get("parent")).toBe(subtasks ? "parent" : null);
+    store.dispatch("tasks", "move", { id: tasks[2].id, listId: list.id, previousTaskId: tasks[1].id });
+    await service.runNow();
+    expect(order()).toEqual(["A", "B", "C"]);
+    const moves = googleFetch.mock.calls.filter(([, target]) => target.pathname.endsWith("/move"));
+    expect(moves).toHaveLength(2);
+    expect(moves[1][1].searchParams.get("previous")).toBe("B");
+  });
+
+  it("does not reposition a task when only its title changes", async () => {
+    const { store, service, importTask, googleFetch } = createFixture();
+    const task = importTask({ id: "ordinary-edit", title: "Before" });
+    store.dispatch("tasks", "update", { id: task.id, title: "After" });
+    await service.runNow();
+    expect(googleFetch.mock.calls.some(([, target]) => target.pathname.endsWith("/move"))).toBe(false);
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("After");
   });
 });

@@ -61,6 +61,8 @@ Queued task-list renames retain their local title and original ETag during pulls
 
 Task updates send empty note text explicitly and use `due: null` to clear a date; a new undated task omits `due`. This follows [Google's PATCH semantics](https://developers.google.com/workspace/tasks/performance#semantics_of_a_patch_request). HCB planning metadata, when present, remains in the task notes even when the user clears the visible prose.
 
+Explicit sibling reordering uses Google's `tasks.move` endpoint, including moving to the first position by omitting `previous`. Ordinary content edits do not reposition a task. A cross-list move is followed by a content update against the returned task identity and ETag so a combined move/edit retains both changes.
+
 ## Calendar Mapping
 
 Google Calendar backs:
