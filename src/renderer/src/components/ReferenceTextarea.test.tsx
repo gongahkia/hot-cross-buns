@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -44,6 +44,12 @@ describe("ReferenceTextarea", () => {
 
     await user.type(screen.getByRole("textbox", { name: "Task notes" }), "@plan");
     const option = await screen.findByRole("option", { name: /Plan launch/i });
+    const input = screen.getByRole("textbox", { name: "Task notes" });
+    expect(input).toHaveAttribute("aria-controls", screen.getByRole("listbox", { name: "Reference results" }).id);
+    expect(input).toHaveAttribute("aria-activedescendant", option.id);
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true, keyCode: 229 });
+    expect(input).toHaveValue("@plan");
+    expect(option).toBeInTheDocument();
     await user.click(option);
 
     expect(screen.getByRole("textbox", { name: "Task notes" })).toHaveValue("[[hcb:task:task-1|Plan launch]]");

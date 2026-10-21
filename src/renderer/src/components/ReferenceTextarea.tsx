@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState
@@ -11,6 +12,8 @@ import type { GoogleStatusResponse } from "@shared/ipc/contracts";
 import { googleScopes, hasGoogleScope } from "../googleCapabilities";
 import { EmojiTextarea } from "./EmojiTextField";
 import { Button, cx } from "./primitives";
+
+import { isComposingKey, useSuggestionAccessibility } from "./suggestionAccessibility";
 
 type PickerSource = "all" | "drive" | "hcb";
 type ReferenceKind = "event" | "note" | "task";
@@ -138,10 +141,12 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
   onValueChange: (value: string) => void;
   showControls?: boolean;
   renderInput?: (bindings: ReferenceInputBindings) => ReactNode;
+  getInputElement?: () => HTMLElement | null;
   getSelection?: () => QueryRange;
   insertReference?: (markdown: string, selection: QueryRange) => void;
 }>(
-  function ReferenceTextarea({ accountId, className, onKeyDown, onSelect, onValueChange, showControls = true, value = "", renderInput, getSelection, insertReference, ...props }, ref) {
+  function ReferenceTextarea({ accountId, className, onKeyDown, onSelect, onValueChange, showControls = true, value = "", renderInput, getInputElement, getSelection, insertReference, ...props }, ref) {
+    const listboxId = useId();
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const searchRef = useRef<HTMLInputElement | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -328,6 +333,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     }
 
     function handleKeyDown(event: KeyboardEvent<HTMLElement>): void {
+      if (isComposingKey(event)) { event.stopPropagation(); return; }
       if (isOpen && event.key === "Escape") {
         event.preventDefault(); event.stopPropagation(); setIsOpen(false); return;
       }
@@ -359,6 +365,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     function renderItem(item: ReferenceItem, index: number): JSX.Element {
       return (
         <button
+          id={`${listboxId}-option-${index}`}
           aria-selected={index === activeIndex}
           className={cx(
             "grid min-h-10 w-full grid-cols-[18px_minmax(0,1fr)] items-center gap-2 rounded-hcbSm px-2 py-1.5 text-left text-[var(--text-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
@@ -384,6 +391,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
       return <div className="grid gap-0.5" key={title}><div className="px-2 pt-2 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-text-muted">{title}</div>{items.map((item, index) => renderItem(item, start + index))}</div>;
     };
 
+    useSuggestionAccessibility(() => getInputElement?.() ?? textareaRef.current, listboxId, choices.length ? `${listboxId}-option-${activeIndex}` : null, isOpen, `${pickerQuery}:${choices.length}`);
     return (
       <div className="relative grid min-w-0 gap-2">
         {renderInput ? renderInput({ onKeyDown: handleKeyDown, onQuery: (query) => {
@@ -411,14 +419,14 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           <div className="absolute inset-x-0 bottom-0 z-[1002] grid max-h-[min(28rem,60vh)] overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl" role="dialog" aria-label="Insert reference" onKeyDown={handleKeyDown}>
             <div className="flex items-center gap-1 border-b border-border p-1">
               <Search aria-hidden="true" className="ml-1 text-text-muted" size={14} />
-              <input aria-label="Search references" className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[var(--text-sm)] text-text-primary outline-none placeholder:text-text-muted" onChange={(event) => setPickerQuery(event.currentTarget.value)} placeholder={canSearchDrive ? "Search Drive or Hot Cross Buns" : "Search Hot Cross Buns"} ref={searchRef} value={pickerQuery} />
+              <input aria-controls={listboxId} aria-activedescendant={choices.length ? `${listboxId}-option-${activeIndex}` : undefined} aria-expanded="true" aria-autocomplete="list" aria-label="Search references" className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[var(--text-sm)] text-text-primary outline-none placeholder:text-text-muted" onChange={(event) => setPickerQuery(event.currentTarget.value)} placeholder={canSearchDrive ? "Search Drive or Hot Cross Buns" : "Search Hot Cross Buns"} ref={searchRef} value={pickerQuery} />
               <button aria-label="Close reference picker" className="flex size-8 items-center justify-center rounded-hcbSm text-text-muted hover:bg-bg-tertiary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => setIsOpen(false)} type="button"><X aria-hidden="true" size={14} /></button>
             </div>
             <div className="flex flex-wrap gap-1 border-b border-border p-1">
               {sourceTabs.map((source) => <button aria-pressed={mode === source} className={cx("rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", mode === source ? "bg-bg-tertiary text-text-primary" : "text-text-muted hover:bg-bg-tertiary hover:text-text-primary")} key={source} onClick={() => setMode(source)} type="button">{source === "all" ? "All" : source === "drive" ? "Drive" : "HCB items"}</button>)}
               {canUploadDrive ? <button className="ml-auto inline-flex items-center gap-1 rounded-hcbSm px-2 py-1 text-[var(--text-xs)] font-semibold text-accent hover:bg-bg-tertiary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" disabled={uploading} onClick={() => void uploadFromMac()} type="button"><FileUp aria-hidden="true" size={13} />Upload from Mac</button> : null}
             </div>
-            <div className="grid p-1" role="listbox" aria-label="Reference results">
+            <div id={listboxId} className="grid p-1" role="listbox" aria-label="Reference results">
               {renderGroup("Recently used", recentItems)}
               {renderGroup("Drive", freshDriveItems)}
               {renderGroup("Hot Cross Buns", freshHcbItems)}

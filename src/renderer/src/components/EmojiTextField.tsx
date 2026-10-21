@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState
@@ -14,6 +15,8 @@ import type {
   TextareaHTMLAttributes
 } from "react";
 import { cx } from "./primitives";
+
+import { isComposingKey, useSuggestionAccessibility } from "./suggestionAccessibility";
 
 type EmojiElement = HTMLInputElement | HTMLTextAreaElement;
 
@@ -89,6 +92,7 @@ function useEmojiField(
   externalKeyDown?: (event: KeyboardEvent<EmojiElement>) => void
 ): {
   activeIndex: number;
+  listboxId: string;
   handleChange: (event: ChangeEvent<EmojiElement>) => void;
   handleKeyDown: (event: KeyboardEvent<EmojiElement>) => void;
   innerRef: React.MutableRefObject<EmojiElement | null>;
@@ -96,6 +100,7 @@ function useEmojiField(
   suggestions: EmojiEntry[];
 } {
   const innerRef = useRef<EmojiElement | null>(null);
+  const listboxId = useId();
   const [queryRange, setQueryRange] = useState<{ end: number; query: string; start: number } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [emojiEntries, setEmojiEntries] = useState<EmojiEntry[]>([]);
@@ -115,6 +120,8 @@ function useEmojiField(
       .filter((entry) => entry.terms.some((term) => term.includes(queryRange.query)))
       .slice(0, 8);
   }, [queryRange, emojiEntries]);
+
+  useSuggestionAccessibility(() => innerRef.current, listboxId, suggestions.length ? `${listboxId}-option-${activeIndex}` : null, suggestions.length > 0);
 
   function refreshQuery(nextValue: string, cursor: number): void {
     setQueryRange(emojiQuery(nextValue, cursor));
@@ -145,6 +152,7 @@ function useEmojiField(
   }
 
   function handleKeyDown(event: KeyboardEvent<EmojiElement>): void {
+    if (isComposingKey(event)) { event.stopPropagation(); return; }
     if (suggestions.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -178,14 +186,16 @@ function useEmojiField(
     externalKeyDown?.(event);
   }
 
-  return { activeIndex, handleChange, handleKeyDown, innerRef, pickEmoji, suggestions };
+  return { activeIndex, listboxId, handleChange, handleKeyDown, innerRef, pickEmoji, suggestions };
 }
 
 function EmojiSuggestions({
+  listboxId,
   activeIndex,
   onPick,
   suggestions
 }: {
+  listboxId: string;
   activeIndex: number;
   onPick: (entry: EmojiEntry) => void;
   suggestions: EmojiEntry[];
@@ -195,12 +205,13 @@ function EmojiSuggestions({
   }
 
   return (
-    <div className="absolute left-0 top-[calc(100%+4px)] z-[1001] grid max-h-56 min-w-64 overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl">
+    <div id={listboxId} role="listbox" aria-label="Emoji suggestions" className="absolute left-0 top-[calc(100%+4px)] z-[1001] grid max-h-56 min-w-64 overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl">
       {suggestions.map((entry, index) => (
         <button
+          id={`${listboxId}-option-${index}`}
           aria-selected={index === activeIndex}
           className={cx(
-            "grid min-h-8 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-hcbSm px-2 text-left text-[var(--text-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+            "grid min-h-10 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-hcbSm px-2 text-left text-[var(--text-sm)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             index === activeIndex ? "bg-bg-tertiary text-text-primary" : "text-text-secondary hover:bg-bg-tertiary"
           )}
           key={entry.id}
@@ -239,7 +250,7 @@ export const EmojiInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<
           value={value}
           {...props}
         />
-        <EmojiSuggestions activeIndex={field.activeIndex} onPick={field.pickEmoji} suggestions={field.suggestions} />
+        <EmojiSuggestions listboxId={field.listboxId} activeIndex={field.activeIndex} onPick={field.pickEmoji} suggestions={field.suggestions} />
       </div>
     );
   }
@@ -267,7 +278,7 @@ export const EmojiTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHTMLAt
           value={value}
           {...props}
         />
-        <EmojiSuggestions activeIndex={field.activeIndex} onPick={field.pickEmoji} suggestions={field.suggestions} />
+        <EmojiSuggestions listboxId={field.listboxId} activeIndex={field.activeIndex} onPick={field.pickEmoji} suggestions={field.suggestions} />
       </div>
     );
   }
