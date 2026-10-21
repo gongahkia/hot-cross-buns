@@ -165,12 +165,31 @@ export class GoogleSyncService {
     for (const [id, review] of this.resolutionReviews) if (review.expires < Date.now()) this.resolutionReviews.delete(id);
     if (this.resolutionReviews.size >= 5) this.resolutionReviews.delete(this.resolutionReviews.keys().next().value!);
     this.resolutionReviews.set(reviewId, { mutationId: context.mutation.id, version: context.version, fingerprint: snapshotFingerprint(snapshot), expires: Date.now() + 5 * 60_000 });
+    const lists = new Map(snapshot.lists?.map((list) => [list.remote.id, list]));
+    const tasks = new Map(snapshot.lists?.flatMap((list) => list.tasks.map((task) => [task.id, { task, list }] as const)));
     const items = context.entities.map((entity) => {
       const local = resolutionLocalRecord(context, entity.id);
-      const remote = entity.kind === "taskList" ? snapshot.lists?.find((list) => list.remote.id === local?.googleId)?.remote
-        : entity.kind === "task" ? snapshot.lists?.flatMap((list) => list.tasks).find((task) => task.id === local?.googleId)
-        : resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.store.googleCalendarForSync(id))?.event;
-      return { id: entity.id, kind: entity.kind, title: local?.title ?? "Locally deleted item", local: resolutionFields(entity.kind, entity.local), google: resolutionFields(entity.kind, remote ?? null, true) };
+      const event = entity.kind === "event" ? resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.store.googleCalendarForSync(id)) : null;
+      const task = entity.kind === "task" ? tasks.get(local?.googleId) : null;
+      const remote = entity.kind === "taskList" ? lists.get(local?.googleId)?.remote : entity.kind === "task" ? task?.task : event?.event;
+      const localFields = resolutionFields(entity.kind, entity.local);
+      const googleFields = resolutionFields(entity.kind, remote ?? null, true, entity.local);
+      if (entity.kind === "task") {
+        if (localFields) { localFields.list = this.store.googleTaskListForSync(local?.listId)?.title ?? "Unavailable list"; localFields.parent = local?.parentId ? this.store.googleTaskForSync(local.parentId)?.title ?? "Unavailable parent" : null; }
+        if (googleFields) { googleFields.list = task?.list.remote.title; googleFields.parent = remote?.parent ? tasks.get(remote.parent)?.task.title ?? "Unavailable parent" : null; }
+        const order = context.mutations.filter((mutation) => mutation.entityId === entity.id && Object.hasOwn(mutation.payload, "previousTaskId")).at(-1);
+        if (order && localFields && googleFields && task) {
+          localFields.after = order.payload.previousTaskId ? this.store.googleTaskForSync(order.payload.previousTaskId)?.title ?? "Unavailable task" : "Start of list";
+          const siblings = task.list.tasks.filter((sibling) => !sibling.deleted && (sibling.parent ?? null) === (remote?.parent ?? null)).sort((a, b) => String(a.position ?? "").localeCompare(String(b.position ?? "")));
+          const index = siblings.findIndex((sibling) => sibling.id === remote?.id);
+          googleFields.after = index > 0 ? siblings[index - 1].title : "Start of list";
+        }
+      }
+      if (entity.kind === "event") {
+        if (localFields) localFields.calendar = this.store.googleCalendarForSync(local?.calendarId)?.title ?? "Unavailable calendar";
+        if (googleFields) googleFields.calendar = event?.calendar.remote.summary ?? event?.calendar.remote.title;
+      }
+      return { id: entity.id, kind: entity.kind, title: local?.title ?? "Locally deleted item", local: localFields, google: googleFields };
     });
     const split = context.mutations.some((mutation) => mutation.kind === "event.splitSeries");
     const removed = context.entities.some((entity, index) => entity.local?.googleId && (!items[index].google || items[index].google?.status === "deleted") &&
@@ -1173,20 +1192,39 @@ function snapshotFingerprint(snapshot: GoogleResolutionSnapshot): string {
   return createHash("sha256").update(JSON.stringify(canonical(snapshot))).digest("hex");
 }
 
-function resolutionFields(kind: string, value: JsonRecord | null, remote = false): JsonRecord | null {
+function resolutionFields(kind: string, value: JsonRecord | null, remote = false, fallback: JsonRecord | null = null): JsonRecord | null {
   if (!value) return null;
   if (kind === "taskList") return { title: value.title ?? "" };
-  if (kind === "task") return {
-    title: value.title ?? "", notes: remote ? splitHcbTaskMetadata(value.notes).notes : value.notes ?? "",
-    status: value.deleted ? "deleted" : remote ? value.status === "completed" ? "completed" : "active" : value.status,
-    due: ((remote ? value.due : value.dueAt) as string | undefined)?.slice(0, 10) ?? null,
-    parent: remote ? value.parent ? "Google parent task" : null : value.parentId ? "Local parent task" : null
+  if (kind === "task") {
+    const parsed = splitHcbTaskMetadata(value.notes);
+    const planning: JsonRecord = remote ? parsed.metadata ?? fallback ?? {} : value;
+    return {
+      title: value.title ?? "", notes: remote ? parsed.notes : value.notes ?? "",
+      status: value.deleted ? "deleted" : remote ? value.status === "completed" ? "completed" : "active" : value.status,
+      due: ((remote ? value.due : value.dueAt) as string | undefined)?.slice(0, 10) ?? null,
+      priority: planning.priority ?? "none", durationMinutes: planning.durationMinutes ?? null,
+      plannedStart: planning.plannedStart ?? null, plannedEnd: planning.plannedEnd ?? null,
+      lockedSchedule: Boolean(planning.lockedSchedule), snoozeUntil: planning.snoozeUntil ?? null, tags: planning.tags ?? []
+    };
+  }
+  const allDay = remote ? Boolean(value.start?.date) : Boolean(value.allDay);
+  const date = (input: unknown) => typeof input !== "string" ? null : allDay ? input.slice(0, 10) : Number.isFinite(Date.parse(input)) ? new Date(input).toISOString() : input;
+  const attendees = safeArray(value.attendees).map((attendee) => ({ email: attendee.email, name: attendee.displayName ?? null, response: attendee.responseStatus ?? "needsAction", optional: Boolean(attendee.optional) })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
+  const video = remote ? safeArray(value.conferenceData?.entryPoints).find((point) => point.entryPointType === "video")?.uri ?? value.hangoutLink : value.conference?.videoUri;
+  return {
+    title: remote ? value.summary ?? "" : value.title ?? "", description: value.description ?? "",
+    start: date(remote ? value.start?.dateTime ?? value.start?.date : value.startsAt), end: date(remote ? value.end?.dateTime ?? value.end?.date : value.endsAt), allDay,
+    timeZone: (remote ? value.start?.timeZone : value.timeZone) ?? null,
+    location: value.location ?? "", color: value.colorId === "default" ? null : value.colorId ?? null,
+    recurrence: remote ? value.recurrence ?? [] : value.recurrenceLines ?? value.googleRecurrence ?? [],
+    attendees, remindersUseDefault: remote ? value.reminders?.useDefault !== false : Boolean(value.remindersUseDefault),
+    reminders: remote ? value.reminders?.overrides ?? [] : value.reminders ?? [],
+    transparency: value.transparency ?? "opaque", visibility: value.visibility ?? "default",
+    attachments: safeArray(value.attachments).map((attachment) => ({ title: attachment.title ?? "", url: attachment.fileUrl, mimeType: attachment.mimeType ?? null })),
+    meeting: video ?? null, eventType: value.eventType ?? "default", focusTimeProperties: value.focusTimeProperties ?? null,
+    outOfOfficeProperties: value.outOfOfficeProperties ?? null, workingLocationProperties: value.workingLocationProperties ?? null,
+    status: value.status === "cancelled" ? "deleted" : "active"
   };
-  return { title: remote ? value.summary ?? "" : value.title ?? "", description: value.description ?? "",
-    start: remote ? value.start?.dateTime ?? value.start?.date : value.startsAt,
-    end: remote ? value.end?.dateTime ?? value.end?.date : value.endsAt,
-    location: value.location ?? "", recurrence: remote ? value.recurrence ?? [] : value.recurrenceLines ?? value.googleRecurrence ?? [],
-    status: value.status === "cancelled" ? "deleted" : "active" };
 }
 
 function safeDriveFileName(value: string): string {

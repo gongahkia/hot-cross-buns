@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoreStore } from "./coreStore";
 import { GoogleSyncService } from "./googleSync";
 import Database from "better-sqlite3";
+import { withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 type RemoteTask = Record<string, any>;
 const fixtures: Array<{ store: CoreStore; directory: string }> = [];
@@ -1013,5 +1014,26 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
   });
 
+  it("includes task planning metadata and event guest/reminder fields in the reviewed diff", async () => {
+    const tasks = createFixture();
+    const task = tasks.importTask({ id: "metadata-task", title: "Task", notes: withHcbTaskMetadata("Google notes", { priority: "low", durationMinutes: 30, tags: ["google"] }) });
+    tasks.store.dispatch("tasks", "update", { id: task.id, priority: "high", durationMinutes: 90, tags: ["local"] });
+    let id = tasks.store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    let preview = await tasks.service.previewMutationResolution({ id });
+    expect(preview.items[0].local).toMatchObject({ priority: "high", durationMinutes: 90, tags: ["local"] });
+    expect(preview.items[0].google).toMatchObject({ priority: "low", durationMinutes: 30, tags: ["google"], notes: "Google notes" });
+    expect(JSON.stringify(preview)).not.toContain("googleId");
+    const events = createCalendarFixture();
+    const event = events.importEvent("guest-event");
+    const remote = events.remoteEvents.get("guest-event")!;
+    Object.assign(remote, { attendees: [{ email: "google@example.test", responseStatus: "accepted" }], reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 10 }] }, visibility: "private" });
+    events.store.upsertGoogleEvent(remote, events.calendar.id);
+    events.store.dispatch("calendar", "update", { id: event.id, attendees: [{ email: "local@example.test" }], reminders: [{ method: "popup", minutes: 30 }], remindersUseDefault: false });
+    id = events.store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    preview = await events.service.previewMutationResolution({ id });
+    expect(preview.items[0].local).toMatchObject({ attendees: [expect.objectContaining({ email: "local@example.test" })], reminders: [{ method: "popup", minutes: 30 }] });
+    expect(preview.items[0].google).toMatchObject({ attendees: [expect.objectContaining({ email: "google@example.test", response: "accepted" })], reminders: [{ method: "popup", minutes: 10 }], visibility: "private" });
+    expect(preview.items[0].google!.start).toBe(preview.items[0].local!.start);
+  });
 
 });

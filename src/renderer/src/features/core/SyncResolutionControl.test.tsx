@@ -39,4 +39,20 @@ describe("sync resolution review", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Google changed");
     expect(screen.getByText("Local title")).toBeVisible();
   });
+  it("pages large related groups while keeping the full decision count visible", async () => {
+    fixture();
+    vi.mocked(window.hcb!.diagnostics.previewMutationResolution).mockResolvedValue({ ok: true, data: {
+      id: "mutation", reviewId: "review", affectedCount: 21, canKeepLocal: true, message: "All related changes",
+      items: Array.from({ length: 21 }, (_, index) => ({ id: String(index), kind: "task", title: `Row ${index}`, local: { title: `Local ${index}` }, google: { title: `Google ${index}` } }))
+    } });
+    render(<SyncResolutionControl id="mutation" disabled={false} onResolved={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Compare and resolve" }));
+    expect(await screen.findByText("1–20 of 21 items")).toBeVisible();
+    expect(screen.queryByText("task · Row 20")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Next items" }));
+    expect(screen.getByText("21–21 of 21 items")).toBeVisible();
+    expect(screen.getByText("task · Row 20")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Use Google and discard 21 local changes" })).toBeEnabled();
+  });
+
 });

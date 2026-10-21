@@ -11,8 +11,10 @@ export function SyncResolutionControl({ id, disabled, onResolved }: { id: string
   const [preview, setPreview] = useState<SyncResolutionPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
   async function compare() {
-    setBusy(true); setError(""); setPreview(null);
+    setBusy(true); setError(""); setPreview(null); setPage(0);
     try {
       const result = await window.hcb?.diagnostics.previewMutationResolution({ id });
       if (!result?.ok) throw new Error(result?.error.message ?? "Google comparison is unavailable.");
@@ -41,7 +43,12 @@ export function SyncResolutionControl({ id, disabled, onResolved }: { id: string
     {preview ? <section aria-label="Review sync changes" className="grid min-w-0 gap-3 rounded-lg border border-border p-3 text-[var(--text-sm)]">
       <p>{preview.message}</p>
       <p className="font-semibold tabular-nums">{preview.affectedCount} queued {preview.affectedCount === 1 ? "change" : "changes"} affected</p>
-      {preview.items.map((item) => <details key={`${item.kind}:${item.id}`} open={preview.items.length === 1}>
+      {preview.items.length > pageSize ? <div className="flex flex-wrap items-center gap-2" aria-label="Comparison pages">
+        <Button disabled={busy || page === 0} onClick={() => setPage((value) => value - 1)}>Previous items</Button>
+        <span className="tabular-nums">{page * pageSize + 1}–{Math.min((page + 1) * pageSize, preview.items.length)} of {preview.items.length} items</span>
+        <Button disabled={busy || (page + 1) * pageSize >= preview.items.length} onClick={() => setPage((value) => value + 1)}>Next items</Button>
+      </div> : null}
+      {preview.items.slice(page * pageSize, (page + 1) * pageSize).map((item) => <details key={`${item.kind}:${item.id}`} open={preview.items.length === 1}>
         <summary className="cursor-pointer py-2 font-semibold">{item.kind} · {item.title}</summary>
         <div className="overflow-auto">
           <table className="w-full table-fixed border-collapse text-left">
@@ -49,7 +56,7 @@ export function SyncResolutionControl({ id, disabled, onResolved }: { id: string
             <tbody>{Array.from(new Set([...Object.keys(item.local ?? {}), ...Object.keys(item.google ?? {})])).map((field) => {
               const changed = display(item.local?.[field]) !== display(item.google?.[field]);
               return <tr key={field} className={changed ? "bg-bg-secondary" : ""}>
-                <th scope="row" className="border-b border-border p-2 align-top font-medium">{field}{changed ? " *" : ""}</th>
+                <th scope="row" className="border-b border-border p-2 align-top font-medium">{field.replace(/([a-z])([A-Z])/g, "$1 $2")}{changed ? " *" : ""}</th>
                 <td className="whitespace-pre-wrap break-words border-b border-border p-2 align-top">{item.local ? display(item.local[field]) : "Deleted locally"}</td>
                 <td className="whitespace-pre-wrap break-words border-b border-border p-2 align-top">{item.google ? display(item.google[field]) : "No linked Google item"}</td>
               </tr>;
