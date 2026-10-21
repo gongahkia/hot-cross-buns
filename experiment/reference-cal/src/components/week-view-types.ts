@@ -5,12 +5,27 @@ import type {
   CalendarEvent,
   EventDragState,
   EventDragVariant,
+  EventColor,
   EventResizeState,
   HourSlot,
   PositionedEvent,
   ViewType,
   WeekDay,
 } from "./calendar-types";
+
+/** Account and calendar records supplied by the app's data source. */
+export interface CalendarItem {
+  id: string;
+  name: string;
+  color: EventColor;
+  visible: boolean;
+  isSubscribed?: boolean;
+}
+
+export interface CalendarAccount {
+  email: string;
+  calendars: CalendarItem[];
+}
 
 // Re-export all shared types for backward compatibility
 export type {

@@ -4,10 +4,7 @@ import * as React from "react";
 import { ChevronRight, Eye, EyeOff, Rss } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type {
-  CalendarAccount,
-  CalendarColor,
-} from "@/components/sidebar-right";
+import type { CalendarAccount, EventColor } from "@/components/week-view-types";
 import {
   Collapsible,
   CollapsibleContent,
@@ -23,7 +20,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 
-const colorStyles: Record<CalendarColor, string> = {
+const colorStyles: Record<EventColor, string> = {
   red: "bg-event-red",
   orange: "bg-event-orange",
   yellow: "bg-event-yellow",
@@ -35,36 +32,10 @@ const colorStyles: Record<CalendarColor, string> = {
 
 interface CalendarsProps {
   accounts: CalendarAccount[];
+  onToggleVisibility: (accountEmail: string, calendarId: string) => void;
 }
 
-export function Calendars({ accounts }: CalendarsProps) {
-  const [visibleCalendars, setVisibleCalendars] = React.useState<Set<string>>(
-    () => {
-      const visible = new Set<string>();
-      for (const account of accounts) {
-        for (const calendar of account.calendars) {
-          if (calendar.visible) {
-            visible.add(`${account.email}-${calendar.name}`);
-          }
-        }
-      }
-      return visible;
-    },
-  );
-
-  const toggleVisibility = (accountEmail: string, calendarName: string) => {
-    const key = `${accountEmail}-${calendarName}`;
-    setVisibleCalendars((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
+export function Calendars({ accounts, onToggleVisibility }: CalendarsProps) {
   return (
     <>
       {accounts.map((account, index) => (
@@ -84,12 +55,10 @@ export function Calendars({ accounts }: CalendarsProps) {
                 <SidebarGroupContent>
                   <SidebarMenu className="gap-0">
                     {account.calendars.map((calendar) => {
-                      const isVisible = visibleCalendars.has(
-                        `${account.email}-${calendar.name}`,
-                      );
+                      const isVisible = calendar.visible;
                       return (
                         <SidebarMenuItem
-                          key={calendar.name}
+                          key={calendar.id}
                           className="group/calendar-item"
                         >
                           <SidebarMenuButton className="pr-1">
@@ -114,19 +83,21 @@ export function Calendars({ accounts }: CalendarsProps) {
                             </span>
                             <span
                               role="button"
+                              aria-label={`${isVisible ? "Hide" : "Show"} ${calendar.name} calendar`}
+                              aria-pressed={isVisible}
                               tabIndex={0}
                               className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm opacity-0 hover:bg-sidebar-accent group-hover/calendar-item:opacity-100"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleVisibility(account.email, calendar.name);
+                                onToggleVisibility(account.email, calendar.id);
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  toggleVisibility(
+                                  onToggleVisibility(
                                     account.email,
-                                    calendar.name,
+                                    calendar.id,
                                   );
                                 }
                               }}

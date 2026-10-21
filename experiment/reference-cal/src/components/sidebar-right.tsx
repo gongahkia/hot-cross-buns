@@ -17,6 +17,7 @@ import { SidebarOverlay } from "@/components/sidebar-overlay";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import type { CalendarAccount } from "@/components/week-view-types";
 import {
   SidebarContent,
   SidebarFooter,
@@ -36,51 +37,12 @@ import {
 /** Width of the calendar sidebar, inline and as an overlay */
 const SIDEBAR_WIDTH = "15rem";
 
-export type CalendarColor =
-  | "red"
-  | "orange"
-  | "yellow"
-  | "green"
-  | "blue"
-  | "purple"
-  | "gray";
-
-export interface CalendarItem {
-  name: string;
-  color: CalendarColor;
-  visible: boolean;
-  isSubscribed?: boolean;
-}
-
-export interface CalendarAccount {
-  email: string;
-  calendars: CalendarItem[];
-}
-
-// Sample data grouped by email accounts
-const data: { accounts: CalendarAccount[] } = {
-  accounts: [
-    {
-      email: "me@vmnog.com",
-      calendars: [
-        { name: "me@vmnog.com", color: "red", visible: true },
-        { name: "Personal", color: "purple", visible: true },
-        { name: "Work", color: "blue", visible: true },
-        { name: "Family", color: "orange", visible: true },
-        { name: "Side Projects", color: "yellow", visible: true },
-        { name: "Fitness", color: "green", visible: true },
-        {
-          name: "Holidays in Brazil",
-          color: "green",
-          visible: true,
-          isSubscribed: true,
-        },
-      ],
-    },
-  ],
-};
-
 interface SidebarRightProps {
+  accounts: CalendarAccount[];
+  onCalendarVisibilityChange: (
+    accountEmail: string,
+    calendarId: string,
+  ) => void;
   open?: boolean;
   /** Called when the overlay asks to close (outside tap, Escape, toggle) */
   onOpenChange?: (open: boolean) => void;
@@ -93,6 +55,8 @@ interface SidebarRightProps {
 }
 
 export function SidebarRight({
+  accounts,
+  onCalendarVisibilityChange,
   open = true,
   onOpenChange,
   overlay = false,
@@ -138,7 +102,10 @@ export function SidebarRight({
             />
           </div>
         </SidebarGroup>
-        <Calendars accounts={data.accounts} />
+        <Calendars
+          accounts={accounts}
+          onToggleVisibility={onCalendarVisibilityChange}
+        />
         <SidebarSeparator className="mx-0" />
         <SidebarGroup className="py-0">
           <SidebarGroupContent>

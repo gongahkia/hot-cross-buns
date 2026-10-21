@@ -1,3 +1,4 @@
+import { SAMPLE_ACCOUNT_EMAIL } from "./sample-account";
 import { addDays, addMinutes, format, startOfWeek } from "date-fns";
 import type { Day } from "date-fns";
 
@@ -194,7 +195,11 @@ function holidayEvents(today: Date): CalendarEvent[] {
           date,
           "green",
           HOLIDAY_CALENDAR_ID,
-          { isAllDay: true, calendarEmail: "me@vmnog.com", ...holiday.opts },
+          {
+            isAllDay: true,
+            calendarEmail: SAMPLE_ACCOUNT_EMAIL,
+            ...holiday.opts,
+          },
         ),
       );
     }
@@ -257,7 +262,7 @@ const WEEKLY_ROUTINES: readonly WeeklyRoutine[] = [
     hour: 9,
     durationMinutes: 30,
     color: "red",
-    calendarId: "me@vmnog.com",
+    calendarId: SAMPLE_ACCOUNT_EMAIL,
     opts: {
       description: "Daily sync — blockers, progress, priorities",
       reminders: [{ amount: 5, unit: "minutes" }],
@@ -275,7 +280,7 @@ const WEEKLY_ROUTINES: readonly WeeklyRoutine[] = [
     hour: 15,
     durationMinutes: 30,
     color: "red",
-    calendarId: "me@vmnog.com",
+    calendarId: SAMPLE_ACCOUNT_EMAIL,
     opts: {
       description: "Weekly check-in",
       reminders: [{ amount: 10, unit: "minutes" }],
@@ -429,7 +434,7 @@ function routineEvents(rel: RelativeDate): CalendarEvent[] {
           routine.calendarId,
           {
             recurrence: `Every week on ${WEEKDAY_NAMES[routine.weekday]}`,
-            calendarEmail: "me@vmnog.com",
+            calendarEmail: SAMPLE_ACCOUNT_EMAIL,
             ...routine.opts,
             ...exception?.opts,
           },
@@ -470,7 +475,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Align on Q1 goals and key deliverables for the engineering team",
         reminders: [{ amount: 1, unit: "hours" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -480,7 +485,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-131, 13),
       "purple",
       "Personal",
-      { location: "Ichiran Ramen", calendarEmail: "me@vmnog.com" },
+      { location: "Ichiran Ramen", calendarEmail: SAMPLE_ACCOUNT_EMAIL },
     ),
     ev(
       "j04",
@@ -496,7 +501,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 15, unit: "minutes" },
           { amount: 1, unit: "hours" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         status: "busy",
       },
     ),
@@ -513,7 +518,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Review H1 roadmap with product and design leads. Bring updated estimates.",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -523,7 +528,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-124, 12),
       "yellow",
       "Side Projects",
-      { calendarEmail: "me@vmnog.com" },
+      { calendarEmail: SAMPLE_ACCOUNT_EMAIL },
     ),
     ev("j11", "Dentist", rel(-122, 10), rel(-122, 11), "purple", "Personal", {
       description: "Regular cleaning + check-up. Bring insurance card.",
@@ -532,7 +537,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         { amount: 1, unit: "hours" },
         { amount: 1, unit: "days" },
       ],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "j12",
@@ -546,7 +551,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           "Watching the new sci-fi movie everyone's been talking about",
         location: "AMC Theater",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -562,7 +567,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         recurrence: "Every 2 weeks on Mon",
         description: "Scope sprint 3 stories, assign points and owners",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -572,7 +577,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-117, 14, 30),
       "purple",
       "Personal",
-      { location: "Blue Bottle Coffee", calendarEmail: "me@vmnog.com" },
+      { location: "Blue Bottle Coffee", calendarEmail: SAMPLE_ACCOUNT_EMAIL },
     ),
     ev(
       "j17",
@@ -585,14 +590,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Review proposed microservice migration plan. Discuss trade-offs with team.",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("j20", "Brunch", rel(-113, 11), rel(-113, 13), "orange", "Family", {
       description: "Monthly family brunch — Mom's picking the place",
       location: "Café Lola",
       reminders: [{ amount: 1, unit: "hours" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
 
     // Week -16 (days -112 to -106)
@@ -606,7 +611,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Prepare slides and metrics for Q4 review presentation",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -615,14 +620,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-110, 14),
       rel(-110, 15),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Demo new dashboard features to Acme Corp stakeholders",
         reminders: [
           { amount: 30, unit: "minutes" },
           { amount: 1, unit: "hours" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         status: "busy",
       },
     ),
@@ -633,13 +638,13 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-109, 14),
       "yellow",
       "Side Projects",
-      { calendarEmail: "me@vmnog.com" },
+      { calendarEmail: SAMPLE_ACCOUNT_EMAIL },
     ),
     ev("j25", "Retro", rel(-108, 14), rel(-108, 15), "blue", "Work", {
       recurrence: "Every 2 weeks on Thu",
       description: "Sprint 2 retrospective — what went well, what to improve",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "j27",
@@ -647,11 +652,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-107, 10),
       rel(-107, 11, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Compile January metrics and submit to finance",
         reminders: [{ amount: 1, unit: "hours" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -665,7 +670,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         { amount: 30, unit: "minutes" },
         { amount: 1, unit: "days" },
       ],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       status: "busy",
       timezone: "GMT-3 Sao Paulo",
     }),
@@ -680,7 +685,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "She wants to chat about switching jobs — bring advice",
         location: "Sweetgreen",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -694,7 +699,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Review component library updates — new button variants and color tokens",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("f05", "Workshop", rel(-101, 9), rel(-101, 12), "blue", "Work", {
@@ -702,7 +707,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         "React Patterns Workshop — advanced hooks, composition, and performance",
       location: "Main Hall",
       reminders: [{ amount: 1, unit: "hours" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       status: "busy",
       visibility: "public",
     }),
@@ -720,7 +725,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 1, unit: "hours" },
           { amount: 1, unit: "days" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -737,7 +742,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Scope new auth service project — timeline, resources, dependencies",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -746,10 +751,10 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-97, 10, 30),
       rel(-97, 11),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -758,7 +763,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-96, 14, 30),
       rel(-96, 15, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description:
           "Monthly sync with Acme Corp — review integration progress and blockers",
@@ -766,14 +771,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 10, unit: "minutes" },
           { amount: 1, unit: "hours" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         timezone: "GMT-3 Sao Paulo",
         status: "busy",
       },
     ),
     ev("f10b", "Infra Sync", rel(-96, 14), rel(-96, 15), "blue", "Work", {
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "f11b",
@@ -785,14 +790,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Review auth flow security audit findings",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("f12", "Sprint Review", rel(-94, 10), rel(-94, 11), "blue", "Work", {
       recurrence: "Every 2 weeks on Thu",
       description: "Demo sprint 3 deliverables to stakeholders",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "f12b",
@@ -804,7 +809,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Set up Lighthouse CI for the component library",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -822,7 +827,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 2, unit: "hours" },
           { amount: 1, unit: "days" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -831,7 +836,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       description:
         "Align engineering and product on H1 priorities and delivery dates",
       reminders: [{ amount: 15, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "f17",
@@ -845,7 +850,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           "He's launching his startup next month — wants feedback on the pitch",
         location: "Chipotle",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -859,14 +864,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Deep dive into event-driven architecture for the notifications service",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("f22", "Brunch", rel(-85, 11), rel(-85, 13), "orange", "Family", {
       description: "Sister's visiting from out of town",
       location: "The Breakfast Club",
       reminders: [{ amount: 1, unit: "hours" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "f23",
@@ -877,7 +882,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Side Projects",
       {
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -893,7 +898,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         recurrence: "Every 2 weeks on Mon",
         description: "Plan sprint 4 — finalize scope and capacity",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -902,11 +907,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-83, 10, 30),
       rel(-83, 11),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Quick sync with CFO before investor email goes out",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         status: "busy",
       },
     ),
@@ -921,7 +926,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Go over user interview findings from last week's research sessions",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -934,7 +939,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Review new onboarding flow wireframes with design team",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -943,11 +948,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-82, 15),
       rel(-82, 16),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Senior frontend engineer — system design round",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         status: "busy",
       },
     ),
@@ -958,16 +963,16 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-81, 10),
       "purple",
       "Personal",
-      { location: "Starbucks Reserve", calendarEmail: "me@vmnog.com" },
+      { location: "Starbucks Reserve", calendarEmail: SAMPLE_ACCOUNT_EMAIL },
     ),
     ev("f27b", "Platform Sync", rel(-81, 9), rel(-81, 10, 30), "blue", "Work", {
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev("f27c", "API Review", rel(-81, 10), rel(-81, 11), "blue", "Work", {
       description: "Review REST→GraphQL migration proposal",
       reminders: [{ amount: 5, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "f27d",
@@ -975,24 +980,32 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-81, 14),
       rel(-81, 15),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Debrief on yesterday's candidate — collect scorecards",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
-    ev("f28", "Demo Day", rel(-80, 14), rel(-80, 16), "red", "me@vmnog.com", {
-      description: "Present Q1 progress to leadership — bring laptop charger",
-      location: "Auditorium",
-      reminders: [
-        { amount: 1, unit: "hours" },
-        { amount: 1, unit: "days" },
-      ],
-      calendarEmail: "me@vmnog.com",
-      status: "busy",
-      visibility: "public",
-    }),
+    ev(
+      "f28",
+      "Demo Day",
+      rel(-80, 14),
+      rel(-80, 16),
+      "red",
+      SAMPLE_ACCOUNT_EMAIL,
+      {
+        description: "Present Q1 progress to leadership — bring laptop charger",
+        location: "Auditorium",
+        reminders: [
+          { amount: 1, unit: "hours" },
+          { amount: 1, unit: "days" },
+        ],
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
+        status: "busy",
+        visibility: "public",
+      },
+    ),
     ev(
       "f28b",
       "Stakeholder Check-in",
@@ -1003,7 +1016,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Quick sync with product on demo feedback",
         reminders: [{ amount: 5, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1015,14 +1028,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Side Projects",
       {
         reminders: [{ amount: 5, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("f29", "Retro", rel(-79, 14), rel(-79, 15), "blue", "Work", {
       recurrence: "Every 2 weeks on Fri",
       description: "Sprint 3 retro — focus on deployment pipeline improvements",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "f29b",
@@ -1034,7 +1047,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Internal talk on building accessible UI components",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1052,7 +1065,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Set engineering priorities for March — focus on performance and reliability",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1061,10 +1074,10 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-75, 13),
       rel(-75, 14),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1078,7 +1091,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "She got the new job! Celebration lunch",
         location: "Sushi Nakazawa",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("m05", "Workshop: Testing", rel(-73, 9), rel(-73, 12), "blue", "Work", {
@@ -1086,20 +1099,20 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         "Testing Best Practices — unit tests, integration tests, E2E with Playwright",
       location: "Room 4B",
       reminders: [{ amount: 30, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev("m07", "Game Night", rel(-72, 19), rel(-72, 22), "orange", "Family", {
       description:
         "Board games at our place — picking up snacks on the way home",
       reminders: [{ amount: 2, unit: "hours" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
 
     // Week -10 (days -70 to -64) — triple-booked Tuesday
     ev("m09", "OKR Review", rel(-69, 10), rel(-69, 11, 30), "blue", "Work", {
       description: "Mid-quarter OKR progress review with leadership",
       reminders: [{ amount: 15, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "m09b",
@@ -1107,12 +1120,12 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-69, 10),
       rel(-69, 11),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description:
           "Engineering org all-hands — CTO presenting new tech strategy",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1121,7 +1134,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-68, 14),
       rel(-68, 15),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description:
           "Acme Corp escalation — discuss SLA concerns and resolution plan",
@@ -1129,7 +1142,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 10, unit: "minutes" },
           { amount: 1, unit: "hours" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         timezone: "GMT-3 Sao Paulo",
       },
     ),
@@ -1142,7 +1155,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Family",
       {
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1155,7 +1168,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Plan PostgreSQL → CockroachDB migration with infra team",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1164,11 +1177,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-67, 14, 30),
       rel(-67, 15, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Review Tuesday's production outage — identify root cause",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         status: "busy",
       },
     ),
@@ -1182,7 +1195,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Monthly frontend guild — discuss React 19 migration plan",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1196,13 +1209,13 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Review new dark mode color palette for the component library",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("m13", "Team Offsite", rel(-66, 0), rel(-65, 0), "blue", "Work", {
       isAllDay: true,
       description: "Annual team offsite — team building and strategy sessions",
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
 
     // Week -9 (days -63 to -57)
@@ -1217,7 +1230,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         recurrence: "Every 2 weeks on Mon",
         description: "Sprint 5 planning — final sprint before Q1 wrap",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1231,7 +1244,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Trying the new Thai place he keeps recommending",
         location: "Thai Basil",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1240,12 +1253,12 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-60, 14),
       rel(-60, 15, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description:
           "Write self-review and gather peer feedback for annual review cycle",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1257,7 +1270,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Side Projects",
       {
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1269,7 +1282,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         { amount: 15, unit: "minutes" },
         { amount: 1, unit: "days" },
       ],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "m24",
@@ -1277,11 +1290,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-54, 14),
       rel(-54, 15, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Final demo of the new reporting dashboard to Acme Corp",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
         status: "busy",
       },
     ),
@@ -1295,21 +1308,21 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Review database sharding proposal and caching strategy",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("m26", "Sprint Review", rel(-52, 10), rel(-52, 11), "blue", "Work", {
       recurrence: "Every 2 weeks on Thu",
       description: "Demo sprint 5 features — focus on performance improvements",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev("m27", "Retro", rel(-51, 14), rel(-51, 15), "blue", "Work", {
       recurrence: "Every 2 weeks on Fri",
       description:
         "Q1 final retro — what worked, what didn't, action items for Q2",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "m29",
@@ -1325,7 +1338,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 2, unit: "hours" },
           { amount: 1, unit: "days" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1337,7 +1350,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         { amount: 15, unit: "minutes" },
         { amount: 1, unit: "days" },
       ],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "m32",
@@ -1345,12 +1358,12 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-47, 10),
       rel(-47, 11, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description:
           "Compile March metrics, budget reconciliation, and Q1 summary for finance",
         reminders: [{ amount: 1, unit: "hours" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1361,7 +1374,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       isAllDay: true,
       description:
         "End-of-quarter wrap-up period spanning the weekend — cross-week boundary test",
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
 
     // 3-day all-day event within a single week: Tue (day -68) – Thu (day -66)
@@ -1376,7 +1389,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         isAllDay: true,
         description:
           "Three-day preparation window for the team offsite — within-week all-day test",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1389,7 +1402,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-69, 8),
       rel(-69, 8, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
     ),
     ev(
       "dense02",
@@ -1473,7 +1486,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-73, 14),
       rel(-73, 15),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
     ),
     ev(
       "dense14",
@@ -1491,7 +1504,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-66, 9),
       rel(-66, 10, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
     ),
     ev(
       "dense16",
@@ -1534,7 +1547,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-62, 11),
       rel(-62, 11, 45),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
     ),
     ev(
       "dense22",
@@ -1581,7 +1594,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Q2 2024 sprint kickoff — defining team velocity baseline",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1594,7 +1607,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Q1 2025 sprint retro — process improvements discussion",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1605,11 +1618,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-83, 14),
       rel(-83, 15),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Demo sprint 4 deliverables to product team",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1622,7 +1635,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Sprint 4 retrospective — team feedback session",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1633,11 +1646,11 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-60, 9, 30),
       rel(-60, 10),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "Mid-sprint sync — check blockers and progress",
         reminders: [{ amount: 5, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1651,7 +1664,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Backlog grooming for next sprint — estimate and prioritize stories",
         reminders: [{ amount: 10, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1671,7 +1684,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           "Annual leadership offsite — strategy, planning, team building",
         location: "Catskills Retreat Center",
         reminders: [{ amount: 1, unit: "days" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1684,7 +1697,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Drive up to Catskills — leaving early to beat traffic",
         location: "I-87 N",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1698,7 +1711,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Group dinner kicking off the offsite",
         location: "Catskills Retreat Center",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1714,7 +1727,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Mother's Day brunch — reservation under Nogueira",
         location: "Balthazar",
         reminders: [{ amount: 1, unit: "hours" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1728,7 +1741,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Debrief offsite outcomes — decisions, action items, next steps",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1737,7 +1750,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       rel(-5, 8, 30),
       rel(-5, 9, 30),
       "red",
-      "me@vmnog.com",
+      SAMPLE_ACCOUNT_EMAIL,
       {
         description: "6-month cleaning",
         location: "Dr. Park, 5th Ave",
@@ -1745,7 +1758,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           { amount: 1, unit: "hours" },
           { amount: 1, unit: "days" },
         ],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1757,7 +1770,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Personal",
       {
         location: "Ichiran Ramen",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1772,7 +1785,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           "Demo CalendarCN month view to design and product stakeholders",
         location: "Zoom",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1785,7 +1798,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Picking up snacks on the way home",
         location: "AMC Lincoln Square",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1799,7 +1812,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "12 miles — half marathon prep",
         location: "Central Park Loop",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1811,7 +1824,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         { amount: 15, unit: "minutes" },
         { amount: 1, unit: "days" },
       ],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "may22",
@@ -1823,14 +1836,14 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "Catching up with Priya — exploring senior IC roles",
         location: "Blue Bottle Bryant Park",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev("may23", "Design Critique", rel(2, 14), rel(2, 15, 30), "blue", "Work", {
       description: "Review week-view drag interactions and edge cases",
       location: "Room 3A",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "may25",
@@ -1843,7 +1856,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Internal tech talk — RSC adoption patterns",
         location: "Main Auditorium",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1857,7 +1870,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description:
           "Review proposed changes to event positioning engine — column assignment algorithm",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1869,7 +1882,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Personal",
       {
         location: "Joe's Pizza",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1887,7 +1900,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           "Long weekend getaway — hiking, antique shops, farm-to-table dinners",
         location: "Hudson, NY",
         reminders: [{ amount: 1, unit: "days" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1895,7 +1908,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
     ev("may32", "Roadmap Sync", rel(8, 14), rel(8, 15), "blue", "Work", {
       description: "Align on Q3 roadmap themes before exec review",
       reminders: [{ amount: 10, unit: "minutes" }],
-      calendarEmail: "me@vmnog.com",
+      calendarEmail: SAMPLE_ACCOUNT_EMAIL,
     }),
     ev(
       "may33",
@@ -1910,7 +1923,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
           "React Conf — keynotes, workshops, hallway track networking",
         location: "Henderson, NV",
         reminders: [{ amount: 2, unit: "days" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1923,7 +1936,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       {
         description: "React Conf opening keynote — what's new in React 20",
         location: "Henderson Convention Center",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1937,7 +1950,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Deep dive into useTransition, useDeferredValue patterns",
         location: "Room 204",
         reminders: [{ amount: 15, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1951,7 +1964,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Hosted dinner with React core team and maintainers",
         location: "STK Las Vegas",
         reminders: [{ amount: 1, unit: "hours" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1965,7 +1978,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "Catching up after the trip",
         location: "Mom's house",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
 
@@ -1979,7 +1992,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Side Projects",
       {
         description: "Final pass on month view before tagging v1.0",
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
     ev(
@@ -1993,7 +2006,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
         description: "14 miles — half marathon final long run",
         location: "Brooklyn Bridge Park",
         reminders: [{ amount: 30, unit: "minutes" }],
-        calendarEmail: "me@vmnog.com",
+        calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },
     ),
   ];
@@ -2006,7 +2019,29 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
  * Weekly routines repeat across a window of weeks around today, and holidays
  * are added on their real dates for the years around `today`.
  */
-export function generateMockEvents(today: Date = new Date()): CalendarEvent[] {
+interface MockEventOptions {
+  accountEmail?: string;
+  includeHolidays?: boolean;
+}
+
+export function generateMockEvents(
+  today: Date = new Date(),
+  {
+    accountEmail = SAMPLE_ACCOUNT_EMAIL,
+    includeHolidays = false,
+  }: MockEventOptions = {},
+): CalendarEvent[] {
   const rel = createRelativeDate(today);
-  return [...demoEvents(rel), ...routineEvents(rel), ...holidayEvents(today)];
+  return [
+    ...demoEvents(rel),
+    ...routineEvents(rel),
+    ...(includeHolidays ? holidayEvents(today) : []),
+  ].map((event) => ({
+    ...event,
+    calendarId:
+      event.calendarId === SAMPLE_ACCOUNT_EMAIL
+        ? accountEmail
+        : event.calendarId,
+    calendarEmail: accountEmail,
+  }));
 }

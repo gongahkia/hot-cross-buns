@@ -20,6 +20,7 @@ import { useTheme } from "next-themes";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { generateMockEvents } from "@/lib/mock-events";
+import { SAMPLE_ACCOUNTS, SAMPLE_ACCOUNT_EMAIL } from "@/lib/sample-account";
 import { pickRandomEventColor } from "@/lib/event-utils";
 import { CommandMenu } from "@/components/command-menu";
 import { SidebarLeft } from "@/components/sidebar-left";
@@ -58,7 +59,7 @@ import { Kbd } from "@/components/ui/kbd";
 const NEW_EVENT_TITLE = "New event";
 
 /** Primary calendar (and its account email) that click-created events belong to */
-const PRIMARY_CALENDAR_ID = "me@vmnog.com";
+const PRIMARY_CALENDAR_ID = SAMPLE_ACCOUNT_EMAIL;
 
 /**
  * Viewports at least this wide keep both sidebars inline (Tailwind `xl`).
@@ -100,6 +101,40 @@ function PageContent({ isWideLayout }: PageContentProps) {
     startOfWeek(new Date(), { weekStartsOn: 0 }),
   );
   const [events, setEvents] = React.useState(() => generateMockEvents());
+  const [accounts, setAccounts] = React.useState(() =>
+    structuredClone(SAMPLE_ACCOUNTS),
+  );
+  const toggleCalendarVisibility = React.useCallback(
+    (email: string, id: string) => {
+      setAccounts((current) =>
+        current.map((account) =>
+          account.email === email
+            ? {
+                ...account,
+                calendars: account.calendars.map((calendar) =>
+                  calendar.id === id
+                    ? { ...calendar, visible: !calendar.visible }
+                    : calendar,
+                ),
+              }
+            : account,
+        ),
+      );
+    },
+    [],
+  );
+  const visibleEvents = React.useMemo(() => {
+    const visibleIds = new Set(
+      accounts.flatMap((account) =>
+        account.calendars
+          .filter((calendar) => calendar.visible)
+          .map((calendar) => calendar.id),
+      ),
+    );
+    return events.filter(
+      (event) => !event.calendarId || visibleIds.has(event.calendarId),
+    );
+  }, [accounts, events]);
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(
     null,
   );
@@ -503,6 +538,8 @@ function PageContent({ isWideLayout }: PageContentProps) {
       />
       {!settingsOpen && (
         <SidebarRight
+          accounts={accounts}
+          onCalendarVisibilityChange={toggleCalendarVisibility}
           open={leftSidebarVisible}
           onOpenChange={setLeftOverlayOpen}
           overlay={isMobile}
@@ -645,7 +682,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
               {view === "month" ? (
                 <MonthView
                   currentDate={currentDate}
-                  events={events}
+                  events={visibleEvents}
                   viewSettings={viewSettings}
                   onEventClick={(e) => selectEvent(e.id)}
                   selectedEventId={selectedEvent?.id}
@@ -665,7 +702,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
                 <WeekView
                   view={view}
                   currentDate={currentDate}
-                  events={events}
+                  events={visibleEvents}
                   onEventClick={(e) => selectEvent(e.id)}
                   selectedEventId={selectedEvent?.id}
                   onBackgroundClick={() => setSelectedEventId(null)}
@@ -690,7 +727,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
       {!settingsOpen && (
         <SidebarLeft
           overlay={!isWideLayout}
-          events={events}
+          events={visibleEvents}
           selectedEvent={selectedEvent}
           onEventChange={handleEventChange}
           onPrevWeek={goToPrev}
