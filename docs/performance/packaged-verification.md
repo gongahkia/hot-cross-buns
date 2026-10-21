@@ -5,6 +5,9 @@ application under `dist/preview/mac`, copies it to a temporary installation path
 containing spaces, and launches it with a disposable profile. It never replaces
 an installed application or opens an existing user database. Artifacts are not
 published. `corepack pnpm pack:mac:dir` builds the artifact without running tests.
+Test-mode launches skip system URL-handler and login-item registration; native
+menu delivery, in-process deep links, tray rendering and temporary shortcuts are
+still exercised.
 
 The package includes the compiled main process, preload, renderer, worker and
 production dependencies. Native SQLite binaries are unpacked from ASAR, and

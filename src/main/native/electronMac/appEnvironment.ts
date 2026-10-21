@@ -139,6 +139,9 @@ export function registerProtocolClient(scheme: typeof HCB_DEEP_LINK_SCHEME): Nat
   if (process.platform !== "darwin") {
     return unsupported("Protocol registration is not handled by this platform adapter.");
   }
+  if (process.env.NODE_ENV === "test") {
+    return { ok: false, state: "disabled", message: "Isolated tests do not replace the system URL handler." };
+  }
 
   const defaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp;
   const ok = defaultApp && process.argv.length >= 2
@@ -199,6 +202,9 @@ export async function listFontFamilies(): Promise<string[]> {
 export function setAutostart(enabled: boolean): NativeOperationResult {
   if (process.platform !== "darwin") {
     return unsupported("Open-at-login is not handled by this platform adapter.");
+  }
+  if (process.env.NODE_ENV === "test") {
+    return { ok: false, state: "disabled", message: "Isolated tests do not change OS login items." };
   }
 
   if (!app.isPackaged) {

@@ -75,6 +75,8 @@ if (mode === "downgrade") {
  db.exec("DROP TABLE google_event_cancellations; DROP INDEX events_google_recurring_calendar_idx; DELETE FROM schema_migrations; INSERT INTO schema_migrations VALUES(8)");
  db.prepare("INSERT OR REPLACE INTO sync_meta VALUES(?,?)").run("google-sync-token:fixture:events:calendar", "old-calendar-token");
  db.prepare("INSERT OR REPLACE INTO sync_meta VALUES(?,?)").run("google-sync-token:fixture:tasks:list", "keep-tasks-token");
+} else if (mode === "checkpoint") {
+ db.prepare("INSERT OR REPLACE INTO sync_meta VALUES(?,?)").run("google-sync-token:fixture:events:calendar", "new-calendar-token");
 } else {
  const integrity = db.pragma("integrity_check", { simple: true });
  const version = db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get().version;
@@ -96,6 +98,12 @@ db.close();`);
     expect(upgraded.version).toBe(9);
     expect(upgraded.tokens).toEqual([{ key: "google-sync-token:fixture:tasks:list", value: "keep-tasks-token" }]);
     expect(upgraded.queued.map((row: { entity_id: string }) => row.entity_id)).toEqual(expect.arrayContaining([fixture.taskId, fixture.eventId]));
+    inspect("checkpoint");
+    await launch();
+    await application!.close(); application = undefined;
+    expect(JSON.parse(inspect("inspect")).tokens).toEqual(expect.arrayContaining([
+      { key: "google-sync-token:fixture:events:calendar", value: "new-calendar-token" }
+    ]));
     console.log("Packaged ASAR launch, native SQLite worker, backup integrity, native menu/deep link, restart persistence, and v8→v9 upgrade passed.");
   } finally {
     await application?.close();
