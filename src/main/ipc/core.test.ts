@@ -6,7 +6,8 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() }
 }));
 
-import { payloadIsValid } from "./core";
+import { payloadIsValid, registerCoreIpc } from "./core";
+import { ipcMain } from "electron";
 
 describe("core IPC task payload validation", () => {
   it("rejects unfinished actions instead of accepting a placeholder operation", () => {
@@ -69,6 +70,18 @@ describe("core IPC task payload validation", () => {
     expect(payloadIsValid("diagnostics", "resolveMutation", { id: "mutation", strategy: "google" })).toBe(false);
     expect(payloadIsValid("diagnostics", "resolveMutation", { id: "mutation", reviewId: "invalid", strategy: "local" })).toBe(false);
     expect(payloadIsValid("diagnostics", "previewMutationResolution", { id: "mutation", accountId: "other" })).toBe(false);
+  });
+  it("routes reviewed recovery through GoogleSync and keeps Google-side recovery read-only", async () => {
+    const googleSync = { onStatus: vi.fn(), previewMutationResolution: vi.fn(async () => ({ reviewId: "review" })), resolveMutation: vi.fn(async () => ({ cancelled: true })), scheduleAfterLocalMutation: vi.fn(async () => undefined) };
+    const dispatch = vi.fn();
+    registerCoreIpc({ ready: Promise.resolve(), core: { dispatch }, googleSync, googleOAuth: { isReconfiguring: () => false }, backups: {} } as never);
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === "hcb:core:invoke")![1];
+    expect(await handler({} as never, { namespace: "diagnostics", action: "previewMutationResolution", payload: { id: "mutation" } })).toMatchObject({ ok: true, data: { reviewId: "review" } });
+    const payload = { id: "mutation", reviewId: "660e8400-e29b-41d4-a716-446655440000", strategy: "google" };
+    expect(await handler({} as never, { namespace: "diagnostics", action: "resolveMutation", payload })).toMatchObject({ ok: true, data: { cancelled: true } });
+    expect(googleSync.resolveMutation).toHaveBeenCalledWith(payload);
+    expect(googleSync.scheduleAfterLocalMutation).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
 });
