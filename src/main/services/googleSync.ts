@@ -1149,12 +1149,12 @@ function googleTaskBody(task: JsonRecord): JsonRecord {
   }
   return {
     title: task.title,
-    notes: notes || undefined,
+    notes,
     // Google Tasks accepts an RFC 3339 timestamp here (although it only
     // retains the calendar-date portion). HCB intentionally stores task
-    // dates as date-only values, so normalize those before writing. Omitting
-    // the field is also important: the API rejects an explicit null due date.
-    ...(due ? { due } : {}),
+    // dates as date-only values, so normalize those before writing. PATCH
+    // removes an optional field only when explicitly set to null.
+    ...(due ? { due } : task.googleId ? { due: null } : {}),
     status: task.status === "completed" ? "completed" : "needsAction"
   };
 }

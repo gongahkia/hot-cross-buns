@@ -59,6 +59,8 @@ Time-specific task scheduling must be represented as a calendar event, not a Goo
 
 Queued task-list renames retain their local title and original ETag during pulls. An externally changed list becomes an explicit conflict; choosing to retry the local rename clears that stale revision intentionally.
 
+Task updates send empty note text explicitly and use `due: null` to clear a date; a new undated task omits `due`. This follows [Google's PATCH semantics](https://developers.google.com/workspace/tasks/performance#semantics_of_a_patch_request). HCB planning metadata, when present, remains in the task notes even when the user clears the visible prose.
+
 ## Calendar Mapping
 
 Google Calendar backs:

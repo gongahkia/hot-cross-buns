@@ -142,4 +142,27 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(remoteList.title).toBe("Local rename");
     expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
   });
+
+  it("clears a synced task's notes and date through PATCH and retains the clear on later pulls", async () => {
+    const { store, service, remoteTasks, importTask, googleFetch } = createFixture();
+    const task = importTask({ id: "dated-task", notes: "Remove these notes", due: "2026-10-22T00:00:00.000Z" });
+    store.dispatch("tasks", "update", { id: task.id, notes: "", dueDate: null });
+    await service.runNow();
+    await service.runNow();
+    expect(remoteTasks.get("dated-task")).not.toHaveProperty("due");
+    expect(remoteTasks.get("dated-task")?.notes).toBe("");
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ notes: "", dueAt: null });
+    const patch = googleFetch.mock.calls.find(([, , init]) => init?.method === "PATCH");
+    expect(JSON.parse(String(patch?.[2]?.body))).toMatchObject({ notes: "", due: null });
+  });
+
+  it("clears user notes while preserving HCB metadata and retains an existing date", async () => {
+    const { store, service, remoteTasks, importTask } = createFixture();
+    const task = importTask({ id: "priority-task", notes: "Remove only the prose", due: "2026-10-22T00:00:00.000Z" });
+    store.dispatch("tasks", "update", { id: task.id, notes: "", priority: "high" });
+    await service.runNow();
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ notes: "", priority: "high", dueAt: "2026-10-22T00:00:00.000Z" });
+    expect(remoteTasks.get("priority-task")?.notes).not.toContain("Remove only the prose");
+    expect(remoteTasks.get("priority-task")?.notes).toContain("[HCB task metadata v1:");
+  });
 });
