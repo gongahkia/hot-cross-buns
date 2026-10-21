@@ -25,7 +25,9 @@
     "profile:startup": "corepack pnpm build && tsx scripts/startup-profile.ts",
     "test:release-gate": "corepack pnpm build && corepack pnpm test:unit && corepack pnpm test:db && corepack pnpm exec playwright test -c playwright.config.ts",
     "test:db": "node scripts/run-core-store-tests.mjs",
-    "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts"
+    "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts",
+    "pack:mac:dir": "corepack pnpm build && node scripts/prepare-mac-icon.mjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.config.cjs --mac --dir --publish never",
+    "test:packaged": "corepack pnpm pack:mac:dir && tsx scripts/packaged-smoke.ts"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
