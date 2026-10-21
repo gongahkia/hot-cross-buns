@@ -280,8 +280,7 @@ export class GoogleSyncService {
         stale: false,
         message: "Connect Google before syncing."
       };
-      this.publishStatus(status);
-      return status;
+      return this.publishStatus(status);
     }
 
     this.publishStatus({ state: "syncing", pendingMutationCount: this.store.pendingSyncMutations().length, offline: false, stale: false });
@@ -315,8 +314,7 @@ export class GoogleSyncService {
         lastCompletedAt: new Date().toISOString(),
         lastErrorCode: null
       };
-      this.publishStatus(status);
-      return status;
+      return this.publishStatus(status);
     } catch (error: unknown) {
       const status = {
         state: "error",
@@ -360,9 +358,13 @@ export class GoogleSyncService {
     }
   }
 
-  private publishStatus(status: JsonRecord): void {
+  private publishStatus(status: JsonRecord): JsonRecord {
     this.store.setSyncRuntime(status);
-    this.events.emit("status", { ...status, pendingMutationCount: this.store.pendingSyncMutations().length });
+    const stored = this.store.dispatch("sync", "status", {});
+    const current = { ...status, ...(stored.state === "error" ? stored : {}),
+      pendingMutationCount: stored.pendingMutationCount ?? this.store.pendingSyncMutations().length };
+    this.events.emit("status", current);
+    return current;
   }
 
   private async pullGoogleCalendars(accountId: string): Promise<void> {
@@ -418,6 +420,9 @@ export class GoogleSyncService {
     for (const mutation of this.store.pendingSyncMutations(100, accountId)) {
       if ((mutation.kind.startsWith("task") && settings.syncTasksEnabled === false) ||
           (mutation.kind.startsWith("event") && settings.syncCalendarEventsEnabled === false)) continue;
+      const nonIdempotentCreate =
+        (["task.create", "task.update"].includes(mutation.kind) && !this.store.googleTaskForSync(mutation.entityId)?.googleId) ||
+        (["taskList.create", "taskList.update"].includes(mutation.kind) && !this.store.googleTaskListForSync(mutation.entityId)?.googleId);
       try {
         await this.deliverMutation(accountId, mutation);
         this.store.completeSyncMutation(mutation.id);
@@ -430,9 +435,11 @@ export class GoogleSyncService {
         // lost response can duplicate a user task, so preserve it as an
         // explicit conflict instead of guessing. Calendar creates are
         // idempotent below through a deterministic event id.
-        const ambiguousTaskCreate = mutation.kind === "task.create" && error instanceof GoogleApiError && error.status === 0;
+        const ambiguousTaskCreate = nonIdempotentCreate && error instanceof GoogleApiError && error.status === 0;
         const retryable = !ambiguousTaskCreate && (error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError));
-        this.store.deferSyncMutation(mutation.id, safeError(error), retryable);
+        this.store.deferSyncMutation(mutation.id, ambiguousTaskCreate
+          ? "Google may have accepted this creation before its response was lost. Check Google before retrying to avoid duplicates."
+          : safeError(error), retryable);
         // Preserve causal order: later writes may depend on this one.
         break;
       }

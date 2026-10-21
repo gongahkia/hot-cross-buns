@@ -71,7 +71,7 @@ type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 // accounts unsafe (both can legitimately expose e.g. a `primary` calendar).
 // This branch has no released users, so a clean reset is safer than a lossy
 // inference migration.
-const schemaVersion = 6;
+const schemaVersion = 7;
 const localAccountId = "local";
 const legacyPseudoNoteImportVersion = 1;
 const legacyPseudoNoteSourceType = "legacy-google-task-pseudo-note";
@@ -496,10 +496,18 @@ export class CoreStore {
    * credential. Local ids stay stable while a remote create is in flight.
    */
   pendingSyncMutations(limit = 100, accountId?: string): PendingSyncMutation[] {
-    const accountFilter = accountId ? " AND account_id=?" : "";
-    return (this.statement(`SELECT id,account_id AS accountId,kind,entity_id AS entityId,payload_json AS payload,
-      attempts,created_at AS createdAt FROM outbox WHERE state='pending' AND next_attempt_at <= ?${accountFilter}
-      ORDER BY created_at,id LIMIT ?`).all(timestamp(), ...(accountId ? [accountId] : []), Math.max(1, Math.min(500, limit))) as any[])
+    const accountFilter = accountId ? " AND mutation.account_id=?" : "";
+    const now = timestamp();
+    // rowid follows insertion order even when timestamps tie or the clock moves
+    // backwards. A blocked write remains a barrier on subsequent sync runs.
+    return (this.statement(`SELECT mutation.id,mutation.account_id AS accountId,mutation.kind,mutation.entity_id AS entityId,
+      mutation.payload_json AS payload,mutation.attempts,mutation.created_at AS createdAt
+      FROM outbox mutation WHERE mutation.state='pending' AND mutation.next_attempt_at <= ?${accountFilter}
+      AND NOT EXISTS (
+        SELECT 1 FROM outbox earlier WHERE earlier.account_id IS mutation.account_id AND earlier.rowid < mutation.rowid
+          AND earlier.state IN ('pending','conflict')
+          AND (earlier.state='conflict' OR earlier.next_attempt_at > ?)
+      ) ORDER BY mutation.rowid LIMIT ?`).all(now, ...(accountId ? [accountId] : []), now, Math.max(1, Math.min(500, limit))) as any[])
       .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
   }
 
@@ -1173,6 +1181,7 @@ export class CoreStore {
         created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS outbox_delivery_idx ON outbox(state, next_attempt_at, id);
+      CREATE INDEX IF NOT EXISTS outbox_unresolved_account_idx ON outbox(account_id) WHERE state IN ('pending','conflict');
       CREATE TABLE IF NOT EXISTS undo_entries (
         id TEXT PRIMARY KEY, action TEXT NOT NULL, forward_json TEXT NOT NULL, inverse_json TEXT NOT NULL,
         state TEXT NOT NULL DEFAULT 'applied', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -2759,7 +2768,11 @@ export class CoreStore {
       pendingMutationCount: pending,
       offline: false,
       stale: false,
-      ...runtimeWithoutPendingCount
+      ...runtimeWithoutPendingCount,
+      ...(conflicts && runtime.state !== "syncing" ? {
+        state: "error", stale: true, lastErrorCode: "SYNC_CONFLICT",
+        message: "Resolve failed Google changes in Diagnostics before later changes for that account can sync."
+      } : {})
     };
   }
 

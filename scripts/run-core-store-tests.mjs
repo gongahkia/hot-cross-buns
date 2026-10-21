@@ -12,7 +12,7 @@ try {
   console.log(`HCB CoreStore test database root: ${testDatabaseRoot}`);
   const result = spawnSync(
     electronBinary,
-    ["node_modules/vitest/vitest.mjs", "run", "--config", "vitest.config.ts", "src/main/services/coreStore.test.ts"],
+    ["node_modules/vitest/vitest.mjs", "run", "--config", "vitest.config.ts", "src/main/services/coreStore.test.ts", "src/main/services/googleSync.integration.test.ts"],
     {
       cwd: process.cwd(),
       env: {

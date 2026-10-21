@@ -109,6 +109,8 @@ V1 default conflict behavior:
 
 Do not silently drop user writes.
 
+Queued writes follow SQLite insertion order within each account, including edits created in the same millisecond. A deferred or conflicted write blocks later writes for that account across sync runs and restarts; other accounts can continue syncing. A lost response to a non-idempotent Task or task-list creation requires explicit conflict resolution rather than an automatic second creation. Outstanding conflicts remain visible as an error after a successful read refresh.
+
 ## Backoff And Error Handling
 
 Required behavior:
