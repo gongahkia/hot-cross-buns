@@ -18,6 +18,7 @@ interface DatePickerProps {
   onDateSelect?: (date: Date) => void;
   currentDate?: Date;
   visibleDays?: Date[];
+  showWeekNumbers?: boolean;
 }
 
 /**
@@ -40,6 +41,7 @@ export function DatePicker({
   onDateSelect,
   currentDate,
   visibleDays,
+  showWeekNumbers = true,
 }: DatePickerProps) {
   // `null` on the server and during hydration
   const today = useToday();
@@ -100,7 +102,7 @@ export function DatePicker({
               onDateSelect?.(date);
             }
           }}
-          showWeekNumber
+          showWeekNumber={showWeekNumbers}
           fixedWeeks
           showBackToToday={!isTodayMonth}
           onBackToToday={goBackToToday}

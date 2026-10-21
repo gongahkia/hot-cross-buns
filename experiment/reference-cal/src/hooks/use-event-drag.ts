@@ -261,9 +261,9 @@ export function useEventDrag({
       const gridWidth = colWidth * visibleDays.length;
 
       if (cursorXInGrid < EDGE_ZONE_PX) {
-        scheduleEdgeNav(-7);
+        scheduleEdgeNav(-visibleDays.length);
       } else if (cursorXInGrid > gridWidth - EDGE_ZONE_PX) {
-        scheduleEdgeNav(7);
+        scheduleEdgeNav(visibleDays.length);
       } else {
         cancelEdgeNav();
       }

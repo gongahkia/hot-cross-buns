@@ -8,19 +8,13 @@ import {
   PanelRightIcon,
 } from "lucide-react";
 
-import {
-  addDays,
-  addMonths,
-  addWeeks,
-  format,
-  startOfDay,
-  startOfWeek,
-} from "date-fns";
+import { addDays, addMonths, format, startOfDay, startOfWeek } from "date-fns";
 import { useTheme } from "next-themes";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { generateMockEvents } from "@/lib/mock-events";
 import { SAMPLE_ACCOUNTS, SAMPLE_ACCOUNT_EMAIL } from "@/lib/sample-account";
+import { shiftVisibleDate, filterCalendarEvents } from "@/lib/calendar-view";
 import { pickRandomEventColor } from "@/lib/event-utils";
 import { CommandMenu } from "@/components/command-menu";
 import { SidebarLeft } from "@/components/sidebar-left";
@@ -123,18 +117,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
     },
     [],
   );
-  const visibleEvents = React.useMemo(() => {
-    const visibleIds = new Set(
-      accounts.flatMap((account) =>
-        account.calendars
-          .filter((calendar) => calendar.visible)
-          .map((calendar) => calendar.id),
-      ),
-    );
-    return events.filter(
-      (event) => !event.calendarId || visibleIds.has(event.calendarId),
-    );
-  }, [accounts, events]);
+
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(
     null,
   );
@@ -157,6 +140,20 @@ function PageContent({ isWideLayout }: PageContentProps) {
     showDeclinedEvents: true,
     showWeekNumbers: true,
   });
+  const visibleEvents = React.useMemo(() => {
+    const visibleIds = new Set(
+      accounts.flatMap((account) =>
+        account.calendars
+          .filter((calendar) => calendar.visible)
+          .map((calendar) => calendar.id),
+      ),
+    );
+    return filterCalendarEvents(
+      events,
+      visibleIds,
+      viewSettings.showDeclinedEvents,
+    );
+  }, [accounts, events, viewSettings.showDeclinedEvents]);
   const [highlightedDate, setHighlightedDate] = React.useState<Date | null>(
     null,
   );
@@ -238,9 +235,11 @@ function PageContent({ isWideLayout }: PageContentProps) {
     } else if (view === "month") {
       setCurrentDate((prev) => addMonths(prev, -1));
     } else {
-      setCurrentDate((prev) => addWeeks(prev, -1));
+      setCurrentDate((prev) =>
+        shiftVisibleDate(prev, -numberOfDays, viewSettings.showWeekends),
+      );
     }
-  }, [view]);
+  }, [view, numberOfDays, viewSettings.showWeekends]);
 
   const goToNext = React.useCallback(() => {
     if (view === "day") {
@@ -248,9 +247,11 @@ function PageContent({ isWideLayout }: PageContentProps) {
     } else if (view === "month") {
       setCurrentDate((prev) => addMonths(prev, 1));
     } else {
-      setCurrentDate((prev) => addWeeks(prev, 1));
+      setCurrentDate((prev) =>
+        shiftVisibleDate(prev, numberOfDays, viewSettings.showWeekends),
+      );
     }
-  }, [view]);
+  }, [view, numberOfDays, viewSettings.showWeekends]);
 
   const goToDate = React.useCallback((date: Date) => setCurrentDate(date), []);
 
@@ -313,6 +314,20 @@ function PageContent({ isWideLayout }: PageContentProps) {
 
   const toggleWeekends = React.useCallback(() => {
     setViewSettings((prev) => ({ ...prev, showWeekends: !prev.showWeekends }));
+    // Keep the standard week at seven days, or five when weekends are hidden.
+    // Other custom day counts keep their chosen number of visible columns.
+    setNumberOfDays((prev) =>
+      viewSettings.showWeekends && prev === 7
+        ? 5
+        : !viewSettings.showWeekends && prev === 5
+          ? 7
+          : prev,
+    );
+  }, [viewSettings.showWeekends]);
+
+  const setDisplayDayCount = React.useCallback((count: number) => {
+    setNumberOfDays(count);
+    setView("week");
   }, []);
 
   const toggleDeclinedEvents = React.useCallback(() => {
@@ -470,7 +485,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
       // 2-9 for number of days
       if (/^[2-9]$/.test(e.key)) {
         e.preventDefault();
-        setNumberOfDays(Number(e.key));
+        setDisplayDayCount(Number(e.key));
         return;
       }
 
@@ -517,6 +532,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
     cycleTheme,
     settingsOpen,
     openSettings,
+    setDisplayDayCount,
   ]);
 
   return (
@@ -551,6 +567,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
           }
           visibleDays={view === "month" ? [] : visibleDays}
           onOpenSettings={openSettings}
+          showWeekNumbers={viewSettings.showWeekNumbers}
         />
       )}
       <SidebarInset
@@ -597,7 +614,9 @@ function PageContent({ isWideLayout }: PageContentProps) {
                   <span className="font-extrabold">{year}</span>{" "}
                   <span className="text-muted-foreground hidden text-xs @xl/header:inline">
                     {view === "day" && format(currentDate, "EEEE, MMM d")}
-                    {view === "week" && `Week ${weekNumber}`}
+                    {view === "week" &&
+                      viewSettings.showWeekNumbers &&
+                      `Week ${weekNumber}`}
                     {view === "month" && ""}
                   </span>
                 </h1>
@@ -609,7 +628,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
                     numberOfDays={numberOfDays}
                     viewSettings={viewSettings}
                     onSwitchView={switchView}
-                    onSetNumberOfDays={setNumberOfDays}
+                    onSetNumberOfDays={setDisplayDayCount}
                     onToggleWeekends={toggleWeekends}
                     onToggleDeclinedEvents={toggleDeclinedEvents}
                     onToggleWeekNumbers={toggleWeekNumbers}
@@ -701,6 +720,8 @@ function PageContent({ isWideLayout }: PageContentProps) {
               ) : (
                 <WeekView
                   view={view}
+                  numberOfDays={numberOfDays}
+                  showWeekends={viewSettings.showWeekends}
                   currentDate={currentDate}
                   events={visibleEvents}
                   onEventClick={(e) => selectEvent(e.id)}

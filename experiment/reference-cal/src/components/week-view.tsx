@@ -1,16 +1,14 @@
 "use client";
 
-import {
-  addDays,
-  differenceInCalendarDays,
-  eachDayOfInterval,
-  format,
-  getWeek,
-  isSameDay,
-} from "date-fns";
+import { format, getWeek, isSameDay } from "date-fns";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  getVisibleDates,
+  shiftVisibleDate,
+  getVisibleDayDifference,
+} from "@/lib/calendar-view";
 import { isMultiDayEvent } from "@/lib/event-utils";
 import { useHorizontalScroll } from "@/hooks/use-horizontal-scroll";
 import { useEventDrag } from "@/hooks/use-event-drag";
@@ -38,27 +36,6 @@ const MIN_HOUR_HEIGHT = 48;
 /** Width of the time axis column in pixels (4rem = 64px) */
 export const TIME_AXIS_WIDTH = 64;
 
-/** Number of visible days per view mode */
-const VISIBLE_DAYS_BY_VIEW: Record<ViewType, number> = {
-  day: 1,
-  week: 7,
-  month: 7,
-};
-
-/** Buffer days per view mode (each side, for horizontal scroll) */
-const BUFFER_DAYS_BY_VIEW: Record<ViewType, number> = {
-  day: 1,
-  week: 7,
-  month: 7,
-};
-
-/** Buffer extension step size per view mode */
-const BUFFER_STEP_BY_VIEW: Record<ViewType, number> = {
-  day: 1,
-  week: 7,
-  month: 7,
-};
-
 /**
  * Generates an array of WeekDay objects starting from the given date.
  * Note: isToday is added separately from the shared `useToday` clock, so it
@@ -67,10 +44,9 @@ const BUFFER_STEP_BY_VIEW: Record<ViewType, number> = {
 function generateWeekDays(
   startDate: Date,
   count: number,
+  showWeekends: boolean,
 ): Omit<WeekDay, "isToday">[] {
-  const end = addDays(startDate, count - 1);
-
-  return eachDayOfInterval({ start: startDate, end }).map((date) => ({
+  return getVisibleDates(startDate, count, showWeekends).map((date) => ({
     date,
     dayName: format(date, "EEE"),
     dayNumber: date.getDate(),
@@ -85,16 +61,13 @@ function generateBufferedDays(
   startDate: Date,
   bufferDays: number,
   visibleDays: number,
+  showWeekends: boolean,
 ): Omit<WeekDay, "isToday">[] {
-  const bufferStart = addDays(startDate, -bufferDays);
-  const bufferEnd = addDays(startDate, visibleDays + bufferDays - 1);
-
-  return eachDayOfInterval({ start: bufferStart, end: bufferEnd }).map(
-    (date) => ({
-      date,
-      dayName: format(date, "EEE"),
-      dayNumber: date.getDate(),
-    }),
+  const bufferStart = shiftVisibleDate(startDate, -bufferDays, showWeekends);
+  return generateWeekDays(
+    bufferStart,
+    visibleDays + bufferDays * 2,
+    showWeekends,
   );
 }
 
@@ -164,10 +137,14 @@ export function getCalendarHeaderInfo(
 export function getVisibleDays(
   currentDate: Date,
   view: ViewType = "week",
+  numberOfDays = 7,
+  showWeekends = true,
 ): Date[] {
-  const count = VISIBLE_DAYS_BY_VIEW[view];
-  const end = addDays(currentDate, count - 1);
-  return eachDayOfInterval({ start: currentDate, end });
+  return getVisibleDates(
+    currentDate,
+    view === "day" ? 1 : numberOfDays,
+    view === "day" || showWeekends,
+  );
 }
 
 /**
@@ -196,6 +173,8 @@ export function WeekView({ currentDate, ...props }: WeekViewProps) {
  */
 function WeekViewContent({
   view = "week",
+  numberOfDays = 7,
+  showWeekends = true,
   currentDate,
   today,
   events = [],
@@ -214,9 +193,10 @@ function WeekViewContent({
   highlightedDate,
   className,
 }: WeekViewContentProps) {
-  const VISIBLE_DAYS = VISIBLE_DAYS_BY_VIEW[view];
-  const BUFFER_DAYS = BUFFER_DAYS_BY_VIEW[view];
-  const BUFFER_STEP = BUFFER_STEP_BY_VIEW[view];
+  const VISIBLE_DAYS = view === "day" ? 1 : numberOfDays;
+  const includeWeekends = view === "day" || showWeekends;
+  const BUFFER_DAYS = VISIBLE_DAYS;
+  const BUFFER_STEP = VISIBLE_DAYS;
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const dayColumnsScrollRef = React.useRef<HTMLDivElement>(null);
   const allDayScrollRef = React.useRef<HTMLDivElement>(null);
@@ -224,8 +204,8 @@ function WeekViewContent({
 
   // Visible days starting from currentDate
   const baseDays = React.useMemo(
-    () => generateWeekDays(currentDate, VISIBLE_DAYS),
-    [currentDate, VISIBLE_DAYS],
+    () => generateWeekDays(currentDate, VISIBLE_DAYS, includeWeekends),
+    [currentDate, VISIBLE_DAYS, includeWeekends],
   );
 
   const days = withIsToday(baseDays, today);
@@ -275,16 +255,16 @@ function WeekViewContent({
   const handleNavigate = React.useCallback(
     (daysDelta: number) => {
       scrollNavigatedRef.current = true;
-      onDateChange?.(addDays(currentDate, daysDelta));
+      onDateChange?.(shiftVisibleDate(currentDate, daysDelta, includeWeekends));
     },
-    [currentDate, onDateChange],
+    [currentDate, onDateChange, includeWeekends],
   );
 
   const handleDragNavigate = React.useCallback(
     (daysDelta: number) => {
-      onDateChange?.(addDays(currentDate, daysDelta));
+      onDateChange?.(shiftVisibleDate(currentDate, daysDelta, includeWeekends));
     },
-    [currentDate, onDateChange],
+    [currentDate, onDateChange, includeWeekends],
   );
 
   const visibleDayDates = React.useMemo(() => days.map((d) => d.date), [days]);
@@ -331,10 +311,21 @@ function WeekViewContent({
 
   // Report visible days to parent in real-time as scroll crosses day boundaries
   React.useEffect(() => {
-    const start = addDays(currentDate, scrollDaysDelta);
-    const end = addDays(start, VISIBLE_DAYS - 1);
-    onVisibleDaysChange?.(eachDayOfInterval({ start, end }));
-  }, [currentDate, scrollDaysDelta, onVisibleDaysChange, VISIBLE_DAYS]);
+    const start = shiftVisibleDate(
+      currentDate,
+      scrollDaysDelta,
+      includeWeekends,
+    );
+    onVisibleDaysChange?.(
+      getVisibleDates(start, VISIBLE_DAYS, includeWeekends),
+    );
+  }, [
+    currentDate,
+    scrollDaysDelta,
+    onVisibleDaysChange,
+    VISIBLE_DAYS,
+    includeWeekends,
+  ]);
 
   // Dynamic buffer: extends in BUFFER_STEP chunks based on scroll distance
   const extraScrollDays =
@@ -347,8 +338,14 @@ function WeekViewContent({
 
   // Extended buffered days for scroll (grows dynamically with scroll distance)
   const bufferedBaseDays = React.useMemo(
-    () => generateBufferedDays(currentDate, dynamicBuffer, VISIBLE_DAYS),
-    [currentDate, dynamicBuffer, VISIBLE_DAYS],
+    () =>
+      generateBufferedDays(
+        currentDate,
+        dynamicBuffer,
+        VISIBLE_DAYS,
+        includeWeekends,
+      ),
+    [currentDate, dynamicBuffer, VISIBLE_DAYS, includeWeekends],
   );
 
   const bufferedDays = withIsToday(bufferedBaseDays, today);
@@ -380,13 +377,17 @@ function WeekViewContent({
     }
 
     const prevDate = prevDateRef.current;
-    const daysDiff = differenceInCalendarDays(currentDate, prevDate);
+    const daysDiff = getVisibleDayDifference(
+      currentDate,
+      prevDate,
+      includeWeekends,
+    );
     prevDateRef.current = currentDate;
 
     if (daysDiff === 0) return;
 
     triggerSlideAnimation(daysDiff);
-  }, [currentDate, triggerSlideAnimation]);
+  }, [currentDate, triggerSlideAnimation, includeWeekends]);
 
   // The base translateX centers on the visible days (skip dynamicBuffer columns)
   const baseTranslateX = -(dynamicBuffer * dayColumnWidth);

@@ -210,7 +210,11 @@ export function MonthViewEventBar({
             : cn(styles.text, "dark:text-white/80"),
         )}
       >
-        {event.title}
+        <span
+          className={cn(event.responseStatus === "declined" && "line-through")}
+        >
+          {event.title}
+        </span>
       </span>
     </div>
   );

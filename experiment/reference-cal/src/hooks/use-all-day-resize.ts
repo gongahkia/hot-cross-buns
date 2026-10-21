@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { differenceInCalendarDays } from "date-fns";
+import { moveEventByCalendarDays } from "@/lib/calendar-view";
 import type {
   AllDayResizeState,
   CalendarEvent,
@@ -192,8 +194,15 @@ export function useAllDayResize({
 
       if (!newStartDate || !newEndDate) return;
 
+      if (resize.edge === "move") {
+        const originalColumnDate = currentDays[resize.originalStartColumn];
+        if (!originalColumnDate) return;
+        onEventChangeRef.current?.(moveEventByCalendarDays(event, differenceInCalendarDays(newStartDate, originalColumnDate)));
+        return;
+      }
+
       // Preserve time-of-day from original event
-      const newStart = new Date(newStartDate);
+      const newStart = new Date(resize.edge === "left" ? newStartDate : event.start);
       newStart.setHours(
         event.start.getHours(),
         event.start.getMinutes(),
@@ -201,7 +210,7 @@ export function useAllDayResize({
         event.start.getMilliseconds(),
       );
 
-      const newEnd = new Date(newEndDate);
+      const newEnd = new Date(resize.edge === "right" ? newEndDate : event.end);
       newEnd.setHours(
         event.end.getHours(),
         event.end.getMinutes(),

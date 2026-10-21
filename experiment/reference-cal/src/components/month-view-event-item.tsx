@@ -132,7 +132,15 @@ export function MonthViewEventItem({
       {/* Time + Title */}
       <span className="text-[0.6875rem] leading-tight truncate pl-1 pr-1">
         <span className={timeColor}>{formatEventTime(event.start)}</span>{" "}
-        <span className={cn("font-bold", titleColor)}>{event.title}</span>
+        <span className={cn("font-bold", titleColor)}>
+          <span
+            className={cn(
+              event.responseStatus === "declined" && "line-through",
+            )}
+          >
+            {event.title}
+          </span>
+        </span>
       </span>
     </div>
   );

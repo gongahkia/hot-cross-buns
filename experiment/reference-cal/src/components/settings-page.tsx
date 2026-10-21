@@ -22,6 +22,7 @@ const SHORTCUTS = [
   { label: "Toggle weekends", keys: ["shift", "⌘", "E"] },
   { label: "Toggle declined events", keys: ["shift", "⌘", "D"] },
   { label: "Cycle theme", keys: ["shift", "M"] },
+  { label: "Deselect event", keys: ["esc"] },
 ];
 
 const UNAVAILABLE_SHORTCUTS = [

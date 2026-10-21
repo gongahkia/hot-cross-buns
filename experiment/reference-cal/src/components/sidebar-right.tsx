@@ -52,6 +52,7 @@ interface SidebarRightProps {
   currentDate?: Date;
   visibleDays?: Date[];
   onOpenSettings: () => void;
+  showWeekNumbers: boolean;
 }
 
 export function SidebarRight({
@@ -64,6 +65,7 @@ export function SidebarRight({
   currentDate,
   visibleDays,
   onOpenSettings,
+  showWeekNumbers,
 }: SidebarRightProps) {
   const sidebarStyle = {
     "--sidebar-width": SIDEBAR_WIDTH,
@@ -76,6 +78,7 @@ export function SidebarRight({
           onDateSelect={onDateSelect}
           currentDate={currentDate}
           visibleDays={visibleDays}
+          showWeekNumbers={showWeekNumbers}
         />
         {/* Scheduling Section */}
         <SidebarGroup className="py-0">

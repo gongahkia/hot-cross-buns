@@ -59,6 +59,10 @@ export interface NewEventRange {
 export interface WeekViewProps {
   /** Calendar view mode. Defaults to "week" */
   view?: ViewType;
+  /** Number of columns in week view (day view always has one). */
+  numberOfDays?: number;
+  /** Whether weekend dates are included in week view. */
+  showWeekends?: boolean;
   /**
    * First visible day. Defaults to today. Without it, nothing date-dependent
    * is rendered on the server or during hydration (today is not known there);

@@ -78,6 +78,8 @@ export interface CalendarEvent {
   visibility?: "default" | "public" | "private";
   /** Calendar account email for display */
   calendarEmail?: string;
+  /** Invitation response, independent of busy/free availability. */
+  responseStatus?: "needsAction" | "accepted" | "tentative" | "declined";
 }
 
 /**

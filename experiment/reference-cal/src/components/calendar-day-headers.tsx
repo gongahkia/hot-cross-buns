@@ -1,6 +1,6 @@
 "use client";
 
-import { isSameDay } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTimeZoneLabel } from "@/hooks/use-timezone-label";
 import type { WeekViewDayColumnsProps } from "./week-view-types";
@@ -29,6 +29,7 @@ export function CalendarDayHeaders({
         {days.map((day) => (
           <div
             key={day.date.toISOString()}
+            data-calendar-day={format(day.date, "yyyy-MM-dd")}
             className={cn(
               "flex items-center justify-center py-2 text-sm",
               day.isToday ? "gap-0.5 " : "gap-0",
@@ -80,6 +81,7 @@ export function CalendarDayHeaders({
         {days.map((day) => (
           <div
             key={day.date.toISOString()}
+            data-calendar-day={format(day.date, "yyyy-MM-dd")}
             className={cn(
               "flex items-center justify-center py-2 text-sm",
               day.isToday ? "gap-0.5 " : "gap-0",

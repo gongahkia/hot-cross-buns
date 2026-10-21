@@ -42,6 +42,7 @@ interface EventOpts {
   status?: "busy" | "free";
   visibility?: "default" | "public" | "private";
   calendarEmail?: string;
+  responseStatus?: CalendarEvent["responseStatus"];
 }
 
 function ev(
@@ -1835,6 +1836,7 @@ function demoEvents(rel: RelativeDate): CalendarEvent[] {
       "Side Projects",
       {
         description: "Catching up with Priya — exploring senior IC roles",
+        responseStatus: "declined",
         location: "Blue Bottle Bryant Park",
         calendarEmail: SAMPLE_ACCOUNT_EMAIL,
       },

@@ -286,7 +286,13 @@ export function CalendarEventItem({
               "dark:text-white/80",
             )}
           >
-            {event.title}
+            <span
+              className={cn(
+                event.responseStatus === "declined" && "line-through",
+              )}
+            >
+              {event.title}
+            </span>
           </span>
           {!isCompact && (
             <span
@@ -376,7 +382,13 @@ export function CalendarEventItem({
           )}
         >
           <span className="font-medium text-[0.625rem] leading-tight break-words text-white dark:text-white flex items-center gap-0.5">
-            {event.title}
+            <span
+              className={cn(
+                event.responseStatus === "declined" && "line-through",
+              )}
+            >
+              {event.title}
+            </span>
           </span>
           {heightPx >= 40 && (
             <span className="text-[0.625rem] whitespace-nowrap text-white dark:text-white">
@@ -532,7 +544,13 @@ export function CalendarEventItem({
                 ),
           )}
         >
-          {event.title}
+          <span
+            className={cn(
+              event.responseStatus === "declined" && "line-through",
+            )}
+          >
+            {event.title}
+          </span>
         </span>
         {!isCompact && (
           <span
@@ -763,7 +781,13 @@ export function AllDayEventItem({
             "dark:text-white/80",
           )}
         >
-          {event.title}
+          <span
+            className={cn(
+              event.responseStatus === "declined" && "line-through",
+            )}
+          >
+            {event.title}
+          </span>
         </span>
       </div>
     );
@@ -808,7 +832,13 @@ export function AllDayEventItem({
             "dark:text-white/80",
           )}
         >
-          {event.title}
+          <span
+            className={cn(
+              event.responseStatus === "declined" && "line-through",
+            )}
+          >
+            {event.title}
+          </span>
         </span>
       </div>
     );
@@ -955,7 +985,11 @@ export function AllDayEventItem({
               ),
         )}
       >
-        {event.title}
+        <span
+          className={cn(event.responseStatus === "declined" && "line-through")}
+        >
+          {event.title}
+        </span>
       </span>
       {hasStartTime && (
         <span
