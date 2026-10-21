@@ -29,14 +29,74 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
-  it.each([6, 7])("recovers notes from a compatible version %s backup without restoring its queue", async (version) => {
+  it.each([false, true])("retains recurring occurrence cancellations across restarts (all-day=%s)", (allDay) => {
+    let store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "calendar", summary: "Calendar" }, account.accountId);
+    const time = (day: number) => allDay ? { date: `2026-10-${day}` } : { dateTime: `2026-10-${day}T09:00:00Z` };
+    // A cancellation may arrive on an earlier page than its parent and need
+    // not have summary/start/end fields in Google's response.
+    store.upsertGoogleEvent({ id: "cancelled", status: "cancelled", recurringEventId: "series", originalStartTime: time(23) }, calendar.id);
+    store.upsertGoogleEvent({ id: "series", summary: "Daily", start: time(22),
+      end: allDay ? time(23) : { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
+    const days = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" })
+      .items.map((event: any) => event.startsAt.slice(0, 10));
+    expect(days()).toEqual(["2026-10-22", "2026-10-24"]);
+    const fixture = stores.at(-1)!;
+    store.close();
+    store = new CoreStore(join(fixture.directory, "hcb.sqlite"));
+    fixture.store = store;
+    expect(days()).toEqual(["2026-10-22", "2026-10-24"]);
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
+    expect(store.pendingSyncMutations(500)).toEqual([]);
+  });
+
+  it("restores a cancelled recurring exception when Google confirms it again", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "account" });
+    const calendar = store.upsertGoogleCalendar({ id: "calendar", summary: "Calendar" }, account.accountId);
+    store.upsertGoogleEvent({ id: "series", summary: "Daily", start: { dateTime: "2026-10-22T09:00:00Z" },
+      end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
+    const exception = { id: "exception", summary: "Moved occurrence", recurringEventId: "series",
+      originalStartTime: { dateTime: "2026-10-23T09:00:00Z" },
+      start: { dateTime: "2026-10-23T11:00:00Z" }, end: { dateTime: "2026-10-23T12:00:00Z" } };
+    store.upsertGoogleEvent(exception, calendar.id);
+    store.upsertGoogleEvent({ id: exception.id, status: "cancelled", recurringEventId: "series", originalStartTime: exception.originalStartTime }, calendar.id);
+    const events = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" }).items;
+    expect(events()).toHaveLength(2);
+    store.upsertGoogleEvent(exception, calendar.id);
+    expect(events()).toHaveLength(3);
+    expect(events()[1]).toMatchObject({ title: "Moved occurrence", startsAt: "2026-10-23T11:00:00.000Z" });
+    store.upsertGoogleEvent({ id: "series", status: "cancelled" }, calendar.id);
+    expect(events()).toEqual([]);
+  });
+
+  it("scopes recurring exceptions to their own Calendar when Google series ids match", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "account" });
+    const calendars = ["first", "second"].map((id) => store.upsertGoogleCalendar({ id, summary: id }, account.accountId));
+    for (const calendar of calendars) store.upsertGoogleEvent({ id: "shared-series-id", summary: "Daily",
+      start: { dateTime: "2026-10-22T09:00:00Z" }, end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
+    store.upsertGoogleEvent({ id: "exception", summary: "Moved", recurringEventId: "shared-series-id",
+      originalStartTime: { dateTime: "2026-10-23T09:00:00Z" },
+      start: { dateTime: "2026-10-23T11:00:00Z" }, end: { dateTime: "2026-10-23T12:00:00Z" } }, calendars[0].id);
+    const events = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" }).items;
+    expect(events().filter((event: any) => event.calendarId === calendars[1].id)).toHaveLength(3);
+    store.upsertGoogleEvent({ id: "exception", status: "cancelled", recurringEventId: "shared-series-id", originalStartTime: { dateTime: "2026-10-23T09:00:00Z" } }, calendars[0].id);
+    expect(events().filter((event: any) => event.calendarId === calendars[0].id)).toHaveLength(2);
+    expect(events().filter((event: any) => event.calendarId === calendars[1].id)).toHaveLength(3);
+  });
+
+  it.each([6, 7, 8])("recovers notes from a compatible version %s backup without restoring its queue", async (version) => {
     const store = createStore();
     const note = store.dispatch("notes", "create", { title: "Older backup", body: "Original body" });
     const path = join(stores.at(-1)!.directory, "older-backup.sqlite");
     await store.backupTo(path);
     const snapshot = new Database(path);
     try {
-      snapshot.exec("ALTER TABLE outbox DROP COLUMN creation_started");
+      snapshot.exec("DROP TABLE google_event_cancellations");
+      snapshot.exec("DROP INDEX events_google_recurring_calendar_idx");
+      if (version < 8) snapshot.exec("ALTER TABLE outbox DROP COLUMN creation_started");
       if (version === 6) snapshot.exec("DROP INDEX outbox_unresolved_account_idx");
       snapshot.exec("DELETE FROM schema_migrations");
       snapshot.prepare("INSERT INTO schema_migrations(version) VALUES(?)").run(version);
@@ -531,6 +591,8 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
       start: { dateTime: "2026-09-26T09:00:00+08:00" },
       end: { dateTime: "2026-09-26T10:00:00+08:00" }
     }, removed.id)!;
+    store.upsertGoogleEvent({ id: "cancelled-occurrence", status: "cancelled", recurringEventId: "old-series",
+      originalStartTime: { dateTime: "2026-09-27T09:00:00+08:00" } }, removed.id);
     store.dispatch("settings", "update", { selectedCalendarIds: [retained.id, removed.id] });
 
     store.pruneGoogleCalendars(account.accountId, ["primary"]);

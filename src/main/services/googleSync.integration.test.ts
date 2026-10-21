@@ -118,6 +118,25 @@ afterEach(() => {
 });
 
 describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+  it("reconciles cancelled recurring instances after token expiry and a later complete snapshot", async () => {
+    const { store, service, accountId, calendar, remoteEvents, googleFetch } = createCalendarFixture();
+    const master = { id: "series", summary: "Daily", start: { dateTime: "2026-10-22T09:00:00Z" },
+      end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] };
+    remoteEvents.set("series", master);
+    remoteEvents.set("cancelled", { id: "cancelled", status: "cancelled", recurringEventId: "series", originalStartTime: { dateTime: "2026-10-23T09:00:00Z" } });
+    store.upsertGoogleEvent(master, calendar.id);
+    store.setGoogleSyncToken(accountId, "events:remote-calendar", "expired");
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => target.searchParams.get("syncToken") === "expired"
+      ? new Response(null, { status: 410 }) : transport(account, target, init));
+    const events = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" }).items;
+    await service.runNow({ readOnly: true });
+    expect(events()).toHaveLength(2);
+    remoteEvents.delete("cancelled");
+    await service.forceFullResync({ accountId });
+    expect(events()).toHaveLength(3);
+  });
+
   it("removes remotely deleted task lists and their cache while preserving Calendar events and notes", async () => {
     const { store, service, accountId, list, remoteLists, importTask } = createFixture();
     const task = importTask({ id: "removed-task" });
@@ -450,15 +469,19 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     }
   });
 
-  it("upgrades a version 6 database without changing notes, Google bindings, or queued writes", () => {
+  it.each([6, 8])("upgrades a version %s database without changing notes, Google bindings, or queued writes", (version) => {
     const { store, accountId, list } = createFixture();
     const note = store.dispatch("notes", "create", { title: "Preserve me", body: "Local-only content" });
     const task = store.dispatch("tasks", "create", { listId: list.id, title: "Queued during upgrade" });
+    store.setGoogleSyncToken(accountId, "events:calendar", "old-calendar-token");
+    store.setGoogleSyncToken(accountId, "tasks-updated:remote-list", "2026-10-21T10:00:00Z");
     const fixture = fixtures.at(-1)!;
     const path = join(fixture.directory, "hcb.sqlite");
     store.close();
     const legacy = new Database(path);
-    legacy.exec("ALTER TABLE outbox DROP COLUMN creation_started; DROP INDEX outbox_unresolved_account_idx; DELETE FROM schema_migrations; INSERT INTO schema_migrations(version) VALUES(6)");
+    legacy.exec("DROP TABLE google_event_cancellations; DROP INDEX events_google_recurring_calendar_idx; DELETE FROM schema_migrations");
+    if (version === 6) legacy.exec("ALTER TABLE outbox DROP COLUMN creation_started; DROP INDEX outbox_unresolved_account_idx");
+    legacy.prepare("INSERT INTO schema_migrations(version) VALUES(?)").run(version);
     legacy.close();
     const upgraded = new CoreStore(path);
     fixture.store = upgraded;
@@ -466,7 +489,14 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(upgraded.googleTaskListForSync(list.id)?.googleId).toBe("remote-list");
     expect(upgraded.pendingSyncMutations(100, accountId)).toEqual([expect.objectContaining({ entityId: task.id, kind: "task.create" })]);
     expect(upgraded.didResetDeveloperData).toBe(false);
-    expect(upgraded.dispatch("diagnostics", "summary", {}).database.schemaVersion).toBe(8);
+    expect(upgraded.dispatch("diagnostics", "summary", {}).database.schemaVersion).toBe(9);
+    expect(upgraded.googleSyncToken(accountId, "events:calendar")).toBeNull();
+    expect(upgraded.googleSyncToken(accountId, "tasks-updated:remote-list")).toBe("2026-10-21T10:00:00Z");
+    upgraded.setGoogleSyncToken(accountId, "events:calendar", "rebuilt-calendar-token");
+    upgraded.close();
+    const restarted = new CoreStore(path);
+    fixture.store = restarted;
+    expect(restarted.googleSyncToken(accountId, "events:calendar")).toBe("rebuilt-calendar-token");
   });
 
   it("never re-creates an ambiguous task through a later edit or after restarting", async () => {

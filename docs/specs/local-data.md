@@ -14,7 +14,7 @@ Only main/worker services may read or write SQLite. Renderer code must request d
 
 ## Schema Strategy
 
-The current schema stores account metadata, task lists and tasks, calendars and events, scheduled task blocks, native note lists and notes, tags, settings, sync checkpoints, queued Google mutations, undo records, search-document identities, and FTS indexes. Task planning metadata and tags are stored with their task; local notes do not create Google outbox mutations. Secrets remain outside SQLite.
+The current schema stores account metadata, task lists and tasks, calendars and events, recurring-occurrence cancellation records, scheduled task blocks, native note lists and notes, tags, settings, sync checkpoints, queued Google mutations, undo records, search-document identities, and FTS indexes. Schema 9 adds the cancellation cache without resetting existing data. Upgrades clear only Calendar event sync tokens once, so the next full pull recovers cancellations earlier versions discarded; Tasks checkpoints and pending writes survive. Cancellation records cascade away with their Calendar and are excluded from events, search, and user mutation queues. Task planning metadata and tags are stored with their task; local notes do not create Google outbox mutations. Secrets remain outside SQLite.
 
 Task and note collections are paginated in SQL. Display reads use previews; full records are fetched explicitly for editors. Indexes support pagination, task hierarchy, and identity-based FTS maintenance. Order-only task updates do not rebuild search documents.
 
@@ -69,7 +69,7 @@ Settings → Data supports consistent SQLite snapshots, exporting a snapshot, da
 
 Force full resync clears sync checkpoints and repulls supported Google resources. Recovery and export errors must report failure rather than a placeholder success. Unsupported MCP-token reset and destructive cache shells are absent.
 
-Local-note recovery also accepts schema 6 and 7 snapshots: their Notes layout is unchanged by the subsequent queue/index migrations. Newer unknown formats are rejected, and recovery never restores an older Google queue.
+Local-note recovery also accepts schema 6, 7, and 8 snapshots: their Notes layout is unchanged by the subsequent queue/index and cancellation-cache migrations. Newer unknown formats are rejected, and recovery never restores an older Google queue.
 
 ## Tests
 

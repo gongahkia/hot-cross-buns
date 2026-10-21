@@ -71,7 +71,7 @@ type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 // accounts unsafe (both can legitimately expose e.g. a `primary` calendar).
 // This branch has no released users, so a clean reset is safer than a lossy
 // inference migration.
-const schemaVersion = 8;
+const schemaVersion = 9;
 const localAccountId = "local";
 const legacyPseudoNoteImportVersion = 1;
 const legacyPseudoNoteSourceType = "legacy-google-task-pseudo-note";
@@ -734,7 +734,10 @@ export class CoreStore {
       }, { enqueue: false, recordUndo: false });
       this.statement("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(successorEventId);
       this.statement("DELETE FROM events WHERE id=?").run(successorEventId);
-      if (successorGoogleId) this.statement("DELETE FROM events WHERE google_recurring_event_id=?").run(successorGoogleId);
+      if (successorGoogleId) {
+        this.statement("DELETE FROM events WHERE calendar_id=? AND google_recurring_event_id=?").run(original.calendarId, successorGoogleId);
+        this.statement("DELETE FROM google_event_cancellations WHERE calendar_id=? AND recurring_event_id=?").run(original.calendarId, successorGoogleId);
+      }
     })();
   }
 
@@ -872,8 +875,14 @@ export class CoreStore {
     this.db.transaction(() => {
       for (const event of cached) {
         if (remoteGoogleIds.has(event.googleId) || this.hasPendingEntityMutation("event", event.id)) continue;
-        this.unlinkScheduledTaskBlocks(event.id);
-        this.statement("DELETE FROM events WHERE id=?").run(event.id);
+        this.removeGoogleEventCache(localCalendarId, event.googleId);
+      }
+      const cancellations = this.statement("SELECT google_id AS googleId FROM google_event_cancellations WHERE calendar_id=?")
+        .all(localCalendarId) as Array<{ googleId: string }>;
+      for (const cancellation of cancellations) {
+        if (!remoteGoogleIds.has(cancellation.googleId)) {
+          this.statement("DELETE FROM google_event_cancellations WHERE calendar_id=? AND google_id=?").run(localCalendarId, cancellation.googleId);
+        }
       }
     })();
   }
@@ -950,9 +959,16 @@ export class CoreStore {
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("event", localId)) return null;
     if (remote.status === "cancelled") {
-      if (existing) this.db.transaction(() => {
-        this.unlinkScheduledTaskBlocks(localId);
-        this.statement("DELETE FROM events WHERE id=?").run(localId);
+      this.db.transaction(() => {
+        this.removeGoogleEventCache(localCalendarId, googleId);
+        const originalStartAt = originalStartTimeFromGoogle(remote.originalStartTime);
+        if (typeof remote.recurringEventId === "string" && originalStartAt) {
+          // Google guarantees only id, recurringEventId, and originalStartTime
+          // for cancelled exceptions. Retain them without inventing an event.
+          this.statement(`INSERT INTO google_event_cancellations(calendar_id,google_id,recurring_event_id,original_start_at) VALUES(?,?,?,?)
+            ON CONFLICT(calendar_id,google_id) DO UPDATE SET recurring_event_id=excluded.recurring_event_id,original_start_at=excluded.original_start_at`)
+            .run(localCalendarId, googleId, remote.recurringEventId, originalStartAt);
+        }
       })();
       return null;
     }
@@ -986,7 +1002,22 @@ export class CoreStore {
         JSON.stringify(metadata.conference ?? null), 0, JSON.stringify(metadata.attachments ?? []), previous?.attachmentsManaged ? 1 : 0,
         metadata.eventType ?? "default", JSON.stringify(metadata.focusTimeProperties ?? null), JSON.stringify(metadata.outOfOfficeProperties ?? null),
         JSON.stringify(metadata.workingLocationProperties ?? null), metadata.selfResponseStatus ?? null, now, remote.updated ?? now);
+    this.statement("DELETE FROM google_event_cancellations WHERE calendar_id=? AND google_id=?").run(localCalendarId, googleId);
     return this.requireEvent(localId);
+  }
+
+  /** Call inside a transaction; a deleted master also invalidates its exceptions. */
+  private removeGoogleEventCache(localCalendarId: string, googleId: string): void {
+    const events = this.statement(`SELECT id FROM events WHERE calendar_id=? AND google_id=?
+      UNION SELECT id FROM events WHERE calendar_id=? AND google_recurring_event_id=?`)
+      .all(localCalendarId, googleId, localCalendarId, googleId) as Array<{ id: string }>;
+    for (const event of events) {
+      if (this.hasPendingEntityMutation("event", event.id)) continue;
+      this.unlinkScheduledTaskBlocks(event.id);
+      this.statement("DELETE FROM events WHERE id=?").run(event.id);
+    }
+    this.statement("DELETE FROM google_event_cancellations WHERE calendar_id=? AND (google_id=? OR recurring_event_id=?)")
+      .run(localCalendarId, googleId, googleId);
   }
 
   dispatch(namespace: string, action: string, input: JsonRecord = {}): any {
@@ -1191,7 +1222,8 @@ export class CoreStore {
         DROP TRIGGER IF EXISTS search_tasks_insert; DROP TRIGGER IF EXISTS search_tasks_update; DROP TRIGGER IF EXISTS search_tasks_delete;
         DROP TRIGGER IF EXISTS search_events_insert; DROP TRIGGER IF EXISTS search_events_update; DROP TRIGGER IF EXISTS search_events_delete;
         DROP TRIGGER IF EXISTS search_notes_insert; DROP TRIGGER IF EXISTS search_notes_update; DROP TRIGGER IF EXISTS search_notes_delete;
-        DROP TABLE IF EXISTS search_index; DROP TABLE IF EXISTS scheduled_task_blocks; DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS calendars;
+        DROP TABLE IF EXISTS search_index; DROP TABLE IF EXISTS scheduled_task_blocks; DROP TABLE IF EXISTS events;
+        DROP TABLE IF EXISTS google_event_cancellations; DROP TABLE IF EXISTS calendars;
         DROP TABLE IF EXISTS tasks; DROP TABLE IF EXISTS task_lists; DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS outbox;
         DROP TABLE IF EXISTS google_accounts; DROP TABLE IF EXISTS undo_entries; DROP TABLE IF EXISTS settings; DROP TABLE IF EXISTS sync_meta;
         DROP TABLE IF EXISTS schema_migrations;
@@ -1225,6 +1257,12 @@ export class CoreStore {
         all_day INTEGER NOT NULL DEFAULT 0, completed INTEGER NOT NULL DEFAULT 0, color_id TEXT,
         location TEXT, recurrence_json TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS google_event_cancellations (
+        calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+        google_id TEXT NOT NULL, recurring_event_id TEXT NOT NULL, original_start_at TEXT NOT NULL,
+        PRIMARY KEY(calendar_id,google_id)
+      );
+      CREATE INDEX IF NOT EXISTS google_event_cancellations_series_idx ON google_event_cancellations(calendar_id,recurring_event_id,original_start_at);
       CREATE INDEX IF NOT EXISTS events_range_idx ON events(calendar_id, starts_at, ends_at);
       CREATE TABLE IF NOT EXISTS scheduled_task_blocks (
         id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES tasks(id),
@@ -1328,10 +1366,16 @@ export class CoreStore {
       CREATE UNIQUE INDEX IF NOT EXISTS tasks_google_list_id_idx ON tasks(list_id,google_id) WHERE google_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS calendars_google_account_id_idx ON calendars(account_id,google_id) WHERE google_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS events_google_calendar_id_idx ON events(calendar_id,google_id) WHERE google_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS events_google_recurring_calendar_idx ON events(calendar_id,google_recurring_event_id) WHERE google_recurring_event_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS tasks_order_idx ON tasks((due_at IS NULL),due_at,sort_order,title COLLATE NOCASE,id,status);
       CREATE INDEX IF NOT EXISTS tasks_parent_idx ON tasks(parent_id,status,sort_order,id);
     `);
     this.installFullTextSearch();
+    if (previousVersion >= 3 && previousVersion < 9) {
+      // Earlier versions discarded cancelled instances while advancing these
+      // tokens. Rebuild that missing cache once without disturbing Tasks or writes.
+      this.statement("DELETE FROM sync_meta WHERE key LIKE 'google-sync-token:%:events:%'").run();
+    }
     this.statement("INSERT OR IGNORE INTO sync_meta(key,value) VALUES('legacy-note-prompt-eligible',?)").run(previousVersion >= 3 ? "true" : "false");
     this.statement("INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)").run(schemaVersion);
   }
@@ -1700,13 +1744,16 @@ export class CoreStore {
     const exceptions = records.filter((event) => Boolean(event.recurringEventId));
     const exceptionOriginalStarts = new Map<string, Set<string>>();
     for (const exception of exceptions) {
-      const key = String(exception.recurringEventId);
+      const key = JSON.stringify([exception.calendarId, exception.recurringEventId]);
       const starts = exceptionOriginalStarts.get(key) ?? new Set<string>();
       if (typeof exception.originalStartAt === "string") starts.add(exception.originalStartAt);
       exceptionOriginalStarts.set(key, starts);
     }
     const virtualOccurrences = masters.flatMap((master) => {
-      const excluded = exceptionOriginalStarts.get(String(master.googleId ?? master.id)) ?? new Set<string>();
+      const excluded = exceptionOriginalStarts.get(JSON.stringify([master.calendarId, master.googleId ?? master.id])) ?? new Set<string>();
+      const cancellations = this.statement(`SELECT original_start_at AS originalStartAt FROM google_event_cancellations
+        WHERE calendar_id=? AND recurring_event_id=?`).all(master.calendarId, master.googleId ?? master.id) as Array<{ originalStartAt: string }>;
+      for (const cancellation of cancellations) excluded.add(cancellation.originalStartAt);
       return expandGoogleRecurrenceLines({
         allDay: Boolean(master.allDay),
         endsAt: master.endsAt,
