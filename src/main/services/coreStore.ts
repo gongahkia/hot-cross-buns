@@ -2890,7 +2890,7 @@ export class CoreStore {
         VALUES(?,?,?,?,?,?,?)`).run(randomUUID(), action, JSON.stringify(forward), JSON.stringify(inverse), "applied", now, now);
       // A bounded local history avoids surprising database growth from normal
       // keyboard editing while keeping enough depth for power-user sessions.
-      this.statement(`DELETE FROM undo_entries WHERE id IN (SELECT id FROM undo_entries ORDER BY created_at DESC LIMIT -1 OFFSET 200)`).run();
+      this.statement(`DELETE FROM undo_entries WHERE id IN (SELECT id FROM undo_entries ORDER BY rowid DESC LIMIT -1 OFFSET 200)`).run();
     })();
   }
 
@@ -2904,15 +2904,17 @@ export class CoreStore {
   private applyUndo(direction: "undo" | "redo"): JsonRecord {
     const state = direction === "undo" ? "applied" : "undone";
     const entry = this.statement(`SELECT id,action,forward_json AS forwardJson,inverse_json AS inverseJson FROM undo_entries
-      WHERE state=? ORDER BY created_at DESC LIMIT 1`).get(state) as { id: string; action: string; forwardJson: string; inverseJson: string } | undefined;
+      WHERE state=? ORDER BY rowid ${direction === "undo" ? "DESC" : "ASC"} LIMIT 1`).get(state) as { id: string; action: string; forwardJson: string; inverseJson: string } | undefined;
     if (!entry) return { action: direction, applied: false, ...this.undoStatus() };
     const operation = safeJson(direction === "undo" ? entry.inverseJson : entry.forwardJson, null) as JsonRecord | null;
     if (!operation?.namespace || !operation.action || !operation.payload) throw new CoreStoreError("Undo history entry is corrupted.");
     this.applyingUndo = true;
     try {
-      this.dispatch(String(operation.namespace), String(operation.action), operation.payload);
-      this.statement("UPDATE undo_entries SET state=?,updated_at=? WHERE id=?")
-        .run(direction === "undo" ? "undone" : "applied", timestamp(), entry.id);
+      this.db.transaction(() => {
+        this.dispatch(String(operation.namespace), String(operation.action), operation.payload);
+        this.statement("UPDATE undo_entries SET state=?,updated_at=? WHERE id=?")
+          .run(direction === "undo" ? "undone" : "applied", timestamp(), entry.id);
+      })();
     } finally {
       this.applyingUndo = false;
     }

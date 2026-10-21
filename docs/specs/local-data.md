@@ -6,6 +6,8 @@ SQLite is the local operating store for Hot Cross Buns 2. It stores mirrored Goo
 
 SQLite is not a custom cloud source of truth.
 
+Undo selects the most recently recorded applied operation; redo selects the earliest undone operation. Both follow durable SQLite insertion order rather than timestamps, so edits recorded in the same millisecond and history restored after restart retain their dependencies. Applying a history operation and changing its history state are one transaction; a new edit discards the undone branch.
+
 ## Ownership
 
 Only main/worker services may read or write SQLite. Renderer code must request data through typed preload APIs. Any future agent tools must route through the same domain services as UI actions.

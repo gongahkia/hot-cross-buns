@@ -29,6 +29,47 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("undoes and redoes same-millisecond edits in order across restarts and branch changes", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-21T10:00:00Z"));
+    let store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "A" });
+    store.dispatch("tasks", "update", { id: task.id, title: "B" });
+    store.dispatch("tasks", "update", { id: task.id, title: "C" });
+    store.dispatch("undo", "undo");
+    store.dispatch("undo", "undo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("A");
+    const fixture = stores.at(-1)!;
+    store.close();
+    store = new CoreStore(join(fixture.directory, "hcb.sqlite"));
+    fixture.store = store;
+    for (const title of ["B", "C"]) {
+      store.dispatch("undo", "redo");
+      expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe(title);
+    }
+    store.dispatch("undo", "undo");
+    store.dispatch("tasks", "update", { id: task.id, title: "D" });
+    expect(store.dispatch("undo", "status").canRedo).toBe(false);
+    store.dispatch("undo", "undo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("B");
+    store.dispatch("undo", "redo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("D");
+  });
+
+  it("recreates a parent before its child when redoing dependent task creations", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-21T10:00:00Z"));
+    const store = createStore();
+    const parent = store.dispatch("tasks", "create", { title: "Parent" });
+    const child = store.dispatch("tasks", "create", { title: "Child", parentId: parent.id, listId: parent.listId });
+    store.dispatch("undo", "undo");
+    store.dispatch("undo", "undo");
+    store.dispatch("undo", "redo");
+    store.dispatch("undo", "redo");
+    expect(store.dispatch("tasks", "get", { id: child.id })).toMatchObject({ status: "active", parentId: parent.id });
+    expect(store.dispatch("tasks", "get", { id: parent.id }).status).toBe("active");
+  });
+
   it("unlinks remotely cancelled task blocks without queuing writes and accepts repeated tombstones", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { title: "Keep the task", notes: "Keep this context", dueDate: "2026-10-22" });
