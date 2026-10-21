@@ -29,6 +29,44 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("unlinks remotely cancelled task blocks without queuing writes and accepts repeated tombstones", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "Keep the task", notes: "Keep this context", dueDate: "2026-10-22" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00.000Z", durationMinutes: 30
+    });
+    store.bindGoogleEvent(block.calendarEventId, { id: "remote-block", etag: "v1" });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.upsertGoogleEventBatch([{ id: "remote-block", status: "cancelled" }], "primary");
+    expect(() => store.dispatch("calendar", "get", { id: block.calendarEventId })).toThrow("no longer exists");
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items).toEqual([]);
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({
+      title: "Keep the task", notes: "Keep this context", dueAt: "2026-10-22", plannedStart: null, plannedEnd: null
+    });
+    expect(store.pendingSyncMutations(500)).toEqual([]);
+    expect(() => store.upsertGoogleEventBatch([{ id: "remote-block", status: "cancelled" }], "primary")).not.toThrow();
+  });
+
+  it("retains another scheduled block and protects a pending event edit from a remote deletion", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "Two blocks" });
+    const first = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00.000Z", durationMinutes: 30
+    });
+    const second = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T11:00:00.000Z", durationMinutes: 30
+    });
+    store.bindGoogleEvent(first.calendarEventId, { id: "remote-first", etag: "v1" });
+    store.bindGoogleEvent(second.calendarEventId, { id: "remote-second", etag: "v1" });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.upsertGoogleEvent({ id: "remote-second", status: "cancelled" }, "primary");
+    expect(store.dispatch("tasks", "get", { id: task.id }).plannedStart).toBe(first.startsAt);
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items.map((block: any) => block.id)).toEqual([first.id]);
+    store.dispatch("calendar", "update", { id: first.calendarEventId, title: "Unsynced edit" });
+    store.upsertGoogleEvent({ id: "remote-first", status: "cancelled" }, "primary");
+    expect(store.dispatch("calendar", "get", { id: first.calendarEventId }).title).toBe("Unsynced edit");
+  });
+
   it("pages task trees, collapsed branches, completed sections, and device stars in SQL", () => {
     const store = createStore();
     const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Alpha", notes: "x".repeat(4000) });

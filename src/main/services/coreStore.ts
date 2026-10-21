@@ -860,7 +860,10 @@ export class CoreStore {
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("event", localId)) return null;
     if (remote.status === "cancelled") {
-      if (existing) this.statement("DELETE FROM events WHERE id=?").run(localId);
+      if (existing) this.db.transaction(() => {
+        this.unlinkScheduledTaskBlocks(localId);
+        this.statement("DELETE FROM events WHERE id=?").run(localId);
+      })();
       return null;
     }
     const previous = existing ? this.requireEvent(localId) : null;
@@ -1954,16 +1957,24 @@ export class CoreStore {
     this.db.transaction(() => {
       this.requireEvent(id);
       const previous = this.googleEventForSync(id);
-      const linkedBlocks = this.statement("SELECT task_id AS taskId FROM scheduled_task_blocks WHERE calendar_event_id=?").all(id) as Array<{ taskId: string }>;
-      this.statement("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(id);
-      for (const block of linkedBlocks) {
-        this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
-      }
+      this.unlinkScheduledTaskBlocks(id);
       this.statement("DELETE FROM events WHERE id=?").run(id);
       this.enqueue("event.delete", id, previous ?? {}, previous?.accountId ?? null);
     })();
     this.recordUndo("Delete event", { namespace: "calendar", action: "delete", payload: { id } }, { namespace: "calendar", action: "create", payload: eventCreatePayload(eventBeforeDelete) });
     return { id, deleted: true };
+  }
+
+  private unlinkScheduledTaskBlocks(eventId: string): void {
+    const linkedBlocks = this.statement("SELECT DISTINCT task_id AS taskId FROM scheduled_task_blocks WHERE calendar_event_id=?")
+      .all(eventId) as Array<{ taskId: string }>;
+    this.statement("DELETE FROM scheduled_task_blocks WHERE calendar_event_id=?").run(eventId);
+    for (const { taskId } of linkedBlocks) {
+      const remaining = this.statement(`SELECT starts_at AS startsAt,ends_at AS endsAt FROM scheduled_task_blocks
+        WHERE task_id=? ORDER BY updated_at DESC,rowid DESC LIMIT 1`).get(taskId) as { startsAt: string; endsAt: string } | undefined;
+      this.statement("UPDATE tasks SET planned_start=?,planned_end=?,updated_at=? WHERE id=?")
+        .run(remaining?.startsAt ?? null, remaining?.endsAt ?? null, timestamp(), taskId);
+    }
   }
 
   private listScheduledTaskBlocks(input: JsonRecord): JsonRecord {
