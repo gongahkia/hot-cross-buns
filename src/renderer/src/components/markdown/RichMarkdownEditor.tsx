@@ -10,6 +10,7 @@ import { cx } from "../primitives";
 import type { MarkdownEditorProps } from "../MarkdownEditor";
 import { markdownExtensions, safeEditorUrl } from "./extensions";
 import { markdownForEditing } from "./mixedMarkup";
+import { closeMarkdownHistoryGroup, resetMarkdownHistory } from "./history";
 import "./markdown-editor.css";
 
 type Choice = { label: string; terms: string; icon: LucideIcon; run: (editor: Editor) => void };
@@ -43,6 +44,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
   const bindings = useRef<ReferenceInputBindings | null>(null);
   const queryKey = useRef("");
   const lastValue = useRef(value);
+  const visualValue = useRef(value);
   const callback = useRef(onValueChange); callback.current = onValueChange;
   const menuState = useRef<{ menu: Menu | null; choices: Choice[]; activeIndex: number }>({ menu: null, choices: [], activeIndex: 0 });
   const openLink = useRef<() => void>(() => undefined);
@@ -100,7 +102,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
       }
     },
     onUpdate: ({ editor }) => {
-      const next = editor.getMarkdown(); lastValue.current = next; callback.current(next); updateSuggestions(editor);
+      const next = editor.getMarkdown(); visualValue.current = next; lastValue.current = next; callback.current(next); updateSuggestions(editor);
     },
     onSelectionUpdate: ({ editor }) => updateSuggestions(editor),
     onBlur: ({ event }) => { if (!root.current?.contains(event.relatedTarget as globalThis.Node | null)) setMenu(null); },
@@ -123,10 +125,12 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
   useEffect(() => { if (link !== null) linkInput.current?.focus(); }, [link === null]);
   useEffect(() => { editor?.setEditable(!disabled, false); if (disabled) { setMenu(null); setLink(null); } }, [editor, disabled]);
   useEffect(() => {
-    if (!editor || source || value === lastValue.current) return;
+    if (!editor || value === lastValue.current) return;
     lastValue.current = value;
+    visualValue.current = value;
     editor.commands.setContent(markdownForEditing(value), { contentType: "markdown", emitUpdate: false });
-  }, [editor, source, value]);
+    resetMarkdownHistory(editor);
+  }, [editor, value]);
 
   function choose(choice: Choice, target: Menu | null) {
     if (!editor) return;
@@ -136,7 +140,12 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
   }
   function toggleSource() {
     if (!editor) return;
-    if (source) { editor.commands.setContent(markdownForEditing(value), { contentType: "markdown", emitUpdate: false }); lastValue.current = value; }
+    if (source && value !== visualValue.current) {
+      closeMarkdownHistoryGroup(editor);
+      editor.commands.setContent(markdownForEditing(value), { contentType: "markdown", emitUpdate: false });
+      closeMarkdownHistoryGroup(editor);
+      visualValue.current = value; lastValue.current = value;
+    }
     setSource(!source); setMenu(null); setLink(null);
   }
   function applyLink() {

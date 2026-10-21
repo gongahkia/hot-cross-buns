@@ -45,4 +45,18 @@ describe("shared rich Markdown editor", () => {
     for (const button of within(screen.getByRole("toolbar", { name: "Body formatting" })).getAllByRole("button")) expect(button).toBeDisabled();
     expect(screen.queryByRole("button", { name: "HCB item" })).not.toBeInTheDocument();
   });
+  it("does not create an undo step for a mode switch with no edits", async () => {
+    render(<RichMarkdownEditor aria-label="Body" value="Original" onValueChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    await userEvent.click(screen.getByRole("button", { name: "Visual" }));
+    expect(screen.getByRole("button", { name: "Undo text edit" })).toBeDisabled();
+  });
+  it("starts a fresh undo history after external document replacement", async () => {
+    const onValueChange = vi.fn();
+    const view = render(<RichMarkdownEditor aria-label="Body" value="Original" onValueChange={onValueChange} />);
+    view.rerender(<RichMarkdownEditor aria-label="Body" value="External replacement" onValueChange={onValueChange} />);
+    await screen.findByText("External replacement");
+    expect(screen.getByRole("button", { name: "Undo text edit" })).toBeDisabled();
+  });
+
 });

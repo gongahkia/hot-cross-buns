@@ -5,6 +5,7 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import { MarkdownHistory } from "./history";
 
 export function safeEditorUrl(value: string): boolean {
   return /^(https?:\/\/|mailto:|tel:|#|\/(?!\/))/i.test(value.trim());
@@ -97,7 +98,7 @@ const MarkdownImage = Image.extend({
 
 export function markdownExtensions(placeholder = "Write something, or type / for commands") {
   return [
-    StarterKit.configure({ underline: false, link: { openOnClick: false, autolink: true, isAllowedUri: (url) => safeEditorUrl(url) } }),
+    StarterKit.configure({ underline: false, undoRedo: false, link: { openOnClick: false, autolink: true, isAllowedUri: (url) => safeEditorUrl(url) } }), MarkdownHistory,
     Markdown.configure({ indentation: { style: "space", size: 2 } }),
     TaskList, TaskItem.configure({ nested: true }), TableKit,
     MarkdownImage.configure({ allowBase64: false, inline: true }),
