@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -17,15 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 
 import type { ViewSettings, ViewType } from "@/components/week-view-types";
 
@@ -73,218 +63,119 @@ export function ViewDropdown({
   onToggleWeekNumbers,
   onOpenSettings,
 }: ViewDropdownProps) {
-  const trigger = React.useRef<HTMLButtonElement>(null);
-  const openingCustom = React.useRef(false);
-  const fieldId = React.useId();
-  const [customOpen, setCustomOpen] = React.useState(false);
-  const [customDays, setCustomDays] = React.useState(String(numberOfDays));
-  const customCount = Number(customDays);
-  const validCount =
-    Number.isInteger(customCount) && customCount >= 2 && customCount <= 31;
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            ref={trigger}
-            variant="secondary"
-            size="sm"
-            className="gap-1 px-3"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="secondary" size="sm" className="gap-1 px-3">
+          {VIEW_LABELS[view]}
+          <ChevronDownIcon className="size-4 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={8} className="w-56">
+        {VIEW_OPTIONS.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            onClick={() => onSwitchView(option.value)}
           >
-            {VIEW_LABELS[view]}
-            <ChevronDownIcon className="size-4 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          sideOffset={8}
-          className="w-56"
-          onCloseAutoFocus={(event) => {
-            if (openingCustom.current) {
-              event.preventDefault();
-              openingCustom.current = false;
-              setCustomOpen(true);
-            }
-          }}
-        >
-          {VIEW_OPTIONS.map((option) => (
-            <DropdownMenuItem
-              key={option.value}
-              onClick={() => onSwitchView(option.value)}
+            <CheckIcon
+              className={cn(
+                "size-4 shrink-0",
+                view !== option.value && "invisible",
+              )}
+            />
+            {option.label}
+            <KbdGroup className="ml-auto">
+              {option.shortcuts.map((s) =>
+                s === "or" ? (
+                  <span key={s} className="text-muted-foreground text-xs">
+                    or
+                  </span>
+                ) : (
+                  <Kbd key={s} variant="ghost">
+                    {s}
+                  </Kbd>
+                ),
+              )}
+            </KbdGroup>
+          </DropdownMenuItem>
+        ))}
+
+        <DropdownMenuSeparator />
+
+        {/* Number of days submenu */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="pl-8">
+            Number of days
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {DAYS_OPTIONS.map((n) => (
+              <DropdownMenuItem key={n} onClick={() => onSetNumberOfDays(n)}>
+                <CheckIcon
+                  className={cn(
+                    "size-4 shrink-0",
+                    numberOfDays !== n && "invisible",
+                  )}
+                />
+                {n} days
+                <Kbd variant="ghost" className="ml-auto">
+                  {n}
+                </Kbd>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+
+        {/* View settings submenu */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="pl-8">
+            View settings
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-64">
+            <DropdownMenuCheckboxItem
+              checked={viewSettings.showWeekends}
+              onCheckedChange={() => onToggleWeekends()}
             >
-              <CheckIcon
-                className={cn(
-                  "size-4 shrink-0",
-                  view !== option.value && "invisible",
-                )}
-              />
-              {option.label}
+              Weekends
               <KbdGroup className="ml-auto">
-                {option.shortcuts.map((s) =>
-                  s === "or" ? (
-                    <span key={s} className="text-muted-foreground text-xs">
-                      or
-                    </span>
-                  ) : (
-                    <Kbd key={s} variant="ghost">
-                      {s}
-                    </Kbd>
-                  ),
-                )}
+                <Kbd variant="ghost">shift</Kbd>
+                <Kbd variant="ghost">&#8984;</Kbd>
+                <Kbd variant="ghost">E</Kbd>
+              </KbdGroup>
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuCheckboxItem
+              checked={viewSettings.showDeclinedEvents}
+              onCheckedChange={() => onToggleDeclinedEvents()}
+            >
+              Declined events
+              <KbdGroup className="ml-auto">
+                <Kbd variant="ghost">shift</Kbd>
+                <Kbd variant="ghost">&#8984;</Kbd>
+                <Kbd variant="ghost">D</Kbd>
+              </KbdGroup>
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuCheckboxItem
+              checked={viewSettings.showWeekNumbers}
+              onCheckedChange={() => onToggleWeekNumbers()}
+            >
+              Week numbers
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem onSelect={onOpenSettings}>
+              General settings
+              <KbdGroup className="ml-auto">
+                <Kbd variant="ghost">&#8984;</Kbd>
+                <Kbd variant="ghost">,</Kbd>
               </KbdGroup>
             </DropdownMenuItem>
-          ))}
-
-          <DropdownMenuSeparator />
-
-          {/* Number of days submenu */}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="pl-8">
-              Number of days
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {DAYS_OPTIONS.map((n) => (
-                <DropdownMenuItem key={n} onClick={() => onSetNumberOfDays(n)}>
-                  <CheckIcon
-                    className={cn(
-                      "size-4 shrink-0",
-                      numberOfDays !== n && "invisible",
-                    )}
-                  />
-                  {n} days
-                  <Kbd variant="ghost" className="ml-auto">
-                    {n}
-                  </Kbd>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  openingCustom.current = true;
-                  setCustomDays(String(numberOfDays));
-                }}
-              >
-                Other…
-                {!DAYS_OPTIONS.some((n) => n === numberOfDays) && (
-                  <Kbd variant="ghost" className="ml-auto">
-                    {numberOfDays}
-                  </Kbd>
-                )}
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-
-          <DropdownMenuSeparator />
-
-          {/* View settings submenu */}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger className="pl-8">
-              View settings
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-64">
-              <DropdownMenuCheckboxItem
-                checked={viewSettings.showWeekends}
-                onCheckedChange={() => onToggleWeekends()}
-              >
-                Weekends
-                <KbdGroup className="ml-auto">
-                  <Kbd variant="ghost">shift</Kbd>
-                  <Kbd variant="ghost">&#8984;</Kbd>
-                  <Kbd variant="ghost">E</Kbd>
-                </KbdGroup>
-              </DropdownMenuCheckboxItem>
-
-              <DropdownMenuCheckboxItem
-                checked={viewSettings.showDeclinedEvents}
-                onCheckedChange={() => onToggleDeclinedEvents()}
-              >
-                Declined events
-                <KbdGroup className="ml-auto">
-                  <Kbd variant="ghost">shift</Kbd>
-                  <Kbd variant="ghost">&#8984;</Kbd>
-                  <Kbd variant="ghost">D</Kbd>
-                </KbdGroup>
-              </DropdownMenuCheckboxItem>
-
-              <DropdownMenuCheckboxItem
-                checked={viewSettings.showWeekNumbers}
-                onCheckedChange={() => onToggleWeekNumbers()}
-              >
-                Week numbers
-              </DropdownMenuCheckboxItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem onSelect={onOpenSettings}>
-                General settings
-                <KbdGroup className="ml-auto">
-                  <Kbd variant="ghost">&#8984;</Kbd>
-                  <Kbd variant="ghost">,</Kbd>
-                </KbdGroup>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Dialog open={customOpen} onOpenChange={setCustomOpen}>
-        <DialogContent
-          className="custom-days-dialog"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            trigger.current?.focus();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Number of days</DialogTitle>
-            <DialogDescription>
-              Choose how many days to display, from 2 to 31.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-6"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!validCount) return;
-              onSetNumberOfDays(customCount);
-              setCustomOpen(false);
-            }}
-          >
-            <div className="space-y-2">
-              <label htmlFor={fieldId} className="text-sm font-medium">
-                Days to display
-              </label>
-              <Input
-                id={fieldId}
-                type="number"
-                min={2}
-                max={31}
-                step={1}
-                required
-                autoFocus
-                value={customDays}
-                onChange={(event) => setCustomDays(event.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 transition-colors max-md:h-11"
-                onClick={() => setCustomOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="h-10 transition-colors max-md:h-11"
-                disabled={!validCount}
-              >
-                Apply
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
