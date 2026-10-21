@@ -63,4 +63,12 @@ describe("core IPC task payload validation", () => {
       calendarId: "primary"
     })).toBe(false);
   });
+  it("requires a bounded mutation id and a reviewed strategy for conflict recovery", () => {
+    expect(payloadIsValid("diagnostics", "previewMutationResolution", { id: "mutation" })).toBe(true);
+    expect(payloadIsValid("diagnostics", "resolveMutation", { id: "mutation", reviewId: "660e8400-e29b-41d4-a716-446655440000", strategy: "google" })).toBe(true);
+    expect(payloadIsValid("diagnostics", "resolveMutation", { id: "mutation", strategy: "google" })).toBe(false);
+    expect(payloadIsValid("diagnostics", "resolveMutation", { id: "mutation", reviewId: "invalid", strategy: "local" })).toBe(false);
+    expect(payloadIsValid("diagnostics", "previewMutationResolution", { id: "mutation", accountId: "other" })).toBe(false);
+  });
+
 });

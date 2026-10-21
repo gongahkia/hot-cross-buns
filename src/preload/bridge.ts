@@ -228,7 +228,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
       ...legacyApi.diagnostics,
       ...actions("diagnostics", [
         "summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation",
-        "cancelPendingMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle",
+        "cancelPendingMutation", "previewMutationResolution", "resolveMutation", "clearLogs", "revealLogsFolder", "copyableSummary", "exportBundle",
         "markCachedDataRendered", "recordTiming"
       ])
     },

@@ -63,7 +63,7 @@ function createFixture() {
     const taskId = target.pathname.split("/").at(-1)!;
     const task = remoteTasks.get(taskId);
     if (method === "PATCH" && task) {
-      if (new Headers(init.headers).get("if-match") !== task.etag) return Response.json({}, { status: 412 });
+      if (new Headers(init.headers).has("if-match") && new Headers(init.headers).get("if-match") !== task.etag) return Response.json({}, { status: 412 });
       // Model Google's PATCH merge: omitted fields survive, explicit null deletes.
       for (const [key, value] of Object.entries(JSON.parse(String(init.body)))) {
         if (value === null) delete task[key];
@@ -659,4 +659,158 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(googleFetch.mock.calls.some(([, target]) => target.pathname.endsWith("/move"))).toBe(false);
     expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("After");
   });
+  it("restores Google's task immediately and settles later edits without replaying them", async () => {
+    const { store, service, list, accountId, importTask, remoteTasks, googleFetch } = createFixture();
+    const task = importTask({ id: "conflicted", title: "Original", notes: "old" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local title" });
+    store.dispatch("tasks", "update", { id: task.id, notes: "Local notes" });
+    Object.assign(remoteTasks.get("conflicted")!, { title: "Google title", notes: "Google notes", etag: "external" });
+    store.setGoogleSyncToken(accountId, "tasks-updated:remote-list", "2026-10-21T10:00:00Z");
+    await service.runNow();
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview).toMatchObject({ affectedCount: 2, canKeepLocal: true });
+    expect(preview.items[0]).toMatchObject({ local: { title: "Local title" }, google: { title: "Google title" } });
+    googleFetch.mockClear();
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ title: "Google title", notes: "Google notes", listId: list.id });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+    await service.runNow();
+    expect(googleFetch.mock.calls.every(([, , init]) => !init?.method || init.method === "GET")).toBe(true);
+    expect(store.dispatch("undo", "status", {}).canUndo).toBe(false);
+  });
+
+  it("keeps the latest local task edit and retries the related chain together", async () => {
+    const { store, service, importTask, remoteTasks, accountId } = createFixture();
+    const task = importTask({ id: "overwrite", title: "Original" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local one" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local two" });
+    Object.assign(remoteTasks.get("overwrite")!, { title: "Google edit", etag: "external" });
+    await service.runNow();
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "local" });
+    await service.runNow();
+    expect(remoteTasks.get("overwrite")!.title).toBe("Local two");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("never retries an ambiguous creation through recovery and imports the accepted task once", async () => {
+    const fixture = createFixture();
+    const { store, service, list, accountId, googleFetch, remoteTasks } = fixture;
+    const task = store.dispatch("tasks", "create", { listId: list.id, title: "Accepted once" });
+    store.dispatch("tasks", "update", { id: task.id, notes: "Preserve this text before choosing Google" });
+    fixture.loseCreateResponse(); await service.runNow();
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    expect(() => store.dispatch("diagnostics", "retryPendingMutation", { id })).toThrow("may already have created");
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview).toMatchObject({ uncertainCreation: true, canKeepLocal: false, affectedCount: 2 });
+    await expect(service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "local" })).rejects.toThrow("may already have created");
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+    expect(store.dispatch("tasks", "list", { listId: list.id }).items).toHaveLength(1);
+    await service.runNow();
+    expect(remoteTasks.size).toBe(1);
+    expect(googleFetch.mock.calls.filter(([, , init]) => init?.method === "POST")).toHaveLength(1);
+  });
+
+  it.each(["local", "google"])("rejects a stale comparison after a %s edit without cancelling writes", async (changed) => {
+    const { store, service, importTask, remoteTasks, accountId } = createFixture();
+    const task = importTask({ id: "stale", title: "Original" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local" });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    if (changed === "local") store.dispatch("tasks", "update", { id: task.id, notes: "New typing" });
+    else remoteTasks.get("stale")!.title = "New Google edit";
+    await expect(service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" })).rejects.toThrow(/changes arrived|Google changed/);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(changed === "local" ? 2 : 1);
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("Local");
+  });
+
+  it("leaves writes and optimistic state intact when a comparison page fails", async () => {
+    const { store, service, importTask, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "offline", title: "Original" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local" });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => target.pathname.endsWith("/tasks") ? new Response(null, { status: 503 }) : transport(account, target, init));
+    await expect(service.previewMutationResolution({ id })).rejects.toThrow("503");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("Local");
+  });
+
+  it("restores a renamed list and cancels its queued dependent task edits", async () => {
+    const { store, service, list, importTask, remoteList, accountId } = createFixture();
+    const task = importTask({ id: "dependent", title: "Google task" });
+    store.dispatch("tasks", "renameTaskList", { id: list.id, title: "Local list" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local task" });
+    remoteList.title = "Google list";
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview.affectedCount).toBe(2);
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.googleTaskListForSync(list.id)!.title).toBe("Google list");
+    expect(store.googleTaskForSync(task.id)!.title).toBe("Google task");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("restores locally deleted lists, tasks and events with stable identities", async () => {
+    const { store, service, list, importTask } = createFixture();
+    const task = importTask({ id: "deleted-local-list-task", title: "Google task" });
+    store.dispatch("tasks", "deleteTaskList", { id: list.id });
+    let id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    let preview = await service.previewMutationResolution({ id });
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.googleTaskListForSync(list.id)!.title).toBe("Inbox");
+    expect(store.googleTaskForSync(task.id)!.title).toBe("Google task");
+    const calendarFixture = createCalendarFixture();
+    const event = calendarFixture.importEvent("deleted-local-event");
+    calendarFixture.store.dispatch("calendar", "delete", { id: event.id });
+    id = calendarFixture.store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    preview = await calendarFixture.service.previewMutationResolution({ id });
+    await calendarFixture.service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(calendarFixture.store.googleEventForSync(event.id)!.googleId).toBe("deleted-local-event");
+  });
+
+  it("rolls the queue decision back when a fetched event cannot be imported", async () => {
+    const { store, service, importEvent, remoteEvents, accountId } = createCalendarFixture();
+    const event = importEvent("invalid-event");
+    store.dispatch("calendar", "update", { id: event.id, title: "Local" });
+    delete remoteEvents.get("invalid-event")!.start;
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    await expect(service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" })).rejects.toThrow();
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+    expect(store.googleEventForSync(event.id)!.title).toBe("Local");
+  });
+
+  it("restores an optimistic Calendar move to its source with the same local identity", async () => {
+    const { store, service, importEvent, accountId, calendar } = createCalendarFixture();
+    const event = importEvent("moved-event");
+    const destination = store.upsertGoogleCalendar({ id: "destination", summary: "Destination" }, accountId);
+    store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id, title: "Moved locally" });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.googleEventForSync(event.id)).toMatchObject({ calendarId: calendar.id, title: "moved-event", googleId: "moved-event" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("discards a series split and its successor edits as one reviewed operation", async () => {
+    const { store, service, calendar, importEvent, remoteEvents, accountId } = createCalendarFixture();
+    const event = importEvent("series-recovery");
+    const remote = remoteEvents.get("series-recovery")!;
+    remote.recurrence = ["RRULE:FREQ=DAILY;COUNT=5"];
+    store.upsertGoogleEvent(remote, calendar.id);
+    const successor = store.dispatch("calendar", "update", { id: event.id, scope: "following", originalStartAt: "2026-10-24T09:00:00.000Z", title: "Split locally", startsAt: "2026-10-24T09:00:00.000Z", endsAt: "2026-10-24T10:00:00.000Z" });
+    store.dispatch("calendar", "update", { id: successor.id, description: "Later successor edit" });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview).toMatchObject({ affectedCount: 2, canKeepLocal: false });
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.googleEventForSync(successor.id)).toBeNull();
+    expect(store.googleEventForSync(event.id)!.recurrenceLines).toEqual(remote.recurrence);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
 });

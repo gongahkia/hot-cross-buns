@@ -30,7 +30,7 @@ const actionMap: Record<string, readonly string[]> = {
   google: ["status", "saveOAuthClient", "beginOAuth", "reconfigureOptionalAccess", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
   native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
-  diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "clearLogs", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
+  diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "previewMutationResolution", "resolveMutation", "clearLogs", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
   agent: [],
   duplicates: []
 };
@@ -52,6 +52,8 @@ const eventWriteSchema = z.object({
 
 export function payloadIsValid(namespace: string, action: string, payload: Record<string, unknown>): boolean {
   if (!actionMap[namespace]?.includes(action)) return false;
+  if (namespace === "diagnostics" && action === "previewMutationResolution") return z.object({ id: idSchema }).strict().safeParse(payload).success;
+  if (namespace === "diagnostics" && action === "resolveMutation") return z.object({ id: idSchema, reviewId: z.string().uuid(), strategy: z.enum(["local", "google"]) }).strict().safeParse(payload).success;
   if (namespace === "tasks" && action === "context") return z.object({ id: idSchema }).strict().safeParse(payload).success;
   if (namespace === "search" && action === "resolveLinks") return z.object({ links: z.array(z.object({ kind: z.enum(["task","note","event"]), targetId: idSchema.optional(), label: z.string().max(500), fullBody: z.boolean().optional() }).strict()).max(50) }).strict().safeParse(payload).success;
   if (namespace === "tasks" && action === "forCalendarRange") return z.object({ start: isoDateSchema, end: isoDateSchema, limit: z.number().int().min(1).max(1000).optional(), cursor: z.string().regex(/^\d+$/).max(16).optional() }).strict().safeParse(payload).success;
@@ -252,6 +254,14 @@ export function registerCoreIpc(
         return ok(await googleSync.forceFullResync());
       }
 
+      if (request.data.namespace === "diagnostics" && request.data.action === "previewMutationResolution") {
+        return ok(await googleSync.previewMutationResolution(request.data.payload));
+      }
+      if (request.data.namespace === "diagnostics" && request.data.action === "resolveMutation") {
+        const result = await googleSync.resolveMutation(request.data.payload);
+        if (request.data.payload.strategy === "local" && !isLiveGoogleTest()) void googleSync.scheduleAfterLocalMutation().catch(() => undefined);
+        return ok(result);
+      }
       const response = await Promise.resolve(store.dispatch(request.data.namespace, request.data.action, request.data.payload));
       if (request.data.namespace === "diagnostics" && request.data.action === "summary" && response.performance) response.performance.startup = getStartupTimings();
       if (request.data.namespace === "settings" && request.data.action === "update" && !isLiveGoogleTest()) {
@@ -296,7 +306,7 @@ function isWriteAction(action: string, payload: Record<string, unknown> = {}): b
 
 function isGoogleMutationRequest(namespace: string, action: string, payload: Record<string, unknown>): boolean {
   return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action, payload) ||
-    (namespace === "diagnostics" && action === "retryPendingMutation") ||
+    (namespace === "diagnostics" && ["retryPendingMutation", "resolveMutation"].includes(action)) ||
     (namespace === "google" && action === "copyAccountData");
 }
 
@@ -317,5 +327,6 @@ function isLiveGoogleReadOnlyRequest(namespace: string, action: string, payload:
     return true;
   }
 
-  return (namespace === "tasks" || namespace === "calendar") && isWriteAction(action, payload);
+  return (namespace === "diagnostics" && ["retryPendingMutation", "cancelPendingMutation", "resolveMutation"].includes(action)) ||
+    (namespace === "tasks" || namespace === "calendar") && isWriteAction(action, payload);
 }

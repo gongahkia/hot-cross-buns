@@ -73,7 +73,7 @@ async function start(): Promise<void> {
   const allowed: Record<string, Set<string>> = {
     core: new Set(["dispatch", "restoreLocalNotes"]),
     googleOAuth: new Set(["saveClient", "status", "begin", "reconfigureOptionalAccess", "cancel", "disconnect"]),
-    googleSync: new Set(["startBackgroundSync", "stopBackgroundSync", "scheduleAfterLocalMutation", "runNow", "runAutomatic", "forceFullResync", "queryFreeBusy", "searchDriveFiles", "uploadLocalDriveFile", "searchGmailMessages", "captureGmailMessage"]),
+    googleSync: new Set(["startBackgroundSync", "stopBackgroundSync", "scheduleAfterLocalMutation", "runNow", "runAutomatic", "forceFullResync", "queryFreeBusy", "searchDriveFiles", "uploadLocalDriveFile", "searchGmailMessages", "captureGmailMessage", "previewMutationResolution", "resolveMutation"]),
     backups: new Set(["create", "start", "stop"])
   };
   port.on("message", async (message: RuntimeCall | HostReply | { kind: "nativeCapabilities"; value: any } | { kind: "close" }) => {

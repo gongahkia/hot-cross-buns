@@ -8,6 +8,10 @@ import { googleTaskNotesMaxLength, googleTaskTitleMaxLength, withHcbTaskMetadata
 import { googleOriginalStartQueryValue } from "./googleRecurrence";
 import { recordTiming } from "../diagnostics/performance";
 import { setImmediate as yieldToRequests } from "node:timers/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
+import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
+import type { SyncResolutionPreview } from "@shared/syncResolution";
 
 type JsonRecord = Record<string, any>;
 type WorkspaceService = "driveSearch" | "driveUpload" | "gmail";
@@ -50,6 +54,7 @@ export class GoogleSyncService {
   private readonly events = new EventEmitter();
   private interval: NodeJS.Timeout | null = null;
   private writeDebounce: NodeJS.Timeout | null = null;
+  private readonly resolutionReviews = new Map<string, { context: SyncResolutionContext; snapshot: GoogleResolutionSnapshot; expires: number }>();
 
   constructor(
     private readonly store: CoreStore,
@@ -126,6 +131,91 @@ export class GoogleSyncService {
     while (this.inFlight) await this.inFlight.catch(() => undefined);
     this.store.resetGoogleSyncTokens(accountId);
     return this.runNow({ reason: "force-full", ...(accountId ? { accountId } : {}) });
+  }
+
+  private async resolutionSnapshot(context: SyncResolutionContext): Promise<GoogleResolutionSnapshot> {
+    const accountId = this.workspaceAccountId(context.mutation.accountId);
+    const snapshot: GoogleResolutionSnapshot = {};
+    if (context.entities.some((entity) => entity.kind !== "event")) {
+      snapshot.lists = [];
+      for (const remote of await this.allPages(accountId, "https://tasks.googleapis.com/tasks/v1/users/@me/lists", { maxResults: "100" })) {
+        const tasks = await this.allPages(accountId, taskCollectionUrl(remote.id), { maxResults: "100", showCompleted: "true", showHidden: "true", showDeleted: "true" });
+        snapshot.lists.push({ remote, tasks });
+      }
+    }
+    if (context.entities.some((entity) => entity.kind === "event")) {
+      snapshot.calendars = [];
+      for (const remote of await this.allPages(accountId, "https://www.googleapis.com/calendar/v3/users/me/calendarList", { maxResults: "250", showDeleted: "true" })) {
+        if (remote.deleted) continue;
+        const page = await this.allPagesWithSyncToken(accountId, calendarEventCollectionUrl(remote.id), { maxResults: "2500", showDeleted: "true", singleEvents: "false" });
+        snapshot.calendars.push({ remote, events: page.items, token: page.nextSyncToken });
+      }
+    }
+    return snapshot;
+  }
+
+  async previewMutationResolution(input: JsonRecord): Promise<SyncResolutionPreview> {
+    while (this.inFlight) await this.inFlight.catch(() => undefined);
+    const context = this.store.syncResolutionContext(requiredText(input.id, "Mutation id"));
+    const snapshot = await this.resolutionSnapshot(context);
+    if (this.store.syncResolutionContext(context.mutation.id).version !== context.version) throw new CoreStoreError("Local changes arrived during comparison. Compare again.");
+    const reviewId = randomUUID();
+    for (const [id, review] of this.resolutionReviews) if (review.expires < Date.now()) this.resolutionReviews.delete(id);
+    if (this.resolutionReviews.size >= 5) this.resolutionReviews.delete(this.resolutionReviews.keys().next().value!);
+    this.resolutionReviews.set(reviewId, { context, snapshot, expires: Date.now() + 5 * 60_000 });
+    const items = context.entities.map((entity) => {
+      const local = entity.local ?? context.mutations.find((mutation) => mutation.entityId === entity.id)?.payload ?? null;
+      const remote = entity.kind === "taskList" ? snapshot.lists?.find((list) => list.remote.id === local?.googleId)?.remote
+        : entity.kind === "task" ? snapshot.lists?.flatMap((list) => list.tasks).find((task) => task.id === local?.googleId)
+        : snapshot.calendars?.flatMap((calendar) => calendar.events).find((event) => event.id === local?.googleId);
+      return { id: entity.id, kind: entity.kind, title: local?.title ?? "Locally deleted item", local: resolutionFields(entity.kind, entity.local), google: resolutionFields(entity.kind, remote ?? null, true) };
+    });
+    const split = context.mutations.some((mutation) => mutation.kind === "event.splitSeries");
+    const removed = context.entities.some((entity, index) => entity.local?.googleId && (!items[index].google || items[index].google?.status === "deleted") &&
+      !context.mutations.some((mutation) => mutation.entityId === entity.id && mutation.kind.endsWith(".delete")));
+    const canKeepLocal = !context.uncertainCreation && !split && !removed;
+    return { id: context.mutation.id, reviewId, affectedCount: context.mutations.length, uncertainCreation: context.uncertainCreation, canKeepLocal, items,
+      message: context.uncertainCreation
+        ? "Google may already have accepted this creation. Keeping local is blocked to prevent duplicates. Use Google imports the current remote items and removes the unlinked local draft and its dependent edits. Copy any local text you want to preserve first."
+        : split ? "This recurring-series split may have changed several Google records. Use Google restores their actual remote state together. Copy any local content you want to preserve before discarding and starting a new split."
+        : removed ? "A linked item was removed in Google. Copy any local content you want to preserve before using Google; overwriting a missing remote record is unavailable."
+        : "This decision covers the related queued changes shown below. Use Google restores the fetched version immediately; keep local queues an explicit overwrite. Unrelated queued changes remain pending." };
+  }
+
+  resolveMutation(input: JsonRecord): Promise<JsonRecord> {
+    // Reserve the same lock as sync before the first await, including another
+    // recovery request. Background delivery cannot race the reviewed decision.
+    if (this.inFlight) return Promise.reject(new CoreStoreError("Sync is running. Wait for it to finish, then resolve again."));
+    this.inFlight = this.applyMutationResolution(input).finally(() => { this.inFlight = null; });
+    return this.inFlight;
+  }
+
+  private async applyMutationResolution(input: JsonRecord): Promise<JsonRecord> {
+    const reviewId = requiredText(input.reviewId, "Comparison id");
+    const review = this.resolutionReviews.get(reviewId);
+    if (!review || review.expires < Date.now() || review.context.mutation.id !== input.id) throw new CoreStoreError("This comparison expired. Compare again before resolving.");
+    const current = this.store.syncResolutionContext(review.context.mutation.id);
+    if (current.version !== review.context.version) throw new CoreStoreError("Local changes arrived after comparison. Compare again before resolving.");
+    const snapshot = await this.resolutionSnapshot(current);
+    if (snapshotFingerprint(snapshot) !== snapshotFingerprint(review.snapshot)) throw new CoreStoreError("Google changed after comparison. Compare again before resolving.");
+    if (this.store.syncResolutionContext(current.mutation.id).version !== current.version) throw new CoreStoreError("Local changes arrived during recovery. Compare again before resolving.");
+    let result: JsonRecord;
+    if (input.strategy === "google") result = this.store.applyGoogleResolution(current, snapshot);
+    else if (input.strategy === "local") {
+      if (current.mutations.some((mutation) => mutation.kind === "event.splitSeries")) throw new CoreStoreError("Restore Google's recurring-series state before starting a new split.");
+      for (const entity of current.entities) {
+        if (!entity.local?.googleId || current.mutations.some((mutation) => mutation.entityId === entity.id && mutation.kind.endsWith(".delete"))) continue;
+        const remote = entity.kind === "taskList" ? snapshot.lists?.map((list) => list.remote)
+          : entity.kind === "task" ? snapshot.lists?.flatMap((list) => list.tasks)
+          : snapshot.calendars?.flatMap((calendar) => calendar.events);
+        if (!remote?.some((item) => item.id === entity.local!.googleId && !item.deleted && item.status !== "cancelled")) throw new CoreStoreError("This item was removed in Google. Preserve local content before using Google or creating a new item.");
+      }
+      result = this.store.dispatch("diagnostics", "retryPendingMutation", { id: current.mutation.id });
+    }
+    else throw new CoreStoreError("Choose keep local or use Google.");
+    this.resolutionReviews.delete(reviewId);
+    this.publishStatus({ state: "idle", stale: false, offline: false, message: input.strategy === "google" ? "Google's version was restored locally." : "Related local changes are queued for sync." });
+    return result;
   }
 
   async queryFreeBusy(input: JsonRecord): Promise<JsonRecord> {
@@ -456,7 +546,7 @@ export class GoogleSyncService {
         const retryable = !ambiguousTaskCreate && (error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError));
         this.store.deferSyncMutation(mutation.id, ambiguousTaskCreate
           ? "Google may have accepted this creation before its response was lost. Check Google before retrying to avoid duplicates."
-          : safeError(error), retryable);
+          : safeError(error), retryable, ambiguousTaskCreate);
         // Preserve causal order: later writes may depend on this one.
         break;
       }
@@ -1065,6 +1155,30 @@ export class GoogleSyncService {
     }
     return accountId;
   }
+}
+
+function snapshotFingerprint(snapshot: GoogleResolutionSnapshot): string {
+  const canonical = (value: any): any => Array.isArray(value)
+    ? value.map(canonical).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    : value && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value).sort().filter((key) => key !== "token").map((key) => [key, canonical(value[key])])) : value;
+  return createHash("sha256").update(JSON.stringify(canonical(snapshot))).digest("hex");
+}
+
+function resolutionFields(kind: string, value: JsonRecord | null, remote = false): JsonRecord | null {
+  if (!value) return null;
+  if (kind === "taskList") return { title: value.title ?? "" };
+  if (kind === "task") return {
+    title: value.title ?? "", notes: remote ? splitHcbTaskMetadata(value.notes).notes : value.notes ?? "",
+    status: value.deleted ? "deleted" : remote ? value.status === "completed" ? "completed" : "active" : value.status,
+    due: ((remote ? value.due : value.dueAt) as string | undefined)?.slice(0, 10) ?? null,
+    parent: remote ? value.parent ? "Google parent task" : null : value.parentId ? "Local parent task" : null
+  };
+  return { title: remote ? value.summary ?? "" : value.title ?? "", description: value.description ?? "",
+    start: remote ? value.start?.dateTime ?? value.start?.date : value.startsAt,
+    end: remote ? value.end?.dateTime ?? value.end?.date : value.endsAt,
+    location: value.location ?? "", recurrence: remote ? value.recurrence ?? [] : value.recurrenceLines ?? value.googleRecurrence ?? [],
+    status: value.status === "cancelled" ? "deleted" : "active" };
 }
 
 function safeDriveFileName(value: string): string {
