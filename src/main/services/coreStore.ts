@@ -727,6 +727,7 @@ export class CoreStore {
     const googleId = requiredText(remote.id, "Google task-list id");
     const title = requiredText(remote.title, "Google task-list title");
     const existing = this.statement("SELECT id FROM task_lists WHERE account_id=? AND google_id=?").get(accountId, googleId) as { id: string } | undefined;
+    if (existing && this.hasPendingEntityMutation("taskList", existing.id)) return this.googleTaskListForSync(existing.id)!;
     const id = existing?.id ?? randomUUID();
     const now = timestamp();
     this.statement(`INSERT INTO task_lists(id,account_id,title,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
@@ -2954,6 +2955,7 @@ export class CoreStore {
     // next conditional request becomes an overwrite chosen by the user rather
     // than an invisible last-write-wins policy.
     if (mutation.kind?.startsWith("task.") && mutation.entityId) this.statement("UPDATE tasks SET google_etag=NULL WHERE id=?").run(mutation.entityId);
+    if (mutation.kind?.startsWith("taskList.") && mutation.entityId) this.statement("UPDATE task_lists SET google_etag=NULL WHERE id=?").run(mutation.entityId);
     if (mutation.kind?.startsWith("event.") && mutation.entityId) this.statement("UPDATE events SET google_etag=NULL WHERE id=?").run(mutation.entityId);
     const result = this.statement("UPDATE outbox SET state='pending',next_attempt_at=?,last_error=NULL,updated_at=? WHERE id=?")
       .run(timestamp(), timestamp(), id);
@@ -2998,7 +3000,7 @@ export class CoreStore {
     return { sourceAccountId, destinationAccountId, destinationCalendarId };
   }
 
-  private hasPendingEntityMutation(entity: "task" | "event", entityId: string): boolean {
+  private hasPendingEntityMutation(entity: "task" | "taskList" | "event", entityId: string): boolean {
     return Boolean(this.statement("SELECT 1 FROM outbox WHERE entity_id=? AND kind LIKE ? AND state IN ('pending','conflict') LIMIT 1")
       .get(entityId, `${entity}.%`));
   }

@@ -57,6 +57,8 @@ Local-only fields may include:
 
 Time-specific task scheduling must be represented as a calendar event, not a Google Task due time.
 
+Queued task-list renames retain their local title and original ETag during pulls. An externally changed list becomes an explicit conflict; choosing to retry the local rename clears that stale revision intentionally.
+
 ## Calendar Mapping
 
 Google Calendar backs:

@@ -27,7 +27,8 @@ function createFixture() {
       if (target.pathname.endsWith("/tasks")) return Response.json({ items: [...remoteTasks.values()] });
     }
     if (method === "PATCH" && target.pathname.endsWith(`/lists/${remoteList.id}`)) {
-      if (init.headers && new Headers(init.headers).get("if-match") !== remoteList.etag) return Response.json({}, { status: 412 });
+      const ifMatch = new Headers(init.headers).get("if-match");
+      if (ifMatch && ifMatch !== remoteList.etag) return Response.json({}, { status: 412 });
       Object.assign(remoteList, JSON.parse(String(init.body)), { etag: `list-v${++revision}` });
       return Response.json(remoteList);
     }
@@ -116,5 +117,29 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.pendingSyncMutations(100, accountId)).toEqual([]);
     store.dispatch("diagnostics", "retryPendingMutation", { id: queued[0].id });
     expect(store.pendingSyncMutations(100, accountId).map((entry) => entry.id)).toEqual(queued.map((entry) => entry.id));
+  });
+
+  it("delivers a queued list rename without losing it to the initial pull", async () => {
+    const { store, service, list, remoteList, accountId } = createFixture();
+    store.dispatch("tasks", "renameTaskList", { id: list.id, title: "Renamed offline" });
+    await service.runNow();
+    expect(remoteList.title).toBe("Renamed offline");
+    expect(store.googleTaskListForSync(list.id)?.title).toBe("Renamed offline");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("preserves a list rename as a conflict and overwrites only after explicit retry", async () => {
+    const { store, service, list, remoteList, accountId } = createFixture();
+    store.dispatch("tasks", "renameTaskList", { id: list.id, title: "Local rename" });
+    remoteList.title = "Changed elsewhere";
+    remoteList.etag = "external-revision";
+    expect((await service.runNow()).state).toBe("error");
+    expect(remoteList.title).toBe("Changed elsewhere");
+    expect(store.googleTaskListForSync(list.id)).toMatchObject({ title: "Local rename", googleEtag: "list-v1" });
+    const failed = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0];
+    store.dispatch("diagnostics", "retryPendingMutation", { id: failed.id });
+    await service.runNow();
+    expect(remoteList.title).toBe("Local rename");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
   });
 });
