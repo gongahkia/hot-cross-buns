@@ -89,6 +89,8 @@ After every page of an unfiltered full Calendar pull succeeds and returns its fi
 
 Remote event cancellations remove linked local task blocks in the same transaction before deleting the event. The task remains intact; its planning times reflect a surviving block or are cleared. Pull reconciliation does not enqueue a compensating Google write.
 
+A Calendar removed from the complete Calendar-list snapshot is pruned with its event cache and checkpoints. If it still has unresolved event writes, preserve the cache and flag those writes as conflicts rather than dropping them. Pending event deletions and moves are recognized from their queued source/destination Calendar identities even when the event row has already disappeared or moved. Pruning a clean Calendar retains task planning from blocks in surviving Calendars.
+
 For connected primary calendars, Calendar status events support Focus Time, Out of Office, and Working Location. HCB supports signed-in-user RSVP edits, read-only free/busy lookup, Google Meet creation requests, existing Drive-link attachments, and private uploads of user-selected local files. It does not support Calendar Goals, organizer-side guest or resource booking, conference removal, Drive download, sharing, moving, deletion, or a broad Drive file-lifecycle feature.
 
 ## Sync Modes

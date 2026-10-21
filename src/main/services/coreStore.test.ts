@@ -132,6 +132,23 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("calendar", "get", { id: first.calendarEventId }).title).toBe("Unsynced edit");
   });
 
+  it("retains surviving task planning when a different Google Calendar is removed", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "Two calendars" });
+    const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });
+    const removed = store.upsertGoogleCalendar({ id: "removed", summary: "Removed" }, account.accountId);
+    const surviving = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00Z", durationMinutes: 30
+    });
+    store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: removed.id, startsAt: "2026-10-22T11:00:00Z", durationMinutes: 30
+    });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.pruneGoogleCalendars(account.accountId, []);
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ plannedStart: surviving.startsAt, plannedEnd: surviving.endsAt });
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items.map((block: any) => block.id)).toEqual([surviving.id]);
+  });
+
   it("pages task trees, collapsed branches, completed sections, and device stars in SQL", () => {
     const store = createStore();
     const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Alpha", notes: "x".repeat(4000) });

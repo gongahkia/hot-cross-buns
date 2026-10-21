@@ -301,6 +301,45 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
   });
 
+  it.each(["create", "edit", "delete"])("preserves unsent event %s writes when a Calendar disappears", async (operation) => {
+    const { store, service, accountId, calendar, importEvent, googleFetch } = createCalendarFixture();
+    const event = operation === "create"
+      ? store.dispatch("calendar", "create", {
+        calendarId: calendar.id, title: "Unsent event", startsAt: "2026-10-22T09:00:00Z", endsAt: "2026-10-22T10:00:00Z"
+      })
+      : importEvent("unsent-event");
+    if (operation === "edit") store.dispatch("calendar", "update", { id: event.id, title: "Unsent edit" });
+    if (operation === "delete") store.dispatch("calendar", "delete", { id: event.id });
+    googleFetch.mockImplementation(async () => Response.json({ items: [] }));
+
+    expect((await service.runNow()).state).toBe("error");
+    expect(store.googleCalendarForSync(calendar.id)).not.toBeNull();
+    if (operation !== "delete") expect(store.googleEventForSync(event.id)).not.toBeNull();
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+    expect(store.pendingSyncMutations(100, accountId)).toEqual([]);
+    const mutation = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0];
+    expect(mutation).toMatchObject({ status: "failed", lastErrorMessage: expect.stringContaining("Calendar was removed") });
+    expect(googleFetch.mock.calls.every(([, , init]) => !init?.method || init.method === "GET")).toBe(true);
+    store.dispatch("diagnostics", "cancelPendingMutation", { id: mutation.id });
+    await service.runNow({ readOnly: true });
+    expect(store.googleCalendarForSync(calendar.id)).toBeNull();
+  });
+
+  it("recognizes a removed Calendar as the source of a pending event move", async () => {
+    const { store, service, accountId, calendar, importEvent, googleFetch } = createCalendarFixture();
+    const event = importEvent("moving-event");
+    const destinationRemote = { id: "destination", summary: "Destination" };
+    const destination = store.upsertGoogleCalendar(destinationRemote, accountId);
+    store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id });
+    googleFetch.mockImplementation(async (_account, target) => Response.json(target.pathname.endsWith("/calendarList")
+      ? { items: [destinationRemote] } : { items: [], nextSyncToken: "next-token" }));
+    expect((await service.runNow()).state).toBe("error");
+    expect(store.googleCalendarForSync(calendar.id)).not.toBeNull();
+    expect(store.googleEventForSync(event.id)?.calendarId).toBe(destination.id);
+    expect(store.pendingSyncMutations(100, accountId)).toEqual([]);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+  });
+
   it("removes absent events on an explicit full resync while retaining other calendars", async () => {
     const { store, service, accountId, remoteEvents, importEvent } = createCalendarFixture();
     const missing = importEvent("missing");

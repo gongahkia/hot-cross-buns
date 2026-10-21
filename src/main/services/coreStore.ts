@@ -901,7 +901,17 @@ export class CoreStore {
     const activeIds = new Set(activeGoogleIds.filter((id) => typeof id === "string" && id.trim()).map((id) => id.trim()));
     const cached = this.statement("SELECT id,google_id AS googleId FROM calendars WHERE account_id=? AND google_id IS NOT NULL")
       .all(accountId) as Array<{ id: string; googleId: string }>;
-    const removed = cached.filter((calendar) => !activeIds.has(calendar.googleId));
+    const removed = this.db.transaction(() => cached.filter((calendar) => {
+      if (activeIds.has(calendar.googleId)) return false;
+      const writes = this.statement(`SELECT id FROM outbox WHERE account_id=? AND kind LIKE 'event.%' AND state IN ('pending','conflict') AND (
+        entity_id IN (SELECT id FROM events WHERE calendar_id=?) OR
+        json_extract(payload_json,'$.calendarId')=? OR json_extract(payload_json,'$.sourceCalendarId')=? OR
+        json_extract(payload_json,'$.destinationCalendarId')=?)`)
+        .all(accountId, calendar.id, calendar.id, calendar.id, calendar.id) as Array<{ id: string }>;
+      for (const write of writes) this.statement("UPDATE outbox SET state='conflict',last_error=?,updated_at=? WHERE id=? AND state='pending'")
+        .run("This Google Calendar was removed. Local writes are preserved; move events to an available Calendar or cancel the queued writes.", timestamp(), write.id);
+      return writes.length === 0;
+    }))();
     if (removed.length === 0) return;
 
     const calendarIds = removed.map((calendar) => calendar.id);
@@ -916,22 +926,9 @@ export class CoreStore {
     this.db.transaction(() => {
       const eventIds = (this.statement(`SELECT id FROM events WHERE calendar_id IN (${placeholders})`).all(...calendarIds) as Array<{ id: string }>)
         .map((event) => event.id);
-      const scheduledTaskIds = (this.statement(`SELECT DISTINCT task_id AS taskId FROM scheduled_task_blocks
-        WHERE calendar_id IN (${placeholders}) OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (${placeholders}))`)
-        .all(...calendarIds, ...calendarIds) as Array<{ taskId: string }>)
-        .map((block) => block.taskId);
-
-      this.statement(`DELETE FROM scheduled_task_blocks
-        WHERE calendar_id IN (${placeholders}) OR calendar_event_id IN (SELECT id FROM events WHERE calendar_id IN (${placeholders}))`)
-        .run(...calendarIds, ...calendarIds);
-      for (const taskId of scheduledTaskIds) {
-        this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), taskId);
-      }
-      if (eventIds.length > 0) {
-        const eventPlaceholders = eventIds.map(() => "?").join(",");
-        this.statement(`DELETE FROM outbox WHERE account_id=? AND kind LIKE 'event.%' AND entity_id IN (${eventPlaceholders})`)
-          .run(accountId, ...eventIds);
-      }
+      const linkedEventIds = (this.statement(`SELECT DISTINCT calendar_event_id AS id FROM scheduled_task_blocks WHERE calendar_id IN (${placeholders})`)
+        .all(...calendarIds) as Array<{ id: string }>).map((event) => event.id);
+      for (const eventId of new Set([...eventIds, ...linkedEventIds])) this.unlinkScheduledTaskBlocks(eventId);
       this.statement(`DELETE FROM events WHERE calendar_id IN (${placeholders})`).run(...calendarIds);
       this.statement(`DELETE FROM calendars WHERE id IN (${placeholders})`).run(...calendarIds);
       for (const googleId of googleIds) {
