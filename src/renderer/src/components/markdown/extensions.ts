@@ -6,6 +6,7 @@ import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { MarkdownHistory } from "./history";
+import { markdownTableExtensions } from "./tables";
 
 export function safeEditorUrl(value: string): boolean {
   return /^(https?:\/\/|mailto:|tel:|#|\/(?!\/))/i.test(value.trim());
@@ -42,6 +43,7 @@ const PreservedBlock = Node.create({
     name: "preservedBlock", level: "block",
     start: (source) => source.search(/^(?:<!--|<(?:[a-z][\w-]*)(?:\s|>)|\[\^[^\]]+\]:)/im),
     tokenize: (source) => {
+      if (/^<table\b[^>]*\bdata-hcb-table="true"/i.test(source)) return undefined;
       const match = /^(?:<!--[\s\S]*?-->|<(?:[a-z][\w-]*)(?:\s[^>]*|>)[\s\S]*?(?:\n\n|$)|\[\^[^\]]+\]:[^\n]*(?:\n[ \t]+[^\n]*)*)/i.exec(source);
       return match ? { type: "preservedBlock", raw: match[0] } : undefined;
     }
@@ -100,7 +102,7 @@ export function markdownExtensions(placeholder = "Write something, or type / for
   return [
     StarterKit.configure({ underline: false, undoRedo: false, link: { openOnClick: false, autolink: true, isAllowedUri: (url) => safeEditorUrl(url) } }), MarkdownHistory,
     Markdown.configure({ indentation: { style: "space", size: 2 } }),
-    TaskList, TaskItem.configure({ nested: true }), TableKit,
+    TaskList, TaskItem.configure({ nested: true }), TableKit.configure({ table: false }), ...markdownTableExtensions(),
     MarkdownImage.configure({ allowBase64: false, inline: true }),
     Placeholder.configure({ placeholder }), PlannerReference, PreservedBlock, PreservedInline, PreserveOtherHtml, EditingKeys
   ];

@@ -56,4 +56,27 @@ describe("MarkdownPreview", () => {
     expect(opened).toEqual([{ id: "task-1", kind: "task" }]);
     window.removeEventListener("hcb:open-entity", onOpen);
   });
+  it("renders complex stored tables with spans and rich cells through an inert allowlist", () => {
+    const view = render(<MarkdownPreview body={'Before\n\n<table><tbody><tr><th colspan="2" onclick="alert(1)"><p>Heading</p></th></tr><tr><td rowspan="2"><p>First</p><ul><li>Nested</li></ul><script>alert(1)</script><iframe src="https://example.com"></iframe></td><td><a href="javascript:alert(1)">Unsafe</a></td></tr><tr><td>Last</td></tr></tbody></table>\n\nAfter'} />);
+    expect(screen.getByRole("columnheader", { name: "Heading" })).toHaveAttribute("colspan", "2");
+    expect(screen.getByRole("cell", { name: "First Nested" })).toHaveAttribute("rowspan", "2");
+    expect(screen.getByText("Before")).toBeVisible(); expect(screen.getByText("After")).toBeVisible();
+    expect(screen.getByText("Unsafe")).not.toHaveAttribute("href");
+    expect(view.container.querySelector("script, iframe, [onclick]")).toBeNull();
+  });
+  it("does not interpret a table inside a code fence as HTML", () => {
+    const html = '<table><tr><td><strong>literal</strong></td></tr></table>';
+    const view = render(<MarkdownPreview body={'```html\n' + html + '\n```'} />);
+    expect(view.container.querySelector("table")).toBeNull();
+    expect(view.container.querySelector("pre code")).toHaveTextContent(html);
+  });
+
+  it("preserves inline code and unfinished fenced HTML during mixed-markup conversion", () => {
+    const body = '<p>Real <strong>bold</strong></p>\n\n`<em>literal</em>`\n\n~~~~html\n<p>unfinished example</p>';
+    const converted = markdownFromMixedMarkup(body);
+    expect(converted).toContain("**bold**");
+    expect(converted).toContain("`<em>literal</em>`");
+    expect(converted).toContain("~~~~html\n<p>unfinished example</p>");
+  });
+
 });

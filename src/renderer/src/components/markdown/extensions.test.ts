@@ -64,4 +64,42 @@ describe("shared Markdown document schema", () => {
     expect(e.view.dom.querySelector("a")?.getAttribute("href") ?? "").not.toMatch(/^javascript:/);
     expect(e.getMarkdown()).toContain("file:///tmp/private.png");
   });
+  it("round trips pasted merged cells and rich content inside table cells", () => {
+    const e = open("");
+    e.commands.insertContent('<table><tbody><tr><th colspan="2"><p>Merged <strong>heading</strong></p></th></tr><tr><td rowspan="2"><p>First paragraph</p><p>Second paragraph</p><ul><li><p>Nested item</p></li></ul></td><td><p>Right</p></td></tr><tr><td><p>Last</p></td></tr></tbody></table>');
+    const original = e.getJSON();
+    const markdown = e.getMarkdown();
+    expect(open(markdown).getJSON()).toEqual(original);
+    expect(editor!.view.dom.querySelector('th[colspan="2"]')).not.toBeNull();
+    expect(editor!.view.dom.querySelector('td[rowspan="2"] li')).toHaveTextContent("Nested item");
+  });
+  it("round trips headerless pasted tables without inventing a blank header", () => {
+    const e = open("");
+    e.commands.insertContent('<table><tbody><tr><td><p>One</p></td><td><p>Two</p></td></tr></tbody></table>');
+    const original = e.getJSON();
+    expect(open(e.getMarkdown()).getJSON()).toEqual(original);
+  });
+  it("retains common Google Docs and Confluence clipboard formatting", () => {
+    const e = open("");
+    e.commands.insertContent('<meta charset="utf-8"><b id="docs-internal-guid-fixture" style="font-weight:normal"><p dir="ltr"><span style="font-weight:700">Bold from Docs</span> <span style="font-style:italic">italic</span></p></b><div class="ak-renderer-document"><ol start="3"><li><p>Third</p><ul><li><p>Nested</p></li></ul></li></ol><p><a href="https://example.com">Confluence link</a></p></div>');
+    expect(e.getMarkdown()).toContain("**Bold from Docs**");
+    expect(e.getMarkdown()).toContain("*italic*");
+    expect(e.getMarkdown()).toContain("3. Third");
+    expect(e.getMarkdown()).toContain("Nested");
+    expect(e.getMarkdown()).toContain("[Confluence link](https://example.com)");
+  });
+
+  it("retains nested tables and multi-line code cells without changing the schema", () => {
+    const e = open("");
+    e.commands.insertContent('<table><tbody><tr><td><p>Outer</p><table><tbody><tr><td><p>Inner</p></td></tr></tbody></table><pre><code class="language-js">one\n\ntwo</code></pre></td></tr></tbody></table>');
+    const original = e.getJSON();
+    expect(open(e.getMarkdown()).getJSON()).toEqual(original);
+  });
+  it("preserves arbitrary raw HTML tables as inert source, including unknown attributes", () => {
+    const raw = '<table data-external="keep"><tr><td><script>inert()</script>Original</td></tr></table>';
+    const e = open(raw);
+    expect(e.getMarkdown()).toBe(raw);
+    expect(e.view.dom.querySelector("table, script")).toBeNull();
+  });
+
 });

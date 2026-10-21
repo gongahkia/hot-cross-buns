@@ -95,12 +95,31 @@ export function markdownFromMixedMarkup(body: string): string {
     return body;
   }
 
-  const document = new DOMParser().parseFromString(body, "text/html");
-  return Array.from(document.body.childNodes)
+  // DOMParser must never consume example HTML inside Markdown code. Shield
+  // fenced and inline code first, including an unfinished fence being typed.
+  const literals: string[] = [];
+  let prefix = "HCBPROTECTEDCODE";
+  while (body.includes(prefix)) prefix += "X";
+  const protect = (text: string) => `${prefix}${literals.push(text) - 1}END`;
+  const fences = /^ {0,3}(`{3,}|~{3,})[^\n]*(?:\n|$)/gm;
+  let source = ""; let offset = 0;
+  for (let match = fences.exec(body); match; match = fences.exec(body)) {
+    const closing = new RegExp(`^ {0,3}${match[1][0]}{${match[1].length},}[ \\t]*(?:\\n|$)`, "gm");
+    closing.lastIndex = fences.lastIndex;
+    const end = closing.exec(body);
+    const limit = end ? closing.lastIndex : body.length;
+    source += body.slice(offset, match.index) + protect(body.slice(match.index, limit));
+    offset = limit; fences.lastIndex = limit;
+  }
+  source += body.slice(offset);
+  source = source.replace(/(`+)([\s\S]*?)\1(?!`)/g, (match) => protect(match));
+  const document = new DOMParser().parseFromString(source, "text/html");
+  const converted = Array.from(document.body.childNodes)
     .map(htmlNodeToMarkdown)
     .join("")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  return converted.replace(new RegExp(`${prefix}(\\d+)END`, "g"), (_match, index) => literals[Number(index)]);
 }
 
 export function hasRenderableMixedMarkup(body: string | null | undefined): boolean {

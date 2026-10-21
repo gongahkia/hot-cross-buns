@@ -8,6 +8,8 @@ import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { EmptyState } from "../../components/states";
 import { cx } from "../../components/primitives";
 import { safeHref, safeImageSrc, markdownFromMixedMarkup } from "../../components/markdown/mixedMarkup";
+import { splitHtmlTables } from "../../components/markdown/htmlTables";
+import { HtmlTablePreview } from "../../components/markdown/HtmlTablePreview";
 export { markdownFromMixedMarkup, hasRenderableMixedMarkup } from "../../components/markdown/mixedMarkup";
 import {
   parsePlannerLink,
@@ -469,13 +471,13 @@ export function MarkdownPreview({
     }
   };
 
-  const markdownBody = markdownFromMixedMarkup(body);
+  const parts = splitHtmlTables(body);
+  const renderedSegments = parts.flatMap((part): Array<MarkdownSegment | { kind: "htmlTable"; body: string }> =>
+    part.kind === "htmlTable" ? [part] : markdownSegments(markdownFromMixedMarkup(part.body)));
 
-  if (markdownBody.trim().length === 0) {
+  if (!renderedSegments.some((segment) => segment.kind !== "markdown" || segment.body.trim())) {
     return <EmptyState description={emptyDescription} title={emptyTitle} />;
   }
-
-  const renderedSegments = markdownSegments(markdownBody);
 
   return (
     <div
@@ -489,6 +491,12 @@ export function MarkdownPreview({
       role={variant === "summary" ? undefined : "region"}
     >
       {renderedSegments.map((segment, index) => {
+        if (segment.kind === "htmlTable") return <HtmlTablePreview key={`table-${index}`} html={segment.body} reference={(raw) => {
+          const parsed = parsePlannerLink(raw.replace(/^!?\[\[|\]\]$/g, ""), raw.startsWith("!") ? "transclusion" : "wikilink");
+          const target = parsed ? resolvePlannerTarget(availableTargets, parsed) ?? (parsed.targetId ? { id: parsed.targetId, kind: parsed.kind, title: parsed.label } : null) : null;
+          if (parsed?.type === "transclusion") return <PlannerTransclusion depth={transclusionDepth} link={parsed} target={target} targets={availableTargets} />;
+          return target ? <button type="button" className="text-accent underline" onClick={() => openPlannerTarget(target)}>{target.title}</button> : raw;
+        }} />;
         if (segment.kind === "transclusion") {
           return (
             <PlannerTransclusion
