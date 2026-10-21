@@ -10,18 +10,21 @@ export type NewKind = "task" | "event" | "note";
 export type NewItem = { kind: NewKind; title: string; body: string; list: string; start: Date; end: Date; minutes: number };
 
 export function NewItemDialog({ kind, list: initialList, date, onClose, onCreate }: { kind: NewKind; list: string; date: Date; onClose: () => void; onCreate: (item: NewItem) => void }) {
+  const titleId = useId();
   const [active, setActive] = useState(kind); const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [list, setList] = useState(initialList === "All tasks" ? "Inbox" : initialList); const [minutes, setMinutes] = useState(30);
   const initial = new Date(date); initial.setHours(10, 0, 0, 0);
   const [start, setStart] = useState(dateTimeValue(initial)); const [end, setEnd] = useState(dateTimeValue(addMinutes(initial, 30))); const [error, setError] = useState("");
-  return <Modal open onOpenChange={open => { if (!open) onClose(); }} title="A little something to remember" description="Create a sample item. Changes stay in this tab.">
+  return <Modal open onOpenChange={open => { if (!open) onClose(); }} title={`New ${active}`} description="Sample data · changes stay in this tab." className="create-item-modal">
     <form className="new-item-form" onSubmit={e => { e.preventDefault(); if (!title.trim()) return; if (active === "event" && new Date(end) <= new Date(start)) { setError("Choose an end time after the start."); return; } onCreate({ kind: active, title: title.trim(), body, list, start: new Date(start), end: new Date(end), minutes }); }}>
-      <div className="new-kind-tabs">{(["task", "event", "note"] as const).map(type => <button type="button" key={type} aria-pressed={active === type} onClick={() => { setActive(type); setError(""); }}>{type === "task" ? <ListTodo size={16} /> : type === "event" ? <CalendarDays size={16} /> : <FileText size={16} />}{type[0].toUpperCase() + type.slice(1)}</button>)}</div>
-      <input autoFocus required aria-label="New item title" className="new-title" placeholder={active === "note" ? "Give this thought a title…" : "What’s on your mind?"} value={title} onChange={e => setTitle(e.target.value)} />
+      <div className="new-kind-tabs" role="group" aria-label="Item type">{(["task", "event", "note"] as const).map(type => <button type="button" key={type} aria-pressed={active === type} onClick={() => { setActive(type); setError(""); }}>{type === "task" ? <ListTodo size={16} /> : type === "event" ? <CalendarDays size={16} /> : <FileText size={16} />}{type[0].toUpperCase() + type.slice(1)}</button>)}</div>
+      <label className="new-title-label" htmlFor={titleId}>Title</label>
+      <input id={titleId} autoFocus required aria-label="New item title" className="new-title" placeholder={active === "note" ? "Untitled note" : active === "event" ? "Event title" : "What needs to get done?"} value={title} onChange={e => setTitle(e.target.value)} />
       {active === "task" && <div className="new-item-properties"><label>List<select value={list} onChange={e => setList(e.target.value)}>{lists.map(name => <option key={name}>{name}</option>)}</select></label><label>Estimated time<select value={minutes} onChange={e => setMinutes(Number(e.target.value))}>{[15, 30, 45, 60, 90, 120].map(n => <option key={n} value={n}>{n} minutes</option>)}</select></label></div>}
       {active === "event" && <div className="new-item-properties"><label>Starts<input required type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></label><label>Ends<input required type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} /></label></div>}
-      <MarkdownEditor aria-label="New item notes" value={body} onValueChange={setBody} placeholder="Add a little context…" showControls={false} />
+      <div className="new-body-heading"><span>{active === "note" ? "Content" : active === "event" ? "Description" : "Notes"}</span><span>Optional</span></div>
+      <MarkdownEditor aria-label="New item notes" className="create-item-editor" value={body} onValueChange={setBody} placeholder="Start writing…" showControls={false} />
       {error && <p role="alert" className="form-error">{error}</p>}
-      <div className="modal-actions"><button className="outline-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit">Create {active}</button></div>
+      <div className="modal-actions"><button className="outline-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={!title.trim()}>Create {active}</button></div>
     </form>
   </Modal>;
 }

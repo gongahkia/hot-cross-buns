@@ -9,13 +9,13 @@ import { TODAY } from "./model";
 export function IconButton({ label, children, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return <button type="button" title={label} aria-label={label} className={`icon-button ${className}`} {...props}>{children}</button>;
 }
-export function Modal({ open, onOpenChange, title, description, children, wide = false }: {
-  open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string; children: ReactNode; wide?: boolean;
+export function Modal({ open, onOpenChange, title, description, children, wide = false, className = "" }: {
+  open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string; children: ReactNode; wide?: boolean; className?: string;
 }) {
   const descriptionId = useId();
   return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal>
     <Dialog.Overlay className="prototype-overlay" />
-    <Dialog.Content className={`prototype-modal ${wide ? "modal-wide" : ""}`} aria-describedby={description ? descriptionId : undefined}>
+    <Dialog.Content className={`prototype-modal ${wide ? "modal-wide" : ""} ${className}`} aria-describedby={description ? descriptionId : undefined}>
       <div className="modal-heading"><div><Dialog.Title>{title}</Dialog.Title>{description && <Dialog.Description id={descriptionId}>{description}</Dialog.Description>}</div><Dialog.Close asChild><IconButton label="Close dialog"><X size={18} /></IconButton></Dialog.Close></div>
       {children}
     </Dialog.Content>

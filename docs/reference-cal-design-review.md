@@ -276,3 +276,19 @@ errors. Screenshots are in `output/reference-cal/no-day-panel.png` and
 
 Revision verdict: **Approve within this removal's scope.** The production
 integration requirements and unverified checks in the earlier review remain.
+
+## Revision: prioritize My Lists in navigation
+
+The workspace logo/name/dropdown block was removed. Search now aligns with the
+main toolbar, followed by My Lists, Calendar/Tasks/Notes navigation, the
+mini-calendar, account calendars and pinned notes. The navigation and date picker
+were moved in the DOM, so keyboard traversal follows the visible order. Compact
+navigation keeps its close action beside Search.
+
+| Severity | Location | Before | After | Why |
+| --- | --- | --- | --- | --- |
+| MEDIUM | `prototypes/reference-cal/src/App.tsx`, `prototype.css` | Branding, navigation and date picker appeared above My Lists | Remove branding and put My Lists first, then navigation and date picker | Follow the requested sidebar hierarchy |
+
+Existing fonts, icons, 40px sidebar targets and scroll boundaries remain. No new
+animation or dependency was added. Browser verification follows the combined
+sidebar and create-dialog review below.
