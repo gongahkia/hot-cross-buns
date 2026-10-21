@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
 export const testDatabaseRootEnvironmentVariable = "HCB_TEST_DATABASE_ROOT";
@@ -39,6 +40,22 @@ export function assertIsolatedTestDatabasePath(
 }
 
 export function isWithin(root: string, target: string): boolean {
-  const pathFromRoot = relative(resolve(root), resolve(target));
+  const pathFromRoot = relative(canonicalPath(root), canonicalPath(target));
   return pathFromRoot === "" || (!pathFromRoot.startsWith("..") && !isAbsolute(pathFromRoot));
+}
+
+/** Resolve existing ancestors too: the database or its parent may not exist yet. */
+function canonicalPath(path: string): string {
+  let ancestor = resolve(path);
+  const suffix: string[] = [];
+  while (true) {
+    try { return resolve(realpathSync(ancestor), ...suffix.reverse()); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const parent = dirname(ancestor);
+      if ((code !== "ENOENT" && code !== "ENOTDIR") || parent === ancestor) throw error;
+      suffix.push(basename(ancestor));
+      ancestor = parent;
+    }
+  }
 }

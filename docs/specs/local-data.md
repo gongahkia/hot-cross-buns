@@ -25,6 +25,7 @@ Task and note collections are paginated in SQL. Display reads use previews; full
 - Migration tests must run against temporary SQLite databases.
 - Test processes must provide an explicit temporary database root and fail if
   they attempt to open a normal development or user-profile database.
+- Test containment resolves filesystem aliases (including macOS `/var` and `/private/var`) and rejects symlinks that escape the temporary root, even before the database file exists.
 - Failed migrations must not leave partially upgraded state without an error marker.
 - Destructive migrations require a backup/export path first.
 
