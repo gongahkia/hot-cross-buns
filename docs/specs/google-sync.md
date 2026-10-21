@@ -67,6 +67,8 @@ Explicit sibling reordering uses Google's `tasks.move` endpoint, including movin
 
 An initial or forced full Tasks pull includes completed, hidden, and deleted tasks. After every page succeeds, cached Google tasks absent from that list's snapshot become local deletion tombstones. Pending/conflicted edits and unbound local creations survive. A failed full pull or an incremental `updatedMin` delta must not delete tasks merely because they were absent from the response.
 
+The account's complete Task-list response is authoritative. After importing tasks into surviving lists, remove missing bound lists and their task cache, checkpoints, obsolete history, and selection references. Unlink scheduled task blocks while preserving their independent Calendar events and all local notes. Unbound local lists survive. If a missing list still has unsent or conflicted Task/list writes, retain that local state and flag those writes as conflicts before delivery; cancelling those writes allows the next pull to remove the cache.
+
 ## Calendar Mapping
 
 Google Calendar backs:

@@ -751,6 +751,58 @@ export class CoreStore {
     return this.googleTaskListForSync(id)!;
   }
 
+  /** Reconcile only after the account's complete Task-list snapshot is read. */
+  pruneGoogleTaskLists(accountId: string, activeGoogleIds: readonly string[]): void {
+    const activeIds = new Set(activeGoogleIds);
+    const cached = this.statement("SELECT id,google_id AS googleId FROM task_lists WHERE account_id=? AND google_id IS NOT NULL")
+      .all(accountId) as Array<{ id: string; googleId: string }>;
+    const removedListIds = new Set<string>();
+    const removedTaskIds = new Set<string>();
+    let nextSettings: JsonRecord | null = null;
+    this.db.transaction(() => {
+      for (const list of cached) {
+        if (activeIds.has(list.googleId)) continue;
+        const writes = this.statement(`SELECT id FROM outbox WHERE account_id=? AND state IN ('pending','conflict') AND (
+          (kind LIKE 'taskList.%' AND entity_id=?) OR
+          (kind LIKE 'task.%' AND entity_id IN (SELECT id FROM tasks WHERE list_id=?)))`)
+          .all(accountId, list.id, list.id) as Array<{ id: string }>;
+        if (writes.length) {
+          // Do not discard an optimistic edit or send it to a removed list.
+          for (const write of writes) this.statement(`UPDATE outbox SET state='conflict',last_error=?,updated_at=? WHERE id=? AND state='pending'`)
+            .run("This Google task list was removed. Local writes are preserved; move tasks to an available list or cancel the queued writes.", timestamp(), write.id);
+          continue;
+        }
+        const tasks = this.statement("SELECT id FROM tasks WHERE list_id=?").all(list.id) as Array<{ id: string }>;
+        for (const task of tasks) removedTaskIds.add(task.id);
+        // Calendar events are independent Google records. Remove the link,
+        // not the event, when its source Task list disappears.
+        this.statement("DELETE FROM scheduled_task_blocks WHERE task_id IN (SELECT id FROM tasks WHERE list_id=?)").run(list.id);
+        this.statement("DELETE FROM tasks WHERE list_id=?").run(list.id);
+        this.statement("UPDATE notes SET list_id=NULL WHERE list_id=?").run(list.id);
+        this.statement("DELETE FROM task_lists WHERE id=?").run(list.id);
+        this.setGoogleSyncToken(accountId, `tasks-updated:${list.googleId}`, null);
+        removedListIds.add(list.id);
+      }
+      if (!removedListIds.size) return;
+      for (const id of [...removedListIds, ...removedTaskIds]) {
+        this.statement("DELETE FROM undo_entries WHERE forward_json LIKE ? OR inverse_json LIKE ?").run(`%${id}%`, `%${id}%`);
+      }
+      const current = this.settings();
+      nextSettings = {
+        ...current,
+        selectedTaskListIds: stringArray(current.selectedTaskListIds).filter((id) => !removedListIds.has(id)),
+        starredTaskIds: stringArray(current.starredTaskIds).filter((id) => !removedTaskIds.has(id)),
+        perTabListFilters: Object.fromEntries(Object.entries(safeObject(current.perTabListFilters) ?? {}).map(([surface, filter]) => {
+          const value = safeObject(filter) ?? {};
+          return [surface, { ...value, selectedTaskListIds: stringArray(value.selectedTaskListIds).filter((id) => !removedListIds.has(id)) }];
+        }))
+      };
+      this.statement("INSERT INTO settings(key,value) VALUES('app',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run(JSON.stringify(nextSettings));
+    })();
+    if (nextSettings) this.nativeBridge?.applySettings?.(nextSettings);
+  }
+
   upsertGoogleTask(remote: JsonRecord, localListId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google task id");
     const localList = this.googleTaskListForSync(localListId);

@@ -16,6 +16,7 @@ function createFixture() {
   fixtures.push({ store, directory });
   const accountId = store.upsertGoogleAccount({ googleAccountId: "account", displayName: "Test", connectionState: "connected" }).accountId;
   const remoteList = { id: "remote-list", title: "Inbox", etag: "list-v1" };
+  const remoteLists = new Map([[remoteList.id, remoteList]]);
   const list = store.upsertGoogleTaskList(remoteList, accountId);
   store.dispatch("settings", "update", { syncCalendarEventsEnabled: false });
   const remoteTasks = new Map<string, RemoteTask>();
@@ -24,7 +25,7 @@ function createFixture() {
   const googleFetch = vi.fn(async (_accountId: string, target: URL, init: RequestInit = {}): Promise<Response> => {
     const method = init.method ?? "GET";
     if (method === "GET") {
-      if (target.pathname.endsWith("/lists")) return Response.json({ items: [remoteList] });
+      if (target.pathname.endsWith("/lists")) return Response.json({ items: [...remoteLists.values()] });
       if (target.pathname.endsWith("/tasks")) return Response.json({ items: [...remoteTasks.values()] });
     }
     if (method === "PATCH" && target.pathname.endsWith(`/lists/${remoteList.id}`)) {
@@ -79,7 +80,7 @@ function createFixture() {
     remoteTasks.set(task.id, task);
     return store.upsertGoogleTask(task, list.id)!;
   };
-  return { store, service, accountId, list, remoteList, remoteTasks, googleFetch, importTask,
+  return { store, service, accountId, list, remoteList, remoteLists, remoteTasks, googleFetch, importTask,
     loseCreateResponse: () => { loseNextCreateResponse = true; } };
 }
 
@@ -117,6 +118,93 @@ afterEach(() => {
 });
 
 describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+  it("removes remotely deleted task lists and their cache while preserving Calendar events and notes", async () => {
+    const { store, service, accountId, list, remoteLists, importTask } = createFixture();
+    const task = importTask({ id: "removed-task" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00Z", durationMinutes: 30
+    });
+    const note = store.dispatch("notes", "create", { title: "Local note", body: "Keep this content" });
+    const otherAccount = store.upsertGoogleAccount({ googleAccountId: "other-account", connectionState: "disconnected" });
+    const otherList = store.upsertGoogleTaskList({ id: list.googleId, title: "Same id, other account" }, otherAccount.accountId);
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.dispatch("settings", "update", {
+      selectedTaskListIds: [list.id, otherList.id], starredTaskIds: [task.id],
+      perTabListFilters: { tasks: { useCustomFilter: true, selectedTaskListIds: [list.id, otherList.id] } }
+    });
+    store.setGoogleSyncToken(accountId, `tasks-updated:${list.googleId}`, "2026-10-21T09:00:00Z");
+    remoteLists.clear();
+
+    await service.runNow({ readOnly: true });
+
+    expect(store.googleTaskListForSync(list.id)).toBeNull();
+    expect(store.googleTaskForSync(task.id)).toBeNull();
+    expect(store.googleTaskListForSync(otherList.id)).not.toBeNull();
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items).toEqual([]);
+    expect(store.googleEventForSync(block.calendarEventId)).not.toBeNull();
+    expect(store.dispatch("notes", "get", { id: note.id }).body).toBe("Keep this content");
+    expect(store.googleSyncToken(accountId, `tasks-updated:${list.googleId}`)).toBeNull();
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      selectedTaskListIds: [otherList.id], starredTaskIds: [],
+      perTabListFilters: { tasks: { selectedTaskListIds: [otherList.id] } }
+    });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it.each(["create", "edit", "rename"])("preserves and flags unsent %s writes to a removed Google list", async (operation) => {
+    const { store, service, accountId, list, remoteLists, importTask, googleFetch } = createFixture();
+    if (operation === "create") store.dispatch("tasks", "create", { listId: list.id, title: "Unsent task" });
+    if (operation === "edit") {
+      const task = importTask({ id: "edited-task" });
+      store.dispatch("tasks", "update", { id: task.id, title: "Unsent edit" });
+    }
+    if (operation === "rename") store.dispatch("tasks", "renameTaskList", { id: list.id, title: "Unsent rename" });
+    remoteLists.clear();
+
+    expect((await service.runNow()).state).toBe("error");
+    expect((await service.runNow()).state).toBe("error");
+
+    expect(store.googleTaskListForSync(list.id)).not.toBeNull();
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+    expect(store.pendingSyncMutations(100, accountId)).toEqual([]);
+    const mutation = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0];
+    expect(mutation).toMatchObject({ status: "failed", lastErrorMessage: expect.stringContaining("list was removed") });
+    expect(googleFetch.mock.calls.every(([, , init]) => !init?.method || init.method === "GET")).toBe(true);
+    store.dispatch("diagnostics", "cancelPendingMutation", { id: mutation.id });
+    await service.runNow({ readOnly: true });
+    expect(store.googleTaskListForSync(list.id)).toBeNull();
+  });
+
+  it("does not prune task lists when a later list page fails", async () => {
+    const { store, service, list, googleFetch } = createFixture();
+    googleFetch.mockImplementation(async (_account, target) => target.searchParams.has("pageToken")
+      ? new Response(null, { status: 503 })
+      : Response.json({ items: [], nextPageToken: "failing-page" }));
+    await expect(service.runNow({ readOnly: true })).rejects.toThrow();
+    expect(store.googleTaskListForSync(list.id)).not.toBeNull();
+  });
+
+  it("retains local task lists not yet created on Google", async () => {
+    const { store, service, accountId, remoteLists } = createFixture();
+    const local = store.dispatch("tasks", "createTaskList", { accountId, title: "Unsent list" });
+    remoteLists.clear();
+    await service.runNow({ readOnly: true });
+    expect(store.googleTaskListForSync(local.id)?.title).toBe("Unsent list");
+    expect(store.pendingSyncMutations(100, accountId)).toEqual([expect.objectContaining({ kind: "taskList.create" })]);
+  });
+
+  it("preserves a moved task's local identity when its former Google list disappears", async () => {
+    const { store, service, accountId, list, importTask, remoteLists } = createFixture();
+    const task = importTask({ id: "moved-task" });
+    const destinationRemote = { id: "destination", title: "Destination", etag: "v1" };
+    const destination = store.upsertGoogleTaskList(destinationRemote, accountId);
+    remoteLists.clear();
+    remoteLists.set(destinationRemote.id, destinationRemote);
+    await service.runNow({ readOnly: true });
+    expect(store.googleTaskListForSync(list.id)).toBeNull();
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ listId: destination.id, googleId: "moved-task" });
+  });
+
   it("marks tasks absent from an explicit full snapshot deleted without affecting other lists", async () => {
     const { store, service, accountId, list, importTask, remoteTasks } = createFixture();
     const missing = importTask({ id: "missing" });

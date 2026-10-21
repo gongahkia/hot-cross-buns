@@ -57,6 +57,7 @@ describe("GoogleSyncService", () => {
       googleAccounts: () => [{ accountId: "account", connectionState: "connected" }],
       pendingSyncMutations: () => [], setSyncRuntime: vi.fn(),
       upsertGoogleTaskList: () => ({ id: "local-list" }), isSelectedTaskList: () => true,
+      pruneGoogleTaskLists: vi.fn(),
       googleSyncToken: () => previous, setGoogleSyncToken: vi.fn(),
       upsertGoogleTaskBatch: vi.fn(), reconcileGoogleTaskParents: vi.fn()
     };
@@ -71,6 +72,7 @@ describe("GoogleSyncService", () => {
     await expect(service.runNow({ readOnly: true })).rejects.toThrow();
     expect(store.setGoogleSyncToken).not.toHaveBeenCalled();
     expect(store.reconcileGoogleTaskParents).not.toHaveBeenCalled();
+    expect(store.pruneGoogleTaskLists).not.toHaveBeenCalled();
     failSecondPage = false;
     await service.runNow({ readOnly: true });
     expect(store.setGoogleSyncToken).toHaveBeenCalledWith("account", "tasks-updated:remote-list", "2026-10-02T10:00:00.000Z");
@@ -199,6 +201,7 @@ describe("GoogleSyncService", () => {
       pendingSyncMutations: () => [],
       setSyncRuntime: vi.fn(),
       upsertGoogleTaskList: vi.fn(() => ({ id: "local-list" })),
+      pruneGoogleTaskLists: vi.fn(),
       isSelectedTaskList: vi.fn(() => true),
       upsertGoogleTask: vi.fn(),
       reconcileGoogleTasks: vi.fn(),
@@ -236,6 +239,7 @@ describe("GoogleSyncService", () => {
     await service.runNow({ accountId: "test-account", readOnly: true });
 
     expect(store.pruneGoogleCalendars).toHaveBeenCalledWith("test-account", ["primary"]);
+    expect(store.pruneGoogleTaskLists).toHaveBeenCalledWith("test-account", ["list-1", "list-2"]);
     expect(store.upsertGoogleTask).toHaveBeenCalledTimes(2);
     expect(store.upsertGoogleEvent).toHaveBeenCalledTimes(2);
     expect(store.setGoogleSyncToken).toHaveBeenCalledWith("test-account", "events:primary", "new-sync-token");

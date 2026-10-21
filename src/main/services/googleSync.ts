@@ -359,6 +359,9 @@ export class GoogleSyncService {
       this.store.reconcileGoogleTaskParents(localList.id);
       if (checkpoint) this.store.setGoogleSyncToken(accountId, key, new Date(checkpoint).toISOString());
     }
+    // Import moves into surviving lists first so their stable local ids survive
+    // removal of a former list. Never prune from a partial list response.
+    this.store.pruneGoogleTaskLists(accountId, taskLists.map((list) => requiredText(list.id, "Google task-list id")));
   }
 
   private publishStatus(status: JsonRecord): JsonRecord {
