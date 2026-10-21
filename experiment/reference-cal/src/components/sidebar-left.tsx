@@ -17,9 +17,6 @@ import { Kbd } from "@/components/ui/kbd";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -341,38 +338,7 @@ export function SidebarLeft({
               />
             ))}
           </div>
-        ) : (
-          <SidebarGroup className="px-3 pt-6">
-            <SidebarGroupLabel className="text-foreground text-xs font-semibold px-0">
-              Useful shortcuts
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <div className="flex flex-col">
-                <ShortcutRow label="Command menu">
-                  <Kbd>⌘</Kbd>
-                  <Kbd>K</Kbd>
-                </ShortcutRow>
-                <ShortcutRow label="Menu bar calendar">
-                  <Kbd>control</Kbd>
-                  <Kbd>⌘</Kbd>
-                  <Kbd>K</Kbd>
-                </ShortcutRow>
-                <ShortcutRow label="Toggle sidebar">
-                  <Kbd>`</Kbd>
-                </ShortcutRow>
-                <ShortcutRow label="Show teammate calendar">
-                  <Kbd>P</Kbd>
-                </ShortcutRow>
-                <ShortcutRow label="Go to date">
-                  <Kbd>.</Kbd>
-                </ShortcutRow>
-                <ShortcutRow label="All keyboard shortcuts">
-                  <Kbd>?</Kbd>
-                </ShortcutRow>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        ) : null}
       </SidebarContent>
     </>
   );
@@ -384,7 +350,7 @@ export function SidebarLeft({
         onOpenChange={setPanelOpen}
         side="right"
         title="Context panel"
-        description="Event details, event search and useful shortcuts."
+        description="Event details and event search."
         className="!bg-context-panel"
         style={
           {
@@ -532,21 +498,6 @@ function SearchResultItem({
           {duration && <span className={colors.duration}> {duration}</span>}
         </p>
       </div>
-    </div>
-  );
-}
-
-function ShortcutRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="text-muted-foreground flex items-center justify-between py-1 text-xs">
-      <span>{label}</span>
-      <div className="flex items-center gap-1">{children}</div>
     </div>
   );
 }

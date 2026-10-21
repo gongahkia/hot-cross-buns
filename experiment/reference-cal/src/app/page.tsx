@@ -32,6 +32,7 @@ import type {
 } from "@/components/week-view-types";
 import { EventTitleFocusProvider } from "@/components/event-title-focus-context";
 import { SidebarRight } from "@/components/sidebar-right";
+import { SettingsPage } from "@/components/settings-page";
 import { MonthView } from "@/components/month-view";
 import {
   WeekView,
@@ -104,6 +105,18 @@ function PageContent({ isWideLayout }: PageContentProps) {
     null,
   );
   const [commandMenuOpen, setCommandMenuOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const calendarMain = React.useRef<HTMLElement>(null);
+  const openSettings = React.useCallback(() => {
+    setCommandMenuOpen(false);
+    setLeftOverlayOpen(false);
+    setContextPanelOpenMobile(false);
+    setSettingsOpen(true);
+  }, [setContextPanelOpenMobile]);
+  const closeSettings = React.useCallback(() => {
+    setSettingsOpen(false);
+    calendarMain.current?.focus({ preventScroll: true });
+  }, []);
   const [numberOfDays, setNumberOfDays] = React.useState(7);
   const [viewSettings, setViewSettings] = React.useState<ViewSettings>({
     showWeekends: true,
@@ -323,6 +336,14 @@ function PageContent({ isWideLayout }: PageContentProps) {
   // Keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return;
+      // Cmd+, opens Settings from either page.
+      if (e.key === "," && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        openSettings();
+        return;
+      }
+      if (settingsOpen) return;
       // Cmd+K for command menu
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -347,20 +368,26 @@ function PageContent({ isWideLayout }: PageContentProps) {
         toggleDeclinedEvents();
         return;
       }
-      // Cmd+, for general settings (placeholder)
-      if (e.key === "," && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        return;
-      }
       // Escape to deselect event
       if (e.key === "Escape") {
         setSelectedEventId(null);
         return;
       }
 
-      // Skip single-key shortcuts when focused on input/textarea
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+      // Single-key shortcuts must not interrupt text entry.
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(
+          "input, textarea, select, [contenteditable=true], [role=textbox]",
+        )
+      ) {
+        return;
+      }
+
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        openSettings();
         return;
       }
 
@@ -454,6 +481,8 @@ function PageContent({ isWideLayout }: PageContentProps) {
     toggleWeekends,
     toggleDeclinedEvents,
     cycleTheme,
+    settingsOpen,
+    openSettings,
   ]);
 
   return (
@@ -471,191 +500,211 @@ function PageContent({ isWideLayout }: PageContentProps) {
         onToggleLeftSidebar={toggleLeftSidebar}
         onToggleRightSidebar={toggleSidebar}
         onCycleTheme={cycleTheme}
+        onOpenSettings={openSettings}
       />
-      <SidebarRight
-        open={leftSidebarVisible}
-        onOpenChange={setLeftOverlayOpen}
-        overlay={isMobile}
-        onDateSelect={handleCalendarDateSelect}
-        currentDate={
-          view === "month" && monthViewDisplayMonth
-            ? monthViewDisplayMonth
-            : currentDate
-        }
-        visibleDays={view === "month" ? [] : visibleDays}
-      />
-      <SidebarInset className="flex flex-col overflow-hidden">
-        <header className="@container/header bg-background sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1 pl-2 @md/header:gap-2 @xl/header:px-4">
-            <Tooltip>
-              <TooltipTrigger asChild>
+      {!settingsOpen && (
+        <SidebarRight
+          open={leftSidebarVisible}
+          onOpenChange={setLeftOverlayOpen}
+          overlay={isMobile}
+          onDateSelect={handleCalendarDateSelect}
+          currentDate={
+            view === "month" && monthViewDisplayMonth
+              ? monthViewDisplayMonth
+              : currentDate
+          }
+          visibleDays={view === "month" ? [] : visibleDays}
+          onOpenSettings={openSettings}
+        />
+      )}
+      <SidebarInset
+        ref={calendarMain}
+        tabIndex={-1}
+        aria-label={settingsOpen ? "Settings" : "Calendar"}
+        className="flex flex-col overflow-hidden outline-none"
+      >
+        {settingsOpen ? (
+          <SettingsPage onBack={closeSettings} />
+        ) : (
+          <>
+            <header className="@container/header bg-background sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-1 pl-2 @md/header:gap-2 @xl/header:px-4">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground"
+                      onClick={toggleLeftSidebar}
+                    >
+                      <PanelLeftIcon />
+                      <span className="sr-only">Toggle Calendar Sidebar</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {leftSidebarVisible ? "Close" : "Open"} sidebar{" "}
+                    <Kbd className="ml-1">⌘</Kbd> <Kbd>/</Kbd>
+                  </TooltipContent>
+                </Tooltip>
+                <Separator
+                  orientation="vertical"
+                  className="mr-2 hidden data-[orientation=vertical]:h-4 @md/header:block"
+                />
+                <h1 className="min-w-0 truncate text-sm @xs/header:text-base @xl/header:text-xl">
+                  {/* Narrow headers use the short month ("Sep"); en-US "MMMM" names abbreviate to their first three letters */}
+                  <span className="font-extrabold @md/header:hidden">
+                    {monthName.slice(0, 3)}
+                  </span>
+                  <span className="hidden font-extrabold @md/header:inline">
+                    {monthName}
+                  </span>{" "}
+                  <span className="font-extrabold">{year}</span>{" "}
+                  <span className="text-muted-foreground hidden text-xs @xl/header:inline">
+                    {view === "day" && format(currentDate, "EEEE, MMM d")}
+                    {view === "week" && `Week ${weekNumber}`}
+                    {view === "month" && ""}
+                  </span>
+                </h1>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 pr-2 @md/header:gap-2 @xl/header:px-4">
+                <Avatar className="hidden size-7 @xl/header:flex">
+                  <AvatarImage
+                    src="https://github.com/vmnog.png"
+                    alt="Victor Nogueira"
+                  />
+                  <AvatarFallback>VN</AvatarFallback>
+                </Avatar>
+                <div className="hidden @xs/header:block">
+                  <ViewDropdown
+                    view={view}
+                    numberOfDays={numberOfDays}
+                    viewSettings={viewSettings}
+                    onSwitchView={switchView}
+                    onSetNumberOfDays={setNumberOfDays}
+                    onToggleWeekends={toggleWeekends}
+                    onToggleDeclinedEvents={toggleDeclinedEvents}
+                    onToggleWeekNumbers={toggleWeekNumbers}
+                    onOpenSettings={openSettings}
+                  />
+                </div>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 text-muted-foreground"
-                  onClick={toggleLeftSidebar}
+                  variant="secondary"
+                  size="sm"
+                  className="px-2 @md/header:px-3"
+                  onClick={goToToday}
                 >
-                  <PanelLeftIcon />
-                  <span className="sr-only">Toggle Calendar Sidebar</span>
+                  Today
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {leftSidebarVisible ? "Close" : "Open"} sidebar{" "}
-                <Kbd className="ml-1">⌘</Kbd> <Kbd>/</Kbd>
-              </TooltipContent>
-            </Tooltip>
-            <Separator
-              orientation="vertical"
-              className="mr-2 hidden data-[orientation=vertical]:h-4 @md/header:block"
-            />
-            <h1 className="min-w-0 truncate text-sm @xs/header:text-base @xl/header:text-xl">
-              {/* Narrow headers use the short month ("Sep"); en-US "MMMM" names abbreviate to their first three letters */}
-              <span className="font-extrabold @md/header:hidden">
-                {monthName.slice(0, 3)}
-              </span>
-              <span className="hidden font-extrabold @md/header:inline">
-                {monthName}
-              </span>{" "}
-              <span className="font-extrabold">{year}</span>{" "}
-              <span className="text-muted-foreground hidden text-xs @xl/header:inline">
-                {view === "day" && format(currentDate, "EEEE, MMM d")}
-                {view === "week" && `Week ${weekNumber}`}
-                {view === "month" && ""}
-              </span>
-            </h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-1 pr-2 @md/header:gap-2 @xl/header:px-4">
-            <Avatar className="hidden size-7 @xl/header:flex">
-              <AvatarImage
-                src="https://github.com/vmnog.png"
-                alt="Victor Nogueira"
-              />
-              <AvatarFallback>VN</AvatarFallback>
-            </Avatar>
-            <div className="hidden @xs/header:block">
-              <ViewDropdown
-                view={view}
-                numberOfDays={numberOfDays}
-                viewSettings={viewSettings}
-                onSwitchView={switchView}
-                onSetNumberOfDays={setNumberOfDays}
-                onToggleWeekends={toggleWeekends}
-                onToggleDeclinedEvents={toggleDeclinedEvents}
-                onToggleWeekNumbers={toggleWeekNumbers}
-              />
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="px-2 @md/header:px-3"
-              onClick={goToToday}
-            >
-              Today
-            </Button>
-            <div className="flex items-center">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground @2xs/header:size-8"
-                onClick={goToPrev}
-              >
-                <ChevronLeftIcon className="size-4" />
-                <span className="sr-only">
-                  {view === "day"
-                    ? "Previous day"
-                    : view === "month"
-                      ? "Previous month"
-                      : "Previous week"}
-                </span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground @2xs/header:size-8"
-                onClick={goToNext}
-              >
-                <ChevronRightIcon className="size-4" />
-                <span className="sr-only">
-                  {view === "day"
-                    ? "Next day"
-                    : view === "month"
-                      ? "Next month"
-                      : "Next week"}
-                </span>
-              </Button>
-            </div>
-            {!rightSidebarOpen && (
-              <Tooltip>
-                <TooltipTrigger asChild>
+                <div className="flex items-center">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-7 text-muted-foreground"
-                    onClick={toggleSidebar}
+                    className="size-7 text-muted-foreground @2xs/header:size-8"
+                    onClick={goToPrev}
                   >
-                    <PanelRightIcon />
-                    <span className="sr-only">Toggle Navigation Sidebar</span>
+                    <ChevronLeftIcon className="size-4" />
+                    <span className="sr-only">
+                      {view === "day"
+                        ? "Previous day"
+                        : view === "month"
+                          ? "Previous month"
+                          : "Previous week"}
+                    </span>
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  Open context panel <Kbd className="ml-1">/</Kbd>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </header>
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {view === "month" ? (
-            <MonthView
-              currentDate={currentDate}
-              events={events}
-              viewSettings={viewSettings}
-              onEventClick={(e) => selectEvent(e.id)}
-              selectedEventId={selectedEvent?.id}
-              onBackgroundClick={() => setSelectedEventId(null)}
-              onEventChange={handleEventChange}
-              onDateChange={goToDate}
-              onDisplayMonthChange={setMonthViewDisplayMonth}
-              onMoreClick={handleMoreClick}
-              onDayNumberClick={handleMoreClick}
-              isSidebarOpen={showDetailsInPanel}
-              onDockToSidebar={() => {
-                if (!rightSidebarOpen) toggleSidebar();
-              }}
-              onClosePopover={() => setSelectedEventId(null)}
-            />
-          ) : (
-            <WeekView
-              view={view}
-              currentDate={currentDate}
-              events={events}
-              onEventClick={(e) => selectEvent(e.id)}
-              selectedEventId={selectedEvent?.id}
-              onBackgroundClick={() => setSelectedEventId(null)}
-              onEventCreate={handleEventCreate}
-              onDateChange={goToDate}
-              onVisibleDaysChange={setVisibleDays}
-              onEventChange={handleEventChange}
-              isSidebarOpen={showDetailsInPanel}
-              onDockToSidebar={() => {
-                if (!rightSidebarOpen) toggleSidebar();
-              }}
-              onClosePopover={() => setSelectedEventId(null)}
-              onPrevWeek={goToPrev}
-              onNextWeek={goToNext}
-              highlightedDate={highlightedDate}
-            />
-          )}
-        </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground @2xs/header:size-8"
+                    onClick={goToNext}
+                  >
+                    <ChevronRightIcon className="size-4" />
+                    <span className="sr-only">
+                      {view === "day"
+                        ? "Next day"
+                        : view === "month"
+                          ? "Next month"
+                          : "Next week"}
+                    </span>
+                  </Button>
+                </div>
+                {!rightSidebarOpen && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 text-muted-foreground"
+                        onClick={toggleSidebar}
+                      >
+                        <PanelRightIcon />
+                        <span className="sr-only">
+                          Toggle Navigation Sidebar
+                        </span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      Open context panel <Kbd className="ml-1">/</Kbd>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </header>
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {view === "month" ? (
+                <MonthView
+                  currentDate={currentDate}
+                  events={events}
+                  viewSettings={viewSettings}
+                  onEventClick={(e) => selectEvent(e.id)}
+                  selectedEventId={selectedEvent?.id}
+                  onBackgroundClick={() => setSelectedEventId(null)}
+                  onEventChange={handleEventChange}
+                  onDateChange={goToDate}
+                  onDisplayMonthChange={setMonthViewDisplayMonth}
+                  onMoreClick={handleMoreClick}
+                  onDayNumberClick={handleMoreClick}
+                  isSidebarOpen={showDetailsInPanel}
+                  onDockToSidebar={() => {
+                    if (!rightSidebarOpen) toggleSidebar();
+                  }}
+                  onClosePopover={() => setSelectedEventId(null)}
+                />
+              ) : (
+                <WeekView
+                  view={view}
+                  currentDate={currentDate}
+                  events={events}
+                  onEventClick={(e) => selectEvent(e.id)}
+                  selectedEventId={selectedEvent?.id}
+                  onBackgroundClick={() => setSelectedEventId(null)}
+                  onEventCreate={handleEventCreate}
+                  onDateChange={goToDate}
+                  onVisibleDaysChange={setVisibleDays}
+                  onEventChange={handleEventChange}
+                  isSidebarOpen={showDetailsInPanel}
+                  onDockToSidebar={() => {
+                    if (!rightSidebarOpen) toggleSidebar();
+                  }}
+                  onClosePopover={() => setSelectedEventId(null)}
+                  onPrevWeek={goToPrev}
+                  onNextWeek={goToNext}
+                  highlightedDate={highlightedDate}
+                />
+              )}
+            </div>
+          </>
+        )}
       </SidebarInset>
-      <SidebarLeft
-        overlay={!isWideLayout}
-        events={events}
-        selectedEvent={selectedEvent}
-        onEventChange={handleEventChange}
-        onPrevWeek={goToPrev}
-        onNextWeek={goToNext}
-      />
+      {!settingsOpen && (
+        <SidebarLeft
+          overlay={!isWideLayout}
+          events={events}
+          selectedEvent={selectedEvent}
+          onEventChange={handleEventChange}
+          onPrevWeek={goToPrev}
+          onNextWeek={goToNext}
+        />
+      )}
     </EventTitleFocusProvider>
   );
 }

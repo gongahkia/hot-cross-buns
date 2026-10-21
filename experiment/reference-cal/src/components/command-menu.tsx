@@ -31,6 +31,7 @@ interface CommandMenuProps {
   onToggleLeftSidebar: () => void;
   onToggleRightSidebar: () => void;
   onCycleTheme: () => void;
+  onOpenSettings: () => void;
 }
 
 export function CommandMenu({
@@ -43,6 +44,7 @@ export function CommandMenu({
   onToggleLeftSidebar,
   onToggleRightSidebar,
   onCycleTheme,
+  onOpenSettings,
 }: CommandMenuProps) {
   const runCommand = React.useCallback(
     (command: () => void) => {
@@ -208,13 +210,16 @@ export function CommandMenu({
             Get CalendarCN mobile app
             {SOON_BADGE}
           </CommandItem>
-          <CommandItem disabled>
+          <CommandItem onSelect={() => runCommand(onOpenSettings)}>
             Show keyboard shortcuts
-            {SOON_BADGE}
+            <Kbd className="ml-auto">?</Kbd>
           </CommandItem>
-          <CommandItem disabled>
+          <CommandItem onSelect={() => runCommand(onOpenSettings)}>
             Go to settings
-            {SOON_BADGE}
+            <KbdGroup className="ml-auto">
+              <Kbd>⌘</Kbd>
+              <Kbd>,</Kbd>
+            </KbdGroup>
           </CommandItem>
           <CommandItem disabled>
             Support & feedback
@@ -244,9 +249,8 @@ export function CommandMenu({
             Check for update
             {SOON_BADGE}
           </CommandItem>
-          <CommandItem disabled>
+          <CommandItem onSelect={() => runCommand(onOpenSettings)}>
             About CalendarCN
-            {SOON_BADGE}
           </CommandItem>
         </CommandGroup>
 

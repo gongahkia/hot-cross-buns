@@ -49,6 +49,7 @@ interface ViewDropdownProps {
   onToggleWeekends: () => void;
   onToggleDeclinedEvents: () => void;
   onToggleWeekNumbers: () => void;
+  onOpenSettings: () => void;
 }
 
 export function ViewDropdown({
@@ -60,6 +61,7 @@ export function ViewDropdown({
   onToggleWeekends,
   onToggleDeclinedEvents,
   onToggleWeekNumbers,
+  onOpenSettings,
 }: ViewDropdownProps) {
   return (
     <DropdownMenu>
@@ -166,7 +168,7 @@ export function ViewDropdown({
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onSelect={onOpenSettings}>
               General settings
               <KbdGroup className="ml-auto">
                 <Kbd variant="ghost">&#8984;</Kbd>

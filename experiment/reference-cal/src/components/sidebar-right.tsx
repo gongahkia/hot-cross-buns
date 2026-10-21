@@ -7,6 +7,7 @@ import {
   Link2,
   PanelLeftIcon,
   Plus,
+  Settings,
   UserRound,
 } from "lucide-react";
 
@@ -89,6 +90,7 @@ interface SidebarRightProps {
   onDateSelect?: (date: Date) => void;
   currentDate?: Date;
   visibleDays?: Date[];
+  onOpenSettings: () => void;
 }
 
 export function SidebarRight({
@@ -98,6 +100,7 @@ export function SidebarRight({
   onDateSelect,
   currentDate,
   visibleDays,
+  onOpenSettings,
 }: SidebarRightProps) {
   const sidebarStyle = {
     "--sidebar-width": SIDEBAR_WIDTH,
@@ -179,6 +182,20 @@ export function SidebarRight({
             <TooltipContent side="top">
               Toggle theme <Kbd className="ml-1">shift</Kbd> <Kbd>M</Kbd>
             </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 text-sidebar-foreground transition-colors max-md:size-11"
+                aria-label="Settings"
+                onClick={onOpenSettings}
+              >
+                <Settings className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Settings</TooltipContent>
           </Tooltip>
         </div>
       </SidebarFooter>
