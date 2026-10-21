@@ -143,7 +143,9 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     if (!editor || link === null) return;
     const href = link.trim();
     if (href && !safeEditorUrl(href)) { setLinkError("Use an https, http, mailto, tel, or relative link."); return; }
-    if (href) editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+    if (href && editor.state.selection.empty && !editor.isActive("link")) {
+      editor.chain().focus().insertContent({ type: "text", text: href, marks: [{ type: "link", attrs: { href } }] }).unsetMark("link", { extendEmptyMarkRange: false }).run();
+    } else if (href) editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     else editor.chain().focus().extendMarkRange("link").unsetLink().run();
     setLink(null);
   }

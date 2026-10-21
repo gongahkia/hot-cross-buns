@@ -139,6 +139,10 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     const description = page.getByRole("textbox", { name: "Event notes" });
     await expect(description.locator("strong")).toHaveText("HTML");
+    await description.fill(""); await description.press(`${modifier}+k`);
+    await page.getByRole("textbox", { name: "Link URL" }).fill("https://example.com/inserted");
+    await page.getByRole("button", { name: "Apply link", exact: true }).click();
+    await expect(description.locator("a")).toHaveText("https://example.com/inserted");
     await description.fill("Linked description"); await description.press(`${modifier}+a`); await description.press(`${modifier}+k`);
     await page.getByRole("textbox", { name: "Link URL" }).fill("https://example.com");
     await page.getByRole("textbox", { name: "Link URL" }).press("Enter");
