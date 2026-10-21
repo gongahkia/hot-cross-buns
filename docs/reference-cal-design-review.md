@@ -292,3 +292,7 @@ navigation keeps its close action beside Search.
 Existing fonts, icons, 40px sidebar targets and scroll boundaries remain. No new
 animation or dependency was added. Browser verification follows the combined
 sidebar and create-dialog review below.
+
+Sidebar verification passed in Chrome: branding is absent, My Lists precedes
+both navigation and the date picker, and compact navigation opens/closes through
+its labeled controls. Prototype TypeScript and production build also passed.
