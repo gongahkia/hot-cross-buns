@@ -72,6 +72,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
   const {
     toggleSidebar,
     open: contextPanelOpen,
+    setOpen: setContextPanelOpen,
     openMobile: contextPanelOpenMobile,
     setOpenMobile: setContextPanelOpenMobile,
     isMobile,
@@ -123,6 +124,20 @@ function PageContent({ isWideLayout }: PageContentProps) {
   );
   const [commandMenuOpen, setCommandMenuOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [searchFocusPending, setSearchFocusPending] = React.useState(false);
+  const finishSearchFocus = React.useCallback(
+    () => setSearchFocusPending(false),
+    [],
+  );
+  const openEventSearch = React.useCallback(() => {
+    setSettingsOpen(false);
+    setCommandMenuOpen(false);
+    setSelectedEventId(null);
+    setLeftOverlayOpen(false);
+    if (isMobile) setContextPanelOpenMobile(true);
+    else setContextPanelOpen(true);
+    setSearchFocusPending(true);
+  }, [isMobile, setContextPanelOpen, setContextPanelOpenMobile]);
   const calendarMain = React.useRef<HTMLElement>(null);
   const openSettings = React.useCallback(() => {
     setCommandMenuOpen(false);
@@ -386,6 +401,16 @@ function PageContent({ isWideLayout }: PageContentProps) {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing) return;
+      if (
+        e.key.toLowerCase() === "f" &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
+        e.preventDefault();
+        openEventSearch();
+        return;
+      }
       // Cmd+, opens Settings from either page.
       if (e.key === "," && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
@@ -533,6 +558,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
     settingsOpen,
     openSettings,
     setDisplayDayCount,
+    openEventSearch,
   ]);
 
   return (
@@ -551,6 +577,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
         onToggleRightSidebar={toggleSidebar}
         onCycleTheme={cycleTheme}
         onOpenSettings={openSettings}
+        onSearchEvents={openEventSearch}
       />
       {!settingsOpen && (
         <SidebarRight
@@ -750,6 +777,8 @@ function PageContent({ isWideLayout }: PageContentProps) {
           overlay={!isWideLayout}
           events={visibleEvents}
           selectedEvent={selectedEvent}
+          searchFocusPending={searchFocusPending}
+          onSearchFocused={finishSearchFocus}
           onEventChange={handleEventChange}
           onPrevWeek={goToPrev}
           onNextWeek={goToNext}

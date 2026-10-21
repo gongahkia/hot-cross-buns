@@ -32,6 +32,7 @@ interface CommandMenuProps {
   onToggleRightSidebar: () => void;
   onCycleTheme: () => void;
   onOpenSettings: () => void;
+  onSearchEvents: () => void;
 }
 
 export function CommandMenu({
@@ -45,6 +46,7 @@ export function CommandMenu({
   onToggleRightSidebar,
   onCycleTheme,
   onOpenSettings,
+  onSearchEvents,
 }: CommandMenuProps) {
   const runCommand = React.useCallback(
     (command: () => void) => {
@@ -110,9 +112,12 @@ export function CommandMenu({
             Go to previous week
             <Kbd className="ml-auto">K</Kbd>
           </CommandItem>
-          <CommandItem disabled>
+          <CommandItem onSelect={() => runCommand(onSearchEvents)}>
             Search events
-            {SOON_BADGE}
+            <KbdGroup className="ml-auto">
+              <Kbd>⌘</Kbd>
+              <Kbd>F</Kbd>
+            </KbdGroup>
           </CommandItem>
         </CommandGroup>
 

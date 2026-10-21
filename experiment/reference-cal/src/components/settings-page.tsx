@@ -8,6 +8,7 @@ import { Kbd } from "@/components/ui/kbd";
 
 const SHORTCUTS = [
   { label: "Command menu", keys: ["⌘", "K"] },
+  { label: "Search events", keys: ["⌘", "F"] },
   { label: "Settings", keys: ["⌘", ","] },
   { label: "All keyboard shortcuts", keys: ["?"] },
   { label: "Toggle calendar sidebar", keys: ["⌘", "/"] },

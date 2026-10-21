@@ -45,6 +45,8 @@ interface SidebarLeftProps extends React.ComponentProps<typeof Sidebar> {
   onEventChange?: (event: CalendarEvent) => void;
   onPrevWeek?: () => void;
   onNextWeek?: () => void;
+  searchFocusPending: boolean;
+  onSearchFocused: () => void;
 }
 
 interface DateGroup {
@@ -134,6 +136,8 @@ export function SidebarLeft({
   onEventChange,
   onPrevWeek,
   onNextWeek,
+  searchFocusPending,
+  onSearchFocused,
   ...props
 }: SidebarLeftProps) {
   const { toggleSidebar, open, setOpen, openMobile, setOpenMobile, isMobile } =
@@ -168,6 +172,42 @@ export function SidebarLeft({
       events.find((e) => e.id === searchSelectedEvent.id) ?? searchSelectedEvent
     );
   }, [events, searchSelectedEvent]);
+
+  React.useEffect(() => {
+    if (searchFocusPending) setSearchSelectedEvent(null);
+  }, [searchFocusPending]);
+
+  React.useEffect(() => {
+    if (
+      !searchFocusPending ||
+      !panelOpen ||
+      selectedEvent ||
+      resolvedSearchEvent
+    )
+      return;
+    let frame: number;
+    const focusSearch = () => {
+      // Overlay content can mount after its parent's effect.
+      if (
+        !inputRef.current ||
+        document.querySelector('[role="dialog"][data-state="closed"]')
+      ) {
+        frame = requestAnimationFrame(focusSearch);
+        return;
+      }
+      inputRef.current.focus({ preventScroll: true });
+      inputRef.current.select();
+      onSearchFocused();
+    };
+    frame = requestAnimationFrame(focusSearch);
+    return () => cancelAnimationFrame(frame);
+  }, [
+    searchFocusPending,
+    panelOpen,
+    selectedEvent,
+    resolvedSearchEvent,
+    onSearchFocused,
+  ]);
 
   React.useEffect(() => {
     if (selectedEvent) {
@@ -238,6 +278,7 @@ export function SidebarLeft({
                 ref={inputRef}
                 type="text"
                 placeholder="Search events"
+                aria-label="Search events"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="text-foreground placeholder:text-muted-foreground h-7 w-full border-none bg-transparent p-0 text-xs outline-none"
@@ -252,6 +293,7 @@ export function SidebarLeft({
                     setSearchQuery("");
                     inputRef.current?.focus();
                   }}
+                  aria-label="Clear event search"
                 >
                   <X className="size-4" />
                 </Button>
