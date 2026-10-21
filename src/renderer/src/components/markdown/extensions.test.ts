@@ -31,6 +31,12 @@ describe("shared Markdown document schema", () => {
     expect(e.view.dom.querySelector("script")).toBeNull();
     expect(e.view.dom.textContent).toContain("<script>alert(1)</script>");
   });
+  it("retains HTML declarations and processing instructions during nearby edits", () => {
+    const raw = "<!DOCTYPE html>\n\n<?keep this?>\n\n<![CDATA[retain this]]>";
+    expect(open(raw).getMarkdown()).toContain("<!DOCTYPE html>");
+    expect(editor!.getMarkdown()).toContain("<?keep this?>");
+    expect(editor!.getMarkdown()).toContain("<![CDATA[retain this]]>");
+  });
   it("keeps footnote definitions and references", () => {
     const e = open("A footnote[^one].\n\n[^one]: Keep this definition.");
     expect(e.getMarkdown()).toContain("[^one]: Keep this definition.");

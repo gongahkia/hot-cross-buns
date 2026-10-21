@@ -66,6 +66,14 @@ const PreservedInline = Node.create({
   renderMarkdown: (node) => node.attrs?.raw ?? ""
 });
 
+const PreserveOtherHtml = Extension.create({
+  name: "preserveOtherHtml",
+  markdownTokenName: "html",
+  parseMarkdown: (token) => /^<br\s*\/?\s*>$/i.test(token.raw.trim())
+    ? { type: "hardBreak" }
+    : { type: token.block ? "preservedBlock" : "preservedInline", attrs: { raw: token.raw } }
+});
+
 const EditingKeys = Extension.create({
   name: "markdownEditingKeys",
   addKeyboardShortcuts() {
@@ -90,6 +98,6 @@ export function markdownExtensions(placeholder = "Write something, or type / for
     Markdown.configure({ indentation: { style: "space", size: 2 } }),
     TaskList, TaskItem.configure({ nested: true }), TableKit,
     MarkdownImage.configure({ allowBase64: false, inline: true }),
-    Placeholder.configure({ placeholder }), PlannerReference, PreservedBlock, PreservedInline, EditingKeys
+    Placeholder.configure({ placeholder }), PlannerReference, PreservedBlock, PreservedInline, PreserveOtherHtml, EditingKeys
   ];
 }
