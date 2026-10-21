@@ -708,8 +708,52 @@ test.describe.serial("live Google account smoke", () => {
       });
       expect(renamedEvent.recurrenceLines).toEqual(canonicalRecurrenceLines);
       expect(renamedTask).toMatchObject({ notes: "Metadata fidelity task note.", title: updatedTitle, ...planning });
+
+      requireSuccess(await page.evaluate(async (id) => window.hcb?.tasks.update({ id, dueDate: null, notes: "" }), taskId) as HcbResult, "Clear live task date and notes");
+      await syncAccount(page, accountId, false, "metadata-clear-task");
+      requireSuccess(await page.evaluate(async (accountId) => window.hcb?.sync.forceFullResync({ accountId }), accountId) as HcbResult, "Full pull after clearing task fields");
+      const clearedTask = requireSuccess(await page.evaluate(async (id) => window.hcb?.tasks.get({ id }), taskId) as HcbResult<Record<string, unknown>>, "Read cleared task after full pull");
+      expect(clearedTask).toMatchObject({ dueAt: null, notes: "", title: updatedTitle, ...planning });
     } finally {
       await cleanupLiveRecords(page, { accountId, calendarId, eventId, taskId, taskListId, titlePrefix: title });
+    }
+  });
+
+  test("retains sibling task ordering through full Google pulls in both directions", async () => {
+    test.skip(config.mode !== "mutating", "Mutating checks require HCB_LIVE_GOOGLE_TEST_MODE=mutating.");
+    const { calendarId, taskListId } = await requireDedicatedResources(page, accountId);
+    const titlePrefix = `[HCB live smoke ordering ${Date.now()}-${Math.random().toString(36).slice(2, 8)}]`;
+    const taskIds: string[] = [];
+    const move = async (id: string, previousTaskId: string | null) => requireSuccess(
+      await page.evaluate(async (request) => window.hcb?.tasks.move(request), { id, listId: taskListId, previousTaskId }) as HcbResult,
+      "Move live sibling task"
+    );
+    const expectOrder = async (expected: string[]) => {
+      requireSuccess(await page.evaluate(async (accountId) => window.hcb?.sync.forceFullResync({ accountId }), accountId) as HcbResult, "Full pull after task reordering");
+      const tasks = requireSuccess(await page.evaluate(async (listId) => window.hcb?.tasks.list({ listId, parentId: null, status: "all", limit: 1_000 }), taskListId) as HcbResult<{ items: Array<{ id: string }> }>, "Read live sibling order");
+      expect(tasks.items.filter((task) => taskIds.includes(task.id)).map((task) => task.id)).toEqual(expected);
+    };
+    try {
+      for (const title of ["A", "B", "C"]) {
+        const task = requireSuccess(await page.evaluate(async ({ listId, title }) => window.hcb?.tasks.create({ listId, title }), {
+          listId: taskListId, title: `${titlePrefix} ${title}`
+        }) as HcbResult<{ id: string }>, "Create live ordering task");
+        taskIds.push(task.id);
+      }
+      await syncAccount(page, accountId, false, "ordering-create");
+      const [a, b, c] = taskIds;
+      await move(a, null);
+      await move(b, a);
+      await syncAccount(page, accountId, false, "ordering-establish");
+      await expectOrder([a, b, c]);
+      await move(c, null);
+      await syncAccount(page, accountId, false, "ordering-first");
+      await expectOrder([c, a, b]);
+      await move(c, b);
+      await syncAccount(page, accountId, false, "ordering-last");
+      await expectOrder([a, b, c]);
+    } finally {
+      await cleanupLiveRecords(page, { accountId, calendarId, taskListId, titlePrefix });
     }
   });
 
