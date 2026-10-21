@@ -8,7 +8,7 @@ import {
   testNativeCapabilities,
   testSettings
 } from "../../../../test/appTestHelpers";
-import { CoreDataProvider } from "../../coreViewModelSource";
+import { CoreDataProvider, useCoreViewModelSource } from "../../coreViewModelSource";
 
 const timelineRenders = vi.hoisted(() => ({ day: vi.fn() }));
 
@@ -22,6 +22,11 @@ vi.mock("./CalendarTimelineView", () => ({
 }));
 
 import { CalendarView } from "./CalendarView";
+
+function HydrationProbe() {
+  const source = useCoreViewModelSource();
+  return <output data-testid="hydration-status">{source.hydrationState}</output>;
+}
 
 describe("Share Availability title performance boundary", () => {
   it("does not rerender the Day calendar grid while its title draft changes", async () => {
@@ -37,6 +42,7 @@ describe("Share Availability title performance boundary", () => {
 
     render(
       <CoreDataProvider>
+        <HydrationProbe />
         <InspectorProvider>
           <CalendarView visibleCalendarIds={new Set(["cal-product"])} />
           <InspectorShell />
@@ -47,6 +53,9 @@ describe("Share Availability title performance boundary", () => {
     const day = await screen.findByRole("tab", { name: "Day" });
     fireEvent.click(day);
     await screen.findByTestId("day-calendar-grid");
+    // Measure typing after startup hydration, which can independently update
+    // the calendar even when the title editor is correctly isolated.
+    await waitFor(() => expect(screen.getByTestId("hydration-status")).toHaveTextContent("success"));
     fireEvent.click(screen.getByRole("button", { name: "Share availability" }));
     const title = await screen.findByRole("textbox", { name: "Availability title" });
     await waitFor(() => expect(api.calendar.listEvents).toHaveBeenCalled());
