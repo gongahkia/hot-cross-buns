@@ -76,7 +76,9 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     shouldRerenderOnTransaction: false,
     editorProps: {
       attributes: { role: "textbox", "aria-label": label, "aria-multiline": "true", "aria-describedby": `${id}-help`, "aria-disabled": String(disabled), tabindex: "0", class: "markdown-content" },
-      handleDOMEvents: { keydown: (view, event) => { if (isComposingKey(event) || view.composing) event.stopPropagation(); return false; } },
+      // Returning true skips every ProseMirror keymap while leaving the native
+      // event unprevented, so Enter commits the IME instead of splitting a block.
+      handleDOMEvents: { keydown: (view, event) => { if (isComposingKey(event) || view.composing) { event.stopPropagation(); return true; } return false; } },
       handleKeyDown: (_view, event) => {
         if (isComposingKey(event) || editor?.view.composing) { event.stopPropagation(); return false; }
         bindings.current?.onKeyDown(event as unknown as React.KeyboardEvent<HTMLElement>);
@@ -115,7 +117,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     label: `${entry.native} ${entry.name}`, terms: entry.id, icon: Plus, run: (e) => { e.chain().focus().insertContent({ type: "text", text: entry.native }).run(); }
   })) : blocks.filter((entry) => !menu?.query || `${entry.label} ${entry.terms}`.toLowerCase().includes(menu.query));
   menuState.current = { menu, choices, activeIndex };
-  useSuggestionAccessibility(() => editor?.view.dom ?? null, `${id}-suggestions`, choices.length ? `${id}-option-${activeIndex}` : null,
+  useSuggestionAccessibility(() => root.current?.querySelector<HTMLElement>(".markdown-content") ?? null, `${id}-suggestions`, choices.length ? `${id}-option-${activeIndex}` : null,
     Boolean(menu && !source && !disabled), `${menu?.query ?? ""}:${choices.length}`);
   openLink.current = () => { if (editor) { setLink(editor.getAttributes("link").href ?? ""); setLinkError(""); setMenu(null); } };
 
@@ -203,7 +205,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     </div>
     {source ? <ReferenceTextarea key="source" aria-label={label} value={value} onValueChange={(next) => { lastValue.current = next; callback.current(next); }} accountId={accountId} disabled={disabled} showControls={showControls && !disabled} className="markdown-source" placeholder={placeholder} /> :
       <ReferenceTextarea key="visual" aria-label={label} value={value} onValueChange={onValueChange} accountId={accountId} disabled={disabled} showControls={showControls && !disabled}
-        getSelection={() => ({ start: editor.state.selection.from, end: editor.state.selection.to })} getInputElement={() => editor.view.dom}
+        getSelection={() => ({ start: editor.state.selection.from, end: editor.state.selection.to })} getInputElement={() => root.current?.querySelector<HTMLElement>(".markdown-content") ?? null}
         insertReference={(markdown, range) => { if (!disabled && !editor.isDestroyed) editor.chain().focus().insertContentAt({ from: range.start, to: range.end }, markdown, { contentType: "markdown" }).run(); }}
         renderInput={(api) => { bindings.current = api; return <EditorContent editor={editor} aria-describedby={`${id}-help`} />; }} />}
     {!source && editor.isActive("codeBlock") ? <label className="markdown-context">Code language <input aria-label="Code language" disabled={disabled} value={editor.getAttributes("codeBlock").language ?? ""} onChange={(event) => editor.chain().updateAttributes("codeBlock", { language: event.target.value }).run()} placeholder="text, javascript, mermaid…" /></label> : null}
@@ -212,7 +214,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     </div> : null}
     {!source && !disabled ? <BubbleMenu editor={editor} options={bubbleOptions}><div role="toolbar" aria-label="Selected text formatting" className="markdown-bubble">{marks()}</div></BubbleMenu> : null}
     {menu && !source && !disabled ? <div id={`${id}-suggestions`} className="markdown-menu" role="listbox" aria-label={menu.kind === "emoji" ? "Emoji suggestions" : "Insert block"}>
-      {choices.map((choice, index) => <button id={`${id}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} key={choice.label} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveIndex(index)} onClick={() => choose(choice, menu)}><choice.icon size={16} aria-hidden="true" />{choice.label}</button>)}
+      {choices.map((choice, index) => <button id={`${id}-option-${index}`} type="button" role="option" aria-selected={index === activeIndex} key={choice.label} onMouseDown={(event) => event.preventDefault()} onPointerMove={(event) => { if (event.movementX || event.movementY) setActiveIndex(index); }} onClick={() => choose(choice, menu)}><choice.icon size={16} aria-hidden="true" />{choice.label}</button>)}
       {!choices.length ? <p role="status">No matching commands</p> : null}
     </div> : null}
     {link !== null && !disabled ? <div role="group" className="markdown-link-form" aria-label="Edit link" onKeyDown={(event) => {

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
@@ -57,6 +57,16 @@ describe("shared rich Markdown editor", () => {
     view.rerender(<RichMarkdownEditor aria-label="Body" value="External replacement" onValueChange={onValueChange} />);
     await screen.findByText("External replacement");
     expect(screen.getByRole("button", { name: "Undo text edit" })).toBeDisabled();
+  });
+
+  it("does not let any rich keymap split a block on a composing Enter", () => {
+    const onValueChange = vi.fn();
+    render(<RichMarkdownEditor aria-label="Body" value="Original" onValueChange={onValueChange} />);
+    const input = screen.getByRole("textbox", { name: "Body" });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229, isComposing: true });
+    expect(input.querySelectorAll("p")).toHaveLength(1);
+    expect(input).toHaveTextContent("Original");
+    expect(onValueChange).not.toHaveBeenCalled();
   });
 
 });

@@ -373,7 +373,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           )}
           key={`${item.source}-${item.id}-${item.fileUrl ?? item.kind ?? ""}`}
           onClick={() => choose(item)}
-          onMouseEnter={() => setActiveIndex(index)}
+          onPointerMove={(event) => { if (event.movementX || event.movementY) setActiveIndex(index); }}
           role="option"
           type="button"
         >

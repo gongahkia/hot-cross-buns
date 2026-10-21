@@ -7,8 +7,9 @@ export function isComposingKey(event: { isComposing?: boolean; keyCode?: number;
 export function useSuggestionAccessibility(getInput: () => HTMLElement | null, listboxId: string, optionId: string | null, visible: boolean, revision = ""): void {
   const input = useRef(getInput); input.current = getInput;
   useLayoutEffect(() => {
+    if (!visible) return;
     const element = input.current();
-    if (!element || !visible) return;
+    if (!element) return;
     element.setAttribute("aria-controls", listboxId);
     element.setAttribute("aria-expanded", "true");
     element.setAttribute("aria-autocomplete", "list");
