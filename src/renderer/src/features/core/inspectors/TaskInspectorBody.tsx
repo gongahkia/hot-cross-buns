@@ -417,7 +417,6 @@ export function TaskInspectorBody({
       <MarkdownEditor
         accountId={source.taskLists.find((taskList) => taskList.id === dirty.value.listId)?.accountId}
         aria-label="Task notes"
-        className="min-h-20 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onValueChange={(notes) => patchDraft({ notes })}
         placeholder="Notes"
         showControls={showMoreOptions}

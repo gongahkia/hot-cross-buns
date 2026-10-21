@@ -6,6 +6,7 @@ import { Bold, Italic, Strikethrough, Code, Link2, List, ListOrdered, ListTodo, 
 import type { LucideIcon } from "lucide-react";
 import { ReferenceTextarea, type ReferenceInputBindings } from "../ReferenceTextarea";
 import { loadEmojiEntries } from "../EmojiTextField";
+import { cx } from "../primitives";
 import type { MarkdownEditorProps } from "../MarkdownEditor";
 import { markdownExtensions, safeEditorUrl } from "./extensions";
 import { markdownForEditing } from "./mixedMarkup";
@@ -161,7 +162,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
       {tool("Insert link", Link2, () => openLink.current(), editor!.isActive("link"))}
     </>;
   }
-  return <div className="markdown-editor" aria-disabled={disabled} ref={root}>
+  return <div className={cx("markdown-editor", props.className)} aria-disabled={disabled} ref={root}>
     <div className="markdown-toolbar" role="toolbar" aria-label={`${label} formatting`} onKeyDown={(event) => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || (event.target as HTMLElement).tagName === "SELECT") return;
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), select:not(:disabled)"));
@@ -172,7 +173,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     }}>
       {!source ? <>
         <select className="markdown-block-select" aria-label="Text style" disabled={disabled} value={editor.isActive("heading") ? `h${editor.getAttributes("heading").level}` : "paragraph"}
-          onChange={(event) => { const level = Number(event.target.value.slice(1)); if (level) editor.chain().focus().setHeading({ level: level as 1 }).run(); else editor.chain().focus().setParagraph().run(); }}>
+          onChange={(event) => { const level = Number(event.target.value.slice(1)); if (level) editor.chain().focus().setHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run(); else editor.chain().focus().setParagraph().run(); }}>
           <option value="paragraph">Normal text</option>{[1, 2, 3, 4, 5, 6].map((level) => <option value={`h${level}`} key={level}>Heading {level}</option>)}
         </select>
         {marks()}
