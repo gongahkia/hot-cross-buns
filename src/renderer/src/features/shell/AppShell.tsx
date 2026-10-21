@@ -8,7 +8,6 @@ import { cx } from "../../components/primitives";
 import { primaryPlannerSections, type SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
 import type { ConvertCommandDetail } from "../core/conversionEvents";
-import { DiagnosticsOverlay } from "../core/DiagnosticsOverlay";
 import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
@@ -53,6 +52,10 @@ const DeferredQuickAddDialog = lazy(() =>
   import("../../components/QuickAddDialog").then((module) => ({
     default: module.QuickAddDialog
   }))
+);
+
+const DeferredDiagnosticsOverlay = lazy(() =>
+  import("../core/DiagnosticsOverlay").then((module) => ({ default: module.DiagnosticsOverlay }))
 );
 
 function quickAddRecurrenceDraft(recurrence: CalendarEventRecurrence | null): Record<string, unknown> {
@@ -1036,7 +1039,9 @@ export function AppShell(): JSX.Element {
         />
       ) : null}
       {diagnosticsOpen ? (
-        <DiagnosticsOverlay initialTab={diagnosticsInitialTab} onClose={() => setDiagnosticsOpen(false)} />
+        <Suspense fallback={null}>
+          <DeferredDiagnosticsOverlay initialTab={diagnosticsInitialTab} onClose={() => setDiagnosticsOpen(false)} />
+        </Suspense>
       ) : null}
       {settingsOpen ? (
         <SettingsOverlay
