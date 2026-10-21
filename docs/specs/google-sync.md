@@ -65,6 +65,8 @@ Task updates send empty note text explicitly and use `due: null` to clear a date
 
 Explicit sibling reordering uses Google's `tasks.move` endpoint, including moving to the first position by omitting `previous`. Ordinary content edits do not reposition a task. A cross-list move is followed by a content update against the returned task identity and ETag so a combined move/edit retains both changes.
 
+An initial or forced full Tasks pull includes completed, hidden, and deleted tasks. After every page succeeds, cached Google tasks absent from that list's snapshot become local deletion tombstones. Pending/conflicted edits and unbound local creations survive. A failed full pull or an incremental `updatedMin` delta must not delete tasks merely because they were absent from the response.
+
 ## Calendar Mapping
 
 Google Calendar backs:

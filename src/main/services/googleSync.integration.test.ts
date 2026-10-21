@@ -117,6 +117,71 @@ afterEach(() => {
 });
 
 describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+  it("marks tasks absent from an explicit full snapshot deleted without affecting other lists", async () => {
+    const { store, service, accountId, list, importTask, remoteTasks } = createFixture();
+    const missing = importTask({ id: "missing" });
+    const local = store.dispatch("tasks", "create", { title: "Device-local task", listId: "inbox" });
+    remoteTasks.clear();
+    store.setGoogleSyncToken(accountId, `tasks-updated:${list.googleId}`, "2026-10-21T09:00:00Z");
+
+    await service.forceFullResync({ accountId });
+
+    expect(store.dispatch("tasks", "get", { id: missing.id }).status).toBe("deleted");
+    expect(store.dispatch("tasks", "list", { listId: list.id, status: "all" }).items).toEqual([]);
+    expect(store.dispatch("tasks", "get", { id: local.id }).status).toBe("active");
+  });
+
+  it("preserves pending, conflicted, and unbound tasks absent from a full snapshot", async () => {
+    const { store, service, list, importTask, remoteTasks } = createFixture();
+    const pending = importTask({ id: "pending" });
+    const conflicted = importTask({ id: "conflicted" });
+    remoteTasks.clear();
+    store.dispatch("tasks", "update", { id: pending.id, title: "Pending edit" });
+    store.dispatch("tasks", "update", { id: conflicted.id, title: "Conflicting edit" });
+    const conflict = store.pendingSyncMutations(500).find((mutation) => mutation.entityId === conflicted.id)!;
+    store.deferSyncMutation(conflict.id, "Changed elsewhere", false);
+    const created = store.dispatch("tasks", "create", { listId: list.id, title: "Unsent task" });
+
+    await service.runNow({ readOnly: true });
+
+    for (const task of [pending, conflicted, created]) {
+      expect(store.dispatch("tasks", "get", { id: task.id }).status).toBe("active");
+    }
+    expect(store.googleTaskForSync(pending.id)?.title).toBe("Pending edit");
+    expect(store.googleTaskForSync(conflicted.id)?.title).toBe("Conflicting edit");
+  });
+
+  it("does not reconcile a failed Tasks snapshot or advance its checkpoint", async () => {
+    const { store, service, accountId, list, importTask, remoteTasks, googleFetch } = createFixture();
+    const missing = importTask({ id: "missing" });
+    remoteTasks.clear();
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (!target.pathname.endsWith("/tasks")) return transport(account, target, init);
+      return target.searchParams.has("pageToken")
+        ? new Response(null, { status: 503 })
+        : Response.json({ items: [], nextPageToken: "failing-page" }, { headers: { date: "Wed, 21 Oct 2026 10:00:00 GMT" } });
+    });
+    await expect(service.runNow({ readOnly: true })).rejects.toThrow();
+    expect(store.dispatch("tasks", "get", { id: missing.id }).status).toBe("active");
+    expect(store.googleSyncToken(accountId, `tasks-updated:${list.googleId}`)).toBeNull();
+
+    googleFetch.mockImplementation(transport);
+    await service.runNow({ readOnly: true });
+    expect(store.dispatch("tasks", "get", { id: missing.id }).status).toBe("deleted");
+  });
+
+  it("retains unchanged tasks absent from an incremental delta", async () => {
+    const { store, service, accountId, list, importTask, remoteTasks, googleFetch } = createFixture();
+    const unchanged = importTask({ id: "unchanged" });
+    remoteTasks.clear();
+    store.setGoogleSyncToken(accountId, `tasks-updated:${list.googleId}`, "2026-10-21T09:00:00Z");
+    await service.runNow({ readOnly: true });
+    expect(store.dispatch("tasks", "get", { id: unchanged.id }).status).toBe("active");
+    expect(googleFetch.mock.calls.find(([, target]) => target.pathname.endsWith("/tasks"))?.[1].searchParams.get("updatedMin"))
+      .toBe("2026-10-21T08:59:59.000Z");
+  });
+
   it("reconciles an expired Calendar token against every page of the replacement snapshot", async () => {
     const { store, service, accountId, calendar, remoteEvents, googleFetch, importEvent } = createCalendarFixture();
     const retained = importEvent("retained");

@@ -789,6 +789,19 @@ export class CoreStore {
     this.db.transaction(() => { for (const task of tasks) this.upsertGoogleTask(task, localListId); })();
   }
 
+  /** Full Task snapshots include completed, hidden, and deleted tasks. */
+  reconcileGoogleTasks(localListId: string, remoteGoogleIds: ReadonlySet<string>): void {
+    const cached = this.statement("SELECT id,google_id AS googleId FROM tasks WHERE list_id=? AND google_id IS NOT NULL AND status!='deleted'")
+      .all(localListId) as Array<{ id: string; googleId: string }>;
+    this.db.transaction(() => {
+      for (const task of cached) {
+        if (remoteGoogleIds.has(task.googleId) || this.hasPendingEntityMutation("task", task.id)) continue;
+        // Retain a tombstone and its context, just as for a remote deletion.
+        this.statement("UPDATE tasks SET status='deleted',updated_at=? WHERE id=?").run(timestamp(), task.id);
+      }
+    })();
+  }
+
   reconcileGoogleTaskParents(localListId: string): void {
     this.statement(`UPDATE tasks SET parent_id=(SELECT parent.id FROM tasks parent WHERE parent.list_id=tasks.list_id AND parent.google_id=tasks.google_parent_id)
       WHERE list_id=? AND google_parent_id IS NOT NULL AND NOT EXISTS (

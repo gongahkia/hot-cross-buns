@@ -341,10 +341,12 @@ export class GoogleSyncService {
       // Checkpoint the first response's server clock, never the newest item
       // seen on a later page: an earlier page may change during pagination.
       const updatedMin = previousUpdate ? new Date(previousUpdate - 1000).toISOString() : undefined;
+      const fullSnapshotIds = updatedMin ? null : new Set<string>();
       await this.streamPages(accountId,
         `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(remoteList.id)}/tasks`,
         { maxResults: "100", showCompleted: "true", showHidden: "true", showDeleted: "true", ...(updatedMin ? { updatedMin } : {}) },
         async (tasks) => {
+          for (const task of tasks) if (typeof task.id === "string") fullSnapshotIds?.add(task.id);
           this.store.upsertGoogleTaskBatch(tasks, localList.id);
           await yieldToRequests();
         },
@@ -353,6 +355,7 @@ export class GoogleSyncService {
           if (Number.isFinite(serverTime)) checkpoint = Math.max(checkpoint, serverTime);
         }
       );
+      if (fullSnapshotIds) this.store.reconcileGoogleTasks(localList.id, fullSnapshotIds);
       this.store.reconcileGoogleTaskParents(localList.id);
       if (checkpoint) this.store.setGoogleSyncToken(accountId, key, new Date(checkpoint).toISOString());
     }

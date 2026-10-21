@@ -201,6 +201,7 @@ describe("GoogleSyncService", () => {
       upsertGoogleTaskList: vi.fn(() => ({ id: "local-list" })),
       isSelectedTaskList: vi.fn(() => true),
       upsertGoogleTask: vi.fn(),
+      reconcileGoogleTasks: vi.fn(),
       upsertGoogleCalendar: vi.fn(() => ({ id: "local-calendar", googleId: "primary" })),
       pruneGoogleCalendars: vi.fn(),
       isSelectedCalendar: vi.fn(() => true),
