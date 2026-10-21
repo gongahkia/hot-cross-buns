@@ -605,10 +605,7 @@ export class GoogleSyncService {
 
   private async deleteTaskList(accountId: string, list: JsonRecord): Promise<void> {
     if (!list.googleId) return;
-    await this.requestJson<void>(accountId,
-      `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(list.googleId)}`,
-      { method: "DELETE", headers: conditionalHeaders(list.googleEtag) }
-    );
+    await this.deleteGoogleResource(accountId, `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(list.googleId)}`, list.googleEtag);
   }
 
   private async pushTask(accountId: string, localId: string, mutationPayload: JsonRecord): Promise<void> {
@@ -617,9 +614,7 @@ export class GoogleSyncService {
     if (!task.listGoogleId) throw new CoreStoreError("This task list has not been created in Google yet.");
     if (task.status === "deleted") {
       if (task.googleId) {
-        await this.requestJson<void>(accountId, taskUrl(task.googleListId ?? task.listGoogleId, task.googleId), {
-          method: "DELETE", headers: conditionalHeaders(task.googleEtag)
-        });
+        await this.deleteGoogleResource(accountId, taskUrl(task.googleListId ?? task.listGoogleId, task.googleId), task.googleEtag);
       }
       return;
     }
@@ -971,10 +966,16 @@ export class GoogleSyncService {
 
   private async deleteEvent(accountId: string, event: JsonRecord): Promise<void> {
     if (!event.googleId || !event.calendarGoogleId) return;
-    await this.requestJson<void>(accountId,
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarGoogleId)}/events/${encodeURIComponent(event.googleId)}`,
-      { method: "DELETE", headers: conditionalHeaders(event.googleEtag) }
-    );
+    await this.deleteGoogleResource(accountId, `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarGoogleId)}/events/${encodeURIComponent(event.googleId)}`, event.googleEtag);
+  }
+
+  private async deleteGoogleResource(accountId: string, url: string, etag: unknown): Promise<void> {
+    try { await this.requestJson<void>(accountId, url, { method: "DELETE", headers: conditionalHeaders(etag) }); }
+    catch (error) {
+      // Missing/gone is the requested final state after a lost delete response.
+      // Authorization and revision failures still block delivery.
+      if (!(error instanceof GoogleApiError) || ![404, 410].includes(error.status)) throw error;
+    }
   }
 
   private async allPages(accountId: string, url: string, query: Record<string, string>): Promise<JsonRecord[]> {

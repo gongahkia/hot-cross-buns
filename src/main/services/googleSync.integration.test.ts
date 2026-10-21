@@ -870,4 +870,31 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.dispatch("undo", "status", {}).canUndo).toBe(false);
   });
 
+  it.each([404, 410, 403, 412])("handles a repeated Google deletion returning %s without reviving the item", async (status) => {
+    const { store, service, list, googleFetch, remoteLists, accountId } = createFixture();
+    store.dispatch("tasks", "deleteTaskList", { id: list.id }); remoteLists.delete("remote-list");
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => init?.method === "DELETE" ? new Response(null, { status }) : transport(account, target, init));
+    await service.runNow();
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe([404, 410].includes(status) ? 0 : 1);
+    expect(store.googleTaskListForSync(list.id)).toBeNull();
+  });
+  it.each([404, 410])("settles repeated task and event deletions returning %s", async (status) => {
+    const taskFixture = createFixture();
+    const task = taskFixture.importTask({ id: "already-deleted-task", title: "Task" });
+    taskFixture.store.dispatch("tasks", "delete", { id: task.id }); taskFixture.remoteTasks.delete("already-deleted-task");
+    let transport = taskFixture.googleFetch.getMockImplementation()!;
+    taskFixture.googleFetch.mockImplementation(async (account, target, init) => init?.method === "DELETE" ? new Response(null, { status }) : transport(account, target, init));
+    await taskFixture.service.runNow();
+    expect(taskFixture.store.unresolvedSyncMutationCount(taskFixture.accountId)).toBe(0);
+    const eventFixture = createCalendarFixture();
+    const event = eventFixture.importEvent("already-deleted-event");
+    eventFixture.store.dispatch("calendar", "delete", { id: event.id }); eventFixture.remoteEvents.clear();
+    const eventTransport = eventFixture.googleFetch.getMockImplementation()!;
+    eventFixture.googleFetch.mockImplementation(async (account, target, init) => init?.method === "DELETE" ? new Response(null, { status }) : eventTransport(account, target, init));
+    await eventFixture.service.runNow();
+    expect(eventFixture.store.unresolvedSyncMutationCount(eventFixture.accountId)).toBe(0);
+  });
+
+
 });
