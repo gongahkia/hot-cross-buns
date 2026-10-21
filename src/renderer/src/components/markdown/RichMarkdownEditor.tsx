@@ -38,6 +38,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
   const [linkError, setLinkError] = useState("");
   const [, render] = useState(0);
   const linkInput = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const bindings = useRef<ReferenceInputBindings | null>(null);
   const queryKey = useRef("");
   const lastValue = useRef(value);
@@ -50,12 +51,14 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
     if (editor.view.composing) return;
     const { $from, from, to, empty } = editor.state.selection;
     if (!empty || editor.isActive("codeBlock") || editor.isActive("code") || !editor.isFocused) { setMenu(null); return; }
-    const before = $from.parent.textBetween(0, $from.parentOffset, "\n", "\ufffc");
+    // Suggestion tokens are bounded. Do not rescan a whole large paragraph on
+    // every caret movement or keystroke.
+    const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 82), $from.parentOffset, "\n", "\ufffc");
     const reference = /(?:^|\s)@([^\s@]{0,80})$/.exec(before);
     const nextQuery = reference ? { query: reference[1], range: { start: from - reference[1].length - 1, end: to } } : null;
     const key = JSON.stringify(nextQuery);
     if (key !== queryKey.current) { queryKey.current = key; bindings.current?.onQuery(nextQuery); }
-    const slash = /^\/([\w -]{0,40})$/.exec(before);
+    const slash = /(?:^|\s)\/([\w -]{0,40})$/.exec(before);
     const colon = /(?:^|\s):([\w+-]{1,32})$/.exec(before);
     const match = slash ?? colon;
     if (match) {
@@ -75,6 +78,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
         if (event.defaultPrevented) return true;
         const state = menuState.current;
         if (state.menu && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
+          if (!state.choices.length && (event.key === "Enter" || event.key === "Tab")) { setMenu(null); return false; }
           event.preventDefault(); event.stopPropagation();
           if (event.key === "Escape") setMenu(null);
           else if (event.key === "ArrowDown" || event.key === "ArrowUp") setActiveIndex((index) => (index + (event.key === "ArrowDown" ? 1 : -1) + Math.max(1, state.choices.length)) % Math.max(1, state.choices.length));
@@ -98,6 +102,7 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
       const next = editor.getMarkdown(); lastValue.current = next; callback.current(next); updateSuggestions(editor);
     },
     onSelectionUpdate: ({ editor }) => updateSuggestions(editor),
+    onBlur: ({ event }) => { if (!root.current?.contains(event.relatedTarget as globalThis.Node | null)) setMenu(null); },
     onTransaction: ({ transaction }) => { if (transaction.docChanged || transaction.selectionSet) render((revision) => revision + 1); }
   });
 
@@ -156,8 +161,15 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
       {tool("Insert link", Link2, () => openLink.current(), editor!.isActive("link"))}
     </>;
   }
-  return <div className="markdown-editor" aria-disabled={disabled}>
-    <div className="markdown-toolbar" role="toolbar" aria-label={`${label} formatting`}>
+  return <div className="markdown-editor" aria-disabled={disabled} ref={root}>
+    <div className="markdown-toolbar" role="toolbar" aria-label={`${label} formatting`} onKeyDown={(event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || (event.target as HTMLElement).tagName === "SELECT") return;
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), select:not(:disabled)"));
+      const index = controls.indexOf(event.target as HTMLElement);
+      if (index < 0) return;
+      event.preventDefault(); event.stopPropagation();
+      controls[event.key === "Home" ? 0 : event.key === "End" ? controls.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + controls.length) % controls.length]?.focus();
+    }}>
       {!source ? <>
         <select className="markdown-block-select" aria-label="Text style" disabled={disabled} value={editor.isActive("heading") ? `h${editor.getAttributes("heading").level}` : "paragraph"}
           onChange={(event) => { const level = Number(event.target.value.slice(1)); if (level) editor.chain().focus().setHeading({ level: level as 1 }).run(); else editor.chain().focus().setParagraph().run(); }}>

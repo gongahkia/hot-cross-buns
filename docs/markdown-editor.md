@@ -19,7 +19,9 @@ and its document format are outside this change.
 - Type `# `, `1. `, `* `, `> `, `[] ` or a code fence to create blocks. Normal
   inline Markdown shortcuts work as text is typed. Tab/Shift+Tab indent/outdent
   lists; table navigation uses the editor's table keymap.
-- `/` filters block commands; arrows select, Enter/Tab insert, Escape dismisses.
+- `/` after a space or at the start of a block filters commands; arrows select,
+  Enter/Tab insert, Escape dismisses. Unmatched queries allow normal Enter/Tab.
+  Toolbar controls also support left/right and Home/End navigation.
   `@` opens the existing HCB/authorized Drive picker. `:` searches emoji. Source
   mode retains the same reference and emoji helpers.
 - Cmd/Ctrl+K edits a link. Pasting a URL over selected text links it. Markdown-only
@@ -78,7 +80,7 @@ not been manually exercised.
 | Surfaces | Note and Calendar task editor, toolbar, focus, menus, disabled state | Shared theme colors, structural borders, focus outline, 40px editor controls |
 | Animations | Shared editor CSS and menu behavior | No custom animation on typing, selection or suggestions |
 | Icons | Formatting, insertion and selection controls | Existing Lucide set, currentColor, consistent stroke |
-| Performance | Lazy output chunks, task projection test, desktop typing | Engine deferred; metadata transactions do not trigger render loops |
+| Performance | Lazy output chunks, task projection test, desktop typing | Engine deferred; metadata transactions do not trigger render loops; suggestion queries inspect only the caret's preceding 82 characters |
 
 | Severity | Location | Before | After | Why |
 | --- | --- | --- | --- | --- |

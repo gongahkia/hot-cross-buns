@@ -35,6 +35,10 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     let body = page.getByRole("textbox", { name: "Note body", exact: true });
     await expect(body.locator("strong")).toHaveText("formatted");
+    const formatToolbar = page.getByRole("toolbar", { name: "Note body formatting" });
+    await formatToolbar.getByRole("button", { name: "Bold", exact: true }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(formatToolbar.getByRole("button", { name: "Italic", exact: true })).toBeFocused();
     await body.fill(""); await body.pressSequentially("# "); await body.pressSequentially("Markdown heading");
     await expect(body.locator("h1")).toHaveText("Markdown heading");
     await body.press("Enter"); await body.press(`${modifier}+b`); await body.pressSequentially("Bold text"); await body.press(`${modifier}+b`);
@@ -62,6 +66,10 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     expect((await body.innerText()).trim()).not.toContain(":smile");
     await body.fill(""); await body.pressSequentially("/quote"); await body.press("Escape");
     await expect(body).toBeVisible(); // Escape dismisses suggestions before closing the inspector.
+    await body.fill("Prefix "); await body.pressSequentially("/divider"); await body.press("Enter");
+    await expect(body.locator("hr")).toHaveCount(1);
+    await body.fill(""); await body.pressSequentially("/no-matching-command"); await body.press("Enter");
+    await expect(body).toContainText("/no-matching-command");
     await body.fill("");
     await body.evaluate((element) => {
       const data = new DataTransfer(); data.setData("text/plain", "## Pasted heading\n\n**Pasted bold**");

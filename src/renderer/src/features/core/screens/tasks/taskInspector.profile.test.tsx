@@ -72,7 +72,7 @@ describe("Task inspector draft persistence", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
-    await screen.findByRole("textbox", { name: "Task notes" });
+    await screen.findByRole("textbox", { name: "Task notes" }, { timeout: 5000 });
     fireEvent.click(await screen.findByRole("button", { name: "Source" }));
     const notes = screen.getByRole("textbox", { name: "Task notes" });
 
@@ -95,14 +95,17 @@ describe("Task inspector draft persistence", () => {
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Task title" })).toBeNull());
     await waitFor(() => expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4"));
     expect(api.tasks.listTaskLists).toHaveBeenCalledTimes(taskListReadsBeforeSubmit);
-  });
+  }, 15_000); // Includes the first cold import of the shared editor.
 
   it("does not enqueue a second create while the first durable create is in flight", async () => {
     const api = renderTaskSurface();
-    let resolveCreate: ((value: Awaited<ReturnType<typeof api.tasks.create>>) => void) | undefined;
-    api.tasks.create = vi.fn(() => new Promise((resolve) => {
-      resolveCreate = resolve;
-    })) as never;
+    const persistCreate = api.tasks.create;
+    let releaseCreate: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { releaseCreate = resolve; });
+    api.tasks.create = vi.fn(async (request) => {
+      await gate;
+      return persistCreate(request);
+    }) as never;
 
     await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
@@ -114,24 +117,7 @@ describe("Task inspector draft persistence", () => {
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
 
     expect(api.tasks.create).toHaveBeenCalledTimes(1);
-    resolveCreate?.(ok({
-      durationMinutes: null,
-      dueAt: null,
-      id: "task-created-once",
-      listId: "list-inbox",
-      lockedSchedule: false,
-      mutationState: "queued",
-      notes: "",
-      parentId: null,
-      plannedEnd: null,
-      plannedStart: null,
-      priority: "none",
-      snoozeUntil: null,
-      status: "active",
-      tags: [],
-      title: "Only create once",
-      updatedAt: "2026-10-02T00:00:00.000Z"
-    }));
+    await act(async () => { releaseCreate?.(); });
 
     await waitFor(() => expect(screen.queryByRole("textbox", { name: "Task title" })).toBeNull());
     await waitFor(() => expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4"));
@@ -159,7 +145,7 @@ describe("Task inspector draft persistence", () => {
     fireEvent.click(task);
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
-    await screen.findByRole("textbox", { name: "Task notes" });
+    await screen.findByRole("textbox", { name: "Task notes" }, { timeout: 5000 });
     fireEvent.click(await screen.findByRole("button", { name: "Source" }));
     const notes = screen.getByRole("textbox", { name: "Task notes" });
     fireEvent.change(title, { target: { value: "Revise inbox triage rules" } });
@@ -195,7 +181,7 @@ describe("Task inspector draft persistence", () => {
     const inspectorQueries = within(inspector);
     const title = inspectorQueries.getByRole("textbox", { name: "Task title" });
     const addTask = inspectorQueries.getByRole("button", { name: "Add task" });
-    await inspectorQueries.findByRole("textbox", { name: "Task notes" });
+    await inspectorQueries.findByRole("textbox", { name: "Task notes" }, { timeout: 5000 });
     await act(async () => {
       await Promise.resolve();
     });
