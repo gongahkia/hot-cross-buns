@@ -18,7 +18,7 @@ import { brandAssetPath } from "../brandAssets";
 import { MenuBarPanelController } from "./menuBarPanelController";
 import { unsupported } from "./operationResults";
 
-type TrayIconDefinition = { path: string } | "none";
+type TrayIconDefinition = { path: string; completed?: boolean } | "none";
 
 export class MacTrayController {
   private tray: Tray | undefined;
@@ -126,7 +126,8 @@ function trayIconDefinition(snapshot: NativeMenuBarSnapshot): TrayIconDefinition
   }
 
   return {
-    path: brandAssetPath(snapshot.calendarDone ? "menu-bar-calendar-check.png" : "menu-bar-calendar.png")
+    path: brandAssetPath(snapshot.calendarDone ? "menu-bar-calendar-check.png" : "menu-bar-calendar.png"),
+    completed: snapshot.calendarDone
   };
 }
 
@@ -135,7 +136,31 @@ function trayIconImage(iconDefinition: TrayIconDefinition): NativeImage {
     return nativeImage.createEmpty();
   }
 
-  return menuBarIconImage(iconDefinition.path);
+  const image = menuBarIconImage(iconDefinition.path);
+  return image.isEmpty() ? fallbackCalendarImage(Boolean(iconDefinition.completed)) : image;
+}
+
+/** A template glyph also works in source checkouts and builds without brand artwork. */
+function fallbackCalendarImage(completed: boolean): NativeImage {
+  const size = 36;
+  const pixels = Buffer.alloc(size * size * 4);
+  const paint = (x: number, y: number) => {
+    if (x >= 0 && y >= 0 && x < size && y < size) pixels[(y * size + x) * 4 + 3] = 255;
+  };
+  const line = (x1: number, y1: number, x2: number, y2: number) => {
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+    for (let step = 0; step <= steps; step += 1) {
+      const x = Math.round(x1 + (x2 - x1) * step / Math.max(1, steps));
+      const y = Math.round(y1 + (y2 - y1) * step / Math.max(1, steps));
+      paint(x, y); paint(x + 1, y); paint(x, y + 1);
+    }
+  };
+  line(5, 7, 29, 7); line(5, 7, 5, 30); line(29, 7, 29, 30);
+  line(5, 30, 29, 30); line(5, 14, 29, 14);
+  line(11, 4, 11, 10); line(23, 4, 23, 10);
+  if (completed) { line(10, 22, 15, 26); line(15, 26, 24, 18); }
+  else { line(11, 20, 13, 20); line(21, 20, 23, 20); line(11, 25, 13, 25); }
+  return nativeImage.createFromBitmap(pixels, { width: size, height: size, scaleFactor: 2 });
 }
 
 function customMenuBarIconPath(fileName: string): string {
