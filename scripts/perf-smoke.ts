@@ -263,6 +263,12 @@ async function run(): Promise<void> {
     });
     measurements.push({ name: "main-ipc-during-writes-p95", durationMs: percentile(healthSamples, 0.95), itemCount: healthSamples.length });
 
+    // No Google account exists in this disposable fixture. Read-only refresh
+    // exercises durable outbox selection without delivering any Google writes.
+    await measure(measurements, `pending-outbox-query-${TASK_COUNT + EVENT_COUNT}-mutations`, async () => {
+      await requireSuccess(await page.evaluate(() => window.hcb?.sync.runNow({ readOnly: true })), "Read pending outbox");
+    }, TASK_COUNT + EVENT_COUNT);
+
     await measure(measurements, `task-list-pagination-${TASK_COUNT}-tasks`, async () => {
       let cursor: string | undefined;
       let taskCount = 0;

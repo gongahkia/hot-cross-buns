@@ -52,6 +52,8 @@ On headless Linux, prefix those commands with `xvfb-run -a`. Run fixtures sequen
 
 Navigation and initial hydration use browser click-to-content-and-two-animation-frame timing. Automation validation time is recorded separately because assertion retry intervals can inflate latency. Input p95 also measures within Chromium, rather than timing automation round trips. Scroll p95 samples 119 frame intervals; input p95 samples 24 characters. Main health IPC runs repeatedly during all fixture writes. Each fixture also closes and relaunches its populated profile, then waits for real task content and hydration before recording restart latency.
 
+After seeding, a read-only refresh against the account-free fixture measures durable outbox selection with all Task and Calendar writes still pending. Its 100 ms regression ceiling catches repeated scans of earlier mutations; queue barriers should be calculated once per account rather than once per candidate mutation.
+
 The [budget policy](../../scripts/performanceBudgets.ts) preserves product targets and separate regression ceilings. A ceiling failure exits nonzero after saving the report. Target misses remain explicit even when the regression gate passes. These are engineering guards for this fixture and environment, not universal latency guarantees.
 
 Reports under ignored `artifacts/perf/` include:

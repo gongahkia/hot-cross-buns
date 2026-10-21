@@ -8,6 +8,7 @@ export const latencyBudgets = [
   { prefix: "cached-profile-shell-visible", targetMs: 1500, ceilingMs: 2000 },
   { prefix: "cached-profile-content-visible", targetMs: 1500, ceilingMs: 2500 },
   { prefix: "main-ipc-during-writes-p95", targetMs: 20, ceilingMs: 20 },
+  { prefix: "pending-outbox-query-", targetMs: 30, ceilingMs: 100 },
   { prefix: "task-reorder-warm", targetMs: 100, ceilingMs: 100 },
   { prefix: "fts-search-", targetMs: 100, ceilingMs: 100 },
   { prefix: "renderer-cold-hydration-", targetMs: 300, ceilingMs: 1000 },

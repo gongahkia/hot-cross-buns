@@ -509,14 +509,16 @@ export class CoreStore {
     const now = timestamp();
     // rowid follows insertion order even when timestamps tie or the clock moves
     // backwards. A blocked write remains a barrier on subsequent sync runs.
-    return (this.statement(`SELECT mutation.id,mutation.account_id AS accountId,mutation.kind,mutation.entity_id AS entityId,
+    return (this.statement(`WITH blocked_accounts AS (
+        SELECT account_id,MIN(rowid) AS barrier FROM outbox
+        WHERE state IN ('pending','conflict') AND (state='conflict' OR creation_started=1 OR next_attempt_at > ?)
+        GROUP BY account_id
+      ) SELECT mutation.id,mutation.account_id AS accountId,mutation.kind,mutation.entity_id AS entityId,
       mutation.payload_json AS payload,mutation.attempts,mutation.created_at AS createdAt
-      FROM outbox mutation WHERE mutation.state='pending' AND mutation.creation_started=0 AND mutation.next_attempt_at <= ?${accountFilter}
-      AND NOT EXISTS (
-        SELECT 1 FROM outbox earlier WHERE earlier.account_id IS mutation.account_id AND earlier.rowid < mutation.rowid
-          AND earlier.state IN ('pending','conflict')
-          AND (earlier.state='conflict' OR earlier.creation_started=1 OR earlier.next_attempt_at > ?)
-      ) ORDER BY mutation.rowid LIMIT ?`).all(now, ...(accountId ? [accountId] : []), now, Math.max(1, Math.min(500, limit))) as any[])
+      FROM outbox mutation LEFT JOIN blocked_accounts blocked ON blocked.account_id IS mutation.account_id
+      WHERE mutation.state='pending' AND mutation.creation_started=0 AND mutation.next_attempt_at <= ?${accountFilter}
+        AND (blocked.barrier IS NULL OR mutation.rowid < blocked.barrier)
+      ORDER BY mutation.rowid LIMIT ?`).all(now, now, ...(accountId ? [accountId] : []), Math.max(1, Math.min(500, limit))) as any[])
       .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
   }
 
