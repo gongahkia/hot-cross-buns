@@ -21,17 +21,22 @@ async function launch(profile: string, mode: "fresh" | "cached", noteId?: string
     const firstWindowMs = performance.now() - started;
     await page.getByTestId("app-shell").waitFor({ state: "visible", timeout: 60_000 });
     const shellVisibleMs = performance.now() - started;
-    await page.waitForFunction(async () => {
+    const observedHealth = await page.waitForFunction(async () => {
       const health = await window.hcb?.diagnostics.health({});
-      return health?.ok && health.data.startup.shellVisibleMs !== undefined;
+      return health?.ok && health.data.startup.shellVisibleMs !== undefined ? health : false;
     });
-    const health = await page.evaluate(() => window.hcb!.diagnostics.health({}));
+    const health = await observedHealth.jsonValue() as Awaited<ReturnType<NonNullable<Window["hcb"]>["diagnostics"]["health"]>>;
+    await observedHealth.dispose();
     if (!health.ok) throw new Error(health.error.message);
     const renderer = await page.evaluate(() => ({
       nowMs: performance.now(),
       navigation: performance.getEntriesByType("navigation").map((entry) => entry.toJSON()),
       scripts: performance.getEntriesByType("resource").filter((entry) => (entry as PerformanceResourceTiming).initiatorType === "script")
-        .map((entry) => ({ file: entry.name.split("/").at(-1), durationMs: entry.duration, startTime: entry.startTime }))
+        .map((entry) => ({ file: entry.name.split("/").at(-1), durationMs: entry.duration, startTime: entry.startTime })),
+      // file:// resource timing can be empty in Electron. Retain the actual
+      // script and preload elements without pretending they are timing entries.
+      scriptElements: Array.from(document.querySelectorAll<HTMLScriptElement>("script[src]")).map((element) => element.src.split("/").at(-1)),
+      modulePreloads: Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="modulepreload"]')).map((element) => element.href.split("/").at(-1))
     }));
     const sample = { mode, connectedMs, firstWindowMs, shellVisibleMs, startup: health.data.startup, renderer,
       load: loadavg(), freeMemoryMiB: Math.round(freemem() / 1048576) };
