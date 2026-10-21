@@ -74,6 +74,7 @@ export function ViewDropdown({
   onOpenSettings,
 }: ViewDropdownProps) {
   const trigger = React.useRef<HTMLButtonElement>(null);
+  const openingCustom = React.useRef(false);
   const fieldId = React.useId();
   const [customOpen, setCustomOpen] = React.useState(false);
   const [customDays, setCustomDays] = React.useState(String(numberOfDays));
@@ -94,7 +95,18 @@ export function ViewDropdown({
             <ChevronDownIcon className="size-4 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" sideOffset={8} className="w-56">
+        <DropdownMenuContent
+          align="start"
+          sideOffset={8}
+          className="w-56"
+          onCloseAutoFocus={(event) => {
+            if (openingCustom.current) {
+              event.preventDefault();
+              openingCustom.current = false;
+              setCustomOpen(true);
+            }
+          }}
+        >
           {VIEW_OPTIONS.map((option) => (
             <DropdownMenuItem
               key={option.value}
@@ -148,8 +160,8 @@ export function ViewDropdown({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
+                  openingCustom.current = true;
                   setCustomDays(String(numberOfDays));
-                  setCustomOpen(true);
                 }}
               >
                 Other…

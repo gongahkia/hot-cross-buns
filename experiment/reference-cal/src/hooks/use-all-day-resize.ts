@@ -197,12 +197,19 @@ export function useAllDayResize({
       if (resize.edge === "move") {
         const originalColumnDate = currentDays[resize.originalStartColumn];
         if (!originalColumnDate) return;
-        onEventChangeRef.current?.(moveEventByCalendarDays(event, differenceInCalendarDays(newStartDate, originalColumnDate)));
+        onEventChangeRef.current?.(
+          moveEventByCalendarDays(
+            event,
+            differenceInCalendarDays(newStartDate, originalColumnDate),
+          ),
+        );
         return;
       }
 
       // Preserve time-of-day from original event
-      const newStart = new Date(resize.edge === "left" ? newStartDate : event.start);
+      const newStart = new Date(
+        resize.edge === "left" ? newStartDate : event.start,
+      );
       newStart.setHours(
         event.start.getHours(),
         event.start.getMinutes(),
@@ -218,12 +225,10 @@ export function useAllDayResize({
         event.end.getMilliseconds(),
       );
 
-      // Move preserves the original isAllDay flag (duration unchanged).
       // Resize determines isAllDay by whether the span exceeds 24h.
-      const isMove = resize.edge === "move";
       const MS_IN_24H = 24 * 60 * 60 * 1000;
       const isLongerThan24h = newEnd.getTime() - newStart.getTime() > MS_IN_24H;
-      const isAllDay = isMove ? event.isAllDay === true : isLongerThan24h;
+      const isAllDay = isLongerThan24h;
 
       onEventChangeRef.current?.({
         ...event,

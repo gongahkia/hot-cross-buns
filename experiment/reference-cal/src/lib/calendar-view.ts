@@ -63,6 +63,13 @@ export function filterCalendarEvents(
 }
 
 /** Moving an all-day block keeps its calendar-day span across hidden days and DST. */
-export function moveEventByCalendarDays(event: CalendarEvent, delta: number): CalendarEvent {
-  return { ...event, start: addDays(event.start, delta), end: addDays(event.end, delta) };
+export function moveEventByCalendarDays(
+  event: CalendarEvent,
+  delta: number,
+): CalendarEvent {
+  return {
+    ...event,
+    start: addDays(event.start, delta),
+    end: addDays(event.end, delta),
+  };
 }

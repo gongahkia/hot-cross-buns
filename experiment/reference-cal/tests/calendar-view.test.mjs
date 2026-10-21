@@ -106,7 +106,13 @@ test("declined invitations and hidden calendars filter independently", () => {
 });
 
 test("moving a Friday–Sunday block past a hidden weekend preserves all three dates", () => {
-  const event = { id: "trip", title: "Trip", start: new Date(2026, 9, 23), end: new Date(2026, 9, 25), isAllDay: true };
+  const event = {
+    id: "trip",
+    title: "Trip",
+    start: new Date(2026, 9, 23),
+    end: new Date(2026, 9, 25),
+    isAllDay: true,
+  };
   const moved = moveEventByCalendarDays(event, 3);
   assert.equal(key(moved.start), "2026-10-26");
   assert.equal(key(moved.end), "2026-10-28");
@@ -115,7 +121,12 @@ test("moving a Friday–Sunday block past a hidden weekend preserves all three d
 });
 
 test("moving a block across DST preserves its wall-clock times and calendar-day span", () => {
-  const event = { id: "dst", title: "Trip", start: new Date(2026, 2, 6, 9), end: new Date(2026, 2, 8, 17) };
+  const event = {
+    id: "dst",
+    title: "Trip",
+    start: new Date(2026, 2, 6, 9),
+    end: new Date(2026, 2, 8, 17),
+  };
   const moved = moveEventByCalendarDays(event, 3);
   assert.equal(key(moved.start), "2026-3-9");
   assert.equal(key(moved.end), "2026-3-11");
