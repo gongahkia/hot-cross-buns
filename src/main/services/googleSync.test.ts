@@ -9,12 +9,14 @@ function createService(settings: Record<string, unknown> = {}, pendingWrites: un
   deliverOutbox: ReturnType<typeof vi.fn>;
   pullGoogleCalendars: ReturnType<typeof vi.fn>;
   pullGoogleTasks: ReturnType<typeof vi.fn>;
+  resetGoogleSyncTokens: ReturnType<typeof vi.fn>;
   service: GoogleSyncService;
 } {
   const store = {
     googleAccounts: () => [{ accountId: "test-account", connectionState: "connected" }],
     dispatch: () => ({ syncMode: "balanced", ...settings }),
     pendingSyncMutations: () => pendingWrites,
+    resetGoogleSyncTokens: vi.fn(),
     setSyncRuntime: vi.fn()
   };
   const oauth = { onConnectionChange: vi.fn() };
@@ -28,12 +30,33 @@ function createService(settings: Record<string, unknown> = {}, pendingWrites: un
   internals.pullGoogleTasks = vi.fn(async () => undefined);
   internals.pullGoogleCalendars = vi.fn(async () => undefined);
   internals.deliverOutbox = vi.fn(async () => undefined);
-  return { ...internals, service };
+  return { ...internals, resetGoogleSyncTokens: store.resetGoogleSyncTokens, service };
 }
 
 afterEach(() => vi.useRealTimers());
 
 describe("GoogleSyncService", () => {
+  it.each([false, true])("waits for an active sync before starting a forced full pull (initial failure=%s)", async (fail) => {
+    const { service, pullGoogleTasks, resetGoogleSyncTokens } = createService();
+    let release!: () => void;
+    pullGoogleTasks.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      if (fail) throw new Error("Initial pull failed");
+    });
+    const initial = service.runNow({ readOnly: true }).catch((error) => error);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    const forced = service.forceFullResync({ accountId: "test-account" });
+    try {
+      expect(resetGoogleSyncTokens).not.toHaveBeenCalled();
+    } finally {
+      release();
+      await initial;
+      await forced;
+    }
+    expect(resetGoogleSyncTokens).toHaveBeenCalledWith("test-account");
+    expect(pullGoogleTasks).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for an active pull before shutdown completes", async () => {
     const fixture = createService({ syncMode: "manual" });
     let release!: () => void;

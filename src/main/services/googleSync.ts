@@ -121,6 +121,9 @@ export class GoogleSyncService {
 
   async forceFullResync(input: JsonRecord = {}): Promise<JsonRecord> {
     const accountId = typeof input.accountId === "string" ? input.accountId : undefined;
+    // An active pull can still save its old checkpoint. Let it finish before
+    // resetting tokens, then start a distinct full pull instead of coalescing.
+    while (this.inFlight) await this.inFlight.catch(() => undefined);
     this.store.resetGoogleSyncTokens(accountId);
     return this.runNow({ reason: "force-full", ...(accountId ? { accountId } : {}) });
   }
