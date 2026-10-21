@@ -69,9 +69,12 @@ const PreservedInline = Node.create({
 const PreserveOtherHtml = Extension.create({
   name: "preserveOtherHtml",
   markdownTokenName: "html",
-  parseMarkdown: (token) => /^<br\s*\/?\s*>$/i.test(token.raw.trim())
-    ? { type: "hardBreak" }
-    : { type: token.block ? "preservedBlock" : "preservedInline", attrs: { raw: token.raw } }
+  parseMarkdown: (token) => {
+    const raw = token.raw ?? "";
+    return /^<br\s*\/?\s*>$/i.test(raw.trim())
+      ? { type: "hardBreak" }
+      : { type: token.block ? "preservedBlock" : "preservedInline", attrs: { raw } };
+  }
 });
 
 const EditingKeys = Extension.create({
