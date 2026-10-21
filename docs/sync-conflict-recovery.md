@@ -4,7 +4,8 @@ Diagnostics → Sync → Compare and resolve fetches current Google content befo
 showing local and remote fields together. The decision names the number of
 queued changes it affects. Related changes include later writes to the same
 resource, task descendants, tasks in a resolved list, and recurring-series
-successors and exception edits. Other queued changes remain pending.
+successors and exception edits. Deleting a task list also includes its queued
+Calendar block deletions. Other queued changes remain pending.
 
 Use Google reads Google again, rejects a changed comparison, then cancels the
 related queue entries and restores complete remote snapshots in one SQLite
@@ -12,7 +13,9 @@ transaction. The operation works even when an earlier incremental pull already
 advanced past the remote edit, or the resource is outside the selected sources.
 Deleted lists and events are restored with their stable local IDs. Newly deleted
 lists retain task identities for this purpose. Old deletion entries created
-before this change cannot reconstruct task IDs they never saved.
+before this change cannot reconstruct task IDs they never saved. Scheduling links
+are restored with their stable IDs, and block times follow the restored event.
+Discarded scheduling operations are removed from planner undo history.
 
 Keep local explicitly clears stale revisions and queues the related writes.
 Descriptions and notes in the comparison are inert text. Credentials, tokens,
@@ -31,6 +34,9 @@ Google identifiers and ETags are not sent in the comparison DTO.
 - Comparisons expire after five minutes. A changed local queue, local resource,
   Google snapshot, or a concurrent sync rejects recovery without cancelling
   writes. Fetch/import failures preserve the queue and local state.
+- Only fingerprints and local revision guards are cached for comparisons; complete
+  account snapshots are released after each request. Unchanged task descendants
+  are not expanded into thousands of comparison rows.
 - Recovery reads complete account snapshots for the affected API family, including
   unselected sources. This favors correctness for an infrequent recovery action;
   a large account or an unreadable Calendar can make comparison slow or fail.

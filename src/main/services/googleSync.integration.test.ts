@@ -91,7 +91,9 @@ function createCalendarFixture() {
   const calendar = store.upsertGoogleCalendar(remoteCalendar, accountId);
   const remoteEvents = new Map<string, RemoteTask>();
   store.dispatch("settings", "update", { syncTasksEnabled: false, syncCalendarEventsEnabled: true });
+  const taskTransport = googleFetch.getMockImplementation()!;
   googleFetch.mockImplementation(async (_accountId, target, init = {}) => {
+    if (target.hostname === "tasks.googleapis.com") return taskTransport(_accountId, target, init);
     if ((init.method ?? "GET") === "GET") {
       if (target.pathname.endsWith("/calendarList")) return Response.json({ items: [remoteCalendar] });
       if (target.pathname.endsWith("/events")) return Response.json({ items: [...remoteEvents.values()], nextSyncToken: "next-token" });
@@ -811,6 +813,61 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.googleEventForSync(successor.id)).toBeNull();
     expect(store.googleEventForSync(event.id)!.recurrenceLines).toEqual(remote.recurrence);
     expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("resolves list deletion and its scheduled Calendar deletions together", async () => {
+    const { store, service, importTask, calendar, list, remoteEvents, accountId } = createCalendarFixture();
+    const task = importTask({ id: "scheduled-task", title: "Scheduled task" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", { taskId: task.id, calendarId: calendar.id, startsAt: "2026-10-22T09:00:00.000Z", endsAt: "2026-10-22T10:00:00.000Z" });
+    const remote = { id: "scheduled-event", summary: "Scheduled task", etag: "v1", start: { dateTime: block.startsAt }, end: { dateTime: block.endsAt } };
+    remoteEvents.set(remote.id, remote);
+    store.bindGoogleEvent(block.calendarEventId, remote);
+    for (const mutation of store.pendingSyncMutations()) store.completeSyncMutation(mutation.id);
+    store.dispatch("tasks", "deleteTaskList", { id: list.id });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview.affectedCount).toBe(2);
+    expect(preview.items.map((item) => item.kind)).toContain("taskList");
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Scheduled task", plannedStart: block.startsAt, plannedEnd: block.endsAt });
+    expect(store.googleEventForSync(block.calendarEventId)!.googleId).toBe(remote.id);
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items).toEqual([expect.objectContaining({ id: block.id, taskId: task.id, calendarEventId: block.calendarEventId })]);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("restores a moved block's scheduling record and leaves unrelated writes queued", async () => {
+    const { store, service, importTask, calendar, remoteEvents, importEvent, accountId } = createCalendarFixture();
+    const task = importTask({ id: "block-task", title: "Block task" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", { taskId: task.id, calendarId: calendar.id, startsAt: "2026-10-22T09:00:00.000Z", endsAt: "2026-10-22T10:00:00.000Z" });
+    const remote = { id: "block-event", summary: "Block task", start: { dateTime: block.startsAt }, end: { dateTime: block.endsAt } };
+    remoteEvents.set(remote.id, remote); store.bindGoogleEvent(block.calendarEventId, remote);
+    for (const mutation of store.pendingSyncMutations()) store.completeSyncMutation(mutation.id);
+    store.dispatch("calendar", "moveScheduledTaskBlock", { id: block.id, startsAt: "2026-10-23T09:00:00.000Z" });
+    const unrelated = importEvent("unrelated"); store.dispatch("calendar", "update", { id: unrelated.id, title: "Keep queued" });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview.affectedCount).toBe(1);
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items[0]).toMatchObject({ startsAt: block.startsAt, endsAt: block.endsAt });
+    expect(store.googleTaskForSync(task.id)!.plannedStart).toBe(block.startsAt);
+    expect(store.googleEventForSync(unrelated.id)!.title).toBe("Keep queued");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+  });
+
+  it("restores an unscheduled block from its event deletion without stale scheduling undo", async () => {
+    const { store, service, importTask, calendar, remoteEvents } = createCalendarFixture();
+    const task = importTask({ id: "unscheduled-task", title: "Unscheduled task" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", { taskId: task.id, calendarId: calendar.id, startsAt: "2026-10-22T09:00:00.000Z", endsAt: "2026-10-22T10:00:00.000Z" });
+    const remote = { id: "unscheduled-event", summary: "Unscheduled task", start: { dateTime: block.startsAt }, end: { dateTime: block.endsAt } };
+    remoteEvents.set(remote.id, remote); store.bindGoogleEvent(block.calendarEventId, remote);
+    for (const mutation of store.pendingSyncMutations()) store.completeSyncMutation(mutation.id);
+    store.dispatch("calendar", "unscheduleTaskBlock", { id: block.id });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items).toEqual([expect.objectContaining({ id: block.id, calendarEventId: block.calendarEventId })]);
+    expect(store.googleTaskForSync(task.id)!.plannedStart).toBe(block.startsAt);
+    expect(store.dispatch("undo", "status", {}).canUndo).toBe(false);
   });
 
 });

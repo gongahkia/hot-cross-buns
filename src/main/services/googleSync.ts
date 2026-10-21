@@ -54,7 +54,7 @@ export class GoogleSyncService {
   private readonly events = new EventEmitter();
   private interval: NodeJS.Timeout | null = null;
   private writeDebounce: NodeJS.Timeout | null = null;
-  private readonly resolutionReviews = new Map<string, { context: SyncResolutionContext; snapshot: GoogleResolutionSnapshot; expires: number }>();
+  private readonly resolutionReviews = new Map<string, { mutationId: string; version: string; fingerprint: string; expires: number }>();
 
   constructor(
     private readonly store: CoreStore,
@@ -162,7 +162,7 @@ export class GoogleSyncService {
     const reviewId = randomUUID();
     for (const [id, review] of this.resolutionReviews) if (review.expires < Date.now()) this.resolutionReviews.delete(id);
     if (this.resolutionReviews.size >= 5) this.resolutionReviews.delete(this.resolutionReviews.keys().next().value!);
-    this.resolutionReviews.set(reviewId, { context, snapshot, expires: Date.now() + 5 * 60_000 });
+    this.resolutionReviews.set(reviewId, { mutationId: context.mutation.id, version: context.version, fingerprint: snapshotFingerprint(snapshot), expires: Date.now() + 5 * 60_000 });
     const items = context.entities.map((entity) => {
       const local = entity.local ?? context.mutations.find((mutation) => mutation.entityId === entity.id)?.payload ?? null;
       const remote = entity.kind === "taskList" ? snapshot.lists?.find((list) => list.remote.id === local?.googleId)?.remote
@@ -193,11 +193,11 @@ export class GoogleSyncService {
   private async applyMutationResolution(input: JsonRecord): Promise<JsonRecord> {
     const reviewId = requiredText(input.reviewId, "Comparison id");
     const review = this.resolutionReviews.get(reviewId);
-    if (!review || review.expires < Date.now() || review.context.mutation.id !== input.id) throw new CoreStoreError("This comparison expired. Compare again before resolving.");
-    const current = this.store.syncResolutionContext(review.context.mutation.id);
-    if (current.version !== review.context.version) throw new CoreStoreError("Local changes arrived after comparison. Compare again before resolving.");
+    if (!review || review.expires < Date.now() || review.mutationId !== input.id) throw new CoreStoreError("This comparison expired. Compare again before resolving.");
+    const current = this.store.syncResolutionContext(review.mutationId);
+    if (current.version !== review.version) throw new CoreStoreError("Local changes arrived after comparison. Compare again before resolving.");
     const snapshot = await this.resolutionSnapshot(current);
-    if (snapshotFingerprint(snapshot) !== snapshotFingerprint(review.snapshot)) throw new CoreStoreError("Google changed after comparison. Compare again before resolving.");
+    if (snapshotFingerprint(snapshot) !== review.fingerprint) throw new CoreStoreError("Google changed after comparison. Compare again before resolving.");
     if (this.store.syncResolutionContext(current.mutation.id).version !== current.version) throw new CoreStoreError("Local changes arrived during recovery. Compare again before resolving.");
     let result: JsonRecord;
     if (input.strategy === "google") result = this.store.applyGoogleResolution(current, snapshot);

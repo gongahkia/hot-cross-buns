@@ -1681,7 +1681,7 @@ export class CoreStore {
         const deletedTasks = (this.statement("SELECT id FROM tasks WHERE list_id=?").all(id) as Array<{ id: string }>).map((task) => this.googleTaskForSync(task.id)!);
         const blockEvents = this.statement(`SELECT event.id FROM events event JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id
           WHERE block.task_id IN (SELECT id FROM tasks WHERE list_id=?)`).all(id) as Array<{ id: string }>;
-        for (const event of blockEvents) this.deleteEvent({ id: event.id });
+        for (const event of blockEvents) this.deleteEvent({ id: event.id }, { relatedTaskListId: id });
         this.statement("DELETE FROM scheduled_task_blocks WHERE task_id IN (SELECT id FROM tasks WHERE list_id=?)").run(id);
         this.statement("DELETE FROM tasks WHERE list_id=?").run(id);
         this.statement("DELETE FROM task_lists WHERE id=?").run(id);
@@ -2073,7 +2073,7 @@ export class CoreStore {
     return row?.id ? this.requireEvent(row.id) : null;
   }
 
-  private deleteEvent(input: JsonRecord): JsonRecord {
+  private deleteEvent(input: JsonRecord, options: { relatedTaskListId?: string } = {}): JsonRecord {
     const id = requiredText(input.id, "Event id");
     const eventBeforeDelete = this.requireEvent(id);
     const originalStartAt = typeof input.originalStartAt === "string" ? requiredIso(input.originalStartAt, "Recurring occurrence date") : null;
@@ -2097,9 +2097,10 @@ export class CoreStore {
     this.db.transaction(() => {
       this.requireEvent(id);
       const previous = this.googleEventForSync(id);
+      const scheduledBlocks = this.scheduledBlocksForEvent(id);
       this.unlinkScheduledTaskBlocks(id);
       this.statement("DELETE FROM events WHERE id=?").run(id);
-      this.enqueue("event.delete", id, previous ?? {}, previous?.accountId ?? null);
+      this.enqueue("event.delete", id, { ...previous, scheduledBlocks, ...(options.relatedTaskListId ? { __hcbRelatedTaskListId: options.relatedTaskListId } : {}) }, previous?.accountId ?? null);
     })();
     this.recordUndo("Delete event", { namespace: "calendar", action: "delete", payload: { id } }, { namespace: "calendar", action: "create", payload: eventCreatePayload(eventBeforeDelete) });
     return { id, deleted: true };
@@ -2115,6 +2116,11 @@ export class CoreStore {
       this.statement("UPDATE tasks SET planned_start=?,planned_end=?,updated_at=? WHERE id=?")
         .run(remaining?.startsAt ?? null, remaining?.endsAt ?? null, timestamp(), taskId);
     }
+  }
+
+  private scheduledBlocksForEvent(eventId: string): JsonRecord[] {
+    return this.statement(`SELECT id,task_id AS taskId,calendar_event_id AS calendarEventId,calendar_id AS calendarId,
+      starts_at AS startsAt,ends_at AS endsAt,created_at AS createdAt,updated_at AS updatedAt FROM scheduled_task_blocks WHERE calendar_event_id=? ORDER BY id`).all(eventId) as JsonRecord[];
   }
 
   private listScheduledTaskBlocks(input: JsonRecord): JsonRecord {
@@ -2204,18 +2210,16 @@ export class CoreStore {
     const block = this.statement("SELECT task_id AS taskId,calendar_event_id AS calendarEventId,calendar_id AS calendarId,starts_at AS startsAt,ends_at AS endsAt FROM scheduled_task_blocks WHERE id=?").get(id) as JsonRecord | undefined;
     if (!block) throw new CoreStoreError("Scheduled block no longer exists");
     this.db.transaction(() => {
-      this.statement("DELETE FROM scheduled_task_blocks WHERE id=?").run(id);
-      this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
-    })();
-    if (input.deleteCalendarEvent !== false) {
-      const previousUndoState = this.applyingUndo;
-      this.applyingUndo = true;
-      try {
-        this.deleteEvent({ id: block.calendarEventId });
-      } finally {
-        this.applyingUndo = previousUndoState;
+      if (input.deleteCalendarEvent !== false) {
+        const previousUndoState = this.applyingUndo;
+        this.applyingUndo = true;
+        try { this.deleteEvent({ id: block.calendarEventId }); }
+        finally { this.applyingUndo = previousUndoState; }
+      } else {
+        this.statement("DELETE FROM scheduled_task_blocks WHERE id=?").run(id);
+        this.statement("UPDATE tasks SET planned_start=NULL,planned_end=NULL,updated_at=? WHERE id=?").run(timestamp(), block.taskId);
       }
-    }
+    })();
     this.recordUndo("Unschedule task block", { namespace: "calendar", action: "unscheduleTaskBlock", payload: { id, deleteCalendarEvent: input.deleteCalendarEvent !== false } }, { namespace: "calendar", action: "scheduleTaskBlock", payload: { taskId: block.taskId, calendarId: block.calendarId, startsAt: block.startsAt, endsAt: block.endsAt } });
     return { id, queued: true, revision: timestamp() };
   }
@@ -3113,7 +3117,9 @@ export class CoreStore {
     const add = (kind: "task" | "taskList" | "event", entityId: string) => {
       const key = `${kind}:${entityId}`;
       if (entities.has(key)) return;
-      const local = kind === "task" ? this.googleTaskForSync(entityId) : kind === "taskList" ? this.googleTaskListForSync(entityId) : this.googleEventForSync(entityId);
+      let local = kind === "task" ? this.googleTaskForSync(entityId) : kind === "taskList" ? this.googleTaskListForSync(entityId) : this.googleEventForSync(entityId);
+      if (local?.accountId && local.accountId !== mutation.accountId) throw new CoreStoreError("Resolve related changes within their own Google account.");
+      if (local && kind === "event") local = { ...local, scheduledBlocks: this.scheduledBlocksForEvent(entityId) };
       entities.set(key, { kind, id: entityId, local });
     };
     const family = String(mutation.kind).split(".")[0];
@@ -3124,21 +3130,22 @@ export class CoreStore {
       previousSize = entities.size;
       for (const entity of [...entities.values()]) {
         if (entity.kind === "taskList") {
-          for (const task of this.statement("SELECT id FROM tasks WHERE list_id=?").all(entity.id) as Array<{ id: string }>) add("task", task.id);
+          for (const task of this.statement("SELECT id FROM tasks WHERE list_id=? AND EXISTS (SELECT 1 FROM outbox WHERE entity_id=tasks.id AND kind LIKE 'task.%' AND state IN ('pending','conflict'))").all(entity.id) as Array<{ id: string }>) add("task", task.id);
         }
         if (entity.kind === "task") {
-          for (const child of this.statement("SELECT id FROM tasks WHERE parent_id=?").all(entity.id) as Array<{ id: string }>) add("task", child.id);
+          for (const child of this.statement("WITH RECURSIVE descendants(id) AS (SELECT id FROM tasks WHERE parent_id=? UNION SELECT tasks.id FROM tasks JOIN descendants ON tasks.parent_id=descendants.id) SELECT id FROM descendants WHERE EXISTS (SELECT 1 FROM outbox WHERE entity_id=descendants.id AND kind LIKE 'task.%' AND state IN ('pending','conflict'))").all(entity.id) as Array<{ id: string }>) add("task", child.id);
         }
       }
       for (const row of rows.filter((row) => row.accountId === mutation.accountId)) {
         const kind = row.kind.split(".")[0] as "task" | "taskList" | "event";
         const linked = entities.has(`${kind}:${row.entityId}`) ||
           (kind === "task" && (entities.has(`taskList:${row.payload.listId}`) || entities.has(`task:${row.payload.parentId}`))) ||
-          (kind === "event" && [row.payload.parentEventId, row.payload.successorEventId, ...(row.payload.futureExceptionIds ?? [])].some((value) => entities.has(`event:${value}`)));
+          (kind === "event" && (entities.has(`taskList:${row.payload.__hcbRelatedTaskListId}`) || [row.payload.parentEventId, row.payload.successorEventId, ...(row.payload.futureExceptionIds ?? [])].some((value) => entities.has(`event:${value}`))));
         if (!linked) continue;
         add(kind, row.entityId);
+        if (kind === "event" && typeof row.payload.__hcbRelatedTaskListId === "string") add("taskList", row.payload.__hcbRelatedTaskListId);
         if (kind === "event") for (const value of [row.payload.parentEventId, row.payload.successorEventId, ...(row.payload.futureExceptionIds ?? [])]) if (typeof value === "string") add("event", value);
-        if (kind === "taskList") for (const task of row.payload.deletedTasks ?? []) add("task", task.id);
+        if (kind === "taskList") for (const task of row.payload.deletedTasks ?? []) if (rows.some((entry) => entry.kind.startsWith("task.") && entry.entityId === task.id)) add("task", task.id);
       }
     }
     const mutations = rows.filter((row) => row.accountId === mutation.accountId && entities.has(`${row.kind.split(".")[0]}:${row.entityId}`)) as PendingSyncMutation[];
@@ -3173,9 +3180,13 @@ export class CoreStore {
       // A pull may already have advanced past the conflicting remote edit.
       // Resetting its checkpoints is part of discarding the optimistic writes.
       if (context.mutation.accountId) this.resetGoogleSyncTokens(context.mutation.accountId);
-      for (const entity of context.entities) {
-        this.statement(`DELETE FROM undo_entries WHERE json_extract(forward_json,'$.payload.id')=? OR json_extract(inverse_json,'$.payload.id')=?`).run(entity.id, entity.id);
+      const historyIds = new Set(context.entities.map((entity) => entity.id));
+      for (const entity of context.entities) for (const block of entity.local?.scheduledBlocks ?? []) historyIds.add(block.id);
+      for (const mutation of context.mutations) {
+        for (const block of mutation.payload.scheduledBlocks ?? []) historyIds.add(block.id);
+        for (const task of mutation.payload.deletedTasks ?? []) historyIds.add(task.id);
       }
+      for (const id of historyIds) this.statement(`DELETE FROM undo_entries WHERE json_extract(forward_json,'$.payload.id')=? OR json_extract(inverse_json,'$.payload.id')=?`).run(id, id);
     })();
     return { id: context.mutation.id, cancelled: true, affectedCount: context.mutations.length };
   }
@@ -3229,6 +3240,22 @@ export class CoreStore {
         if (entity.kind === "event") { this.unlinkScheduledTaskBlocks(entity.id); this.statement("DELETE FROM events WHERE id=?").run(entity.id); }
         if (entity.kind === "task") { this.statement("DELETE FROM scheduled_task_blocks WHERE task_id=?").run(entity.id); this.statement("UPDATE tasks SET parent_id=NULL WHERE parent_id=?").run(entity.id); this.statement("DELETE FROM tasks WHERE id=?").run(entity.id); }
         if (entity.kind === "taskList" && !this.statement("SELECT 1 FROM tasks WHERE list_id=?").get(entity.id)) { this.statement("UPDATE notes SET list_id=NULL WHERE list_id=?").run(entity.id); this.statement("DELETE FROM task_lists WHERE id=?").run(entity.id); }
+      }
+      for (const entity of context.entities.filter((entity) => entity.kind === "event")) {
+        const event = this.googleEventForSync(entity.id);
+        if (!event) continue;
+        const deleted = context.mutations.find((mutation) => mutation.entityId === entity.id && mutation.kind === "event.delete");
+        for (const block of deleted?.payload.scheduledBlocks ?? []) {
+          if (!this.googleTaskForSync(block.taskId)) continue;
+          this.statement(`INSERT OR IGNORE INTO scheduled_task_blocks(id,task_id,calendar_event_id,calendar_id,starts_at,ends_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`)
+            .run(block.id, block.taskId, event.id, event.calendarId, event.startsAt, event.endsAt, block.createdAt, block.updatedAt);
+        }
+        this.statement("UPDATE scheduled_task_blocks SET calendar_id=?,starts_at=?,ends_at=? WHERE calendar_event_id=?")
+          .run(event.calendarId, event.startsAt, event.endsAt, event.id);
+        for (const block of this.scheduledBlocksForEvent(event.id)) {
+          const latest = this.statement("SELECT starts_at AS startsAt,ends_at AS endsAt FROM scheduled_task_blocks WHERE task_id=? ORDER BY updated_at DESC,rowid DESC LIMIT 1").get(block.taskId) as JsonRecord;
+          this.statement("UPDATE tasks SET planned_start=?,planned_end=? WHERE id=?").run(latest.startsAt, latest.endsAt, block.taskId);
+        }
       }
       return result;
     })();
