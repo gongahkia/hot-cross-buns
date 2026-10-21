@@ -84,12 +84,8 @@ function PageContent({ isWideLayout }: PageContentProps) {
   /** Calendar sidebar overlay state (phones); starts closed */
   const [leftOverlayOpen, setLeftOverlayOpen] = React.useState(false);
   const viewportWidth = useViewportWidth();
-  const [leftWidth, setLeftWidth] = React.useState(240);
   const [rightWidth, setRightWidth] = React.useState(288);
-  // Inline panels each occupy at most 35%, leaving at least 30% for the calendar.
-  const leftMaxWidth = Math.floor(
-    Math.min(480, viewportWidth * (isMobile ? 0.85 : 0.35)),
-  );
+  // Keep room for the calendar beside the fixed 240px calendar sidebar.
   const rightMaxWidth = Math.floor(
     Math.min(600, viewportWidth * (isWideLayout ? 0.35 : 0.85)),
   );
@@ -601,10 +597,6 @@ function PageContent({ isWideLayout }: PageContentProps) {
       />
       {!settingsOpen && (
         <SidebarRight
-          width={Math.min(leftWidth, leftMaxWidth)}
-          minWidth={Math.min(200, leftMaxWidth)}
-          maxWidth={leftMaxWidth}
-          onWidthChange={setLeftWidth}
           accounts={accounts}
           onCalendarVisibilityChange={toggleCalendarVisibility}
           open={leftSidebarVisible}

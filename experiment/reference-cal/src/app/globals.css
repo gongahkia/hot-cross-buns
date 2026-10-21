@@ -261,7 +261,6 @@ html.dark,
   --sidebar-width-duration: var(--sidebar-motion-duration);
 }
 
-.calendar-sidebar[data-resizing="true"],
 .context-sidebar[data-resizing="true"] {
   --sidebar-width-duration: 0ms;
 }
@@ -337,7 +336,6 @@ html.dark,
 .sidebar-resize-handle:is(:hover, :focus-visible)::after {
   opacity: 1;
 }
-.calendar-sidebar[data-resizing="true"] .sidebar-resize-handle::after,
 .context-sidebar[data-resizing="true"] .sidebar-resize-handle::after {
   opacity: 1;
 }

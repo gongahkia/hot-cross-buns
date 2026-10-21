@@ -14,14 +14,10 @@ import { cn } from "@/lib/utils";
 import { Calendars } from "@/components/calendars";
 import { DatePicker } from "@/components/date-picker";
 import { SidebarOverlay } from "@/components/sidebar-overlay";
-import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import type {
-  CalendarAccount,
-  SidebarSizingProps,
-} from "@/components/week-view-types";
+import type { CalendarAccount } from "@/components/week-view-types";
 import {
   SidebarContent,
   SidebarFooter,
@@ -38,7 +34,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface SidebarRightProps extends SidebarSizingProps {
+const SIDEBAR_WIDTH = "15rem";
+
+interface SidebarRightProps {
   accounts: CalendarAccount[];
   onCalendarVisibilityChange: (
     accountEmail: string,
@@ -67,14 +65,9 @@ export function SidebarRight({
   visibleDays,
   onOpenSettings,
   showWeekNumbers,
-  width,
-  minWidth,
-  maxWidth,
-  onWidthChange,
 }: SidebarRightProps) {
-  const [resizing, setResizing] = React.useState(false);
   const sidebarStyle = {
-    "--sidebar-width": `${width}px`,
+    "--sidebar-width": SIDEBAR_WIDTH,
   } as React.CSSProperties;
 
   const content = (
@@ -155,14 +148,6 @@ export function SidebarRight({
           </Tooltip>
         </div>
       </SidebarFooter>
-      <SidebarResizeHandle
-        side="left"
-        width={width}
-        minWidth={minWidth}
-        maxWidth={maxWidth}
-        onWidthChange={onWidthChange}
-        onResizingChange={setResizing}
-      />
     </>
   );
 
@@ -197,7 +182,6 @@ export function SidebarRight({
     <div
       data-state={open ? "expanded" : "collapsed"}
       className="calendar-sidebar text-sidebar-foreground group peer hidden md:block"
-      data-resizing={resizing}
       style={sidebarStyle}
     >
       {/* Gap element that handles the space transition */}
