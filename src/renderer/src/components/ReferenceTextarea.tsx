@@ -5,7 +5,7 @@ import {
   useRef,
   useState
 } from "react";
-import type { KeyboardEvent, Ref, TextareaHTMLAttributes } from "react";
+import type { KeyboardEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
 import { FileUp, FolderSearch, Link2, Search, X } from "lucide-react";
 import type { GoogleStatusResponse } from "@shared/ipc/contracts";
 import { googleScopes, hasGoogleScope } from "../googleCapabilities";
@@ -25,9 +25,14 @@ interface ReferenceItem {
   subtitle?: string;
 }
 
-interface QueryRange {
+export interface QueryRange {
   end: number;
   start: number;
+}
+
+export interface ReferenceInputBindings {
+  onQuery: (query: { query: string; range: QueryRange } | null) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }
 
 const maxRecentReferences = 12;
@@ -132,8 +137,11 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
   accountId?: string;
   onValueChange: (value: string) => void;
   showControls?: boolean;
+  renderInput?: (bindings: ReferenceInputBindings) => ReactNode;
+  getSelection?: () => QueryRange;
+  insertReference?: (markdown: string, selection: QueryRange) => void;
 }>(
-  function ReferenceTextarea({ accountId, className, onKeyDown, onSelect, onValueChange, showControls = true, value = "", ...props }, ref) {
+  function ReferenceTextarea({ accountId, className, onKeyDown, onSelect, onValueChange, showControls = true, value = "", renderInput, getSelection, insertReference, ...props }, ref) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const searchRef = useRef<HTMLInputElement | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -148,10 +156,11 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     const [range, setRange] = useState<QueryRange | null>(null);
     const [recent, setRecent] = useState<ReferenceItem[]>([]);
     const [uploading, setUploading] = useState(false);
+    useEffect(() => { if (props.disabled) setIsOpen(false); }, [props.disabled]);
 
     useEffect(() => {
       let cancelled = false;
-      void window.hcb?.settings.get().then((result) => {
+      void window.hcb?.settings?.get().then((result) => {
         if (!cancelled && result?.ok) setRecent(recentReferences(result.data.referenceRecents));
       });
       return () => { cancelled = true; };
@@ -159,7 +168,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
 
     useEffect(() => {
       let cancelled = false;
-      void window.hcb?.google.status().then((result) => {
+      void window.hcb?.google?.status().then((result) => {
         if (cancelled || !result?.ok) return;
         const capabilities = driveCapabilities(result.data, accountId);
         setCanSearchDrive(capabilities.canSearch);
@@ -177,7 +186,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
       let cancelled = false;
       const timer = window.setTimeout(() => {
         if (canSearchDrive && (mode === "all" || mode === "drive")) {
-          void window.hcb?.google.searchDriveFiles({ accountId, query: pickerQuery }).then((result) => {
+          void window.hcb?.google?.searchDriveFiles({ accountId, query: pickerQuery }).then((result) => {
             if (cancelled) return;
             if (!result?.ok) {
               setDriveItems([]);
@@ -191,7 +200,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           setDriveItems([]);
         }
         if (mode === "all" || mode === "hcb") {
-          void window.hcb?.search.query({ query: pickerQuery, limit: 8 }).then((result) => {
+          void window.hcb?.search?.query({ query: pickerQuery, limit: 8 }).then((result) => {
             if (cancelled) return;
             if (!result?.ok) {
               setHcbItems([]);
@@ -227,7 +236,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     function openPicker(nextMode: PickerSource, focusSearch = true): void {
       const element = textareaRef.current;
       const cursor = element?.selectionStart ?? String(value).length;
-      setRange({ start: element?.selectionStart ?? cursor, end: element?.selectionEnd ?? cursor });
+      setRange(getSelection?.() ?? { start: element?.selectionStart ?? cursor, end: element?.selectionEnd ?? cursor });
       setPickerQuery("");
       setMode(nextMode);
       setMessage(null);
@@ -259,7 +268,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     function remember(item: ReferenceItem): void {
       const next = distinct([item, ...recent]).slice(0, maxRecentReferences);
       setRecent(next);
-      void window.hcb?.settings.update({ referenceRecents: next.map((entry) => ({
+      void window.hcb?.settings?.update({ referenceRecents: next.map((entry) => ({
         source: entry.source,
         id: entry.id,
         ...(entry.fileId ? { fileId: entry.fileId } : {}),
@@ -275,7 +284,8 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
       const marker = markerFor(item);
       const nextValue = `${String(value).slice(0, selection.start)}${marker}${String(value).slice(selection.end)}`;
       const nextCursor = selection.start + marker.length;
-      onValueChange(nextValue);
+      if (insertReference) insertReference(marker, selection);
+      else onValueChange(nextValue);
       remember(item);
       setIsOpen(false);
       setMessage(null);
@@ -289,7 +299,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
       if (!canUploadDrive) return;
       setUploading(true);
       setMessage("Choose a file to upload privately to Drive…");
-      const result = await window.hcb?.google.pickAndUploadDriveFile({ accountId });
+      const result = await window.hcb?.google?.pickAndUploadDriveFile({ accountId });
       setUploading(false);
       if (!result?.ok) {
         setMessage(result?.error.message ?? "The file could not be uploaded to Drive.");
@@ -307,7 +317,10 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
       choose(item);
     }
 
-    function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    function handleKeyDown(event: KeyboardEvent<HTMLElement>): void {
+      if (isOpen && event.key === "Escape") {
+        event.preventDefault(); event.stopPropagation(); setIsOpen(false); return;
+      }
       if (isOpen && choices.length > 0) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -330,7 +343,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           return;
         }
       }
-      onKeyDown?.(event);
+      if (!renderInput) onKeyDown?.(event as KeyboardEvent<HTMLTextAreaElement>);
     }
 
     function renderItem(item: ReferenceItem, index: number): JSX.Element {
@@ -363,7 +376,10 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
 
     return (
       <div className="relative grid min-w-0 gap-2">
-        <EmojiTextarea
+        {renderInput ? renderInput({ onKeyDown: handleKeyDown, onQuery: (query) => {
+          if (!query) { if (range && range.start < range.end) setIsOpen(false); return; }
+          setRange(query.range); setPickerQuery(query.query); setMode("all"); setMessage(null); setIsOpen(true);
+        } }) : <EmojiTextarea
           className={className}
           onKeyDown={handleKeyDown}
           onSelect={(event) => {
@@ -374,7 +390,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           ref={(node) => { textareaRef.current = node; setRef(node, ref); }}
           value={value}
           {...props}
-        />
+        />}
         {showControls ? <div className="flex flex-wrap items-center gap-1.5" aria-label="Insert reference">
           {canSearchDrive ? <Button onClick={() => openPicker("drive")} size="sm" type="button" variant="secondary"><FolderSearch aria-hidden="true" size={14} />Drive</Button> : null}
           <Button onClick={() => openPicker("hcb")} size="sm" type="button" variant="secondary"><Link2 aria-hidden="true" size={14} />HCB item</Button>
@@ -382,7 +398,7 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
           <span className="text-[var(--text-xs)] text-text-muted">Type <kbd className="rounded border border-border bg-surface-0 px-1 font-mono">@</kbd> to insert a reference.</span>
         </div> : null}
         {isOpen ? (
-          <div className="absolute inset-x-0 top-[calc(100%+4px)] z-[1002] grid max-h-[min(28rem,60vh)] overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl" role="dialog" aria-label="Insert reference">
+          <div className="absolute inset-x-0 bottom-0 z-[1002] grid max-h-[min(28rem,60vh)] overflow-auto rounded-hcbMd border border-border bg-surface-0 p-1 shadow-xl" role="dialog" aria-label="Insert reference" onKeyDown={handleKeyDown}>
             <div className="flex items-center gap-1 border-b border-border p-1">
               <Search aria-hidden="true" className="ml-1 text-text-muted" size={14} />
               <input aria-label="Search references" className="h-8 min-w-0 flex-1 bg-transparent px-1 text-[var(--text-sm)] text-text-primary outline-none placeholder:text-text-muted" onChange={(event) => setPickerQuery(event.currentTarget.value)} placeholder={canSearchDrive ? "Search Drive or Hot Cross Buns" : "Search Hot Cross Buns"} ref={searchRef} value={pickerQuery} />

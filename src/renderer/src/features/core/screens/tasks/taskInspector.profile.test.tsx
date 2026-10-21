@@ -72,7 +72,9 @@ describe("Task inspector draft persistence", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
-    const notes = await screen.findByRole("textbox", { name: "Task notes" });
+    await screen.findByRole("textbox", { name: "Task notes" });
+    fireEvent.click(await screen.findByRole("button", { name: "Source" }));
+    const notes = screen.getByRole("textbox", { name: "Task notes" });
 
     fireEvent.change(title, { target: { value: "Write release notes" } });
     fireEvent.change(notes, { target: { value: "Keep this local until Save." } });
@@ -157,7 +159,9 @@ describe("Task inspector draft persistence", () => {
     fireEvent.click(task);
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
-    const notes = await screen.findByRole("textbox", { name: "Task notes" });
+    await screen.findByRole("textbox", { name: "Task notes" });
+    fireEvent.click(await screen.findByRole("button", { name: "Source" }));
+    const notes = screen.getByRole("textbox", { name: "Task notes" });
     fireEvent.change(title, { target: { value: "Revise inbox triage rules" } });
     fireEvent.change(notes, { target: { value: "Updated notes" } });
 
@@ -191,6 +195,7 @@ describe("Task inspector draft persistence", () => {
     const inspectorQueries = within(inspector);
     const title = inspectorQueries.getByRole("textbox", { name: "Task title" });
     const addTask = inspectorQueries.getByRole("button", { name: "Add task" });
+    await inspectorQueries.findByRole("textbox", { name: "Task notes" });
     await act(async () => {
       await Promise.resolve();
     });

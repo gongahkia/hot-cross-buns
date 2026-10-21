@@ -25,6 +25,8 @@ async function editOffscreenNote() {
   act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "note-outside-cache" } })));
   await screen.findByRole("button", { name: "Edit" });
   fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  await screen.findByRole("textbox", { name: "Note body" });
+  fireEvent.click(await screen.findByRole("button", { name: "Source" }));
   return screen.findByRole("textbox", { name: "Note body" });
 }
 
@@ -51,6 +53,7 @@ describe("Paged note editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "New note" }));
     const title = await screen.findByRole("textbox", { name: "Note title" });
     fireEvent.change(title, { target: { value: "Created once" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Source" }));
     const body = screen.getByRole("textbox", { name: "Note body" });
     fireEvent.change(body, { target: { value: "Keep this content" } });
     let finish: ((value: any) => void) | undefined;
@@ -61,6 +64,7 @@ describe("Paged note editing", () => {
     expect(title).toBeDisabled();
     await act(async () => { finish?.(ok({ id: "saved-note", listId: "list-inbox", title: "Created once", body: "Keep this content" })); });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Create note" })).toBeNull());
+    if (screen.queryByRole("button", { name: "Source" })) fireEvent.click(screen.getByRole("button", { name: "Source" }));
     expect(screen.getByRole("textbox", { name: "Note body" })).toHaveValue("Keep this content");
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Note body" }), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

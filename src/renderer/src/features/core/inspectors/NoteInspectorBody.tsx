@@ -12,7 +12,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AutoTagRule } from "@shared/ipc/contracts";
 import { useDirtyState, useInspector } from "../../../components/Inspector";
 import { EmojiInput } from "../../../components/EmojiTextField";
-import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
+import { MarkdownEditor } from "../../../components/MarkdownEditor";
 import { Badge, Button, cx } from "../../../components/primitives";
 import { AutoTagAudit } from "../AutoTagAudit";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
@@ -140,7 +140,6 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
     const { update } = useInspector();
     const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
     const [selectedTemplateId, setSelectedTemplateId] = useState("blank");
-    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const draftRef = useRef<NoteDraftValue>(dirty.value);
     const dirtyRef = useRef(dirty.isDirty);
     const lastNotifiedDraftRef = useRef<NoteDraftValue>(dirty.value);
@@ -358,11 +357,11 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           </div>
 
           {createMode || viewMode === "edit" ? (
-            <ReferenceTextarea
+            <MarkdownEditor
               aria-label="Note body"
               className="min-h-40 w-full resize-y rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               onValueChange={(body) => patchDraft({ body })}
-              ref={textareaRef}
+              disabled={saving}
               value={dirty.value.body}
             />
           ) : (

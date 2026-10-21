@@ -270,7 +270,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: id } })), fixture.firstNoteId);
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     const body = page.getByRole("textbox", { name: "Note body" });
-    expect((await body.inputValue()).length).toBeGreaterThan(4000);
+    expect((await body.innerText()).length).toBeGreaterThan(4000);
     await page.screenshot({ path: join(tmpdir(), "hcb-note-inspector-flat.png") });
     await page.keyboard.press("Escape");
     await page.screenshot({ path: join(tmpdir(), "hcb-notes-paged-after.png") });
@@ -283,7 +283,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
       window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } }));
     }, event.data.id);
     await page.getByRole("button", { name: "Edit", exact: true }).click();
-    expect((await page.getByRole("textbox", { name: "Event notes", exact: true }).inputValue()).length).toBeGreaterThan(4000);
+    expect((await page.getByRole("textbox", { name: "Event notes", exact: true }).innerText()).length).toBeGreaterThan(4000);
     await page.keyboard.press("Escape");
     await electronApp.close();
     electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });

@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { useTaskParentCandidates } from "../../../hooks/useTaskParentCandidates";
 import { useDirtyState } from "../../../components/Inspector";
 import { EmojiInput } from "../../../components/EmojiTextField";
-import { ReferenceTextarea } from "../../../components/ReferenceTextarea";
+import { MarkdownEditor } from "../../../components/MarkdownEditor";
 import { Badge, Button, cx, Input } from "../../../components/primitives";
 import type { useCoreViewModelSource } from "../coreViewModelSource";
 import type { CorePriority, TaskViewModel } from "../coreViewModels";
@@ -414,7 +414,7 @@ export function TaskInspectorBody({
         <Button onClick={() => patchDraft({ dueDate: taskDuePreset(7) })} size="sm" type="button" variant="secondary">Next week</Button>
         {dirty.value.dueDate ? <Button onClick={() => patchDraft({ dueDate: "" })} size="sm" type="button" variant="ghost">Clear</Button> : null}
       </div>
-      <ReferenceTextarea
+      <MarkdownEditor
         accountId={source.taskLists.find((taskList) => taskList.id === dirty.value.listId)?.accountId}
         aria-label="Task notes"
         className="min-h-20 w-full resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-base)] text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

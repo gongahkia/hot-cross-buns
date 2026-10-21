@@ -785,7 +785,7 @@ export function AppShell(): JSX.Element {
 
   useEffect(() => {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent): void {
-      if (onboardingVisible) return;
+      if (onboardingVisible || event.defaultPrevented) return;
 
       if (isEditableShortcutTarget(event.target) && !(event.metaKey || event.ctrlKey)) {
         return;

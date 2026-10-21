@@ -25,7 +25,7 @@ interface EmojiEntry {
 }
 
 let emojiEntriesPromise: Promise<EmojiEntry[]> | null = null;
-function loadEmojiEntries(): Promise<EmojiEntry[]> {
+export function loadEmojiEntries(): Promise<EmojiEntry[]> {
   emojiEntriesPromise ??= import("@emoji-mart/data").then(({ default: data }) => {
     return Object.entries(((data as { emojis?: Record<string, unknown> }).emojis ?? {}))
   .map(([id, value]) => {
