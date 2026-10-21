@@ -17,6 +17,8 @@ Token rules:
 - Renderer may receive sanitized connection status only.
 - OAuth errors must be translated into user-actionable messages.
 
+Credential changes serialize the complete read/modify/write of the encrypted envelope. Refreshes for one account share an in-flight request; different accounts may refresh concurrently and merge into the latest envelope. A completed refresh must not restore a disconnected or replaced authorization. A late `401` reuses a newer token when another request has already refreshed the rejected one. Failed writes leave the previous envelope intact and do not block later saves.
+
 ## Scopes
 
 Required Google scopes:

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createServer } from "node:http";
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { GoogleOptionalWorkspaceService } from "@shared/ipc/contracts";
 import { CoreStore, CoreStoreError } from "./coreStore";
@@ -70,6 +70,8 @@ export class GoogleOAuthController {
   private authorizationError: string | null = null;
   private reconfigurationInProgress = false;
   private readonly events = new EventEmitter();
+  private secretUpdates: Promise<void> = Promise.resolve();
+  private readonly tokenRequests = new Map<string, Promise<string>>();
 
   constructor(
     userDataDirectory: string,
@@ -81,11 +83,10 @@ export class GoogleOAuthController {
 
   async saveClient(input: Record<string, unknown>): Promise<Record<string, unknown>> {
     const clientId = requiredString(input.clientId, "OAuth client ID");
-    const existing = await this.readSecrets();
     const clientSecret = optionalString(input.clientSecret);
-    await this.writeSecrets({ ...existing, ...(clientSecret ? { clientSecret } : {}) });
+    const saved = await this.updateSecrets((current) => ({ ...current, ...(clientSecret ? { clientSecret } : {}) }));
     this.store.setOAuthClientId(clientId);
-    return { ...this.store.dispatch("google", "status"), hasClientSecret: Boolean(clientSecret ?? existing.clientSecret) };
+    return { ...this.store.dispatch("google", "status"), hasClientSecret: Boolean(saved.clientSecret) };
   }
 
   onConnectionChange(listener: () => void): () => void {
@@ -94,16 +95,17 @@ export class GoogleOAuthController {
   }
 
   async googleFetch(accountId: string, url: string | URL, init: RequestInit = {}): Promise<Response> {
+    const accessToken = await this.accessToken(accountId, false);
     let response = await fetch(url, {
       ...init,
-      headers: headersWithAuthorization(init.headers, await this.accessToken(accountId, false))
+      headers: headersWithAuthorization(init.headers, accessToken)
     });
 
     if (response.status !== 401) return response;
 
     response = await fetch(url, {
       ...init,
-      headers: headersWithAuthorization(init.headers, await this.accessToken(accountId, true))
+      headers: headersWithAuthorization(init.headers, await this.accessToken(accountId, true, accessToken))
     });
     return response;
   }
@@ -159,9 +161,11 @@ export class GoogleOAuthController {
         throw new CoreStoreError("Google could not reset this authorization. Your existing connection was left unchanged; try again.");
       }
 
-      const accounts = { ...(secrets.accounts ?? {}) };
-      delete accounts[accountId];
-      await this.writeSecrets({ clientSecret: secrets.clientSecret, accounts });
+      await this.updateSecrets((current) => {
+        const accounts = { ...(current.accounts ?? {}) };
+        delete accounts[accountId];
+        return { ...current, accounts };
+      });
       // This preserves the cache while making its Google connection unavailable
       // until the replacement consent flow completes.
       this.store.removeGoogleAccount(accountId);
@@ -230,19 +234,14 @@ export class GoogleOAuthController {
 
   async disconnect(input: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     const accountId = optionalString(input.accountId);
-    const secrets = await this.readSecrets();
-    const accounts = { ...(secrets.accounts ?? {}) };
-    if (accountId) {
-      delete accounts[accountId];
-      this.store.removeGoogleAccount(accountId);
-    } else {
-      for (const account of this.store.googleAccounts()) {
-        if (account.accountId === "local") continue;
-        delete accounts[account.accountId];
-        this.store.removeGoogleAccount(account.accountId);
-      }
-    }
-    await this.writeSecrets({ clientSecret: secrets.clientSecret, accounts });
+    const removedAccountIds = accountId ? [accountId] : this.store.googleAccounts()
+      .filter((account) => account.accountId !== "local").map((account) => account.accountId);
+    await this.updateSecrets((current) => {
+      const accounts = { ...(current.accounts ?? {}) };
+      for (const id of removedAccountIds) delete accounts[id];
+      return { ...current, accounts };
+    });
+    for (const id of removedAccountIds) this.store.removeGoogleAccount(id);
     this.events.emit("connection-change");
     return this.status();
   }
@@ -296,18 +295,31 @@ export class GoogleOAuthController {
     const identityResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } });
     const identity = identityResponse.ok ? await identityResponse.json() as { id?: string; email?: string; name?: string; picture?: string } : {};
     const account = this.store.upsertGoogleAccount({ googleAccountId: identity.id ?? `unknown-${randomBytes(8).toString("hex")}`, email: identity.email ?? null, displayName: identity.name ?? identity.email ?? "Google account", avatarUrl: identity.picture ?? null, connectionState: "connected", missingScopes: [], grantedScopes: token.scope?.split(/\s+/).filter(Boolean) ?? requestedScopes });
-    await this.writeSecrets({ ...secrets, accounts: { ...(secrets.accounts ?? {}), [account.accountId]: { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } } });
+    await this.updateSecrets((current) => ({ ...current, accounts: { ...(current.accounts ?? {}), [account.accountId]: { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } } }));
     // Tokens are safely persisted now, so the starter-only workspace can be
     // retired without risking a Google connection that cannot be restored.
     this.store.retireLocalFallback();
     this.events.emit("connection-change");
   }
 
-  private async accessToken(accountId: string, forceRefresh: boolean): Promise<string> {
+  private async accessToken(accountId: string, forceRefresh: boolean, rejectedToken?: string): Promise<string> {
+    await this.secretUpdates;
     const secrets = await this.readSecrets();
+    const inFlight = this.tokenRequests.get(accountId);
+    if (inFlight) return inFlight;
     const accountSecrets = secrets.accounts?.[accountId];
     const expiresSoon = !accountSecrets?.expiresAt || accountSecrets.expiresAt <= Date.now() + 60_000;
-    if (!forceRefresh && accountSecrets?.accessToken && !expiresSoon) return accountSecrets.accessToken;
+    // Another request may already have refreshed the token rejected by this
+    // request's 401 response. Reuse that newer credential instead of rotating again.
+    if ((!forceRefresh || (rejectedToken && rejectedToken !== accountSecrets?.accessToken)) && accountSecrets?.accessToken && !expiresSoon) return accountSecrets.accessToken;
+    const request = this.refreshAccessToken(accountId, secrets);
+    this.tokenRequests.set(accountId, request);
+    try { return await request; }
+    finally { if (this.tokenRequests.get(accountId) === request) this.tokenRequests.delete(accountId); }
+  }
+
+  private async refreshAccessToken(accountId: string, secrets: SecretPayload): Promise<string> {
+    const accountSecrets = secrets.accounts?.[accountId];
     if (!accountSecrets?.refreshToken) throw new CoreStoreError("Google is not connected. Connect an account before syncing.");
     const clientId = this.store.oauthClientId();
     if (!clientId) throw new CoreStoreError("Google OAuth client configuration is missing.");
@@ -328,9 +340,15 @@ export class GoogleOAuthController {
     }
     const token = await response.json() as { access_token?: string; expires_in?: number };
     if (!token.access_token) throw new CoreStoreError("Google did not return an access token.");
-    await this.writeSecrets({
-      ...secrets,
-      accounts: { ...(secrets.accounts ?? {}), [accountId]: { ...accountSecrets, accessToken: token.access_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } }
+    await this.updateSecrets((current) => {
+      const account = current.accounts?.[accountId];
+      if (!account || account.refreshToken !== accountSecrets.refreshToken || this.store.oauthClientId() !== clientId) {
+        throw new CoreStoreError("Google authorization changed while refreshing. Reconnect or try again.");
+      }
+      return {
+        ...current,
+        accounts: { ...(current.accounts ?? {}), [accountId]: { ...account, accessToken: token.access_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000 } }
+      };
     });
     return token.access_token;
   }
@@ -348,6 +366,18 @@ export class GoogleOAuthController {
     }
   }
 
+  /** Serialize the entire read/modify/write, so one account cannot erase another. */
+  private updateSecrets(update: (current: SecretPayload) => SecretPayload): Promise<SecretPayload> {
+    const operation = this.secretUpdates.then(async () => {
+      const next = update(await this.readSecrets());
+      await this.writeSecrets(next);
+      return next;
+    });
+    // A failed write must not poison later attempts to save credentials.
+    this.secretUpdates = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
   private async writeSecrets(payload: SecretPayload): Promise<void> {
     if (!await this.platform.isEncryptionAvailable()) {
       throw new CoreStoreError("OS credential encryption is unavailable on this device.");
@@ -355,9 +385,13 @@ export class GoogleOAuthController {
     const directory = dirname(this.credentialPath);
     await mkdir(directory, { recursive: true, mode: 0o700 });
     await chmod(directory, 0o700);
-    const temporary = `${this.credentialPath}.tmp`;
-    await writeFile(temporary, await this.platform.encryptString(JSON.stringify(payload)), { mode: 0o600 });
-    await rename(temporary, this.credentialPath);
+    const temporary = `${this.credentialPath}.${randomBytes(12).toString("hex")}.tmp`;
+    try {
+      await writeFile(temporary, await this.platform.encryptString(JSON.stringify(payload)), { mode: 0o600, flag: "wx" });
+      await rename(temporary, this.credentialPath);
+    } finally {
+      await rm(temporary, { force: true });
+    }
   }
 }
 

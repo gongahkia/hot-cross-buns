@@ -1,8 +1,8 @@
 import { get } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const electronMocks = vi.hoisted(() => ({
   decryptString: vi.fn<(value: Buffer) => string>(),
@@ -20,6 +20,37 @@ const testPlatform = {
 
 import { GoogleOAuthController } from "./googleOAuth";
 
+const credentialDirectories: string[] = [];
+function credentialFixture() {
+  const directory = mkdtempSync(join(tmpdir(), "hcb-credential-race-"));
+  credentialDirectories.push(directory);
+  const path = join(directory, "credentials-v1.bin");
+  writeFileSync(path, JSON.stringify({ clientSecret: "original-client-secret", accounts: {
+    a: { refreshToken: "refresh-a", accessToken: "old-a", expiresAt: 0 },
+    b: { refreshToken: "refresh-b", accessToken: "old-b", expiresAt: 0 }
+  } }));
+  const platform = {
+    isEncryptionAvailable: () => true,
+    decryptString: (value: Uint8Array) => Buffer.from(value).toString(),
+    encryptString: vi.fn(async (value: string) => Buffer.from(value)),
+    openExternal: async () => undefined
+  };
+  const store = {
+    oauthClientId: () => "client-id",
+    setOAuthClientId: vi.fn(), dispatch: () => ({}),
+    googleAccounts: () => [{ accountId: "a" }, { accountId: "b" }],
+    removeGoogleAccount: vi.fn(), updateGoogleAccountState: vi.fn(),
+    upsertGoogleAccount: () => ({ accountId: "c" }), retireLocalFallback: vi.fn()
+  };
+  const controller = new GoogleOAuthController(directory, store as never, platform);
+  const read = () => JSON.parse(readFileSync(path, "utf8"));
+  return { controller, store, platform, read, directory, path };
+}
+
+afterEach(() => {
+  for (const directory of credentialDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
+
 function requestCallback(url: URL): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     get(url, (response) => {
@@ -30,6 +61,115 @@ function requestCallback(url: URL): Promise<number | undefined> {
 }
 
 describe("GoogleOAuthController", () => {
+  it("coalesces same-account refreshes and preserves concurrent refreshes for different accounts", async () => {
+    const { controller, read } = credentialFixture();
+    const responses = new Map<string, (response: Response) => void>();
+    const tokenCalls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (String(url) === "https://oauth2.googleapis.com/token") {
+        const refreshToken = new URLSearchParams(String(init?.body)).get("refresh_token")!;
+        tokenCalls.push(refreshToken);
+        return new Promise<Response>((resolve) => { responses.set(refreshToken, resolve); });
+      }
+      return new Response(null, { status: 200 });
+    });
+    const requests = Promise.all([
+      controller.googleFetch("a", "https://example.test/first"),
+      controller.googleFetch("b", "https://example.test/second"),
+      controller.googleFetch("a", "https://example.test/third")
+    ]);
+    await vi.waitFor(() => expect(responses.size).toBe(2));
+    responses.get("refresh-b")!(Response.json({ access_token: "new-b", expires_in: 3600 }));
+    responses.get("refresh-a")!(Response.json({ access_token: "new-a", expires_in: 3600 }));
+    await requests;
+    expect(tokenCalls.sort()).toEqual(["refresh-a", "refresh-b"]);
+    expect(read()).toMatchObject({ clientSecret: "original-client-secret", accounts: {
+      a: { accessToken: "new-a", refreshToken: "refresh-a" }, b: { accessToken: "new-b", refreshToken: "refresh-b" }
+    } });
+  });
+
+  it("retains a client-secret edit made while a refresh is in flight", async () => {
+    const { controller, read } = credentialFixture();
+    let finishRefresh!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => String(url).endsWith("/token")
+      ? new Promise<Response>((resolve) => { finishRefresh = resolve; })
+      : new Response(null, { status: 200 }));
+    const request = controller.googleFetch("a", "https://example.test/resource");
+    await vi.waitFor(() => expect(finishRefresh).toBeTypeOf("function"));
+    await controller.saveClient({ clientId: "client-id", clientSecret: "edited-client-secret" });
+    finishRefresh(Response.json({ access_token: "new-a", expires_in: 3600 }));
+    await request;
+    expect(read()).toMatchObject({ clientSecret: "edited-client-secret", accounts: { a: { accessToken: "new-a" }, b: { refreshToken: "refresh-b" } } });
+  });
+
+  it("does not restore credentials disconnected during an in-flight refresh", async () => {
+    const { controller, read, store } = credentialFixture();
+    let finishRefresh!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Promise<Response>((resolve) => { finishRefresh = resolve; }));
+    const request = controller.googleFetch("a", "https://example.test/resource");
+    await vi.waitFor(() => expect(finishRefresh).toBeTypeOf("function"));
+    await controller.disconnect({ accountId: "a" });
+    const rejected = expect(request).rejects.toThrow("authorization changed");
+    finishRefresh(Response.json({ access_token: "stale-refresh-result", expires_in: 3600 }));
+    await rejected;
+    expect(read().accounts).not.toHaveProperty("a");
+    expect(read().accounts.b.refreshToken).toBe("refresh-b");
+    expect(store.removeGoogleAccount).toHaveBeenCalledWith("a");
+  });
+
+  it("recovers after a credential write fails and removes temporary files", async () => {
+    const { controller, platform, read, directory } = credentialFixture();
+    platform.encryptString.mockRejectedValueOnce(new Error("Simulated encryption failure"));
+    await expect(controller.saveClient({ clientId: "client-id", clientSecret: "failed-edit" })).rejects.toThrow("Simulated encryption failure");
+    expect(read().clientSecret).toBe("original-client-secret");
+    await controller.saveClient({ clientId: "client-id", clientSecret: "successful-edit" });
+    expect(read()).toMatchObject({ clientSecret: "successful-edit", accounts: { a: { refreshToken: "refresh-a" }, b: { refreshToken: "refresh-b" } } });
+    expect(readdirSync(directory)).toEqual(["credentials-v1.bin"]);
+  });
+
+  it("reuses an already refreshed token when another request returns a late 401", async () => {
+    const { controller, path, read } = credentialFixture();
+    const secrets = read();
+    secrets.accounts.a.expiresAt = Date.now() + 3_600_000;
+    writeFileSync(path, JSON.stringify(secrets));
+    let late401!: (response: Response) => void;
+    let refreshes = 0;
+    const authorizations: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/token")) { refreshes += 1; return Response.json({ access_token: "new-a", expires_in: 3600 }); }
+      const authorization = new Headers(init?.headers).get("authorization")!;
+      authorizations.push(authorization);
+      if (authorization === "Bearer new-a") return new Response(null, { status: 200 });
+      if (String(url).endsWith("/late")) return new Promise<Response>((resolve) => { late401 = resolve; });
+      return new Response(null, { status: 401 });
+    });
+    const first = controller.googleFetch("a", "https://example.test/first");
+    const late = controller.googleFetch("a", "https://example.test/late");
+    expect((await first).status).toBe(200);
+    await vi.waitFor(() => expect(late401).toBeTypeOf("function"));
+    late401(new Response(null, { status: 401 }));
+    expect((await late).status).toBe(200);
+    expect(refreshes).toBe(1);
+    expect(authorizations.filter((value) => value === "Bearer new-a")).toHaveLength(2);
+  });
+
+  it("merges completed authorization into current credentials instead of restoring a disconnected account", async () => {
+    const { controller, read } = credentialFixture();
+    let finishExchange!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => String(url).endsWith("/token")
+      ? new Promise<Response>((resolve) => { finishExchange = resolve; })
+      : Response.json({ id: "google-c", email: "c@example.test" }));
+    const internal = controller as unknown as {
+      completeAuthorization: (authorization: { callback: { waitForCode: () => Promise<string> }; clientId: string; redirectUri: string; requestedScopes: string[]; verifier: string }, attempt: { cancelled: boolean }) => Promise<void>;
+    };
+    const connecting = internal.completeAuthorization({ callback: { waitForCode: async () => "code" }, clientId: "client-id", redirectUri: "http://127.0.0.1/callback", requestedScopes: [], verifier: "verifier" }, { cancelled: false });
+    await vi.waitFor(() => expect(finishExchange).toBeTypeOf("function"));
+    await controller.disconnect({ accountId: "b" });
+    finishExchange(Response.json({ access_token: "access-c", refresh_token: "refresh-c", expires_in: 3600 }));
+    await connecting;
+    expect(Object.keys(read().accounts).sort()).toEqual(["a", "c"]);
+  });
+
   it("sends the OAuth bearer token without dropping existing headers", async () => {
     const store = {
       dispatch: vi.fn(() => ({ accounts: [], hasClientSecret: false, oauthClientConfigured: true })),
