@@ -22,6 +22,7 @@ async function main() {
       return page;
     };
     let page = await launch();
+    await expect(page.getByRole("dialog", { name: "Hot Cross Buns", exact: true })).toBeVisible();
     const fixture = await page.evaluate(async () => {
       const settings = await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", notificationsEnabled: false });
       const note = await window.hcb!.notes.create({ title: "Packaged persistence", body: "# Preserved\n\nLocal **Markdown**." });
@@ -34,6 +35,17 @@ async function main() {
     });
     expect(existsSync(fixture.backupPath)).toBe(true);
     await page.evaluate(() => window.dispatchEvent(new Event("hcb:core-data-invalidated")));
+    await expect(page.getByRole("dialog", { name: "Hot Cross Buns", exact: true })).toBeHidden();
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
+    await page.getByRole("button", { name: "Open note Packaged persistence", exact: true }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Note body" }).getByRole("heading", { name: "Preserved" })).toBeVisible();
+    await page.getByRole("button", { name: "Source", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Note body" })).toHaveValue("# Preserved\n\nLocal **Markdown**.");
+    await page.getByRole("button", { name: "Visual", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
+    await expect(page.getByRole("button", { name: "New event", exact: true })).toBeVisible();
     await page.waitForFunction(async () => {
       const result = await window.hcb!.native.capabilities({});
       return result.ok && result.data.deferredStartup.state === "complete";
@@ -104,7 +116,7 @@ db.close();`);
     expect(JSON.parse(inspect("inspect")).tokens).toEqual(expect.arrayContaining([
       { key: "google-sync-token:fixture:events:calendar", value: "new-calendar-token" }
     ]));
-    console.log("Packaged ASAR launch, native SQLite worker, backup integrity, native menu/deep link, restart persistence, and v8→v9 upgrade passed.");
+    console.log("Packaged ASAR launch, deferred rich editor, native SQLite worker, backup integrity, native menu/deep link, restart persistence, and v8→v9 upgrade passed.");
   } finally {
     await application?.close();
     rmSync(root, { recursive: true, force: true });
