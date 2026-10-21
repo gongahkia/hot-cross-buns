@@ -250,3 +250,116 @@ html.dark,
 .column-highlight {
   animation: column-highlight-fade 2s ease-out forwards;
 }
+
+:root {
+  --sidebar-motion-duration: 240ms;
+  --sidebar-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.calendar-sidebar,
+.context-sidebar {
+  --sidebar-width-duration: var(--sidebar-motion-duration);
+}
+
+.calendar-sidebar[data-resizing="true"],
+.context-sidebar[data-resizing="true"] {
+  --sidebar-width-duration: 0ms;
+}
+
+.calendar-sidebar-gap,
+.context-sidebar [data-slot="sidebar-gap"] {
+  transition: width var(--sidebar-width-duration) var(--sidebar-motion-easing);
+}
+
+.calendar-sidebar-panel,
+.context-sidebar [data-slot="sidebar-container"] {
+  transition:
+    transform var(--sidebar-motion-duration) var(--sidebar-motion-easing),
+    width var(--sidebar-width-duration) var(--sidebar-motion-easing);
+}
+
+.calendar-sidebar[data-state="collapsed"] .calendar-sidebar-panel {
+  transform: translateX(-100%);
+}
+
+.context-sidebar [data-slot="sidebar-container"] {
+  right: 0;
+}
+
+.context-sidebar[data-state="collapsed"] [data-slot="sidebar-container"] {
+  transform: translateX(100%);
+}
+
+.sidebar-overlay-panel {
+  animation-duration: var(--sidebar-motion-duration);
+  animation-timing-function: var(--sidebar-motion-easing);
+  transition-property: transform, width;
+  transition-duration:
+    var(--sidebar-motion-duration), var(--sidebar-width-duration, 0ms);
+  transition-timing-function: var(--sidebar-motion-easing);
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 40;
+  width: 12px;
+  touch-action: none;
+  cursor: col-resize;
+  outline: none;
+}
+
+.sidebar-resize-handle[data-side="left"] {
+  right: 0;
+}
+.sidebar-resize-handle[data-side="right"] {
+  left: 0;
+}
+
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ring);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.sidebar-resize-handle[data-side="left"]::after {
+  right: 0;
+}
+.sidebar-resize-handle[data-side="right"]::after {
+  left: 0;
+}
+.sidebar-resize-handle:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}
+.calendar-sidebar[data-resizing="true"] .sidebar-resize-handle::after,
+.context-sidebar[data-resizing="true"] .sidebar-resize-handle::after {
+  opacity: 1;
+}
+.sidebar-resize-handle:focus-visible::after {
+  width: 3px;
+}
+
+body[data-sidebar-resizing="true"] * {
+  cursor: col-resize;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-sidebar-gap,
+  .calendar-sidebar-panel,
+  .context-sidebar [data-slot="sidebar-gap"],
+  .context-sidebar [data-slot="sidebar-container"],
+  .sidebar-resize-handle::after,
+  .sidebar-overlay-panel {
+    transition: none;
+  }
+  .sidebar-overlay-panel {
+    animation: none;
+  }
+}

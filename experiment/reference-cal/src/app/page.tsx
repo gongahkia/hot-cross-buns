@@ -11,7 +11,7 @@ import {
 import { addDays, addMonths, format, startOfDay, startOfWeek } from "date-fns";
 import { useTheme } from "next-themes";
 import { useIsClient } from "@/hooks/use-is-client";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { useMediaQuery, useViewportWidth } from "@/hooks/use-media-query";
 import { generateMockEvents } from "@/lib/mock-events";
 import { SAMPLE_ACCOUNTS, SAMPLE_ACCOUNT_EMAIL } from "@/lib/sample-account";
 import { shiftVisibleDate, filterCalendarEvents } from "@/lib/calendar-view";
@@ -83,6 +83,16 @@ function PageContent({ isWideLayout }: PageContentProps) {
   const [leftSidebarOpen, setLeftSidebarOpen] = React.useState(true);
   /** Calendar sidebar overlay state (phones); starts closed */
   const [leftOverlayOpen, setLeftOverlayOpen] = React.useState(false);
+  const viewportWidth = useViewportWidth();
+  const [leftWidth, setLeftWidth] = React.useState(240);
+  const [rightWidth, setRightWidth] = React.useState(288);
+  // Inline panels each occupy at most 35%, leaving at least 30% for the calendar.
+  const leftMaxWidth = Math.floor(
+    Math.min(480, viewportWidth * (isMobile ? 0.85 : 0.35)),
+  );
+  const rightMaxWidth = Math.floor(
+    Math.min(600, viewportWidth * (isWideLayout ? 0.35 : 0.85)),
+  );
   // Close the overlay when leaving the phone layout, so it doesn't pop back
   // open the next time the viewport narrows
   const [prevIsMobile, setPrevIsMobile] = React.useState(isMobile);
@@ -581,6 +591,10 @@ function PageContent({ isWideLayout }: PageContentProps) {
       />
       {!settingsOpen && (
         <SidebarRight
+          width={Math.min(leftWidth, leftMaxWidth)}
+          minWidth={Math.min(200, leftMaxWidth)}
+          maxWidth={leftMaxWidth}
+          onWidthChange={setLeftWidth}
           accounts={accounts}
           onCalendarVisibilityChange={toggleCalendarVisibility}
           open={leftSidebarVisible}
@@ -616,6 +630,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
                       size="icon"
                       className="size-7 text-muted-foreground"
                       onClick={toggleLeftSidebar}
+                      aria-expanded={leftSidebarVisible}
                     >
                       <PanelLeftIcon />
                       <span className="sr-only">Toggle Calendar Sidebar</span>
@@ -712,9 +727,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
                         onClick={toggleSidebar}
                       >
                         <PanelRightIcon />
-                        <span className="sr-only">
-                          Toggle Navigation Sidebar
-                        </span>
+                        <span className="sr-only">Open context panel</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
@@ -774,6 +787,10 @@ function PageContent({ isWideLayout }: PageContentProps) {
       </SidebarInset>
       {!settingsOpen && (
         <SidebarLeft
+          width={Math.min(rightWidth, rightMaxWidth)}
+          minWidth={Math.min(260, rightMaxWidth)}
+          maxWidth={rightMaxWidth}
+          onWidthChange={setRightWidth}
           overlay={!isWideLayout}
           events={visibleEvents}
           selectedEvent={selectedEvent}

@@ -27,6 +27,13 @@ export interface CalendarAccount {
   calendars: CalendarItem[];
 }
 
+export interface SidebarSizingProps {
+  width: number;
+  minWidth: number;
+  maxWidth: number;
+  onWidthChange: (width: number) => void;
+}
+
 // Re-export all shared types for backward compatibility
 export type {
   ViewType,

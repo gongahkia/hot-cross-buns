@@ -26,18 +26,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { SidebarOverlay } from "@/components/sidebar-overlay";
+import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { eventColorStyles } from "./calendar-event-item";
 import { EventDetailPanel } from "./event-detail-panel";
 import { useEventTitleFocus } from "./event-title-focus-context";
-import type { CalendarEvent } from "./week-view-types";
-
-/** Width of the context panel when it renders as an overlay (shadcn sidebar default) */
-const OVERLAY_WIDTH = "18rem";
+import type { CalendarEvent, SidebarSizingProps } from "./week-view-types";
 
 /** Muted text color the context panel uses for labels and placeholders */
 const PANEL_MUTED_FOREGROUND = "#C7C5C1";
 
-interface SidebarLeftProps extends React.ComponentProps<typeof Sidebar> {
+interface SidebarLeftProps
+  extends React.ComponentProps<typeof Sidebar>, SidebarSizingProps {
   /** Render as a modal sheet instead of an inline column (phones and tablets) */
   overlay?: boolean;
   events?: CalendarEvent[];
@@ -138,6 +137,10 @@ export function SidebarLeft({
   onNextWeek,
   searchFocusPending,
   onSearchFocused,
+  width,
+  minWidth,
+  maxWidth,
+  onWidthChange,
   ...props
 }: SidebarLeftProps) {
   const { toggleSidebar, open, setOpen, openMobile, setOpenMobile, isMobile } =
@@ -151,6 +154,7 @@ export function SidebarLeft({
   const [searchSelectedEvent, setSearchSelectedEvent] =
     React.useState<CalendarEvent | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const [resizing, setResizing] = React.useState(false);
 
   const isSearching = searchQuery.trim().length > 0;
   const isLoadingResults = isSearching && searchQuery !== debouncedQuery;
@@ -306,6 +310,7 @@ export function SidebarLeft({
                 variant="ghost"
                 size="icon"
                 className="size-7 shrink-0"
+                aria-label="Close context panel"
                 onClick={toggleSidebar}
               >
                 <PanelRightIcon className="size-4" />
@@ -382,6 +387,14 @@ export function SidebarLeft({
           </div>
         ) : null}
       </SidebarContent>
+      <SidebarResizeHandle
+        side="right"
+        width={width}
+        minWidth={minWidth}
+        maxWidth={maxWidth}
+        onWidthChange={onWidthChange}
+        onResizingChange={setResizing}
+      />
     </>
   );
 
@@ -396,7 +409,7 @@ export function SidebarLeft({
         className="!bg-context-panel"
         style={
           {
-            "--sidebar-width": OVERLAY_WIDTH,
+            "--sidebar-width": `${width}px`,
             "--muted-foreground": PANEL_MUTED_FOREGROUND,
           } as React.CSSProperties
         }
@@ -407,16 +420,27 @@ export function SidebarLeft({
   }
 
   return (
-    <Sidebar
-      side="right"
-      className="border-l !bg-context-panel [&_[data-slot=sidebar-inner]]:!bg-context-panel"
-      style={
-        { "--muted-foreground": PANEL_MUTED_FOREGROUND } as React.CSSProperties
-      }
-      {...props}
+    <div
+      className="context-sidebar contents"
+      data-state={panelOpen ? "expanded" : "collapsed"}
+      data-resizing={resizing}
+      style={{ "--sidebar-width": `${width}px` } as React.CSSProperties}
     >
-      {panel}
-    </Sidebar>
+      <Sidebar
+        side="right"
+        className="border-l !bg-context-panel [&_[data-slot=sidebar-inner]]:!bg-context-panel"
+        style={
+          {
+            "--muted-foreground": PANEL_MUTED_FOREGROUND,
+          } as React.CSSProperties
+        }
+        {...props}
+        inert={!panelOpen}
+        aria-hidden={!panelOpen}
+      >
+        {panel}
+      </Sidebar>
+    </div>
   );
 }
 

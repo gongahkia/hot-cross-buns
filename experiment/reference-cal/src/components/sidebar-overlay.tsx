@@ -49,7 +49,7 @@ export function SidebarOverlay({
         data-mobile="true"
         side={side}
         className={cn(
-          "bg-sidebar text-sidebar-foreground w-(--sidebar-width) max-w-[85vw] gap-0 p-0 [&>button]:hidden",
+          "sidebar-overlay-panel bg-sidebar text-sidebar-foreground w-(--sidebar-width) max-w-[85vw] sm:max-w-[85vw] gap-0 p-0 [&>button]:hidden",
           className,
         )}
         style={style}

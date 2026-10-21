@@ -26,3 +26,19 @@ export function useMediaQuery(query: string): boolean {
 
   return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
+
+function subscribeViewport(onChange: () => void) {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}
+
+const getViewportWidth = () => window.innerWidth;
+const getServerWidth = () => 1280;
+
+export function useViewportWidth(): number {
+  return React.useSyncExternalStore(
+    subscribeViewport,
+    getViewportWidth,
+    getServerWidth,
+  );
+}

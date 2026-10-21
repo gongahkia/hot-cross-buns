@@ -14,10 +14,14 @@ import { cn } from "@/lib/utils";
 import { Calendars } from "@/components/calendars";
 import { DatePicker } from "@/components/date-picker";
 import { SidebarOverlay } from "@/components/sidebar-overlay";
+import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import type { CalendarAccount } from "@/components/week-view-types";
+import type {
+  CalendarAccount,
+  SidebarSizingProps,
+} from "@/components/week-view-types";
 import {
   SidebarContent,
   SidebarFooter,
@@ -34,10 +38,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-/** Width of the calendar sidebar, inline and as an overlay */
-const SIDEBAR_WIDTH = "15rem";
-
-interface SidebarRightProps {
+interface SidebarRightProps extends SidebarSizingProps {
   accounts: CalendarAccount[];
   onCalendarVisibilityChange: (
     accountEmail: string,
@@ -66,9 +67,14 @@ export function SidebarRight({
   visibleDays,
   onOpenSettings,
   showWeekNumbers,
+  width,
+  minWidth,
+  maxWidth,
+  onWidthChange,
 }: SidebarRightProps) {
+  const [resizing, setResizing] = React.useState(false);
   const sidebarStyle = {
-    "--sidebar-width": SIDEBAR_WIDTH,
+    "--sidebar-width": `${width}px`,
   } as React.CSSProperties;
 
   const content = (
@@ -149,6 +155,14 @@ export function SidebarRight({
           </Tooltip>
         </div>
       </SidebarFooter>
+      <SidebarResizeHandle
+        side="left"
+        width={width}
+        minWidth={minWidth}
+        maxWidth={maxWidth}
+        onWidthChange={onWidthChange}
+        onResizingChange={setResizing}
+      />
     </>
   );
 
@@ -182,22 +196,24 @@ export function SidebarRight({
   return (
     <div
       data-state={open ? "expanded" : "collapsed"}
-      className="text-sidebar-foreground group peer hidden md:block"
+      className="calendar-sidebar text-sidebar-foreground group peer hidden md:block"
+      data-resizing={resizing}
       style={sidebarStyle}
     >
       {/* Gap element that handles the space transition */}
       <div
         className={cn(
-          "relative bg-transparent",
+          "calendar-sidebar-gap relative bg-transparent",
           open ? "w-(--sidebar-width)" : "w-0",
         )}
       />
       {/* Sidebar container */}
       <div
         className={cn(
-          "bg-sidebar fixed inset-y-0 left-0 z-10 hidden h-svh w-(--sidebar-width) flex-col border-r md:flex",
-          open ? "left-0" : "left-[calc(var(--sidebar-width)*-1)]",
+          "calendar-sidebar-panel bg-sidebar fixed inset-y-0 left-0 z-10 hidden h-svh w-(--sidebar-width) flex-col border-r md:flex",
         )}
+        inert={!open}
+        aria-hidden={!open}
       >
         {content}
       </div>
