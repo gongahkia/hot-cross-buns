@@ -7,7 +7,7 @@ user's approval. README.md is outside this work.
 
 Most of reference-cal's presentation can work well for HCB: a quiet navigation
 sidebar, restrained typography, a compact date toolbar, the large Calendar
-canvas, colored events, and a docked context panel. Calendar components can be
+canvas, colored events, and contextual item details. Calendar components can be
 reused. Tasks, notes, account management and diagnostics need HCB-specific views
 expressed in the same visual language.
 
@@ -52,10 +52,10 @@ the redesign.
 | --- | --- | --- | --- |
 | Calendar day/week/month/agenda | Reference Calendar canvas and compact date toolbar | Actual reference day/week/month components; an HCB-style agenda | Existing Calendar range loader and event view models |
 | Multiple accounts and sources | Grouped account/calendar checkboxes in navigation | Three independently filterable sample sources | Account/source IDs, visibility preferences and read/write capabilities |
-| Event create/edit/delete | Click a slot; edit in docked context panel | Sample forms and empty-slot creation; sample drag/resize | Existing calendar mutations; validate before queueing; retain Google revisions |
+| Event create/edit/delete | Click a slot; open details for the selected item | Sample forms and empty-slot creation; sample drag/resize | Existing calendar mutations; validate before queueing; retain Google revisions |
 | Time zones, all-day and recurrence | Existing fields in compact inspector; scope dialog for recurring changes | Browser-local dates, inclusive demo all-day range, recurrence text | HCB's displayed zone, event zone, exclusive date ends, occurrence IDs and recurrence-scope commands |
 | Tasks and one-level subtasks | List or board, filters, duration, priority and inspector | List/board, filtering, priority order, one-level indentation, edit/complete/delete guard | Keep measured virtualization, paging, tree restrictions, stars and list-order preferences |
-| Scheduling and task blocks | Day panel beside Calendar; drag a task to a time; review before adding | Drag-to-review, sample free-slot preview, linked blocks | `scheduleSuggest`, `scheduleTaskBlock`, `moveScheduledTaskBlock`, `unscheduleTaskBlock`; keep due dates separate |
+| Scheduling and task blocks | Task actions and scheduling review, without a permanent day panel | Sample free-slot preview and linked blocks, reached through Tasks or search commands | `scheduleSuggest`, `scheduleTaskBlock`, `moveScheduledTaskBlock`, `unscheduleTaskBlock`; keep due dates separate |
 | Smart Schedule and rescheduling | Review proposed placements and their scope | A small demo-only gap finder, limited to three tasks | Existing deterministic planner, working hours and smart-reschedule review; no new planner algorithm |
 | Local notes and lists | A slim note collection beside a document page | Search/filter notes, preview, create, shared rich/source editing | Paged note metadata, full-record fetch, existing autosave/error recovery and note-list mutations |
 | Markdown on every editing surface | Same editor in the document, inspectors and capture dialog | Imports the actual HCB MarkdownEditor | Retain the shared editor and HCB preview/reference behavior |
@@ -182,7 +182,7 @@ Considered and rejected:
 | Prototype notes | Create a separate simplified editor | Would obscure the behavior of the shared HCB editor already implemented |
 | Prototype wiring | Connect the demo immediately to a real HCB profile | User approval is explicitly required before integration; sample arrays make design changes inexpensive |
 
-## Verification on 2026-10-21
+## Initial verification on 2026-10-21
 
 | Check | Observed result |
 | --- | --- |
@@ -233,3 +233,46 @@ behavior were not verified. Those are not implied by the sample walkthrough.
 The user is approving the visual direction and navigation model at this stage.
 No production backend, preload, renderer source, root dependency manifest or
 README.md was changed to deliver the prototype.
+
+## Revision: remove the default day panel
+
+Following visual feedback, the permanent right-hand day summary has been removed,
+including its progress bar, Up next, task/agenda tabs, planning card and tips. The
+Calendar and Tasks now use the available width. A task or event selection opens
+its detail inspector as an overlay, keeping Calendar coordinates stable while
+the pointer is down. Closing, deleting or deselecting the item removes the
+inspector and reveals the unobstructed main view. Split
+notes/reference remains an explicit toolbar action.
+
+The day-panel toggle and its unused component/styles were removed. Scheduling
+remains available from Tasks, the task inspector and search commands. The prior
+drag-from-day-panel walkthrough is historical; that source panel is no longer
+part of the approved design revision. This feedback revises the prototype and
+does not authorize production integration yet.
+
+| Severity | Location | Before | After | Why |
+| --- | --- | --- | --- | --- |
+| MEDIUM | `prototypes/reference-cal/src/App.tsx`, `Inspectors.tsx`, `prototype.css` | A day summary permanently occupied 308px and duplicated task/agenda content | Show the contextual inspector only for a selected item, with explicit close controls | Follow the requested visual hierarchy and give the Calendar more room |
+| HIGH | `prototypes/reference-cal/src/prototype.css` | Opening docked details during the reference Calendar's pointer-down selection shifted the clicked event before pointer-up | Overlay details without changing Calendar dimensions | A click or drag must retain the intended event under the pointer |
+
+| Category | Revision evidence | Result |
+| --- | --- | --- |
+| Typography | Revised Calendar screenshot and task guidance | Existing text styles retained |
+| Surfaces | Main Calendar width, selected details and split workspace | Default Calendar uses the full available width; selection uses an overlay |
+| Animations | Removed day-panel styles and inspector layout | No new animation; Calendar coordinates remain stable during selection |
+| Icons | Toolbar and inspector close controls | Removed day toggle; existing Lucide X closes details |
+| Performance | Component removal and revised build | Less initial UI and CSS; no scale-performance claim |
+
+Considered and rejected: keeping a hidden day panel behind its old toggle (would
+retain the removed feature), and deleting all item inspectors (would remove the
+existing editing path).
+
+Verification: prototype TypeScript and production build passed. Chrome checks
+confirmed the full-width default Calendar; event selection/closing on all five
+weekdays without shifting the grid; task inspector opening/closing; scheduling
+review from Tasks; split workspace; light/dark and 390px layouts; and no renderer
+errors. Screenshots are in `output/reference-cal/no-day-panel.png` and
+`no-day-panel-dark.png`.
+
+Revision verdict: **Approve within this removal's scope.** The production
+integration requirements and unverified checks in the earlier review remain.

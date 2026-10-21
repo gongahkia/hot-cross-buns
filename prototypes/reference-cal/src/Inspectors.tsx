@@ -1,27 +1,11 @@
 import { useState } from "react";
-import { addDays, format, isSameDay } from "date-fns";
+import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, ArrowUpRight, CalendarDays, Check, ChevronRight, Clock3, FileText, Flag, Link2, ListTodo, MapPin, Pencil, Plus, Repeat2, Sparkles, Trash2, Users, Video } from "lucide-react";
+import { ArrowUpRight, CalendarDays, Check, Clock3, FileText, Flag, Link2, ListTodo, MapPin, Pencil, Plus, Repeat2, Trash2, Users, Video, X } from "lucide-react";
 import { MarkdownEditor } from "@renderer/components/MarkdownEditor";
 import type { PlanEvent, Task } from "./model";
-import { calendars, dateTimeValue, dayKey, lists, timeLabel, TODAY } from "./model";
-import { Empty, IconButton, Tag, TaskRow } from "./ui";
-
-export function DayPanel({ tasks, events, onTask, onEvent, onComplete, onSchedule, onPlan, onNew }: {
-  tasks: Task[]; events: PlanEvent[]; onTask: (id: string) => void; onEvent: (id: string) => void; onComplete: (id: string) => void; onSchedule: (id: string) => void; onPlan: () => void; onNew: () => void;
-}) {
-  const [tab, setTab] = useState("To do");
-  const todayTasks = tasks.filter(t => t.due === dayKey(TODAY)); const completed = todayTasks.filter(t => t.completed).length;
-  const upcoming = events.filter(e => !e.isAllDay && e.end > new Date() && e.start < addDays(TODAY, 2)).sort((a, b) => a.start.getTime() - b.start.getTime());
-  const next = upcoming[0];
-  return <><div className="context-heading"><span className="eyebrow">YOUR DAY, WITH A LITTLE SPACE</span><h2>{format(TODAY, "EEEE, MMM d")}</h2><p>{completed} of {todayTasks.length} tasks complete</p><div className="day-progress"><span style={{ width: `${todayTasks.length ? completed / todayTasks.length * 100 : 0}%` }} /></div></div>
-    {next && <section className="up-next"><div className="eyebrow">UP NEXT</div><button type="button" onClick={() => onEvent(next.id)}><span className={`up-next-mark color-${next.color}`} /><div><strong>{next.title}</strong><span>{isSameDay(next.start, TODAY) ? "Today" : format(next.start, "EEE")} · {timeLabel(next.start)}–{timeLabel(next.end)}</span></div><ArrowUpRight size={15} /></button></section>}
-    <div className="context-tabs"><div className="small-tabs">{["To do", "Agenda"].map(label => <button key={label} aria-pressed={tab === label} onClick={() => setTab(label)}>{label}</button>)}</div><IconButton label="Add a task" onClick={onNew}><Plus size={16} /></IconButton></div>
-    <div className="day-panel-list">{tab === "To do" ? todayTasks.map(task => <TaskRow key={task.id} task={task} compact scheduled={events.some(e => e.taskId === task.id)} onSelect={() => onTask(task.id)} onComplete={() => onComplete(task.id)} onSchedule={() => onSchedule(task.id)} />) : upcoming.map(event => <button className="agenda-mini" key={event.id} onClick={() => onEvent(event.id)}><span className={`event-dot color-${event.color}`} /><div><strong>{event.title}</strong><span>{format(event.start, "EEE, MMM d")} · {timeLabel(event.start)}</span></div><ChevronRight size={13} /></button>)}</div>
-    <div className="plan-day-card"><Sparkles size={19} strokeWidth={1.5} /><h3>Good work needs a little room.</h3><p>Find time around your commitments. Review each block before adding it.</p><button className="primary-button" onClick={onPlan}><Sparkles size={14} />Plan my day</button></div>
-    <div className="context-tip"><span>QUICK TIP</span><p>Drag a task onto the calendar to choose when to work on it.</p><div><kbd>⌘</kbd><kbd>K</kbd><span>Find anything</span></div></div>
-  </>;
-}
+import { calendars, dateTimeValue, dayKey, lists, timeLabel } from "./model";
+import { IconButton, Tag } from "./ui";
 
 export function TaskInspector({ task, events, onSave, onDelete, onComplete, onBack, onSchedule, onEvent }: {
   task: Task; events: PlanEvent[]; onSave: (task: Task) => void; onDelete: () => void; onComplete: () => void; onBack: () => void; onSchedule: () => void; onEvent: (id: string) => void;
@@ -29,7 +13,7 @@ export function TaskInspector({ task, events, onSave, onDelete, onComplete, onBa
   const [draft, setDraft] = useState(task); const [editingNotes, setEditingNotes] = useState(false);
   const blocks = events.filter(e => e.taskId === task.id);
   return <form className="detail-form" onSubmit={e => { e.preventDefault(); if (draft.title.trim()) onSave({ ...draft, title: draft.title.trim(), completed: task.completed }); }}>
-    <div className="detail-top"><IconButton label="Back to day" onClick={onBack}><ArrowLeft size={17} /></IconButton><span><ListTodo size={14} /> Task</span><IconButton label="Delete task" onClick={onDelete}><Trash2 size={15} /></IconButton></div>
+    <div className="detail-top"><IconButton label="Close task details" onClick={onBack}><X size={17} /></IconButton><span><ListTodo size={14} /> Task</span><IconButton label="Delete task" onClick={onDelete}><Trash2 size={15} /></IconButton></div>
     <div className="detail-title-row"><button type="button" className={`task-check ${task.completed ? "checked" : ""}`} aria-label={task.completed ? "Reopen selected task" : "Complete selected task"} onClick={onComplete}>{task.completed ? <Check size={16} /> : <span className="empty-check" />}</button><textarea required aria-label="Task title" className="detail-title" rows={3} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></div>
     <div className="detail-properties">
       <label><ListTodo size={15} /><span>List</span><select value={draft.list} onChange={e => setDraft({ ...draft, list: e.target.value })}>{lists.map(list => <option key={list}>{list}</option>)}</select></label>
@@ -47,7 +31,7 @@ export function TaskInspector({ task, events, onSave, onDelete, onComplete, onBa
 export function EventInspector({ event, onSave, onDelete, onBack, onTask }: { event: PlanEvent; onSave: (event: PlanEvent) => void; onDelete: () => void; onBack: () => void; onTask: (id: string) => void }) {
   const [draft, setDraft] = useState(event); const [editingNotes, setEditingNotes] = useState(false); const [error, setError] = useState("");
   return <form className="detail-form" onSubmit={e => { e.preventDefault(); if (!draft.title.trim()) return; if (!draft.isAllDay && draft.end <= draft.start) { setError("Choose an end time after the start."); return; } if (draft.isAllDay && draft.end < draft.start) { setError("Choose an end date on or after the start."); return; } setError(""); onSave({ ...draft, title: draft.title.trim() }); }}>
-    <div className="detail-top"><IconButton label="Back to day" onClick={onBack}><ArrowLeft size={17} /></IconButton><span><span className={`event-dot color-${draft.color}`} />{event.taskId ? "Task block" : "Event"}</span><IconButton label="Delete event" onClick={onDelete}><Trash2 size={15} /></IconButton></div>
+    <div className="detail-top"><IconButton label="Close event details" onClick={onBack}><X size={17} /></IconButton><span><span className={`event-dot color-${draft.color}`} />{event.taskId ? "Task block" : "Event"}</span><IconButton label="Delete event" onClick={onDelete}><Trash2 size={15} /></IconButton></div>
     <textarea required aria-label="Event title" className="detail-title event-title" rows={3} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} />
     <div className="event-dates"><label><span>Starts</span><input required type={draft.isAllDay ? "date" : "datetime-local"} aria-label="Event starts" value={draft.isAllDay ? dayKey(draft.start) : dateTimeValue(draft.start)} onChange={e => { if(e.target.value) setDraft({ ...draft, start: new Date(draft.isAllDay ? `${e.target.value}T00:00` : e.target.value) }); }} /></label><label><span>Ends</span><input required type={draft.isAllDay ? "date" : "datetime-local"} aria-label="Event ends" value={draft.isAllDay ? dayKey(draft.end) : dateTimeValue(draft.end)} onChange={e => { if(e.target.value) setDraft({ ...draft, end: new Date(draft.isAllDay ? `${e.target.value}T00:00` : e.target.value) }); }} /></label></div>
     {error && <p className="form-error" role="alert">{error}</p>}

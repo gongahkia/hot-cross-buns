@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addDays, addMinutes, addMonths, addWeeks, format, getISOWeek, isSameDay, isSameWeek, startOfMonth, startOfWeek } from "date-fns";
-import { ArrowDownUp, ArrowUpRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cloud, Columns2, FileText, Folder, Inbox, ListTodo, Moon, PanelLeft, PanelRight, Play, Plus, Search, Settings2, Sparkles, Sun, X } from "lucide-react";
+import { ArrowUpRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cloud, Columns2, FileText, Folder, Inbox, ListTodo, Moon, PanelLeft, Play, Plus, Search, Settings2, Sun, X } from "lucide-react";
 import { WeekView } from "./vendor/components/week-view";
 import { MonthView } from "./vendor/components/month-view";
 import { calendars, dayKey, initialNotes, initialTasks, lists, seedEvents, suggestSlots, timeLabel, TODAY, WEEK } from "./model";
@@ -8,7 +8,7 @@ import type { Note, PlanEvent, Proposal, Section, Selection, Task } from "./mode
 import { IconButton, MiniCalendar } from "./ui";
 import { NoteDocument, NotesView } from "./Documents";
 import { TasksView } from "./Tasks";
-import { DayPanel, EventInspector, TaskInspector } from "./Inspectors";
+import { EventInspector, TaskInspector } from "./Inspectors";
 import { CommandDialog, ConflictDialog, NewItemDialog, ScheduleDialog } from "./Dialogs";
 import type { NewItem, NewKind } from "./Dialogs";
 import { SettingsView } from "./Settings";
@@ -23,7 +23,7 @@ export function App() {
   const [date, setDate] = useState(WEEK); const [miniMonth, setMiniMonth] = useState(TODAY); const [displayMonth, setDisplayMonth] = useState(TODAY);
   const [focusedDate, setFocusedDate] = useState(TODAY);
   const [view, setView] = useState<CalendarView>("week");
-  const [sidebar, setSidebar] = useState(window.innerWidth >= 1000); const [context, setContext] = useState(window.innerWidth >= 1200); const [split, setSplit] = useState(false);
+  const [sidebar, setSidebar] = useState(window.innerWidth >= 1000); const [split, setSplit] = useState(false);
   const [splitTab, setSplitTab] = useState("Notes"); const [referencePaused, setReferencePaused] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [visibleCalendars, setVisibleCalendars] = useState(new Set(calendars.map(c => c.id as string)));
@@ -45,7 +45,7 @@ export function App() {
   }, [section, view]);
   const toggleTheme = () => setTheme(current => current === "light" ? "dark" : "light");
   const nav = (next: Section) => { setSection(next); setSelection(null); if (window.innerWidth < 1000) setSidebar(false); };
-  const select = (value: Selection) => { setSelection(value); setContext(true); setSplit(false); };
+  const select = (value: Selection) => { setSelection(value); setSplit(false); };
   const openSelection = (value: Selection) => {
     if (!value) return;
     if (value.kind === "note") { nav("notes"); setNoteId(value.id); return; }
@@ -100,7 +100,7 @@ export function App() {
   const filteredEvents = events.filter(event => visibleCalendars.has(event.calendarId ?? "work"));
   const selectedTask = selection?.kind === "task" ? tasks.find(t => t.id === selection.id) : undefined;
   const selectedEvent = selection?.kind === "event" ? events.find(e => e.id === selection.id) : undefined;
-  const showContext = context && !split && (section === "calendar" || section === "tasks");
+  const showContext = Boolean(selectedTask || selectedEvent) && !split && (section === "calendar" || section === "tasks");
   const shownMonth = view === "month" ? displayMonth : view === "week" || view === "agenda" ? addDays(date, 6) : date;
   const reset = () => { setTasks(structuredClone(initialTasks)); setNotes(structuredClone(initialNotes)); setEvents(seedEvents()); setPending(2); setHasConflict(true); setSelection(null); notify("Sample data reset"); };
   return <div className={`prototype-shell ${sidebar ? "sidebar-open" : ""}`}>
@@ -119,7 +119,7 @@ export function App() {
     <main className="main-workspace">
       <header className="main-toolbar"><div className="toolbar-left"><IconButton label="Toggle navigation" aria-pressed={sidebar} onClick={() => setSidebar(!sidebar)}><PanelLeft size={18} /></IconButton><span className="toolbar-divider" /><div className="toolbar-title">{section === "calendar" ? <><strong>{format(shownMonth, "MMMM yyyy")}</strong><span>{view === "day" ? format(date, "EEEE") : view === "month" ? "Month view" : `Week ${getISOWeek(date)}`}</span></> : <><strong>{section[0].toUpperCase() + section.slice(1)}</strong><span>{section === "tasks" ? "A little more intention" : section === "notes" ? "A place for your thinking" : "Make yourself at home"}</span></>}</div></div>
         <div className="toolbar-right">{section === "calendar" && <><select aria-label="Calendar view" value={view} onChange={e => changeView(e.target.value as CalendarView)}>{["day", "week", "month", "agenda"].map(v => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}</select><button className="today-button" onClick={today}>Today</button><div className="flex period-navigation"><IconButton label="Previous period" onClick={() => navigate(-1)}><ChevronLeft size={17} /></IconButton><IconButton label="Next period" onClick={() => navigate(1)}><ChevronRight size={17} /></IconButton></div><span className="toolbar-divider" /></>}
-          {(section === "calendar" || section === "tasks") && <><IconButton label="Split workspace" aria-pressed={split} onClick={() => setSplit(!split)}><Columns2 size={17} /></IconButton><IconButton label="Toggle day panel" aria-pressed={showContext} onClick={() => { setSplit(false); setContext(!showContext); }}><PanelRight size={18} /></IconButton></>}
+          {(section === "calendar" || section === "tasks") && <IconButton label="Split workspace" aria-pressed={split} onClick={() => setSplit(!split)}><Columns2 size={17} /></IconButton>}
           <button className="new-button" onClick={() => setNewKind(section === "notes" ? "note" : section === "calendar" ? "event" : "task")}><Plus size={16} /><span>New</span></button><span className="user-avatar" title="Sample workspace">AM</span>
         </div>
       </header>
@@ -139,7 +139,7 @@ export function App() {
         {section === "settings" && <SettingsView theme={theme} onTheme={setTheme} onReset={reset} onConflict={() => hasConflict ? setConflict(true) : notify("No remaining sample conflicts")} pending={pending} hasConflict={hasConflict} />}
       </div>
       {split && (section === "calendar" || section === "tasks") && <aside className="split-pane" aria-label="Split workspace"><div className="split-heading"><div className="small-tabs">{["Notes", "Reference"].map(tab => <button aria-pressed={splitTab === tab} key={tab} onClick={() => setSplitTab(tab)}>{tab}</button>)}</div><IconButton label="Close split workspace" onClick={() => setSplit(false)}><X size={16} /></IconButton></div>{splitTab === "Notes" ? <NoteDocument note={notes.find(n => n.id === noteId) ?? notes[0]} onChange={updateNote} small /> : <div className="reference-pane"><div className="reference-address"><span>example.test / project-brief</span><button onClick={() => setReferencePaused(!referencePaused)}>{referencePaused ? "Resume" : "Pause"}</button></div>{referencePaused ? <div className="reference-paused"><span className="reference-symbol"><Play size={24} strokeWidth={1.3} /></span><h3>A reference, when you need it.</h3><p>Keep a page beside your plan. Paused pages leave room for the work in front of you.</p><button className="outline-button" onClick={() => setReferencePaused(false)}><Play size={14} />Show sample reference</button></div> : <div className="sample-reference"><span className="eyebrow">PROJECT SPACE</span><h2>Something good is taking shape.</h2><p>A small collection of ideas, sketches, and questions for the next chapter.</p><h3>The brief</h3><p>Build a calmer place for the work that matters.</p><div>01 / Make the important things clear.</div><div>02 / Bring context closer.</div><div>03 / Leave a little breathing room.</div><span className="demo-note">Static sample page · no website loaded</span></div>}</div>}</aside>}
-      {showContext && <aside className="context-panel" aria-label="Day and details panel">{selectedTask ? <TaskInspector key={selectedTask.id} task={selectedTask} events={events} onSave={saveTask} onComplete={() => completeTask(selectedTask.id)} onBack={() => setSelection(null)} onSchedule={() => schedule(selectedTask.id)} onEvent={id => select({ kind: "event", id })} onDelete={() => { if (tasks.some(t => t.parentId === selectedTask.id)) { notify("Move the subtasks before deleting this sample task."); return; } setTasks(current => current.filter(t => t.id !== selectedTask.id)); setEvents(current => current.filter(e => e.taskId !== selectedTask.id)); setSelection(null); notify("Sample task deleted"); }} /> : selectedEvent ? <EventInspector key={`${selectedEvent.id}-${selectedEvent.start.getTime()}-${selectedEvent.end.getTime()}`} event={selectedEvent} onSave={saveEvent} onBack={() => setSelection(null)} onTask={id => select({ kind: "task", id })} onDelete={() => { setEvents(current => current.filter(e => e.id !== selectedEvent.id)); setSelection(null); notify("Sample event deleted"); }} /> : <DayPanel tasks={tasks} events={events} onTask={id => select({ kind: "task", id })} onEvent={id => select({ kind: "event", id })} onComplete={completeTask} onSchedule={schedule} onPlan={plan} onNew={() => setNewKind("task")} />}</aside>}
+      {showContext && <aside className="context-panel" aria-label="Item details">{selectedTask ? <TaskInspector key={selectedTask.id} task={selectedTask} events={events} onSave={saveTask} onComplete={() => completeTask(selectedTask.id)} onBack={() => setSelection(null)} onSchedule={() => schedule(selectedTask.id)} onEvent={id => select({ kind: "event", id })} onDelete={() => { if (tasks.some(t => t.parentId === selectedTask.id)) { notify("Move the subtasks before deleting this sample task."); return; } setTasks(current => current.filter(t => t.id !== selectedTask.id)); setEvents(current => current.filter(e => e.taskId !== selectedTask.id)); setSelection(null); notify("Sample task deleted"); }} /> : selectedEvent ? <EventInspector key={`${selectedEvent.id}-${selectedEvent.start.getTime()}-${selectedEvent.end.getTime()}`} event={selectedEvent} onSave={saveEvent} onBack={() => setSelection(null)} onTask={id => select({ kind: "task", id })} onDelete={() => { setEvents(current => current.filter(e => e.id !== selectedEvent.id)); setSelection(null); notify("Sample event deleted"); }} /> : null}</aside>}
       </div>
       <footer className="workspace-status"><span><span className="status-dot" />Local design prototype <span className="status-divider">/</span><span className="status-caption">Changes stay in this tab</span></span><div><button onClick={() => hasConflict ? setConflict(true) : notify("No remaining sample conflicts")}><Cloud size={13} />Demo sync <span className={hasConflict ? "sync-attention" : ""}>{hasConflict ? "1 needs review" : "Reviewed"}</span><span className="status-caption">· {pending} queued</span></button><button className="status-help" onClick={() => setCommand(true)} aria-label="Open commands and search"><CircleHelp size={14} /><span>⌘ K</span></button></div></footer>
     </main>

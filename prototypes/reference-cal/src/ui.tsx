@@ -30,10 +30,10 @@ export function MiniCalendar({ date, month, setMonth, onSelect }: { date: Date; 
     </div>
   </section>;
 }
-export function TaskRow({ task, selected = false, scheduled = false, compact = false, onSelect, onComplete, onSchedule }: {
-  task: Task; selected?: boolean; scheduled?: boolean; compact?: boolean; onSelect: () => void; onComplete: () => void; onSchedule?: () => void;
+export function TaskRow({ task, selected = false, scheduled = false, onSelect, onComplete, onSchedule }: {
+  task: Task; selected?: boolean; scheduled?: boolean; onSelect: () => void; onComplete: () => void; onSchedule?: () => void;
 }) {
-  return <div className={`task-row ${selected ? "selected" : ""} ${compact ? "compact" : ""} ${task.completed ? "completed" : ""} ${task.parentId ? "subtask" : ""}`} draggable={!task.completed} onDragStart={event => event.dataTransfer.setData("application/x-hcb-prototype-task", task.id)}>
+  return <div className={`task-row ${selected ? "selected" : ""} ${task.completed ? "completed" : ""} ${task.parentId ? "subtask" : ""}`} draggable={!task.completed} onDragStart={event => event.dataTransfer.setData("application/x-hcb-prototype-task", task.id)}>
     <button className="task-check" type="button" aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`} aria-pressed={Boolean(task.completed)} onClick={onComplete}>{task.completed ? <Check size={13} strokeWidth={2} /> : <Circle size={17} strokeWidth={1.5} />}</button>
     <button type="button" className="task-main" onClick={onSelect}><span className="task-title">{task.title}</span><span className="task-meta">{task.list}{task.priority === "High" && <><span>·</span><span className="priority-dot" />High priority</>}{scheduled && <><span>·</span>On calendar</>}</span></button>
     <span className="duration">{task.minutes}m</span>
