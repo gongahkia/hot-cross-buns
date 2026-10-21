@@ -24,7 +24,8 @@ and its document format are outside this change.
   Toolbar controls also support left/right and Home/End navigation.
   `@` opens the existing HCB/authorized Drive picker. `:` searches emoji. Source
   mode retains the same reference and emoji helpers.
-- Cmd/Ctrl+K edits a link. Pasting a URL over selected text links it. Markdown-only
+- Cmd/Ctrl+K edits a link, or inserts a visible URL when nothing is selected.
+  Pasting a URL over selected text links it. Markdown-only
   paste parses formatting; HTML paste uses the editor schema. Links accept HTTP,
   HTTPS, mailto, tel and relative paths. Executable links and local-file image
   sources are not activated.
@@ -44,7 +45,7 @@ part of the regression coverage.
 
 `markdown/extensions.ts` owns the document schema and Markdown serialization.
 Custom nodes retain the exact syntax of stable HCB references, transclusions,
-HTML blocks/comments and footnotes. Unsupported HTML is inert source content;
+HTML blocks/comments/declarations and footnotes. Unsupported HTML is inert source content;
 use Source to edit its internals. Standard presentational Google HTML descriptions
 are converted for visual editing using the same converter as previews.
 
@@ -58,6 +59,9 @@ become Markdown after their first visual edit.
 `ReferenceTextarea` supplies the shared reference picker, account scope gates,
 recent references, native file upload and source editing. Its rich input adapter
 uses document positions instead of slicing Markdown by visual caret position.
+Direct uploads use the current selection, and late upload results use the newest
+draft instead of replacing text typed while the upload was pending. Results for
+disabled or unmounted fields do not mutate the document.
 `mixedMarkup.ts` centralizes preview/editor conversion. Existing note autosave,
 save serialization, failed-save recovery, task/event submit and field validation
 remain owned by their inspectors.
@@ -98,3 +102,21 @@ cost), and converting every imported HTML fragment (unsupported content loss).
 
 Verdict: shared interaction and data-preservation checks pass. Signing/live Google
 verification and quiet-machine scale benchmarks remain separate checks.
+
+## Verification on 2026-10-21
+
+| Check | Result |
+| --- | --- |
+| Production build and both TypeScript configurations | Passed; no renderer circular-dependency warnings |
+| Unit suite | 180 passed; 88 native database tests intentionally run separately |
+| Native database/sync integration suite | 88 passed |
+| Electron desktop smoke suite | All 8 passed in the final combined run |
+| Deferred diagnostics startup fixture | Also passed 3 consecutive repetitions after synchronizing onboarding and allowing normal desktop shutdown |
+| Unsigned macOS package | ASAR launch, deferred editor, SQLite worker, backups, menu/deep link, tray, shortcut, restart, and schema upgrade passed |
+| Startup profile | Fresh/cached packaged pair recorded; busy-host measurements, not a release performance claim |
+
+The desktop flow typed 49 characters into a 69 KB note, observed at 1,412 ms in
+the final run including Playwright input overhead. Earlier busy-host runs ranged
+from 2,905 to 5,347 ms. These observations establish functional large-document
+editing, not a controlled typing-latency benchmark. Existing benchmark ceilings
+were not changed. README.md was not edited.

@@ -31,3 +31,6 @@ Google account. No Google credentials or remote writes are used by this check.
 Verified on 2026-10-21 with macOS 15 / Intel x64, Electron 33.4.11 and schema 9.
 All packaged assertions passed. The check exposed and fixed a no-op preload
 subscription that discarded native actions and missing default tray artwork.
+After the shared-editor refactor, the rebuilt package also passed deferred editor
+loading and visual/source round-trip checks. A second restart confirms that a
+new schema-9 Calendar token is retained rather than reset by the migration again.

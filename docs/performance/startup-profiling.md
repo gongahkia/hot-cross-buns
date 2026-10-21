@@ -18,3 +18,24 @@ The diagnostics overlay was imported by the shell even while closed. Loading it 
 These samples came from a busy 8 GiB Intel Mac with host load around 14–22 and active swapping. They do not establish a controlled latency improvement. Entry-size reduction is deterministic; startup remains variable. The existing latency ceilings are unchanged. Use quiet-host scale runs and repeated packaged-app profiles before making a release performance claim.
 
 The profiler uses an account-free temporary profile and does not read the normal HCB profile or authorize Google.
+
+## Shared-editor follow-up
+
+The final renderer entry is 1,203.06 kB, still 42.76 kB smaller than the original
+entry. The 1,230.22 kB rich-editor engine is a separate deferred chunk. A packaged
+fresh/cached pair observed no rich-editor or diagnostics module preload at the
+shell observation. The packaged smoke test separately opens the actual deferred
+editor from ASAR and checks its visual/source round trip.
+
+In that single pair, launcher shell visibility was 5,063 ms fresh and 2,255 ms
+cached; the corresponding main-process milestones were 3,427 and 1,539 ms. Host
+load was 48–53 with five-minute load around 138 and only 72–191 MiB free memory.
+An earlier pair on the same busy host varied from 18,711 ms fresh to 2,065 ms
+cached. These are observations, not a controlled comparison or release benchmark.
+Quiet-host scale verification remains outstanding.
+
+Electron's `file://` resource timing entries were empty in these runs. Reports
+therefore also retain actual script elements and module-preload links, separately
+from resource timings; these are DOM observations, not a complete execution
+trace. Startup milestones now use the same health response that satisfied the
+shell-visible condition, rather than a later independent health sample.
