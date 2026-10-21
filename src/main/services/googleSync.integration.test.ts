@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoreStore } from "./coreStore";
 import { GoogleSyncService } from "./googleSync";
+import Database from "better-sqlite3";
 
 type RemoteTask = Record<string, any>;
 const fixtures: Array<{ store: CoreStore; directory: string }> = [];
@@ -74,7 +75,7 @@ function createFixture() {
   });
   const service = new GoogleSyncService(store, { onConnectionChange: () => () => undefined, googleFetch } as never);
   const importTask = (remote: RemoteTask) => {
-    const task = { title: "Task", etag: `v${++revision}`, position: "00000001", ...remote };
+    const task: RemoteTask = { title: "Task", etag: `v${++revision}`, position: "00000001", ...remote };
     remoteTasks.set(task.id, task);
     return store.upsertGoogleTask(task, list.id)!;
   };
@@ -91,6 +92,57 @@ afterEach(() => {
 });
 
 describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+  it("does not replay a create from a snapshot taken while Google's response is in flight", async () => {
+    const fixture = createFixture();
+    const { store, service, list, accountId, googleFetch, remoteTasks } = fixture;
+    store.dispatch("tasks", "create", { listId: list.id, title: "Interrupted create" });
+    const transport = googleFetch.getMockImplementation()!;
+    let finishResponse!: () => void;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      const response = await transport(account, target, init);
+      if (init?.method === "POST" && target.pathname.endsWith("/tasks")) {
+        await new Promise<void>((resolve) => { finishResponse = resolve; });
+      }
+      return response;
+    });
+    const syncing = service.runNow();
+    try {
+      await vi.waitFor(() => expect(finishResponse).toBeTypeOf("function"));
+      const directory = mkdtempSync(join(process.env.HCB_TEST_DATABASE_ROOT!, "hcb-interrupted-create-"));
+      const path = join(directory, "hcb.sqlite");
+      await store.backupTo(path);
+      const restarted = new CoreStore(path);
+      fixtures.push({ store: restarted, directory });
+      expect(restarted.pendingSyncMutations(100, accountId)).toEqual([]);
+      const restartedService = new GoogleSyncService(restarted, { onConnectionChange: () => () => undefined, googleFetch } as never);
+      expect((await restartedService.runNow()).state).toBe("error");
+      expect(remoteTasks.size).toBe(1);
+      expect(googleFetch.mock.calls.filter(([, , init]) => init?.method === "POST")).toHaveLength(1);
+    } finally {
+      finishResponse?.();
+      await syncing;
+    }
+  });
+
+  it("upgrades a version 6 database without changing notes, Google bindings, or queued writes", () => {
+    const { store, accountId, list } = createFixture();
+    const note = store.dispatch("notes", "create", { title: "Preserve me", body: "Local-only content" });
+    const task = store.dispatch("tasks", "create", { listId: list.id, title: "Queued during upgrade" });
+    const fixture = fixtures.at(-1)!;
+    const path = join(fixture.directory, "hcb.sqlite");
+    store.close();
+    const legacy = new Database(path);
+    legacy.exec("ALTER TABLE outbox DROP COLUMN creation_started; DROP INDEX outbox_unresolved_account_idx; DELETE FROM schema_migrations; INSERT INTO schema_migrations(version) VALUES(6)");
+    legacy.close();
+    const upgraded = new CoreStore(path);
+    fixture.store = upgraded;
+    expect(upgraded.dispatch("notes", "get", { id: note.id }).body).toBe("Local-only content");
+    expect(upgraded.googleTaskListForSync(list.id)?.googleId).toBe("remote-list");
+    expect(upgraded.pendingSyncMutations(100, accountId)).toEqual([expect.objectContaining({ entityId: task.id, kind: "task.create" })]);
+    expect(upgraded.didResetDeveloperData).toBe(false);
+    expect(upgraded.dispatch("diagnostics", "summary", {}).database.schemaVersion).toBe(8);
+  });
+
   it("never re-creates an ambiguous task through a later edit or after restarting", async () => {
     const fixture = createFixture();
     const { store, service, accountId, list, googleFetch, remoteTasks } = fixture;
@@ -110,6 +162,45 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     const reopened = new CoreStore(path);
     fixtures.at(-1)!.store = reopened;
     expect(reopened.pendingSyncMutations(100, accountId)).toEqual([]);
+  });
+
+  it.each(["server failure", "unreadable response"])("does not repeat an accepted create after a %s", async (failure) => {
+    const { store, service, list, googleFetch, remoteTasks } = createFixture();
+    store.dispatch("tasks", "create", { listId: list.id, title: "Accepted despite the failure" });
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      const response = await transport(account, target, init);
+      return init?.method === "POST" && target.pathname.endsWith("/tasks")
+        ? failure === "server failure" ? new Response(null, { status: 503 }) : new Response("unreadable", { status: 200 })
+        : response;
+    });
+    expect((await service.runNow()).state).toBe("error");
+    expect((await service.runNow()).state).toBe("error");
+    expect(remoteTasks.size).toBe(1);
+    expect(googleFetch.mock.calls.filter(([, , init]) => init?.method === "POST")).toHaveLength(1);
+  });
+
+  it("retries a creation rejected by a rate limit only after backoff", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { store, service, list, accountId, googleFetch, remoteTasks } = createFixture();
+    store.dispatch("tasks", "create", { listId: list.id, title: "Rate-limited creation" });
+    const transport = googleFetch.getMockImplementation()!;
+    let rateLimited = true;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (rateLimited && init?.method === "POST" && target.pathname.endsWith("/tasks")) {
+        rateLimited = false;
+        return new Response(null, { status: 429 });
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    await service.runNow();
+    expect(remoteTasks.size).toBe(0);
+    expect(store.pendingSyncMutations(100, accountId)).toEqual([]);
+    vi.setSystemTime(Date.now() + 60_000);
+    await service.runNow();
+    expect(remoteTasks.size).toBe(1);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
   });
 
   it("keeps insertion order, blocks deferred writes, and lets other accounts sync", () => {

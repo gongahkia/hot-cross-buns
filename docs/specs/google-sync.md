@@ -121,6 +121,8 @@ Do not silently drop user writes.
 
 Queued writes follow SQLite insertion order within each account, including edits created in the same millisecond. A deferred or conflicted write blocks later writes for that account across sync runs and restarts; other accounts can continue syncing. A lost response to a non-idempotent Task or task-list creation requires explicit conflict resolution rather than an automatic second creation. Outstanding conflicts remain visible as an error after a successful read refresh.
 
+Before sending a non-idempotent creation, the queue durably marks it as started. Startup recovers an interrupted creation as a conflict, including a process exit after Google accepted it but before HCB recorded the response. Server failures and unreadable responses also require review when a creation may have been accepted. A definitive rejection such as a rate limit retains normal backoff behavior.
+
 ## Backoff And Error Handling
 
 Required behavior:

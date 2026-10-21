@@ -424,6 +424,7 @@ export class GoogleSyncService {
         (["task.create", "task.update"].includes(mutation.kind) && !this.store.googleTaskForSync(mutation.entityId)?.googleId) ||
         (["taskList.create", "taskList.update"].includes(mutation.kind) && !this.store.googleTaskListForSync(mutation.entityId)?.googleId);
       try {
+        if (nonIdempotentCreate) this.store.beginSyncCreation(mutation.id);
         await this.deliverMutation(accountId, mutation);
         this.store.completeSyncMutation(mutation.id);
       } catch (error: unknown) {
@@ -435,7 +436,8 @@ export class GoogleSyncService {
         // lost response can duplicate a user task, so preserve it as an
         // explicit conflict instead of guessing. Calendar creates are
         // idempotent below through a deterministic event id.
-        const ambiguousTaskCreate = nonIdempotentCreate && error instanceof GoogleApiError && error.status === 0;
+        const ambiguousTaskCreate = nonIdempotentCreate && !(error instanceof CoreStoreError) &&
+          (!(error instanceof GoogleApiError) || error.status === 0 || error.status === 408 || error.status >= 500);
         const retryable = !ambiguousTaskCreate && (error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError));
         this.store.deferSyncMutation(mutation.id, ambiguousTaskCreate
           ? "Google may have accepted this creation before its response was lost. Check Google before retrying to avoid duplicates."

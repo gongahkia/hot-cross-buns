@@ -71,7 +71,7 @@ type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 // accounts unsafe (both can legitimately expose e.g. a `primary` calendar).
 // This branch has no released users, so a clean reset is safer than a lossy
 // inference migration.
-const schemaVersion = 7;
+const schemaVersion = 8;
 const localAccountId = "local";
 const legacyPseudoNoteImportVersion = 1;
 const legacyPseudoNoteSourceType = "legacy-google-task-pseudo-note";
@@ -221,6 +221,11 @@ export class CoreStore {
     this.db.pragma("foreign_keys = ON");
     this.db.pragma("synchronous = NORMAL");
     timed("database.migration", "startup", () => this.migrate());
+    // A create may have reached Google before the previous process stopped.
+    // Its outcome must be reviewed, rather than replayed with a new remote id.
+    this.statement(`UPDATE outbox SET state='conflict',creation_started=0,last_error=?,updated_at=?
+      WHERE state='pending' AND creation_started=1`).run(
+        "Hot Cross Buns stopped during a Google creation. Check Google before retrying to avoid duplicates.", timestamp());
     this.seed();
   }
 
@@ -502,11 +507,11 @@ export class CoreStore {
     // backwards. A blocked write remains a barrier on subsequent sync runs.
     return (this.statement(`SELECT mutation.id,mutation.account_id AS accountId,mutation.kind,mutation.entity_id AS entityId,
       mutation.payload_json AS payload,mutation.attempts,mutation.created_at AS createdAt
-      FROM outbox mutation WHERE mutation.state='pending' AND mutation.next_attempt_at <= ?${accountFilter}
+      FROM outbox mutation WHERE mutation.state='pending' AND mutation.creation_started=0 AND mutation.next_attempt_at <= ?${accountFilter}
       AND NOT EXISTS (
         SELECT 1 FROM outbox earlier WHERE earlier.account_id IS mutation.account_id AND earlier.rowid < mutation.rowid
           AND earlier.state IN ('pending','conflict')
-          AND (earlier.state='conflict' OR earlier.next_attempt_at > ?)
+          AND (earlier.state='conflict' OR earlier.creation_started=1 OR earlier.next_attempt_at > ?)
       ) ORDER BY mutation.rowid LIMIT ?`).all(now, ...(accountId ? [accountId] : []), now, Math.max(1, Math.min(500, limit))) as any[])
       .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
   }
@@ -518,8 +523,12 @@ export class CoreStore {
   }
 
   completeSyncMutation(id: string): void {
-    this.statement("UPDATE outbox SET state='delivered',updated_at=?,last_error=NULL WHERE id=?")
+    this.statement("UPDATE outbox SET state='delivered',creation_started=0,updated_at=?,last_error=NULL WHERE id=?")
       .run(timestamp(), id);
+  }
+
+  beginSyncCreation(id: string): void {
+    this.statement("UPDATE outbox SET creation_started=1,updated_at=? WHERE id=? AND state='pending'").run(timestamp(), id);
   }
 
   deferSyncMutation(id: string, error: string, retryable: boolean): void {
@@ -528,7 +537,7 @@ export class CoreStore {
     const delayMs = retryable
       ? Math.min(15 * 60_000, 1_000 * (2 ** Math.min(attempts, 8)) + Math.floor(Math.random() * 500))
       : 0;
-    this.statement("UPDATE outbox SET state=?,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
+    this.statement("UPDATE outbox SET state=?,creation_started=0,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
       .run(retryable ? "pending" : "conflict", attempts,
         new Date(Date.now() + delayMs).toISOString(), sanitizeSyncError(error), timestamp(), id);
   }
@@ -1230,6 +1239,7 @@ export class CoreStore {
     this.backfillCanonicalRecurrenceLines();
     this.addColumn("outbox", "account_id TEXT");
     this.addColumn("outbox", "last_error TEXT");
+    this.addColumn("outbox", "creation_started INTEGER NOT NULL DEFAULT 0");
     this.db.exec(`
       DROP INDEX IF EXISTS task_lists_google_id_idx; DROP INDEX IF EXISTS tasks_google_id_idx; DROP INDEX IF EXISTS tasks_google_list_id_idx;
       DROP INDEX IF EXISTS calendars_google_id_idx; DROP INDEX IF EXISTS events_google_id_idx;
