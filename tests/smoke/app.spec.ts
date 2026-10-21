@@ -214,6 +214,8 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
   let electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
   try {
     let page = await electronApp.firstWindow();
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const fixture = await page.evaluate(async () => {
       await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual" });
@@ -288,6 +290,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     await electronApp.close();
     electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
     page = await electronApp.firstWindow();
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const settings = await page.evaluate(async () => window.hcb!.settings.get());
     if (!settings.ok) throw new Error(settings.error.message);
@@ -296,6 +299,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     expect(settings.data.taskListSorts[fixture.lastListId]).toBe("title");
     expect(settings.data.paneWorkspace.root).toBeTruthy();
     expect(settings.data.paneWorkspace.updatedAt).toBeGreaterThan(0);
+    expect(pageErrors).toEqual([]);
   } finally {
     await electronApp.close();
     rmSync(profileDir, { recursive: true, force: true });

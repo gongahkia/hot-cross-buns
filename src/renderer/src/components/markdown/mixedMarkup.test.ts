@@ -22,7 +22,7 @@ describe("imported HTML editing", () => {
   it("keeps backticks and blank code lines in imported code blocks", () => {
     const e = open("<pre><code>a`b\n\n\n\n  c</code></pre>");
     expect(e.view.dom.querySelector("pre code")).toHaveTextContent("a`b c");
-    expect(e.getJSON().content?.[0].content?.[0].text).toBe("a`b\n\n\n\n  c");
+    expect(e.state.doc.firstChild?.textContent).toBe("a`b\n\n\n\n  c");
   });
   it("chooses a valid delimiter for inline code containing backticks", () => {
     const e = open("<p>Use <code>a`b</code>.</p>");
