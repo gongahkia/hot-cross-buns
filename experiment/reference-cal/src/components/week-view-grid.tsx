@@ -32,7 +32,7 @@ interface PendingCreateClick {
  * Main grid displaying hour/day intersection cells with events
  * Each cell represents one hour in one day
  */
-export function WeekViewGrid({
+export const WeekViewGrid = React.memo(function WeekViewGrid({
   days,
   hours,
   hourHeight,
@@ -60,11 +60,16 @@ export function WeekViewGrid({
   /** Set only by a mousedown directly on empty column space */
   const pendingCreateRef = React.useRef<PendingCreateClick | null>(null);
   const [gridWidth, setGridWidth] = React.useState(0);
+  const isDragging = dragState?.isDragging ?? false;
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
+    // Width is only used by the floating drag copy. Ordinary layout changes
+    // don't need to render the entire event grid again.
+    if (!isDragging) return;
     const el = gridRef.current;
     if (!el) return;
 
+    setGridWidth(el.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setGridWidth(entry.contentRect.width);
@@ -72,7 +77,17 @@ export function WeekViewGrid({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [isDragging]);
+
+  const positionedDays = React.useMemo(
+    () =>
+      days.map((day) => ({
+        day,
+        // Day view uses a smaller gap so events nearly fill the column.
+        events: calculatePositionedEvents(events, day, isDayView ? 2 : 8),
+      })),
+    [days, events, isDayView],
+  );
 
   /**
    * Capture phase runs before event items stop mousedown propagation, so a
@@ -173,44 +188,30 @@ export function WeekViewGrid({
         className="absolute inset-0 grid pointer-events-none"
         style={{ gridTemplateColumns: `repeat(${days.length}, 1fr)` }}
       >
-        {days.map((day) => {
-          /**
-           * Day view uses a smaller right gap than week view so events
-           * nearly fill the column but still show a sliver of the grid
-           * line — matching Notion Calendar's day-view styling.
-           */
-          const rightGap = isDayView ? 2 : 8;
-          const positionedEvents = calculatePositionedEvents(
-            events,
-            day,
-            rightGap,
-          );
-
-          return (
-            <DayEventsColumn
-              key={day.date.toISOString()}
-              columnDate={day.date}
-              events={positionedEvents}
-              hourHeight={hourHeight}
-              onEventClick={onEventClick}
-              selectedEventId={selectedEventId}
-              dragState={dragState}
-              onEventDragMouseDown={onEventDragMouseDown}
-              resizeState={resizeState}
-              onEventResizeMouseDown={onEventResizeMouseDown}
-              onEventChange={onEventChange}
-              onContextMenuOpenChange={onContextMenuOpenChange}
-              isSidebarOpen={isSidebarOpen}
-              onDockToSidebar={onDockToSidebar}
-              onClosePopover={onClosePopover}
-              onPrevWeek={onPrevWeek}
-              onNextWeek={onNextWeek}
-              onColumnMouseDownCapture={handleColumnMouseDownCapture}
-              onColumnMouseDown={handleColumnMouseDown}
-              onColumnClick={handleColumnClick}
-            />
-          );
-        })}
+        {positionedDays.map(({ day, events: positionedEvents }) => (
+          <DayEventsColumn
+            key={day.date.toISOString()}
+            columnDate={day.date}
+            events={positionedEvents}
+            hourHeight={hourHeight}
+            onEventClick={onEventClick}
+            selectedEventId={selectedEventId}
+            dragState={dragState}
+            onEventDragMouseDown={onEventDragMouseDown}
+            resizeState={resizeState}
+            onEventResizeMouseDown={onEventResizeMouseDown}
+            onEventChange={onEventChange}
+            onContextMenuOpenChange={onContextMenuOpenChange}
+            isSidebarOpen={isSidebarOpen}
+            onDockToSidebar={onDockToSidebar}
+            onClosePopover={onClosePopover}
+            onPrevWeek={onPrevWeek}
+            onNextWeek={onNextWeek}
+            onColumnMouseDownCapture={handleColumnMouseDownCapture}
+            onColumnMouseDown={handleColumnMouseDown}
+            onColumnClick={handleColumnClick}
+          />
+        ))}
       </div>
 
       {/* Resize placeholder overlay — rendered at grid level for cross-day support */}
@@ -246,7 +247,7 @@ export function WeekViewGrid({
       )}
     </div>
   );
-}
+});
 
 interface DragPlaceholderOverlayProps {
   days: WeekViewGridProps["days"];
@@ -563,7 +564,7 @@ function renderColumnGhost(
   );
 }
 
-function DayEventsColumn({
+const DayEventsColumn = React.memo(function DayEventsColumn({
   columnDate,
   events,
   hourHeight,
@@ -677,8 +678,12 @@ function DayEventsColumn({
             onResizeMouseDown={onEventResizeMouseDown}
             onEventChange={onEventChange}
             onContextMenuOpenChange={onContextMenuOpenChange}
-            isSidebarOpen={isSidebarOpen}
-            onDockToSidebar={onDockToSidebar}
+            isSidebarOpen={
+              eventId === selectedEventId ? isSidebarOpen : undefined
+            }
+            onDockToSidebar={
+              eventId === selectedEventId ? onDockToSidebar : undefined
+            }
             onClosePopover={onClosePopover}
             onPrevWeek={onPrevWeek}
             onNextWeek={onNextWeek}
@@ -687,4 +692,4 @@ function DayEventsColumn({
       })}
     </div>
   );
-}
+});

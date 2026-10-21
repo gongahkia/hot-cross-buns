@@ -4,7 +4,7 @@ import type React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { isSameDay } from "date-fns";
-import { useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { calculateAllDayEventRows } from "@/lib/event-utils";
 import { AllDayEventItem } from "./calendar-event-item";
 import { useCalendarPopoverBoundary } from "./calendar-popover-context";
@@ -39,7 +39,10 @@ export function WeekViewAllDayRow({
   highlightedDate,
   className,
 }: WeekViewAllDayRowProps) {
-  const allEventRows = calculateAllDayEventRows(allDayEvents, days);
+  const allEventRows = useMemo(
+    () => calculateAllDayEventRows(allDayEvents, days),
+    [allDayEvents, days],
+  );
 
   // Filter out events entirely within buffer columns so they don't peek
   // through due to sub-pixel rendering at the scroll boundary.
@@ -141,8 +144,12 @@ export function WeekViewAllDayRow({
                     isBeingMoved={isBeingMoved}
                     onEventChange={onEventChange}
                     onContextMenuOpenChange={onContextMenuOpenChange}
-                    isSidebarOpen={isSidebarOpen}
-                    onDockToSidebar={onDockToSidebar}
+                    isSidebarOpen={
+                      event.id === selectedEventId ? isSidebarOpen : undefined
+                    }
+                    onDockToSidebar={
+                      event.id === selectedEventId ? onDockToSidebar : undefined
+                    }
                     onClosePopover={onClosePopover}
                     onPrevWeek={onPrevWeek}
                     onNextWeek={onNextWeek}
@@ -249,7 +256,7 @@ interface AllDayEventRowProps {
   visibleStartIndex?: number;
 }
 
-function AllDayEventRow({
+const AllDayEventRow = memo(function AllDayEventRow({
   event,
   startColumn,
   endColumn,
@@ -359,7 +366,7 @@ function AllDayEventRow({
       />
     </div>
   );
-}
+});
 
 /** Placeholder border-only outline rendered at the target position during move */
 function AllDayPlaceholderRow({

@@ -137,7 +137,7 @@ function computeOverrideStyle(
 
 const RESIZE_HOTZONE_PX = 8;
 
-export function CalendarEventItem({
+export const CalendarEventItem = React.memo(function CalendarEventItem({
   positionedEvent,
   hourHeight,
   isPast: isPastProp,
@@ -642,7 +642,7 @@ export function CalendarEventItem({
       )}
     </>
   );
-}
+});
 
 /** Drag visual variant for all-day events */
 export type AllDayDragVariant = "ghost" | "placeholder" | "dragging";

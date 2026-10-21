@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useState, useEffect } from "react";
+import { memo, useRef, useMemo, useCallback, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { addWeeks, startOfMonth } from "date-fns";
 
@@ -52,7 +52,7 @@ interface ContextMenuState {
   event: CalendarEvent;
 }
 
-export function MonthView({
+export const MonthView = memo(function MonthView({
   currentDate,
   events = [],
   viewSettings,
@@ -354,4 +354,4 @@ export function MonthView({
       </div>
     </CalendarPopoverBoundaryProvider>
   );
-}
+});

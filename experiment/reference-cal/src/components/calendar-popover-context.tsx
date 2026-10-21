@@ -82,6 +82,9 @@ export function CalendarPopoverBoundaryProvider({
   // A ResizeObserver catches layout changes; we don't need scroll since the
   // boundary element itself doesn't scroll within the viewport.
   React.useEffect(() => {
+    // Only day view uses viewport coordinates. Updating them during a week
+    // sidebar animation would otherwise re-render every event via context.
+    if (view !== "day") return;
     const el = boundaryRef.current;
     if (!el) return;
 
@@ -93,7 +96,7 @@ export function CalendarPopoverBoundaryProvider({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [boundaryRef]);
+  }, [boundaryRef, view]);
 
   const value = React.useMemo(
     () => ({ boundary, headerHeight, view, boundaryRight, headerBottom }),

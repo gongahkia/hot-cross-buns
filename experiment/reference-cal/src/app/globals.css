@@ -252,7 +252,7 @@ html.dark,
 }
 
 :root {
-  --sidebar-motion-duration: 240ms;
+  --sidebar-motion-duration: 140ms;
   --sidebar-motion-easing: cubic-bezier(0.2, 0, 0, 1);
 }
 

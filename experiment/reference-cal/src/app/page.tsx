@@ -201,6 +201,16 @@ function PageContent({ isWideLayout }: PageContentProps) {
     [isMobile, setContextPanelOpenMobile],
   );
 
+  const handleEventClick = React.useCallback(
+    (event: CalendarEvent) => selectEvent(event.id),
+    [selectEvent],
+  );
+  const clearSelection = React.useCallback(() => setSelectedEventId(null), []);
+  const dockToSidebar = React.useCallback(() => {
+    if (isMobile) setContextPanelOpenMobile(true);
+    else setContextPanelOpen(true);
+  }, [isMobile, setContextPanelOpen, setContextPanelOpenMobile]);
+
   const handleEventChange = React.useCallback((updatedEvent: CalendarEvent) => {
     setEvents((prev) =>
       prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)),
@@ -743,19 +753,17 @@ function PageContent({ isWideLayout }: PageContentProps) {
                   currentDate={currentDate}
                   events={visibleEvents}
                   viewSettings={viewSettings}
-                  onEventClick={(e) => selectEvent(e.id)}
+                  onEventClick={handleEventClick}
                   selectedEventId={selectedEvent?.id}
-                  onBackgroundClick={() => setSelectedEventId(null)}
+                  onBackgroundClick={clearSelection}
                   onEventChange={handleEventChange}
                   onDateChange={goToDate}
                   onDisplayMonthChange={setMonthViewDisplayMonth}
                   onMoreClick={handleMoreClick}
                   onDayNumberClick={handleMoreClick}
                   isSidebarOpen={showDetailsInPanel}
-                  onDockToSidebar={() => {
-                    if (!rightSidebarOpen) toggleSidebar();
-                  }}
-                  onClosePopover={() => setSelectedEventId(null)}
+                  onDockToSidebar={dockToSidebar}
+                  onClosePopover={clearSelection}
                 />
               ) : (
                 <WeekView
@@ -764,18 +772,16 @@ function PageContent({ isWideLayout }: PageContentProps) {
                   showWeekends={viewSettings.showWeekends}
                   currentDate={currentDate}
                   events={visibleEvents}
-                  onEventClick={(e) => selectEvent(e.id)}
+                  onEventClick={handleEventClick}
                   selectedEventId={selectedEvent?.id}
-                  onBackgroundClick={() => setSelectedEventId(null)}
+                  onBackgroundClick={clearSelection}
                   onEventCreate={handleEventCreate}
                   onDateChange={goToDate}
                   onVisibleDaysChange={setVisibleDays}
                   onEventChange={handleEventChange}
                   isSidebarOpen={showDetailsInPanel}
-                  onDockToSidebar={() => {
-                    if (!rightSidebarOpen) toggleSidebar();
-                  }}
-                  onClosePopover={() => setSelectedEventId(null)}
+                  onDockToSidebar={dockToSidebar}
+                  onClosePopover={clearSelection}
                   onPrevWeek={goToPrev}
                   onNextWeek={goToNext}
                   highlightedDate={highlightedDate}

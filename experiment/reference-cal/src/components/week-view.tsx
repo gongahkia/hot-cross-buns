@@ -155,7 +155,10 @@ export function getVisibleDays(
  * depends on the viewer's clock (today, the current-time line, past events)
  * reads the shared `useNow` clock, which is unknown until hydration finishes.
  */
-export function WeekView({ currentDate, ...props }: WeekViewProps) {
+export const WeekView = React.memo(function WeekView({
+  currentDate,
+  ...props
+}: WeekViewProps) {
   // `null` on the server and during hydration
   const today = useToday();
   const firstDay = currentDate ?? today;
@@ -166,7 +169,7 @@ export function WeekView({ currentDate, ...props }: WeekViewProps) {
   }
 
   return <WeekViewContent {...props} currentDate={firstDay} today={today} />;
-}
+});
 
 /**
  * Week View body, rendered once the first visible day is known
@@ -208,7 +211,10 @@ function WeekViewContent({
     [currentDate, VISIBLE_DAYS, includeWeekends],
   );
 
-  const days = withIsToday(baseDays, today);
+  const days = React.useMemo(
+    () => withIsToday(baseDays, today),
+    [baseDays, today],
+  );
 
   const hours = React.useMemo(() => generateHours(), []);
 
@@ -348,7 +354,10 @@ function WeekViewContent({
     [currentDate, dynamicBuffer, VISIBLE_DAYS, includeWeekends],
   );
 
-  const bufferedDays = withIsToday(bufferedBaseDays, today);
+  const bufferedDays = React.useMemo(
+    () => withIsToday(bufferedBaseDays, today),
+    [bufferedBaseDays, today],
+  );
 
   const bufferedDayDates = React.useMemo(
     () => bufferedBaseDays.map((d) => d.date),
