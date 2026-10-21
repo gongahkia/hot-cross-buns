@@ -156,6 +156,10 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     const [range, setRange] = useState<QueryRange | null>(null);
     const [recent, setRecent] = useState<ReferenceItem[]>([]);
     const [uploading, setUploading] = useState(false);
+    const mounted = useRef(true);
+    const insertion = useRef({ value: String(value), onValueChange, getSelection, insertReference, range, isOpen, disabled: props.disabled });
+    insertion.current = { value: String(value), onValueChange, getSelection, insertReference, range, isOpen, disabled: props.disabled };
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
     useEffect(() => { if (props.disabled) setIsOpen(false); }, [props.disabled]);
 
     useEffect(() => {
@@ -280,14 +284,20 @@ export const ReferenceTextarea = forwardRef<HTMLTextAreaElement, Omit<TextareaHT
     }
 
     function choose(item: ReferenceItem): void {
-      const selection = range ?? { start: textareaRef.current?.selectionStart ?? String(value).length, end: textareaRef.current?.selectionEnd ?? String(value).length };
+      const current = insertion.current;
+      if (!mounted.current || current.disabled) return;
+      const selection = (current.isOpen ? current.range : null) ?? current.getSelection?.() ?? {
+        start: textareaRef.current?.selectionStart ?? current.value.length,
+        end: textareaRef.current?.selectionEnd ?? current.value.length
+      };
       const marker = markerFor(item);
-      const nextValue = `${String(value).slice(0, selection.start)}${marker}${String(value).slice(selection.end)}`;
+      const nextValue = `${current.value.slice(0, selection.start)}${marker}${current.value.slice(selection.end)}`;
       const nextCursor = selection.start + marker.length;
-      if (insertReference) insertReference(marker, selection);
-      else onValueChange(nextValue);
+      if (current.insertReference) current.insertReference(marker, selection);
+      else current.onValueChange(nextValue);
       remember(item);
       setIsOpen(false);
+      setRange(null);
       setMessage(null);
       window.requestAnimationFrame(() => {
         textareaRef.current?.focus();

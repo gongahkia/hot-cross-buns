@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,15 @@ import { ReferenceTextarea } from "./ReferenceTextarea";
 
 describe("ReferenceTextarea", () => {
   const originalHcb = Object.getOwnPropertyDescriptor(window, "hcb");
+
+  function uploadApi(pickAndUploadDriveFile: () => Promise<unknown>) {
+    Object.defineProperty(window, "hcb", { configurable: true, value: {
+      settings: { get: vi.fn(async () => ok({ referenceRecents: [] })), update: vi.fn(async () => ok({})) },
+      google: { status: vi.fn(async () => ok({ accounts: [{ accountId: "google-account", connectionState: "connected", grantedScopes: ["https://www.googleapis.com/auth/drive.file"] }] })), pickAndUploadDriveFile },
+      search: { query: vi.fn(async () => ok({ items: [] })) }
+    } });
+  }
+  const uploaded = () => ok({ cancelled: false, item: { fileId: "file-1", fileUrl: "https://drive.google.com/file/d/file-1/view", title: "Uploaded file" } });
 
   afterEach(() => {
     cleanup();
@@ -87,5 +96,26 @@ describe("ReferenceTextarea", () => {
 
     await screen.findByRole("button", { name: "Drive" });
     expect(screen.queryByRole("button", { name: "Upload file" })).not.toBeInTheDocument();
+  });
+
+  it("inserts direct uploads at rich document positions rather than Markdown offsets", async () => {
+    uploadApi(vi.fn(async () => uploaded()));
+    const insertReference = vi.fn();
+    render(<ReferenceTextarea accountId="google-account" aria-label="Body" value="**Bold text** and Markdown" onValueChange={vi.fn()}
+      renderInput={() => <div>Rich field</div>} getSelection={() => ({ start: 3, end: 3 })} insertReference={insertReference} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Upload file" }));
+    expect(insertReference).toHaveBeenCalledWith("[Uploaded file](<https://drive.google.com/file/d/file-1/view>)", { start: 3, end: 3 });
+  });
+
+  it("preserves source typing made while an upload is pending", async () => {
+    let finish: ((result: unknown) => void) | undefined;
+    uploadApi(() => new Promise((resolve) => { finish = resolve; }));
+    function Harness() { const [value, setValue] = useState("Before"); return <ReferenceTextarea accountId="google-account" aria-label="Body" value={value} onValueChange={setValue} />; }
+    render(<Harness />);
+    await userEvent.click(await screen.findByRole("button", { name: "Upload file" }));
+    const body = screen.getByRole("textbox", { name: "Body" });
+    await userEvent.type(body, " newer typing");
+    await act(async () => { finish?.(uploaded()); });
+    expect(body).toHaveValue("Before newer typing[Uploaded file](<https://drive.google.com/file/d/file-1/view>)");
   });
 });
