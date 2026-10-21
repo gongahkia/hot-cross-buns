@@ -1307,7 +1307,9 @@ function googleEventBody(event: JsonRecord, createId?: string): JsonRecord {
   return {
     ...(createId ? { id: createId, extendedProperties: { private: { hcbLocalEventId: event.id } } } : {}),
     summary: event.title,
-    description: event.description || undefined,
+    // An empty editor is an explicit clear. Omitting it from PATCH preserves
+    // Google's old description and brings it back on the following pull.
+    description: event.description ?? "",
     location: event.location || undefined,
     colorId: googleCalendarEventColorIdForApi(event.colorId),
     start: googleEventTime(event.startsAt, Boolean(event.allDay), event.timeZone),

@@ -927,4 +927,25 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
   });
 
+  it("retains a cleared Calendar description after PATCH and later pulls", async () => {
+    const { store, service, calendar, importEvent, remoteEvents, googleFetch } = createCalendarFixture();
+    const event = importEvent("clear-description");
+    remoteEvents.get("clear-description")!.description = "Old **Markdown**";
+    store.upsertGoogleEvent(remoteEvents.get("clear-description")!, calendar.id);
+    store.dispatch("calendar", "update", { id: event.id, description: "" });
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH") {
+        const remote = remoteEvents.get("clear-description")!;
+        Object.assign(remote, JSON.parse(String(init.body))); return Response.json(remote);
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow(); await service.runNow();
+    const patch = googleFetch.mock.calls.find(([, , init]) => init?.method === "PATCH")![2]!;
+    expect(JSON.parse(String(patch.body)).description).toBe("");
+    expect(remoteEvents.get("clear-description")!.description).toBe("");
+    expect(store.googleEventForSync(event.id)!.description).toBe("");
+  });
+
 });
