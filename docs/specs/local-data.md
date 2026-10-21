@@ -69,6 +69,8 @@ Settings → Data supports consistent SQLite snapshots, exporting a snapshot, da
 
 Force full resync clears sync checkpoints and repulls supported Google resources. Recovery and export errors must report failure rather than a placeholder success. Unsupported MCP-token reset and destructive cache shells are absent.
 
+Local-note recovery also accepts schema 6 and 7 snapshots: their Notes layout is unchanged by the subsequent queue/index migrations. Newer unknown formats are rejected, and recovery never restores an older Google queue.
+
 ## Tests
 
 Required tests:

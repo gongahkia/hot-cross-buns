@@ -255,7 +255,11 @@ export class CoreStore {
     try {
       if (snapshot.pragma("quick_check", { simple: true }) !== "ok") throw new CoreStoreError("The backup failed its integrity check.");
       const version = snapshot.prepare("SELECT MAX(version) AS version FROM schema_migrations").get() as { version: number };
-      if (version.version !== schemaVersion) throw new CoreStoreError("This backup uses a different database version. Open it with a matching version of Hot Cross Buns.");
+      // v6 uses the same Notes layout as v7/v8. Queue/index-only migrations
+      // must not make a user's existing note backups unusable after upgrading.
+      if (!Number.isInteger(version.version) || version.version < 6 || version.version > schemaVersion) {
+        throw new CoreStoreError("This backup uses an incompatible database version. Open it with a compatible version of Hot Cross Buns.");
+      }
       const insertList = this.statement(`INSERT INTO note_lists(id,title,created_at,updated_at) VALUES(@id,@title,@created_at,@updated_at)
         ON CONFLICT(id) DO UPDATE SET title=excluded.title,updated_at=excluded.updated_at`);
       const insertNote = this.statement(`INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at,deleted_at)

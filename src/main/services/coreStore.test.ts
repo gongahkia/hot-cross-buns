@@ -29,6 +29,30 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it.each([6, 7])("recovers notes from a compatible version %s backup without restoring its queue", async (version) => {
+    const store = createStore();
+    const note = store.dispatch("notes", "create", { title: "Older backup", body: "Original body" });
+    const path = join(stores.at(-1)!.directory, "older-backup.sqlite");
+    await store.backupTo(path);
+    const snapshot = new Database(path);
+    try {
+      snapshot.exec("ALTER TABLE outbox DROP COLUMN creation_started");
+      if (version === 6) snapshot.exec("DROP INDEX outbox_unresolved_account_idx");
+      snapshot.exec("DELETE FROM schema_migrations");
+      snapshot.prepare("INSERT INTO schema_migrations(version) VALUES(?)").run(version);
+    } finally { snapshot.close(); }
+    store.dispatch("notes", "update", { id: note.id, body: "Changed body" });
+    store.dispatch("tasks", "create", { title: "Preserve the current queue" });
+    const pending = store.pendingSyncMutations();
+    expect(store.restoreLocalNotes(path)).toBe(1);
+    expect(store.dispatch("notes", "get", { id: note.id }).body).toBe("Original body");
+    expect(store.pendingSyncMutations()).toEqual(pending);
+    const future = new Database(path);
+    try { future.exec("DELETE FROM schema_migrations; INSERT INTO schema_migrations(version) VALUES(999)"); }
+    finally { future.close(); }
+    expect(() => store.restoreLocalNotes(path)).toThrow("incompatible database version");
+  });
+
   it("undoes and redoes same-millisecond edits in order across restarts and branch changes", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-21T10:00:00Z"));
