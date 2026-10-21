@@ -11,8 +11,9 @@ import { setImmediate as yieldToRequests } from "node:timers/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
+import { resolutionGoogleEvent, resolutionLocalRecord } from "./syncResolution";
 import type { SyncResolutionPreview } from "@shared/syncResolution";
-import { claimedLocalEventId, deterministicGoogleEventId } from "./googleEventIdentity";
+import { deterministicGoogleEventId } from "./googleEventIdentity";
 
 type JsonRecord = Record<string, any>;
 type WorkspaceService = "driveSearch" | "driveUpload" | "gmail";
@@ -165,10 +166,10 @@ export class GoogleSyncService {
     if (this.resolutionReviews.size >= 5) this.resolutionReviews.delete(this.resolutionReviews.keys().next().value!);
     this.resolutionReviews.set(reviewId, { mutationId: context.mutation.id, version: context.version, fingerprint: snapshotFingerprint(snapshot), expires: Date.now() + 5 * 60_000 });
     const items = context.entities.map((entity) => {
-      const local = entity.local ?? context.mutations.find((mutation) => mutation.entityId === entity.id)?.payload ?? null;
+      const local = resolutionLocalRecord(context, entity.id);
       const remote = entity.kind === "taskList" ? snapshot.lists?.find((list) => list.remote.id === local?.googleId)?.remote
         : entity.kind === "task" ? snapshot.lists?.flatMap((list) => list.tasks).find((task) => task.id === local?.googleId)
-        : snapshot.calendars?.flatMap((calendar) => calendar.events).find((event) => event.id === local?.googleId || (!local?.googleId && claimedLocalEventId(event) === entity.id));
+        : resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.store.googleCalendarForSync(id))?.event;
       return { id: entity.id, kind: entity.kind, title: local?.title ?? "Locally deleted item", local: resolutionFields(entity.kind, entity.local), google: resolutionFields(entity.kind, remote ?? null, true) };
     });
     const split = context.mutations.some((mutation) => mutation.kind === "event.splitSeries");
@@ -206,12 +207,17 @@ export class GoogleSyncService {
       if (current.mutations.some((mutation) => mutation.kind === "event.splitSeries")) throw new CoreStoreError("Restore Google's recurring-series state before starting a new split.");
       for (const entity of current.entities) {
         if (!entity.local?.googleId || current.mutations.some((mutation) => mutation.entityId === entity.id && mutation.kind.endsWith(".delete"))) continue;
+        if (entity.kind === "event") {
+          const target = resolutionGoogleEvent(current, entity.id, snapshot, (id) => this.store.googleCalendarForSync(id));
+          if (!target || target.event.status === "cancelled") throw new CoreStoreError("This item was removed in Google. Preserve local content before using Google or creating a new item.");
+          continue;
+        }
         const remote = entity.kind === "taskList" ? snapshot.lists?.map((list) => list.remote)
           : entity.kind === "task" ? snapshot.lists?.flatMap((list) => list.tasks)
           : snapshot.calendars?.flatMap((calendar) => calendar.events);
         if (!remote?.some((item) => item.id === entity.local!.googleId && !item.deleted && item.status !== "cancelled")) throw new CoreStoreError("This item was removed in Google. Preserve local content before using Google or creating a new item.");
       }
-      result = this.store.dispatch("diagnostics", "retryPendingMutation", { id: current.mutation.id });
+      result = this.store.retryGoogleResolution(current, snapshot);
     }
     else throw new CoreStoreError("Choose keep local or use Google.");
     this.resolutionReviews.delete(reviewId);

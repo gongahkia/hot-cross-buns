@@ -792,6 +792,8 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     const destination = store.upsertGoogleCalendar({ id: "destination", summary: "Destination" }, accountId);
     store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id, title: "Moved locally" });
     const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    await service.runNow({ readOnly: true });
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
     const preview = await service.previewMutationResolution({ id });
     await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
     expect(store.googleEventForSync(event.id)).toMatchObject({ calendarId: calendar.id, title: "moved-event", googleId: "moved-event" });
@@ -947,5 +949,69 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
     expect(remoteEvents.get("clear-description")!.description).toBe("");
     expect(store.googleEventForSync(event.id)!.description).toBe("");
   });
+
+  it.each([false, true])("scopes recovery to the event's Calendar when another Calendar uses the same event id (reverse=%s)", async (reverse) => {
+    const { store, service, accountId, calendar, remoteCalendar, remoteEvents, googleFetch, importEvent } = createCalendarFixture();
+    const first = importEvent("same-event-id");
+    const otherRemote = { id: "other-calendar", summary: "Other Calendar" };
+    const otherCalendar = store.upsertGoogleCalendar(otherRemote, accountId);
+    const remoteCopy = { ...remoteEvents.get("same-event-id")!, summary: "Independent other event" };
+    const other = store.upsertGoogleEvent(remoteCopy, otherCalendar.id)!;
+    store.dispatch("calendar", "update", { id: first.id, title: "Local edit" });
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (target.pathname.endsWith("/calendarList")) return Response.json({ items: reverse ? [otherRemote, remoteCalendar] : [remoteCalendar, otherRemote] });
+      if (target.pathname.includes("/other-calendar/events")) return Response.json({ items: [remoteCopy], nextSyncToken: "other-token" });
+      return transport(account, target, init);
+    });
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview.items[0].google!.title).toBe("same-event-id");
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "google" });
+    expect(store.googleEventForSync(first.id)).toMatchObject({ calendarId: calendar.id, title: "same-event-id" });
+    expect(store.googleEventForSync(other.id)).toMatchObject({ calendarId: otherCalendar.id, title: "Independent other event" });
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(2);
+  });
+
+  it.each(["remote-calendar", "middle", "final"])("rebases a queued edit and multiple moves from Google's actual location %s", async (actual) => {
+    const { store, service, importEvent, remoteEvents, remoteCalendar, googleFetch, accountId, calendar } = createCalendarFixture();
+    const event = importEvent("rebase-move");
+    const middleRemote = { id: "middle", summary: "Middle" }, finalRemote = { id: "final", summary: "Final" };
+    const middle = store.upsertGoogleCalendar(middleRemote, accountId), destination = store.upsertGoogleCalendar(finalRemote, accountId);
+    const records = new Map<string, Map<string, RemoteTask>>([[remoteCalendar.id, remoteEvents], ["middle", new Map()], ["final", new Map()]]);
+    if (actual !== remoteCalendar.id) { records.get(actual)!.set("rebase-move", remoteEvents.get("rebase-move")!); remoteEvents.clear(); }
+    store.dispatch("calendar", "update", { id: event.id, title: "Latest local title" });
+    store.dispatch("calendar", "update", { id: event.id, calendarId: middle.id });
+    store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id });
+    store.dispatch("calendar", "update", { id: event.id, description: "Latest local notes", recurrenceLines: ["RRULE:FREQ=DAILY;COUNT=2"] });
+    googleFetch.mockImplementation(async (_account, target, init = {}) => {
+      const method = init.method ?? "GET";
+      if (target.pathname.endsWith("/calendarList")) return Response.json({ items: [remoteCalendar, middleRemote, finalRemote] });
+      const remoteCalendarId = target.pathname.match(/\/calendars\/([^/]+)\/events/)?.[1];
+      const events = records.get(remoteCalendarId!);
+      if (method === "GET" && target.pathname.endsWith("/events")) return Response.json({ items: [...events!.values()], nextSyncToken: "token" });
+      const remoteId = target.pathname.split("/").at(target.pathname.endsWith("/move") ? -2 : -1)!;
+      const remote = events?.get(remoteId);
+      if (!remote) return new Response(null, { status: 404 });
+      if (method === "POST" && target.pathname.endsWith("/move")) { events!.delete(remoteId); records.get(target.searchParams.get("destination")!)!.set(remoteId, remote); return Response.json(remote); }
+      if (method === "PATCH") { Object.assign(remote, JSON.parse(String(init.body))); return Response.json(remote); }
+      throw new Error(`Unexpected request ${method} ${target}`);
+    });
+    await service.runNow();
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
+    const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
+    const preview = await service.previewMutationResolution({ id });
+    expect(preview.canKeepLocal).toBe(true);
+    await service.resolveMutation({ id, reviewId: preview.reviewId, strategy: "local" });
+    googleFetch.mockClear(); await service.runNow();
+    expect(records.get("final")!.get("rebase-move")).toMatchObject({ summary: "Latest local title", description: "Latest local notes", recurrence: ["RRULE:FREQ=DAILY;COUNT=2"] });
+    expect(store.googleEventForSync(event.id)!.calendarId).toBe(destination.id);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+    const moves = googleFetch.mock.calls.filter(([, target, init]) => init?.method === "POST" && target.pathname.endsWith("/move"));
+    expect(moves).toHaveLength(actual === "final" ? 0 : 1);
+    if (moves.length) expect(moves[0][1].searchParams.get("destination")).toBe("final");
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
+  });
+
 
 });

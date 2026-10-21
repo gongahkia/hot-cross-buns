@@ -2,6 +2,7 @@ import { currentZonedDay, zonedDayRange, cachedDateTimeFormat } from "@shared/zo
 import Database from "better-sqlite3";
 import { createHash, randomUUID } from "node:crypto";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
+import { resolutionGoogleEvent } from "./syncResolution";
 import { claimedLocalEventId } from "./googleEventIdentity";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -958,6 +959,10 @@ export class CoreStore {
   upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google event id");
     let existing = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
+    if (!existing && this.statement(`SELECT 1 FROM events event JOIN outbox mutation ON mutation.entity_id=event.id
+      WHERE event.google_id=? AND mutation.kind='event.move' AND mutation.state IN ('pending','conflict')
+      AND (json_extract(mutation.payload_json,'$.sourceCalendarId')=? OR json_extract(mutation.payload_json,'$.destinationCalendarId')=?) LIMIT 1`)
+      .get(googleId, localCalendarId, localCalendarId)) return null;
     const claimedId = claimedLocalEventId(remote);
     if (!existing && claimedId) {
       existing = this.statement("SELECT id FROM events WHERE id=? AND calendar_id=? AND google_id IS NULL").get(claimedId, localCalendarId) as { id: string } | undefined;
@@ -3199,6 +3204,32 @@ export class CoreStore {
     return { id: context.mutation.id, cancelled: true, affectedCount: context.mutations.length };
   }
 
+  retryGoogleResolution(context: SyncResolutionContext, snapshot: GoogleResolutionSnapshot): JsonRecord {
+    return this.db.transaction(() => {
+      if (this.syncResolutionContext(context.mutation.id).version !== context.version) throw new CoreStoreError("Local changes arrived during recovery. Compare again.");
+      const result = this.retryMutation({ id: context.mutation.id });
+      for (const entity of context.entities.filter((entity) => entity.kind === "event")) {
+        const chain = context.mutations.filter((mutation) => mutation.entityId === entity.id);
+        if (!chain.some((mutation) => mutation.kind === "event.move")) continue;
+        if (chain.some((mutation) => !["event.create", "event.update", "event.move", "event.delete"].includes(mutation.kind))) throw new CoreStoreError("Restore Google's series state before retrying this combined operation.");
+        const target = resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id));
+        if (!target || target.event.status === "cancelled") throw new CoreStoreError("This event no longer exists in a known move location.");
+        const actualCalendar = this.upsertGoogleCalendar(target.calendar.remote, context.mutation.accountId!);
+        const desired = this.googleEventForSync(entity.id);
+        const deleted = chain.find((mutation) => mutation.kind === "event.delete");
+        const kind = !desired && deleted ? "event.delete" : desired?.calendarId === actualCalendar.id ? "event.update" : "event.move";
+        const payload = kind === "event.delete" ? { ...deleted!.payload, googleId: target.event.id, calendarGoogleId: target.calendar.remote.id, googleEtag: null }
+          : kind === "event.move" ? { sourceCalendarId: actualCalendar.id, destinationCalendarId: desired!.calendarId } : {};
+        // Keep the earliest causal position, applying the latest desired state
+        // from Google's actual location. Later stale moves must not replay.
+        this.statement("UPDATE outbox SET kind=?,payload_json=? WHERE id=?").run(kind, JSON.stringify(payload), chain[0].id);
+        for (const mutation of chain.slice(1)) this.statement("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=?").run(timestamp(), mutation.id);
+        if (desired) this.statement("UPDATE events SET google_id=?,google_etag=NULL WHERE id=?").run(target.event.id, entity.id);
+      }
+      return result;
+    })();
+  }
+
   /** Apply fetched, complete snapshots and the queue decision in one transaction. */
   applyGoogleResolution(context: SyncResolutionContext, snapshot: GoogleResolutionSnapshot): JsonRecord {
     return this.db.transaction(() => {
@@ -3233,7 +3264,7 @@ export class CoreStore {
         // A cancelled optimistic Calendar move still has the stable local id
         // in its destination. Put it back before importing the source event.
         for (const entity of context.entities.filter((entity) => entity.kind === "event" && entity.local?.googleId)) {
-          if (calendar.events.some((event) => event.id === entity.local!.googleId)) this.statement("UPDATE events SET calendar_id=? WHERE id=?").run(local.id, entity.id);
+          if (resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id))?.calendar.remote.id === calendar.remote.id) this.statement("UPDATE events SET calendar_id=? WHERE id=?").run(local.id, entity.id);
         }
         this.upsertGoogleEventBatch(calendar.events, local.id);
         this.reconcileGoogleEvents(local.id, new Set(calendar.events.map((event) => event.id)));
