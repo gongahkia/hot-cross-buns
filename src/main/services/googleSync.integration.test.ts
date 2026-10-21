@@ -83,6 +83,31 @@ function createFixture() {
     loseCreateResponse: () => { loseNextCreateResponse = true; } };
 }
 
+function createCalendarFixture() {
+  const fixture = createFixture();
+  const { store, accountId, googleFetch } = fixture;
+  const remoteCalendar = { id: "remote-calendar", summary: "Calendar" };
+  const calendar = store.upsertGoogleCalendar(remoteCalendar, accountId);
+  const remoteEvents = new Map<string, RemoteTask>();
+  store.dispatch("settings", "update", { syncTasksEnabled: false, syncCalendarEventsEnabled: true });
+  googleFetch.mockImplementation(async (_accountId, target, init = {}) => {
+    if ((init.method ?? "GET") === "GET") {
+      if (target.pathname.endsWith("/calendarList")) return Response.json({ items: [remoteCalendar] });
+      if (target.pathname.endsWith("/events")) return Response.json({ items: [...remoteEvents.values()], nextSyncToken: "next-token" });
+    }
+    throw new Error(`Unexpected Google request: ${init.method ?? "GET"} ${target}`);
+  });
+  const importEvent = (id: string) => {
+    const event = {
+      id, summary: id, etag: "v1",
+      start: { dateTime: "2026-10-22T09:00:00Z" }, end: { dateTime: "2026-10-22T10:00:00Z" }
+    };
+    remoteEvents.set(id, event);
+    return store.upsertGoogleEvent(event, calendar.id)!;
+  };
+  return { ...fixture, calendar, remoteCalendar, remoteEvents, importEvent };
+}
+
 afterEach(() => {
   vi.useRealTimers();
   for (const { store, directory } of fixtures.splice(0)) {
@@ -92,6 +117,115 @@ afterEach(() => {
 });
 
 describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+  it("reconciles an expired Calendar token against every page of the replacement snapshot", async () => {
+    const { store, service, accountId, calendar, remoteEvents, googleFetch, importEvent } = createCalendarFixture();
+    const retained = importEvent("retained");
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Keep my task" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: calendar.id, startsAt: "2026-10-22T11:00:00Z", durationMinutes: 30
+    });
+    store.bindGoogleEvent(block.calendarEventId, { id: "deleted-remotely", etag: "v1" });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.setGoogleSyncToken(accountId, "events:remote-calendar", "expired-token");
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (!target.pathname.endsWith("/events")) return transport(account, target, init);
+      if (target.searchParams.has("syncToken")) return new Response(null, { status: 410 });
+      if (!target.searchParams.has("pageToken")) return Response.json({ items: [], nextPageToken: "second-page" });
+      return Response.json({ items: [...remoteEvents.values()], nextSyncToken: "replacement-token" });
+    });
+
+    await service.runNow({ readOnly: true });
+
+    expect(store.googleEventForSync(retained.id)?.googleId).toBe("retained");
+    expect(store.googleEventForSync(block.calendarEventId)).toBeNull();
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items).toEqual([]);
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ plannedStart: null, plannedEnd: null });
+    expect(store.googleSyncToken(accountId, "events:remote-calendar")).toBe("replacement-token");
+    expect(googleFetch.mock.calls.filter(([, target]) => target.pathname.endsWith("/events")).map(([, target]) =>
+      [target.searchParams.get("syncToken"), target.searchParams.get("pageToken")]
+    )).toEqual([["expired-token", null], [null, null], [null, "second-page"]]);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("removes absent events on an explicit full resync while retaining other calendars", async () => {
+    const { store, service, accountId, remoteEvents, importEvent } = createCalendarFixture();
+    const missing = importEvent("missing");
+    const other = store.dispatch("calendar", "create", {
+      calendarId: "primary", title: "Local event", startsAt: "2026-10-22T09:00:00Z", endsAt: "2026-10-22T10:00:00Z"
+    });
+    store.bindGoogleEvent(other.id, { id: "other-calendar-event" });
+    remoteEvents.clear();
+    store.setGoogleSyncToken(accountId, "events:remote-calendar", "old-token");
+
+    await service.forceFullResync({ accountId });
+
+    expect(store.googleEventForSync(missing.id)).toBeNull();
+    expect(store.googleEventForSync(other.id)?.googleId).toBe("other-calendar-event");
+  });
+
+  it("retains absent Calendar events with unsent edits or creations during a full pull", async () => {
+    const { store, service, calendar, remoteEvents, importEvent, googleFetch } = createCalendarFixture();
+    const pending = importEvent("pending");
+    const conflicted = importEvent("conflicted");
+    remoteEvents.clear();
+    store.dispatch("calendar", "update", { id: pending.id, title: "Unsent edit" });
+    store.dispatch("calendar", "update", { id: conflicted.id, title: "Conflicting edit" });
+    const conflict = store.pendingSyncMutations(500).find((mutation) => mutation.entityId === conflicted.id)!;
+    store.deferSyncMutation(conflict.id, "Changed elsewhere", false);
+    const created = store.dispatch("calendar", "create", {
+      calendarId: calendar.id, title: "Unsent creation", startsAt: "2026-10-22T09:00:00Z", endsAt: "2026-10-22T10:00:00Z"
+    });
+
+    await service.runNow({ readOnly: true });
+
+    expect(store.googleEventForSync(pending.id)?.title).toBe("Unsent edit");
+    expect(store.googleEventForSync(conflicted.id)?.title).toBe("Conflicting edit");
+    expect(store.googleEventForSync(created.id)?.title).toBe("Unsent creation");
+    expect(googleFetch.mock.calls.every(([, , init]) => !init?.method || init.method === "GET")).toBe(true);
+  });
+
+  it("does not prune a Calendar snapshot or advance its token when a later page fails", async () => {
+    const { store, service, accountId, importEvent, remoteEvents, googleFetch } = createCalendarFixture();
+    const missing = importEvent("missing");
+    remoteEvents.clear();
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (!target.pathname.endsWith("/events")) return transport(account, target, init);
+      return target.searchParams.has("pageToken")
+        ? new Response(null, { status: 503 })
+        : Response.json({ items: [], nextPageToken: "failing-page" });
+    });
+
+    await expect(service.runNow({ readOnly: true })).rejects.toThrow();
+    expect(store.googleEventForSync(missing.id)).not.toBeNull();
+    expect(store.googleSyncToken(accountId, "events:remote-calendar")).toBeNull();
+    googleFetch.mockImplementation(transport);
+    await service.runNow({ readOnly: true });
+    expect(store.googleEventForSync(missing.id)).toBeNull();
+    expect(store.googleSyncToken(accountId, "events:remote-calendar")).toBe("next-token");
+  });
+
+  it("retains unchanged events absent from an incremental delta", async () => {
+    const { store, service, accountId, importEvent, remoteEvents } = createCalendarFixture();
+    const unchanged = importEvent("unchanged");
+    remoteEvents.clear();
+    store.setGoogleSyncToken(accountId, "events:remote-calendar", "valid-token");
+    await service.runNow({ readOnly: true });
+    expect(store.googleEventForSync(unchanged.id)).not.toBeNull();
+    expect(store.googleSyncToken(accountId, "events:remote-calendar")).toBe("next-token");
+  });
+
+  it("does not reconcile an incomplete Calendar response without its final sync token", async () => {
+    const { store, service, importEvent, googleFetch } = createCalendarFixture();
+    const cached = importEvent("cached");
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => target.pathname.endsWith("/events")
+      ? Response.json({ items: [] }) : transport(account, target, init));
+    await expect(service.runNow({ readOnly: true })).rejects.toThrow("sync token");
+    expect(store.googleEventForSync(cached.id)).not.toBeNull();
+  });
+
   it("does not replay a create from a snapshot taken while Google's response is in flight", async () => {
     const fixture = createFixture();
     const { store, service, list, accountId, googleFetch, remoteTasks } = fixture;

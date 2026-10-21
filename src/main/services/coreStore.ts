@@ -800,6 +800,19 @@ export class CoreStore {
     this.db.transaction(() => { for (const event of events) this.upsertGoogleEvent(event, localCalendarId); })();
   }
 
+  /** Called only after every page of an unfiltered full Calendar pull succeeds. */
+  reconcileGoogleEvents(localCalendarId: string, remoteGoogleIds: ReadonlySet<string>): void {
+    const cached = this.statement("SELECT id,google_id AS googleId FROM events WHERE calendar_id=? AND google_id IS NOT NULL")
+      .all(localCalendarId) as Array<{ id: string; googleId: string }>;
+    this.db.transaction(() => {
+      for (const event of cached) {
+        if (remoteGoogleIds.has(event.googleId) || this.hasPendingEntityMutation("event", event.id)) continue;
+        this.unlinkScheduledTaskBlocks(event.id);
+        this.statement("DELETE FROM events WHERE id=?").run(event.id);
+      }
+    })();
+  }
+
   upsertGoogleCalendar(remote: JsonRecord, accountId: string): JsonRecord {
     const googleId = requiredText(remote.id, "Google calendar id");
     const title = requiredText(remote.summary ?? remote.title, "Google calendar title");

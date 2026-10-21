@@ -392,19 +392,25 @@ export class GoogleSyncService {
       singleEvents: "false"
     };
     if (syncToken) query.syncToken = syncToken;
+    const fullSnapshotIds = syncToken ? null : new Set<string>();
 
     try {
       const nextSyncToken = await this.streamPages(accountId,
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(googleId)}/events`,
         query,
         async (events) => {
+          for (const event of events) if (typeof event.id === "string") fullSnapshotIds?.add(event.id);
           for (let index = 0; index < events.length; index += 100) {
             this.store.upsertGoogleEventBatch(events.slice(index, index + 100), localCalendar.id);
             await yieldToRequests();
           }
         }
       );
-      if (nextSyncToken) this.store.setGoogleSyncToken(accountId, tokenKey, nextSyncToken);
+      if (!nextSyncToken) throw new CoreStoreError("Google did not return a Calendar sync token. Retry the pull.");
+      // A full snapshot is authoritative only after its final page. Keep local
+      // creations and unresolved edits; incremental responses are only deltas.
+      if (fullSnapshotIds) this.store.reconcileGoogleEvents(localCalendar.id, fullSnapshotIds);
+      this.store.setGoogleSyncToken(accountId, tokenKey, nextSyncToken);
     } catch (error: unknown) {
       if (error instanceof GoogleApiError && error.status === 410 && !retriedAfterReset) {
         this.store.setGoogleSyncToken(accountId, tokenKey, null);

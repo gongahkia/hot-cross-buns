@@ -81,6 +81,8 @@ Google Calendar backs:
 
 Calendar incremental sync should use `nextSyncToken` after initial full sync. If Google invalidates a token, the app must perform a full resync for that calendar.
 
+After every page of an unfiltered full Calendar pull succeeds and returns its final sync token, remove cached Google events absent from that snapshot. This also applies to an explicit full resync and recovery from `410 Gone`, as required by [Google's synchronization guide](https://developers.google.com/workspace/calendar/api/guides/sync). Preserve local creations and events with pending or conflicted writes. Failed or incomplete pulls must not prune absent events or advance the checkpoint; incremental deltas must never prune unchanged events. Removing an absent scheduled event uses the same transactional block unlinking as an explicit cancellation.
+
 Remote event cancellations remove linked local task blocks in the same transaction before deleting the event. The task remains intact; its planning times reflect a surviving block or are cleared. Pull reconciliation does not enqueue a compensating Google write.
 
 For connected primary calendars, Calendar status events support Focus Time, Out of Office, and Working Location. HCB supports signed-in-user RSVP edits, read-only free/busy lookup, Google Meet creation requests, existing Drive-link attachments, and private uploads of user-selected local files. It does not support Calendar Goals, organizer-side guest or resource booking, conference removal, Drive download, sharing, moving, deletion, or a broad Drive file-lifecycle feature.
