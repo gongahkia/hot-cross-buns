@@ -36,6 +36,22 @@ function createService(settings: Record<string, unknown> = {}, pendingWrites: un
 afterEach(() => vi.useRealTimers());
 
 describe("GoogleSyncService", () => {
+  it.each([false, true])("runs an explicit refresh after active conflict recovery finishes (failure=%s)", async (fail) => {
+    const { service, pullGoogleTasks } = createService();
+    let release!: () => void;
+    (service as any).applyMutationResolution = async () => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      if (fail) throw new Error("Recovery failed");
+      return { cancelled: true };
+    };
+    const recovering = service.resolveMutation({}).catch((error) => error);
+    const refreshing = service.runNow({ readOnly: true });
+    expect(pullGoogleTasks).not.toHaveBeenCalled();
+    release(); await recovering;
+    expect(await refreshing).toMatchObject({ state: "idle" });
+    expect(pullGoogleTasks).toHaveBeenCalledOnce();
+  });
+
   it.each([false, true])("waits for an active sync before starting a forced full pull (initial failure=%s)", async (fail) => {
     const { service, pullGoogleTasks, resetGoogleSyncTokens } = createService();
     let release!: () => void;

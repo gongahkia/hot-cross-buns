@@ -53,6 +53,7 @@ class SplitSeriesRolledBackError extends Error {}
  */
 export class GoogleSyncService {
   private inFlight: Promise<JsonRecord> | null = null;
+  private resolvingMutation = false;
   private readonly events = new EventEmitter();
   private interval: NodeJS.Timeout | null = null;
   private writeDebounce: NodeJS.Timeout | null = null;
@@ -68,7 +69,9 @@ export class GoogleSyncService {
   }
 
   runNow(input: JsonRecord = {}): Promise<JsonRecord> {
-    if (this.inFlight) return this.inFlight;
+    if (this.inFlight) return this.resolvingMutation
+      ? this.inFlight.catch(() => undefined).then(() => this.runNow(input))
+      : this.inFlight;
     const startedAt = performance.now();
     this.inFlight = this.sync(input).finally(() => {
       this.inFlight = null;
@@ -110,7 +113,7 @@ export class GoogleSyncService {
 
   async shutdown(): Promise<void> {
     this.stopBackgroundSync();
-    await this.inFlight?.catch(() => undefined);
+    while (this.inFlight) await this.inFlight.catch(() => undefined);
   }
 
   scheduleAfterLocalMutation(): void {
@@ -207,7 +210,8 @@ export class GoogleSyncService {
     // Reserve the same lock as sync before the first await, including another
     // recovery request. Background delivery cannot race the reviewed decision.
     if (this.inFlight) return Promise.reject(new CoreStoreError("Sync is running. Wait for it to finish, then resolve again."));
-    this.inFlight = this.applyMutationResolution(input).finally(() => { this.inFlight = null; });
+    this.resolvingMutation = true;
+    this.inFlight = this.applyMutationResolution(input).finally(() => { this.resolvingMutation = false; this.inFlight = null; });
     return this.inFlight;
   }
 
