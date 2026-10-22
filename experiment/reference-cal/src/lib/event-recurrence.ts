@@ -36,7 +36,6 @@ const WEEKDAYS = [
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EDITABLE_KEYS = [
   "kind",
-  "eventType",
   "title",
   "start",
   "end",
@@ -312,6 +311,22 @@ export function updateCalendarEvents(
     (event) => event.id === (updated.seriesId ?? updated.id),
   );
   if (!master) return events;
+  if (updated.kind === "birthday" && master.kind !== "birthday") {
+    // Changing a series to a birthday uses the selected date as its annual
+    // anchor. Preserve the selected ID so its popup/search result stays open.
+    const birthday: CalendarEvent = {
+      ...updated,
+      id: master.id,
+      seriesId: undefined,
+      occurrenceStart: undefined,
+      recurrenceAnchor: undefined,
+      recurrenceExceptions:
+        updated.id !== master.id
+          ? { [updated.start.toISOString()]: { id: updated.id } }
+          : undefined,
+    };
+    return events.map((event) => (event.id === master.id ? birthday : event));
+  }
   const recurrenceChanged = different(
     master.recurrenceRule,
     updated.recurrenceRule,
@@ -386,7 +401,6 @@ export function prepareSampleSeries(events: CalendarEvent[]): CalendarEvent[] {
     }
     const key = JSON.stringify([
       event.kind ?? "event",
-      event.eventType ?? "event",
       event.title,
       event.calendarId,
       event.recurrence,

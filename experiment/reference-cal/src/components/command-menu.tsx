@@ -82,6 +82,11 @@ export function CommandMenu({
           <CommandItem onSelect={() => runCommand(() => onCreateEntry("task"))}>
             Create task...
           </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => onCreateEntry("birthday"))}
+          >
+            Create birthday...
+          </CommandItem>
           <CommandItem disabled>
             Meet with...
             {SOON_BADGE}

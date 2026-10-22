@@ -17,6 +17,7 @@ import {
   recurrenceSummary,
   updateCalendarEvents,
 } from "../src/lib/event-recurrence.ts";
+import { withCalendarEntryKind } from "../src/lib/calendar-entry.ts";
 import { generateMockEvents } from "../src/lib/mock-events.ts";
 
 process.env.TZ = "Asia/Singapore";
@@ -418,7 +419,6 @@ test("converting a recurring occurrence to a task survives edits and leaves its 
   let sources = updateCalendarEvents([master], {
     ...second,
     kind: "task",
-    eventType: undefined,
   });
   const task = findCalendarEvent(sources, second.id);
   assert.equal(task.kind, "task");
@@ -450,7 +450,6 @@ test("task series preserve their kind across repeat changes and conversion back 
   let sources = updateCalendarEvents([master], {
     ...occurrences[1],
     kind: "event",
-    eventType: "focus",
   });
   let converted = findCalendarEvent(sources, occurrences[1].id);
   sources = updateCalendarEvents(sources, {
@@ -463,7 +462,6 @@ test("task series preserve their kind across repeat changes and conversion back 
   });
   converted = findCalendarEvent(sources, occurrences[1].id);
   assert.equal(converted.kind, "event");
-  assert.equal(converted.eventType, "focus");
   assert.equal(converted.title, "Focus work");
   assert.equal(expand(sources[0])[0].kind, "task");
   const stopped = updateCalendarEvents(sources, {
@@ -474,7 +472,7 @@ test("task series preserve their kind across repeat changes and conversion back 
   assert.equal(stopped[0].recurrenceRule, undefined);
 });
 
-test("sample-series grouping keeps tasks and event categories separate", () => {
+test("sample-series grouping keeps tasks and events separate", () => {
   const sample = event({
     recurrenceRule: undefined,
     recurrence: "Every week on Mon",
@@ -482,13 +480,83 @@ test("sample-series grouping keeps tasks and event categories separate", () => {
   const samples = [
     { ...sample, id: "event", kind: "event" },
     { ...sample, id: "task", kind: "task" },
-    { ...sample, id: "focus", kind: "event", eventType: "focus" },
   ];
   const sources = prepareSampleSeries(samples);
-  assert.equal(sources.length, 3);
+  assert.equal(sources.length, 2);
   for (const sample of samples) {
     const resolved = findCalendarEvent(sources, sample.id);
     assert.equal(resolved.kind, sample.kind);
-    assert.equal(resolved.eventType, sample.eventType);
   }
+});
+
+test("new birthdays repeat annually while events and tasks keep their scheduling", () => {
+  const base = event({
+    recurrenceRule: undefined,
+    description: "Keep this",
+    location: "Singapore",
+  });
+  for (const kind of ["event", "task"]) {
+    const entry = withCalendarEntryKind(base, kind);
+    assert.equal(entry.kind, kind);
+    assert.equal(entry.recurrenceRule, undefined);
+    assert.equal(entry.start, base.start);
+  }
+  const birthday = withCalendarEntryKind(base, "birthday");
+  assert.deepEqual(birthday.recurrenceRule, {
+    frequency: "yearly",
+    interval: 1,
+  });
+  assert.equal(birthday.recurrence, "Every year");
+  assert.equal(birthday.description, base.description);
+  assert.equal(birthday.location, base.location);
+  const rows = expand(
+    birthday,
+    new Date("2026-01-01Z"),
+    new Date("2029-01-01Z"),
+  );
+  assert.deepEqual(
+    rows.map((row) => local(row.start)),
+    [
+      [2026, 3, 2, 9, 0],
+      [2027, 3, 2, 9, 0],
+      [2028, 3, 2, 9, 0],
+    ],
+  );
+  assert.ok(rows.every((row) => row.kind === "birthday"));
+});
+
+test("converting an edited recurring occurrence to a birthday keeps its selected identity and annual anchor", () => {
+  const master = event({ kind: "event" });
+  const second = expand(master)[1];
+  const birthday = withCalendarEntryKind(
+    { ...second, title: "A birthday", location: "Birthday room" },
+    "birthday",
+  );
+  const sources = updateCalendarEvents([master], birthday);
+  const selected = findCalendarEvent(sources, second.id);
+  assert.ok(selected);
+  assert.equal(selected.kind, "birthday");
+  assert.equal(selected.title, "A birthday");
+  assert.equal(selected.location, "Birthday room");
+  assert.equal(selected.start.getTime(), second.start.getTime());
+  const rows = expand(
+    sources[0],
+    new Date("2026-01-01Z"),
+    new Date("2029-01-01Z"),
+  );
+  assert.deepEqual(
+    rows.map((row) => local(row.start).slice(0, 3)),
+    [
+      [2026, 3, 9],
+      [2027, 3, 9],
+      [2028, 3, 9],
+    ],
+  );
+  assert.ok(rows.every((row) => row.kind === "birthday"));
+  const edited = updateCalendarEvents(sources, {
+    ...selected,
+    description: "Inline edit",
+  });
+  assert.equal(findCalendarEvent(edited, second.id).description, "Inline edit");
+  assert.equal(findCalendarEvent(edited, second.id).kind, "birthday");
 });

@@ -30,6 +30,7 @@ import {
   updateCalendarEvents,
 } from "@/lib/event-recurrence";
 import { getNewEventRange, pickRandomEventColor } from "@/lib/event-utils";
+import { withCalendarEntryKind } from "@/lib/calendar-entry";
 import { CommandMenu } from "@/components/command-menu";
 import { SidebarLeft } from "@/components/sidebar-left";
 import type {
@@ -268,16 +269,23 @@ function PageContent({ isWideLayout }: PageContentProps) {
       // new. A real app would use the target calendar's color instead.
       const color = pickRandomEventColor(lastCreatedColorRef.current);
       lastCreatedColorRef.current = color;
-      const newEvent: CalendarEvent = {
-        id: crypto.randomUUID(),
+      const newEvent = withCalendarEntryKind(
+        {
+          id: crypto.randomUUID(),
+          title:
+            kind === "task"
+              ? "New task"
+              : kind === "birthday"
+                ? "New birthday"
+                : "New event",
+          start: range.start,
+          end: range.end,
+          color,
+          calendarId: PRIMARY_CALENDAR_ID,
+          calendarEmail: PRIMARY_CALENDAR_ID,
+        },
         kind,
-        title: kind === "task" ? "New task" : "New event",
-        start: range.start,
-        end: range.end,
-        color,
-        calendarId: PRIMARY_CALENDAR_ID,
-        calendarEmail: PRIMARY_CALENDAR_ID,
-      };
+      );
       setEvents((prev) => [...prev, newEvent]);
       selectEvent(newEvent.id);
       setTitleFocusEventId(newEvent.id);
