@@ -40,6 +40,13 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("calendar", "get", { id: event.id }).completedAt).toBeNull();
   });
 
+  it("filters search domains before limiting results so notes cannot crowd out planner matches", () => {
+    const store = createStore();
+    for (let i = 0; i < 35; i++) store.dispatch("notes", "create", { title: "Marmalade", body: "" });
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Marmalade planning task" });
+    expect(store.dispatch("search", "query", { query: "Marmalade", limit: 1, domains: ["calendar", "tasks"] }).items.map((item: any) => item.id)).toEqual([task.id]);
+  });
+
   it("treats punctuation and FTS operators in ordinary searches as literal text", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Design follow-up AND review" });

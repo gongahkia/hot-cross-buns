@@ -1138,7 +1138,7 @@ export class CoreStore {
       case "search.resolveLinks":
         return this.resolveLinks(input);
       case "search.query":
-        return this.search(input.query ?? "", input.limit ?? 30);
+        return this.search(input.query ?? "", input.limit ?? 30, input.domains);
       case "settings.get":
         return this.settings();
       case "settings.update":
@@ -2874,21 +2874,23 @@ export class CoreStore {
       (SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?)) AS count`).get(needle, needle, needle, needle, needle, needle) as JsonRecord;
   }
 
-  private search(query: string, limit: number): JsonRecord {
+  private search(query: string, limit: number, domains?: unknown): JsonRecord {
+    const included = ["tasks", "calendar", "notes"].filter(domain => !Array.isArray(domains) || domains.includes(domain));
+    if (!included.length) return { items: [] };
     const safeLimit = Math.max(1, Math.min(200, Number(limit) || 30));
     const match = ftsQuery(query);
     if (this.fullTextSearchAvailable && match) {
       return {
         items: this.statement(`SELECT entity_id AS id,title,snippet(search_index,3,'','','…',32) AS snippet,domain,
-          NULL AS snoozeUntil FROM search_index WHERE search_index MATCH ?
-          ORDER BY bm25(search_index) LIMIT ?`).all(match, safeLimit) as JsonRecord[]
+          NULL AS snoozeUntil FROM search_index WHERE search_index MATCH ? AND domain IN (${included.map(() => "?").join(",")})
+          ORDER BY bm25(search_index) LIMIT ?`).all(match, ...included, safeLimit) as JsonRecord[]
       };
     }
     const needle = `%${String(query).trim()}%`;
     const items = [
-      ...(this.statement("SELECT id,title,substr(notes,1,240) AS snippet,'tasks' AS domain,snooze_until AS snoozeUntil FROM tasks WHERE status != 'deleted' AND (title LIKE ? OR notes LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
-      ...(this.statement("SELECT id,title,substr(description,1,240) AS snippet,'calendar' AS domain,NULL AS snoozeUntil FROM events WHERE title LIKE ? OR description LIKE ? LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[]),
-      ...(this.statement("SELECT id,title,substr(body,1,240) AS snippet,'notes' AS domain,NULL AS snoozeUntil FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[])
+      ...(included.includes("tasks") ? this.statement("SELECT id,title,substr(notes,1,240) AS snippet,'tasks' AS domain,snooze_until AS snoozeUntil FROM tasks WHERE status != 'deleted' AND (title LIKE ? OR notes LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[] : []),
+      ...(included.includes("calendar") ? this.statement("SELECT id,title,substr(description,1,240) AS snippet,'calendar' AS domain,NULL AS snoozeUntil FROM events WHERE title LIKE ? OR description LIKE ? LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[] : []),
+      ...(included.includes("notes") ? this.statement("SELECT id,title,substr(body,1,240) AS snippet,'notes' AS domain,NULL AS snoozeUntil FROM notes WHERE deleted_at IS NULL AND (title LIKE ? OR body LIKE ?) LIMIT ?").all(needle, needle, safeLimit) as JsonRecord[] : [])
     ].slice(0, safeLimit);
     return { items };
   }

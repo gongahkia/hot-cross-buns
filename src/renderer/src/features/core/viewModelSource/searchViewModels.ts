@@ -9,7 +9,8 @@ import type { SearchHookState } from "./types";
 
 const LOCAL_SEARCH_DEBOUNCE_MS = 12;
 
-export function useLocalSearch(query: string): SearchHookState {
+export function useLocalSearch(query: string, domains?: readonly ("tasks" | "calendar" | "notes")[]): SearchHookState {
+  const domainKey = domains?.join(",");
   const parsed = useMemo(() => parseLocalSearchQuery(query), [query]);
   const [state, setState] = useState<SearchHookState>({
     viewModel: idleSearchViewModel(),
@@ -65,7 +66,8 @@ export function useLocalSearch(query: string): SearchHookState {
       window.hcb?.search
         .query({
           query: trimmed,
-          limit: 30
+          limit: 30,
+          domains: domainKey?.split(",")
         })
         .then((result) => unwrap(result, "Search failed"))
         .then((response) => {
@@ -104,7 +106,7 @@ export function useLocalSearch(query: string): SearchHookState {
       cancelled = true;
       window.clearTimeout(debounce);
     };
-  }, [query, parsed]);
+  }, [query, parsed, domainKey]);
 
   return state;
 }
