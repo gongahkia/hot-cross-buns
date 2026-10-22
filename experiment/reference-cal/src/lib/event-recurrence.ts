@@ -13,7 +13,11 @@ import {
 } from "./event-timezone.ts";
 
 // rrule publishes ESM to bundlers and CommonJS to Node's native test runner.
-const { RRule } = ("RRule" in recurrenceModule ? recurrenceModule : Reflect.get(recurrenceModule, "default")) as typeof recurrenceModule;
+const { RRule } = (
+  "RRule" in recurrenceModule
+    ? recurrenceModule
+    : Reflect.get(recurrenceModule, "default")
+) as typeof recurrenceModule;
 const FREQUENCY = {
   daily: RRule.DAILY,
   weekly: RRule.WEEKLY,
@@ -163,7 +167,11 @@ export function occurrenceFor(
       wallDate(master.end, zone).getTime() -
       wallDate(master.start, zone).getTime(),
   );
-  const end = fromWallDate(endWall, zone);
+  const end = master.isAllDay
+    ? fromWallDate(endWall, zone)
+    : new Date(
+        originalStart.getTime() + master.end.getTime() - master.start.getTime(),
+      );
   if (!end || end < originalStart) return null;
   return {
     ...master,
@@ -241,6 +249,42 @@ export function expandRecurringEvents(
     });
     return result;
   });
+}
+
+/** Resolve a selected occurrence even after it is moved beyond the rendered window. */
+export function findCalendarEvent(
+  events: CalendarEvent[],
+  id: string,
+): CalendarEvent | null {
+  for (const master of events) {
+    if (!master.recurrenceRule) {
+      if (master.id === id) return master;
+      continue;
+    }
+    const savedKey = Object.entries(master.recurrenceExceptions ?? {}).find(
+      ([, value]) => value?.id === id,
+    )?.[0];
+    const key =
+      savedKey ??
+      (id === master.id
+        ? master.start.toISOString()
+        : id.startsWith(`${master.id}::`)
+          ? id.slice(master.id.length + 2)
+          : undefined);
+    if (!key) continue;
+    const original = new Date(key);
+    if (Number.isNaN(original.getTime())) continue;
+    const zone = eventTimeZone(master);
+    const valid = floatingOccurrences(
+      master,
+      original,
+      new Date(original.getTime() + 1),
+    ).some(
+      (wall) => fromWallDate(wall, zone)?.getTime() === original.getTime(),
+    );
+    if (valid) return occurrenceFor(master, original);
+  }
+  return null;
 }
 
 function different(a: unknown, b: unknown): boolean {
@@ -352,6 +396,7 @@ export function prepareSampleSeries(events: CalendarEvent[]): CalendarEvent[] {
       zone = eventTimeZone(first);
     const master: CalendarEvent = {
       ...first,
+      id: `recurring:${first.id}`,
       timezone: zone,
       recurrenceRule: legacyRecurrence(first.recurrence),
       recurrenceExceptions: {},

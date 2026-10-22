@@ -12,6 +12,7 @@ import {
 } from "../src/lib/event-timezone.ts";
 import {
   expandRecurringEvents,
+  findCalendarEvent,
   prepareSampleSeries,
   recurrenceSummary,
   updateCalendarEvents,
@@ -335,25 +336,33 @@ test("shortening a series does not resurrect saved exceptions beyond the new end
 });
 
 test("all-day repeats preserve calendar dates and span across daylight saving", () => {
-  const master = event({
-    start: new Date(2026, 2, 7),
-    end: new Date(2026, 2, 9),
-    isAllDay: true,
-    recurrenceRule: { frequency: "weekly", interval: 1, count: 2 },
-  });
-  const rows = expand(master);
-  assert.equal(rows.length, 2);
-  assert.equal(rows[1].start.getDate(), 14);
-  assert.equal(rows[1].end.getDate(), 16);
-  assert.equal(rows[1].start.getHours(), 0);
+  const previousZone = process.env.TZ;
+  process.env.TZ = "America/New_York";
+  try {
+    const master = event({
+      start: new Date(2026, 2, 7),
+      end: new Date(2026, 2, 9),
+      isAllDay: true,
+      recurrenceRule: { frequency: "weekly", interval: 1, count: 2 },
+    });
+    const rows = expand(master);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1].start.getDate(), 14);
+    assert.equal(rows[1].end.getDate(), 16);
+    assert.equal(rows[1].start.getHours(), 0);
+  } finally {
+    process.env.TZ = previousZone;
+  }
 });
 
 test("sample-series conversion retains every original event's identity, dates and content", () => {
   const original = generateMockEvents(new Date(2026, 9, 21));
   const starts = original.map((row) => row.start.getTime()),
     ends = original.map((row) => row.end.getTime());
+  const masters = prepareSampleSeries(original);
+  assert.equal(new Set(masters.map((row) => row.id)).size, masters.length);
   const rows = expandRecurringEvents(
-    prepareSampleSeries(original),
+    masters,
     new Date(Math.min(...starts) - 86400000),
     new Date(Math.max(...ends) + 86400000),
   );
@@ -366,4 +375,39 @@ test("sample-series conversion retains every original event's identity, dates an
     assert.equal(converted.start.getTime(), row.start.getTime(), row.id);
     assert.equal(converted.end.getTime(), row.end.getTime(), row.id);
   }
+});
+
+test("selected and searched occurrences resolve after being moved outside the view window", () => {
+  const master = event({
+    recurrenceRule: { frequency: "weekly", interval: 1, count: 3 },
+  });
+  const second = expand(master)[1];
+  const start = instant(2028, 1, 4),
+    end = instant(2028, 1, 4, 10);
+  const sources = updateCalendarEvents([master], {
+    ...second,
+    start,
+    end,
+    location: "A moved meeting",
+  });
+  const resolved = findCalendarEvent(sources, second.id);
+  assert.ok(resolved);
+  assert.equal(resolved.start.getTime(), start.getTime());
+  assert.equal(resolved.location, "A moved meeting");
+  assert.equal(findCalendarEvent(sources, "missing"), null);
+});
+
+test("timed repeats keep their duration when the end crosses a daylight-saving gap", () => {
+  const master = event({
+    start: instant(2026, 3, 7, 1, 30),
+    end: instant(2026, 3, 7, 2, 30),
+    recurrenceRule: { frequency: "daily", interval: 1, count: 3 },
+  });
+  const rows = expand(master);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(local(rows[1].start), [2026, 3, 8, 1, 30]);
+  assert.deepEqual(local(rows[1].end), [2026, 3, 8, 3, 30]);
+  assert.ok(
+    rows.every((row) => row.end.getTime() - row.start.getTime() === 3600000),
+  );
 });
