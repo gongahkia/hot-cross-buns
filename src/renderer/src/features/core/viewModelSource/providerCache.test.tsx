@@ -46,9 +46,8 @@ describe("workspace cache consistency", () => {
     const after = fixture.getSource();
     expect(after.largeTaskWindow).toBe(before.largeTaskWindow);
     expect(after.initialNotes).toBe(before.initialNotes);
-    expect(after.calendarDayView).toBe(before.calendarDayView);
-    expect(after.calendarWeekDays).toBe(before.calendarWeekDays);
-    expect(after.calendarMonthWeeks).toBe(before.calendarMonthWeeks);
+    expect(after.calendarAgendaEvents).toBe(before.calendarAgendaEvents);
+    expect(after.calendarEventsById).toBe(before.calendarEventsById);
     expect(after.taskDataRevision).toBe(before.taskDataRevision);
   });
 

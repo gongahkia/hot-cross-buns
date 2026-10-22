@@ -1,5 +1,3 @@
-import { currentZonedDay } from "@shared/zonedTime";
-import { calendarEventRangeDayKeys } from "../screens/calendar/calendarEventIndex";
 import {
   calendarEventColorForTheme,
   resolveCalendarEventDisplayColor,
@@ -10,21 +8,16 @@ import {
 } from "@shared/ipc/contracts";
 import type { ColorThemeDefinition } from "@shared/ipc/themeCatalog";
 import type {
-  CalendarDayViewModel,
   CalendarEventViewModel,
-  CalendarMonthWeekViewModel,
   ScheduledTaskBlockViewModel,
   TaskViewModel
 } from "../coreViewModels";
 import {
   allDayRangeLabel,
   dayKey,
-  monthDayLabel,
   startOfUtcDay,
-  timeLabel,
-  weekdayLabel
+  timeLabel
 } from "./dateFormat";
-import type { CalendarEventDayIndex } from "./types";
 
 export function stableCalendarEventViewModel(
   event: CalendarEventSummary,
@@ -554,85 +547,4 @@ function dayKeysForRange(startsAt: string, endsAt: string): string[] {
   }
 
   return keys;
-}
-
-export function buildCalendarEventDayIndex(events: CalendarEventViewModel[]): CalendarEventDayIndex {
-  const eventsByDay = new Map<string, CalendarEventViewModel[]>();
-
-  for (const event of events) {
-    for (const key of calendarEventRangeDayKeys(event)) {
-      const dayEvents = eventsByDay.get(key) ?? [];
-      dayEvents.push(event); eventsByDay.set(key, dayEvents);
-    }
-  }
-
-  for (const dayEvents of eventsByDay.values()) {
-    dayEvents.sort(
-      (left, right) =>
-        left.startsAt.localeCompare(right.startsAt) ||
-        left.endsAt.localeCompare(right.endsAt) ||
-        left.id.localeCompare(right.id)
-    );
-  }
-
-  return { eventsByDay };
-}
-
-export function eventsForDate(index: CalendarEventDayIndex, date: Date): CalendarEventViewModel[] {
-  return index.eventsByDay.get(dayKey(date)) ?? [];
-}
-
-export function dayView(index: CalendarEventDayIndex, timeZone = "UTC"): CalendarDayViewModel {
-  const today = new Date(`${currentZonedDay(timeZone)}T00:00:00.000Z`);
-
-  return {
-    id: `day-${today.toISOString().slice(0, 10)}`,
-    weekday: weekdayLabel(today),
-    dateLabel: monthDayLabel(today),
-    isToday: true,
-    events: eventsForDate(index, today)
-  };
-}
-
-export function weekDays(index: CalendarEventDayIndex, timeZone = "UTC"): CalendarDayViewModel[] {
-  const today = new Date(`${currentZonedDay(timeZone)}T00:00:00.000Z`);
-  const sunday = new Date(today);
-  sunday.setUTCDate(today.getUTCDate() - today.getUTCDay());
-
-  return Array.from({ length: 7 }, (_, dayOffset) => {
-    const date = new Date(sunday);
-    date.setUTCDate(sunday.getUTCDate() + dayOffset);
-
-    return {
-      id: `week-${date.toISOString().slice(0, 10)}`,
-      weekday: weekdayLabel(date).slice(0, 3),
-      dateLabel: String(date.getUTCDate()),
-      isToday: date.getTime() === today.getTime(),
-      events: eventsForDate(index, date)
-    };
-  });
-}
-
-export function monthWeeks(index: CalendarEventDayIndex, timeZone = "UTC"): CalendarMonthWeekViewModel[] {
-  const today = new Date(`${currentZonedDay(timeZone)}T00:00:00.000Z`);
-  const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const gridStart = new Date(first);
-  gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());
-
-  return Array.from({ length: 6 }, (_, weekIndex) => ({
-    id: `month-week-${weekIndex}`,
-    days: Array.from({ length: 7 }, (_, dayIndex) => {
-      const date = new Date(gridStart);
-      date.setUTCDate(gridStart.getUTCDate() + weekIndex * 7 + dayIndex);
-
-      return {
-        id: `month-${date.toISOString().slice(0, 10)}`,
-        weekday: weekdayLabel(date).slice(0, 3),
-        dateLabel: String(date.getUTCDate()),
-        isToday: date.getTime() === today.getTime(),
-        isOutsideMonth: date.getUTCMonth() !== today.getUTCMonth(),
-        events: eventsForDate(index, date)
-      };
-    })
-  }));
 }

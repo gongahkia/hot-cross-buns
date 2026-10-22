@@ -5,15 +5,11 @@ import {
 } from "@shared/ipc/themeCatalog";
 import type { CalendarEventViewModel, TaskViewModel } from "../coreViewModels";
 import {
-  buildCalendarEventDayIndex,
-  dayView,
-  monthWeeks,
   scheduledTaskBlockConflicts,
   scheduledTaskBlockViewModel,
   stableCalendarEventViewModel,
   stableProjectedTaskCalendarEventViewModel,
-  stableTaskCalendarEventViewModel,
-  weekDays
+  stableTaskCalendarEventViewModel
 } from "./calendarViewModels";
 import { noteViewModel } from "./noteViewModels";
 import { idleSearchViewModel } from "./searchViewModels";
@@ -35,7 +31,7 @@ export function buildCoreViewModelSource(
   snapshot: CoreDataSnapshot,
   options: CoreViewModelSourceOptions
 ): CoreViewModelSource {
-  const { activeColorTheme, eventsById, calendarItems, scheduledTaskBlocksById, taskById, taskFilterViewModels, notes, noteLists, scheduledTaskBlocks, lookupTasks, calendarDayView, calendarMonthWeeks, calendarWeekDays } = cachedProjection(snapshot, options);
+  const { activeColorTheme, eventsById, calendarItems, scheduledTaskBlocksById, taskById, taskFilterViewModels, notes, noteLists, scheduledTaskBlocks, lookupTasks } = cachedProjection(snapshot, options);
   const resourceCounts = {
     calendarEvents: snapshot.resourceCounts.calendarEvents ?? snapshot.diagnosticsSummary?.cache.eventCount,
     notes: snapshot.resourceCounts.notes ?? snapshot.diagnosticsSummary?.cache.noteCount,
@@ -49,11 +45,8 @@ export function buildCoreViewModelSource(
     activeColorThemeId: activeColorTheme.id,
     appearanceReady: options.appearanceReady,
     calendarAgendaEvents: calendarItems,
-    calendarDayView,
     calendarEventsById: eventsById,
-    calendarMonthWeeks,
     calendarSources: snapshot.calendars,
-    calendarWeekDays,
     dataState: options.state,
     errorMessage: options.errorMessage,
     getSearchViewModel: () => idleSearchViewModel(),
@@ -256,7 +249,6 @@ function buildProjection(snapshot: CoreDataSnapshot, options: CoreViewModelSourc
       )
     );
   const calendarItems = [...events, ...taskCalendarEvents];
-  const eventDayIndex = buildCalendarEventDayIndex(calendarItems);
   const scheduledTaskBlocks = baseScheduledTaskBlocks;
   const scheduledTaskBlocksById = Object.fromEntries(
     scheduledTaskBlocks.map((block) => [block.id, block])
@@ -269,8 +261,7 @@ function buildProjection(snapshot: CoreDataSnapshot, options: CoreViewModelSourc
     snapshot.taskLists
   );
   return { activeColorTheme, eventsById, calendarItems, scheduledTaskBlocksById, taskById, taskFilterViewModels,
-    notes, noteLists, scheduledTaskBlocks, lookupTasks: snapshot.tasks.map((task) => taskById[task.id]),
-    calendarDayView: dayView(eventDayIndex, snapshot.settings.defaultTimeZone), calendarMonthWeeks: monthWeeks(eventDayIndex, snapshot.settings.defaultTimeZone), calendarWeekDays: weekDays(eventDayIndex, snapshot.settings.defaultTimeZone) };
+    notes, noteLists, scheduledTaskBlocks, lookupTasks: snapshot.tasks.map((task) => taskById[task.id]) };
 }
 
 function pruneViewModelCache<T extends { id: string }, V>(

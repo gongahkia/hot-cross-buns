@@ -44,9 +44,7 @@ import type {
 import type { ColorThemeDefinition } from "@shared/ipc/themeCatalog";
 import type { ParsedLocalSearchQuery } from "@shared/search/localSearch";
 import type {
-  CalendarDayViewModel,
   CalendarEventViewModel,
-  CalendarMonthWeekViewModel,
   NoteViewModel,
   SearchViewModel,
   ScheduledTaskBlockViewModel,
@@ -64,11 +62,8 @@ export interface CoreViewModelSource {
   activeColorThemeId: ColorThemeDefinition["id"];
   appearanceReady: boolean;
   calendarAgendaEvents: CalendarEventViewModel[];
-  calendarDayView: CalendarDayViewModel;
   calendarEventsById: Record<string, CalendarEventViewModel>;
-  calendarMonthWeeks: CalendarMonthWeekViewModel[];
   calendarSources: CalendarListSummary[];
-  calendarWeekDays: CalendarDayViewModel[];
   dataState: CoreDataState;
   errorMessage?: string;
   getSearchViewModel: (query: string) => SearchViewModel;
@@ -201,10 +196,6 @@ export interface TaskMutationUiState {
 }
 
 export type SettingsMutationUiState = TaskMutationUiState;
-
-export interface CalendarEventDayIndex {
-  eventsByDay: Map<string, CalendarEventViewModel[]>;
-}
 
 export interface CoreViewModelSourceOptions {
   taskDataRevision?: number;
