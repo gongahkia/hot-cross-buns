@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LegacyPseudoNotesMigrationPreview } from "@shared/ipc/contracts";
 import { CacheStatePanel } from "../coreScreenShared";
 import { useCoreViewModelSource } from "../coreViewModelSource";
@@ -7,11 +7,14 @@ import { NotesBoard } from "./NotesBoard";
 import { NotesSidebar } from "./NotesSidebar";
 import { useAutoCollapsedSidebar } from "./useAutoCollapsedSidebar";
 import { StatusBanner } from "../../../components/primitives";
+import { useInspector } from "../../../components/Inspector";
 import { useNotesController } from "./useNotesController";
 import { SectionSidebar, useWorkspaceSidebar } from "../../shell/WorkspaceSidebar";
 
 export function NotesView(): JSX.Element {
   const source = useCoreViewModelSource();
+  const inspector = useInspector();
+  const restored = useRef(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [legacyMigrationPreview, setLegacyMigrationPreview] = useState<LegacyPseudoNotesMigrationPreview | null>(null);
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
@@ -35,6 +38,12 @@ export function NotesView(): JSX.Element {
     toggleNoteStar,
     toggleNoteView
   } = useNotesController(source);
+
+  useEffect(() => {
+    if (restored.current || inspector.current || !selectedNoteId || source.dataState === "loading") return;
+    restored.current = true;
+    void selectNote(selectedNoteId, "edit");
+  }, [selectedNoteId, source.dataState]);
 
   useEffect(() => {
     let active = true;
@@ -87,7 +96,7 @@ export function NotesView(): JSX.Element {
         onDeleteNote={(noteId) => void deleteNote(noteId)}
         onDuplicateNote={(noteId) => void duplicateNote(noteId)}
         onMoveNote={(noteId, listId) => void moveNoteToList(noteId, listId)}
-        onOpenNote={(noteId, mode = "view") => void selectNote(noteId, mode)}
+        onOpenNote={(noteId, mode = "edit") => void selectNote(noteId, mode)}
         onRenameNoteList={(listId, title) => void renameNoteList(listId, title)}
         onToggleStar={toggleNoteStar}
         selectedNoteId={selectedNoteId}

@@ -32,7 +32,6 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await expect(page.getByRole("dialog", { name: "Hot Cross Buns", exact: true })).toBeHidden();
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
     await page.getByRole("button", { name: "Open note Rich editing fixture", exact: true }).click();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
     let body = page.getByRole("textbox", { name: "Note body", exact: true });
     await expect(body.locator("strong")).toHaveText("formatted");
     const formatToolbar = page.getByRole("toolbar", { name: "Note body formatting" });
@@ -118,7 +117,6 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
 
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
     await page.getByRole("button", { name: "Reference fixture", exact: true }).click();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
     const notes = page.getByRole("textbox", { name: "Task notes" });
     await notes.fill("Undo probe");
     await notes.press(`${modifier}+z`);
@@ -136,7 +134,6 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
     await expect(page.getByRole("button", { name: "New event", exact: true })).toBeVisible();
     await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } })), fixture.event);
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
     const description = page.getByRole("textbox", { name: "Event notes" });
     await expect(description.locator("strong")).toHaveText("HTML");
     await description.fill(""); await description.press(`${modifier}+k`);

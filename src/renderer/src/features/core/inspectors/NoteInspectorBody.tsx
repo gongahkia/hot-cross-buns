@@ -138,7 +138,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
   ): JSX.Element {
     const dirty = useDirtyState<NoteDraftValue>({ title: note.title, body: note.body, tags: note.tags ?? [] });
     const { update } = useInspector();
-    const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
+
     const [selectedTemplateId, setSelectedTemplateId] = useState("blank");
     const draftRef = useRef<NoteDraftValue>(dirty.value);
     const dirtyRef = useRef(dirty.isDirty);
@@ -269,8 +269,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
     }
 
     return (
-      <div className="grid gap-4">
-        <p className="text-[var(--text-xs)] text-text-muted">Stored on this device. Back up in Settings → Data.</p>
+      <div className="note-document grid min-h-full gap-4">
         <fieldset disabled={saving} className="grid min-w-0 gap-3">
           <EmojiInput
             aria-label="Note title"
@@ -297,6 +296,7 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
             </label>
           ) : null}
 
+          <details className="text-sm text-text-muted"><summary className="cursor-pointer py-1">Tags and properties</summary>
           <TagInput onChange={(tags) => patchDraft({ tags })} value={dirty.value.tags} />
           <AutoTagAudit
             input={{
@@ -307,6 +307,8 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
             }}
             rules={rules}
           />
+
+          </details>
 
           {error ? (
             <div
@@ -319,57 +321,20 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           ) : null}
 
           <div className="flex items-center justify-between gap-2">
-            {!createMode ? (
-              <div className="flex items-center gap-2" role="tablist" aria-label="Note view mode">
-                <Button
-                  aria-selected={viewMode === "edit"}
-                  onClick={() => setViewMode("edit")}
-                  role="tab"
-                  size="sm"
-                  variant={viewMode === "edit" ? "secondary" : "ghost"}
-                >
-                  <Pencil aria-hidden="true" size={14} />
-                  Edit
-                </Button>
-                <Button
-                  aria-selected={viewMode === "preview"}
-                  onClick={() => setViewMode("preview")}
-                  role="tab"
-                  size="sm"
-                  variant={viewMode === "preview" ? "secondary" : "ghost"}
-                >
-                  <Search aria-hidden="true" size={14} />
-                  Preview
-                </Button>
-              </div>
-            ) : (
-              <span />
-            )}
+            <span className="text-xs text-text-muted">Local document</span>
             {error && !note.id.startsWith("note-draft-") ? (
               <Button onClick={() => void flush()} size="sm" variant="danger">
                 Couldn’t save · Retry
               </Button>
             ) : (
               <Badge tone={dirty.isDirty ? "warning" : "success"}>
-                {note.id.startsWith("note-draft-") ? "Draft · use Create note to save" : dirty.isDirty ? "Saving…" : "Saved"}
+                {note.id.startsWith("note-draft-") ? "Draft · use Create note to save" : dirty.isDirty ? "Saving…" : "Saved on this device"}
               </Badge>
             )}
           </div>
 
-          {createMode || viewMode === "edit" ? (
-            <MarkdownEditor
-              aria-label="Note body"
-              onValueChange={(body) => patchDraft({ body })}
-              disabled={saving}
-              value={dirty.value.body}
-            />
-          ) : (
-            <MarkdownPreview
-              ariaLabel="Note preview"
-              body={dirty.value.body}
-              plannerLinkTargets={plannerLinkTargets(source)}
-            />
-          )}
+          <MarkdownEditor className="document-markdown" aria-label="Note body" onValueChange={(body) => patchDraft({ body })} disabled={saving} value={dirty.value.body} />
+
         </fieldset>
 
         {properties.length > 0 ? <div className="grid gap-2">

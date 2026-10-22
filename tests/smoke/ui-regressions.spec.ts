@@ -82,7 +82,6 @@ test("aligns rich-editor checklist controls with their text", async () => {
     });
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
     await page.getByRole("button", { name: "Open note Checklist layout", exact: true }).click();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
     const row = page.locator(".markdown-content li[data-checked]").first();
     await expect(row).toHaveCSS("display", "flex");
     const offset = await row.evaluate((element) => {

@@ -6,6 +6,21 @@ import { InspectorShell } from "./InspectorShell";
 afterEach(cleanup);
 
 describe("Inspector transitions", () => {
+  it("closes after saving even when the inspector chrome updates during the save", async () => {
+    let finish: (value: boolean) => void = () => undefined;
+    function Surface(): JSX.Element {
+      const inspector = useInspector();
+      return <><button onClick={() => inspector.open({ id: "note", kind: "note", title: "Note", body: "", onConfirmClose: () => new Promise<boolean>((resolve) => { finish = resolve; }) })}>Open</button>
+        <button onClick={() => void inspector.close()}>Close</button><button onClick={() => inspector.update({ title: "Saved note" })}>Refresh title</button><InspectorShell /></>;
+    }
+    render(<InspectorProvider><Surface /></InspectorProvider>);
+    fireEvent.click(screen.getByRole("button", { name: /^Open$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Close$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh title" }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveAccessibleName("Saved note"));
+    finish(true);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
   it("preserves editor autofocus and handles Escape from outside the dialog", async () => {
     function Surface(): JSX.Element {
       const inspector = useInspector();

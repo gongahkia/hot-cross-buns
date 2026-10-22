@@ -1,3 +1,4 @@
+import { usePanePreference } from "../../shell/panePreferences";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
@@ -92,7 +93,7 @@ export function useNotesController(source: CoreViewModelSource): {
   } = useInspector();
   const [notes, setNotes] = useState<NoteViewModel[]>(() => source.initialNotes.map((note) => note));
   const [localNoteLists, setLocalNoteLists] = useState(source.noteLists);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(
+  const [selectedNoteId, setSelectedNoteId] = usePanePreference<string | null>("notes.selected",
     source.initialNotes[0]?.id ?? null
   );
   const [selectedNoteViews, setSelectedNoteViews] = useState<NoteBoardSelection[]>(() =>
@@ -241,7 +242,7 @@ export function useNotesController(source: CoreViewModelSource): {
       }
 
       if (detail?.action === "open-note" && detail.noteId) {
-        void selectNote(detail.noteId, "view");
+        void selectNote(detail.noteId, "edit");
       }
 
       if (detail?.action === "convert-to-note" && detail.draft) {
@@ -290,7 +291,7 @@ export function useNotesController(source: CoreViewModelSource): {
           key={`view-${note.id}`}
           note={note}
           notes={notes}
-          onOpenNote={(noteId) => selectNote(noteId, "view")}
+          onOpenNote={(noteId) => selectNote(noteId, "edit")}
           source={source}
         />
       );
@@ -302,13 +303,13 @@ export function useNotesController(source: CoreViewModelSource): {
         note={note}
         notes={notes}
         onDraftChange={updateNoteDraft}
-        onOpenNote={(noteId) => selectNote(noteId, "view")}
+        onOpenNote={(noteId) => selectNote(noteId, "edit")}
         onPersist={persistNoteDraft}
         rules={source.settings.autoTagRules}
         source={source}
         templates={noteTemplateOptions}
         saving={creatingNote === note.id}
-        createMode={createNoteIds.current.has(note.id)}
+        createMode={note.id.startsWith("note-draft-")}
         error={error}
         ref={noteInspectorBodyRef}
       />
@@ -402,7 +403,7 @@ export function useNotesController(source: CoreViewModelSource): {
 
   function openNoteInspector(
     note: NoteViewModel,
-    mode: "view" | "edit" = note.id.startsWith("note-draft-") ? "edit" : "view"
+    mode: "view" | "edit" = "edit"
   ): void {
     setNoteActionError(undefined);
     setNoteInspectorMode(mode);
@@ -452,7 +453,7 @@ export function useNotesController(source: CoreViewModelSource): {
       ...source.initialNotes.filter((candidate) => candidate.id !== note.id)]);
   }
 
-  async function selectNote(noteId: string, mode: "view" | "edit" = "view"): Promise<void> {
+  async function selectNote(noteId: string, mode: "view" | "edit" = "edit"): Promise<void> {
     const generation = ++selectionGeneration.current;
     if (!await flushCurrentNote() || generation !== selectionGeneration.current) return;
     const note = await readFullNote(noteId);
@@ -734,7 +735,8 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function createNoteList(): Promise<void> {
-    const title = `Note list ${localNoteLists.length + 1}`;
+    const title = await requestText({ title: "Create note list", submitLabel: "Create list" });
+    if (!title) return;
     const result = await window.hcb?.notes.createNoteList({ title });
 
     if (result?.ok) {

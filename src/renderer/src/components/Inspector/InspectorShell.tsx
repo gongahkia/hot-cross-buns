@@ -26,14 +26,14 @@ function InspectorDirtyBadge({
   return resolvedDirty ? <Badge tone="warning">Unsaved</Badge> : null;
 }
 
-export function InspectorShell(): JSX.Element | null {
+export function InspectorShell({ documentMode = false }: { documentMode?: boolean }): JSX.Element | null {
   const { current, close, isOpen } = useInspector();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = usePanePreference("inspector.width", 380);
   const [docked, setDocked] = usePanePreference("inspector.docked", true);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
-  const narrow = viewportWidth < 1050;
-  const floating = !docked && !narrow;
+  const narrow = viewportWidth < (documentMode ? 840 : 1050);
+  const floating = !documentMode && !docked && !narrow;
   const resolvedWidth = Math.min(Math.max(320, width), 560, viewportWidth - 32);
   useEffect(() => {
     const resize = () => setViewportWidth(window.innerWidth);
@@ -109,7 +109,8 @@ export function InspectorShell(): JSX.Element | null {
           "relative flex min-h-0 shrink-0 flex-col border-l border-border bg-bg-primary text-text-primary",
           narrow ? "fixed inset-y-0 right-0 z-50 shadow-2xl" : floating ? "fixed right-5 top-20 z-30 max-h-[min(620px,calc(100dvh-100px))] rounded-hcbLg border shadow-xl" : "h-full"
         )}
-        style={{ width: resolvedWidth }}
+        style={documentMode && !narrow ? { flex: "1 1 0", minWidth: 320 } : { width: resolvedWidth }}
+        data-document-editor={documentMode}
         data-inspector-layout={narrow ? "sheet" : floating ? "popover" : "docked"}
         data-inspector-kind={current.kind}
         data-inspector-id={current.id}
@@ -119,7 +120,7 @@ export function InspectorShell(): JSX.Element | null {
         role="dialog"
         tabIndex={-1}
       >
-        {!narrow && !floating ? <div
+        {!documentMode && !narrow && !floating ? <div
           aria-label="Resize details panel"
           aria-orientation="vertical"
           aria-valuemin={320}
@@ -154,7 +155,7 @@ export function InspectorShell(): JSX.Element | null {
                 <p className="hcb-copy mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>
               ) : null}
             </div>
-            {!narrow ? <IconButton icon={docked ? PictureInPicture2 : PanelRight} label={docked ? "Float details" : "Dock details"} onClick={() => setDocked(!docked)} variant="ghost" /> : null}
+            {!documentMode && !narrow ? <IconButton icon={docked ? PictureInPicture2 : PanelRight} label={docked ? "Float details" : "Dock details"} onClick={() => setDocked(!docked)} variant="ghost" /> : null}
             <IconButton
               data-testid="inspector-close"
               icon={X}

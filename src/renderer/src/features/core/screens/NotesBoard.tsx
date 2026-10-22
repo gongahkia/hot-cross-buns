@@ -43,7 +43,7 @@ export function NotesBoard({
     <div className="h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-hcbLg bg-bg-primary">
       <div
         className={cx(
-          "flex h-full min-h-[480px] min-w-0 gap-2 p-2",
+          "flex h-full min-h-0 min-w-0 gap-2",
           columns.length <= 1 ? "overflow-y-auto" : "overflow-x-auto"
         )}
         role="list"
@@ -80,8 +80,8 @@ function NoteListColumn({ column, source, single, ...actions }: Omit<Parameters<
   const drafts = column.notes.filter((note) => note.id.startsWith("note-draft-"));
   return <Panel
     action={<NoteColumnAction count={(collection.total ?? 0) + drafts.length} listId={column.listId} onDeleteNoteList={actions.onDeleteNoteList} onRenameNoteList={actions.onRenameNoteList} title={column.title} />}
-    className={cx("flex max-h-full flex-col overflow-hidden border-border/70 bg-bg-primary shadow-none", single ? "w-full" : "w-[min(560px,calc(100vw-2rem))] shrink-0")}
-    description="Local notes · Starred first, then recently edited" role="listitem" title={column.title}>
+    className={cx("flex max-h-full min-h-0 flex-col overflow-hidden rounded-none border-0 bg-bg-primary shadow-none", single ? "w-full" : "w-[min(560px,calc(100vw-2rem))] shrink-0")}
+    description="Recently edited" role="listitem" title={column.title}>
     <button className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent hover:bg-surface-0" onClick={() => actions.onCreateNote(column.listId)} type="button"><Plus aria-hidden size={18} />Add a note</button>
     <NoteColumnDropTarget column={column} onMoveNote={actions.onMoveNote}>
       <div className="flex h-full min-h-0 flex-col">
@@ -242,14 +242,14 @@ function NoteBoardRow({
         type="button"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 whitespace-normal break-words text-[var(--text-md)] font-medium leading-snug text-text-primary">
+          <span className="min-w-0 flex-1 truncate text-[var(--text-md)] font-medium leading-snug text-text-primary">
             {note.title}
           </span>
           <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
             {note.updatedLabel}
           </span>
         </div>
-        <p className="line-clamp-2 break-words text-[var(--text-sm)] leading-snug text-text-muted">{note.preview}</p>
+        <p className="line-clamp-1 break-words text-[var(--text-sm)] leading-snug text-text-muted">{note.preview}</p>
       </button>
       <div
         className={cx(
@@ -264,6 +264,7 @@ function NoteBoardRow({
           onClick={() => onToggleStar(note.id)}
           variant="ghost"
         />
+        <IconButton icon={MoreVertical} label={`More actions for ${note.title}`} className="size-8" variant="ghost" onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenuPoint({ x: rect.right, y: rect.bottom }); setMenuOpen(true); }} />
         {menuOpen ? (
           <NoteActionMenu
             anchorPoint={menuPoint ?? undefined}

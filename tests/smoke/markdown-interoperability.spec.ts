@@ -24,7 +24,6 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     await expect(page.getByRole("dialog", { name: "Hot Cross Buns", exact: true })).toBeHidden();
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
     await page.getByRole("button", { name: "Open note Interoperability fixture", exact: true }).click();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
     const body = page.getByRole("textbox", { name: "Note body", exact: true });
     await body.fill("Before source");
     await page.getByRole("button", { name: "Source", exact: true }).click();

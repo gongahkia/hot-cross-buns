@@ -25,7 +25,7 @@ import {
 } from "../../hooks/useRenderTiming";
 import { I18nProvider } from "../../i18n";
 import { AppHeader } from "./AppHeader";
-import { InspectorShell } from "../../components/Inspector";
+import { InspectorShell, useInspector } from "../../components/Inspector";
 import { WorkspaceSidebarContext } from "./WorkspaceSidebar";
 import { SaveFeedback } from "./SaveFeedback";
 import { usePanePreference } from "./panePreferences";
@@ -88,6 +88,7 @@ export function AppShell(): JSX.Element {
   useRenderTiming("App");
 
   const source = useCoreViewModelSource();
+  const { close: closeInspector, current: currentInspector } = useInspector();
   const [sidebarTarget, setSidebarTarget] = useState<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = usePanePreference("navigation.collapsed", false);
   useAppliedTheme(source.settings);
@@ -153,9 +154,13 @@ export function AppShell(): JSX.Element {
     source.dataState !== "offline" &&
     source.dataState !== "error";
 
+  const guardWorkspaceChange = useCallback((change: () => void): void => {
+    void closeInspector().then((allowed) => { if (allowed) change(); });
+  }, [closeInspector]);
+
   const navigateToSection = useCallback((sectionId: SectionId): void => {
-    paneWorkspace.replaceFocusedWithSection(sectionId);
-  }, [paneWorkspace]);
+    void closeInspector().then((allowed) => { if (allowed) paneWorkspace.replaceFocusedWithSection(sectionId); });
+  }, [paneWorkspace, closeInspector]);
 
   const dismissNotification = useCallback((id: string): void => {
     setDismissedNotificationIds((current) =>
@@ -655,7 +660,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (actionId === "pane.create") {
-        paneWorkspace.openChooser();
+        guardWorkspaceChange(() => paneWorkspace.openChooser());
         return;
       }
 
@@ -665,17 +670,17 @@ export function AppShell(): JSX.Element {
       }
 
       if (actionId === "pane.close") {
-        paneWorkspace.closePane(paneWorkspace.focusedPaneId);
+        guardWorkspaceChange(() => paneWorkspace.closePane(paneWorkspace.focusedPaneId));
         return;
       }
 
       if (actionId === "pane.split.horizontal") {
-        paneWorkspace.splitPane(paneWorkspace.focusedPaneId, "row");
+        guardWorkspaceChange(() => paneWorkspace.splitPane(paneWorkspace.focusedPaneId, "row"));
         return;
       }
 
       if (actionId === "pane.split.vertical") {
-        paneWorkspace.splitPane(paneWorkspace.focusedPaneId, "column");
+        guardWorkspaceChange(() => paneWorkspace.splitPane(paneWorkspace.focusedPaneId, "column"));
         return;
       }
 
@@ -718,6 +723,7 @@ export function AppShell(): JSX.Element {
       paneWorkspace.openChooser,
       paneWorkspace.splitPane,
       toggleDiagnosticsPanel,
+      guardWorkspaceChange,
       openSettingsPanel,
       syncThenRefresh,
       source.redo,
@@ -976,7 +982,7 @@ export function AppShell(): JSX.Element {
         notificationsOpen={notificationsOpen}
         onNavigateToSection={navigateToPrimarySection}
         onOpenCommandPalette={openCommandPalette}
-        onOpenSplitPane={paneWorkspace.openChooser}
+        onOpenSplitPane={() => guardWorkspaceChange(paneWorkspace.openChooser)}
         onRefresh={() => syncThenRefresh("toolbar")}
         onToggleDiagnostics={toggleDiagnosticsPanel}
         onToggleNotifications={toggleNotificationsPanel}
@@ -985,26 +991,26 @@ export function AppShell(): JSX.Element {
         toolbarActionOrder={source.settings.toolbarActionOrder}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-document-open={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes" && paneWorkspace.root.kind === "leaf"}>
         <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
           <PaneWorkspace
             activeSectionId={paneWorkspace.activeSectionId}
             canSplit={paneWorkspace.canSplit}
             focusedPaneId={paneWorkspace.focusedPaneId}
-            onClosePane={paneWorkspace.closePane}
+            onClosePane={(id) => guardWorkspaceChange(() => paneWorkspace.closePane(id))}
             onFocusPane={paneWorkspace.focusPane}
-            onMovePane={paneWorkspace.movePane}
+            onMovePane={(from, to, zone) => guardWorkspaceChange(() => paneWorkspace.movePane(from, to, zone))}
             onOpenWebPage={paneWorkspace.openWebPageInPane}
-            onReplacePane={paneWorkspace.replacePane}
+            onReplacePane={(id, content) => guardWorkspaceChange(() => paneWorkspace.replacePane(id, content))}
             onSetSplitRatio={paneWorkspace.setSplitRatio}
-            onSplitPane={paneWorkspace.splitPane}
+            onSplitPane={(id, direction, content) => guardWorkspaceChange(() => paneWorkspace.splitPane(id, direction, content))}
             root={paneWorkspace.root}
             taskCommand={taskCommand}
             visibleCalendarIds={visibleCalendarIdSet}
             visibleSectionIds={visiblePaneSectionIds}
           />
         </RenderTimingBoundary>
-        <InspectorShell />
+        <InspectorShell documentMode={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes" && paneWorkspace.root.kind === "leaf"} />
       </main>
       <SaveFeedback />
 

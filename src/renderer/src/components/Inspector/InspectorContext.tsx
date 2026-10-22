@@ -43,7 +43,7 @@ export interface InspectorItem {
 interface InspectorContextValue {
   current: InspectorItem | null;
   open: (item: InspectorItem) => void;
-  close: () => Promise<void>;
+  close: () => Promise<boolean>;
   update: (patch: Partial<Pick<InspectorItem, "title" | "subtitle" | "dirty" | "body" | "actions" | "hideHeader">>) => void;
   isOpen: boolean;
 }
@@ -71,21 +71,24 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
     } else commit();
   }, []);
 
-  const close = useCallback(async (): Promise<void> => {
+  const close = useCallback(async (): Promise<boolean> => {
     const active = currentRef.current;
     const generation = ++transition.current;
 
     if (active?.onConfirmClose) {
       const allow = await active.onConfirmClose();
       if (!allow) {
-        return;
+        return false;
       }
     }
 
-    if (transition.current !== generation || currentRef.current !== active) return;
+    // Chrome updates during an awaited save do not replace the selected item.
+    // Only a newer open/close transition supersedes this close request.
+    if (transition.current !== generation) return false;
     currentRef.current = null;
     setCurrent(null);
     queueMicrotask(() => active?.returnFocus?.current?.focus());
+    return true;
   }, []);
 
   const update = useCallback<InspectorContextValue["update"]>((patch) => {

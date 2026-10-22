@@ -23,8 +23,7 @@ function surface() {
 async function editOffscreenNote() {
   await screen.findByRole("button", { name: "Open note Startup data flow" });
   act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "note-outside-cache" } })));
-  await screen.findByRole("button", { name: "Edit" });
-  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  await waitFor(() => expect(screen.getByTestId("inspector-shell")).toHaveAttribute("data-inspector-id", "note-outside-cache"));
   await screen.findByRole("textbox", { name: "Note body" });
   fireEvent.click(await screen.findByRole("button", { name: "Source" }));
   return screen.findByRole("textbox", { name: "Note body" });
