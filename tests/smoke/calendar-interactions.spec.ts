@@ -279,6 +279,8 @@ test("Month scrolls through week windows across month boundaries without growing
 
 test("event context menu supports keyboard dismissal, full-text copy, duplication and deletion through the existing services", async () => {
   await planner(async (page, app) => {
+    // Reserve room for both records in the responsive Month grid.
+    await page.setViewportSize({ width: 1180, height: 1000 });
     const notes = "Full event notes. ".repeat(500);
     const [id] = await seed(page, [{ title: "Context planning", notes, startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
     await chooseCalendarView(page, "month"); await date(page);
