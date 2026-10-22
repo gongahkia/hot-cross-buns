@@ -975,17 +975,14 @@ export function AppShell(): JSX.Element {
         visibleCalendarIds={visibleCalendarIdSet}
         onToggleCalendar={(id) => setVisibleCalendarIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id])}
         activeSectionId={paneWorkspace.activeSectionId}
-        appNotificationsCount={visibleNotifications.length}
         commandPaletteOpen={commandPaletteOpen}
         diagnosticsOpen={diagnosticsOpen}
         keybindings={source.settings.keybindings}
-        notificationsOpen={notificationsOpen}
         onNavigateToSection={navigateToPrimarySection}
         onOpenCommandPalette={openCommandPalette}
         onOpenSplitPane={() => guardWorkspaceChange(paneWorkspace.openChooser)}
         onRefresh={() => syncThenRefresh("toolbar")}
         onToggleDiagnostics={toggleDiagnosticsPanel}
-        onToggleNotifications={toggleNotificationsPanel}
         onToggleSettings={toggleSettingsPanel}
         settingsOpen={settingsOpen}
         toolbarActionOrder={source.settings.toolbarActionOrder}

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { CalendarListSummary, SettingsSnapshot } from "@shared/ipc/contracts";
 import {
-  Bell,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -15,7 +14,7 @@ import {
   StickyNote
 } from "lucide-react";
 import appIconUrl from "../../../../../assets/logo/logo.png";
-import { Badge, Button, cx } from "../../components/primitives";
+import { Button, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
 import { useI18n } from "../../i18n";
 import { ariaKeyShortcuts, displayAccelerator } from "../core/hotkeys";
@@ -24,18 +23,15 @@ type ToolbarActionId = SettingsSnapshot["toolbarActionOrder"][number];
 
 export function AppHeader({
   collapsed, onToggleCollapsed, sidebarMount, calendars, visibleCalendarIds, onToggleCalendar,
-  appNotificationsCount,
   commandPaletteOpen,
   diagnosticsOpen,
   keybindings,
-  notificationsOpen,
   activeSectionId,
   onNavigateToSection,
   onOpenCommandPalette,
   onOpenSplitPane,
   onRefresh,
   onToggleDiagnostics,
-  onToggleNotifications,
   onToggleSettings,
   settingsOpen,
   toolbarActionOrder
@@ -46,18 +42,15 @@ export function AppHeader({
   calendars: CalendarListSummary[];
   visibleCalendarIds: ReadonlySet<string>;
   onToggleCalendar: (id: string) => void;
-  appNotificationsCount: number;
   commandPaletteOpen: boolean;
   diagnosticsOpen: boolean;
   keybindings: SettingsSnapshot["keybindings"];
-  notificationsOpen: boolean;
   activeSectionId: SectionId;
   onNavigateToSection: (sectionId: SectionId) => void;
   onOpenCommandPalette: () => void;
   onOpenSplitPane: () => void;
   onRefresh: () => void;
   onToggleDiagnostics: () => void;
-  onToggleNotifications: () => void;
   onToggleSettings: () => void;
   settingsOpen: boolean;
   toolbarActionOrder: SettingsSnapshot["toolbarActionOrder"];
@@ -84,7 +77,7 @@ export function AppHeader({
       shortcut: keybindings["navigation.notes"]
     }
   ];
-  const toolbarButtons: Record<ToolbarActionId, JSX.Element> = {
+  const toolbarButtons: Partial<Record<ToolbarActionId, JSX.Element>> = {
     commandPalette: (
       <Button
         aria-expanded={commandPaletteOpen}
@@ -97,21 +90,6 @@ export function AppHeader({
         variant={commandPaletteOpen ? "secondary" : "ghost"}
       >
         <Command aria-hidden="true" size={15} />
-      </Button>
-    ),
-    notifications: (
-      <Button
-        aria-expanded={notificationsOpen}
-        aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.notifications.toggle"])}
-        aria-label={`${t("action.notifications")}, ${appNotificationsCount} active`}
-        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
-        key="notifications"
-        onClick={onToggleNotifications}
-        title={t("action.notifications")}
-        variant={notificationsOpen ? "secondary" : "ghost"}
-      >
-        <Bell aria-hidden="true" size={15} />
-        {!collapsed && appNotificationsCount > 0 ? <Badge tone={appNotificationsCount > 1 ? "warning" : "neutral"}>{appNotificationsCount}</Badge> : null}
       </Button>
     ),
     diagnostics: (
