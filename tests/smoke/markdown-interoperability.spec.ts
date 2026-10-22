@@ -80,6 +80,7 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     expect(source).toContain('colspan="2"'); expect(source).toContain('rowspan="2"');
     await page.getByRole("button", { name: "Visual", exact: true }).click();
     await expect(body.locator('td[rowspan="2"] li')).toHaveText("Nested item");
+    await page.getByRole("textbox", { name: "Note title" }).focus();
     await expect.poll(async () => { const result = await page.evaluate((id) => window.hcb!.notes.get({ id }), noteId); return result.ok ? result.data.body : ""; }).toBe(source);
     await page.screenshot({ path: "output/markdown-interoperability-editor.png" });
     await page.keyboard.press("Escape");

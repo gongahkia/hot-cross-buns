@@ -83,4 +83,18 @@ describe("Paged note editing", () => {
     await waitFor(() => expect(api.notes.update).toHaveBeenLastCalledWith(expect.objectContaining({ body: "Second edit while writing" })));
     expect(screen.getByRole("textbox", { name: "Note body" })).toHaveValue("Second edit while writing");
   });
+  it("keeps the original when conversion fails and removes it only after retry succeeds", async () => {
+    const api = surface();
+    api.notes.create = vi.fn().mockResolvedValueOnce(internalError("Disk is full")).mockImplementation(async (request) => ok({ ...request, id: "converted-note" }));
+    await screen.findByRole("button", { name: "New note" });
+    act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "convert-to-note", draft: { title: "Converted task", body: "Keep all writing" }, cleanup: { kind: "task", id: "original-task" } } })));
+    await screen.findByText("Disk is full", {}, { timeout: 5000 });
+    expect(api.tasks.delete).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Note title" })).toHaveValue("Converted task");
+    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByTestId("inspector-shell")).toHaveAttribute("data-inspector-id", "converted-note"));
+    expect(api.tasks.delete).toHaveBeenCalledOnce();
+    expect(api.tasks.delete).toHaveBeenCalledWith({ id: "original-task" });
+  });
+
 });

@@ -28,6 +28,7 @@ function InspectorDirtyBadge({
 
 export function InspectorShell({ documentMode = false }: { documentMode?: boolean }): JSX.Element | null {
   const { current, close, isOpen } = useInspector();
+  const dirty = useSyncExternalStore(current?.dirtyState?.subscribe ?? subscribeStaticDirty, current?.dirtyState?.getSnapshot ?? (current?.dirty ? getStaticDirtyTrue : getStaticDirty));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = usePanePreference("inspector.width", 380);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
@@ -51,11 +52,11 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
 
     // Respect an editor's own autofocus and complete the fallback handoff
     // before paint, so immediate typing/Escape cannot land behind the dialog.
-    if (node.contains(document.activeElement)) return;
+    if (node.contains(document.activeElement) || document.activeElement?.closest(".inspector-item-menu")) return;
     const focusable = node.querySelector<HTMLElement>('input:not([disabled]),textarea:not([disabled]),select:not([disabled])') ??
       node.querySelector<HTMLElement>('button:not([disabled]),[tabindex]:not([tabindex="-1"]),a[href]');
     (focusable ?? node).focus();
-  }, [isOpen, current?.kind, current?.id, current?.body]);
+  }, [isOpen, current?.kind, current?.id]);
 
   const requestClose = useCallback(() => {
     void close();
@@ -163,7 +164,7 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
           {current.body}
         </div>
           {current.onSave ? <div className="inspector-save-status" role={current.saveError ? "alert" : "status"}>
-            <span>{current.saveError ?? (current.saving ? "Saving…" : "Changes save when you leave a field")}</span>
+            <span>{current.saveError ?? (current.saving ? "Saving…" : dirty || current.id === "new" || current.id.startsWith("note-draft-") ? "Changes save when you leave a field" : "Saved")}</span>
             {current.saveError ? <><Button onClick={() => void current.onSave?.()} size="sm" variant="ghost">Retry</Button><Button onClick={() => void current.onDiscard?.()} size="sm" variant="ghost">Discard edits</Button></> : null}
           </div> : null}
 

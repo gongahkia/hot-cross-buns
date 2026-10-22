@@ -59,7 +59,7 @@ describe("Calendar inspector autosave", () => {
     fireEvent.blur(title);
     await screen.findByText("Disk is full");
     expect(title).toHaveValue("Keep this event");
-    fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.getByTestId("inspector-shell")).toHaveAttribute("data-inspector-id", "created-event"));
     expect(title).toHaveValue("Keep this event");
     fireEvent.blur(title);

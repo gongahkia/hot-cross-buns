@@ -28,7 +28,7 @@ const openPalette = (page: Page) => page.keyboard.press(process.platform === "da
 const navigate = (page: Page, section: string) => page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: section, exact: true }).click();
 async function capture(page: Page, name: string) {
   mkdirSync("output/ui-review", { recursive: true });
-  await page.screenshot({ path: `output/ui-review/${name}.png` });
+  await page.screenshot({ path: `output/ui-review/${name}.png`, animations: "disabled" });
 }
 
 async function noOverflow(page: Page) {

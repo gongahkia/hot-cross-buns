@@ -64,9 +64,7 @@ uses document positions instead of slicing Markdown by visual caret position.
 Direct uploads use the current selection, and late upload results use the newest
 draft instead of replacing text typed while the upload was pending. Results for
 disabled or unmounted fields do not mutate the document.
-`mixedMarkup.ts` centralizes preview/editor conversion. Existing note autosave,
-save serialization, failed-save recovery, task/event submit and field validation
-remain owned by their inspectors.
+`mixedMarkup.ts` centralizes preview/editor conversion. Inspector text fields save when focus leaves the field or rich editor. Formatting controls remain part of the editor, so using them does not interrupt writing. Save serialization, failed-save recovery, pending-write draining and validation remain owned by the inspectors.
 
 Unit tests cover schema round trips, untouched source, imported HTML, external
 replacement, disabled controls, unsafe URLs, failed saves and in-flight saves.
