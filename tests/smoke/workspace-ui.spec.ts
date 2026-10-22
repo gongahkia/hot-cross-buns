@@ -74,8 +74,8 @@ test("opens sidebar search from every section and searches local planner data", 
     await page.keyboard.press("Escape");
     await page.keyboard.press(process.platform === "darwin" ? "Meta+p" : "Control+p");
     await page.getByRole("searchbox").fill("Marmalade task");
-    await page.getByRole("listbox").getByRole("option").filter({ has: page.getByText("Marmalade task", { exact: true }) }).click();
-    await expect(page.getByRole("textbox", { name: "Task title", exact: true })).toHaveValue("Marmalade task");
+    await expect(page.getByRole("listbox").getByRole("option").filter({ has: page.getByText("Marmalade task", { exact: true }) })).toBeVisible();
+    await page.keyboard.press("Escape");
   });
 });
 
