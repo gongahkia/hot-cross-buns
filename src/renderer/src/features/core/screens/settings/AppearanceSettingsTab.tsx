@@ -78,6 +78,7 @@ export function AppearanceSettingsTab({
   updateSettings
 }: AppearanceSettingsTabProps): JSX.Element {
   const { t } = useI18n();
+  const toolbarOrder = settings.toolbarActionOrder.filter((id: ToolbarActionId) => toolbarActions.some((action) => action.id === id));
   const [customBackgroundMessage, setCustomBackgroundMessage] = useState<string | null>(null);
   const [pendingBackground, setPendingBackground] = useState<PendingBackground | null>(null);
   const [cropAspect, setCropAspect] = useState<CropAspect>("16:10");
@@ -158,7 +159,7 @@ export function AppearanceSettingsTab({
 
   function moveToolbarAction(actionId: ToolbarActionId, direction: -1 | 1): void {
     updateSettings({
-      toolbarActionOrder: moveItem(settings.toolbarActionOrder, actionId, direction)
+      toolbarActionOrder: moveItem(toolbarOrder, actionId, direction)
     });
   }
 
@@ -729,7 +730,7 @@ export function AppearanceSettingsTab({
               {t("action.reset")}
             </Button>
           </div>
-          {settings.toolbarActionOrder.map((actionId, index) => {
+          {toolbarOrder.map((actionId, index) => {
             const action = toolbarActions.find((item) => item.id === actionId);
             if (!action) {
               return null;
@@ -749,7 +750,7 @@ export function AppearanceSettingsTab({
                   </Button>
                   <Button
                     aria-label={`${t("action.moveDown")} ${toolbarLabel(action.id, t)}`}
-                    disabled={index === settings.toolbarActionOrder.length - 1}
+                    disabled={index === toolbarOrder.length - 1}
                     onClick={() => moveToolbarAction(action.id, 1)}
                     size="sm"
                     variant="ghost"
@@ -967,25 +968,5 @@ function loadCropImage(url: string): Promise<HTMLImageElement> {
 }
 
 function toolbarLabel(actionId: ToolbarActionId, t: ReturnType<typeof useI18n>["t"]): string {
-  if (actionId === "commandPalette") {
-    return t("action.commandPalette");
-  }
-
-  if (actionId === "notifications") {
-    return t("action.notifications");
-  }
-
-  if (actionId === "diagnostics") {
-    return t("action.diagnostics");
-  }
-
-  if (actionId === "splitPane") {
-    return t("action.splitView");
-  }
-
-  if (actionId === "refresh") {
-    return t("action.refresh");
-  }
-
-  return t("action.settings");
+  return actionId === "refresh" ? t("action.refresh") : t("action.settings");
 }

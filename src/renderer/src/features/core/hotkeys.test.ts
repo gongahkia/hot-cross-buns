@@ -10,8 +10,6 @@ describe("primary navigation shortcuts", () => {
       "redo.perform": "CmdOrCtrl+Shift+Z",
       "sync.refresh": "CmdOrCtrl+R",
       "navigation.diagnostics.toggle": "CmdOrCtrl+Alt+D",
-      "pane.split.horizontal": "CmdOrCtrl+D",
-      "pane.split.vertical": "CmdOrCtrl+Shift+D",
       "navigation.settings": "CmdOrCtrl+Shift+?",
       "navigation.calendar": "CmdOrCtrl+1",
       "navigation.tasks": "CmdOrCtrl+2",
@@ -52,7 +50,5 @@ describe("primary navigation shortcuts", () => {
     expect(eventMatchesAccelerator(macShortcut("z", { shiftKey: true }), defaultKeybindings["redo.perform"])).toBe(true);
     expect(eventMatchesAccelerator(macShortcut("r"), defaultKeybindings["sync.refresh"])).toBe(true);
     expect(eventMatchesAccelerator(macShortcut("d", { altKey: true }), defaultKeybindings["navigation.diagnostics.toggle"])).toBe(true);
-    expect(eventMatchesAccelerator(macShortcut("d"), defaultKeybindings["pane.split.horizontal"])).toBe(true);
-    expect(eventMatchesAccelerator(macShortcut("d", { shiftKey: true }), defaultKeybindings["pane.split.vertical"])).toBe(true);
   });
 });

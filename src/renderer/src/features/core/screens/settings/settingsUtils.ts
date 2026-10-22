@@ -5,10 +5,6 @@ export type CalendarViewModeId = SettingsSnapshot["hiddenCalendarViewModes"][num
 export type FontSurfaceId = keyof SettingsSnapshot["perSurfaceFontOverrides"];
 
 export const toolbarActions: Array<{ id: ToolbarActionId; label: string }> = [
-  { id: "commandPalette", label: "Command palette" },
-  { id: "notifications", label: "Notifications" },
-  { id: "diagnostics", label: "Diagnostics" },
-  { id: "splitPane", label: "Split view" },
   { id: "refresh", label: "Reload" },
   { id: "settings", label: "Settings" }
 ];

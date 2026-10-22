@@ -5,7 +5,7 @@ import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
 import { LoadingIndicatorProvider } from "../../components/LoadingIndicator";
 import { cx } from "../../components/primitives";
-import { primaryPlannerSections, type SectionId } from "../../data/mockPlanner";
+import type { SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
 import type { ConvertCommandDetail } from "../core/conversionEvents";
 import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
@@ -31,7 +31,7 @@ import { SaveFeedback } from "./SaveFeedback";
 import { usePanePreference } from "./panePreferences";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
 import { PaneWorkspace } from "./PaneWorkspace";
-import { splitPaneWebUrl } from "./paneWorkspaceModel";
+import { plannerExternalUrl } from "./plannerExternalUrl";
 import {
   isEditableShortcutTarget,
   scheduleFrame,
@@ -121,10 +121,6 @@ export function AppShell(): JSX.Element {
   const visibleNotifications = appNotifications.filter(
     (notification) => !dismissedNotificationIds.includes(notification.id)
   );
-  const visiblePaneSectionIds = useMemo(
-    () => primaryPlannerSections.map((section) => section.id),
-    []
-  );
   const availableCalendarIds = useMemo(
     () => new Set(source.calendarSources.map((calendar) => calendar.id)),
     [source.calendarSources]
@@ -153,10 +149,6 @@ export function AppShell(): JSX.Element {
     source.dataState !== "loading" &&
     source.dataState !== "offline" &&
     source.dataState !== "error";
-
-  const guardWorkspaceChange = useCallback((change: () => void): void => {
-    void closeInspector().then((allowed) => { if (allowed) change(); });
-  }, [closeInspector]);
 
   const navigateToSection = useCallback((sectionId: SectionId): void => {
     void closeInspector().then((allowed) => { if (allowed) paneWorkspace.replaceFocusedWithSection(sectionId); });
@@ -659,51 +651,6 @@ export function AppShell(): JSX.Element {
         return;
       }
 
-      if (actionId === "pane.create") {
-        guardWorkspaceChange(() => paneWorkspace.openChooser());
-        return;
-      }
-
-      if (actionId === "web.tab.create") {
-        paneWorkspace.newWebTab(paneWorkspace.focusedPaneId);
-        return;
-      }
-
-      if (actionId === "pane.close") {
-        guardWorkspaceChange(() => paneWorkspace.closePane(paneWorkspace.focusedPaneId));
-        return;
-      }
-
-      if (actionId === "pane.split.horizontal") {
-        guardWorkspaceChange(() => paneWorkspace.splitPane(paneWorkspace.focusedPaneId, "row"));
-        return;
-      }
-
-      if (actionId === "pane.split.vertical") {
-        guardWorkspaceChange(() => paneWorkspace.splitPane(paneWorkspace.focusedPaneId, "column"));
-        return;
-      }
-
-      if (actionId === "pane.focus.left") {
-        paneWorkspace.focusPaneByDirection("left");
-        return;
-      }
-
-      if (actionId === "pane.focus.right") {
-        paneWorkspace.focusPaneByDirection("right");
-        return;
-      }
-
-      if (actionId === "pane.focus.up") {
-        paneWorkspace.focusPaneByDirection("up");
-        return;
-      }
-
-      if (actionId === "pane.focus.down") {
-        paneWorkspace.focusPaneByDirection("down");
-        return;
-      }
-
       if (typeof actionId === "string" && actionId.startsWith("calendar.view.")) {
         const viewId = actionId.replace("calendar.view.", "");
         navigateToPrimarySection("calendar");
@@ -716,14 +663,8 @@ export function AppShell(): JSX.Element {
       openCommandPalette,
       openActionPalette,
       openQuickAdd,
-      paneWorkspace.closePane,
-      paneWorkspace.focusPaneByDirection,
       paneWorkspace.focusedPaneId,
-      paneWorkspace.newWebTab,
-      paneWorkspace.openChooser,
-      paneWorkspace.splitPane,
       toggleDiagnosticsPanel,
-      guardWorkspaceChange,
       openSettingsPanel,
       syncThenRefresh,
       source.redo,
@@ -839,6 +780,7 @@ export function AppShell(): JSX.Element {
       for (const [actionId, accelerator] of Object.entries(source.settings.keybindings) as Array<
         [keyof SettingsSnapshot["keybindings"], string | null]
       >) {
+        if (String(actionId).startsWith("pane.") || actionId === "web.tab.create") continue;
         if (!eventMatchesAccelerator(event, accelerator)) {
           continue;
         }
@@ -879,19 +821,19 @@ export function AppShell(): JSX.Element {
       }
 
       const anchor = closestAnchor(event.target);
-      const url = splitPaneWebUrl(anchor?.getAttribute("href") ?? null, window.location.href);
+      const url = plannerExternalUrl(anchor?.getAttribute("href") ?? null, window.location.href);
 
       if (!url) {
         return;
       }
 
       event.preventDefault();
-      paneWorkspace.openUrl(url, anchor?.textContent ?? null);
+      void window.hcb?.native.openExternalUrl({ url });
     }
 
     document.addEventListener("click", handleDocumentClick, true);
     return () => document.removeEventListener("click", handleDocumentClick, true);
-  }, [paneWorkspace]);
+  }, []);
 
   useEffect(() => {
     if (!notificationsOpen) {
@@ -980,7 +922,6 @@ export function AppShell(): JSX.Element {
         keybindings={source.settings.keybindings}
         onNavigateToSection={navigateToPrimarySection}
         onOpenCommandPalette={openCommandPalette}
-        onOpenSplitPane={() => guardWorkspaceChange(paneWorkspace.openChooser)}
         onRefresh={() => syncThenRefresh("toolbar")}
         onToggleDiagnostics={toggleDiagnosticsPanel}
         onToggleSettings={toggleSettingsPanel}
@@ -988,26 +929,15 @@ export function AppShell(): JSX.Element {
         toolbarActionOrder={source.settings.toolbarActionOrder}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-document-open={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes" && paneWorkspace.root.kind === "leaf"}>
+      <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-document-open={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes"}>
         <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
           <PaneWorkspace
-            activeSectionId={paneWorkspace.activeSectionId}
-            canSplit={paneWorkspace.canSplit}
-            focusedPaneId={paneWorkspace.focusedPaneId}
-            onClosePane={(id) => guardWorkspaceChange(() => paneWorkspace.closePane(id))}
-            onFocusPane={paneWorkspace.focusPane}
-            onMovePane={(from, to, zone) => guardWorkspaceChange(() => paneWorkspace.movePane(from, to, zone))}
-            onOpenWebPage={paneWorkspace.openWebPageInPane}
-            onReplacePane={(id, content) => guardWorkspaceChange(() => paneWorkspace.replacePane(id, content))}
-            onSetSplitRatio={paneWorkspace.setSplitRatio}
-            onSplitPane={(id, direction, content) => guardWorkspaceChange(() => paneWorkspace.splitPane(id, direction, content))}
             root={paneWorkspace.root}
             taskCommand={taskCommand}
             visibleCalendarIds={visibleCalendarIdSet}
-            visibleSectionIds={visiblePaneSectionIds}
           />
         </RenderTimingBoundary>
-        <InspectorShell documentMode={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes" && paneWorkspace.root.kind === "leaf"} />
+        <InspectorShell documentMode={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes"} />
       </main>
       <SaveFeedback />
 

@@ -269,8 +269,6 @@ export const defaultKeybindings = {
   "redo.perform": "CmdOrCtrl+Shift+Z",
   "sync.refresh": "CmdOrCtrl+R",
   "navigation.diagnostics.toggle": "CmdOrCtrl+Alt+D",
-  "pane.split.horizontal": "CmdOrCtrl+D",
-  "pane.split.vertical": "CmdOrCtrl+Shift+D",
   "navigation.settings": "CmdOrCtrl+Shift+?",
   "navigation.calendar": "CmdOrCtrl+1",
   "navigation.tasks": "CmdOrCtrl+2",

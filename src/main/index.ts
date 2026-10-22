@@ -36,7 +36,7 @@ function createMainWindow(): BrowserWindow {
       sandbox: true,
       webSecurity: true,
       allowRunningInsecureContent: false,
-      webviewTag: true
+      webviewTag: false
     }
   });
 
