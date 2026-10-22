@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { cpus, loadavg, platform, release } from "node:os";
 import { test, planner, navigate, openPalette, capture } from "./planner";
 import { chooseCalendarView } from "./calendarActions";
-import { goToPopulatedDay, seedPopulatedPlanner } from "./populatedPlanner";
+import { goToPopulatedDay, populatedNow, seedPopulatedPlanner } from "./populatedPlanner";
 
 test.setTimeout(120_000);
 
@@ -15,10 +15,11 @@ type ViewTimingSample = {
   finalSettledMs: number;
   loadingIntervals: { startMs: number; endMs: number }[];
   frames: number[];
+  userTimingMarks: { name: string; startTime: number }[];
 };
 type TraceEvent = { name: string; ph: string; ts: number; dur?: number; pid: number; tid: number };
 
-async function finishViewTrace(profiler: CDPSession, markPrefix: string) {
+async function finishViewTrace(profiler: CDPSession, markPrefix: string, tracePath: string) {
   const completed = new Promise<{ stream?: string }>(resolve => profiler.once("Tracing.tracingComplete", resolve));
   await profiler.send("Tracing.end");
   const { stream } = await completed;
@@ -32,6 +33,8 @@ async function finishViewTrace(profiler: CDPSession, markPrefix: string) {
     }
   } finally { await profiler.send("IO.close", { handle: stream }); }
   const raw = Buffer.concat(chunks).toString("utf8");
+  writeFileSync(tracePath, raw);
+  await test.info().attach("calendar-cdp-trace", { path: tracePath, contentType: "application/json" });
   const events = (JSON.parse(raw) as { traceEvents: TraceEvent[] }).traceEvents;
   const start = events.find(event => event.name === `${markPrefix}:click`);
   if (!start) throw new Error("Calendar trace is missing its click UserTiming mark");
@@ -66,8 +69,7 @@ async function measuredView(page: Page, view: string) {
         const item = (event.target as Element).closest('[role="menuitemradio"], [role="menuitem"]');
         if (item?.textContent?.trim() !== label) return;
         document.removeEventListener("click", listener, true);
-        const start = performance.now();
-        performance.mark(`${markPrefix}:click`, { startTime: start });
+        const start = performance.mark(`${markPrefix}:click`).startTime;
         const workspace = document.querySelector('[data-testid="calendar-view"]')!;
         let previous = start, visualFrames = 0, readyFrames = 0;
         let gridMountedMs: number | null = null, incomingAnimationSettledMs: number | null = null, outgoingAnimationSettledMs: number | null = null;
@@ -123,7 +125,7 @@ async function measuredView(page: Page, view: string) {
           readyFrames = visualReady && !busy && incomingAnimationSettledMs !== null ? readyFrames + 1 : 0;
           if (readyFrames >= 2 && durationMs !== null) {
             observer.disconnect(); mark("final-settled", elapsed);
-            resolve({ durationMs, gridMountedMs, incomingAnimationSettledMs, outgoingAnimationSettledMs, finalSettledMs: elapsed, loadingIntervals, frames });
+            resolve({ durationMs, gridMountedMs, incomingAnimationSettledMs, outgoingAnimationSettledMs, finalSettledMs: elapsed, loadingIntervals, frames, userTimingMarks: performance.getEntriesByType("mark").filter(entry => entry.name.startsWith(markPrefix)).map(({ name, startTime }) => ({ name, startTime })) });
           } else if (elapsed > 5000) {
             observer.disconnect(); reject(new Error("Populated calendar did not finish its view transition and visible range loading in 5 seconds"));
           } else requestAnimationFrame(tick);
@@ -143,23 +145,6 @@ async function measuredView(page: Page, view: string) {
       profiling = true;
     } : undefined);
     const sample = await page.evaluate(() => (window as any).__populatedTransition) as ViewTimingSample;
-    if (profiler) {
-      const { profile } = await profiler.send("Profiler.stop");
-      profiling = false;
-      const { metrics } = await profiler.send("Performance.getMetrics");
-      const broadWindowMetrics = Object.fromEntries(metrics.filter(metric => ["LayoutDuration", "RecalcStyleDuration", "ScriptDuration", "TaskDuration"].includes(metric.name)).map(metric => [metric.name, Math.round((metric.value - (metricsBefore[metric.name] ?? 0)) * 1000)]));
-      const trace = await finishViewTrace(profiler, markPrefix);
-      tracing = false;
-      mkdirSync("output/ui-review", { recursive: true });
-      writeFileSync(`output/ui-review/calendar-${view}-${theme}.cpuprofile`, JSON.stringify(profile));
-      writeFileSync(`output/ui-review/calendar-${view}-${theme}-trace.json`, trace.raw);
-      const phases = {
-        measuredIntervals: trace.intervals,
-        broaderProfilingWindow: { includes: "Automation input/actionability and CDP overhead before the click and after final settle; not a decomposition of durationMs", metricsMs: broadWindowMetrics },
-        notes: "Trace totals clip complete Layout/UpdateLayoutTree events to matching UserTiming marks on the renderer thread. Intervals and event categories overlap; do not sum them as exclusive phases. Profiling itself adds overhead."
-      };
-      writeFileSync(`output/ui-review/calendar-${view}-${theme}-phases.json`, JSON.stringify(phases, null, 2));
-    }
     const frames = sample.frames.slice(1).sort((a, b) => a - b);
     const frameP95Ms = frames[Math.min(frames.length - 1, Math.floor(frames.length * .95))];
     // Preserve the visual-transition gate. Range loading is separately observable:
@@ -175,8 +160,23 @@ async function measuredView(page: Page, view: string) {
     };
     mkdirSync("output/ui-review", { recursive: true });
     const timingPath = `output/ui-review/calendar-${view}-${theme}-timing.json`;
-    writeFileSync(timingPath, JSON.stringify({ ...measurement, logicalCpuCount: cpus().length, profilingEnabled: Boolean(profiler) }, null, 2));
+    writeFileSync(timingPath, JSON.stringify({ ...measurement, markPrefix, userTimingMarks: sample.userTimingMarks, logicalCpuCount: cpus().length, profilingEnabled: Boolean(profiler) }, null, 2));
     await test.info().attach(`calendar-${view}-${theme}-timing`, { path: timingPath, contentType: "application/json" });
+    if (profiler) {
+      const { profile } = await profiler.send("Profiler.stop");
+      profiling = false;
+      const { metrics } = await profiler.send("Performance.getMetrics");
+      const broadWindowMetrics = Object.fromEntries(metrics.filter(metric => ["LayoutDuration", "RecalcStyleDuration", "ScriptDuration", "TaskDuration"].includes(metric.name)).map(metric => [metric.name, Math.round((metric.value - (metricsBefore[metric.name] ?? 0)) * 1000)]));
+      writeFileSync(`output/ui-review/calendar-${view}-${theme}.cpuprofile`, JSON.stringify(profile));
+      const trace = await finishViewTrace(profiler, markPrefix, `output/ui-review/calendar-${view}-${theme}-trace.json`);
+      tracing = false;
+      const phases = {
+        measuredIntervals: trace.intervals,
+        broaderProfilingWindow: { includes: "Automation input/actionability and CDP overhead before the click and after final settle; not a decomposition of durationMs", metricsMs: broadWindowMetrics },
+        notes: "Trace totals clip complete Layout/UpdateLayoutTree events to matching UserTiming marks on the renderer thread. Intervals and event categories overlap; do not sum them as exclusive phases. Profiling itself adds overhead."
+      };
+      writeFileSync(`output/ui-review/calendar-${view}-${theme}-phases.json`, JSON.stringify(phases, null, 2));
+    }
     expect(sample.durationMs, `${view} click to settled grid`).toBeLessThan(1500);
     return measurement;
   } finally {
@@ -238,7 +238,21 @@ async function assertReadableGrid(page: Page, view: string) {
 for (const theme of ["light", "dark"] as const) {
   test(`populated local account stays readable and usable in ${theme}`, async () => {
     await planner(async (page) => {
+      await page.evaluate(() => {
+        (window as any).__hcbTimingIdentity = { performance, mark: performance.mark, now: performance.now, requestAnimationFrame, setTimeout };
+      });
       const fixture = await seedPopulatedPlanner(page);
+      expect(await page.evaluate(timestamp => {
+        const original = (window as any).__hcbTimingIdentity;
+        class DerivedDate extends Date {}
+        return {
+          fixedDate: Date.now() === timestamp && new Date().getTime() === timestamp && Date() === new Date(timestamp).toString(),
+          explicitDates: new Date(0).getTime() === 0 && Date.parse("1970-01-01T00:00:00Z") === 0 && Date.UTC(1970, 0, 1) === 0,
+          subclasses: new DerivedDate() instanceof DerivedDate && new DerivedDate().getTime() === timestamp,
+          nativeMeasurement: performance === original.performance && performance.mark === original.mark && performance.now === original.now,
+          nativeScheduling: requestAnimationFrame === original.requestAnimationFrame && setTimeout === original.setTimeout
+        };
+      }, Date.parse(populatedNow))).toEqual({ fixedDate: true, explicitDates: true, subclasses: true, nativeMeasurement: true, nativeScheduling: true });
       await page.setViewportSize({ width: 1600, height: 1000 });
       await page.evaluate(async theme => {
         const result = await window.hcb!.settings.update({ theme });

@@ -3,9 +3,23 @@ import { expect, type Page } from "@playwright/test";
 export const populatedDay = "2026-10-22";
 export const populatedNow = `${populatedDay}T15:49:00Z`;
 
+function installFixedDate(timestamp: number) {
+  const NativeDate = Date;
+  const now = () => timestamp;
+  // Freeze calendar dates only. Playwright's clock also replaces performance
+  // marks and animation/timer scheduling, which invalidates UI timing samples.
+  globalThis.Date = new Proxy(NativeDate, {
+    apply: () => new NativeDate(timestamp).toString(),
+    construct: (target, args, newTarget) => Reflect.construct(target, args.length ? args : [timestamp], newTarget),
+    get: (target, key, receiver) => key === "now" ? now : Reflect.get(target, key, receiver)
+  });
+}
+
 /** Real IPC writes into planner()'s disposable local account, never a Google account. */
 export async function seedPopulatedPlanner(page: Page) {
-  await page.clock.setFixedTime(new Date(populatedNow));
+  const timestamp = Date.parse(populatedNow);
+  await page.addInitScript(installFixedDate, timestamp);
+  await page.evaluate(installFixedDate, timestamp);
   return page.evaluate(async (anchor) => {
     const api = window.hcb!;
     const unwrap = (result: any): any => { if (!result.ok) throw new Error(result.error.message); return result.data; };
