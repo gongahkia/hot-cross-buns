@@ -27,6 +27,16 @@ Use `chooseOption`/`chooseOptionValue` from `tests/smoke/controls.ts` for dropdo
 
 This approach follows [Gator's desktop workflow tests](https://github.com/gongahkia/gator/blob/7ecb134281c85aeb97c5e6ffeb2baf1d6a846b49/desktop/tests/e2e/polish.spec.ts) and [CI checks](https://github.com/gongahkia/gator/blob/7ecb134281c85aeb97c5e6ffeb2baf1d6a846b49/.github/workflows/ci.yml): isolated app launches, real interactions, persisted-state assertions, and retained evidence.
 
+## Populated account review
+
+`tests/smoke/populated-planner.spec.ts` runs in the normal validation gate, in both themes. Its disposable local account contains 493 events across 90 days, 24 recurring birthdays, 600 tasks across six lists (including subtasks, completed work and 60 dated tasks), and 240 Markdown notes, including long documents. It uses real IPC and SQLite with a fixed renderer clock of October 22, 2026, at 15:49 UTC. No Google credentials or development data are used.
+
+The test opens Month, Week, Day and three-day views. It checks actual painted rectangles for overlapping/clipped timed cards, bounded month lanes and accessible overflow, completion styling, full accessible labels for truncated titles, rare search results, task virtualization, opening a long note, and the narrow search inspector. Screenshots cover each view, overflow, search, tasks and notes. Inspect `output/ui-review/populated-*.png` alongside the experimental reference; these are review artifacts, not pixel-diff baselines or a guarantee of subjective readability.
+
+Each theme also produces `populated-performance-<theme>.json`, attached to the HTML report. Measurements start on the actual view-menu click and finish after the incoming grid settles, including its animation. A 400 ms target is reported alongside a 1,500 ms regression ceiling. Frame timing samples are retained for diagnosis; a single short animation has too few frames for a stable percentile gate. Sustained frame timing budgets live in the load suite. These bounded transition samples supplement the more extensive `test:perf` load suite (1k/5k/10k of each entity); they do not claim a sustained frame rate or performance on all hardware. The large load suite is a separate command, not part of `test:validate`.
+
+Run this scenario alone after a build with `pnpm test:ui tests/smoke/populated-planner.spec.ts`. Test coverage cannot completely validate UI/UX: review the retained screenshots and use the app with representative data on target platforms as well.
+
 ## Limits
 
 The local gate uses the production build launched by Electron, not an installed/signed package. Run the existing packaged-app and live-Google suites separately for release and provider validation; those require the appropriate platform or a dedicated signed-in test account. An Xvfb pass verifies renderer-owned menus, not every compositor/driver combination. Check the reported WSLg behavior in the normal development window as well.

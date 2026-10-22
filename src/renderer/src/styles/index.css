@@ -548,6 +548,10 @@ label:has(input:not(:disabled)) {
 .calendar-timeline .calendar-event-chip[data-size="default"] { height: 100%; padding: 8px 10px 6px 12px; font-size: 12px; }
 .calendar-timeline .calendar-event-chip[data-size="default"] .calendar-event-title { white-space: normal; line-height: 1.35; }
 .calendar-timeline .calendar-event-chip[data-size="default"] .calendar-event-content { white-space: normal; }
+.calendar-timeline .calendar-event-chip.calendar-event-short { padding: 0 8px 0 10px; }
+.calendar-timeline .calendar-event-chip.calendar-event-short .calendar-event-content,
+.calendar-timeline .calendar-event-chip.calendar-event-short .calendar-event-title { white-space: nowrap; }
+.calendar-timeline .calendar-event-short .calendar-event-range { display: none; }
 .calendar-month-week, .calendar-month-cell { min-height: 118px; }
 .calendar-event-resize-handle { position: absolute; bottom: 0; left: 4px; right: 4px; height: 7px; cursor: ns-resize; border-radius: 0 0 8px 8px; opacity: 0; }
 [data-calendar-event-layout]:hover .calendar-event-resize-handle, .calendar-event-resize-handle:focus-visible { opacity: 1; background: color-mix(in srgb, var(--color-text-primary) 16%, transparent); }

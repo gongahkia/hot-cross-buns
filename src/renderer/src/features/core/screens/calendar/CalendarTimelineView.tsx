@@ -140,7 +140,9 @@ function timelineEventStyle({
   const laneWidth = 100 / Math.max(1, laneCount);
 
   return {
-    height: `${Math.max(22, height)}px`,
+    // A minimum card height spills short segments into the next appointment.
+    // Preserve time geometry; short cards use a single compact title line.
+    height: `${Math.max(1, height)}px`,
     left: `calc(${laneIndex * laneWidth}% + 4px)`,
     top: `${top}px`,
     width: `calc(${laneWidth}% - 8px)`
@@ -895,7 +897,7 @@ function CalendarTimelineView({
                         style={timelineEventStyle(segment)}
                       >
                         <CalendarTimelineEventChip
-                          className="min-w-0"
+                          className={cx("min-w-0", segment.height < 40 && "calendar-event-short")}
                           event={layout.event}
                           eventCompletionDefaultScope={eventCompletionDefaultScope}
                           labelVariant={timedLabelVariant}

@@ -1,4 +1,5 @@
 import { _electron as electron, expect, type ElectronApplication, type Page } from "@playwright/test";
+import { chooseOptionValue } from "../tests/smoke/controls";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, freemem, loadavg, release, tmpdir, totalmem } from "node:os";
 import { join, resolve } from "node:path";
@@ -326,7 +327,7 @@ async function run(): Promise<void> {
 
     await measure(measurements, "automation-cold-hydration-and-validation", async () => {
       await measureRenderedNavigation(measurements, page, "Tasks", TASK_COUNT, true);
-      await page.getByRole("combobox", { name: "Sort tasks", exact: true }).selectOption("title");
+      await chooseOptionValue(page, page.getByRole("combobox", { name: "Sort tasks", exact: true }), "title");
       await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-task-count", String(TASK_COUNT), { timeout: 60_000 });
       await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-hydration-state", "success", { timeout: 60_000 });
       await page.getByRole("button", { name: "Performance task 0000", exact: true }).waitFor({ state: "visible" });
