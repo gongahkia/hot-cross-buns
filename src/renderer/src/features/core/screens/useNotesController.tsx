@@ -336,6 +336,7 @@ export function useNotesController(source: CoreViewModelSource): {
     await noteInspectorBodyRef.current?.settle();
     setNoteInspectorMode("view");
     setNoteActionError(undefined);
+    fullNoteId.current = null;
     if (selectedNoteId?.startsWith("note-draft-")) setNotes((current) => current.filter((note) => note.id !== selectedNoteId));
     await closeInspector();
     source.refresh();

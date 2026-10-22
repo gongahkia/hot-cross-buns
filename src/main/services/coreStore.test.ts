@@ -29,6 +29,20 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("persists birthday identity and tags through reads, edits and recurrence", () => {
+    const store = createStore();
+    const birthday = store.dispatch("calendar", "create", { calendarId: "primary", title: "Ada's birthday", startsAt: "2026-10-22T00:00:00Z", endsAt: "2026-10-23T00:00:00Z", allDay: true, hcbKind: "birthday", tags: ["family"], recurrenceLines: ["RRULE:FREQ=YEARLY"] });
+    expect(birthday.hcbKind).toBe("birthday");
+    expect(store.dispatch("calendar", "get", { id: birthday.id }).tags).toEqual(["family"]);
+    store.dispatch("calendar", "update", { id: birthday.id, title: "Ada's updated birthday", scope: "series" });
+    expect(store.dispatch("calendar", "get", { id: birthday.id }).hcbKind).toBe("birthday");
+    const range = store.dispatch("calendar", "list", { start: "2027-10-01T00:00:00Z", end: "2027-11-01T00:00:00Z" });
+    expect(range.items.find((event: any) => event.eventId === birthday.id)?.hcbKind).toBe("birthday");
+    store.dispatch("calendar", "update", { id: birthday.id, hcbKind: null, tags: ["friends"], scope: "series" });
+    expect(store.dispatch("calendar", "get", { id: birthday.id }).hcbKind).toBeNull();
+    expect(store.dispatch("calendar", "get", { id: birthday.id }).tags).toEqual(["friends"]);
+  });
+
   it.each([false, true])("retains recurring occurrence cancellations across restarts (all-day=%s)", (allDay) => {
     let store = createStore();
     const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });

@@ -112,6 +112,7 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await expect(body.locator("[data-planner-reference]")).toHaveCount(2);
     await body.click(); await body.press(`${modifier}+End`); await body.press("ArrowDown");
     expect(await sourceValue(page, "Note body")).toBe(special);
+    await page.getByRole("textbox", { name: "Note title" }).focus();
     await expect.poll(async () => { const result = await page.evaluate((id) => window.hcb!.notes.get({ id }), fixture.note); return result.ok ? result.data.body : ""; }).toBe(special);
     await page.keyboard.press("Escape");
 
@@ -127,7 +128,7 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await expect(notes.getByRole("checkbox")).toHaveCount(1);
     await notes.getByRole("checkbox").check();
     expect(await sourceValue(page, "Task notes")).toContain("- [x] Action item");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect.poll(async () => { const result = await page.evaluate((id) => window.hcb!.tasks.get({ id }), fixture.task); return result.ok ? result.data.notes : ""; }).toContain("- [x] Action item");
     await page.keyboard.press("Escape");
 
@@ -145,11 +146,12 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("textbox", { name: "Link URL" }).press("Enter");
     await expect(description.locator("a")).toHaveAttribute("href", "https://example.com");
     await expect(page.getByRole("textbox", { name: "Event title" })).toBeVisible(); // Enter in link editor must not submit the event.
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect.poll(async () => { const result = await page.evaluate((id) => window.hcb!.calendar.get({ id }), fixture.event); return result.ok ? result.data.description : ""; }).toContain("[Linked description](https://example.com)");
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "New event", exact: true }).click();
-    await page.getByRole("tab", { name: "Task", exact: true }).click();
+    await page.getByRole("button", { name: "Item type", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: "Task", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Task notes" })).toHaveAttribute("contenteditable", "true");
     expect(errors).toEqual([]);
     await page.screenshot({ path: "output/markdown-editor-calendar-task.png" });

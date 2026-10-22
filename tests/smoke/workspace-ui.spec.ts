@@ -277,10 +277,7 @@ test("keeps the mini calendar visible and synchronizes dates across sections and
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page.getByRole("textbox", { name: "Task title", exact: true }).fill("Preserve this draft");
     await mini.locator('[aria-current="date"]').click();
-    await expect(page.getByRole("textbox", { name: "Task title", exact: true })).toHaveValue("Preserve this draft");
-    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Tasks", exact: true })).toHaveAttribute("aria-current", "page");
-    await page.getByRole("button", { name: "Discard", exact: true }).click();
-    await mini.locator('[aria-current="date"]').click();
+    await expect.poll(async () => page.evaluate(async () => { const result = await window.hcb!.tasks.list({ status: "all" }); return result.ok && result.data.items.some((task) => task.title === "Preserve this draft"); })).toBe(true);
     await expect(page.getByTestId("calendar-view")).toBeVisible();
     await page.setViewportSize({ width: 640, height: 480 });
     await expect(mini).toBeVisible();
@@ -356,13 +353,12 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     expect(Number(await resize.getAttribute("aria-valuenow"))).toBeGreaterThan(420);
     await page.getByRole("textbox", { name: "Event title" }).fill("Unsaved planning");
     await navigate(page, "Tasks");
-    await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Unsaved planning");
-    await expect(calendar).toBeVisible();
-    await page.getByRole("button", { name: "Discard", exact: true }).click();
-    await expect(inspector).toHaveCount(0);
+    await expect(page.getByTestId("tasks-board")).toBeVisible();
+    await expect.poll(async () => page.evaluate(async (id) => { const event = await window.hcb!.calendar.get({ id }); return event.ok && event.data.title; }, fixture.ids[1])).toBe("Unsaved planning");
+    await navigate(page, "Calendar");
     await calendar.getByText("Design review", { exact: true }).click();
     await page.getByRole("textbox", { name: "Event location" }).fill("Studio 2");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect.poll(async () => page.evaluate(async (id) => { const event = await window.hcb!.calendar.get({ id }); return event.ok && event.data.location; }, fixture.ids[0])).toBe("Studio 2");
     await expect(inspector).toHaveCount(0);
     await page.getByRole("button", { name: "Choose calendar date" }).click();
@@ -383,7 +379,7 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     await page.setViewportSize({ width: 960, height: 620 });
     await expect(inspector).toHaveAttribute("data-inspector-layout", "sheet");
     await expect(inspector).toHaveAttribute("aria-modal", "true");
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await noOverflow(page);
     await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
     await noOverflow(page);
@@ -391,26 +387,33 @@ test("navigates calendar views, filters sources, edits in context and preserves 
   });
 });
 
-test("validates event creation and requires a scope for recurring edits", async () => {
+test("validates event edits and requires a scope for recurring edits", async () => {
   await planner(async (page) => {
     await page.getByRole("button", { name: "New event", exact: true }).click();
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    const title = page.getByRole("textbox", { name: "Event title" });
+    await title.fill("Daily design check-in");
+    await title.press("Tab");
+    await expect(page.getByTestId("inspector-shell")).not.toHaveAttribute("data-inspector-id", "new");
+    await title.fill("");
+    await title.press("Tab");
     await expect(page.getByText("Title is required.", { exact: true })).toBeVisible();
-    await page.getByRole("textbox", { name: "Event title" }).fill("Daily design check-in");
+    await title.fill("Daily design check-in");
     await page.getByRole("button", { name: "More details", exact: true }).click();
     await page.getByRole("combobox", { name: "Event repeat frequency" }).selectOption("daily");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     await page.getByTestId("calendar-view").getByText("Daily design check-in", { exact: true }).click();
-    await page.getByRole("textbox", { name: "Event title" }).fill("Daily planning check-in");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await title.fill("Daily planning check-in");
+    await title.press("Tab");
     const scope = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Save recurring event" }) }).last();
     await expect(scope).toBeVisible();
     await scope.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Daily planning check-in");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(title).toHaveValue("Daily planning check-in");
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await scope.getByRole("button", { name: "Entire series", exact: true }).click();
-    await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
+    await expect(scope).toHaveCount(0);
+    await expect(page.getByTestId("inspector-shell")).toBeVisible();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect(page.getByTestId("calendar-view").getByText("Daily planning check-in", { exact: true })).toBeVisible();
   });
 });
@@ -457,12 +460,12 @@ test("creates and renames lists, edits tasks, completes them and switches presen
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page.getByRole("textbox", { name: "Task title" }).fill("Ship the new planner");
     await page.getByLabel("Task due date").fill("2027-02-03");
-    await page.getByRole("button", { name: "Add task", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     const task = page.getByRole("button", { name: "Ship the new planner", exact: true });
     await expect(task).toBeVisible(); await task.click();
     await page.getByRole("textbox", { name: "Task title" }).fill("Ship the polished planner");
-    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Ship the polished planner", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Complete Ship the polished planner", exact: true }).click();
@@ -489,7 +492,7 @@ test("creates a document and autosaves edits when moving between sections", asyn
     await page.getByRole("button", { name: "New note", exact: true }).click();
     await page.getByRole("textbox", { name: "Note title" }).fill("Design decisions");
     await page.getByRole("textbox", { name: "Note body" }).fill("The calendar stays visible while editing.");
-    await page.getByRole("button", { name: "Create note", exact: true }).click();
+    await page.getByRole("textbox", { name: "Note title" }).focus();
     await expect(page.getByRole("button", { name: "Create note", exact: true })).toHaveCount(0);
     const document = page.getByTestId("inspector-shell");
     await expect(document).toHaveAttribute("data-document-editor", "true");
@@ -501,7 +504,8 @@ test("creates a document and autosaves edits when moving between sections", asyn
     await navigate(page, "Notes");
     await expect(page.getByRole("textbox", { name: "Note body" })).toContainText("Verify all editing flows");
     await page.getByRole("textbox", { name: "Note body" }).getByRole("checkbox").first().check();
-    await expect(page.getByText("Saved on this device", { exact: true })).toBeVisible();
+    await page.getByRole("textbox", { name: "Note title" }).focus();
+    await expect.poll(async () => page.evaluate(async () => { const result = await window.hcb!.notes.list({}); return result.ok && result.data.items.some((note) => note.title === "Design decisions" && note.body.includes("- [x] Verify all editing flows")); })).toBe(true);
     await capture(page, "notes-document");
     await page.getByRole("button", { name: "New note list", exact: true }).click();
     await page.getByRole("textbox", { name: "List name" }).fill("Research");

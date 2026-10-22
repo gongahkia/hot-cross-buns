@@ -670,7 +670,7 @@ export class CoreStore {
       : event.googleRecurringEventId ?? null;
     this.statement(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
-      working_location_properties_json=?,self_response_status=?,updated_at=?,hcb_kind=?,tags_json=? WHERE id=?`)
+      working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
       .run(
         requiredText(remote.id, "Google event id"), remote.etag ?? null,
         remoteRecurringEventId, remoteOriginalStart,
