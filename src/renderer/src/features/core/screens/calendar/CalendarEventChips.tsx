@@ -1,4 +1,5 @@
 import { useCalendarEventMenu } from "./calendarEventMenuContext";
+import { CalendarSyncBadge } from "./CalendarSyncStatus";
 import { useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, PointerEvent } from "react";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
@@ -182,6 +183,7 @@ function CalendarOverflowRow({
           <span className="truncate">{calendarOverflowKindLabel(event)}</span>
           <span aria-hidden="true">·</span>
           <span className="truncate">{event.calendar}</span>
+          <CalendarSyncBadge state={event.mutationState} />
         </span>
       </span>
     </button>
@@ -362,6 +364,7 @@ export function CalendarEventChip({
       data-all-day={event.allDay}
       data-source={event.sourceKind}
       data-read-only={event.canWrite === false || undefined}
+      data-sync-state={event.mutationState}
       data-size={size}
       draggable={draggable}
       onClick={(clickEvent) => {
@@ -403,6 +406,7 @@ export function CalendarEventChip({
             {size === "compact" ? <>{!event.allDay && labelVariant !== "title" ? <span className="calendar-event-time">{event.timeLabel} </span> : null}<span className="calendar-event-title">{event.title}</span></> : <><span className="calendar-event-title">{event.title}</span>{!event.allDay ? <small className="calendar-event-range">{event.rangeLabel}</small> : null}</>}
           </span>
           {event.canWrite === false ? <LockKeyhole aria-hidden="true" size={12} className="shrink-0" /> : null}
+          <CalendarSyncBadge state={event.mutationState} />
         </>
       ) : null}
     </div>

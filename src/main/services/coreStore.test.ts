@@ -29,6 +29,26 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("projects durable Google queue state onto events and recurring occurrences without labeling local writes as cloud delivery", () => {
+    const store = createStore();
+    store.dispatch("calendar", "create", { calendarId: "primary", title: "Local", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" });
+    expect(store.dispatch("sync", "status").pendingMutationCount).toBe(0);
+    const account = store.upsertGoogleAccount({ googleAccountId: "sync-feedback", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "shared", summary: "Calendar", accessRole: "owner" }, account.accountId);
+    const event = store.dispatch("calendar", "create", { calendarId: calendar.id, title: "Queued series", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", recurrenceLines: ["RRULE:FREQ=WEEKLY;COUNT=3"] });
+    const range = () => store.dispatch("calendar", "listEvents", { start: "2027-01-01T00:00:00Z", end: "2027-02-01T00:00:00Z" }).items.filter((item: any) => item.calendarId === calendar.id);
+    expect(event.mutationState).toBe("queued");
+    expect(range().map((item: any) => item.mutationState)).toEqual(["queued", "queued", "queued"]);
+    const mutation = store.pendingSyncMutations(100, account.accountId)[0];
+    store.deferSyncMutation(mutation.id, "Google refused this change", false);
+    expect(store.dispatch("calendar", "get", { id: event.id }).mutationState).toBe("failed");
+    expect(range().every((item: any) => item.mutationState === "failed")).toBe(true);
+    expect(store.dispatch("sync", "status").failedMutationCount).toBe(1);
+    store.completeSyncMutation(mutation.id);
+    expect(range().every((item: any) => item.mutationState === "synced")).toBe(true);
+    expect(store.dispatch("sync", "status").failedMutationCount).toBe(0);
+  });
+
   it.each(["reader", "freeBusyReader", undefined])("keeps %s calendars readable while rejecting writes before enqueueing", (accessRole) => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ googleAccountId: "permissions", connectionState: "connected" });

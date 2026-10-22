@@ -95,7 +95,6 @@ export function CalendarHeader({
         <IconButton icon={PanelRight} label="Toggle search sidebar" aria-expanded={inspector.isOpen} onClick={() => { if (inspector.isOpen) void inspector.close(); else window.dispatchEvent(new Event("hcb:open-sidebar-search")); }} variant="ghost" />
       </div>
       <Popover.Root open={customDays} onOpenChange={setCustomDays}><Popover.Anchor className="calendar-custom-anchor" /><Popover.Portal><Popover.Content className="calendar-menu calendar-date-menu" align="end"><form onSubmit={e => { e.preventDefault(); const n = Number(count); if (Number.isInteger(n) && n >= 2 && n <= 31) { days(n); setCustomDays(false); } }}><label>Number of days<input autoFocus aria-label="Number of days" type="number" min={2} max={31} required value={count} onChange={e => setCount(e.target.value)} /></label><Button type="submit" variant="secondary">Apply</Button></form></Popover.Content></Popover.Portal></Popover.Root>
-      <div aria-label="Calendar status" className="sr-only" role="status" />
     </header>
   );
 }

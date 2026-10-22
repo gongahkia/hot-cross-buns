@@ -3,6 +3,7 @@ import { Copy, Files, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { EventMenuContext, type CalendarMenuTarget } from "./calendarEventMenuContext";
 import type { CalendarEventViewModel } from "../../coreViewModels";
+import { openCalendarSyncDetails } from "./CalendarSyncStatus";
 
 export type CalendarEventAction = "copy" | "duplicate" | "delete";
 
@@ -29,6 +30,7 @@ export function CalendarEventMenuProvider({ children, onOpen, onAction }: {
       <Menu.Portal><Menu.Content className="calendar-menu calendar-event-menu" aria-label="Calendar item actions" align="start" sideOffset={2} collisionPadding={8}
         onCloseAutoFocus={(e) => { e.preventDefault(); if (!selected.current && target?.trigger.isConnected) target.trigger.focus({ preventScroll: true }); }}>
         <Menu.Label className="calendar-event-menu-title">{event?.title}</Menu.Label>
+        {event?.mutationState === "queued" || event?.mutationState === "failed" ? <Menu.Item className="calendar-menu-item" onSelect={() => { selected.current = true; setOpen(false); target?.beforeAction?.(); openCalendarSyncDetails(); }}>Review sync status</Menu.Item> : null}
         <Menu.Item className="calendar-menu-item" onSelect={() => select("open")}><Pencil size={15} />{event?.sourceKind === "task" ? "Open task" : event?.canWrite === false ? "View event (read-only)" : "Edit event"}</Menu.Item>
         {event?.sourceKind !== "task" ? <>
           <Menu.Item className="calendar-menu-item" onSelect={() => select("copy")}><Copy size={15} />Copy text</Menu.Item>

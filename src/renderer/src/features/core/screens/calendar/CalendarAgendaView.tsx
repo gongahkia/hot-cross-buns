@@ -1,4 +1,5 @@
 import { useCalendarEventMenu } from "./calendarEventMenuContext";
+import { CalendarSyncBadge } from "./CalendarSyncStatus";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
 import { cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
@@ -73,7 +74,7 @@ function CalendarAgendaEventRow({
           >
             {event.title}
           </span>
-          <span className="block truncate text-[var(--text-xs)] text-text-muted">{event.calendar}</span>
+          <span className="flex items-center gap-2 text-[var(--text-xs)] text-text-muted">{event.calendar}<CalendarSyncBadge state={event.mutationState} /></span>
           {description.location ? <span className="block truncate text-[var(--text-xs)] text-text-muted">{description.location}</span> : null}
           {description.notes ? (
             <div

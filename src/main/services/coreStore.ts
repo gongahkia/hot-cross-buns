@@ -78,6 +78,11 @@ type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 // inference migration.
 const schemaVersion = 9;
 const localAccountId = "local";
+// Indexed lookups for the event and, for scheduled blocks, its task. Keep queue
+// state on the existing event projection so recurring instances share it too.
+const eventMutationStateSql = `(SELECT CASE WHEN MAX(state='conflict' OR last_error IS NOT NULL) THEN 'failed'
+  WHEN COUNT(*)>0 THEN 'queued' ELSE 'synced' END FROM outbox
+  WHERE entity_id IN (event.id,block.task_id) AND state IN ('pending','conflict') AND account_id!='local')`;
 const legacyPseudoNoteImportVersion = 1;
 const legacyPseudoNoteSourceType = "legacy-google-task-pseudo-note";
 const historicalSmokeNoteBody = "SQLite-backed smoke note.";
@@ -1329,6 +1334,7 @@ export class CoreStore {
       );
       CREATE INDEX IF NOT EXISTS outbox_delivery_idx ON outbox(state, next_attempt_at, id);
       CREATE INDEX IF NOT EXISTS outbox_unresolved_account_idx ON outbox(account_id) WHERE state IN ('pending','conflict');
+      CREATE INDEX IF NOT EXISTS outbox_unresolved_entity_idx ON outbox(entity_id) WHERE state IN ('pending','conflict');
       CREATE TABLE IF NOT EXISTS undo_entries (
         id TEXT PRIMARY KEY, action TEXT NOT NULL, forward_json TEXT NOT NULL, inverse_json TEXT NOT NULL,
         state TEXT NOT NULL DEFAULT 'applied', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -1753,7 +1759,8 @@ export class CoreStore {
       event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt,
-      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt,calendar.access_role AS accessRole
+      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt,calendar.access_role AS accessRole,
+      ${eventMutationStateSql} AS mutationState
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
       LEFT JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id LEFT JOIN tasks task ON task.id=block.task_id
       WHERE (event.starts_at < ? AND event.ends_at > ?)
@@ -1818,7 +1825,8 @@ export class CoreStore {
       event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt,
-      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt,calendar.access_role AS accessRole
+      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt,calendar.access_role AS accessRole,
+      ${eventMutationStateSql} AS mutationState
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
       LEFT JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id LEFT JOIN tasks task ON task.id=block.task_id WHERE event.id=?`).get(id);
     if (!row) throw new CoreStoreError("Calendar event no longer exists");
@@ -2975,8 +2983,9 @@ export class CoreStore {
   }
 
   private syncStatus(): JsonRecord {
-    const pending = this.count("outbox", "state = 'pending'");
-    const conflicts = this.count("outbox", "state = 'conflict'");
+    const pending = this.count("outbox", "state = 'pending' AND account_id!='local'");
+    const conflicts = this.count("outbox", "state = 'conflict' AND account_id!='local'");
+    const failed = this.count("outbox", "state IN ('pending','conflict') AND account_id!='local' AND (state='conflict' OR last_error IS NOT NULL)");
     const runtimeRow = this.statement("SELECT value FROM sync_meta WHERE key='google-sync-runtime'").get() as { value?: string } | undefined;
     const runtime = safeJson(runtimeRow?.value ?? "{}", {});
     const { pendingMutationCount: _storedPendingMutationCount, ...runtimeWithoutPendingCount } = runtime;
@@ -2986,6 +2995,7 @@ export class CoreStore {
       offline: false,
       stale: false,
       ...runtimeWithoutPendingCount,
+      failedMutationCount: failed,
       ...(conflicts && runtime.state !== "syncing" ? {
         state: "error", stale: true, lastErrorCode: "SYNC_CONFLICT",
         message: "Resolve failed Google changes in Diagnostics before later changes for that account can sync."

@@ -208,6 +208,7 @@ export type SyncRunNowRequest = any;
 export interface SyncStatusResponse {
   state: "idle" | "pending" | "syncing" | "error" | string;
   pendingMutationCount: number;
+  failedMutationCount?: number;
   offline: boolean;
   stale: boolean;
   lastCompletedAt?: string;

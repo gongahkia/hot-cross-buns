@@ -1,6 +1,7 @@
 import type { CalendarEventAction } from "./CalendarEventMenu";
 import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { openCalendarSyncDetails } from "./CalendarSyncStatus";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { CalendarEventCompletionScope, CalendarEventUpdateRequest } from "@shared/ipc/contracts";
 import { useInspector } from "../../../../components/Inspector";
@@ -81,6 +82,9 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const saveScopeRef = useRef<CalendarEventCompletionScope | undefined>(undefined);
   const recurrencePromptRef = useRef(false);
   const [saving, setSaving] = useState(false);
+  const liveMutationState = useMemo(() => draft?.id
+    ? Object.values(source.calendarEventsById).find(event => event.id === draft.id || event.eventId === draft.id)?.mutationState
+    : undefined, [draft?.id, source.calendarEventsById]);
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
     const current = calendarDraftRef.current;
@@ -167,6 +171,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     source.settings.calendarEventColorOverrides,
     recurrenceOperation,
     saving,
+    liveMutationState,
     updateInspector
   ]);
 
@@ -227,6 +232,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     mode = calendarInspectorModeRef.current
   ): ReactNode {
     const readOnly = draftReadOnly(nextDraft);
+    const syncState = liveMutationState ?? nextDraft.mutationState;
     const body = nextDraft.mode === "edit" && (mode === "view" || readOnly)
       ? (
         <CalendarEventDetails
@@ -261,7 +267,10 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     return <>{nextDraft.mode === "create" && createModeRef.current !== "task" && !source.calendarSources.some(calendar => calendar.canWrite !== false)
       ? <p className="mb-4 text-sm text-text-secondary" role="status">No writable calendar is available. Sync to check your calendar access.</p> : null}{readOnly ? <p className="mb-4 rounded-lg border border-border p-3 text-sm text-text-secondary" role="status">
       {source.calendarSources.find(calendar => calendar.id === nextDraft.calendarId)?.writeRestriction ?? "This calendar is read-only."}
-    </p> : null}{body}{recurrenceScopeDialog()}</>;
+    </p> : null}{syncState === "queued" || syncState === "failed" ? <div className="mb-4 text-sm text-text-secondary" role="status">
+      <p>{syncState === "failed" ? "This change has not reached Google." : "Saved locally. Waiting for Google sync."}</p>
+      <button type="button" className="mt-1 underline underline-offset-2" onClick={openCalendarSyncDetails}>Review sync status</button>
+    </div> : null}{body}{recurrenceScopeDialog()}</>;
   }
 
   function recurrenceScopeDialog(): ReactNode {
@@ -606,8 +615,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return false;
     }
 
-    const baseline: CalendarEventDraft = { ...currentDraft, mode: "edit", id: result.data.id };
-    const live: CalendarEventDraft = { ...calendarDraftRef.current!, mode: "edit", id: result.data.id };
+    const baseline: CalendarEventDraft = { ...currentDraft, mode: "edit", id: result.data.id, mutationState: result.data.mutationState };
+    const live: CalendarEventDraft = { ...calendarDraftRef.current!, mode: "edit", id: result.data.id, mutationState: result.data.mutationState };
     calendarDraftBaselineRef.current = baseline;
     if (currentDraft.mode === "create") saveScopeRef.current = "series";
     setDraft(live);

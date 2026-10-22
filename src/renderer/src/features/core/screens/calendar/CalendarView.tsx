@@ -19,6 +19,7 @@ import { calendarDayRange, calendarDaysRange, calendarMonthRange } from "./calen
 import { CalendarAgendaView } from "./CalendarAgendaView";
 import { CalendarViewTransition } from "./CalendarViewTransition";
 import { CalendarHeader } from "./CalendarHeader";
+import { CalendarSyncStatus } from "./CalendarSyncStatus";
 import { ShareAvailabilityPanel, SmartReschedulePanel, type SmartSchedulePreview } from "./CalendarSidebar";
 import { DayView, MultiDayView, WeekView, type SmartScheduleGhostBlock } from "./CalendarTimelineView";
 import { MonthView } from "./MonthView";
@@ -402,9 +403,9 @@ export function CalendarView({
     return () => window.removeEventListener("hcb:calendar-command", handleCalendarCommand);
   }, [source]);
 
-  const { error: calendarRangeError, clearError: clearCalendarRangeError } = useCalendarRangeLoader(
+  const { error: calendarRangeError, loading: calendarRangeLoading, retry: retryCalendarRange } = useCalendarRangeLoader(
     calendarVisibleRange,
-    source.dataState !== "loading" && source.dataState !== "stale" &&
+    source.dataState !== "loading" &&
       (source.hasCachedData || (source.dataState !== "offline" && source.dataState !== "error")) &&
       calendarRangeAllowedByRetention(calendarVisibleRange, source.settings.eventRetentionDaysBack, source.settings.defaultTimeZone),
     source.calendarDataRevision, source.ensureCalendarRange
@@ -434,7 +435,7 @@ export function CalendarView({
 
   return (
     <CalendarEventMenuProvider onOpen={openCalendarItem} onAction={performCalendarEventAction}>
-    <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="calendar-workspace flex h-full min-h-0 flex-col">
+    <div aria-busy={calendarRangeLoading} data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="calendar-workspace flex h-full min-h-0 flex-col">
       {interactionDialog}
       <CalendarHeader
         anchorDate={calendarAnchorDate}
@@ -465,17 +466,21 @@ export function CalendarView({
         visibleCalendarViewIds={visibleCalendarViewIds}
       />
 
-      {calendarActionError || calendarRangeError ? (
+      <CalendarSyncStatus loading={calendarRangeLoading} error={calendarRangeError} onRetry={retryCalendarRange}
+        sync={source.syncStatus} offline={source.isOffline} stale={source.isStale}
+        hasRemote={source.calendarSources.some(calendar => calendar.accountId && calendar.accountId !== "local")} />
+
+      {calendarActionError ? (
         <StatusBanner
           action={
             <IconButton
               icon={X}
               label="Dismiss calendar interaction error"
-              onClick={() => { setCalendarActionError(undefined); clearCalendarRangeError(); }}
+              onClick={() => setCalendarActionError(undefined)}
               variant="ghost"
             />
           }
-          description={calendarActionError ?? calendarRangeError!}
+          description={calendarActionError}
           icon={AlertTriangle}
           title="Calendar interaction not saved"
           tone="warning"
