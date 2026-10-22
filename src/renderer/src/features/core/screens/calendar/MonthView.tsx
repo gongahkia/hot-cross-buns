@@ -1,7 +1,10 @@
+import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
+import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
+import { calendarLocalPoint } from "./calendarDateUtils";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { weekNumber } from "../../../shell/MiniCalendar";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { CalendarEventCompletionScope } from "@shared/ipc/contracts";
 import { cx } from "../../../../components/primitives";
 import { handleActivationKeyDown } from "../../coreScreenShared";
@@ -41,6 +44,7 @@ function monthOverflowStyle(dayIndex: number): CSSProperties {
 }
 
 export function MonthView({
+  onChangeEvent,
   eventCompletionDefaultScope,
   weeks,
   onCreate,
@@ -52,6 +56,7 @@ export function MonthView({
 }: {
   eventCompletionDefaultScope?: EventCompletionDefaultScope;
   weeks: CalendarMonthWeekViewModel[];
+  onChangeEvent: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   onCreate: (seed?: CalendarCreateSeed) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
@@ -122,6 +127,25 @@ export function MonthView({
 
     return null;
   }
+
+  const gesture = useCalendarPointerGesture({
+    locate: (x, y) => { const day = dayKeyFromPointer({ clientX: x, clientY: y }); return day ? { day } : null; },
+    onCommit: onChangeEvent
+  });
+  function openAfterGesture(event: CalendarEventViewModel): void {
+    if (!gesture.consumeClick()) onOpen(event);
+  }
+  function eventKeys(key: KeyboardEvent<HTMLElement>, event: CalendarEventViewModel, kind: CalendarGestureKind = "move"): void {
+    if ((key.key !== "ArrowLeft" && key.key !== "ArrowRight") || event.sourceKind === "task") return;
+    key.preventDefault(); key.stopPropagation();
+    const value = kind === "end" ? event.endsAt : event.startsAt;
+    const point = event.allDay ? value.slice(0, 10) : calendarLocalPoint(value, event.displayTimeZone || event.timeZone).dayKey;
+    const day = kind === "end" && event.allDay ? calendarAddUtcDays(point, -1) : point;
+    const step = (key.key === "ArrowRight" ? 1 : -1) * (key.shiftKey ? 7 : 1);
+    onChangeEvent(event, calendarGestureRange(event, kind, { day }, { day: calendarAddUtcDays(day, step) }));
+  }
+  const previewStart = gesture.preview && (gesture.preview.allDay ? gesture.preview.startsAt.slice(0, 10) : calendarLocalPoint(gesture.preview.startsAt, gesture.preview.event.displayTimeZone || gesture.preview.event.timeZone).dayKey);
+  const previewEnd = gesture.preview && (gesture.preview.allDay ? calendarAddUtcDays(gesture.preview.endsAt.slice(0, 10), -1) : calendarLocalPoint(gesture.preview.endsAt, gesture.preview.event.displayTimeZone || gesture.preview.event.timeZone).dayKey);
 
   function updateDayPointerDrag(pointerEvent: MonthPointerEvent): string | null {
     const drag = dragRangeRef.current;
@@ -251,8 +275,10 @@ export function MonthView({
                     "calendar-month-cell relative z-0 min-h-[126px] border-r border-border bg-bg-tertiary px-2 py-1.5 text-left transition-colors duration-fast ease-hcb last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
 
 
-                    rangeContains(dayKey) && "bg-info/15 ring-1 ring-inset ring-info"
+                    (rangeContains(dayKey) || (previewStart && previewEnd && dayKey >= previewStart && dayKey <= previewEnd)) && "bg-info/15 ring-1 ring-inset ring-info"
                   )}
+                  data-calendar-date={dayKey}
+                  data-calendar-drop-preview={Boolean(previewStart && previewEnd && dayKey >= previewStart && dayKey <= previewEnd)}
                   data-calendar-month-today={isCurrentDay || undefined}
                   data-outside-month={day.isOutsideMonth}
                   key={day.id}
@@ -289,7 +315,7 @@ export function MonthView({
             })}
             {week.allDaySegments.map((segment) => (
               <div
-                className="z-10 min-w-0 px-1.5"
+                className="calendar-month-event relative z-10 min-w-0 px-1.5"
                 data-calendar-month-all-day-segment={segment.event.id}
                 data-day-span={segment.daySpan}
                 data-ends-after-range={segment.endsAfterRange}
@@ -306,20 +332,25 @@ export function MonthView({
                   eventCompletionDefaultScope={eventCompletionDefaultScope}
                   labelVariant="title"
                   onKeyDown={(keyEvent) => {
-                    keyEvent.stopPropagation();
-                    handleActivationKeyDown(keyEvent, () => onOpen(segment.event));
+                    eventKeys(keyEvent, segment.event);
+                    if (!keyEvent.defaultPrevented) handleActivationKeyDown(keyEvent, () => onOpen(segment.event));
                   }}
-                  onOpen={onOpen}
+                  onOpen={openAfterGesture}
+                  onPointerDown={(pointer) => gesture.begin(pointer, segment.event)}
                   onToggleEvent={onToggleEvent}
                   onToggleTask={onToggleTask}
                   size="compact"
                 />
+                {segment.event.sourceKind !== "task" ? <>
+                  {!segment.startsBeforeRange ? <button className="calendar-month-resize calendar-month-resize-start" aria-label={`Resize ${segment.event.title} start`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => eventKeys(e, segment.event, "start")} title="Resize start: drag or use Left and Right arrow keys" onPointerDown={(e) => gesture.begin(e, segment.event, "start")} /> : null}
+                  {!segment.endsAfterRange ? <button className="calendar-month-resize calendar-month-resize-end" aria-label={`Resize ${segment.event.title} end`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => eventKeys(e, segment.event, "end")} title="Resize end: drag or use Left and Right arrow keys" onPointerDown={(e) => gesture.begin(e, segment.event, "end")} /> : null}
+                </> : null}
               </div>
             ))}
             {week.days.flatMap(({ day, visibleEventChips }, dayIndex) =>
               visibleEventChips.map(({ event, laneIndex }) => (
                 <div
-                  className="z-10 min-w-0 px-1.5"
+                  className="calendar-month-event relative z-10 min-w-0 px-1.5"
                   key={`${day.id}-${event.id}`}
                   role="presentation"
                   style={monthEventChipStyle(dayIndex, laneIndex)}
@@ -330,10 +361,11 @@ export function MonthView({
                     eventCompletionDefaultScope={eventCompletionDefaultScope}
                     labelVariant="time"
                     onKeyDown={(keyEvent) => {
-                      keyEvent.stopPropagation();
-                      handleActivationKeyDown(keyEvent, () => onOpen(event));
+                      eventKeys(keyEvent, event);
+                      if (!keyEvent.defaultPrevented) handleActivationKeyDown(keyEvent, () => onOpen(event));
                     }}
-                    onOpen={onOpen}
+                    onOpen={openAfterGesture}
+                    onPointerDown={(pointer) => gesture.begin(pointer, event)}
                     onToggleEvent={onToggleEvent}
                     onToggleTask={onToggleTask}
                     size="compact"
@@ -344,7 +376,7 @@ export function MonthView({
             {week.days.map(({ day, overflowCount, popupEvents }, dayIndex) =>
               overflowCount > 0 ? (
                 <div
-                  className="z-10 min-w-0 px-1.5"
+                  className="calendar-month-event relative z-10 min-w-0 px-1.5"
                   key={`${day.id}-overflow`}
                   role="presentation"
                   style={monthOverflowStyle(dayIndex)}
@@ -364,6 +396,9 @@ export function MonthView({
           </div>
         ))}
       </div>
+      {gesture.preview ? <div className="calendar-gesture-status" role="status" data-calendar-gesture-preview>
+        {gesture.preview.event.title}: {previewStart} – {previewEnd}. Release to save; Escape to cancel.
+      </div> : null}
       {activeOverflow ? (
         <CalendarOverflowPopover
           eventCompletionDefaultScope={eventCompletionDefaultScope}

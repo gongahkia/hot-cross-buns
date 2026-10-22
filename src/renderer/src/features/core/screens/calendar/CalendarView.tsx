@@ -125,6 +125,8 @@ export function CalendarView({
   } = useCalendarAvailability(source);
   const {
     calendarActionError,
+    changeCalendarEventTime,
+    interactionDialog,
     moveCalendarEvent,
     openCreate,
     openEdit,
@@ -442,6 +444,7 @@ export function CalendarView({
 
   return (
     <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="calendar-workspace flex h-full min-h-0 flex-col">
+      {interactionDialog}
       <CalendarHeader
         anchorDate={calendarAnchorDate}
         onSelectDate={setCalendarAnchorDate}
@@ -597,6 +600,7 @@ export function CalendarView({
           ) : null}
           {activeViewId === "month" ? (
             <MonthView
+              onChangeEvent={changeCalendarEventTime}
               eventCompletionDefaultScope={source.settings.eventCompletionDefaultScope}
               weeks={calendarMonthWeeks}
               onCreate={openCreate}

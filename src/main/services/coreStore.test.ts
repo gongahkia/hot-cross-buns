@@ -29,6 +29,33 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("shifts a whole recurring series relative to the dragged occurrence across DST and preserves undo", () => {
+    const store = createStore();
+    const master = store.dispatch("calendar", "create", { calendarId: "primary", title: "Weekly call", startsAt: "2027-03-06T14:00:00.000Z", endsAt: "2027-03-06T15:00:00.000Z", timeZone: "America/New_York", recurrenceLines: ["RRULE:FREQ=WEEKLY;COUNT=8"] });
+    const changed = store.dispatch("calendar", "update", {
+      id: master.id, scope: "series", originalStartAt: "2027-03-20T13:00:00.000Z",
+      startsAt: "2027-03-20T14:00:00.000Z", endsAt: "2027-03-20T15:00:00.000Z", allDay: false,
+      timeChangeOrigin: { startsAt: "2027-03-20T13:00:00.000Z", endsAt: "2027-03-20T14:00:00.000Z", allDay: false }
+    });
+    expect(changed.startsAt).toBe("2027-03-06T15:00:00.000Z");
+    expect(changed.endsAt).toBe("2027-03-06T16:00:00.000Z");
+    expect(changed.recurrenceLines).toEqual(master.recurrenceLines);
+    const projected = store.dispatch("calendar", "listEvents", { start: "2027-03-20T00:00:00Z", end: "2027-03-21T00:00:00Z" }).items;
+    expect(projected[0].startsAt).toBe("2027-03-20T14:00:00.000Z");
+    store.dispatch("undo", "undo");
+    expect(store.dispatch("calendar", "get", { id: master.id }).startsAt).toBe(master.startsAt);
+  });
+
+  it("applies a series gesture from a stored Google exception to its master once", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "series-account", email: "series@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "series-calendar", summary: "Calendar", timeZone: "UTC" }, account.accountId);
+    const master = store.upsertGoogleEvent({ id: "series-master", summary: "Review", start: { dateTime: "2027-01-05T09:00:00Z" }, end: { dateTime: "2027-01-05T10:00:00Z" }, recurrence: ["RRULE:FREQ=WEEKLY;COUNT=8"] }, calendar.id)!;
+    const exception = store.upsertGoogleEvent({ id: "series-exception", recurringEventId: "series-master", originalStartTime: { dateTime: "2027-01-12T09:00:00Z" }, summary: "Review", start: { dateTime: "2027-01-12T09:00:00Z" }, end: { dateTime: "2027-01-12T10:00:00Z" } }, calendar.id)!;
+    store.dispatch("calendar", "update", { id: exception.id, scope: "series", startsAt: "2027-01-12T11:00:00Z", endsAt: "2027-01-12T12:00:00Z", originalStartAt: "2027-01-12T09:00:00Z", timeChangeOrigin: { startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", allDay: false } });
+    expect(store.dispatch("calendar", "get", { id: master.id }).startsAt).toBe("2027-01-05T11:00:00.000Z");
+  });
+
   it("returns durable completion state to calendar views and clears it when reopened", () => {
     const store = createStore();
     const event = store.dispatch("calendar", "create", { calendarId: "primary", title: "Review", startsAt: "2026-10-22T12:00:00Z", endsAt: "2026-10-22T13:00:00Z", allDay: false });

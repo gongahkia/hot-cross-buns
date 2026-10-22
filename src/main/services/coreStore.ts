@@ -15,6 +15,7 @@ import { appLogger } from "../diagnostics/appLogger";
 import { CoreStoreError } from "./coreStoreError";
 import { taskOrderBetween } from "./taskOrder";
 import { taskBoardPage } from "./taskBoardQuery";
+import { shiftSeriesTime } from "./calendarTimeChange";
 import type { TaskSummary } from "@shared/ipc/contracts";
 export { CoreStoreError } from "./coreStoreError";
 
@@ -1856,8 +1857,14 @@ export class CoreStore {
     if ((input.scope === "series" || input.scope === "seriesAll") && previous.googleRecurringEventId) {
       const series = this.findEventByGoogleId(previous.calendarId, previous.googleRecurringEventId);
       if (!series) throw new CoreStoreError("The recurring series is not available in the local cache.");
-      const { scope: _scope, ...seriesInput } = input;
-      return this.updateEvent({ ...seriesInput, id: series.id }, options);
+      return this.updateEvent({ ...input, id: series.id, scope: "series" }, options);
+    }
+    if ((input.scope === "series" || input.scope === "seriesAll") && input.timeChangeOrigin) {
+      input = { ...input, ...shiftSeriesTime(
+        { startsAt: previous.startsAt, endsAt: previous.endsAt, allDay: previous.allDay }, input.timeChangeOrigin,
+        { startsAt: input.startsAt ?? input.timeChangeOrigin.startsAt, endsAt: input.endsAt ?? input.timeChangeOrigin.endsAt, allDay: input.allDay ?? previous.allDay },
+        previous.timeZone || this.calendarTimeZone(previous.calendarId)
+      ) };
     }
     const originalStartAt = typeof input.originalStartAt === "string" ? requiredIso(input.originalStartAt, "Recurring occurrence date") : null;
     // Calendar rows generated from a master are virtual. Their visible ids are

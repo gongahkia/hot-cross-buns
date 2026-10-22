@@ -18,6 +18,8 @@ import {
   defaultTaskListId,
   startOfUtcDayIso
 } from "../../coreScreenShared";
+import { CalendarRecurrenceDialog } from "./CalendarRecurrenceDialog";
+import type { CalendarEventRange } from "./calendarGesture";
 import { CalendarEventDetails, CalendarEventForm } from "./CalendarEventForm";
 import {
   calendarDraftRangeLabel,
@@ -37,6 +39,8 @@ interface CalendarCreateOptions {
 
 export function useCalendarEventInspector(source: CoreViewModelSource): {
   calendarActionError: string | undefined;
+  changeCalendarEventTime: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
+  interactionDialog: ReactNode;
   moveCalendarEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   openCreate: (seed?: CalendarCreateSeed, options?: CalendarCreateOptions) => void;
   openEdit: (event: CalendarEventViewModel) => void;
@@ -56,6 +60,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const [formError, setFormError] = useState<string | undefined>();
   const [calendarInspectorMode, setCalendarInspectorModeState] = useState<"view" | "edit">("edit");
   const [calendarActionError, setCalendarActionError] = useState<string | undefined>();
+  const [timeChange, setTimeChange] = useState<{ event: CalendarEventViewModel; range: CalendarEventRange } | null>(null);
+  const timeWritePending = useRef(false);
   const [recurrenceOperation, setRecurrenceOperation] = useState<"delete" | "save" | null>(null);
   const calendarDraftRef = useRef<CalendarEventDraft | null>(draft);
   const calendarDraftBaselineRef = useRef<CalendarEventDraft | null>(draft);
@@ -250,51 +256,9 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       return null;
     }
 
-    const deleting = recurrenceOperation === "delete";
-    return (
-      <div
-        aria-modal="true"
-        className="fixed inset-0 z-[60] grid place-items-center bg-bg-primary/70 p-4"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            setRecurrenceOperation(null);
-            recurrencePromptRef.current = false;
-          }
-        }}
-        role="dialog"
-        tabIndex={-1}
-      >
-        <div className="grid w-full max-w-sm gap-3 rounded-hcbLg border border-border bg-bg-secondary p-4 shadow-xl">
-          <div className="grid gap-1">
-            <h3 className="text-[var(--text-lg)] font-semibold text-text-primary">
-              {deleting ? "Delete recurring event" : "Save recurring event"}
-            </h3>
-            <p className="text-[var(--text-sm)] leading-relaxed text-text-secondary">
-              {deleting ? "Choose which events to delete." : "Choose where to apply these edits."}
-            </p>
-          </div>
-          <div className="grid gap-1">
-            {([
-              ["occurrence", "This occurrence"],
-              ["following", "This and future occurrences"],
-              ["series", "Entire series"]
-            ] as Array<[CalendarEventCompletionScope, string]>).map(([scope, label]) => (
-              <Button
-                key={scope}
-                onClick={() => void continueRecurrenceOperation(scope)}
-                size="sm"
-                variant={deleting && scope === "series" ? "danger" : "secondary"}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-          <Button onClick={() => { recurrencePromptRef.current = false; setRecurrenceOperation(null); }} size="sm" variant="ghost">Cancel</Button>
-        </div>
-      </div>
-    );
+    return <CalendarRecurrenceDialog deleting={recurrenceOperation === "delete"}
+      onChoose={(scope) => void continueRecurrenceOperation(scope)}
+      onCancel={() => { setRecurrenceOperation(null); recurrencePromptRef.current = false; }} />;
   }
 
   function eventInspectorHidesHeader(
@@ -670,18 +634,27 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     await closeInspector();
   }
 
-  async function updateCalendarEventTime(
-    request: Pick<CalendarEventUpdateRequest, "id" | "startsAt" | "endsAt" | "allDay" | "scope"> & { originalStartAt?: string | null }
-  ): Promise<void> {
-    const result = await window.hcb?.calendar.update(request);
+  async function commitCalendarEventTime(event: CalendarEventViewModel, range: CalendarEventRange, scope?: CalendarEventCompletionScope): Promise<void> {
+    if (timeWritePending.current) return;
+    timeWritePending.current = true;
+    try {
+      // Close/save an existing editor before writing a gesture over its record.
+      if (!await closeInspector()) return;
+      const request = { id: event.eventId ?? event.id, ...range, ...(scope ? { scope } : {}),
+        timeChangeOrigin: { startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay },
+        ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {}) };
+      const result = await window.hcb?.calendar.update(request);
+      if (!result?.ok) { setCalendarActionError(result?.error.message ?? "Calendar event update failed."); return; }
+      setCalendarActionError(undefined);
+      source.refresh();
+    } catch { setCalendarActionError("Calendar event update failed. Try again."); }
+    finally { timeWritePending.current = false; }
+  }
 
-    if (!result?.ok) {
-      setCalendarActionError(result?.error.message ?? "Calendar event update failed.");
-      return;
-    }
-
-    setCalendarActionError(undefined);
-    source.refresh();
+  function changeCalendarEventTime(event: CalendarEventViewModel, range: CalendarEventRange): void {
+    if (event.sourceKind === "task" || timeWritePending.current) return;
+    if (event.originalStartAt || event.recurringEventId || event.recurrenceRule || event.recurrenceLines.length) { setTimeChange({ event, range }); return; }
+    void commitCalendarEventTime(event, range);
   }
 
   function moveCalendarEvent(eventId: string, startsAt: string, allDay: boolean): void {
@@ -696,31 +669,21 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       ? addUtcDaysIso(startsAt, Math.max(1, Math.round(durationMs / (24 * 60 * 60 * 1000))))
       : new Date(Date.parse(startsAt) + durationMs).toISOString();
 
-    void updateCalendarEventTime({
-      id: event.eventId ?? event.id,
-      startsAt,
-      endsAt,
-      allDay,
-      ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {})
-    });
+    changeCalendarEventTime(event, { startsAt, endsAt, allDay });
   }
 
   function resizeCalendarEvent(eventId: string, endsAt: string): void {
     const event = source.calendarEventsById[eventId];
-
-    if (!event || Date.parse(endsAt) <= Date.parse(event.startsAt)) {
-      return;
-    }
-
-    void updateCalendarEventTime({
-      id: event.eventId ?? event.id,
-      endsAt,
-      ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {})
-    });
+    if (!event || Date.parse(endsAt) <= Date.parse(event.startsAt)) return;
+    changeCalendarEventTime(event, { startsAt: event.startsAt, endsAt, allDay: event.allDay });
   }
 
   return {
     calendarActionError,
+    changeCalendarEventTime,
+    interactionDialog: timeChange ? <CalendarRecurrenceDialog onCancel={() => setTimeChange(null)} onChoose={(scope) => {
+      const pending = timeChange; setTimeChange(null); void commitCalendarEventTime(pending.event, pending.range, scope);
+    }} /> : null,
     moveCalendarEvent,
     openCreate,
     openEdit,

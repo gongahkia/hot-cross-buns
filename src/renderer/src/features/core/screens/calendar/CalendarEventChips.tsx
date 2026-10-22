@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { CSSProperties, DragEvent, KeyboardEvent } from "react";
+import type { CSSProperties, DragEvent, KeyboardEvent, PointerEvent } from "react";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Circle, ListTodo, X } from "lucide-react";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
@@ -305,6 +305,7 @@ export function CalendarEventChip({
   event,
   labelVariant,
   onDragStart,
+  onPointerDown,
   eventCompletionDefaultScope,
   onKeyDown,
   onOpen,
@@ -319,6 +320,7 @@ export function CalendarEventChip({
   eventCompletionDefaultScope?: EventCompletionDefaultScope;
   labelVariant: "range" | "time" | "title";
   onDragStart?: (dragEvent: DragEvent<HTMLElement>) => void;
+  onPointerDown?: (pointerEvent: PointerEvent<HTMLElement>) => void;
   onKeyDown?: (keyEvent: KeyboardEvent<HTMLElement>) => void;
   onOpen?: (event: CalendarEventViewModel) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
@@ -370,7 +372,7 @@ export function CalendarEventChip({
           onOpen?.(event);
         }
       }}
-      onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+      onPointerDown={(pointerEvent) => { pointerEvent.stopPropagation(); onPointerDown?.(pointerEvent); }}
       role="button"
       style={accentStyle}
       tabIndex={0}

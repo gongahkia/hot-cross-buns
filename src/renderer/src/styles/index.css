@@ -599,3 +599,11 @@ label:has(input:not(:disabled)) {
 .calendar-transition { position: relative; isolation: isolate; height: 100%; min-height: 0; overflow: hidden; }
 .calendar-transition-frame { position: absolute; inset: 0; min-width: 0; min-height: 0; }
 .calendar-transition-frame[data-active="false"] { pointer-events: none; }
+
+/* Calendar gesture feedback remains local until the pointer is released. */
+.calendar-month-resize { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; z-index: 2; background: transparent; border: 0; border-radius: 3px; }
+.calendar-month-resize-start { left: 5px; }
+.calendar-month-resize-end { right: 5px; }
+.calendar-month-event:hover .calendar-month-resize, .calendar-month-resize:focus-visible { background: color-mix(in srgb, var(--color-text-primary) 20%, transparent); }
+.calendar-gesture-status { position: sticky; bottom: 8px; z-index: 20; align-self: center; max-width: calc(100% - 24px); padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg-primary); color: var(--color-text-primary); box-shadow: 0 2px 12px #0002; font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; }
+body[data-calendar-dragging] { user-select: none; }
