@@ -1,3 +1,5 @@
+import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
+import { weekNumber } from "../../../shell/MiniCalendar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { CalendarEventCompletionScope } from "@shared/ipc/contracts";
@@ -57,6 +59,8 @@ export function MonthView({
   todayKey: string;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
+  const { showWeekends, showWeekNumbers } = useCalendarNavigation();
+  const dayCount = showWeekends ? 7 : 5;
   const [activeOverflow, setActiveOverflow] = useState<{
     events: CalendarEventViewModel[];
     title: string;
@@ -64,8 +68,8 @@ export function MonthView({
   const [rangeSelection, setRangeSelection] = useState<{ end: string; start: string } | null>(null);
   const [suppressClick, setSuppressClick] = useState(false);
   const visibleWeeks = useMemo(
-    () => visibleCalendarMonthWeeks(weeks, visibleCalendarIds),
-    [weeks, visibleCalendarIds]
+    () => visibleCalendarMonthWeeks(showWeekends ? weeks : weeks.map(week => ({ ...week, days: week.days.slice(1, 6) })), visibleCalendarIds),
+    [weeks, visibleCalendarIds, showWeekends]
   );
   const visibleWeekIds = visibleWeeks.map((week) => week.id).join("|");
   const dragRangeRef = useRef<{ last: string; moved: boolean; start: string } | null>(null);
@@ -117,7 +121,7 @@ export function MonthView({
 
       const dayIndex = Math.max(
         0,
-        Math.min(6, Math.floor(((pointerEvent.clientX - rect.left) / Math.max(1, rect.width)) * 7))
+        Math.min(dayCount - 1, Math.floor(((pointerEvent.clientX - rect.left) / Math.max(1, rect.width)) * dayCount))
       );
       const day = visibleWeeks[weekIndex]?.days[dayIndex]?.day;
 
@@ -214,16 +218,16 @@ export function MonthView({
   }
 
   return (
-    <div className="flex h-full min-h-0 select-none flex-col overflow-auto rounded-hcbMd border border-border bg-bg-secondary" role="grid" aria-label="Calendar month view">
-      <div className="grid grid-cols-7 border-b border-border bg-bg-primary/40 text-center text-[var(--text-xs)] font-semibold text-text-muted" role="row">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((weekday) => (
+    <div className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view">
+      <div className="calendar-month-head grid" style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))` }} role="row">
+        {(showWeekends ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["Mon", "Tue", "Wed", "Thu", "Fri"]).map((weekday) => (
           <div className="border-r border-border px-2 py-2 last:border-r-0" key={weekday} role="columnheader">
             {weekday}
           </div>
         ))}
       </div>
       <div
-        className="grid flex-1 grid-rows-6"
+        className="calendar-month-body grid flex-1 grid-rows-6"
         onPointerCancel={() => {
           dragRangeRef.current = null;
           setRangeSelection(null);
@@ -235,15 +239,16 @@ export function MonthView({
       >
         {visibleWeeks.map((week, weekIndex) => (
           <div
-            className="grid gap-y-1 border-b border-border last:border-b-0"
+            className="calendar-month-week relative grid gap-y-1 border-b border-border last:border-b-0"
             data-calendar-month-week-row
             key={week.id}
             role="row"
             style={{
-              gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-              gridTemplateRows: `28px repeat(${calendarMonthVisibleChipCount}, ${monthEventLaneHeight}px) ${monthEventLaneHeight}px minmax(0, 1fr)`
+              gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))`,
+              gridTemplateRows: `32px repeat(${calendarMonthVisibleChipCount}, ${monthEventLaneHeight}px) ${monthEventLaneHeight}px minmax(0, 1fr)`
             }}
           >
+            {showWeekNumbers ? <span className="calendar-week-number" aria-label={`Week ${weekNumber(calendarDayKey(weeks[weekIndex].days[0]))}`}>{weekNumber(calendarDayKey(weeks[weekIndex].days[0]))}</span> : null}
             {week.days.map(({ day, overflowCount, visibleEventChips }, dayIndex) => {
               const dayKey = day.id.slice("month-".length);
               const isCurrentDay = dayKey === todayKey;
@@ -251,12 +256,13 @@ export function MonthView({
               return (
                 <div
                   className={cx(
-                    "relative z-0 min-h-[126px] border-r border-border bg-bg-tertiary px-2 py-1.5 text-left transition-colors duration-fast ease-hcb last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    isCurrentDay && "bg-surface-0 ring-1 ring-inset ring-accent",
-                    day.isOutsideMonth && "opacity-50",
+                    "calendar-month-cell relative z-0 min-h-[126px] border-r border-border bg-bg-tertiary px-2 py-1.5 text-left transition-colors duration-fast ease-hcb last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+
+
                     rangeContains(dayKey) && "bg-info/15 ring-1 ring-inset ring-info"
                   )}
                   data-calendar-month-today={isCurrentDay || undefined}
+                  data-outside-month={day.isOutsideMonth}
                   key={day.id}
                   onClick={() => {
                     if (suppressClick) {
@@ -285,7 +291,7 @@ export function MonthView({
                   tabIndex={0}
                 >
                   <span className="sr-only">{day.weekday}</span>
-                  <span className="text-[var(--text-sm)] font-semibold text-text-primary">{day.dateLabel}</span>
+                  <span className="calendar-month-date">{day.dateLabel}</span>
                 </div>
               );
             })}
@@ -330,7 +336,7 @@ export function MonthView({
                     className="h-5"
                     event={event}
                     eventCompletionDefaultScope={eventCompletionDefaultScope}
-                    labelVariant="title"
+                    labelVariant="time"
                     onKeyDown={(keyEvent) => {
                       keyEvent.stopPropagation();
                       handleActivationKeyDown(keyEvent, () => onOpen(event));

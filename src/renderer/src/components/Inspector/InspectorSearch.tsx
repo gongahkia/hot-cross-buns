@@ -22,7 +22,7 @@ export function InspectorSearchHost({ onCommandMenu, onSettings }: { onCommandMe
   const current = useRef(inspector.current);
   current.current = inspector.current;
   useEffect(() => {
-    const open = () => inspector.open({ kind: "search", id: "planner-search", title: "Search", body: <InspectorSearchBody initialQuery={query.current} onQuery={value => { query.current = value; }} onCommandMenu={onCommandMenu} onOpen={async hit => {
+    const open = () => inspector.open({ kind: "search", id: "planner-search", title: "Search", body: <InspectorSearchBody initialQuery={() => query.current} onQuery={value => { query.current = value; }} onCommandMenu={onCommandMenu} onOpen={async hit => {
       if (hit.kind === "task") { await tasks.selectTask(hit.id); return; }
       const result = await window.hcb?.calendar.get({ id: hit.id });
       if (!result?.ok) throw new Error(result?.error.message ?? "This event could not be opened.");
@@ -37,7 +37,7 @@ export function InspectorSearchHost({ onCommandMenu, onSettings }: { onCommandMe
   return null;
 }
 
-function InspectorSearchBody({ initialQuery, onQuery, onOpen, onCommandMenu }: { initialQuery: string; onQuery: (value: string) => void; onOpen: (hit: Hit) => Promise<void>; onCommandMenu: () => void }) {
+function InspectorSearchBody({ initialQuery, onQuery, onOpen, onCommandMenu }: { initialQuery: () => string; onQuery: (value: string) => void; onOpen: (hit: Hit) => Promise<void>; onCommandMenu: () => void }) {
   const source = useCoreViewModelSource();
   const { todayKey } = useCalendarNavigation();
   const [query, setQuery] = useState(initialQuery);

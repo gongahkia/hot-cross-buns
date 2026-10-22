@@ -260,8 +260,8 @@ function CalendarTimelineView({
   const currentTimeTop = (currentPoint.minutes / 60) * hourRowHeight;
   const hasAllDayOverflow = timeline.allDayOverflowCounts.some((count) => count > 0);
   const allDayRowHeight = Math.max(
-    112,
-    calendarTimelineVisibleAllDayCount * allDayLaneHeight + (hasAllDayOverflow ? allDayLaneHeight : 0) + 16
+    40,
+    (Math.max(0, ...timeline.allDaySegments.map(segment => segment.laneIndex + 1)) + (hasAllDayOverflow ? 1 : 0)) * allDayLaneHeight + 12
   );
   const firstVisibleDayKey = visibleDays[0]
     ? calendarDayKey(visibleDays[0].day)
@@ -579,7 +579,7 @@ function CalendarTimelineView({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden border border-border bg-bg-primary">
+    <div className="calendar-timeline flex h-full min-h-0 flex-col overflow-hidden bg-bg-primary">
       {dayCountControl ? (
         <div className="flex min-h-10 items-center justify-end border-b border-border bg-bg-primary/40 px-3 py-1.5">
           {dayCountControl}
@@ -594,19 +594,19 @@ function CalendarTimelineView({
         aria-label={gridLabel}
       >
         <div style={{ minWidth: `${64 + dayColumnMinWidth * Math.max(1, days.length)}px` }}>
-          <div className="sticky top-0 z-40 grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-secondary">
-            <div className="border-r border-border" aria-hidden="true" />
+          <div className="calendar-timeline-head sticky top-0 z-40 grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-primary">
+            <div className="calendar-zone" title={source.settings.defaultTimeZone}>{new Intl.DateTimeFormat("en", { timeZone: source.settings.defaultTimeZone, timeZoneName: "shortOffset" }).formatToParts(new Date()).find(part => part.type === "timeZoneName")?.value}</div>
             <div className="grid" style={{ gridTemplateColumns }}>
               {visibleDays.map(({ day }) => (
                 <div
-                  className="min-h-16 border-r border-border px-2 py-2 text-center last:border-r-0"
+                  className="calendar-day-heading"
                   key={day.id}
                   role="columnheader"
                 >
                   <div className="text-[var(--text-xs)] font-semibold text-text-muted">{day.weekday}</div>
                   <div
                     className={cx(
-                      "mx-auto mt-1 flex size-8 items-center justify-center rounded-full text-[var(--text-md)] font-semibold text-text-primary",
+                      "calendar-day-number",
                       day.isToday && "bg-accent text-[var(--color-accent-foreground)]"
                     )}
                   >
@@ -667,7 +667,7 @@ function CalendarTimelineView({
                 style={{
                   gridTemplateColumns,
                   gridTemplateRows: `repeat(${
-                    calendarTimelineVisibleAllDayCount + (hasAllDayOverflow ? 1 : 0)
+                    Math.max(1, ...timeline.allDaySegments.map(segment => segment.laneIndex + 1)) + (hasAllDayOverflow ? 1 : 0)
                   }, ${allDayLaneHeight}px)`,
                   minHeight: allDayRowHeight
                 }}
@@ -752,7 +752,7 @@ function CalendarTimelineView({
                 role="row"
                 style={{ height: hourRowHeight }}
               >
-                <div className="border-r border-border px-2 py-2 text-right text-[var(--text-xs)] font-semibold text-text-muted">
+                <div className="calendar-hour-label border-r border-border px-2 py-2 text-right text-[var(--text-xs)] text-text-muted">
                   {calendarDisplayHourLabel(hour)}
                 </div>
                 <div className="grid" style={{ gridTemplateColumns }}>
@@ -911,6 +911,7 @@ function CalendarTimelineView({
                 </div>
               ))}
             </div>
+            {currentDayIndex >= 0 ? <div aria-hidden="true" className="calendar-now-guide" style={{ top: currentTimeTop }}><span>{new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone: source.settings.defaultTimeZone }).format(new Date(nowIso))}</span></div> : null}
             {currentDayIndex >= 0 ? (
               <div
                 aria-hidden="true"
@@ -927,7 +928,7 @@ function CalendarTimelineView({
                         style={{ top: currentTimeTop }}
                       >
                         <span className="absolute -left-1.5 -top-1 block size-2.5 rounded-full bg-danger" />
-                        <span className="block h-px bg-danger" />
+                        <span className="block h-[3px] bg-danger" />
                       </div>
                     ) : null}
                   </div>
@@ -1040,29 +1041,6 @@ export function MultiDayView({
     <CalendarTimelineView
       availabilityMode={availabilityMode}
       availabilitySlots={availabilitySlots}
-      dayCountControl={
-        <div className="flex shrink-0 items-center gap-2">
-          <IconButton
-            disabled={dayCount <= 2}
-            icon={Minus}
-            label="Show fewer days"
-            onClick={() => onDayCountChange(Math.max(2, dayCount - 1))}
-            size="sm"
-            variant="ghost"
-          />
-          <span className="min-w-14 text-center text-[var(--text-sm)] font-semibold text-text-primary">
-            {dayCount} days
-          </span>
-          <IconButton
-            disabled={dayCount >= 6}
-            icon={Plus}
-            label="Show more days"
-            onClick={() => onDayCountChange(Math.min(6, dayCount + 1))}
-            size="sm"
-            variant="ghost"
-          />
-        </div>
-      }
       days={days}
       eventCompletionDefaultScope={eventCompletionDefaultScope}
       gridLabel="Calendar multi-day view"

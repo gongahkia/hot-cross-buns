@@ -93,7 +93,7 @@ export function CalendarView({
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
-  const { activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey } = useCalendarNavigation();
+  const { activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey, showWeekends, showDeclinedEvents } = useCalendarNavigation();
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
   const [calendarRangeError, setCalendarRangeError] = useState<string>();
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
@@ -134,9 +134,9 @@ export function CalendarView({
   const visibleCalendarEvents = useMemo(
     () =>
       source.calendarAgendaEvents.filter((event) =>
-        visibleCalendarEvent(event, visibleCalendarIds)
+        visibleCalendarEvent(event, visibleCalendarIds) && (showDeclinedEvents || event.selfResponseStatus !== "declined")
       ),
-    [source.calendarAgendaEvents, visibleCalendarIds]
+    [source.calendarAgendaEvents, visibleCalendarIds, showDeclinedEvents]
   );
   const smartScheduleGhostBlocks = useMemo<SmartScheduleGhostBlock[]>(
     () => smartSchedulePreview?.suggestions.map((suggestion) => ({
@@ -440,7 +440,7 @@ export function CalendarView({
   const availabilityMode = shareAvailabilityVisible && shareAvailabilityOpen;
 
   return (
-    <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="flex h-full min-h-0 flex-col gap-3">
+    <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="calendar-workspace flex h-full min-h-0 flex-col">
       <CalendarHeader
         anchorDate={calendarAnchorDate}
         onSelectDate={setCalendarAnchorDate}
@@ -530,7 +530,7 @@ export function CalendarView({
           ) : undefined
         }
       >
-        <div className="h-full min-h-0 pr-1">
+        <div className="h-full min-h-0">
           {activeViewId === "agenda" ? (
             <CalendarAgendaView
               eventCompletionDefaultScope={source.settings.eventCompletionDefaultScope}
@@ -581,7 +581,7 @@ export function CalendarView({
             <WeekView
               availabilityMode={availabilityMode}
               availabilitySlots={availabilitySlots}
-              days={calendarWeekDays}
+              days={showWeekends ? calendarWeekDays : calendarWeekDays.filter(day => ![0, 6].includes(calendarDateFromIsoDate(calendarDayKey(day)).getUTCDay()))}
               eventCompletionDefaultScope={source.settings.eventCompletionDefaultScope}
               onAddAvailabilitySlot={addAvailabilitySlot}
               onCreate={openCreate}

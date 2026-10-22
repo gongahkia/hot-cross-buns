@@ -82,18 +82,14 @@ function calendarEventAccentStyle(color: string | null | undefined): CSSProperti
 }
 
 export function calendarEventFillStyle(event: CalendarEventViewModel): CSSProperties | undefined {
-  const background = normalizeCalendarColor(event.displayBackgroundColor ?? event.calendarBackgroundColor);
-
-  if (!background) {
-    return undefined;
-  }
-
+  const background = normalizeCalendarColor(event.displayBackgroundColor ?? event.calendarBackgroundColor) ?? "var(--color-accent)";
   return {
-    backgroundColor: hexToRgba(background, 0.16),
-    borderColor: hexToRgba(background, 0.24),
-    boxShadow: `inset 2px 0 ${background}`,
+    "--event-color": background,
+    backgroundColor: `color-mix(in srgb, ${background} 15%, var(--color-bg-primary))`,
+    borderColor: "transparent",
+    boxShadow: `inset 4px 0 ${background}`,
     color: "var(--color-text-primary)"
-  };
+  } as CSSProperties;
 }
 
 function hexToRgba(color: string, alpha: number): string {
@@ -342,7 +338,7 @@ export function CalendarEventChip({
     <div
       aria-label={label}
       className={cx(
-        "group flex w-full min-w-0 cursor-default gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "calendar-event-chip group flex w-full min-w-0 cursor-default gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         size === "compact" ? "items-start" : "items-center",
         size === "compact" ? "min-h-0 px-1.5 py-0.5 text-[11px]" : "min-h-6 px-2 py-1 text-[var(--text-xs)]",
         draggable && "cursor-grab active:cursor-grabbing",
@@ -352,6 +348,10 @@ export function CalendarEventChip({
         accentStyle ? undefined : tone.border,
         className
       )}
+      data-completed={completed}
+      data-all-day={event.allDay}
+      data-source={event.sourceKind}
+      data-size={size}
       draggable={draggable}
       onClick={(clickEvent) => {
         clickEvent.stopPropagation();
@@ -385,8 +385,8 @@ export function CalendarEventChip({
             onToggleTask={onToggleTask}
             size={size}
           />
-          <span className={cx("min-w-0 flex-1 truncate leading-tight", completed && "line-through")}>
-            {label}
+          <span className="calendar-event-content min-w-0 flex-1 truncate leading-tight">
+            {size === "compact" ? <>{!event.allDay && labelVariant !== "title" ? <span className="calendar-event-time">{event.timeLabel} </span> : null}<span className="calendar-event-title">{event.title}</span></> : <><span className="calendar-event-title">{event.title}</span>{!event.allDay ? <small className="calendar-event-range">{event.rangeLabel}</small> : null}</>}
           </span>
         </>
       ) : null}
@@ -402,7 +402,7 @@ export function CalendarOverflowChip({
   onOpen?: () => void;
 }): JSX.Element {
   const className =
-    "inline-flex min-h-5 max-w-full items-center truncate rounded-hcbSm border border-dashed border-border px-2 text-[var(--text-xs)] text-text-muted";
+    "calendar-overflow inline-flex min-h-5 max-w-full items-center truncate px-1 text-[var(--text-xs)] text-text-primary";
 
   if (onOpen) {
     return (
