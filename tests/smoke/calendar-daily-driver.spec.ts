@@ -32,10 +32,12 @@ test("scheduled-block completion and reopening update the task and all its block
       const blocks = await Promise.all(events.map(id => window.hcb!.calendar.get({ id })));
       return { task: taskResult.ok ? taskResult.data.status : "error", completed: blocks.map(item => item.ok && Boolean(item.data.completedAt)) };
     }, ids);
+    await page.locator('.calendar-month .calendar-event-chip[data-source="event"]').filter({ hasText: "Scheduled daily work" }).first().hover();
     await page.getByRole("button", { name: "Complete task Scheduled daily work", exact: true }).first().click();
     await expect.poll(state).toEqual({ task: "completed", completed: [true, true] });
     await expect(page.getByRole("button", { name: "Reopen task Scheduled daily work", exact: true })).toHaveCount(2);
     await page.reload();
+    await page.locator('.calendar-month .calendar-event-chip[data-source="event"]').filter({ hasText: "Scheduled daily work" }).last().hover();
     await page.getByRole("button", { name: "Reopen task Scheduled daily work", exact: true }).last().click();
     await expect.poll(state).toEqual({ task: "active", completed: [false, false] });
     await expect(page.getByRole("button", { name: "Complete task Scheduled daily work", exact: true })).toHaveCount(2);
