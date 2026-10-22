@@ -268,7 +268,7 @@ function CalendarTimelineView({
     : days[0]
       ? calendarDayKey(days[0])
       : calendarTodayKey();
-  const dayColumnMinWidth = days.length <= 1 ? 520 : days.length <= 3 ? 220 : 112;
+  const dayColumnMinWidth = days.length <= 1 ? 240 : days.length <= 3 ? 140 : 84;
   const gridTemplateColumns = `repeat(${Math.max(1, days.length)}, minmax(${dayColumnMinWidth}px, 1fr))`;
   const previewSegments = timelinePreviewSegments(
     [
@@ -579,7 +579,7 @@ function CalendarTimelineView({
   }
 
   return (
-    <div className="flex h-full min-h-[680px] flex-col overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border border-border bg-bg-primary">
       {dayCountControl ? (
         <div className="flex min-h-10 items-center justify-end border-b border-border bg-bg-primary/40 px-3 py-1.5">
           {dayCountControl}

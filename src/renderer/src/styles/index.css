@@ -238,3 +238,27 @@ label:has(input:not(:disabled)) {
 [data-testid="inspector-body"] .markdown-content { font-size: var(--text-base); line-height: 1.65; }
 [data-testid="inspector-shell"] { --elevation-surface: 0 2px 16px rgb(0 0 0 / 0.1); }
 .event-editor legend { text-transform: none; }
+
+.pane-content { container: pane / inline-size; }
+.calendar-header { flex-shrink: 0; }
+.calendar-range { max-width: 22rem; }
+@container pane (max-width: 950px) {
+  .calendar-timezone { display: none; }
+  .section-support-layout { grid-template-columns: minmax(0, 1fr); }
+  .section-support { position: absolute; inset: 0 0 0 auto; z-index: 45; width: min(340px, 100%); border-left: 1px solid var(--color-border); box-shadow: -8px 0 24px rgb(0 0 0 / 0.12); }
+}
+@container pane (max-width: 720px) {
+  .calendar-create span { display: none; }
+  .calendar-range { font-size: var(--text-md); }
+  .calendar-header { gap: 4px; }
+}
+@container pane (max-width: 530px) {
+  .calendar-header { flex-wrap: wrap; }
+  .calendar-range { flex-basis: 100%; max-width: 100%; }
+  .calendar-header > div:last-of-type { gap: 4px; }
+  .calendar-view-select { max-width: 100px; }
+}
+[data-testid="inspector-shell"] { container: inspector / inline-size; }
+@container inspector (max-width: 430px) {
+  [data-testid="inspector-body"] .sm\:grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
+}

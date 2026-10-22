@@ -103,7 +103,7 @@ export function CalendarAgendaView({
   onToggleTask?: (taskId: string) => void;
 }): JSX.Element {
   return (
-    <div className="flex min-h-[680px] flex-col overflow-hidden bg-bg-primary">
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-bg-primary">
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-primary/40 px-3 py-2">
         <div className="min-w-0">
           <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">{label}</div>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type Dispatch, type SetStateAction } from "react";
+import { createContext, useCallback, useContext, useState, type Dispatch, type SetStateAction } from "react";
 
 export const PaneIdentity = createContext("default");
 const storageKey = "hcb.panePreferences.v1";
@@ -24,10 +24,10 @@ export function writePanePreference(pane: string, key: string, value: unknown): 
 export function usePanePreference<T>(key: string, initial: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
   const pane = useContext(PaneIdentity);
   const [value, setValue] = useState<T>(() => readPanePreference(pane, key, typeof initial === "function" ? (initial as () => T)() : initial));
-  const update: Dispatch<SetStateAction<T>> = (next) => setValue((previous) => {
+  const update = useCallback<Dispatch<SetStateAction<T>>>((next) => setValue((previous) => {
     const resolved = typeof next === "function" ? (next as (previous: T) => T)(previous) : next;
     writePanePreference(pane, key, resolved);
     return resolved;
-  });
+  }), [pane, key]);
   return [value, update];
 }

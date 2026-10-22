@@ -253,7 +253,7 @@ function PaneLeaf({
     <section
       aria-label={`${title} pane`}
       className={cx(
-        "relative flex min-h-[240px] min-w-[320px] flex-1 flex-col overflow-hidden border border-border bg-bg-primary",
+        "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-border bg-bg-primary",
         focused ? "ring-1 ring-inset ring-accent" : "ring-0"
       )}
       data-pane-id={leaf.id}
@@ -358,7 +358,7 @@ function PaneLeafContent({
   }
 
   return (
-    <section className="h-full min-h-0 overflow-auto p-2 sm:p-3" aria-label={`${paneContentTitle(leaf.content)} split content`}>
+    <section className="pane-content h-full min-h-0 overflow-auto p-3" aria-label={`${paneContentTitle(leaf.content)} split content`}>
       <PaneIdentity.Provider value={leaf.id}><SectionContent
         activeSectionId={leaf.content.sectionId}
         taskCommand={taskCommand?.paneId === leaf.id ? taskCommand : null}

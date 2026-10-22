@@ -431,9 +431,9 @@ export function SectionChrome({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="section-support-layout relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] gap-3">
       <div className="min-w-0">{children}</div>
-      <aside aria-label={`${title} support`} className="min-w-0">
+      <aside aria-label={`${title} support`} className="section-support min-w-0 overflow-auto bg-bg-primary">
         {sidebar}
       </aside>
     </div>

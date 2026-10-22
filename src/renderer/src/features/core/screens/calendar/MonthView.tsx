@@ -214,7 +214,7 @@ export function MonthView({
   }
 
   return (
-    <div className="flex min-h-[680px] select-none flex-col overflow-hidden rounded-hcbMd border border-border bg-bg-secondary" role="grid" aria-label="Calendar month view">
+    <div className="flex h-full min-h-0 select-none flex-col overflow-auto rounded-hcbMd border border-border bg-bg-secondary" role="grid" aria-label="Calendar month view">
       <div className="grid grid-cols-7 border-b border-border bg-bg-primary/40 text-center text-[var(--text-xs)] font-semibold text-text-muted" role="row">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((weekday) => (
           <div className="border-r border-border px-2 py-2 last:border-r-0" key={weekday} role="columnheader">
