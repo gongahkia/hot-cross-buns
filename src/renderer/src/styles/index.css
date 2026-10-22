@@ -230,3 +230,11 @@ label:has(input:not(:disabled)) {
 .section-navigation-slot button[aria-label="Collapse task sidebar"],
 .section-navigation-slot button[aria-label="Collapse notes sidebar"],
 .workspace-navigation[data-collapsed="true"] .section-navigation-slot { display: none; }
+
+/* Flat working surfaces keep color reserved for selection, events and status. */
+.workspace-navigation { font-family: var(--font-family-sidebar, var(--font-family)); }
+.workspace-navigation nav [aria-current="page"] { background: var(--color-surface-0); }
+[data-testid="inspector-body"] input[aria-label$="title"] { font-size: var(--text-xl); font-weight: 600; background: transparent; }
+[data-testid="inspector-body"] .markdown-content { font-size: var(--text-base); line-height: 1.65; }
+[data-testid="inspector-shell"] { --elevation-surface: 0 2px 16px rgb(0 0 0 / 0.1); }
+.event-editor legend { text-transform: none; }

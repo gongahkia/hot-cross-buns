@@ -16,9 +16,9 @@ import {
 } from "./themeCatalog";
 
 describe("theme catalogue", () => {
-  it("ships exactly fifty unique, mode-aware palettes", () => {
-    expect(colorThemeDefinitions).toHaveLength(50);
-    expect(new Set(colorThemeDefinitions.map((theme) => theme.id)).size).toBe(50);
+  it("ships neutral defaults alongside the fifty curated palettes", () => {
+    expect(colorThemeDefinitions).toHaveLength(52);
+    expect(new Set(colorThemeDefinitions.map((theme) => theme.id)).size).toBe(52);
     expect(themesForMode("dark").length).toBeGreaterThan(30);
     expect(themesForMode("light").length).toBeGreaterThan(10);
     expect(colorThemeDefinitions.every((theme) => theme.isDark === (theme.mode === "dark"))).toBe(true);
@@ -43,7 +43,7 @@ describe("theme catalogue", () => {
     expect(resolveEffectiveThemeMode({ theme: "system" }, true)).toBe("dark");
     expect(resolveEffectiveThemeMode({ theme: "system" }, false)).toBe("light");
     expect(resolveEffectiveColorTheme({ colorTheme: "catppuccin-mocha" }, "light").id).toBe("catppuccin-latte");
-    expect(resolveEffectiveColorTheme({ colorTheme: "notion" }, "dark").id).toBe("gruvbox-dark");
+    expect(resolveEffectiveColorTheme({ colorTheme: "notion" }, "dark").id).toBe("hcb-neutral-dark");
   });
 
   it("returns a complete semantic palette for legacy and new custom backgrounds", () => {

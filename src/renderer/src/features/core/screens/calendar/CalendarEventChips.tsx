@@ -90,8 +90,8 @@ export function calendarEventFillStyle(event: CalendarEventViewModel): CSSProper
 
   return {
     backgroundColor: hexToRgba(background, 0.16),
-    borderColor: hexToRgba(background, 0.55),
-    boxShadow: `inset 3px 0 ${background}`,
+    borderColor: hexToRgba(background, 0.24),
+    boxShadow: `inset 2px 0 ${background}`,
     color: "var(--color-text-primary)"
   };
 }
@@ -342,7 +342,7 @@ export function CalendarEventChip({
     <div
       aria-label={label}
       className={cx(
-        "group flex w-full min-w-0 cursor-default gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary shadow-sm transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "group flex w-full min-w-0 cursor-default gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         size === "compact" ? "items-start" : "items-center",
         size === "compact" ? "min-h-0 px-1.5 py-0.5 text-[11px]" : "min-h-6 px-2 py-1 text-[var(--text-xs)]",
         draggable && "cursor-grab active:cursor-grabbing",

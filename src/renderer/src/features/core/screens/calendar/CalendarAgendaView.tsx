@@ -37,7 +37,7 @@ function CalendarAgendaEventRow({
   return (
     <div
       className={cx(
-        "grid w-full cursor-default grid-cols-[4.5rem_minmax(0,1fr)] gap-3 border-b border-border bg-bg-tertiary px-3 py-2 text-left last:border-b-0 transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "grid w-full cursor-default grid-cols-[4.5rem_minmax(0,1fr)] gap-3 border-b border-border bg-bg-primary px-3 py-2 text-left last:border-b-0 transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         hasDescription ? "min-h-[76px]" : "min-h-[58px]",
         completed && "text-text-muted opacity-75"
       )}
@@ -103,7 +103,7 @@ export function CalendarAgendaView({
   onToggleTask?: (taskId: string) => void;
 }): JSX.Element {
   return (
-    <div className="flex min-h-[680px] flex-col overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
+    <div className="flex min-h-[680px] flex-col overflow-hidden bg-bg-primary">
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-primary/40 px-3 py-2">
         <div className="min-w-0">
           <div className="truncate text-[var(--text-md)] font-semibold text-text-primary">{label}</div>

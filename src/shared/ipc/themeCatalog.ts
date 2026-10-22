@@ -4,7 +4,7 @@
  * palette affects every HCB surface instead of only its application chrome.
  */
 export type ThemeMode = "light" | "dark";
-export type ThemeSource = "VS Code" | "Ghostty" | "VS Code + Ghostty";
+export type ThemeSource = "VS Code" | "Ghostty" | "VS Code + Ghostty" | "HCB";
 export type AppColorThemeId = string;
 
 export interface ThemeColors {
@@ -86,11 +86,13 @@ function light(
 }
 
 /**
- * These are the 50 curated themes exposed in Appearance. Most have a matching
+ * Two HCB palettes and 50 curated themes exposed in Appearance. Most have a matching
  * VS Code port and are bundled by Ghostty via iTerm2-Color-Schemes; One Dark
  * Pro is retained as the heavily installed VS Code edition of Atom One Dark.
  */
 const themeSeeds: readonly ThemeSeed[] = [
+  dark("hcb-neutral-dark", "HCB Dark", "hcb-neutral", ["#191919", "#eeeeec", "#ef7c82", "#78b897", "#d9b46c", "#a5b9d3", "#81b4be"], "HCB"),
+  light("hcb-neutral-light", "HCB Light", "hcb-neutral", ["#ffffff", "#262626", "#ba3f4b", "#35775c", "#946615", "#345d8d", "#316d79"], "HCB"),
   dark("one-dark-pro", "One Dark Pro", "one-dark", ["#282c34", "#abb2bf", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#56b6c2"], "VS Code"),
   dark("dracula", "Dracula", "dracula", ["#282a36", "#f8f8f2", "#ff5555", "#50fa7b", "#f1fa8c", "#bd93f9", "#8be9fd"]),
   dark("dracula-plus", "Dracula+", "dracula", ["#212121", "#f8f8f2", "#ff5555", "#50fa7b", "#ffcb6b", "#82aaff", "#8be9fd"]),
@@ -148,8 +150,8 @@ export const appColorThemes = colorThemeDefinitions;
 export const customBackgroundThemeId = "custom-background";
 
 const defaultThemeIdByMode: Record<ThemeMode, AppColorThemeId> = {
-  dark: "gruvbox-dark",
-  light: "gruvbox-light"
+  dark: "hcb-neutral-dark",
+  light: "hcb-neutral-light"
 };
 
 export function defaultAppColorTheme(mode: ThemeMode): ColorThemeDefinition {
@@ -266,7 +268,12 @@ function defineTheme(seed: ThemeSeed): ColorThemeDefinition {
     mode: seed.mode,
     isDark: seed.mode === "dark",
     source: seed.source,
-    colors: createThemeColors(seed)
+    colors: {
+      ...createThemeColors(seed),
+      ...(seed.family === "hcb-neutral" && seed.mode === "light" ? {
+        secondary: "#f8f8f7", tertiary: "#fafafa", surface0: "#f3f3f2", surface1: "#eaeae9", border: "#e3e3e1", muted: "#737373"
+      } : {})
+    }
   };
 }
 

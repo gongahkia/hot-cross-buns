@@ -81,8 +81,8 @@ const legacyPseudoNoteSourceType = "legacy-google-task-pseudo-note";
 const historicalSmokeNoteBody = "SQLite-backed smoke note.";
 
 const defaultSettings: JsonRecord = {
-  theme: "dark",
-  colorTheme: "gruvbox-dark",
+  theme: "system",
+  colorTheme: "hcb-neutral-light",
   customBackground: null,
   useInferredBackgroundTheme: true,
   appLanguage: "system",
