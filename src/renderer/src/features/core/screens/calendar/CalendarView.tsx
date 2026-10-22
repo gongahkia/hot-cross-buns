@@ -1,3 +1,4 @@
+import { CalendarEventMenuProvider } from "./CalendarEventMenu";
 import { useCalendarRangeLoader } from "./useCalendarRangeLoader";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -125,6 +126,7 @@ export function CalendarView({
   } = useCalendarAvailability(source);
   const {
     calendarActionError,
+    performCalendarEventAction,
     changeCalendarEventTime,
     interactionDialog,
     moveCalendarEvent,
@@ -426,6 +428,7 @@ export function CalendarView({
   const availabilityMode = shareAvailabilityVisible && shareAvailabilityOpen;
 
   return (
+    <CalendarEventMenuProvider onOpen={openCalendarItem} onAction={performCalendarEventAction}>
     <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="calendar-workspace flex h-full min-h-0 flex-col">
       {interactionDialog}
       <CalendarHeader
@@ -607,5 +610,6 @@ export function CalendarView({
         </CalendarViewTransition>
       </SectionChrome>
     </div>
+    </CalendarEventMenuProvider>
   );
 }

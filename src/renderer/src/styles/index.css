@@ -616,3 +616,7 @@ body[data-calendar-dragging] { user-select: none; }
 
 /* The rolling window owns its offset; browser anchoring must not pull it backward. */
 .calendar-month { overflow-anchor: none; }
+
+.calendar-event-menu { max-width: min(300px, calc(100vw - 16px)); z-index: 1100; }
+.calendar-event-menu .calendar-menu-item { min-height: 40px; }
+.calendar-event-menu-title { max-width: 260px; padding: 6px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--color-text-muted); }

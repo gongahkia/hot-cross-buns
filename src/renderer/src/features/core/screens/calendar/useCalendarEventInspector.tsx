@@ -1,3 +1,4 @@
+import type { CalendarEventAction } from "./CalendarEventMenu";
 import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
@@ -39,6 +40,7 @@ interface CalendarCreateOptions {
 
 export function useCalendarEventInspector(source: CoreViewModelSource): {
   calendarActionError: string | undefined;
+  performCalendarEventAction: (event: CalendarEventViewModel, action: CalendarEventAction) => void;
   changeCalendarEventTime: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   interactionDialog: ReactNode;
   moveCalendarEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
@@ -62,6 +64,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const [calendarActionError, setCalendarActionError] = useState<string | undefined>();
   const [timeChange, setTimeChange] = useState<{ event: CalendarEventViewModel; range: CalendarEventRange } | null>(null);
   const timeWritePending = useRef(false);
+  const menuActionPending = useRef(false);
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEventViewModel | null>(null);
   const [recurrenceOperation, setRecurrenceOperation] = useState<"delete" | "save" | null>(null);
   const calendarDraftRef = useRef<CalendarEventDraft | null>(draft);
   const calendarDraftBaselineRef = useRef<CalendarEventDraft | null>(draft);
@@ -347,6 +351,9 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       conference: null,
       guests: "",
       id: undefined,
+      eventId: undefined,
+      originalStartAt: undefined,
+      recurringEventId: undefined,
       mode: "create",
       mutationState: undefined,
       title: copiedTitle(sourceDraft.title, "Untitled event")
@@ -634,6 +641,47 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     await closeInspector();
   }
 
+  async function deleteCalendarItem(event: CalendarEventViewModel, scope?: CalendarEventCompletionScope): Promise<void> {
+    try {
+      if (!await closeInspector()) return;
+      const block = source.scheduledTaskBlocks.find(candidate => candidate.calendarEventId === (event.eventId ?? event.id));
+      if (block) {
+        if (!await source.unscheduleTaskBlock(block.id)) setCalendarActionError("Scheduled block could not be removed.");
+        return;
+      }
+      const result = await window.hcb?.calendar.delete({ id: event.eventId ?? event.id,
+        ...(scope ? { scope } : {}), ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {}) });
+      if (!result?.ok) { setCalendarActionError(result?.error.message ?? "Calendar event delete failed."); return; }
+      setCalendarActionError(undefined); source.refresh();
+    } catch { setCalendarActionError("Calendar event delete failed. Try again."); }
+  }
+
+  async function performCalendarEventAction(event: CalendarEventViewModel, action: CalendarEventAction): Promise<void> {
+    if (event.sourceKind === "task" || menuActionPending.current) return;
+    menuActionPending.current = true;
+    try {
+      if (!await closeInspector()) return;
+      if (action === "delete") {
+        if (event.originalStartAt || event.recurringEventId || event.recurrenceRule || event.recurrenceLines.length) setDeleteTarget(event);
+        else await deleteCalendarItem(event);
+        return;
+      }
+      // Range summaries may truncate descriptions. Hydrate through the existing detail route.
+      const result = await window.hcb?.calendar.get({ id: event.eventId ?? event.id });
+      if (!result?.ok) { setCalendarActionError(result?.error.message ?? "Calendar event could not be read."); return; }
+      const complete = { ...event, title: result.data.title, notes: result.data.notes ?? result.data.description ?? "", detailsTruncated: false };
+      if (action === "copy") { await copyInspectorText(complete.title, complete.notes); return; }
+      const duplicate = editCalendarDraft(complete);
+      // The menu explicitly duplicates the selected occurrence as a standalone event.
+      duplicate.recurrenceLines = []; duplicate.repeatFrequency = "none"; duplicate.hcbKind = undefined;
+      duplicate.recurringEventId = null; duplicate.originalStartAt = null; duplicate.eventId = undefined;
+      duplicate.addMeet = false;
+      duplicateEventDraftValue(duplicate);
+      await saveDraft();
+    } catch { setCalendarActionError("Calendar action failed. Try again."); }
+    finally { menuActionPending.current = false; }
+  }
+
   async function commitCalendarEventTime(event: CalendarEventViewModel, range: CalendarEventRange, scope?: CalendarEventCompletionScope): Promise<void> {
     if (timeWritePending.current) return;
     timeWritePending.current = true;
@@ -688,10 +736,13 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
   return {
     calendarActionError,
+    performCalendarEventAction,
     changeCalendarEventTime,
-    interactionDialog: timeChange ? <CalendarRecurrenceDialog onCancel={() => setTimeChange(null)} onChoose={(scope) => {
+    interactionDialog: <>{deleteTarget ? <CalendarRecurrenceDialog deleting onCancel={() => setDeleteTarget(null)} onChoose={(scope) => {
+      const target = deleteTarget; setDeleteTarget(null); void deleteCalendarItem(target, scope);
+    }} /> : null}{timeChange ? <CalendarRecurrenceDialog onCancel={() => setTimeChange(null)} onChoose={(scope) => {
       const pending = timeChange; setTimeChange(null); void commitCalendarEventTime(pending.event, pending.range, scope);
-    }} /> : null,
+    }} /> : null}</>,
     moveCalendarEvent,
     openCreate,
     openEdit,

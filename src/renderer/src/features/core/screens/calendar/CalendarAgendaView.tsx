@@ -1,3 +1,4 @@
+import { useCalendarEventMenu } from "./calendarEventMenuContext";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
 import { cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
@@ -27,6 +28,7 @@ function CalendarAgendaEventRow({
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
 }): JSX.Element {
+  const menu = useCalendarEventMenu(event);
   const whenLabel = event.allDay ? "All day" : event.rangeLabel;
   const description = calendarAgendaDescription(event);
   const hasDescription = Boolean(description.location || description.notes);
@@ -42,7 +44,8 @@ function CalendarAgendaEventRow({
         completed && "text-text-muted opacity-75"
       )}
       onClick={() => onOpen(event)}
-      onKeyDown={(keyEvent) => handleActivationKeyDown(keyEvent, () => onOpen(event))}
+      onContextMenu={menu.onContextMenu}
+      onKeyDown={(keyEvent) => { menu.onMenuKeyDown(keyEvent); if (!keyEvent.defaultPrevented) handleActivationKeyDown(keyEvent, () => onOpen(event)); }}
       role="listitem"
       tabIndex={0}
     >

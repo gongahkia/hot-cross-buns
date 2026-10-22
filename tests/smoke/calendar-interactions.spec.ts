@@ -264,3 +264,112 @@ test("Month scrolls through week windows across month boundaries without growing
     await capture(page, "month-continuous-window");
   });
 });
+
+test("event context menu supports keyboard dismissal, full-text copy, duplication and deletion through the existing services", async () => {
+  await planner(async (page, app) => {
+    const notes = "Full event notes. ".repeat(500);
+    const [id] = await seed(page, [{ title: "Context planning", notes, startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
+    await chooseCalendarView(page, "month"); await date(page);
+    const chip = page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "Context planning" });
+    const menu = page.getByRole("menu", { name: "Calendar item actions" });
+    await chip.focus(); await page.keyboard.press("Shift+F10");
+    await expect(menu).toBeVisible(); await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden(); await expect(chip).toBeFocused();
+    await chip.click({ button: "right" });
+    await menu.getByRole("menuitem", { name: "Copy text" }).click();
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe(`Context planning\n\n${notes}`);
+    await chip.click({ button: "right" });
+    await capture(page, "event-context-menu");
+    await menu.getByRole("menuitem", { name: "Duplicate event" }).click();
+    await expect(page.getByRole("textbox", { name: "Event title", exact: true })).toHaveValue("Context planning (copy)");
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+    const duplicate = page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "Context planning (copy)" });
+    await expect(duplicate).toBeVisible();
+    const copies = await page.evaluate(async () => {
+      const result = await window.hcb!.calendar.listEvents({ start: "2027-01-12T00:00:00Z", end: "2027-01-13T00:00:00Z" });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.data.items.filter((event) => event.title === "Context planning (copy)");
+    });
+    expect(copies).toHaveLength(1);
+    expect((await record(page, copies[0].id)).notes).toBe(notes);
+    await duplicate.click({ button: "right" }); await menu.getByRole("menuitem", { name: "Delete event", exact: true }).click();
+    await expect(duplicate).toHaveCount(0);
+    expect((await record(page, id)).title).toBe("Context planning");
+    await page.reload(); await expect(duplicate).toHaveCount(0);
+  });
+});
+
+test("recurring context deletion reviews supported scopes and duplication creates only the selected occurrence", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Context series", startsAt: "2027-01-05T09:00:00Z", endsAt: "2027-01-05T10:00:00Z", recurrenceLines: ["RRULE:FREQ=WEEKLY;COUNT=5"] }]);
+    await chooseCalendarView(page, "week"); await date(page);
+    const chip = page.locator('.calendar-timeline .calendar-event-chip').filter({ hasText: "Context series" });
+    const menu = page.getByRole("menu", { name: "Calendar item actions" });
+    await chip.click({ button: "right" }); await menu.getByRole("menuitem", { name: "Duplicate this occurrence" }).click();
+    await expect(page.getByRole("textbox", { name: "Event title", exact: true })).toHaveValue("Context series (copy)");
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+    const original = chip.filter({ hasNotText: "(copy)" });
+    await original.click({ button: "right" }); await menu.getByRole("menuitem", { name: "Delete event…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete recurring event" });
+    await expect(dialog.getByRole("button", { name: "This and future occurrences" })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(original).toBeVisible();
+    await original.click({ button: "right" }); await menu.getByRole("menuitem", { name: "Delete event…" }).click();
+    await dialog.getByRole("button", { name: "This occurrence", exact: true }).click();
+    await expect(original).toHaveCount(0);
+    expect((await record(page, id)).startsAt).toBe("2027-01-05T09:00:00Z");
+    const events = await page.evaluate(async () => {
+      const result = await window.hcb!.calendar.listEvents({ start: "2027-01-01T00:00:00Z", end: "2027-02-15T00:00:00Z" });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.data.items;
+    });
+    expect(events.filter(event => event.title === "Context series")).toHaveLength(4);
+    const copies = events.filter(event => event.title === "Context series (copy)");
+    expect(copies).toHaveLength(1); expect(copies[0].startsAt.slice(0, 10)).toBe("2027-01-12");
+  });
+});
+
+test("context actions work in Agenda and overflow without leaving a stale overflow dialog", async () => {
+  await planner(async page => {
+    await seed(page, Array.from({ length: 7 }, (_, i) => ({ title: `Overflow action ${i}`, allDay: true, startsAt: "2027-01-12T00:00:00Z", endsAt: "2027-01-13T00:00:00Z" })));
+    await chooseCalendarView(page, "month"); await date(page);
+    await page.getByRole("button", { name: /Show .* more calendar items/ }).click();
+    const dialog = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "Close overflow items" }) });
+    await dialog.getByRole("button", { name: /Overflow action 6/ }).click({ button: "right" });
+    await page.getByRole("menu", { name: "Calendar item actions" }).getByRole("menuitem", { name: "Edit event" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Event title", exact: true })).toHaveValue("Overflow action 6");
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+    await chooseCalendarView(page, "agenda");
+    await page.getByRole("listitem").filter({ hasText: "Overflow action 0" }).click({ button: "right" });
+    await expect(page.getByRole("menu", { name: "Calendar item actions" })).toBeVisible();
+  });
+});
+
+test("context menu stays within a narrow window in both themes and honors reduced motion", async () => {
+  await planner(async page => {
+    await seed(page, [{ title: "A long calendar title that should remain readable without widening the window", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
+    await chooseCalendarView(page, "month"); await date(page);
+    await page.setViewportSize({ width: 850, height: 700 });
+    const session = await page.context().newCDPSession(page);
+    await session.send("Animation.enable"); await session.send("Animation.setPlaybackRate", { playbackRate: 0.1 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(async theme => { await window.hcb!.settings.update({ theme }); window.dispatchEvent(new Event("hcb:core-data-invalidated")); }, theme);
+      const chip = page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "A long calendar title" });
+      await chip.hover(); await chip.click({ button: "right" });
+      const menu = page.getByRole("menu", { name: "Calendar item actions" });
+      await expect(menu).toBeVisible();
+      await capture(page, `context-menu-narrow-${theme}-slow-motion`);
+      const box = (await menu.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0); expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(850); expect(box.y + box.height).toBeLessThanOrEqual(700);
+      await page.keyboard.press("Home"); await page.keyboard.press("ArrowDown"); await expect(menu.getByRole("menuitem").nth(1)).toBeFocused();
+      await page.keyboard.press("Escape"); await expect(chip).toBeFocused();
+    }
+    await session.send("Animation.setPlaybackRate", { playbackRate: 1 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "A long calendar title" }).click({ button: "right" });
+    await expect(page.getByRole("menu", { name: "Calendar item actions" })).toHaveCSS("animation-name", "none");
+    await session.detach();
+  });
+});

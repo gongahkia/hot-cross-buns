@@ -1,3 +1,4 @@
+import { useCalendarEventMenu } from "./calendarEventMenuContext";
 import { useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, PointerEvent } from "react";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
@@ -153,8 +154,10 @@ function calendarOverflowKindLabel(event: CalendarEventViewModel): string {
 
 function CalendarOverflowRow({
   event,
-  onOpen
-}: Pick<Parameters<typeof CalendarEventChip>[0], "event" | "onOpen">): JSX.Element {
+  onOpen,
+  onClose
+}: Pick<Parameters<typeof CalendarEventChip>[0], "event" | "onOpen"> & { onClose: () => void }): JSX.Element {
+  const menu = useCalendarEventMenu(event, onClose);
   const completed = eventCompleted(event);
   const TypeIcon = event.sourceKind === "task" ? ListTodo : CalendarDays;
 
@@ -165,6 +168,8 @@ function CalendarOverflowRow({
         completed && "opacity-65"
       )}
       onClick={() => onOpen?.(event)}
+      onContextMenu={menu.onContextMenu}
+      onKeyDown={menu.onMenuKeyDown}
       type="button"
     >
       <span className="pt-0.5 tabular-nums text-[var(--text-xs)] font-medium text-text-secondary">{calendarOverflowTimeLabel(event)}</span>
@@ -328,6 +333,7 @@ export function CalendarEventChip({
   showContent?: boolean;
   size?: CalendarEventChipSize;
 }): JSX.Element {
+  const menu = useCalendarEventMenu(event);
   const tone = calendarSourceTone(event.calendarId);
   const fillStyle = calendarEventFillStyle(event);
   const accentStyle = fillStyle ?? calendarEventAccentStyle(event.calendarBackgroundColor);
@@ -360,7 +366,10 @@ export function CalendarEventChip({
         onOpen?.(event);
       }}
       onDragStart={onDragStart}
+      onContextMenu={menu.onContextMenu}
       onKeyDown={(keyEvent) => {
+        menu.onMenuKeyDown(keyEvent);
+        if (keyEvent.defaultPrevented) return;
         onKeyDown?.(keyEvent);
         if (keyEvent.defaultPrevented) {
           return;
@@ -483,6 +492,7 @@ export function CalendarOverflowPopover({
             <CalendarOverflowRow
               event={event}
               key={event.id}
+              onClose={onClose}
               onOpen={(selectedEvent) => {
                 onClose();
                 onOpen(selectedEvent);
@@ -504,6 +514,7 @@ export function CalendarOverflowPopover({
                 <CalendarOverflowRow
                   event={event}
                   key={event.id}
+                  onClose={onClose}
                   onOpen={(selectedEvent) => {
                     onClose();
                     onOpen(selectedEvent);

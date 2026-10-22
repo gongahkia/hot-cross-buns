@@ -14,7 +14,7 @@ export function CalendarRecurrenceDialog({ deleting = false, onChoose, onCancel 
         onEscapeKeyDown={(event) => event.stopPropagation()}>
         <Dialog.Title className="font-semibold">{deleting ? "Delete recurring event" : "Save recurring event"}</Dialog.Title>
         <Dialog.Description className="text-sm text-text-secondary">{deleting ? "Choose which events to delete." : "Choose where to apply these edits."}</Dialog.Description>
-        {([ ["occurrence", "This occurrence"], ["following", "This and future occurrences"], ["series", "Entire series"] ] as const).map(([scope, label]) =>
+        {([ ["occurrence", "This occurrence"], ["following", "This and future occurrences"], ["series", "Entire series"] ] as const).filter(([scope]) => !deleting || scope !== "following").map(([scope, label]) =>
           <Button key={scope} onClick={() => onChoose(scope)} variant={deleting && scope === "series" ? "danger" : "secondary"}>{label}</Button>)}
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </Dialog.Content>
