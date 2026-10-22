@@ -42,6 +42,7 @@ import type {
   EventEditorContext,
 } from "./week-view-types";
 import { EventLocationField } from "./event-fields/event-location-field";
+import { EventDescriptionField } from "./event-fields/event-description-field";
 import { EventTimezoneField } from "./event-fields/event-timezone-field";
 import { EventRecurrenceField } from "./event-fields/event-recurrence-field";
 import {
@@ -1108,14 +1109,11 @@ export function EventDetailPanel({
       <div className="border-border border-t" />
 
       {/* Description */}
-      <div className="flex flex-col gap-1 px-4">
-        <span className="text-xs text-[#C7C5C1] dark:text-[#595959]">
-          Description
-        </span>
-        {event.description && (
-          <span className="text-foreground text-xs">{event.description}</span>
-        )}
-      </div>
+      <EventDescriptionField
+        key={event.id}
+        event={event}
+        onEventChange={onEventChange}
+      />
 
       {/* Divider */}
       <div className="border-border border-t" />

@@ -22,6 +22,9 @@ interface SidebarOverlayProps {
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
+  onEscapeKeyDown?: React.ComponentProps<
+    typeof SheetContent
+  >["onEscapeKeyDown"];
 }
 
 /**
@@ -40,6 +43,7 @@ export function SidebarOverlay({
   className,
   style,
   children,
+  onEscapeKeyDown,
 }: SidebarOverlayProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -53,6 +57,7 @@ export function SidebarOverlay({
           className,
         )}
         style={style}
+        onEscapeKeyDown={onEscapeKeyDown}
         // Focus the sheet itself rather than its first field: autofocusing the
         // search input would pop the phone keyboard and swallow the "/" toggle
         onOpenAutoFocus={(e) => {

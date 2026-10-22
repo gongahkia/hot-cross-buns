@@ -29,6 +29,7 @@ import { SidebarOverlay } from "@/components/sidebar-overlay";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { eventColorStyles } from "./calendar-event-item";
 import { EventDetailPanel } from "./event-detail-panel";
+import { preventInlineEventEditorDismissal } from "./event-fields/event-field-editor";
 import { useEventTitleFocus } from "./event-title-focus-context";
 import type { CalendarEvent, SidebarSizingProps } from "./week-view-types";
 
@@ -410,6 +411,7 @@ export function SidebarLeft({
         side="right"
         title="Context panel"
         description="Event details and event search."
+        onEscapeKeyDown={preventInlineEventEditorDismissal}
         className="!bg-context-panel"
         style={
           {

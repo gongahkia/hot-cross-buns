@@ -6,6 +6,7 @@ import { PanelRightIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PopoverContent } from "@/components/ui/popover";
 import { EventDetailPanel } from "./event-detail-panel";
+import { preventInlineEventEditorDismissal } from "./event-fields/event-field-editor";
 import { useCalendarPopoverBoundary } from "./calendar-popover-context";
 import { useEventTitleFocus } from "./event-title-focus-context";
 import type { CalendarEvent } from "./week-view-types";
@@ -100,6 +101,7 @@ export function EventDetailPopover({
       className="w-[320px] max-h-[80vh] overflow-y-auto p-0 bg-popover/60 backdrop-blur-xl border shadow-lg rounded-lg"
       onOpenAutoFocus={(e) => e.preventDefault()}
       onCloseAutoFocus={(e) => e.preventDefault()}
+      onEscapeKeyDown={preventInlineEventEditorDismissal}
       onInteractOutside={(e) => {
         const target = e.target as HTMLElement;
         if (target.closest("[data-radix-popper-content-wrapper]")) {

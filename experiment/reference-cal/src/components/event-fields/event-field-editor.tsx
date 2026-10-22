@@ -11,6 +11,15 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { EventEditorContext } from "../week-view-types";
 
+/** Let an inline editor handle Escape before its Radix host dismisses. */
+export function preventInlineEventEditorDismissal(event: KeyboardEvent) {
+  if (
+    event.target instanceof Element &&
+    event.target.closest("[data-inline-event-editor]")
+  )
+    event.preventDefault();
+}
+
 interface EventFieldEditorProps {
   context: EventEditorContext;
   label: string;
