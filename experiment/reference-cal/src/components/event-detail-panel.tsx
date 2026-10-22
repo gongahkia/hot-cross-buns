@@ -886,7 +886,7 @@ export function EventDetailPanel({
 
       {/* Time — muted and non-interactive for all-day events */}
       {!event.isAllDay && (
-        <div className="flex min-w-0 items-center gap-1 px-2 text-xs">
+        <div className="flex min-w-0 items-start gap-1 px-2 text-xs">
           {/* Start time group — Clock icon + input in one bordered container */}
           <div
             className={cn(
@@ -922,7 +922,7 @@ export function EventDetailPanel({
           {/* End time group — arrow + input + duration in one bordered container */}
           <div
             className={cn(
-              "flex min-w-0 flex-1 items-center rounded-sm border border-transparent px-2 py-1.5",
+              "flex min-w-0 flex-1 flex-wrap items-center gap-y-1 rounded-sm border border-transparent px-2 py-1.5",
               event.isAllDay
                 ? "cursor-default"
                 : "cursor-text hover:border-[#E8E8E4] dark:hover:border-[#373737] has-[:focus]:border-[#F5F5F5] has-[:focus]:bg-[#F5F5F5] dark:has-[:focus]:border-[#242424] dark:has-[:focus]:bg-[#242424]",
@@ -946,14 +946,13 @@ export function EventDetailPanel({
               readOnly={event.isAllDay}
               tabIndex={event.isAllDay ? -1 : undefined}
               className={cn(
-                "min-w-0 font-medium text-xs bg-transparent outline-none border-none p-0",
+                "w-[8ch] shrink-0 font-medium text-xs bg-transparent outline-none border-none p-0",
                 event.isAllDay
                   ? "text-[#C7C5C1] dark:text-[#595959] pointer-events-none"
                   : "text-foreground",
               )}
-              size={endTimeValue.length}
             />
-            <span className="shrink-0 text-[#C7C5C1] dark:text-[#595959]">
+            <span className="ml-auto shrink-0 whitespace-nowrap pl-1 text-[#C7C5C1] dark:text-[#595959]">
               {formatDuration(event.start, event.end)}
             </span>
           </div>
