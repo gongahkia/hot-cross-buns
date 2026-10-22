@@ -325,6 +325,22 @@ export function EventDetailPanel({
   /** Stores the title when the input gains focus, used to restore on Escape. */
   const titleOnFocusRef = React.useRef(event.title);
 
+  // --- All-day toggle handler ---
+  /**
+   * Stores the original hours/minutes before toggling to all-day.
+   * When toggling off, these are applied to the current (possibly resized) dates.
+   */
+  const savedTimeOfDayRef = React.useRef<{
+    startHours: number;
+    startMinutes: number;
+    endHours: number;
+    endMinutes: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    setTimeError(null);
+  }, [zone]);
+
   React.useEffect(() => {
     setTitleValue(event.title);
   }, [event.title]);
@@ -683,18 +699,6 @@ export function EventDetailPanel({
     [],
   );
 
-  // --- All-day toggle handler ---
-  /**
-   * Stores the original hours/minutes before toggling to all-day.
-   * When toggling off, these are applied to the current (possibly resized) dates.
-   */
-  const savedTimeOfDayRef = React.useRef<{
-    startHours: number;
-    startMinutes: number;
-    endHours: number;
-    endMinutes: number;
-  } | null>(null);
-
   const handleAllDayToggle = React.useCallback(
     (checked: boolean) => {
       setTimeError(null);
@@ -1042,11 +1046,18 @@ export function EventDetailPanel({
           </div>
         </>
       ) : (
-        <div className="-mt-2 flex items-center gap-1 pl-8 pr-2">
+        <div
+          className={cn(
+            "-mt-2 gap-1 pl-8 pr-4",
+            editorContext === "sidebar"
+              ? "grid grid-cols-[auto_auto_minmax(0,1fr)] items-center"
+              : "flex items-center",
+          )}
+        >
           <button
             type="button"
             aria-label="Make event all-day"
-            className="min-h-8 rounded-sm px-2 py-1.5 text-xs text-muted-foreground outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/30"
+            className="row-start-1 min-h-8 rounded-sm px-2 py-1.5 text-xs text-muted-foreground outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/30"
             onClick={() => {
               setOptionsExpanded(true);
               handleAllDayToggle(true);

@@ -40,6 +40,7 @@ interface SidebarLeftProps
   /** Render as a modal sheet instead of an inline column (phones and tablets) */
   overlay?: boolean;
   events?: CalendarEvent[];
+  resolveEvent?: (id: string) => CalendarEvent | null;
   selectedEvent?: CalendarEvent | null;
   onEventChange?: (event: CalendarEvent) => void;
   onPrevWeek?: () => void;
@@ -129,6 +130,7 @@ function groupEventsByDate(events: CalendarEvent[]): DateGroup[] {
 }
 
 export function SidebarLeft({
+  resolveEvent,
   overlay = false,
   events = [],
   selectedEvent,
@@ -173,9 +175,11 @@ export function SidebarLeft({
   const resolvedSearchEvent = React.useMemo(() => {
     if (!searchSelectedEvent) return null;
     return (
-      events.find((e) => e.id === searchSelectedEvent.id) ?? searchSelectedEvent
+      events.find((e) => e.id === searchSelectedEvent.id) ??
+      resolveEvent?.(searchSelectedEvent.id) ??
+      null
     );
-  }, [events, searchSelectedEvent]);
+  }, [events, searchSelectedEvent, resolveEvent]);
 
   React.useEffect(() => {
     if (searchFocusPending) setSearchSelectedEvent(null);

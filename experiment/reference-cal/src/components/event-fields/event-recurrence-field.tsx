@@ -154,6 +154,7 @@ export function EventRecurrenceField({
   return (
     <EventFieldEditor
       context={context}
+      compact={compact}
       label="Edit repeat"
       open={open}
       onOpenChange={changeOpen}
@@ -263,7 +264,11 @@ export function EventRecurrenceField({
                 <legend className="mb-2 text-muted-foreground">
                   Repeat on
                 </legend>
-                <div className="flex gap-1" role="group" aria-label="Repeat on">
+                <div
+                  className="grid grid-cols-7 gap-1 max-md:grid-cols-4"
+                  role="group"
+                  aria-label="Repeat on"
+                >
                   {DAYS.map((day) => (
                     <button
                       key={day.value}
@@ -271,7 +276,7 @@ export function EventRecurrenceField({
                       aria-label={day.label}
                       aria-pressed={weekdays.includes(day.value)}
                       className={cn(
-                        "size-7 rounded-full border text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                        "h-7 w-full min-w-0 rounded-full border text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring/40 max-md:h-10",
                         weekdays.includes(day.value)
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border hover:bg-muted",
@@ -284,7 +289,7 @@ export function EventRecurrenceField({
                         )
                       }
                     >
-                      {day.label[0]}
+                      {day.label.slice(0, 3)}
                     </button>
                   ))}
                 </div>

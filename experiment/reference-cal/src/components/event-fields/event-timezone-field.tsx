@@ -37,12 +37,12 @@ export function EventTimezoneField({
   const choices = React.useMemo(
     () =>
       open
-        ? supportedTimeZones().map((value) => ({
+        ? [...new Set([zone, ...supportedTimeZones()])].map((value) => ({
             value,
             label: timeZoneLabel(value, event.start),
           }))
         : [],
-    [event.start, open],
+    [event.start, open, zone],
   );
   const label = timeZoneLabel(zone, event.start);
   function changeOpen(next: boolean) {
@@ -52,6 +52,7 @@ export function EventTimezoneField({
   return (
     <EventFieldEditor
       context={context}
+      compact={compact}
       label="Edit time zone"
       open={open}
       onOpenChange={changeOpen}

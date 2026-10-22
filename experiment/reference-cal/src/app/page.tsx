@@ -17,6 +17,7 @@ import { SAMPLE_ACCOUNTS, SAMPLE_ACCOUNT_EMAIL } from "@/lib/sample-account";
 import { shiftVisibleDate, filterCalendarEvents } from "@/lib/calendar-view";
 import {
   expandRecurringEvents,
+  findCalendarEvent,
   prepareSampleSeries,
   updateCalendarEvents,
 } from "@/lib/event-recurrence";
@@ -204,8 +205,14 @@ function PageContent({ isWideLayout }: PageContentProps) {
   const [monthViewDisplayMonth, setMonthViewDisplayMonth] =
     React.useState<Date | null>(null);
   const selectedEvent = React.useMemo(
-    () => expandedEvents.find((e) => e.id === selectedEventId) ?? null,
-    [expandedEvents, selectedEventId],
+    () =>
+      expandedEvents.find((e) => e.id === selectedEventId) ??
+      (selectedEventId ? findCalendarEvent(events, selectedEventId) : null),
+    [events, expandedEvents, selectedEventId],
+  );
+  const resolveEvent = React.useCallback(
+    (id: string) => findCalendarEvent(events, id),
+    [events],
   );
 
   // Phones show event details in the context panel sheet: the 320px popover
@@ -806,6 +813,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
       </SidebarInset>
       {!settingsOpen && (
         <SidebarLeft
+          resolveEvent={resolveEvent}
           width={Math.min(rightWidth, rightMaxWidth)}
           minWidth={Math.min(260, rightMaxWidth)}
           maxWidth={rightMaxWidth}

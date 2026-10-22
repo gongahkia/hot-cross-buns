@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -19,6 +20,7 @@ interface EventFieldEditorProps {
   className?: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  compact?: boolean;
 }
 
 /** Inline in a sidebar; an anchored child popover beside a calendar event. */
@@ -31,10 +33,42 @@ export function EventFieldEditor({
   className,
   children,
   actions,
+  compact = false,
 }: EventFieldEditorProps) {
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
   const id = React.useId();
+  // Anchor sub-editors to the event card's edge, so they never cover its fields.
+  const [anchor, setAnchor] = React.useState<{
+    getBoundingClientRect: () => DOMRect;
+    contextElement: HTMLElement;
+  } | null>(null);
+  const virtualAnchor = React.useMemo(() => ({ current: anchor }), [anchor]);
+  function changePopoverOpen(next: boolean) {
+    if (next) {
+      const trigger = triggerRef.current;
+      const card = trigger?.closest<HTMLElement>(
+        '[data-slot="popover-content"]:not([data-event-field-editor])',
+      );
+      if (trigger && card) {
+        setAnchor({
+          contextElement: card,
+          getBoundingClientRect: () => {
+            // Registering a custom Radix anchor can replace the trigger node.
+            const field = (triggerRef.current ?? trigger).getBoundingClientRect(),
+              bounds = card.getBoundingClientRect();
+            return new DOMRect(
+              bounds.left,
+              field.top,
+              bounds.width,
+              field.height,
+            );
+          },
+        });
+      }
+    }
+    onOpenChange(next);
+  }
   const previouslyOpen = React.useRef(open);
   React.useEffect(() => {
     if (!open && previouslyOpen.current && context === "sidebar")
@@ -70,7 +104,8 @@ export function EventFieldEditor({
 
   if (context === "popover") {
     return (
-      <Popover open={open} onOpenChange={onOpenChange}>
+      <Popover open={open} onOpenChange={changePopoverOpen}>
+        {anchor && <PopoverAnchor virtualRef={virtualAnchor} />}
         <div className="flex min-w-0 items-center">
           <PopoverTrigger asChild>{button}</PopoverTrigger>
           {actions}
@@ -92,8 +127,10 @@ export function EventFieldEditor({
     );
   }
   return (
-    <div className="min-w-0">
-      <div className="flex min-w-0 items-center">
+    <div className={cn("min-w-0", compact && "contents")}>
+      <div
+        className={cn("flex min-w-0 items-center", compact && "row-start-1")}
+      >
         {button}
         {actions}
       </div>
@@ -104,7 +141,10 @@ export function EventFieldEditor({
           role="region"
           aria-label={label}
           data-event-field-editor="true"
-          className="mx-2 mt-1 rounded-sm border border-border bg-popover p-3 text-popover-foreground shadow-xs animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
+          className={cn(
+            "mx-2 mt-1 rounded-sm border border-border bg-popover p-3 text-popover-foreground shadow-xs animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none",
+            compact && "col-span-3 col-start-1 -ml-6 mr-0",
+          )}
           onKeyDown={(event) => {
             if (event.key !== "Escape" || event.defaultPrevented) return;
             event.preventDefault();
