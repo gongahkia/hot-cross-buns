@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { KeyboardEvent } from "react";
-import { Command, Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   plannerActionAvailability,
   plannerActions,
@@ -13,7 +13,8 @@ import { useLocalSearch } from "../features/core/coreViewModelSource";
 import type { SearchResultViewModel, SearchSource } from "../features/core/coreViewModels";
 import { useI18n } from "../i18n";
 import { LoadingIndicator } from "./LoadingIndicator";
-import { IconButton, Input, cx } from "./primitives";
+
+const commandCategories = ["Create", "Navigate", "Calendar", "Task", "Edit", "Sync", "Diagnostics"];
 
 interface CommandPaletteProps {
   actionContext: PlannerActionContext;
@@ -135,7 +136,9 @@ export function CommandPalette({
   const trimmedQuery = query.trim();
 
   const filteredCommands = useMemo(
-    () => plannerActions.filter((command) => commandAllowedInMode(command, mode) && commandMatches(command, query)),
+    () => plannerActions
+      .filter((command) => commandAllowedInMode(command, mode) && commandMatches(command, query))
+      .sort((a, b) => commandCategories.indexOf(a.category) - commandCategories.indexOf(b.category)),
     [mode, query]
   );
   const searchEnabled = mode === "open" && trimmedQuery.length > 0 && filteredCommands.length === 0;
@@ -180,9 +183,11 @@ export function CommandPalette({
     setHighlightedIndex((current) => Math.min(current, activeOptionCount - 1));
   }, [activeOptionCount]);
 
-  if (!open) {
-    return null;
-  }
+  useEffect(() => {
+    if (!open) return;
+    const option = document.querySelector<HTMLElement>("#command-palette-options [aria-selected='true']");
+    option?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex, open, query]);
 
   function closePalette(): void {
     onOpenChange(false);
@@ -224,14 +229,17 @@ export function CommandPalette({
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
-    if (event.key === "ArrowDown") {
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
-      setHighlightedIndex((current) => Math.min(current + 1, Math.max(0, activeOptionCount - 1)));
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setHighlightedIndex((current) => Math.max(current - 1, 0));
+      const enabled = filteredCommands.length > 0
+        ? filteredCommands.flatMap((command, index) => plannerActionAvailability(command, actionContext).enabled ? [index] : [])
+        : searchResults.map((_, index) => index);
+      const position = enabled.indexOf(highlightedIndex);
+      const next = event.key === "Home" ? enabled[0]
+        : event.key === "End" ? enabled.at(-1)
+        : event.key === "ArrowDown" ? enabled[Math.min(position + 1, enabled.length - 1)]
+        : enabled[Math.max(position - 1, 0)];
+      if (next !== undefined) setHighlightedIndex(next);
     }
 
     if (event.key === "Enter") {
@@ -253,47 +261,36 @@ export function CommandPalette({
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-    <Dialog.Portal>
-    <Dialog.Overlay asChild>
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-bg-tertiary/80 px-4 pt-[12vh]"
-    >
-      <Dialog.Content asChild aria-describedby={undefined} onOpenAutoFocus={(event) => {
-        event.preventDefault();
-        inputRef.current?.focus();
-      }}>
-      <div
-        aria-labelledby="command-palette-title"
-        className="hcb-raised w-full max-w-[960px] overflow-hidden rounded-hcbLg border border-border bg-bg-secondary"
-      >
-        <div className="flex min-h-12 items-center gap-3 border-b border-border px-3">
-          <Command aria-hidden="true" className="text-accent" size={17} />
-          <Dialog.Title asChild><h2 className="hcb-heading min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold" id="command-palette-title">
+      <Dialog.Portal>
+        <Dialog.Overlay className="command-palette-overlay" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="command-palette"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            inputRef.current?.focus();
+          }}
+        >
+          <Dialog.Title className="sr-only">
             {mode === "open" ? t("command.title") : "Action Palette"}
-          </h2></Dialog.Title>
-          <IconButton icon={X} label={t("command.close")} onClick={closePalette} variant="ghost" />
-        </div>
-
-        <div className="border-b border-border p-3">
-          <div className="relative">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
-              size={15}
-            />
-            <Input
+          </Dialog.Title>
+          <div className="command-palette-search">
+            <Search aria-hidden="true" size={20} />
+            <input
               aria-activedescendant={activeOptionId}
               aria-controls="command-palette-options"
               aria-label={t("command.filter")}
-              className="pl-9"
+              autoComplete="off"
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleInputKeyDown}
-              placeholder={mode === "open" ? "Open views, pinned filters, or search" : "Run a command"}
+              placeholder={mode === "open" ? "Type a command or search…" : "Type a command…"}
               ref={inputRef}
               role="searchbox"
+              spellCheck={false}
               value={query}
             />
           </div>
+          <div className="command-palette-filters">
           {pinnedFilters.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Pinned filters">
               {pinnedFilters.map((filter) => (
@@ -324,37 +321,35 @@ export function CommandPalette({
           ) : null}
         </div>
 
-        <div className="max-h-[360px] overflow-y-auto p-2" id="command-palette-options" role="listbox">
+        <div className="command-palette-options" id="command-palette-options" aria-label="Commands and search results" role="listbox">
           {filteredCommands.length > 0 ? (
             filteredCommands.map((command, index) => {
               const availability = plannerActionAvailability(command, actionContext);
 
+              const category = command.category === "Navigate" ? "Navigation" : command.category === "Calendar" ? "View" : command.category;
               return (
-                <button
-                  aria-disabled={!availability.enabled}
-                  aria-selected={index === highlightedIndex}
-                  className={cx(
-                    "flex min-h-12 w-full items-center gap-3 rounded-hcbMd px-3 py-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-55",
-                    index === highlightedIndex
-                      ? "bg-surface-0 text-text-primary"
-                      : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
-                  )}
-                  data-action-id={command.id}
-                  disabled={!availability.enabled}
-                  id={`command-option-${command.id}`}
-                  key={command.id}
-                  onClick={() => runCommand(command)}
-                  onMouseEnter={() => setHighlightedIndex(index)}
-                  role="option"
-                  type="button"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[var(--text-md)] font-medium">{command.label}</div>
-                    <div className="truncate text-[var(--text-xs)] text-text-muted">
-                      {availability.reason ?? command.description}
-                    </div>
-                  </div>
-                </button>
+                <Fragment key={command.id}>
+                  {filteredCommands[index - 1]?.category !== command.category ? (
+                    <div className="command-palette-group" role="presentation">{category}</div>
+                  ) : null}
+                  <button
+                    aria-disabled={!availability.enabled}
+                    aria-selected={index === highlightedIndex}
+                    className="command-palette-option"
+                    data-action-id={command.id}
+                    disabled={!availability.enabled}
+                    id={`command-option-${command.id}`}
+                    onClick={() => runCommand(command)}
+                    onMouseMove={() => { if (availability.enabled) setHighlightedIndex(index); }}
+                    role="option"
+                    tabIndex={-1}
+                    title={availability.reason ?? command.description}
+                    type="button"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{command.label}</span>
+                    {availability.reason ? <span className="command-palette-reason">{availability.reason}</span> : null}
+                  </button>
+                </Fragment>
               );
             })
           ) : search.parsed.errors.length > 0 ? (
@@ -377,17 +372,13 @@ export function CommandPalette({
             searchResults.map((result, index) => (
               <button
                 aria-selected={index === highlightedIndex}
-                className={cx(
-                  "flex min-h-12 w-full items-center gap-3 rounded-hcbMd px-3 py-2 text-left transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                  index === highlightedIndex
-                    ? "bg-surface-0 text-text-primary"
-                    : "text-text-secondary hover:bg-surface-0 hover:text-text-primary"
-                )}
+                className="command-palette-option"
                 id={`search-option-${result.id}`}
                 key={result.id}
                 onClick={() => runSearchResult(result)}
-                onMouseEnter={() => setHighlightedIndex(index)}
+                onMouseMove={() => setHighlightedIndex(index)}
                 role="option"
+                tabIndex={-1}
                 type="button"
               >
                 <div className="min-w-0 flex-1">
@@ -412,11 +403,15 @@ export function CommandPalette({
             </div>
           )}
         </div>
-      </div>
-      </Dialog.Content>
-    </div>
-    </Dialog.Overlay>
-    </Dialog.Portal>
+          <div className="command-palette-footer">
+            <span><span aria-hidden="true">↑↓</span> Navigate</span>
+            <span><span aria-hidden="true">↵</span> Select</span>
+            <Dialog.Close className="command-palette-close" aria-label={t("command.close")}>
+              <kbd>esc</kbd> Close
+            </Dialog.Close>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
     </Dialog.Root>
   );
 }
