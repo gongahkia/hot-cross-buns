@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { PanelRight, PictureInPicture2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { usePanePreference } from "../../features/shell/panePreferences";
 import { Badge, IconButton, cx } from "../primitives";
 import { useInspector } from "./InspectorContext";
@@ -30,10 +30,8 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
   const { current, close, isOpen } = useInspector();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = usePanePreference("inspector.width", 380);
-  const [docked, setDocked] = usePanePreference("inspector.docked", true);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
   const narrow = viewportWidth < (documentMode ? 840 : 1050);
-  const floating = !documentMode && !docked && !narrow;
   const resolvedWidth = Math.min(Math.max(320, width), 560, viewportWidth - 32);
   useEffect(() => {
     const resize = () => setViewportWidth(window.innerWidth);
@@ -107,11 +105,11 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
         aria-modal={narrow}
         className={cx(
           "relative flex min-h-0 shrink-0 flex-col border-l border-border bg-bg-primary text-text-primary",
-          narrow ? "fixed inset-y-0 right-0 z-50 shadow-2xl" : floating ? "fixed right-5 top-20 z-30 max-h-[min(620px,calc(100dvh-100px))] rounded-hcbLg border shadow-xl" : "h-full"
+          narrow ? "fixed inset-y-0 right-0 z-50 shadow-2xl" : "h-full"
         )}
         style={documentMode && !narrow ? { flex: "1 1 0", minWidth: 320 } : { width: resolvedWidth }}
         data-document-editor={documentMode}
-        data-inspector-layout={narrow ? "sheet" : floating ? "popover" : "docked"}
+        data-inspector-layout={narrow ? "sheet" : "docked"}
         data-inspector-kind={current.kind}
         data-inspector-id={current.id}
         data-testid="inspector-shell"
@@ -120,7 +118,7 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
         role="dialog"
         tabIndex={-1}
       >
-        {!documentMode && !narrow && !floating ? <div
+        {!documentMode && !narrow ? <div
           aria-label="Resize details panel"
           aria-orientation="vertical"
           aria-valuemin={320}
@@ -155,7 +153,6 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
                 <p className="hcb-copy mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>
               ) : null}
             </div>
-            {!documentMode && !narrow ? <IconButton icon={docked ? PictureInPicture2 : PanelRight} label={docked ? "Float details" : "Dock details"} onClick={() => setDocked(!docked)} variant="ghost" /> : null}
             <IconButton
               data-testid="inspector-close"
               icon={X}

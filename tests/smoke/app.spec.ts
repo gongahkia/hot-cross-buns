@@ -249,7 +249,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     const closeInspector = page.getByRole("button", { name: "Close inspector", exact: true });
     await closeInspector.focus();
     await page.keyboard.press("Shift+Tab");
-    await expect(page.getByRole("button", { name: "Float details", exact: true })).toBeFocused();
+    await expect(page.getByRole("separator", { name: "Resize details panel", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(closeInspector).toBeFocused();
     await page.keyboard.press("Escape");

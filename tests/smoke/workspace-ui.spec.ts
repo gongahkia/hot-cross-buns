@@ -42,6 +42,14 @@ async function noOverflow(page: Page) {
 
 test("navigates calendar views, filters sources, edits in context and preserves drafts", async () => {
   await planner(async (page) => {
+    // Existing profiles that selected the retired pop-up mode must dock too.
+    await page.evaluate(() => {
+      const preferences = JSON.parse(localStorage.getItem("hcb.panePreferences.v1") ?? "{}");
+      preferences.default = { ...preferences.default, "inspector.docked": false };
+      localStorage.setItem("hcb.panePreferences.v1", JSON.stringify(preferences));
+    });
+    await page.reload();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
     const fixture = await page.evaluate(async () => {
       const day = new Date().toISOString().slice(0, 10);
       const ids: string[] = [];
@@ -76,9 +84,6 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     await page.mouse.move(dividerBounds.x + 3, dividerBounds.y + 100);
     await page.mouse.down(); await page.mouse.move(dividerBounds.x - 33, dividerBounds.y + 100, { steps: 5 }); await page.mouse.up();
     expect(Number(await resize.getAttribute("aria-valuenow"))).toBeGreaterThan(420);
-    await page.getByRole("button", { name: "Float details" }).click();
-    await expect(inspector).toHaveAttribute("data-inspector-layout", "popover");
-    await page.getByRole("button", { name: "Dock details" }).click();
     await page.getByRole("textbox", { name: "Event title" }).fill("Unsaved planning");
     await navigate(page, "Tasks");
     await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Unsaved planning");
