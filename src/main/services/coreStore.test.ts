@@ -1,0 +1,1148 @@
+import Database from "better-sqlite3";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { CoreStore } from "./coreStore";
+import { withHcbTaskMetadata } from "./hcbTaskMetadata";
+import { LocalBackupService } from "./localBackups";
+
+const stores: Array<{ store: CoreStore; directory: string }> = [];
+
+function createStore(): CoreStore {
+  const testRoot = process.env.HCB_TEST_DATABASE_ROOT;
+  if (!testRoot) throw new Error("HCB_TEST_DATABASE_ROOT is required for CoreStore tests.");
+  const directory = mkdtempSync(join(testRoot, "hcb-core-store-"));
+  const store = new CoreStore(join(directory, "hcb.sqlite"));
+  stores.push({ store, directory });
+  return store;
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  for (const { store, directory } of stores.splice(0)) {
+    store.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+// better-sqlite3 is compiled by Electron's postinstall hook. Node/Vitest has a
+// different ABI in this repository, so these run in Electron smoke/CI where
+// the ABI matches instead of failing every Node-only unit invocation.
+describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it.each([false, true])("retains recurring occurrence cancellations across restarts (all-day=%s)", (allDay) => {
+    let store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "calendar", summary: "Calendar" }, account.accountId);
+    const time = (day: number) => allDay ? { date: `2026-10-${day}` } : { dateTime: `2026-10-${day}T09:00:00Z` };
+    // A cancellation may arrive on an earlier page than its parent and need
+    // not have summary/start/end fields in Google's response.
+    store.upsertGoogleEvent({ id: "cancelled", status: "cancelled", recurringEventId: "series", originalStartTime: time(23) }, calendar.id);
+    store.upsertGoogleEvent({ id: "series", summary: "Daily", start: time(22),
+      end: allDay ? time(23) : { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
+    const days = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" })
+      .items.map((event: any) => event.startsAt.slice(0, 10));
+    expect(days()).toEqual(["2026-10-22", "2026-10-24"]);
+    const fixture = stores.at(-1)!;
+    store.close();
+    store = new CoreStore(join(fixture.directory, "hcb.sqlite"));
+    fixture.store = store;
+    expect(days()).toEqual(["2026-10-22", "2026-10-24"]);
+    expect(store.dispatch("calendar", "listEvents", {}).items).toHaveLength(1);
+    expect(store.pendingSyncMutations(500)).toEqual([]);
+  });
+
+  it("restores a cancelled recurring exception when Google confirms it again", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "account" });
+    const calendar = store.upsertGoogleCalendar({ id: "calendar", summary: "Calendar" }, account.accountId);
+    store.upsertGoogleEvent({ id: "series", summary: "Daily", start: { dateTime: "2026-10-22T09:00:00Z" },
+      end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
+    const exception = { id: "exception", summary: "Moved occurrence", recurringEventId: "series",
+      originalStartTime: { dateTime: "2026-10-23T09:00:00Z" },
+      start: { dateTime: "2026-10-23T11:00:00Z" }, end: { dateTime: "2026-10-23T12:00:00Z" } };
+    store.upsertGoogleEvent(exception, calendar.id);
+    store.upsertGoogleEvent({ id: exception.id, status: "cancelled", recurringEventId: "series", originalStartTime: exception.originalStartTime }, calendar.id);
+    const events = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" }).items;
+    expect(events()).toHaveLength(2);
+    store.upsertGoogleEvent(exception, calendar.id);
+    expect(events()).toHaveLength(3);
+    expect(events()[1]).toMatchObject({ title: "Moved occurrence", startsAt: "2026-10-23T11:00:00.000Z" });
+    store.upsertGoogleEvent({ id: "series", status: "cancelled" }, calendar.id);
+    expect(events()).toEqual([]);
+  });
+
+  it("scopes recurring exceptions to their own Calendar when Google series ids match", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "account" });
+    const calendars = ["first", "second"].map((id) => store.upsertGoogleCalendar({ id, summary: id }, account.accountId));
+    for (const calendar of calendars) store.upsertGoogleEvent({ id: "shared-series-id", summary: "Daily",
+      start: { dateTime: "2026-10-22T09:00:00Z" }, end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
+    store.upsertGoogleEvent({ id: "exception", summary: "Moved", recurringEventId: "shared-series-id",
+      originalStartTime: { dateTime: "2026-10-23T09:00:00Z" },
+      start: { dateTime: "2026-10-23T11:00:00Z" }, end: { dateTime: "2026-10-23T12:00:00Z" } }, calendars[0].id);
+    const events = () => store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-25T00:00:00Z" }).items;
+    expect(events().filter((event: any) => event.calendarId === calendars[1].id)).toHaveLength(3);
+    store.upsertGoogleEvent({ id: "exception", status: "cancelled", recurringEventId: "shared-series-id", originalStartTime: { dateTime: "2026-10-23T09:00:00Z" } }, calendars[0].id);
+    expect(events().filter((event: any) => event.calendarId === calendars[0].id)).toHaveLength(2);
+    expect(events().filter((event: any) => event.calendarId === calendars[1].id)).toHaveLength(3);
+  });
+
+  it.each([6, 7, 8])("recovers notes from a compatible version %s backup without restoring its queue", async (version) => {
+    const store = createStore();
+    const note = store.dispatch("notes", "create", { title: "Older backup", body: "Original body" });
+    const path = join(stores.at(-1)!.directory, "older-backup.sqlite");
+    await store.backupTo(path);
+    const snapshot = new Database(path);
+    try {
+      snapshot.exec("DROP TABLE google_event_cancellations");
+      snapshot.exec("DROP INDEX events_google_recurring_calendar_idx");
+      if (version < 8) snapshot.exec("ALTER TABLE outbox DROP COLUMN creation_started");
+      if (version === 6) snapshot.exec("DROP INDEX outbox_unresolved_account_idx");
+      snapshot.exec("DELETE FROM schema_migrations");
+      snapshot.prepare("INSERT INTO schema_migrations(version) VALUES(?)").run(version);
+    } finally { snapshot.close(); }
+    store.dispatch("notes", "update", { id: note.id, body: "Changed body" });
+    store.dispatch("tasks", "create", { title: "Preserve the current queue" });
+    const pending = store.pendingSyncMutations();
+    expect(store.restoreLocalNotes(path)).toBe(1);
+    expect(store.dispatch("notes", "get", { id: note.id }).body).toBe("Original body");
+    expect(store.pendingSyncMutations()).toEqual(pending);
+    const future = new Database(path);
+    try { future.exec("DELETE FROM schema_migrations; INSERT INTO schema_migrations(version) VALUES(999)"); }
+    finally { future.close(); }
+    expect(() => store.restoreLocalNotes(path)).toThrow("incompatible database version");
+  });
+
+  it("undoes and redoes same-millisecond edits in order across restarts and branch changes", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-21T10:00:00Z"));
+    let store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "A" });
+    store.dispatch("tasks", "update", { id: task.id, title: "B" });
+    store.dispatch("tasks", "update", { id: task.id, title: "C" });
+    store.dispatch("undo", "undo");
+    store.dispatch("undo", "undo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("A");
+    const fixture = stores.at(-1)!;
+    store.close();
+    store = new CoreStore(join(fixture.directory, "hcb.sqlite"));
+    fixture.store = store;
+    for (const title of ["B", "C"]) {
+      store.dispatch("undo", "redo");
+      expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe(title);
+    }
+    store.dispatch("undo", "undo");
+    store.dispatch("tasks", "update", { id: task.id, title: "D" });
+    expect(store.dispatch("undo", "status").canRedo).toBe(false);
+    store.dispatch("undo", "undo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("B");
+    store.dispatch("undo", "redo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("D");
+  });
+
+  it("recreates a parent before its child when redoing dependent task creations", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-21T10:00:00Z"));
+    const store = createStore();
+    const parent = store.dispatch("tasks", "create", { title: "Parent" });
+    const child = store.dispatch("tasks", "create", { title: "Child", parentId: parent.id, listId: parent.listId });
+    store.dispatch("undo", "undo");
+    store.dispatch("undo", "undo");
+    store.dispatch("undo", "redo");
+    store.dispatch("undo", "redo");
+    expect(store.dispatch("tasks", "get", { id: child.id })).toMatchObject({ status: "active", parentId: parent.id });
+    expect(store.dispatch("tasks", "get", { id: parent.id }).status).toBe("active");
+  });
+
+  it("unlinks remotely cancelled task blocks without queuing writes and accepts repeated tombstones", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "Keep the task", notes: "Keep this context", dueDate: "2026-10-22" });
+    const block = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00.000Z", durationMinutes: 30
+    });
+    store.bindGoogleEvent(block.calendarEventId, { id: "remote-block", etag: "v1" });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.upsertGoogleEventBatch([{ id: "remote-block", status: "cancelled" }], "primary");
+    expect(() => store.dispatch("calendar", "get", { id: block.calendarEventId })).toThrow("no longer exists");
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items).toEqual([]);
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({
+      title: "Keep the task", notes: "Keep this context", dueAt: "2026-10-22", plannedStart: null, plannedEnd: null
+    });
+    expect(store.pendingSyncMutations(500)).toEqual([]);
+    expect(() => store.upsertGoogleEventBatch([{ id: "remote-block", status: "cancelled" }], "primary")).not.toThrow();
+  });
+
+  it("retains another scheduled block and protects a pending event edit from a remote deletion", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "Two blocks" });
+    const first = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00.000Z", durationMinutes: 30
+    });
+    const second = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T11:00:00.000Z", durationMinutes: 30
+    });
+    store.bindGoogleEvent(first.calendarEventId, { id: "remote-first", etag: "v1" });
+    store.bindGoogleEvent(second.calendarEventId, { id: "remote-second", etag: "v1" });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.upsertGoogleEvent({ id: "remote-second", status: "cancelled" }, "primary");
+    expect(store.dispatch("tasks", "get", { id: task.id }).plannedStart).toBe(first.startsAt);
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items.map((block: any) => block.id)).toEqual([first.id]);
+    store.dispatch("calendar", "update", { id: first.calendarEventId, title: "Unsynced edit" });
+    store.upsertGoogleEvent({ id: "remote-first", status: "cancelled" }, "primary");
+    expect(store.dispatch("calendar", "get", { id: first.calendarEventId }).title).toBe("Unsynced edit");
+  });
+
+  it("retains surviving task planning when a different Google Calendar is removed", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { title: "Two calendars" });
+    const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });
+    const removed = store.upsertGoogleCalendar({ id: "removed", summary: "Removed" }, account.accountId);
+    const surviving = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00Z", durationMinutes: 30
+    });
+    store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: removed.id, startsAt: "2026-10-22T11:00:00Z", durationMinutes: 30
+    });
+    for (const mutation of store.pendingSyncMutations(500)) store.completeSyncMutation(mutation.id);
+    store.pruneGoogleCalendars(account.accountId, []);
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ plannedStart: surviving.startsAt, plannedEnd: surviving.endsAt });
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", {}).items.map((block: any) => block.id)).toEqual([surviving.id]);
+  });
+
+  it("pages task trees, collapsed branches, completed sections, and device stars in SQL", () => {
+    const store = createStore();
+    const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Alpha", notes: "x".repeat(4000) });
+    const child = store.dispatch("tasks", "create", { listId: "inbox", title: "Child", parentId: parent.id });
+    expect(store.dispatch("tasks", "get", { id: child.id }).parentTitle).toBe("Alpha");
+    const second = store.dispatch("tasks", "create", { listId: "inbox", title: "Beta" });
+    store.dispatch("tasks", "complete", { id: second.id });
+    const first = store.dispatch("tasks", "board", { listId: "inbox", sort: "title", limit: 2 });
+    expect(first.rootCount).toBe(1);
+    expect(first.page.totalKnown).toBe(3);
+    expect(first.items.map((row: any) => row.task.id)).toEqual([parent.id, child.id]);
+    expect(first.items[0].task.notes).toHaveLength(240);
+    const header = store.dispatch("tasks", "board", { listId: "inbox", limit: 2, cursor: "2", completedOpen: true });
+    expect(header.items).toEqual([expect.objectContaining({ kind: "completed", count: 1 }), expect.objectContaining({ task: expect.objectContaining({ id: second.id }) })]);
+    const collapsed = store.dispatch("tasks", "board", { listId: "inbox", collapsedTaskIds: [parent.id], limit: 20 });
+    expect(collapsed.items.map((row: any) => row.kind)).toEqual(["task", "completed"]);
+    store.dispatch("settings", "update", { starredTaskIds: [parent.id], starredTaskAt: { [parent.id]: 1 } });
+    expect(store.dispatch("tasks", "board", { starred: true, limit: 20 }).page.totalKnown).toBe(2);
+    expect(store.dispatch("tasks", "get", { id: parent.id }).notes).toHaveLength(4000);
+    const revealed = store.dispatch("tasks", "board", { listId: "inbox", collapsedTaskIds: [parent.id], locateTaskId: child.id, sort: "title" });
+    expect(revealed.locatedIndex).toBe(1);
+    expect(revealed.revealParentId).toBe(parent.id);
+    expect(store.dispatch("tasks", "board", { listId: "missing", locateTaskId: child.id }).locatedIndex).toBeNull();
+    const completeLocation = store.dispatch("tasks", "board", { listId: "inbox", locateTaskId: second.id });
+    expect(completeLocation.revealCompleted).toBe(true);
+    expect(completeLocation.locatedIndex).toBe(3);
+  });
+
+  it("does not prompt a fresh workspace to migrate ordinary undated tasks", () => {
+    const store = createStore();
+    store.dispatch("tasks", "create", { listId: "inbox", title: "Ordinary task", notes: "x".repeat(4000) });
+    const preview = store.dispatch("notes", "legacyMigrationPreview");
+    expect(preview.foundCount).toBe(1);
+    expect(preview.autoPromptEligible).toBe(false);
+    expect(preview.items[0].body).toHaveLength(240);
+    expect(store.dispatch("notes", "legacyMigrationPreview", { automatic: true })).toMatchObject({ foundCount: 0, items: [], autoPromptEligible: false });
+  });
+
+  it("pages across note stars without sorting ordinary notes outside the recent-note index", () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    const notes = Array.from({ length: 6 }, (_, index) => {
+      vi.setSystemTime(new Date(2026, 9, 18, 10, index));
+      return store.dispatch("notes", "create", { title: `Note ${index}` });
+    });
+    const other = store.dispatch("notes", "createNoteList", { title: "Other list" });
+    const elsewhere = store.dispatch("notes", "create", { listId: other.id, title: "Elsewhere" });
+    store.dispatch("settings", "update", { starredNoteIds: [notes[0].id, notes[3].id, elsewhere.id], starredNoteAt: { [notes[0].id]: 20, [notes[3].id]: 10, [elsewhere.id]: 30 } });
+    const page = (cursor: number, limit: number) => store.dispatch("notes", "list", { listId: notes[0].listId, summary: true, cursor: String(cursor), limit }).items.map((note: any) => note.title);
+    expect(page(0, 3)).toEqual(["Note 0", "Note 3", "Note 5"]);
+    expect(page(1, 3)).toEqual(["Note 3", "Note 5", "Note 4"]);
+    expect(page(4, 3)).toEqual(["Note 2", "Note 1"]);
+    store.dispatch("settings", "update", { starredNoteIds: [], starredNoteAt: {} });
+    expect(page(0, 3)).toEqual(["Note 5", "Note 4", "Note 3"]);
+    const db = new Database(join(stores.at(-1)!.directory, "hcb.sqlite"), { readonly: true });
+    try {
+      const plan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM notes WHERE list_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id LIMIT 100").all(notes[0].listId) as Array<{ detail: string }>;
+      expect(plan.some((step) => step.detail.includes("notes_list_recent_page_idx"))).toBe(true);
+      expect(plan.some((step) => step.detail.includes("TEMP B-TREE"))).toBe(false);
+    } finally { db.close(); }
+  });
+
+  it("pages scoped note previews, keeps full text on demand, and restores device stars", async () => {
+    const store = createStore();
+    const list = store.dispatch("notes", "createNoteList", { title: "Research" });
+    const first = store.dispatch("notes", "create", { listId: list.id, title: "Older", body: "x".repeat(4000) });
+    const otherList = store.dispatch("notes", "createNoteList", { title: "Other" });
+    const second = store.dispatch("notes", "create", { listId: otherList.id, title: "Other list" });
+    store.dispatch("settings", "update", { starredNoteIds: [first.id], starredNoteAt: { [first.id]: 100 } });
+    const page = store.dispatch("notes", "list", { listId: list.id, summary: true, limit: 1 });
+    expect(page.page.totalKnown).toBe(1);
+    expect(page.items[0].id).toBe(first.id);
+    expect(page.items[0].body).toHaveLength(240);
+    expect(store.dispatch("notes", "get", { id: first.id }).body).toHaveLength(4000);
+    expect(store.dispatch("notes", "list", { summary: true }).items[0].id).toBe(first.id);
+    const resolved = store.dispatch("search", "resolveLinks", { links: [{ kind: "note", targetId: first.id, label: "Renamed", fullBody: true }, { kind: "note", label: "Other list" }] });
+    expect(resolved.items.map((item: any) => item.id)).toEqual([first.id, second.id]);
+    expect(resolved.items[0].body).toHaveLength(4000);
+    store.dispatch("settings", "update", { paneWorkspace: { focusedPaneId: "saved-pane", root: { kind: "leaf", id: "saved-pane", content: { kind: "section", sectionId: "notes" } } } });
+    const path = join(stores.at(-1)!.directory, "preferences.sqlite");
+    await store.backupTo(path);
+    const snapshot = new Database(path, { readonly: true });
+    try {
+      const row = snapshot.prepare("SELECT value FROM settings WHERE key='app'").get() as { value: string };
+      expect(JSON.parse(row.value).starredNoteIds).toEqual([first.id]);
+      expect(JSON.parse(row.value).paneWorkspace.focusedPaneId).toBe("saved-pane");
+    } finally { snapshot.close(); }
+  });
+
+  it("bootstraps the configured local day and includes every list identity", () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-18T02:00:00Z"));
+    const store = createStore();
+    store.dispatch("settings", "update", { defaultTimeZone: "Asia/Singapore" });
+    for (let index = 0; index < 105; index += 1) store.dispatch("tasks", "createTaskList", { title: `List ${index}` });
+    const early = store.dispatch("calendar", "create", { calendarId: "primary", title: "Early local day", startsAt: "2026-10-17T17:00:00Z", endsAt: "2026-10-17T18:00:00Z" });
+    store.dispatch("calendar", "create", { calendarId: "primary", title: "Next local day", startsAt: "2026-10-18T17:00:00Z", endsAt: "2026-10-18T18:00:00Z" });
+    const bootstrap = store.dispatch("bootstrap", "get", { mode: "light" });
+    expect(bootstrap.calendarRange).toEqual({ start: "2026-10-17T16:00:00.000Z", end: "2026-10-18T16:00:00.000Z" });
+    expect(bootstrap.events.items.map((event: any) => event.id)).toEqual([early.id]);
+    expect(bootstrap.taskLists.items).toHaveLength(106);
+    expect(bootstrap.taskLists.page.nextCursor).toBeUndefined();
+  });
+
+  it("keeps exact native counts while returning only relevant text-free previews", () => {
+    const store = createStore();
+    for (let index = 0; index < 240; index += 1) store.dispatch("tasks", "create", { listId: "inbox", title: `Past ${index}`, dueDate: "2026-09-01", notes: "private long body".repeat(100) });
+    const today = store.dispatch("tasks", "create", { listId: "inbox", title: "Due today", dueDate: "2026-10-18" });
+    const tomorrow = store.dispatch("tasks", "create", { listId: "inbox", title: "Due tomorrow", dueDate: "2026-10-19" });
+    const native = store.dispatch("native", "planningData", { now: new Date(2026, 9, 18, 12).toISOString() });
+    expect(native.counts.overdueTasks).toBe(240);
+    expect(native.counts.todayTasks).toBe(1);
+    expect(native.counts.tomorrowTasks).toBe(1);
+    expect(native.tasks.some((task: any) => task.id === today.id)).toBe(true);
+    expect(native.tasks.some((task: any) => task.id === tomorrow.id)).toBe(true);
+    expect(native.tasks).toHaveLength(102);
+    expect(JSON.stringify(native)).not.toContain("private long body");
+    expect(store.dispatch("search", "count", { query: "Past" }).count).toBe(240);
+  });
+
+  it("rejects task hierarchy changes that would hide existing content", () => {
+    const store = createStore();
+    const parent = store.dispatch("tasks", "create", { listId: "inbox", title: "Parent" });
+    const child = store.dispatch("tasks", "create", { listId: "inbox", title: "Child", parentId: parent.id });
+    const other = store.dispatch("tasks", "create", { listId: "inbox", title: "Other" });
+    expect(() => store.dispatch("tasks", "update", { id: parent.id, parentId: parent.id })).toThrow("own parent");
+    expect(() => store.dispatch("tasks", "create", { title: "Grandchild", listId: "inbox", parentId: child.id })).toThrow("top-level");
+    expect(() => store.dispatch("tasks", "update", { id: parent.id, parentId: other.id })).toThrow("subtasks first");
+    expect(() => store.dispatch("tasks", "delete", { id: parent.id })).toThrow("subtasks first");
+    expect(store.dispatch("tasks", "board", { listId: "inbox" }).page.totalKnown).toBe(3);
+  });
+
+  it("returns event description previews while preserving full editor content", () => {
+    const store = createStore();
+    const event = store.dispatch("calendar", "create", { calendarId: "primary", title: "Long description", description: "x".repeat(4000), startsAt: "2026-10-18T09:00:00Z", endsAt: "2026-10-18T10:00:00Z" });
+    const request = { start: "2026-10-18T00:00:00Z", end: "2026-10-19T00:00:00Z" };
+    const summary = store.dispatch("calendar", "listEvents", { ...request, summary: true });
+    expect(summary.items[0].notes).toHaveLength(240);
+    expect(summary.items[0].detailsTruncated).toBe(true);
+    expect(store.dispatch("calendar", "get", { id: event.id }).notes).toHaveLength(4000);
+    expect(store.dispatch("calendar", "listEvents", request).items[0].notes).toHaveLength(4000);
+  });
+
+  it("looks up task order outside the renderer's first page", () => {
+    const store = createStore();
+    const tasks = Array.from({ length: 205 }, (_, index) => store.dispatch("tasks", "create", { listId: "inbox", title: `Task ${index}` }));
+    // Persist an explicit ordering, independent of UUID ties within one timestamp.
+    store.dispatch("tasks", "move", { id: tasks[202].id, listId: "inbox", parentId: null, previousSiblingId: tasks[201].id });
+    const context = store.dispatch("tasks", "context", { id: tasks[202].id });
+    expect(context.previousId).toBe(tasks[201].id);
+    expect(context.beforePreviousId).toBeTruthy();
+    store.dispatch("tasks", "move", { id: tasks[202].id, listId: "inbox", parentId: null, previousSiblingId: context.beforePreviousId });
+    expect(store.dispatch("tasks", "context", { id: tasks[201].id }).previousId).toBe(tasks[202].id);
+  });
+
+  it("applies bulk reschedule and sibling moves using the renderer payload names", () => {
+    const store = createStore();
+    const tasks = ["A", "B", "C"].map((title) => store.dispatch("tasks", "create", { listId: "inbox", title }));
+    store.dispatch("tasks", "bulkReschedule", { taskIds: tasks.map((task) => task.id), dueDate: "2026-11-01" });
+    for (const task of tasks) expect(store.dispatch("tasks", "get", { id: task.id }).dueAt).toContain("2026-11-01");
+    store.dispatch("tasks", "move", { id: tasks[2].id, listId: "inbox", parentId: null, previousSiblingId: null });
+    expect(store.dispatch("tasks", "board", { listId: "inbox", sort: "myOrder" }).items[0].task.id).toBe(tasks[2].id);
+    expect(() => store.dispatch("tasks", "bulkReschedule", { taskIds: [], dueDate: null })).toThrow("Select between");
+  });
+  it("reconciles task parents across provider pages and applies remote planning metadata updates", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "batched-account", connectionState: "connected" });
+    const list = store.upsertGoogleTaskList({ id: "batched-list", title: "Inbox" }, account.accountId);
+    store.upsertGoogleTaskBatch([{ id: "child", title: "Child", parent: "parent", status: "needsAction" }], list.id);
+    store.upsertGoogleTaskBatch([{ id: "parent", title: "Parent", status: "needsAction", notes: withHcbTaskMetadata("", { priority: "low" }) }], list.id);
+    store.reconcileGoogleTaskParents(list.id);
+    const tasks = store.dispatch("tasks", "list", { limit: 100 }).items;
+    const parent = tasks.find((task: { title: string }) => task.title === "Parent");
+    const child = tasks.find((task: { title: string }) => task.title === "Child");
+    expect(child.parentId).toBe(parent.id);
+    store.upsertGoogleTaskBatch([{ id: "parent", title: "Parent", status: "needsAction", notes: withHcbTaskMetadata("", { priority: "high", durationMinutes: 45, tags: ["work"] }) }], list.id);
+    expect(store.dispatch("tasks", "get", { id: parent.id })).toMatchObject({ priority: "high", durationMinutes: 45, tags: ["work"] });
+  });
+  it("keeps indexed search current across edits, deletion, restore, and restart", async () => {
+    const store = createStore();
+    expect(store.dispatch("diagnostics", "summary").search.engine).toBe("fts5");
+    const note = store.dispatch("notes", "create", { title: "Nebulous", body: "Original searchable prose" });
+    const snapshot = join(stores.at(-1)!.directory, "snapshot.sqlite");
+    await store.backupTo(snapshot);
+    store.dispatch("notes", "update", { id: note.id, title: "Revised" });
+    expect(store.dispatch("search", "query", { query: "Nebulous" }).items).toHaveLength(0);
+    expect(store.dispatch("search", "query", { query: "Revised" }).items).toHaveLength(1);
+    store.dispatch("notes", "delete", { id: note.id });
+    expect(store.dispatch("search", "query", { query: "Revised" }).items).toHaveLength(0);
+    store.restoreLocalNotes(snapshot);
+    expect(store.dispatch("search", "query", { query: "Nebulous" }).items).toHaveLength(1);
+  });
+  it("paginates task and note collections without dropping or duplicating records", () => {
+    const store = createStore();
+    for (let index = 0; index < 23; index += 1) {
+      store.dispatch("tasks", "create", { title: `Task ${index}`, listId: "inbox" });
+      store.dispatch("notes", "create", { title: `Note ${index}`, body: `Body ${index}` });
+    }
+    for (const namespace of ["tasks", "notes"]) {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = store.dispatch(namespace, "list", { limit: 7, cursor });
+        expect(page.items.length).toBeLessThanOrEqual(7);
+        expect(page.page.totalKnown).toBe(23);
+        ids.push(...page.items.map((item: { id: string }) => item.id));
+        cursor = page.page.nextCursor;
+      } while (cursor);
+      expect(ids).toHaveLength(23);
+      expect(new Set(ids).size).toBe(23);
+    }
+  });
+
+  it("creates real snapshots, restores local notes, and retains Google queues", async () => {
+    const store = createStore();
+    const note = store.dispatch("notes", "create", { title: "Recover me", body: "Original body" });
+    const backups = new LocalBackupService(store, stores.at(-1)!.directory);
+    const filePath = await backups.create();
+    expect(existsSync(filePath)).toBe(true);
+    if (process.platform !== "win32") expect(statSync(filePath).mode & 0o777).toBe(0o600);
+    store.dispatch("notes", "update", { id: note.id, body: "Changed body" });
+    const task = store.dispatch("tasks", "create", { title: "Keep queued task", listId: "inbox" });
+    const before = store.pendingSyncMutations();
+    expect(store.restoreLocalNotes(filePath)).toBe(1);
+    expect(store.dispatch("notes", "get", { id: note.id }).body).toBe("Original body");
+    expect(store.dispatch("tasks", "get", { id: task.id }).title).toBe("Keep queued task");
+    expect(store.pendingSyncMutations()).toEqual(before);
+    expect(store.dispatch("settings", "get").lastLocalBackupAt).toBeTruthy();
+    expect(() => store.dispatch("settings", "recoveryAction", { action: "nonexistentAction" })).toThrow("not available");
+    store.dispatch("settings", "update", { localBackupRetentionCount: 1 });
+    const latest = await backups.create();
+    expect(existsSync(latest)).toBe(true);
+    expect(existsSync(filePath)).toBe(false);
+    expect(readdirSync(backups.directory).filter((file) => file.endsWith(".sqlite"))).toHaveLength(1);
+  });
+
+  it("creates daily backups only when enabled and due", async () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    const backups = new LocalBackupService(store, stores.at(-1)!.directory);
+    const create = vi.spyOn(backups, "create").mockImplementation(async () => {
+      store.dispatch("settings", "update", { lastLocalBackupAt: new Date().toISOString() });
+      return "test-snapshot";
+    });
+    try {
+      backups.start();
+      await vi.advanceTimersByTimeAsync(3600_000);
+      expect(create).not.toHaveBeenCalled();
+      store.dispatch("settings", "update", { dailyLocalBackupEnabled: true });
+      backups.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(create).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(23 * 3600_000);
+      expect(create).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(3600_000);
+      expect(create).toHaveBeenCalledTimes(2);
+      store.dispatch("settings", "update", { dailyLocalBackupEnabled: false });
+      await vi.advanceTimersByTimeAsync(24 * 3600_000);
+      expect(create).toHaveBeenCalledTimes(2);
+    } finally { backups.stop(); }
+  });
+  it("uses a unique temporary database directory for each store", () => {
+    const first = createStore();
+    const second = createStore();
+    const firstNote = first.dispatch("notes", "create", {
+      title: "smoke task 1790311447937",
+      body: "SQLite-backed smoke note."
+    });
+
+    expect(second.dispatch("notes", "list", { limit: 20 }).items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: firstNote.id })])
+    );
+    expect(stores).toHaveLength(2);
+    expect(stores.every(({ directory }) => existsSync(directory))).toBe(true);
+  });
+
+  it("removes only an audited exact historical smoke-note manifest and is idempotent", () => {
+    const store = createStore();
+    const fixture = store.dispatch("notes", "create", {
+      title: "smoke task 1790311447937",
+      body: "SQLite-backed smoke note."
+    });
+    const legitimate = store.dispatch("notes", "create", {
+      title: "smoke task 1790311447937",
+      body: "A user note with a similarly named title."
+    });
+
+    expect(store.removeKnownHistoricalSmokeNotes([fixture, legitimate])).toBe(1);
+    expect(store.dispatch("notes", "list", { limit: 20 }).items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: legitimate.id })])
+    );
+    expect(store.removeKnownHistoricalSmokeNotes([fixture])).toBe(0);
+  });
+
+  it("imports only the old task-backed pseudo-note predicate without changing source tasks", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "legacy-account", email: "legacy@example.test", connectionState: "connected" });
+    const firstList = store.upsertGoogleTaskList({ id: "legacy-list-a", title: "Inbox" }, account.accountId);
+    const secondList = store.upsertGoogleTaskList({ id: "legacy-list-b", title: "Inbox" }, account.accountId);
+    const first = store.upsertGoogleTask({ id: "legacy-task-a", title: "First legacy note", notes: "# First\n\nBody preserved", status: "needsAction" }, firstList.id)!;
+    const second = store.upsertGoogleTask({ id: "legacy-task-b", title: "Second legacy note", notes: "Second body", status: "needsAction" }, secondList.id)!;
+    store.upsertGoogleTask({ id: "dated", title: "Ordinary dated task", notes: "Do not import", due: "2026-10-02T00:00:00.000Z", status: "needsAction" }, firstList.id);
+    store.upsertGoogleTask({ id: "completed", title: "Completed task", notes: "Do not import", status: "completed" }, firstList.id);
+    store.upsertGoogleTask({ id: "parent", title: "Parent", notes: "Do not import", due: "2026-10-03T00:00:00.000Z", status: "needsAction" }, firstList.id);
+    store.upsertGoogleTask({ id: "child", parent: "parent", title: "Child task", notes: "Do not import", status: "needsAction" }, firstList.id);
+
+    const preview = store.dispatch("notes", "legacyMigrationPreview", { limit: 20 });
+    expect(preview).toMatchObject({ foundCount: 2, importedCount: 0 });
+    expect(preview.items.map((item: { sourceTaskId: string }) => item.sourceTaskId)).toEqual(expect.arrayContaining([first.id, second.id]));
+    expect(preview.items[0]).not.toHaveProperty("sourceGoogleTaskId");
+
+    const imported = store.dispatch("notes", "importLegacyPseudoNotes", { taskIds: [first.id, second.id] });
+    expect(imported).toMatchObject({ importedCount: 2, skippedCount: 0, listsCreated: 2, importVersion: 1 });
+    const notes = store.dispatch("notes", "list", { limit: 20 }).items;
+    expect(notes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: "First legacy note", body: "# First\n\nBody preserved" }),
+      expect.objectContaining({ title: "Second legacy note", body: "Second body" })
+    ]));
+    expect(store.dispatch("notes", "list", { limit: 20 }).lists.filter((list: { title: string }) => list.title === "Inbox")).toHaveLength(2);
+    expect(store.dispatch("tasks", "get", { id: first.id })).toMatchObject({
+      id: first.id,
+      title: "First legacy note",
+      notes: "# First\n\nBody preserved",
+      dueAt: null,
+      status: "active"
+    });
+    expect(store.pendingSyncMutations()).toEqual([]);
+
+    expect(store.dispatch("notes", "legacyMigrationPreview", { limit: 20 })).toMatchObject({ foundCount: 0, importedCount: 2 });
+    expect(store.dispatch("notes", "importLegacyPseudoNotes", { taskIds: [first.id, second.id] }))
+      .toMatchObject({ importedCount: 0, skippedCount: 2 });
+  });
+
+  it("isolates same Google resource ids across accounts", () => {
+    const store = createStore();
+    const first = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const second = store.upsertGoogleAccount({ id: "google-b", email: "b@example.test", connectionState: "connected" });
+    const firstList = store.upsertGoogleTaskList({ id: "shared-list", title: "Inbox" }, first.accountId);
+    const secondList = store.upsertGoogleTaskList({ id: "shared-list", title: "Inbox" }, second.accountId);
+
+    store.upsertGoogleTask({ id: "shared-task", title: "First", status: "needsAction", position: "0001" }, firstList.id);
+    store.upsertGoogleTask({ id: "shared-task", title: "Second", status: "needsAction", position: "0001" }, secondList.id);
+
+    const tasks = store.dispatch("tasks", "list", { status: "all", limit: 50 }).items;
+    expect(tasks.filter((task: { title: string }) => task.title === "First")).toHaveLength(1);
+    expect(tasks.filter((task: { title: string }) => task.title === "Second")).toHaveLength(1);
+    expect(tasks.find((task: { title: string }) => task.title === "First").accountId).toBe(first.accountId);
+    expect(tasks.find((task: { title: string }) => task.title === "Second").accountId).toBe(second.accountId);
+  });
+
+  it("upserts a Google Calendar event into the local cache", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+
+    const event = store.upsertGoogleEvent({
+      id: "remote-event",
+      summary: "Remote planning",
+      description: "Pulled from Google",
+      start: { dateTime: "2026-09-26T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-09-26T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      etag: "remote-etag"
+    }, calendar.id);
+
+    expect(event).toMatchObject({
+      title: "Remote planning",
+      calendarId: calendar.id,
+      description: "Pulled from Google"
+    });
+    expect(store.googleEventForSync(event!.id)).toMatchObject({ googleId: "remote-event" });
+  });
+
+  it("removes a Google calendar cache entry when it no longer appears in that account's calendar list", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const retained = store.upsertGoogleCalendar({ id: "primary", summary: "Primary" }, account.accountId);
+    const removed = store.upsertGoogleCalendar({ id: "retired", summary: "Retired" }, account.accountId);
+    const removedEvent = store.upsertGoogleEvent({
+      id: "retired-event",
+      summary: "Old event",
+      start: { dateTime: "2026-09-26T09:00:00+08:00" },
+      end: { dateTime: "2026-09-26T10:00:00+08:00" }
+    }, removed.id)!;
+    store.upsertGoogleEvent({ id: "cancelled-occurrence", status: "cancelled", recurringEventId: "old-series",
+      originalStartTime: { dateTime: "2026-09-27T09:00:00+08:00" } }, removed.id);
+    store.dispatch("settings", "update", { selectedCalendarIds: [retained.id, removed.id] });
+
+    store.pruneGoogleCalendars(account.accountId, ["primary"]);
+
+    const calendars = store.dispatch("calendar", "listCalendars", { limit: 20 }).items;
+    expect(calendars.map((calendar: { id: string }) => calendar.id)).toContain(retained.id);
+    expect(calendars.map((calendar: { id: string }) => calendar.id)).not.toContain(removed.id);
+    expect(store.dispatch("settings", "get", {}).selectedCalendarIds).toEqual([retained.id]);
+    expect(() => store.dispatch("calendar", "get", { id: removedEvent.id })).toThrow("Calendar event no longer exists");
+  });
+
+  it("uses Google recurrence lines as the canonical Calendar recurrence model", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const rawRecurrence = [
+      "RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO;BYSETPOS=1;WKST=SU",
+      "EXDATE:20270105T010000Z,20270705T010000Z",
+      "RDATE:20261231T010000Z"
+    ];
+    const event = store.upsertGoogleEvent({
+      id: "complex-series",
+      summary: "Complex remote series",
+      start: { dateTime: "2026-09-26T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-09-26T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      recurrence: rawRecurrence
+    }, calendar.id)!;
+
+    expect(store.googleEventForSync(event.id)?.googleRecurrence).toEqual(rawRecurrence);
+    expect(store.dispatch("calendar", "get", { id: event.id }).recurrenceLines).toEqual(rawRecurrence);
+    store.dispatch("calendar", "update", { id: event.id, title: "Renamed in HCB" });
+    expect(store.googleEventForSync(event.id)?.googleRecurrence).toEqual(rawRecurrence);
+
+    const editedLines = [
+      "RRULE:FREQ=MONTHLY;BYMONTHDAY=1,-1;BYSETPOS=1;WKST=MO",
+      "EXRULE:FREQ=YEARLY;BYMONTH=12",
+      "EXDATE;TZID=Asia/Singapore:20270101T090000",
+      "RDATE;TZID=Asia/Singapore:20270102T090000"
+    ];
+    store.dispatch("calendar", "update", { id: event.id, recurrenceLines: editedLines });
+    expect(store.googleEventForSync(event.id)?.recurrenceLines).toEqual(editedLines);
+    expect(store.dispatch("calendar", "get", { id: event.id }).recurrenceLines).toEqual(editedLines);
+
+    expect(() => store.dispatch("calendar", "update", {
+      id: event.id,
+      recurrenceLines: ["DTSTART:20270101T090000Z", "RRULE:FREQ=DAILY"]
+    })).toThrow("Google recurrence lines must be RRULE, EXRULE, RDATE, or EXDATE properties");
+  });
+
+  it("queues one coordinated future-series split and partitions advanced recurrence lines locally", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const master = store.upsertGoogleEvent({
+      id: "remote-master",
+      etag: "master-etag",
+      summary: "Daily planning",
+      start: { dateTime: "2026-03-01T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-01T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      recurrence: [
+        "RRULE:FREQ=DAILY;COUNT=5",
+        "RDATE;TZID=Asia/Singapore:20260302T090000,20260306T090000",
+        "EXDATE;TZID=Asia/Singapore:20260302T090000,20260305T090000"
+      ]
+    }, calendar.id)!;
+    const exception = store.upsertGoogleEvent({
+      id: "remote-exception",
+      etag: "exception-etag",
+      recurringEventId: "remote-master",
+      originalStartTime: { dateTime: "2026-03-03T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      summary: "Moved planning",
+      start: { dateTime: "2026-03-03T11:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-03T12:00:00+08:00", timeZone: "Asia/Singapore" }
+    }, calendar.id)!;
+
+    const successor = store.dispatch("calendar", "update", {
+      id: exception.id,
+      scope: "following",
+      title: "Future planning"
+    });
+
+    expect(store.dispatch("calendar", "get", { id: master.id }).recurrenceLines).toEqual([
+      "RRULE:FREQ=DAILY;UNTIL=20260303T005959Z",
+      "RDATE;TZID=Asia/Singapore:20260302T090000",
+      "EXDATE;TZID=Asia/Singapore:20260302T090000"
+    ]);
+    expect(successor).toMatchObject({
+      title: "Future planning",
+      startsAt: "2026-03-03T03:00:00.000Z",
+      recurrenceLines: [
+        "RRULE:FREQ=DAILY;COUNT=3",
+        "RDATE;TZID=Asia/Singapore:20260306T090000",
+        "EXDATE;TZID=Asia/Singapore:20260305T090000"
+      ]
+    });
+    const mutations = store.pendingSyncMutations();
+    expect(mutations.filter((mutation) => mutation.kind === "event.splitSeries")).toEqual([
+      expect.objectContaining({
+        entityId: master.id,
+        payload: expect.objectContaining({
+          parentEventId: master.id,
+          successorEventId: successor.id,
+          futureExceptionIds: [exception.id]
+        })
+      })
+    ]);
+    expect(mutations.some((mutation) => mutation.kind === "event.create" || mutation.kind === "event.update")).toBe(false);
+  });
+
+  it("projects Google recurrence masters into the requested window and edits a generated instance as an exception", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const master = store.upsertGoogleEvent({
+      id: "weekly-master",
+      summary: "Weekly planning",
+      start: { dateTime: "2026-03-01T09:00:00+08:00", timeZone: "Asia/Singapore" },
+      end: { dateTime: "2026-03-01T10:00:00+08:00", timeZone: "Asia/Singapore" },
+      recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]
+    }, calendar.id)!;
+
+    const projected = store.dispatch("calendar", "listEvents", {
+      start: "2026-03-03T00:00:00.000Z", end: "2026-03-05T00:00:00.000Z", limit: 20
+    }).items;
+    expect(projected).toHaveLength(2);
+    expect(projected).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: `recurrence:${master.id}:2026-03-03T01:00:00.000Z`,
+        eventId: master.id,
+        recurringEventId: "weekly-master",
+        originalStartAt: "2026-03-03T01:00:00.000Z"
+      })
+    ]));
+
+    const edited = store.dispatch("calendar", "update", {
+      id: master.id,
+      originalStartAt: "2026-03-03T01:00:00.000Z",
+      scope: "occurrence",
+      title: "Moved one planning session",
+      startsAt: "2026-03-03T03:00:00.000Z",
+      endsAt: "2026-03-03T04:00:00.000Z"
+    });
+    expect(edited).toMatchObject({
+      title: "Moved one planning session",
+      googleRecurringEventId: "weekly-master",
+      googleOriginalStartTime: "2026-03-03T01:00:00.000Z"
+    });
+    expect(store.pendingSyncMutations()).toEqual([
+      expect.objectContaining({
+        kind: "event.updateOccurrence",
+        entityId: edited.id,
+        payload: { parentEventId: master.id, originalStartAt: "2026-03-03T01:00:00.000Z" }
+      })
+    ]);
+
+    store.dispatch("calendar", "delete", {
+      id: master.id,
+      originalStartAt: "2026-03-04T01:00:00.000Z",
+      scope: "occurrence"
+    });
+    expect(store.dispatch("calendar", "get", { id: master.id }).recurrenceLines)
+      .toContain("EXDATE;TZID=Asia/Singapore:20260304T090000");
+  });
+
+  it("restores HCB-only task planning metadata from Google notes and keeps it across ordinary pulls", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const list = store.upsertGoogleTaskList({ id: "remote-list", title: "Tasks" }, account.accountId);
+    const planning = {
+      priority: "high",
+      tags: ["release", "writing"],
+      plannedStart: "2026-10-05T01:00:00.000Z",
+      plannedEnd: "2026-10-05T02:30:00.000Z",
+      durationMinutes: 90,
+      lockedSchedule: true,
+      snoozeUntil: "2026-10-04T01:00:00.000Z"
+    };
+    const task = store.upsertGoogleTask({
+      id: "remote-task",
+      title: "Draft release notes",
+      notes: withHcbTaskMetadata("Visible Google note", planning),
+      status: "needsAction"
+    }, list.id)!;
+
+    expect(task).toMatchObject({ notes: "Visible Google note", ...planning });
+    const refreshed = store.upsertGoogleTask({
+      id: "remote-task",
+      title: "Draft release notes (renamed in Google)",
+      notes: "Edited in Google without touching HCB metadata",
+      status: "needsAction"
+    }, list.id)!;
+    expect(refreshed).toMatchObject({
+      title: "Draft release notes (renamed in Google)",
+      notes: "Edited in Google without touching HCB metadata",
+      ...planning
+    });
+  });
+
+  it("retires only the starter workspace after Google connects and defaults new writes to Google", () => {
+    const store = createStore();
+    const localTask = store.dispatch("tasks", "create", { listId: "inbox", title: "Starter task" });
+    const localEvent = store.dispatch("calendar", "create", {
+      calendarId: "primary", title: "Starter event", startsAt: "2027-01-02T08:00:00.000Z", endsAt: "2027-01-02T09:00:00.000Z"
+    });
+    const note = store.dispatch("notes", "create", { title: "Keep this note", listId: "inbox" });
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const googleList = store.upsertGoogleTaskList({ id: "google-inbox", title: "Google Inbox" }, account.accountId);
+    const googleCalendar = store.upsertGoogleCalendar({ id: "primary", summary: "Google Primary" }, account.accountId);
+    const googleTask = store.dispatch("tasks", "create", { listId: googleList.id, title: "Google task" });
+    const googleEvent = store.dispatch("calendar", "create", {
+      calendarId: googleCalendar.id, title: "Google event", startsAt: "2027-01-02T10:00:00.000Z", endsAt: "2027-01-02T11:00:00.000Z"
+    });
+    store.dispatch("settings", "update", {
+      selectedTaskListIds: ["inbox"],
+      selectedCalendarIds: ["primary"],
+      perTabListFilters: { tasks: { useCustomFilter: true, selectedTaskListIds: ["inbox"] } }
+    });
+
+    store.retireLocalFallback();
+
+    expect(store.googleAccounts().map((item) => item.accountId)).not.toContain("local");
+    expect(store.dispatch("tasks", "list", { status: "all", limit: 20 }).items.map((item: { id: string }) => item.id))
+      .toEqual([googleTask.id]);
+    expect(store.dispatch("calendar", "listEvents", { start: "2027-01-02T00:00:00.000Z", end: "2027-01-03T00:00:00.000Z", limit: 20 }).items.map((item: { id: string }) => item.id))
+      .toEqual([googleEvent.id]);
+    expect(store.dispatch("notes", "get", { id: note.id }).listId).toBe("notes");
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      selectedTaskListIds: [],
+      selectedCalendarIds: [],
+      perTabListFilters: { tasks: { selectedTaskListIds: [] } }
+    });
+
+    expect(store.dispatch("tasks", "create", { title: "New Google task" }).listId).toBe(googleList.id);
+    expect(store.dispatch("calendar", "create", {
+      title: "New Google event", startsAt: "2027-01-02T12:00:00.000Z", endsAt: "2027-01-02T13:00:00.000Z"
+    }).calendarId).toBe(googleCalendar.id);
+    expect(() => store.dispatch("tasks", "get", { id: localTask.id })).toThrow("Task no longer exists");
+    expect(() => store.dispatch("calendar", "get", { id: localEvent.id })).toThrow("Calendar event no longer exists");
+  });
+
+  it("counts queued Google changes before an OAuth reconfiguration", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const list = store.upsertGoogleTaskList({ id: "google-inbox", title: "Google Inbox" }, account.accountId);
+    const task = store.dispatch("tasks", "create", { listId: list.id, title: "Queued before access change" });
+
+    expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(1);
+    expect(store.googleAccount(account.accountId)?.unresolvedMutationCount).toBe(1);
+    const taskCreateMutations = store.pendingSyncMutations(10, account.accountId)
+      .filter((candidate) => candidate.entityId === task.id && candidate.kind === "task.create");
+    expect(taskCreateMutations).toHaveLength(1);
+    const mutation = taskCreateMutations[0];
+    if (!mutation) throw new Error("Expected queued Google task mutation.");
+    store.completeSyncMutation(mutation.id);
+    expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(0);
+    expect(store.googleAccount(account.accountId)?.unresolvedMutationCount).toBe(0);
+  });
+
+  it("persists task blocks, availability, and reversible writes", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Write release notes", durationMinutes: 30 });
+    expect(() => store.dispatch("notes", "entityLinks", { entityId: task.id, entityKind: "task" })).toThrow("Unsupported");
+    const block = store.dispatch("calendar", "scheduleTaskBlock", {
+      taskId: task.id, calendarId: "primary", startsAt: "2026-10-02T09:00:00.000Z", durationMinutes: 30
+    });
+    const bootstrap = store.dispatch("bootstrap", "get", { calendarRange: { start: "2026-10-02T00:00:00.000Z", end: "2026-10-03T00:00:00.000Z" } });
+    expect(bootstrap.scheduledTaskBlocks.items.map((item: { id: string }) => item.id)).toContain(block.id);
+
+    const availability = store.dispatch("calendar", "exportAvailability", {
+      calendarIds: ["primary"], start: "2026-10-02T08:00:00.000Z", end: "2026-10-02T11:00:00.000Z", format: "text"
+    });
+    expect(availability.busyBlockCount).toBe(1);
+    expect(availability.text).toContain("Busy:");
+
+    expect(store.dispatch("undo", "status", {}).canUndo).toBe(true);
+    expect(store.dispatch("undo", "undo", {}).applied).toBe(true);
+    expect(store.dispatch("undo", "redo", {}).applied).toBe(true);
+  });
+
+  it("requires an unchanged reviewed plan before smart scheduling applies task blocks", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Schedule me", durationMinutes: 45, priority: "high" });
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-06", calendarId: "primary", apply: false, workingHours: { start: 9, end: 12 }
+    });
+    expect(preview.applied).toBe(false);
+    expect(preview.planId).toEqual(expect.any(String));
+    expect(preview.suggestions.some((suggestion: { taskId: string }) => suggestion.taskId === task.id)).toBe(true);
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", { limit: 20 }).items).toHaveLength(0);
+
+    const applied = store.dispatch("calendar", "smartReschedule", {
+      apply: true, planId: preview.planId
+    });
+    expect(applied.applied).toBe(true);
+    expect(applied.appliedCount).toBe(1);
+    expect(store.dispatch("calendar", "listScheduledTaskBlocks", { limit: 20 }).items.some((block: { taskId: string }) => block.taskId === task.id)).toBe(true);
+    expect(store.dispatch("tasks", "get", { id: task.id }).status).toBe("active");
+  });
+
+  it("labels an overdue task truthfully and does not schedule a snoozed task", () => {
+    const store = createStore();
+    const overdue = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Already overdue", dueDate: "2026-09-29", durationMinutes: 30
+    });
+    const snoozed = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Snoozed", durationMinutes: 30, snoozeUntil: "2026-10-02T00:00:00.000Z"
+    });
+
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: "primary", apply: false,
+      workingHours: { startMinutes: 9 * 60, endMinutes: 10 * 60 }
+    });
+
+    expect(preview.suggestions.find((item: { taskId: string }) => item.taskId === overdue.id)?.reason).toContain("Overdue");
+    expect(preview.skipped).toContainEqual(expect.objectContaining({
+      taskId: snoozed.id,
+      reason: expect.stringContaining("Snoozed until")
+    }));
+  });
+
+  it("makes Smart Schedule scope, prioritization, and working-hour validation explicit", () => {
+    const store = createStore();
+    const overdue = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Overdue first", dueDate: "2026-09-30", durationMinutes: 30, priority: "low"
+    });
+    const dueSoon = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Due soon", dueDate: "2026-10-05", durationMinutes: 30, priority: "high"
+    });
+    const future = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Future task", dueDate: "2026-11-01", durationMinutes: 30
+    });
+    const undated = store.dispatch("tasks", "create", {
+      listId: "inbox", title: "Undated task", durationMinutes: 30
+    });
+
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: "primary", apply: false, candidateScope: "dueSoon",
+      workingHours: { startMinutes: 9 * 60, endMinutes: 11 * 60 }
+    });
+
+    expect(preview).toMatchObject({
+      candidateScope: "dueSoon",
+      candidateScopeLabel: "Overdue and due within 14 days",
+      prioritizationLabel: "Overdue first · earliest due date · priority · stable list order",
+      capacityPolicy: "allFreeTime"
+    });
+    expect(preview.suggestions.map((item: { taskId: string }) => item.taskId)).toEqual([
+      overdue.id,
+      dueSoon.id
+    ]);
+    expect(preview.suggestions.map((item: { taskId: string }) => item.taskId)).not.toEqual(
+      expect.arrayContaining([future.id, undated.id])
+    );
+    expect(() => store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: "primary", apply: false,
+      workingHours: { startMinutes: 17 * 60, endMinutes: 16 * 60 }
+    })).toThrow("End time must be after start time.");
+  });
+
+  it("blocks opaque events while explicitly transparent events remain available to Smart Schedule", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "work", summary: "Work", timeZone: "UTC" }, account.accountId);
+    store.dispatch("settings", "update", { defaultTimeZone: "UTC", selectedCalendarIds: [calendar.id] });
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Plan around meetings", durationMinutes: 30 });
+    store.upsertGoogleEvent({
+      id: "busy", summary: "Busy meeting", transparency: "opaque",
+      start: { dateTime: "2026-10-01T09:00:00Z" }, end: { dateTime: "2026-10-01T09:30:00Z" }
+    }, calendar.id);
+    store.upsertGoogleEvent({
+      id: "free", summary: "Focus time", transparency: "transparent",
+      start: { dateTime: "2026-10-01T09:30:00Z" }, end: { dateTime: "2026-10-01T10:00:00Z" }
+    }, calendar.id);
+
+    const preview = store.dispatch("calendar", "smartReschedule", {
+      date: "2026-10-01", calendarId: calendar.id, apply: false,
+      workingHours: { startMinutes: 9 * 60, endMinutes: 10 * 60 }
+    });
+
+    expect(preview.fixedEventCount).toBe(1);
+    expect(preview.nonBlockingEventCount).toBe(1);
+    expect(preview.suggestions).toContainEqual(expect.objectContaining({
+      taskId: task.id,
+      startsAt: "2026-10-01T09:30:00.000Z",
+      endsAt: "2026-10-01T10:00:00.000Z"
+    }));
+  });
+
+  it("persists native notes and note-list identity without creating Google Tasks", () => {
+    const store = createStore();
+    const list = store.dispatch("notes", "createNoteList", { title: "Research" });
+    const note = store.dispatch("notes", "create", {
+      title: "Architecture notes", body: "Keep this local.", listId: list.id
+    });
+
+    const notes = store.dispatch("notes", "list", { limit: 20 });
+    expect(notes.lists).toContainEqual(expect.objectContaining({ id: list.id, title: "Research", noteCount: 1 }));
+    expect(notes.items).toContainEqual(expect.objectContaining({ id: note.id, listId: list.id, listTitle: "Research" }));
+    expect(store.dispatch("tasks", "list", { status: "all", limit: 20 }).items.map((task: { title: string }) => task.title)).not.toContain("Architecture notes");
+  });
+
+  it("queues a same-account Calendar move and rejects a cross-account move", () => {
+    const store = createStore();
+    const first = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const second = store.upsertGoogleAccount({ id: "google-b", email: "b@example.test", connectionState: "connected" });
+    const source = store.upsertGoogleCalendar({ id: "source", summary: "Source" }, first.accountId);
+    const destination = store.upsertGoogleCalendar({ id: "destination", summary: "Destination" }, first.accountId);
+    const foreign = store.upsertGoogleCalendar({ id: "foreign", summary: "Foreign" }, second.accountId);
+    const event = store.dispatch("calendar", "create", {
+      calendarId: source.id, title: "Move me", startsAt: "2026-10-06T09:00:00.000Z", endsAt: "2026-10-06T10:00:00.000Z", allDay: false
+    });
+    // Binding represents a create that Google already accepted. Mark the
+    // queued create as delivered first, as the sync service would do.
+    const createMutation = store.pendingSyncMutations(20, first.accountId).find((mutation) => mutation.entityId === event.id);
+    if (!createMutation) throw new Error("Expected local event create mutation.");
+    store.completeSyncMutation(createMutation.id);
+    store.bindGoogleEvent(event.id, { id: "remote-event", etag: "etag" });
+
+    const moved = store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id });
+    expect(moved.calendarId).toBe(destination.id);
+    const mutation = store.pendingSyncMutations(20, first.accountId).at(-1);
+    expect(mutation?.kind).toBe("event.move");
+    expect(mutation?.payload).toMatchObject({ sourceCalendarId: source.id, destinationCalendarId: destination.id });
+    expect(() => store.dispatch("calendar", "update", { id: event.id, calendarId: foreign.id }))
+      .toThrow("Calendar events cannot be moved between Google accounts.");
+  });
+
+  it("defaults loading indicators to Blocks and persists per-surface choices", () => {
+    const store = createStore();
+
+    expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual({
+      general: "blocks",
+      preview: "blocks",
+      search: "blocks"
+    });
+
+    const updated = store.dispatch("settings", "update", {
+      loadingIndicators: {
+        general: "orbit",
+        preview: "wave",
+        search: "linear-dots"
+      }
+    });
+
+    expect(updated.loadingIndicators).toEqual({
+      general: "orbit",
+      preview: "wave",
+      search: "linear-dots"
+    });
+    expect(store.dispatch("settings", "get", {}).loadingIndicators).toEqual(updated.loadingIndicators);
+  });
+
+  it("returns a renderer-compatible diagnostics summary", () => {
+    const store = createStore();
+    const summary = store.dispatch("diagnostics", "summary", {});
+    const logs = store.dispatch("diagnostics", "logs", {});
+
+    expect(summary).toMatchObject({
+      cache: {
+        taskListCount: expect.any(Number),
+        calendarCount: expect.any(Number)
+      },
+      native: {
+        capabilities: expect.any(Array),
+        paths: expect.any(Array)
+      },
+      redaction: {
+        credentials: "redacted"
+      }
+    });
+    expect(logs).toEqual({ entries: [], persistedText: "" });
+  });
+
+  it("keeps setup skip distinct from completion and restores pending setup safely", () => {
+    const store = createStore();
+
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      onboardingStatus: "pending",
+      setupCompletedAt: null,
+      uiFontName: null,
+      uiMonoFontName: null
+    });
+
+    store.dispatch("settings", "update", { onboardingStatus: "skipped" });
+    expect(store.dispatch("settings", "get", {}).onboardingStatus).toBe("skipped");
+
+    store.dispatch("settings", "recoveryAction", { action: "resetOnboarding" });
+    expect(store.dispatch("settings", "get", {})).toMatchObject({
+      onboardingStatus: "pending",
+      setupCompletedAt: null
+    });
+  });
+
+  it("round-trips Calendar conferencing, Drive attachment metadata, RSVP, and status-event data", () => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary" }, account.accountId);
+    const event = store.dispatch("calendar", "create", {
+      calendarId: calendar.id,
+      title: "Focus work",
+      startsAt: "2027-01-02T09:00:00.000Z",
+      endsAt: "2027-01-02T10:00:00.000Z",
+      eventType: "focusTime",
+      focusTimeProperties: { autoDeclineMode: "declineNone", chatStatus: "doNotDisturb" },
+      conferenceCreateRequest: { type: "hangoutsMeet" },
+      attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }],
+      attendees: [{ email: "a@example.test", self: true, responseStatus: "accepted" }],
+      selfResponseStatus: "tentative"
+    });
+    const local = store.googleEventForSync(event.id);
+    expect(local).toMatchObject({
+      eventType: "focusTime",
+      conferenceCreateRequested: true,
+      attachmentsManaged: true,
+      attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }],
+      selfResponseStatus: "tentative"
+    });
+
+    store.bindGoogleEvent(event.id, {
+      id: "remote-event", etag: "etag", eventType: "focusTime",
+      conferenceData: { conferenceSolution: { name: "Google Meet" }, entryPoints: [{ entryPointType: "video", uri: "https://meet.google.com/abc-defg-hij" }] },
+      attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief", mimeType: "application/pdf" }],
+      attendees: [{ email: "a@example.test", self: true, responseStatus: "tentative" }]
+    });
+    const bound = store.dispatch("calendar", "get", { id: event.id });
+    expect(bound.conference.videoUri).toBe("https://meet.google.com/abc-defg-hij");
+    expect(bound.attachments).toHaveLength(1);
+    expect(bound.selfResponseStatus).toBe("tentative");
+  });
+
+  it("makes a non-destructive cross-account copy and excludes guests and conferencing", () => {
+    const store = createStore();
+    const source = store.upsertGoogleAccount({ id: "source", email: "source@example.test", connectionState: "connected" });
+    const destination = store.upsertGoogleAccount({ id: "destination", email: "destination@example.test", connectionState: "connected" });
+    const sourceList = store.upsertGoogleTaskList({ id: "source-list", title: "Source list" }, source.accountId);
+    const destinationCalendar = store.upsertGoogleCalendar({ id: "primary", summary: "Destination" }, destination.accountId);
+    store.dispatch("tasks", "create", { listId: sourceList.id, title: "Copy task" });
+    store.dispatch("calendar", "create", {
+      calendarId: store.upsertGoogleCalendar({ id: "source-calendar", summary: "Source" }, source.accountId).id,
+      title: "Copy event", startsAt: "2027-01-02T09:00:00.000Z", endsAt: "2027-01-02T10:00:00.000Z",
+      guestEmails: ["guest@example.test"], conferenceCreateRequest: { type: "hangoutsMeet" }, attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }]
+    });
+    const preview = store.previewCrossAccountCopy({ sourceAccountId: source.accountId, destinationAccountId: destination.accountId, destinationCalendarId: destinationCalendar.id });
+    expect(preview).toMatchObject({ tasks: 1, events: 1 });
+    const copied = store.copyCrossAccountData({ sourceAccountId: source.accountId, destinationAccountId: destination.accountId, destinationCalendarId: destinationCalendar.id, confirmation: "COPY" });
+    expect(copied.copied).toMatchObject({ tasks: 1, events: 1 });
+    const destinationEvent = store.dispatch("calendar", "listEvents", { start: "2027-01-02T00:00:00.000Z", end: "2027-01-03T00:00:00.000Z", limit: 20 }).items
+      .find((item: { accountId: string; title: string }) => item.accountId === destination.accountId && item.title === "Copy event");
+    expect(destinationEvent.attendees).toEqual([]);
+    expect(destinationEvent.conference).toBeNull();
+    expect(destinationEvent.attachments).toEqual([]);
+  });
+});

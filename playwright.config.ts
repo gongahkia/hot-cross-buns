@@ -1,22 +1,15 @@
-import { defineConfig } from '@playwright/test';
-
-const port = Number(process.env.SHIO_PAN_TEST_PORT ?? 4173);
-const browserPath = process.env.SHIO_PAN_TEST_BROWSER_PATH;
-const useChrome = process.env.SHIO_PAN_TEST_CHROME;
+import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: './tests',
-  testMatch: '**/*.spec.ts',
-  timeout: 30000,
+  testDir: "tests/smoke",
+  // Profile directories isolate data; Electron menus and global shortcuts still
+  // share one desktop. Keep app fixtures sequential on the host.
+  workers: 1,
+  timeout: 30_000,
+  reporter: [["list"]],
+  outputDir: "output/playwright",
   use: {
-    baseURL: `http://127.0.0.1:${port}`,
-    channel: useChrome ? 'chrome' : undefined,
-    launchOptions: browserPath ? { executablePath: browserPath } : undefined,
-    viewport: { width: 1280, height: 1000 },
-  },
-  webServer: {
-    command: `npm run preview -- --port ${port}`,
-    url: `http://127.0.0.1:${port}/`,
-    reuseExistingServer: false,
-  },
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure"
+  }
 });
