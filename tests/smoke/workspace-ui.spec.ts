@@ -1,11 +1,11 @@
-import { _electron as electron, expect, test, type Page } from "@playwright/test";
+import { _electron as electron, expect, test, type Page, type ElectronApplication } from "@playwright/test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 test.setTimeout(120_000);
 
-async function planner(run: (page: Page) => Promise<void>) {
+async function planner(run: (page: Page, app: ElectronApplication) => Promise<void>) {
   const profile = mkdtempSync(join(tmpdir(), "hcb-workspace-ui-"));
   const app = await electron.launch({ args: [...(process.platform === "linux" ? ["--disable-gpu"] : []), resolve(__dirname, "../.."), `--user-data-dir=${profile}`], env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
   const errors: string[] = [];
@@ -19,7 +19,7 @@ async function planner(run: (page: Page) => Promise<void>) {
     });
     await expect(page.getByRole("dialog", { name: "Hot Cross Buns", exact: true })).toBeHidden();
     await page.setViewportSize({ width: 1180, height: 760 });
-    await run(page);
+    await run(page, app);
     expect(errors).toEqual([]);
   } finally { await app.close(); rmSync(profile, { recursive: true, force: true }); }
 }
@@ -40,9 +40,8 @@ async function noOverflow(page: Page) {
   expect(clipped).toEqual([]);
 }
 
-test("opens sidebar search from every section and searches local planner data", async () => {
-  await planner(async (page) => {
-    await page.evaluate(async () => {
+async function seedSearchFixtures(page: Page) {
+  await page.evaluate(async () => {
       const day = new Date().toISOString().slice(0, 10);
       const results = await Promise.all([
         window.hcb!.tasks.create({ listId: "inbox", title: "Marmalade task" }),
@@ -52,6 +51,11 @@ test("opens sidebar search from every section and searches local planner data", 
       for (const result of results) if (!result.ok) throw new Error(result.error.message);
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
     });
+}
+
+test("opens sidebar search from every section and searches local planner data", async () => {
+  await planner(async (page) => {
+    await seedSearchFixtures(page);
     for (const section of ["Notes", "Tasks", "Calendar"]) {
       await navigate(page, section);
       await page.getByRole("button", { name: "Search planner", exact: true }).click();
@@ -76,6 +80,75 @@ test("opens sidebar search from every section and searches local planner data", 
     await page.getByRole("searchbox").fill("Marmalade task");
     await expect(page.getByRole("listbox").getByRole("option").filter({ has: page.getByText("Marmalade task", { exact: true }) })).toBeVisible();
     await page.keyboard.press("Escape");
+  });
+});
+
+test("opens search results after the destination view has mounted", async () => {
+  await planner(async (page) => {
+    await seedSearchFixtures(page);
+    for (const [origin, title, field] of [
+      ["Notes", "Marmalade task", "Task title"],
+      ["Tasks", "Marmalade note", "Note title"],
+      ["Notes", "Marmalade event", "Event title"]
+    ]) {
+      await navigate(page, origin);
+      await page.getByRole("button", { name: "Search planner", exact: true }).click();
+      await page.getByRole("searchbox").fill(title);
+      await page.getByRole("listbox").getByRole("option").filter({ has: page.getByText(title, { exact: true }) }).click();
+      await expect(page.getByRole("textbox", { name: field, exact: true })).toHaveValue(title);
+      await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+    }
+  });
+});
+
+test("restores the active app pane and sends webpage links to the default browser", async () => {
+  await planner(async (page, app) => {
+    await page.evaluate(async () => {
+      const note = await window.hcb!.notes.create({ title: "Browser handoff", body: "[Project reference](https://example.com/docs)" });
+      if (!note.ok) throw new Error(note.error.message);
+      const paneWorkspace = {
+        focusedPaneId: "saved-notes", updatedAt: Date.now(),
+        root: { id: "old-split", kind: "split", direction: "row", ratio: 0.5, children: [
+          { id: "saved-web", kind: "leaf", content: { kind: "web", url: "https://example.com/old" } },
+          { id: "saved-notes", kind: "leaf", content: { kind: "section", sectionId: "notes" } }
+        ] }
+      };
+      const settings = await window.hcb!.settings.get();
+      if (!settings.ok) throw new Error(settings.error.message);
+      await window.hcb!.settings.update({ paneWorkspace, keybindings: {
+        ...settings.data.keybindings,
+        "pane.split.horizontal": "CmdOrCtrl+D", "pane.split.vertical": "CmdOrCtrl+Shift+D",
+        "pane.create": "CmdOrCtrl+Alt+S", "web.tab.create": "CmdOrCtrl+Alt+T"
+      } });
+      localStorage.removeItem("hcb.paneWorkspace.v1");
+    });
+    await page.reload();
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
+    await expect(page.getByTestId("pane-leaf")).toHaveAttribute("data-pane-id", "saved-notes");
+    await expect(page.getByRole("button", { name: "Split view", exact: true })).toHaveCount(0);
+    const primary = process.platform === "darwin" ? "Meta" : "Control";
+    for (const suffix of ["+d", "+Shift+d", "+Alt+s", "+Alt+t"]) await page.keyboard.press(primary + suffix);
+    await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
+    await page.getByRole("button", { name: "Open note Browser handoff", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Note title" })).toHaveValue("Browser handoff");
+    await app.evaluate(({ shell }) => {
+      const state = globalThis as typeof globalThis & { openedPlannerLinks: string[] };
+      state.openedPlannerLinks = [];
+      shell.openExternal = async (url) => { state.openedPlannerLinks.push(url); };
+    });
+    const appUrl = page.url();
+    await page.getByRole("link", { name: "Project reference", exact: true }).click();
+    await expect.poll(() => app.evaluate(() => (globalThis as typeof globalThis & { openedPlannerLinks: string[] }).openedPlannerLinks)).toEqual(["https://example.com/docs"]);
+    expect(page.url()).toBe(appUrl);
+    await expect(page.locator("webview")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Note title" })).toHaveValue("Browser handoff");
+    await expect.poll(async () => page.evaluate(async () => {
+      const settings = await window.hcb!.settings.get();
+      return settings.ok && settings.data.paneWorkspace.root.kind;
+    })).toBe("leaf");
+    await page.reload();
+    await expect(page.getByTestId("pane-leaf")).toHaveAttribute("data-pane-id", "saved-notes");
   });
 });
 
