@@ -1,3 +1,4 @@
+import { CalendarOverflowPopover } from "./CalendarOverflowPopover";
 import { useCalendarWheelNavigation } from "./useCalendarWheelNavigation";
 import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
 import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
@@ -13,7 +14,6 @@ import type { CalendarDayViewModel, CalendarEventViewModel } from "../../coreVie
 import {
   CalendarEventChip,
   CalendarOverflowChip,
-  CalendarOverflowPopover,
   type EventCompletionDefaultScope
 } from "./CalendarEventChips";
 import {

@@ -27,7 +27,8 @@ export function CalendarEventMenuProvider({ children, onOpen, onAction }: {
     {children}
     <Menu.Root open={open} onOpenChange={setOpen} modal={false}>
       <Menu.Trigger asChild><span aria-hidden tabIndex={-1} style={{ position: "fixed", left: target?.x ?? 0, top: target?.y ?? 0, width: 1, height: 1, pointerEvents: "none" }} /></Menu.Trigger>
-      <Menu.Portal><Menu.Content className="calendar-menu calendar-event-menu" aria-label="Calendar item actions" align="start" sideOffset={2} collisionPadding={8}
+      <Menu.Portal container={target?.trigger.closest<HTMLElement>('[role="dialog"]') ?? undefined}><Menu.Content className="calendar-menu calendar-event-menu" aria-label="Calendar item actions" align="start" sideOffset={2} collisionPadding={8}
+        onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); setOpen(false); }}
         onCloseAutoFocus={(e) => { e.preventDefault(); if (!selected.current && target?.trigger.isConnected) target.trigger.focus({ preventScroll: true }); }}>
         <Menu.Label className="calendar-event-menu-title">{event?.title}</Menu.Label>
         {event?.mutationState === "queued" || event?.mutationState === "failed" ? <Menu.Item className="calendar-menu-item" onSelect={() => { selected.current = true; setOpen(false); target?.beforeAction?.(); openCalendarSyncDetails(); }}>Review sync status</Menu.Item> : null}
