@@ -319,16 +319,16 @@ export function TaskInspectorBody({
     onDraftChange(dirty.value);
   }, [dirty.value, onDraftChange]);
 
-  useEffect(() => {
-    onDirtyChange(dirty.isDirty);
-  }, [dirty.isDirty, onDirtyChange]);
+  useEffect(() => { dirty.reset(draft); }, [draft]);
 
   useEffect(() => {
     onCanSaveChange(canSaveTask);
   }, [canSaveTask, onCanSaveChange]);
 
   function patchDraft(partial: Partial<TaskDraft>): void {
-    dirty.patch(partial);
+    const next = { ...dirty.value, ...partial };
+    onDraftChange(next);
+    dirty.setValue(next);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>): void {

@@ -38,13 +38,18 @@ export interface InspectorItem {
   dirtyState?: InspectorDirtyState; // optional live dirty state for inspector chrome
   onConfirmClose?: () => Promise<boolean> | boolean; // return false to keep open
   actions?: ReactNode; // footer actions
+  toolbar?: ReactNode;
+  onSave?: () => Promise<boolean>;
+  onDiscard?: () => void | Promise<void>;
+  saving?: boolean;
+  saveError?: string;
 }
 
 interface InspectorContextValue {
   current: InspectorItem | null;
   open: (item: InspectorItem) => void;
   close: () => Promise<boolean>;
-  update: (patch: Partial<Pick<InspectorItem, "title" | "subtitle" | "dirty" | "body" | "actions" | "hideHeader">>) => void;
+  update: (patch: Partial<Pick<InspectorItem, "title" | "subtitle" | "dirty" | "body" | "actions" | "hideHeader" | "id" | "toolbar" | "onSave" | "onDiscard" | "saving" | "saveError">>) => void;
   isOpen: boolean;
 }
 

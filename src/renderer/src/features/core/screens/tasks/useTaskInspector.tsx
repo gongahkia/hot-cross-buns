@@ -1,3 +1,4 @@
+import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
@@ -61,29 +62,6 @@ function createInspectorFlagState(initialValue = false): InspectorFlagState {
   };
 }
 
-function TaskInspectorSaveAction({
-  canSaveState,
-  mode,
-  onSave
-}: {
-  canSaveState: InspectorFlagState;
-  mode: TaskDraft["mode"];
-  onSave: () => Promise<void>;
-}): JSX.Element {
-  const canSave = useSyncExternalStore(
-    canSaveState.subscribe,
-    canSaveState.getSnapshot,
-    canSaveState.getSnapshot
-  );
-
-  return (
-    <Button disabled={!canSave} onClick={() => void onSave()} size="sm" variant="primary">
-      <Save aria-hidden="true" size={14} />
-      {mode === "create" ? "Add task" : "Save changes"}
-    </Button>
-  );
-}
-
 export interface TaskInspectorController {
   taskReadError?: string;
   addSubtaskForTask: (task: TaskViewModel | null) => void;
@@ -118,6 +96,9 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   const taskInspectorInstanceRef = useRef(0);
   const taskInspectorModeRef = useRef<"view" | "edit">("edit");
   const taskSaveInFlightRef = useRef(false);
+  const taskSavePromiseRef = useRef<Promise<boolean> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const taskInspectorDirtyStateRef = useRef<InspectorFlagState | null>(null);
   const taskInspectorCanSaveStateRef = useRef<InspectorFlagState | null>(null);
@@ -177,7 +158,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     taskInspectorDirtyRef.current = dirty;
     taskInspectorDirtyState.set(dirty);
     updateInspector({
-      actions: taskInspectorActions(draft, taskInspectorMode),
+      actions: null,
+      toolbar: taskInspectorToolbar(draft),
+      onSave: saveTask,
+      saving,
+      saveError,
       body: taskInspectorBody(draft, taskInspectorMode),
       hideHeader: taskInspectorHidesHeader(draft, taskInspectorMode),
       title: taskInspectorScreenTitle(draft, taskInspectorMode)
@@ -192,20 +177,25 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     taskInspectorMode,
     source.taskLists,
     source.taskMutationPending,
+    saving, saveError,
     updateInspector
   ]);
 
-  function canReplaceTaskInspector(): boolean {
-    if (currentInspector?.kind !== "task") {
-      return true;
-    }
+  async function canReplaceTaskInspector(): Promise<boolean> {
+    if (currentInspector?.kind !== "task" || currentInspector.ownerId !== ownerIdRef.current) return true;
+    return saveTask();
+  }
 
-    if (currentInspector.ownerId !== ownerIdRef.current) {
-      return !(currentInspector.dirtyState?.getSnapshot() ?? currentInspector.dirty);
-    }
-
-    if (taskInspectorDirtyRef.current) showSaveFeedback("Save or discard your edits before opening another item.");
-    return taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current;
+  function taskInspectorToolbar(nextDraft: TaskDraft): ReactNode {
+    return <InspectorItemToolbar kind="task" persisted={nextDraft.mode === "edit"} busy={saving}
+      onKindChange={async (kind: InspectorEntryKind) => {
+        if (!await saveTask()) return;
+        if (kind === "event" || kind === "birthday") convertTaskDraft(taskDraftRef.current, kind);
+        else if (kind === "note") convertTaskDraft(taskDraftRef.current, "note");
+      }}
+      onCopy={() => copyInspectorText(taskDraftRef.current.title, taskDraftRef.current.notes)}
+      onDuplicate={async () => { if (await saveTask()) { duplicateTaskDraftValue(taskDraftRef.current); await saveTask(); } }}
+      onDelete={async () => { if (taskDraftRef.current.id) await deleteTask(taskDraftRef.current.id); else await cancelTaskInspector(); }} />;
   }
 
   function taskInspectorBody(nextDraft: TaskDraft, mode = taskInspectorModeRef.current): ReactNode {
@@ -231,60 +221,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
         onDelete={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined}
         onDirtyChange={updateTaskInspectorDirty}
         onDraftChange={updateTaskDraftRef}
-        onSave={saveTask}
+        onSave={async () => { await saveTask(); }}
         parentOptions={parentOptions}
         mutationPending={source.taskMutationPending}
         source={source}
       />
-    );
-  }
-
-  function taskInspectorActions(
-    nextDraft: TaskDraft,
-    mode = taskInspectorModeRef.current
-  ): ReactNode {
-    if (nextDraft.mode === "edit" && mode === "view") {
-      return (
-        <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            <Button onClick={() => setTaskInspectorMode("edit")} size="sm" variant="primary">
-              <Pencil aria-hidden="true" size={14} />
-              Edit
-            </Button>
-            <details className="group relative">
-              <summary className="flex h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] font-medium text-text-secondary hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">More actions</summary>
-              <div className="absolute bottom-full right-0 z-20 mb-2 grid min-w-52 gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1 shadow-xl">
-                <Button onClick={() => duplicateTaskDraftValue(nextDraft)} size="sm" variant="ghost"><Copy aria-hidden="true" size={14} />Duplicate</Button>
-                <Button onClick={() => convertTaskDraft(nextDraft, "event")} size="sm" variant="ghost"><ArrowRightLeft aria-hidden="true" size={14} />Create event from task</Button>
-                <Button onClick={() => convertTaskDraft(nextDraft, "note")} size="sm" variant="ghost"><ArrowRightLeft aria-hidden="true" size={14} />Create note from task</Button>
-              </div>
-            </details>
-            <Button
-              data-action-id="task.deleteSelected"
-              onClick={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined}
-              size="sm"
-              variant="danger"
-            >
-              <Trash2 aria-hidden="true" size={14} />
-              Delete task
-            </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex w-full items-center justify-end gap-2">
-        {nextDraft.mode === "edit" ? <details className="relative mr-auto">
-          <summary className="cursor-pointer rounded-md px-2 py-2 text-sm text-text-secondary">More actions</summary>
-          <div className="absolute bottom-full left-0 z-20 mb-2 grid w-56 gap-1 rounded-lg border border-border bg-bg-primary p-2 shadow-xl">
-            <Button disabled={source.taskMutationPending} onClick={() => duplicateTaskDraftValue(taskDraftRef.current)} size="sm" variant="ghost">Duplicate</Button>
-            <Button disabled={source.taskMutationPending} onClick={() => convertTaskDraft(taskDraftRef.current, "event")} size="sm" variant="ghost">Create event from task</Button>
-            <Button disabled={source.taskMutationPending} onClick={() => convertTaskDraft(taskDraftRef.current, "note")} size="sm" variant="ghost">Create note from task</Button>
-            <Button disabled={source.taskMutationPending} data-action-id="task.deleteSelected" onClick={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined} size="sm" variant="danger">Delete task</Button>
-          </div>
-        </details> : null}
-        <Button disabled={source.taskMutationPending} onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">Discard</Button>
-        <TaskInspectorSaveAction canSaveState={taskInspectorCanSaveState} mode={nextDraft.mode} onSave={saveTask} />
-      </div>
     );
   }
 
@@ -298,6 +239,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   ): void {
     taskSaveInFlightRef.current = false;
     taskInspectorInstanceRef.current += 1;
+    const instance = taskInspectorInstanceRef.current;
+    setSaveError(undefined);
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
     taskInspectorDirtyRef.current = false;
@@ -307,28 +250,29 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     setTaskInspectorMode(mode);
     setDraft(nextDraft);
     openInspector({
-      actions: taskInspectorActions(nextDraft, mode),
+      actions: null,
+      toolbar: taskInspectorToolbar(nextDraft),
+      onSave: saveTask,
+      onDiscard: cancelTaskInspector,
+      saving: false,
+      saveError: undefined,
       body: taskInspectorBody(nextDraft, mode),
       dirty: false,
       dirtyState: taskInspectorDirtyState,
       hideHeader: taskInspectorHidesHeader(nextDraft, mode),
       id: nextDraft.id ?? "new",
       kind: "task",
-      onConfirmClose: () => {
-        if (taskSaveInFlightRef.current) return false;
-        if (taskInspectorDirtyRef.current) showSaveFeedback("Save or discard your edits before closing details.");
-        return taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current;
-      },
+      onConfirmClose: () => instance !== taskInspectorInstanceRef.current ? true : saveTask(),
       ownerId: ownerIdRef.current,
       title: taskInspectorScreenTitle(nextDraft, mode)
     });
   }
 
-  function openNewTask(
+  async function openNewTask(
     seed?: string | Partial<Omit<TaskDraft, "mode">> | TaskDraft,
     cleanup?: ConvertSourceCleanup
-  ): void {
-    if (!canReplaceTaskInspector()) {
+  ): Promise<void> {
+    if (!await canReplaceTaskInspector()) {
       return;
     }
     readGeneration.current += 1;
@@ -353,13 +297,13 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   async function selectTask(taskId: string): Promise<void> {
-    if (!canReplaceTaskInspector()) {
+    if (!await canReplaceTaskInspector()) {
       return;
     }
 
     const generation = ++readGeneration.current;
     const task = await readTask(taskId);
-    if (!task || generation !== readGeneration.current || !canReplaceTaskInspector()) return;
+    if (!task || generation !== readGeneration.current || !await canReplaceTaskInspector()) return;
     setLoadedTask(task);
     setSelectedTaskId(taskId);
     conversionCleanupRef.current = null;
@@ -367,13 +311,13 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   async function duplicateTask(taskId: string): Promise<void> {
-    if (!canReplaceTaskInspector()) {
+    if (!await canReplaceTaskInspector()) {
       return;
     }
 
     const generation = ++readGeneration.current;
     const task = await readTask(taskId);
-    if (!task || generation !== readGeneration.current || !canReplaceTaskInspector()) return;
+    if (!task || generation !== readGeneration.current || !await canReplaceTaskInspector()) return;
     conversionCleanupRef.current = null;
     openDuplicateTaskDraft(duplicateTaskDraft(task));
   }
@@ -393,23 +337,23 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     openTaskInspector(newTaskDraft(source, nextDraft), "edit");
   }
 
-  function convertTaskDraft(sourceDraft: TaskDraft, target: "event" | "note"): void {
+  function convertTaskDraft(sourceDraft: TaskDraft, target: "event" | "birthday" | "note"): void {
     if (!sourceDraft.id) {
       return;
     }
 
-    if (target === "event") {
-      const cleanup = conversionCleanup("task", sourceDraft.id, target);
+    if (target === "event" || target === "birthday") {
+      const cleanup = conversionCleanup("task", sourceDraft.id, target === "birthday" ? "event" : target);
       dispatchConvertCommand({
         cleanup,
-        target,
-        eventDraft: taskEventDraft(sourceDraft)
+        target: "event",
+        eventDraft: { ...taskEventDraft(sourceDraft), ...(target === "birthday" ? { hcbKind: "birthday" as const } : {}) }
       });
       return;
     }
 
     dispatchConvertCommand({
-      cleanup: conversionCleanup("task", sourceDraft.id, target),
+      cleanup: conversionCleanup("task", sourceDraft.id, target === "birthday" ? "event" : target),
       target,
       noteDraft: {
         body: sourceDraft.notes,
@@ -442,46 +386,44 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     return result?.ok ? null : result?.error.message ?? "Original task was not removed.";
   }
 
-  async function saveTask(): Promise<void> {
-    const currentDraft = taskDraftRef.current;
-
-    if (taskSaveInFlightRef.current || !canSaveTaskDraft(currentDraft, source.taskMutationPending)) {
-      return;
+  async function saveTask(): Promise<boolean> {
+    if (taskSavePromiseRef.current) {
+      if (!await taskSavePromiseRef.current) return false;
+    }
+    const snapshot = taskDraftRef.current;
+    if (taskDraftsEqual(snapshot, taskDraftBaselineRef.current) && !(snapshot.mode === "create" && snapshot.title.trim())) return true;
+    if (!canSaveTaskDraft(snapshot, false)) {
+      setSaveError("Add a title and choose a task list before leaving this task.");
+      return false;
     }
     taskSaveInFlightRef.current = true;
-    setTaskInspectorCanSave(false);
-
-    let saved = false;
-
-    try {
-      saved = currentDraft.mode === "edit"
-        ? await source.updateTask(taskUpdatePayload(currentDraft))
-        : await source.createTask(taskCreatePayload(currentDraft));
-
-      if (saved) {
+    setSaving(true);
+    setSaveError(undefined);
+    const pending = (async () => {
+      let id = snapshot.id;
+      try {
+        const saved = snapshot.mode === "edit"
+          ? await source.updateTask(taskUpdatePayload(snapshot))
+          : await source.createTask(taskCreatePayload(snapshot), (createdId) => { id = createdId; });
+        if (!saved || !id) { setSaveError("Could not save this task. Your edits are still here; try again."); return false; }
+        const baseline: TaskDraft = { ...snapshot, mode: "edit", id };
+        const live: TaskDraft = { ...taskDraftRef.current, mode: "edit", id };
+        taskDraftBaselineRef.current = baseline;
+        taskDraftRef.current = live;
+        updateTaskInspectorDirty(!taskDraftsEqual(live, baseline));
+        setSelectedTaskId(id);
+        setDraft(live);
+        updateInspector({ id });
         const cleanupError = await cleanupConvertedSource();
-        if (cleanupError) {
-          window.alert(`Converted item was saved, but ${cleanupError}`);
-        }
-        const nextDraft = newTaskDraft(source, { listId: currentDraft.listId });
-        taskDraftBaselineRef.current = nextDraft;
-        taskDraftRef.current = nextDraft;
-        taskInspectorDirtyRef.current = false;
-        taskInspectorDirtyState.set(false);
-        setTaskInspectorCanSave(false);
-        setTaskInspectorMode("edit");
-        setSelectedTaskId(null);
-        taskSaveInFlightRef.current = false;
-        showSaveFeedback(source.taskLists.find((list) => list.id === currentDraft.listId)?.accountId === "local" ? "Task saved on this device" : "Task saved locally · Google sync follows your sync settings");
-        await closeInspector();
-        setDraft(nextDraft);
-      }
-    } finally {
-      if (!saved) {
-        taskSaveInFlightRef.current = false;
-        setTaskInspectorCanSave(canSaveTaskDraft(taskDraftRef.current, source.taskMutationPending));
-      }
-    }
+        if (cleanupError) setSaveError(`The new task was saved, but ${cleanupError}`);
+        return true;
+      } catch {
+        setSaveError("Could not save this task. Your edits are still here; try again.");
+        return false;
+      } finally { taskSaveInFlightRef.current = false; setSaving(false); }
+    })();
+    taskSavePromiseRef.current = pending;
+    try { return await pending; } finally { if (taskSavePromiseRef.current === pending) taskSavePromiseRef.current = null; }
   }
 
   async function toggleTask(taskId: string): Promise<void> {

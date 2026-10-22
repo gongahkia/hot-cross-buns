@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { X } from "lucide-react";
 import { usePanePreference } from "../../features/shell/panePreferences";
-import { Badge, IconButton, cx } from "../primitives";
+import { Badge, Button, IconButton, cx } from "../primitives";
 import { useInspector } from "./InspectorContext";
 
 const titleId = "inspector-title";
@@ -138,33 +138,33 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
           onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
         /> : null}
         {showHeader ? (
-          <header className="flex min-h-14 items-start justify-between gap-3 border-b border-border px-4 py-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h2
-                  className="hcb-heading min-w-0 whitespace-normal break-words text-[var(--text-lg)] font-semibold leading-snug text-text-primary"
-                  id={titleId}
-                >
-                  {current.title}
-                </h2>
-                <InspectorDirtyBadge dirty={current.dirty} dirtyState={current.dirtyState} />
-              </div>
-              {current.subtitle ? (
-                <p className="hcb-copy mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>
-              ) : null}
-            </div>
-            <IconButton
-              data-testid="inspector-close"
-              icon={X}
-              label="Close inspector"
-              onClick={requestClose}
-              variant="ghost"
-            />
+          <header className="inspector-header flex min-h-12 items-center gap-2 px-4 py-2">
+            <h2 className={current.toolbar ? "sr-only" : "min-w-0 flex-1 text-sm font-semibold"} id={titleId}>{current.title}</h2>
+            {current.toolbar ?? <InspectorDirtyBadge dirty={current.dirty} dirtyState={current.dirtyState} />}
+            <IconButton data-testid="inspector-close" icon={X} label="Close inspector" onClick={requestClose} size="sm" variant="ghost" />
           </header>
         ) : null}
 
-        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-3" data-testid="inspector-body">
+        <div className="inspector-editor min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4" data-testid="inspector-body"
+          onBlurCapture={(event) => {
+            if (!current.onSave || !(event.target instanceof HTMLElement)) return;
+            if (!event.target.matches('input,textarea,select,[contenteditable="true"]')) return;
+            const editor = event.target.closest(".markdown-editor");
+            if (editor && event.relatedTarget instanceof Node && editor.contains(event.relatedTarget)) return;
+            queueMicrotask(() => { void current.onSave?.(); });
+          }}
+          onChangeCapture={(event) => {
+            if (event.target instanceof HTMLElement && event.target.matches('select,input[type="checkbox"],input[type="radio"]')) queueMicrotask(() => { void current.onSave?.(); });
+          }}
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest("button") && !(event.target as HTMLElement).closest('[role="dialog"]:not([data-testid="inspector-shell"])')) queueMicrotask(() => { void current.onSave?.(); });
+          }}
+        >
           {current.body}
+          {current.onSave ? <div className="inspector-save-status" role={current.saveError ? "alert" : "status"}>
+            {current.saveError ?? (current.saving ? "Saving…" : "Changes save when you leave a field")}
+            {current.saveError ? <><Button onClick={() => void current.onSave?.()} size="sm" variant="ghost">Retry</Button><Button onClick={() => void current.onDiscard?.()} size="sm" variant="ghost">Discard edits</Button></> : null}
+          </div> : null}
         </div>
 
         {current.actions ? (

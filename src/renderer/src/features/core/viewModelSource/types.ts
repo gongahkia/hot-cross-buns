@@ -119,7 +119,7 @@ export interface CoreViewModelSource {
   taskMutationPending: boolean;
   clearTaskMutationError: () => void;
   retryLastTaskMutation: () => void;
-  createTask: (request: TaskCreateRequest) => Promise<boolean>;
+  createTask: (request: TaskCreateRequest, onCreated?: (id: string) => void) => Promise<boolean>;
   updateTask: (request: TaskUpdateRequest) => Promise<boolean>;
   completeTask: (taskId: string) => Promise<boolean>;
   reopenTask: (taskId: string) => Promise<boolean>;
@@ -245,7 +245,7 @@ export interface CoreViewModelSourceOptions {
   refreshUndoStatus: () => void;
   clearTaskMutationError: () => void;
   retryLastTaskMutation: () => void;
-  createTask: (request: TaskCreateRequest) => Promise<boolean>;
+  createTask: (request: TaskCreateRequest, onCreated?: (id: string) => void) => Promise<boolean>;
   updateTask: (request: TaskUpdateRequest) => Promise<boolean>;
   completeTask: (taskId: string) => Promise<boolean>;
   reopenTask: (taskId: string) => Promise<boolean>;

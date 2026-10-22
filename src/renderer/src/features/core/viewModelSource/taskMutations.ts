@@ -37,7 +37,7 @@ export function useTaskMutations({
   taskMutation: TaskMutationUiState;
   clearTaskMutationError: () => void;
   retryLastTaskMutation: () => void;
-  createTask: (request: TaskCreateRequest) => Promise<boolean>;
+  createTask: (request: TaskCreateRequest, onCreated?: (id: string) => void) => Promise<boolean>;
   updateTask: (request: TaskUpdateRequest) => Promise<boolean>;
   completeTask: (taskId: string) => Promise<boolean>;
   reopenTask: (taskId: string) => Promise<boolean>;
@@ -167,7 +167,7 @@ export function useTaskMutations({
   }, [setLoadState]);
 
   const createTask = useCallback(
-    async (request: TaskCreateRequest): Promise<boolean> => {
+    async (request: TaskCreateRequest, onCreated?: (id: string) => void): Promise<boolean> => {
       if (!window.hcb) {
         failTaskMutation("Task writes require the preload bridge.", () => void createTask(request));
         return false;
@@ -176,6 +176,7 @@ export function useTaskMutations({
       const result = await window.hcb.tasks.create(request);
 
       if (result.ok) {
+        onCreated?.(result.data.id);
         // The main process has committed the task and its outbox receipt at
         // this point. Yield one turn before reconciling a populated task
         // surface so the urgent inspector-close update is not batched behind

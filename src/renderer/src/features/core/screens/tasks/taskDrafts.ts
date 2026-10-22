@@ -95,7 +95,12 @@ export function taskUpdatePayload(draft: TaskDraft): TaskUpdateRequest {
     listId: draft.listId,
     parentId: draft.parentId || null,
     priority: draft.priority,
-    snoozeUntil: draft.snoozeUntil ?? null
+    snoozeUntil: draft.snoozeUntil ?? null,
+    tags: draft.tags ?? [],
+    plannedStart: draft.plannedStart ?? null,
+    plannedEnd: draft.plannedEnd ?? null,
+    durationMinutes: draft.durationMinutes ?? null,
+    lockedSchedule: draft.lockedSchedule ?? false
   };
 }
 
