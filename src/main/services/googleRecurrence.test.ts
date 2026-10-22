@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
+import { expandGoogleRecurrenceLines, shiftGoogleRecurrenceSchedule, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 
 describe("splitGoogleRecurrenceLines", () => {
   it("partitions RDATE and EXDATE values and reduces RRULE/EXRULE COUNT exactly", () => {
@@ -120,5 +120,23 @@ describe("splitGoogleRecurrenceLines", () => {
       true,
       "America/New_York"
     )).toContain("EXDATE;VALUE=DATE:20260308");
+  });
+});
+
+describe("recurrence schedule gestures", () => {
+  it("moves explicit weekly weekdays and the UNTIL boundary", () => {
+    expect(shiftGoogleRecurrenceSchedule(["RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20270202T090000Z"], "2027-01-12T09:00:00Z", "2027-01-13T09:00:00Z", false, "UTC"))
+      .toEqual(["RRULE:FREQ=WEEKLY;BYDAY=WE,FR;UNTIL=20270203T090000Z"]);
+  });
+  it("moves explicit exclusions across DST in the series timezone", () => {
+    expect(shiftGoogleRecurrenceSchedule(["RRULE:FREQ=WEEKLY;BYDAY=SA;COUNT=3", "EXDATE:20270320T130000Z"], "2027-03-13T14:00:00Z", "2027-03-14T13:00:00Z", false, "America/New_York"))
+      .toEqual(["RRULE:FREQ=WEEKLY;BYDAY=SU;COUNT=3", "EXDATE:20270321T130000Z"]);
+  });
+  it("keeps all-day exclusions date-only", () => {
+    expect(shiftGoogleRecurrenceSchedule(["RRULE:FREQ=WEEKLY;BYDAY=TU", "EXDATE;VALUE=DATE:20270119"], "2027-01-12T00:00:00Z", "2027-01-13T00:00:00Z", true, "Asia/Singapore"))
+      .toEqual(["RRULE:FREQ=WEEKLY;BYDAY=WE", "EXDATE;VALUE=DATE:20270120"]);
+  });
+  it("requires review for complex selectors instead of accepting a misleading date shift", () => {
+    expect(() => shiftGoogleRecurrenceSchedule(["RRULE:FREQ=MONTHLY;BYDAY=TU;BYSETPOS=2"], "2027-01-12T09:00:00Z", "2027-01-13T09:00:00Z", false, "UTC")).toThrow("needs review");
   });
 });

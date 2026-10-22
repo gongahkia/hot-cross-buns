@@ -32,7 +32,9 @@ async function record(page: Page, id: string) {
 }
 
 async function drag(page: Page, from: Locator, to: Locator, release = true) {
-  await from.scrollIntoViewIfNeeded();
+  // A settled viewport refresh can replace a segment during Playwright's scroll check.
+  // Retry preparation only; never repeat the gesture or its write.
+  await expect(async () => { await from.scrollIntoViewIfNeeded(); await expect(from).toBeVisible(); }).toPass({ timeout: 5000 });
   const a = await from.boundingBox(), b = await to.boundingBox();
   expect(a).not.toBeNull(); expect(b).not.toBeNull();
   await page.mouse.move(a!.x + a!.width / 2, a!.y + a!.height / 2);
@@ -51,6 +53,7 @@ test("Month moves timed events, previews without writing, supports cancellation 
     await expect(page.locator("[data-calendar-gesture-preview]")).toContainText("2027-01-14");
     expect((await record(page, id)).startsAt).toBe("2027-01-12T09:00:00Z");
     await page.keyboard.press("Escape"); await page.mouse.up();
+    await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     await expect(page.locator("[data-calendar-gesture-preview]")).toHaveCount(0);
     expect((await record(page, id)).startsAt).toBe("2027-01-12T09:00:00Z");
     await drag(page, chip, target);
@@ -143,7 +146,9 @@ async function timelinePoint(page: Page, day: string, minutes: number) {
 }
 
 async function dragToTime(page: Page, from: Locator, day: string, minutes: number) {
-  await from.scrollIntoViewIfNeeded();
+  // A settled viewport refresh can replace a segment during Playwright's scroll check.
+  // Retry preparation only; never repeat the gesture or its write.
+  await expect(async () => { await from.scrollIntoViewIfNeeded(); await expect(from).toBeVisible(); }).toPass({ timeout: 5000 });
   const a = (await from.boundingBox())!, b = await timelinePoint(page, day, minutes);
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 8 }); await page.mouse.up();
@@ -413,7 +418,7 @@ test("short appointments retain a pointer move target between their resize handl
 
 test("a gesture can move this and future occurrences while preserving earlier appointments", async () => {
   await planner(async page => {
-    await seed(page, [{ title: "Future review", startsAt: "2027-01-05T09:00:00Z", endsAt: "2027-01-05T10:00:00Z", recurrenceLines: ["RRULE:FREQ=WEEKLY;COUNT=5"] }]);
+    await seed(page, [{ title: "Future review", startsAt: "2027-01-05T09:00:00Z", endsAt: "2027-01-05T10:00:00Z", recurrenceLines: ["RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=5"] }]);
     await chooseCalendarView(page, "month"); await date(page);
     await drag(page, page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "Future review" }).nth(1), page.locator('[data-calendar-date="2027-01-13"]'));
     await page.getByRole("dialog", { name: "Save recurring event" }).getByRole("button", { name: "This and future occurrences" }).click();
@@ -425,3 +430,15 @@ test("a gesture can move this and future occurrences while preserving earlier ap
   });
 });
 
+test("a series gesture requiring complex rule review fails visibly without modifying the event", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Complex monthly review", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", recurrenceLines: ["RRULE:FREQ=MONTHLY;BYMONTHDAY=12"] }]);
+    await chooseCalendarView(page, "month"); await date(page);
+    await drag(page, page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "Complex monthly review" }), page.locator('[data-calendar-date="2027-01-13"]'));
+    await page.getByRole("dialog", { name: "Save recurring event" }).getByRole("button", { name: "Entire series" }).click();
+    await expect(page.getByText("Calendar interaction not saved", { exact: true })).toBeVisible();
+    await expect(page.getByText(/This repeat rule needs review before moving the series/)).toBeVisible();
+    expect((await record(page, id)).startsAt).toBe("2027-01-12T09:00:00Z");
+    expect((await record(page, id)).recurrenceLines).toEqual(["RRULE:FREQ=MONTHLY;BYMONTHDAY=12"]);
+  });
+});

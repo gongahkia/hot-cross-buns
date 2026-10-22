@@ -7,7 +7,7 @@ import { claimedLocalEventId } from "./googleEventIdentity";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
-import { expandGoogleRecurrenceLines, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
+import { expandGoogleRecurrenceLines, shiftGoogleRecurrenceSchedule, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 import { assertIsolatedTestDatabasePath } from "./testDatabasePaths";
 import { recordTiming, timed, timingSnapshot } from "../diagnostics/performance";
 import { getStartupTimings, markStartupTiming } from "../startupTiming";
@@ -1860,6 +1860,16 @@ export class CoreStore {
       return this.updateEvent({ ...input, id: series.id, scope: "series" }, options);
     }
     if ((input.scope === "series" || input.scope === "seriesAll") && input.timeChangeOrigin) {
+      const seriesKey = previous.googleId ?? previous.id;
+      const hasExceptions = Boolean(this.statement("SELECT 1 FROM events WHERE calendar_id=? AND google_recurring_event_id=? LIMIT 1").get(previous.calendarId, seriesKey)) ||
+        Boolean(this.statement("SELECT 1 FROM google_event_cancellations WHERE calendar_id=? AND recurring_event_id=? LIMIT 1").get(previous.calendarId, seriesKey));
+      if (hasExceptions) throw new CoreStoreError("This series has edited or cancelled occurrences. Move this occurrence instead; shifting its exceptions together needs a reviewed series edit.");
+      if (input.allDay !== undefined && Boolean(input.allDay) !== Boolean(previous.allDay)) throw new CoreStoreError("Change one occurrence, or review the repeat rule in event details before changing the series between timed and all-day.");
+      const recurrenceLines = recurrenceLinesFromStored(previous.googleRecurrence, previous.recurrence);
+      if (recurrenceLines && input.startsAt) {
+        input = { ...input, recurrenceLines: shiftGestureRecurrence(recurrenceLines,
+          input.timeChangeOrigin.startsAt, input.startsAt, Boolean(previous.allDay), previous.timeZone || this.calendarTimeZone(previous.calendarId)) };
+      }
       input = { ...input, ...shiftSeriesTime(
         { startsAt: previous.startsAt, endsAt: previous.endsAt, allDay: previous.allDay }, input.timeChangeOrigin,
         { startsAt: input.startsAt ?? input.timeChangeOrigin.startsAt, endsAt: input.endsAt ?? input.timeChangeOrigin.endsAt, allDay: input.allDay ?? previous.allDay },
@@ -2025,9 +2035,12 @@ export class CoreStore {
       throw new CoreStoreError(error instanceof Error ? error.message : "Could not split this Google recurrence.");
     }
     const parentRecurrenceLines = partitioned.parentLines;
+    if (input.timeChangeOrigin && input.allDay !== undefined && Boolean(input.allDay) !== Boolean(series.allDay)) throw new CoreStoreError("Change one occurrence, or review the repeat rule in event details before changing the series between timed and all-day.");
     const successorRecurrenceLines = hasOwn(input, "recurrenceLines") || hasOwn(input, "recurrence")
       ? recurrenceLinesForInput(input)
-      : partitioned.successorLines;
+      : input.timeChangeOrigin && input.startsAt
+        ? shiftGestureRecurrence(partitioned.successorLines, input.timeChangeOrigin.startsAt, input.startsAt, Boolean(series.allDay), series.timeZone)
+        : partitioned.successorLines;
     const originalMaster = this.googleEventForSync(series.id);
     const futureExceptionIds = originalMaster?.googleId
       ? this.seriesExceptionIdsFrom(series.calendarId, originalMaster.googleId, splitAt)
@@ -3757,6 +3770,11 @@ function requiredGoogleRecurrenceLines(value: unknown): string[] | null {
     }
   }
   return lines;
+}
+
+function shiftGestureRecurrence(lines: string[], previousStart: string, nextStart: string, allDay: boolean, timeZone?: string | null): string[] {
+  try { return shiftGoogleRecurrenceSchedule(lines, previousStart, nextStart, allDay, timeZone); }
+  catch (error) { throw new CoreStoreError(error instanceof Error ? error.message : "This repeat rule needs review before moving the series."); }
 }
 
 function recurrenceLinesFromStored(googleRecurrence: unknown, recurrence: unknown): string[] | null {

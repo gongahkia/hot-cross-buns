@@ -46,14 +46,33 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("calendar", "get", { id: master.id }).startsAt).toBe(master.startsAt);
   });
 
-  it("applies a series gesture from a stored Google exception to its master once", () => {
+  it.each(["series", "following"])("moves explicit weekly weekdays with a %s gesture", (scope) => {
+    const store = createStore();
+    const master = store.dispatch("calendar", "create", { calendarId: "primary", title: "Weekly call", startsAt: "2027-01-05T09:00:00Z", endsAt: "2027-01-05T10:00:00Z", recurrenceLines: ["RRULE:FREQ=WEEKLY;BYDAY=TU;COUNT=5"] });
+    store.dispatch("calendar", "update", { id: master.id, scope, originalStartAt: "2027-01-12T09:00:00Z", startsAt: "2027-01-13T09:00:00Z", endsAt: "2027-01-13T10:00:00Z", allDay: false,
+      timeChangeOrigin: { startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", allDay: false } });
+    const days = store.dispatch("calendar", "listEvents", { start: "2027-01-01T00:00:00Z", end: "2027-02-15T00:00:00Z" }).items.map((item: any) => item.startsAt.slice(0, 10));
+    expect(days).toEqual([scope === "series" ? "2027-01-06" : "2027-01-05", "2027-01-13", "2027-01-20", "2027-01-27", "2027-02-03"]);
+  });
+
+  it("leaves a complex recurrence untouched when a gesture needs rule review", () => {
+    const store = createStore();
+    const master = store.dispatch("calendar", "create", { calendarId: "primary", title: "Monthly call", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", recurrenceLines: ["RRULE:FREQ=MONTHLY;BYMONTHDAY=12"] });
+    expect(() => store.dispatch("calendar", "update", { id: master.id, scope: "series", originalStartAt: master.startsAt, startsAt: "2027-01-13T09:00:00Z", endsAt: "2027-01-13T10:00:00Z", allDay: false,
+      timeChangeOrigin: { startsAt: master.startsAt, endsAt: master.endsAt, allDay: false } })).toThrow("needs review");
+    const after = store.dispatch("calendar", "get", { id: master.id });
+    expect(after.startsAt).toBe(master.startsAt); expect(after.recurrenceLines).toEqual(master.recurrenceLines);
+  });
+
+  it("refuses a series gesture with stored exceptions before changing its master", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "series-account", email: "series@example.test", connectionState: "connected" });
     const calendar = store.upsertGoogleCalendar({ id: "series-calendar", summary: "Calendar", timeZone: "UTC" }, account.accountId);
     const master = store.upsertGoogleEvent({ id: "series-master", summary: "Review", start: { dateTime: "2027-01-05T09:00:00Z" }, end: { dateTime: "2027-01-05T10:00:00Z" }, recurrence: ["RRULE:FREQ=WEEKLY;COUNT=8"] }, calendar.id)!;
     const exception = store.upsertGoogleEvent({ id: "series-exception", recurringEventId: "series-master", originalStartTime: { dateTime: "2027-01-12T09:00:00Z" }, summary: "Review", start: { dateTime: "2027-01-12T09:00:00Z" }, end: { dateTime: "2027-01-12T10:00:00Z" } }, calendar.id)!;
-    store.dispatch("calendar", "update", { id: exception.id, scope: "series", startsAt: "2027-01-12T11:00:00Z", endsAt: "2027-01-12T12:00:00Z", originalStartAt: "2027-01-12T09:00:00Z", timeChangeOrigin: { startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", allDay: false } });
-    expect(store.dispatch("calendar", "get", { id: master.id }).startsAt).toBe("2027-01-05T11:00:00.000Z");
+    expect(() => store.dispatch("calendar", "update", { id: exception.id, scope: "series", startsAt: "2027-01-12T11:00:00Z", endsAt: "2027-01-12T12:00:00Z", originalStartAt: "2027-01-12T09:00:00Z", timeChangeOrigin: { startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", allDay: false } })).toThrow("edited or cancelled occurrences");
+    expect(store.dispatch("calendar", "get", { id: master.id }).startsAt).toBe(master.startsAt);
+    expect(store.dispatch("calendar", "get", { id: exception.id }).startsAt).toBe(exception.startsAt);
   });
 
   it("returns durable completion state to calendar views and clears it when reopened", () => {

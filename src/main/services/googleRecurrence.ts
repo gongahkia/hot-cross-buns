@@ -97,6 +97,50 @@ export function splitGoogleRecurrenceLines(input: GoogleRecurrenceSplitInput): G
   return { parentLines, successorLines };
 }
 
+/** Shift explicit weekday/date constraints along with a gesture's DTSTART.
+ * Preserve canonical property syntax. Complex selector changes require the rule
+ * editor instead of silently projecting a different schedule after a drag. */
+export function shiftGoogleRecurrenceSchedule(lines: string[], previousStart: string, nextStart: string, allDay: boolean, timeZone?: string | null): string[] {
+  const before = floatingRecurrenceDate(previousStart, allDay, timeZone);
+  const after = floatingRecurrenceDate(nextStart, allDay, timeZone);
+  const delta = after.getTime() - before.getTime();
+  if (!delta) return lines;
+  const dayDelta = Math.floor(after.getTime() / 86400000) - Math.floor(before.getTime() / 86400000);
+  const weekdays = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  const unsupported = () => new Error("This repeat rule needs review before moving the series. Move this occurrence, or edit the repeat rule in event details.");
+  const shiftDate = (value: string, zone: string): string => {
+    if (value.includes("/")) throw unsupported();
+    const dateOnly = /^\d{8}$/.test(value);
+    const raw = recurrenceValueDate(value, dateOnly, zone);
+    if (dateOnly) return basicDateTime(new Date(raw.getTime() + dayDelta * 86400000), true);
+    const absolute = value.endsWith("Z") ? raw : new Date(absoluteIsoFromFloating(raw, false, zone));
+    const civil = floatingFromAbsolute(absolute, false, timeZone);
+    const shifted = new Date(absoluteIsoFromFloating(new Date(civil.getTime() + delta), false, timeZone));
+    return value.endsWith("Z") ? `${basicDateTime(shifted, false)}Z` : basicDateTime(floatingFromAbsolute(shifted, false, zone), false);
+  };
+  return lines.map(line => {
+    const property = parseProperty(line);
+    if (property.name === "RDATE" || property.name === "EXDATE") {
+      return `${property.prefix}:${property.value.split(",").map(value => shiftDate(value, propertyTimeZone(property.prefix) ?? timeZone ?? "UTC")).join(",")}`;
+    }
+    const fields = ruleFields(property.value);
+    if (["BYHOUR", "BYMINUTE", "BYSECOND"].some(key => fields.has(key))) throw unsupported();
+    if (dayDelta) {
+      if (["BYMONTH", "BYMONTHDAY", "BYYEARDAY", "BYWEEKNO", "BYSETPOS"].some(key => fields.has(key))) throw unsupported();
+      const byDay = fields.get("BYDAY");
+      if (byDay) {
+        const values = byDay.split(",");
+        if (!["DAILY", "WEEKLY"].includes(fields.get("FREQ") ?? "") || values.some(day => !weekdays.includes(day)) ||
+          (Number(fields.get("INTERVAL") ?? 1) > 1 && values.length > 1 && dayDelta % 7 !== 0)) throw unsupported();
+        fields.set("BYDAY", values.map(day => weekdays[((weekdays.indexOf(day) + dayDelta) % 7 + 7) % 7]).join(","));
+      }
+    }
+    const until = fields.get("UNTIL");
+    if (until) fields.set("UNTIL", shiftDate(until, timeZone ?? "UTC"));
+    return `${property.prefix}:${serializeRuleFields(fields)}`;
+  });
+}
+
 /** Convert an RFC 3339 originalStartTime into the value accepted by instances.originalStart. */
 export function googleOriginalStartQueryValue(value: string, allDay: boolean): string {
   if (allDay) return value.slice(0, 10);
