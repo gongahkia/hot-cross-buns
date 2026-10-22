@@ -6,7 +6,7 @@ export default defineConfig({
   // share one desktop. Keep app fixtures sequential on the host.
   workers: 1,
   timeout: 30_000,
-  reporter: [["list"]],
+  reporter: [["list"], ["html", { outputFolder: "output/playwright-report", open: "never" }], ["junit", { outputFile: "output/playwright-results.xml" }]],
   outputDir: "output/playwright",
   use: {
     screenshot: "only-on-failure",
