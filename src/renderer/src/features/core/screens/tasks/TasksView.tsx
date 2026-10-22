@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
+import { useTextPrompt } from "../../../../components/TextPrompt";
 import { StatusBanner } from "../../../../components/primitives";
 import { DuplicateReviewPanel } from "../../DuplicateReviewPanel";
 import type { ConvertSourceCleanup } from "../../conversionEvents";
@@ -52,6 +53,7 @@ interface TaskBoardActionHandlers {
 }
 
 export function TasksView({ command }: { command?: TaskSurfaceCommand | null }): JSX.Element {
+  const requestText = useTextPrompt();
   const source = useCoreViewModelSource();
   const {
     addSubtaskForTask,
@@ -142,8 +144,8 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     void source.deleteTaskList(taskListId);
   }
 
-  function promptCreateTaskList(): void {
-    const title = window.prompt("Create new list")?.trim();
+  async function promptCreateTaskList(): Promise<void> {
+    const title = await requestText({ title: "Create new list", submitLabel: "Create list" });
 
     if (!title || source.taskMutationPending) {
       return;
@@ -152,8 +154,8 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     void source.createTaskList({ title });
   }
 
-  function promptRenameTaskList(taskList: { id: string; title: string }): void {
-    const title = window.prompt("Rename list", taskList.title)?.trim();
+  async function promptRenameTaskList(taskList: { id: string; title: string }): Promise<void> {
+    const title = await requestText({ title: "Rename list", initialValue: taskList.title });
 
     if (!title || title === taskList.title || source.taskMutationPending) {
       return;

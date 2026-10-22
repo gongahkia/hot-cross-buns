@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
 import { useInspector } from "../../../components/Inspector";
 import { Button } from "../../../components/primitives";
+import { useTextPrompt } from "../../../components/TextPrompt";
 import {
   conversionCleanup,
   dispatchConvertCommand,
@@ -82,6 +83,7 @@ export function useNotesController(source: CoreViewModelSource): {
   toggleNoteStar: (noteId: string) => void;
   toggleNoteView: (view: NoteBoardSelection) => void;
 } {
+  const requestText = useTextPrompt();
   const {
     close: closeInspector,
     current: currentInspector,
@@ -768,7 +770,7 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function renameNoteList(listId: string, currentTitle: string): Promise<void> {
-    const title = window.prompt("Rename list", currentTitle)?.trim();
+    const title = await requestText({ title: "Rename list", initialValue: currentTitle });
 
     if (!title || title === currentTitle) {
       return;

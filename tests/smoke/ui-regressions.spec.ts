@@ -40,3 +40,19 @@ test("primary and selected controls retain their visual states", async () => {
     expect(style.foreground).toBe(expectedForeground);
   });
 });
+
+test("creates a named list through an accessible application dialog", async () => {
+  await withPlanner(async (page) => {
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
+    await page.getByRole("button", { name: "New list", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Create new list", exact: true });
+    await expect(dialog.getByRole("button", { name: "Create list" })).toBeDisabled();
+    await dialog.getByRole("textbox", { name: "List name" }).fill("Design follow-up");
+    await dialog.getByRole("button", { name: "Create list" }).click();
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => page.evaluate(async () => {
+      const result = await window.hcb!.tasks.listTaskLists({});
+      return result.ok && result.data.items.some((list) => list.title === "Design follow-up");
+    })).toBe(true);
+  });
+});
