@@ -1,3 +1,4 @@
+import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
 import { _electron as electron, expect, test, type Page, type ElectronApplication } from "@playwright/test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -230,7 +231,7 @@ test("keeps the mini calendar visible and synchronizes dates across sections and
     await expect(mini).toBeVisible();
     await expect(mini.locator(".mini-calendar-day")).toHaveCount(42);
     await expect(page.getByRole("button", { name: /^(Collapse|Expand) (navigation|task sidebar|notes sidebar)$/ })).toHaveCount(0);
-    await page.getByRole("combobox", { name: "Calendar view" }).selectOption("week");
+    await chooseCalendarView(page, "week");
     await page.getByRole("button", { name: "Choose calendar date" }).click();
     await page.getByLabel("Go to date", { exact: true }).fill("2026-12-31");
     await page.getByRole("button", { name: "Done", exact: true }).click();
@@ -332,14 +333,14 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     });
     const calendar = page.getByTestId("calendar-view");
     for (const view of ["day", "multiDay", "week", "month", "agenda"]) {
-      await page.getByRole("combobox", { name: "Calendar view" }).selectOption(view);
-      await expect(page.getByRole("combobox", { name: "Calendar view" })).toHaveValue(view);
+      await chooseCalendarView(page, view);
+      await expect(page.getByRole("button", { name: "Calendar view", exact: true })).toContainText(view === "multiDay" ? "3 days" : view === "agenda" ? "Agenda" : view[0].toUpperCase() + view.slice(1));
       await noOverflow(page);
     }
-    const source = page.getByRole("complementary", { name: "Workspace navigation" }).getByRole("checkbox").first();
-    await source.uncheck();
+    const source = page.getByRole("complementary", { name: "Workspace navigation" }).locator(".calendar-source-toggle").first();
+    await source.click();
     await expect(calendar.getByText("Design review", { exact: true })).toHaveCount(0);
-    await source.check();
+    await source.click();
     await calendar.getByText("Design review", { exact: true }).click();
     const inspector = page.getByTestId("inspector-shell");
     await expect(inspector).toHaveAttribute("data-inspector-layout", "docked");
@@ -367,15 +368,15 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     await page.getByLabel("Go to date", { exact: true }).fill("2027-01-15");
     await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(calendar).toHaveAttribute("data-range-start", "2027-01-15T00:00:00.000Z");
-    await page.getByRole("combobox", { name: "Calendar view" }).selectOption("month");
+    await chooseCalendarView(page, "month");
     await expect(page.getByRole("button", { name: "Choose calendar date" })).toContainText("January 2027");
-    await page.getByRole("combobox", { name: "Calendar view" }).selectOption("agenda");
+    await chooseCalendarView(page, "agenda");
     await page.getByRole("button", { name: "Jump to today" }).click();
     await expect(calendar).toHaveAttribute("data-range-start", `${fixture.day}T00:00:00.000Z`);
-    await page.getByRole("combobox", { name: "Calendar view" }).selectOption("week");
+    await chooseCalendarView(page, "week");
     await expect(page.getByText("Calendar range could not be loaded.", { exact: true })).toHaveCount(0);
     await capture(page, "calendar-light");
-    await page.getByRole("button", { name: "New event", exact: true }).click();
+    await newCalendarEvent(page);
     await noOverflow(page);
     await capture(page, "calendar-context");
     await page.setViewportSize({ width: 960, height: 620 });
@@ -391,7 +392,7 @@ test("navigates calendar views, filters sources, edits in context and preserves 
 
 test("validates event edits and requires a scope for recurring edits", async () => {
   await planner(async (page) => {
-    await page.getByRole("button", { name: "New event", exact: true }).click();
+    await newCalendarEvent(page);
     const title = page.getByRole("textbox", { name: "Event title" });
     await title.fill("Daily design check-in");
     await title.press("Tab");
@@ -565,7 +566,7 @@ test("keeps settings navigation stable, searches categories and changes theme", 
 
 test("autosaves inspector fields and supports copy, duplicate, delete and both menu themes", async () => {
   await planner(async (page, app) => {
-    await page.getByRole("button", { name: "New event", exact: true }).click();
+    await newCalendarEvent(page);
     const panel = page.getByTestId("inspector-shell");
     await expect(panel.getByRole("button", { name: /Save changes|Create event/ })).toHaveCount(0);
     await page.getByRole("button", { name: "Item type", exact: true }).click();

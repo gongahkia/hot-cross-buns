@@ -1,3 +1,4 @@
+import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
 import { _electron as electron, expect, test, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,7 +29,8 @@ async function withPlanner(run: (page: Page) => Promise<void>): Promise<void> {
 
 test("primary and selected controls retain their visual states", async () => {
   await withPlanner(async (page) => {
-    const create = page.getByRole("button", { name: "New event", exact: true });
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Tasks", exact: true }).click();
+    const create = page.getByRole("button", { name: "New task", exact: true });
     await expect(create).toBeVisible();
     const style = await create.evaluate((element) => {
       const css = getComputedStyle(element);
@@ -59,17 +61,17 @@ test("creates a named list through an accessible application dialog", async () =
 
 test("retains the calendar range, view and scroll through navigation and reload", async () => {
   await withPlanner(async (page) => {
-    await page.getByRole("combobox", { name: "Calendar view" }).selectOption("week");
+    await chooseCalendarView(page, "week");
     const range = await page.getByTestId("calendar-view").getAttribute("data-range-start");
     const timeline = page.locator("[data-calendar-timeline-scroll]");
     await timeline.evaluate((node) => { node.scrollTop = 550; node.dispatchEvent(new Event("scroll")); });
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
-    await expect(page.getByRole("combobox", { name: "Calendar view" })).toHaveValue("week");
+    await expect(page.getByRole("button", { name: "Calendar view", exact: true })).toContainText("Week");
     await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
     await expect.poll(() => timeline.evaluate((node) => node.scrollTop)).toBe(550);
     await page.reload();
-    await expect(page.getByRole("combobox", { name: "Calendar view" })).toHaveValue("week");
+    await expect(page.getByRole("button", { name: "Calendar view", exact: true })).toContainText("Week");
     await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
   });
 });

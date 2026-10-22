@@ -1,3 +1,4 @@
+import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
 import { _electron as electron, expect, test, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -133,7 +134,7 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.keyboard.press("Escape");
 
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
-    await expect(page.getByRole("button", { name: "New event", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Calendar tools", exact: true })).toBeVisible();
     await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } })), fixture.event);
     const description = page.getByRole("textbox", { name: "Event notes" });
     await expect(description.locator("strong")).toHaveText("HTML");
@@ -149,7 +150,7 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect.poll(async () => { const result = await page.evaluate((id) => window.hcb!.calendar.get({ id }), fixture.event); return result.ok ? result.data.description : ""; }).toContain("[Linked description](https://example.com)");
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "New event", exact: true }).click();
+    await newCalendarEvent(page);
     await page.getByRole("button", { name: "Item type", exact: true }).click();
     await page.getByRole("menuitemradio", { name: "Task", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Task notes" })).toHaveAttribute("contenteditable", "true");
