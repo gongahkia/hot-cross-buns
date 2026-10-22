@@ -237,6 +237,13 @@ test("horizontal scrolling rolls a bounded week by days, survives reload and res
     await expect(calendar).toHaveAttribute("data-range-start", "2027-01-11T00:00:00.000Z");
     await date(page, "2027-01-20");
     await expect(calendar).toHaveAttribute("data-range-start", "2027-01-17T00:00:00.000Z");
+    await date(page, "2027-01-27"); await scroll.hover();
+    for (let step = 1; step <= 4; step++) {
+      await page.mouse.wheel(160, 0);
+      await expect(calendar).toHaveAttribute("data-range-start", `2027-01-${24 + step}T00:00:00.000Z`);
+      await page.waitForTimeout(140);
+    }
+    await expect(page.getByRole("button", { name: "Choose calendar date" })).toContainText("February 2027");
   });
 });
 
@@ -346,6 +353,24 @@ test("context actions work in Agenda and overflow without leaving a stale overfl
   });
 });
 
+test("an edge drag commits in the newly visible week and remains undoable", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Across weeks", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
+    await chooseCalendarView(page, "week"); await date(page);
+    const chip = page.locator('.calendar-timeline .calendar-event-chip').filter({ hasText: "Across weeks" });
+    await chip.scrollIntoViewIfNeeded();
+    const a = (await chip.boundingBox())!, viewport = (await page.locator('[data-calendar-timeline-scroll]').boundingBox())!;
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
+    await page.mouse.move(viewport.x + viewport.width - 4, a.y + a.height / 2, { steps: 8 });
+    await expect(page.locator('[data-calendar-day-events][data-calendar-date="2027-01-18"]')).toHaveCount(1);
+    const target = await timelinePoint(page, "2027-01-18", 9 * 60 + 30);
+    await page.mouse.move(target.x, target.y, { steps: 8 }); await page.mouse.up();
+    await expect.poll(async () => (await record(page, id)).startsAt).toBe("2027-01-18T09:00:00.000Z");
+    await page.evaluate(async () => { const result = await window.hcb!.undo.undo(); if (!result.ok) throw new Error(result.error.message); window.dispatchEvent(new Event("hcb:core-data-invalidated")); });
+    expect((await record(page, id)).startsAt).toBe("2027-01-12T09:00:00Z");
+  });
+});
+
 test("context menu stays within a narrow window in both themes and honors reduced motion", async () => {
   await planner(async page => {
     await seed(page, [{ title: "A long calendar title that should remain readable without widening the window", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
@@ -373,3 +398,30 @@ test("context menu stays within a narrow window in both themes and honors reduce
     await session.detach();
   });
 });
+
+test("short appointments retain a pointer move target between their resize handles", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Short check-in", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T09:15:00Z" }]);
+    await chooseCalendarView(page, "week"); await date(page);
+    const chip = page.locator('.calendar-timeline .calendar-event-chip').filter({ hasText: "Short check-in" });
+    await dragToTime(page, chip, "2027-01-13", 9 * 60 + 15);
+    await expect.poll(async () => (await record(page, id)).startsAt.slice(0, 10)).toBe("2027-01-13");
+    const saved = await record(page, id);
+    expect(Date.parse(saved.endsAt) - Date.parse(saved.startsAt)).toBe(15 * 60000);
+  });
+});
+
+test("a gesture can move this and future occurrences while preserving earlier appointments", async () => {
+  await planner(async page => {
+    await seed(page, [{ title: "Future review", startsAt: "2027-01-05T09:00:00Z", endsAt: "2027-01-05T10:00:00Z", recurrenceLines: ["RRULE:FREQ=WEEKLY;COUNT=5"] }]);
+    await chooseCalendarView(page, "month"); await date(page);
+    await drag(page, page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "Future review" }).nth(1), page.locator('[data-calendar-date="2027-01-13"]'));
+    await page.getByRole("dialog", { name: "Save recurring event" }).getByRole("button", { name: "This and future occurrences" }).click();
+    await expect.poll(async () => page.evaluate(async () => {
+      const result = await window.hcb!.calendar.listEvents({ start: "2027-01-01T00:00:00Z", end: "2027-02-15T00:00:00Z" });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.data.items.filter(event => event.title === "Future review").map(event => event.startsAt.slice(0, 10)).sort();
+    })).toEqual(["2027-01-05", "2027-01-13", "2027-01-20", "2027-01-27", "2027-02-03"]);
+  });
+});
+

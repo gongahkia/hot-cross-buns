@@ -48,7 +48,7 @@ export function CalendarHeader({
 }): JSX.Element {
   const nav = useCalendarNavigation();
   const inspector = useInspector();
-  const weekStart = calendarAddUtcDays(anchorDate, -calendarDateFromIsoDate(anchorDate).getUTCDay());
+  const weekStart = nav.calendarWindowStart ?? calendarAddUtcDays(anchorDate, -calendarDateFromIsoDate(anchorDate).getUTCDay());
   const headingDate = activeViewId === "week" ? calendarAddUtcDays(weekStart, 6) : activeViewId === "multiDay" ? calendarAddUtcDays(anchorDate, nav.multiDayCount - 1) : anchorDate;
   const customDaysPending = useRef(false);
   const [customDays, setCustomDays] = useState(false);
@@ -63,7 +63,7 @@ export function CalendarHeader({
           <Popover.Close asChild><Button variant="ghost">Done</Button></Popover.Close>
         </Popover.Content></Popover.Portal>
       </Popover.Root>
-      <span className="calendar-range-detail">{activeViewId === "week" && nav.showWeekNumbers ? `Week ${weekNumber(weekStart)}` : activeViewId === "day" ? calendarDateTitleFromIso(anchorDate) : ""}</span>
+      <span className="calendar-range-detail">{activeViewId === "week" && nav.calendarWindowStart ? calendarRangeLabel : activeViewId === "week" && nav.showWeekNumbers ? `Week ${weekNumber(weekStart)}` : activeViewId === "day" ? calendarDateTitleFromIso(anchorDate) : ""}</span>
       <div className="calendar-header-controls">
         <Menu.Root>
           <Menu.Trigger asChild><button className="calendar-view-select" aria-label="Calendar view">{activeViewId === "multiDay" ? `${nav.multiDayCount} days` : calendarViewLabel(activeViewId)}<ChevronDown size={16} /></button></Menu.Trigger>

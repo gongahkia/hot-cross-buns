@@ -101,6 +101,11 @@ function CalendarTimelineEventChip({
             return;
           }
 
+          if (event.allDay && (keyEvent.key === "ArrowLeft" || keyEvent.key === "ArrowRight")) {
+            keyEvent.preventDefault(); keyEvent.stopPropagation();
+            onMoveEvent(event.id, addUtcMinutesIso(event.startsAt, (keyEvent.key === "ArrowRight" ? 1 : -1) * 1440), true);
+            return;
+          }
           if (keyEvent.key !== "ArrowDown" && keyEvent.key !== "ArrowUp") {
             return;
           }
