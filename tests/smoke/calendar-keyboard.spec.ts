@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { planner } from "./planner";
+import { expect } from "@playwright/test";
+import { test, planner } from "./planner";
 import { chooseCalendarView } from "./calendarActions";
 
 test("Month and Week have one grid Tab stop, arrow navigation and keyboard event creation", async () => {

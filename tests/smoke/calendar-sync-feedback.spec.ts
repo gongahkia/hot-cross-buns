@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { planner, capture } from "./planner";
+import { expect } from "@playwright/test";
+import { test, planner, capture } from "./planner";
 import { chooseCalendarView } from "./calendarActions";
 import { seedDatabase } from "./database";
 

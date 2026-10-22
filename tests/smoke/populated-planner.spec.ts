@@ -1,7 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { platform, release } from "node:os";
-import { planner, navigate, openPalette, capture } from "./planner";
+import { test, planner, navigate, openPalette, capture } from "./planner";
 import { chooseCalendarView } from "./calendarActions";
 import { goToPopulatedDay, seedPopulatedPlanner } from "./populatedPlanner";
 

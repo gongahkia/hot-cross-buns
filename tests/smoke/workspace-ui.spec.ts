@@ -1,7 +1,7 @@
-import { planner, openPalette, navigate, capture } from "./planner";
+import { test, planner, openPalette, navigate, capture } from "./planner";
 import { chooseOption } from "./controls";
 import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 test.setTimeout(120_000);
 

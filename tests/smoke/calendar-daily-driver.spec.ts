@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { planner } from "./planner";
+import { expect, type Page } from "@playwright/test";
+import { test, planner } from "./planner";
 import { chooseCalendarView } from "./calendarActions";
 
 test.setTimeout(60_000);

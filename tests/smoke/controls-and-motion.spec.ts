@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { planner, navigate, capture } from "./planner";
+import { expect, type Page } from "@playwright/test";
+import { test, planner, navigate, capture } from "./planner";
 import { chooseOption } from "./controls";
 import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
 

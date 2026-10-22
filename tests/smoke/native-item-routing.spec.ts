@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { planner } from "./planner";
+import { expect } from "@playwright/test";
+import { test, planner } from "./planner";
 
 test("native item links reveal their exact targets across lazy sections and Today resets the date", async () => {
   await planner(async (page, app) => {

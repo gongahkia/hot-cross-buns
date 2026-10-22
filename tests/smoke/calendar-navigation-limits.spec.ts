@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { planner } from "./planner";
+import { expect } from "@playwright/test";
+import { test, planner } from "./planner";
 import { chooseCalendarView } from "./calendarActions";
 
 test("calendar limits explain stopped navigation and leave a way back to today", async () => {

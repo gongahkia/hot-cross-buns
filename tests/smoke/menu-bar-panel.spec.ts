@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { planner, capture } from "./planner";
+import { expect } from "@playwright/test";
+import { test, planner, capture } from "./planner";
 import { buildNativeMenuBarSnapshot } from "../../src/main/native/menuBarSnapshot";
 import { menuBarPanelDataUrl } from "../../src/main/native/electronMac/menuBarPanelHtml";
 import { parseMenuBarPanelUrl } from "../../src/main/native/electronMac/menuBarPanelNavigation";
