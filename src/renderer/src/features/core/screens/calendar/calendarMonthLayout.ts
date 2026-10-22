@@ -6,13 +6,14 @@ import { visibleCalendarEvent } from "./calendarVisibility";
 
 export function visibleCalendarMonthWeeks(
   weeks: CalendarMonthWeekViewModel[],
-  visibleCalendarIds: ReadonlySet<string>
+  visibleCalendarIds: ReadonlySet<string>,
+  visibleChipCount = calendarMonthVisibleChipCount
 ): VisibleCalendarMonthWeek[] {
   return weeks.map((week) => {
     const allDayLayout = calendarAllDayLayout(
       week.days,
       visibleCalendarIds,
-      calendarMonthVisibleChipCount
+      visibleChipCount
     );
 
     return {
@@ -23,7 +24,7 @@ export function visibleCalendarMonthWeeks(
         const timedEvents = visibleEvents.filter((event) => !event.allDay);
         const occupiedAllDayLanes = monthAllDayLaneIndexesForDay(allDayLayout.segments, dayIndex);
         const availableLaneIndexes = Array.from(
-          { length: calendarMonthVisibleChipCount },
+          { length: visibleChipCount },
           (_, laneIndex) => laneIndex
         ).filter((laneIndex) => !occupiedAllDayLanes.has(laneIndex));
         const visibleTimedEvents = timedEvents.slice(0, availableLaneIndexes.length);

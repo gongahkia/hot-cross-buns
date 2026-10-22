@@ -245,11 +245,9 @@ function NoteBoardRow({
           <span className="min-w-0 flex-1 truncate text-[var(--text-md)] font-medium leading-snug text-text-primary">
             {note.title}
           </span>
-          <span className="shrink-0 text-[var(--text-xs)] text-text-muted">
-            {note.updatedLabel}
-          </span>
         </div>
         <p className="line-clamp-1 break-words text-[var(--text-sm)] leading-snug text-text-muted">{note.preview}</p>
+        <span className="mt-1 block truncate text-[var(--text-xs)] tabular-nums text-text-muted">{note.updatedLabel}</span>
       </button>
       <div
         className={cx(

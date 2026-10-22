@@ -38,10 +38,10 @@ function monthEventChipStyle(dayIndex: number, laneIndex: number): CSSProperties
   };
 }
 
-function monthOverflowStyle(dayIndex: number): CSSProperties {
+function monthOverflowStyle(dayIndex: number, visibleChipCount: number): CSSProperties {
   return {
     gridColumn: `${dayIndex + 1}`,
-    gridRow: `${calendarMonthVisibleChipCount + 2}`
+    gridRow: `${visibleChipCount + 2}`
   };
 }
 
@@ -76,9 +76,10 @@ export function MonthView({
   } | null>(null);
   const [rangeSelection, setRangeSelection] = useState<{ end: string; start: string } | null>(null);
   const [suppressClick, setSuppressClick] = useState(false);
+  const [visibleChipCount, setVisibleChipCount] = useState(calendarMonthVisibleChipCount);
   const visibleWeeks = useMemo(
-    () => visibleCalendarMonthWeeks(showWeekends ? weeks : weeks.map(week => ({ ...week, days: week.days.slice(1, 6) })), visibleCalendarIds),
-    [weeks, visibleCalendarIds, showWeekends]
+    () => visibleCalendarMonthWeeks(showWeekends ? weeks : weeks.map(week => ({ ...week, days: week.days.slice(1, 6) })), visibleCalendarIds, visibleChipCount),
+    [weeks, visibleCalendarIds, showWeekends, visibleChipCount]
   );
   const visibleWeekIds = visibleWeeks.map((week) => week.id).join("|");
   const cellKeys = useMemo(() => visibleWeeks.flatMap(week => week.days.map(({ day }) => calendarDayKey(day))), [visibleWeeks]);
@@ -90,6 +91,20 @@ export function MonthView({
   const edgeNavigation = useRef<{ direction: -1 | 1; at: number } | null>(null);
   useCalendarWheelNavigation(scrollRef, "vertical", onScrollPeriod);
   const todayCellRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    const measure = () => {
+      const rowHeight = (node.clientHeight - 40) / 6;
+      // Date header, overflow row and gaps stay visible; event lanes remain bounded.
+      setVisibleChipCount(Math.max(1, Math.min(6, Math.floor((rowHeight - 50) / 25))));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => () => removeMonthPointerListenersRef.current?.(), []);
 
@@ -258,7 +273,7 @@ export function MonthView({
   }
 
   return (
-    <div ref={scrollRef} className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view" aria-description="Use arrow keys to move between dates, Home or End for a row, and Enter to create an event. Tab moves to event controls.">
+    <div ref={scrollRef} className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-month-lanes={visibleChipCount} data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view" aria-description="Use arrow keys to move between dates, Home or End for a row, and Enter to create an event. Tab moves to event controls.">
       <div className="calendar-month-head grid" style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))` }} role="row">
         {(showWeekends ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["Mon", "Tue", "Wed", "Thu", "Fri"]).map((weekday) => (
           <div className="border-r border-border px-2 py-2 last:border-r-0" key={weekday} role="columnheader">
@@ -279,13 +294,14 @@ export function MonthView({
       >
         {visibleWeeks.map((week, weekIndex) => (
           <div
-            className="calendar-month-week relative grid gap-y-1 border-b border-border last:border-b-0"
+            className="calendar-month-week relative grid gap-y-px border-b border-border last:border-b-0"
             data-calendar-month-week-row
             key={week.id}
             role="row"
             style={{
               gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))`,
-              gridTemplateRows: `32px repeat(${calendarMonthVisibleChipCount}, ${monthEventLaneHeight}px) ${monthEventLaneHeight}px minmax(0, 1fr)`
+              minHeight: 50 + 25 * visibleChipCount,
+              gridTemplateRows: `28px repeat(${visibleChipCount}, ${monthEventLaneHeight}px) 20px minmax(0, 1fr)`
             }}
           >
             {showWeekNumbers ? <span className="calendar-week-number" aria-label={`Week ${weekNumber(calendarDayKey(weeks[weekIndex].days[0]))}`}>{weekNumber(calendarDayKey(weeks[weekIndex].days[0]))}</span> : null}
@@ -296,7 +312,7 @@ export function MonthView({
               return (
                 <div
                   className={cx(
-                    "calendar-month-cell relative z-0 min-h-[126px] border-r border-border bg-bg-tertiary px-2 py-1.5 text-left transition-colors duration-fast ease-hcb last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    "calendar-month-cell relative z-0 min-h-0 border-r border-border bg-bg-tertiary px-2 py-1.5 text-left transition-colors duration-fast ease-hcb last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
 
 
                     (rangeContains(dayKey) || (previewStart && previewEnd && dayKey >= previewStart && dayKey <= previewEnd)) && "bg-info/15 ring-1 ring-inset ring-info"
@@ -404,7 +420,7 @@ export function MonthView({
                   className="calendar-month-event relative z-10 min-w-0 px-1.5"
                   key={`${day.id}-overflow`}
                   role="presentation"
-                  style={monthOverflowStyle(dayIndex)}
+                  style={monthOverflowStyle(dayIndex, visibleChipCount)}
                 >
                   <CalendarOverflowChip
                     count={overflowCount}

@@ -49,7 +49,10 @@ async function assertReadableGrid(page: Page, view: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (view === "month") {
     await expect(grid.getByRole("gridcell")).toHaveCount(42);
-    expect(await grid.locator(".calendar-event-chip").count()).toBeLessThanOrEqual(84);
+    const lanes = Number(await grid.getAttribute("data-month-lanes"));
+    expect(lanes).toBeGreaterThanOrEqual(1);
+    expect(lanes).toBeLessThanOrEqual(6);
+    expect(await grid.locator(".calendar-event-chip").count()).toBeLessThanOrEqual(42 * lanes);
     expect(await grid.getByRole("button", { name: /Show \d+ more calendar items/ }).count()).toBeGreaterThan(20);
     expect(await grid.locator('[data-calendar-month-all-day-segment][data-day-span="3"]').count()).toBeGreaterThan(0);
   } else {
@@ -103,6 +106,23 @@ for (const theme of ["light", "dark"] as const) {
         await capture(page, `populated-${view}-${theme}`);
       }
       await chooseCalendarView(page, "month");
+      const month = page.getByRole("grid", { name: "Calendar month view", exact: true });
+      const spaciousLanes = Number(await month.getAttribute("data-month-lanes"));
+      expect(spaciousLanes).toBeGreaterThanOrEqual(3);
+      for (const width of [1180, 850]) {
+        await page.setViewportSize({ width, height: width === 850 ? 700 : 760 });
+        await expect.poll(() => month.evaluate(grid => grid.scrollHeight <= grid.clientHeight + 2)).toBe(true);
+        expect(Number(await month.getAttribute("data-month-lanes"))).toBeLessThan(spaciousLanes);
+        await expect(month.getByRole("gridcell")).toHaveCount(42);
+        if (width === 850) {
+          const chip = month.locator('.calendar-event-chip[data-all-day="false"]').first();
+          await expect(chip.locator(".calendar-event-time")).toBeHidden();
+          expect(await chip.locator(".calendar-event-title").evaluate(title => title.getBoundingClientRect().width)).toBeGreaterThan(40);
+        }
+        await capture(page, `populated-month-${width}-${theme}`);
+      }
+      await page.setViewportSize({ width: 1600, height: 1000 });
+      await expect(month).toHaveAttribute("data-month-lanes", String(spaciousLanes));
       const overflow = page.getByRole("button", { name: /Show \d+ more calendar items/ }).first();
       await overflow.click();
       const dialog = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "Close overflow items" }) });
