@@ -185,7 +185,10 @@ function parseDateInput(input: string, referenceDate: Date): Date | null {
   }
 
   // Strip optional leading weekday (e.g., "Tue ", "Wed ")
-  const withoutWeekday = trimmed.replace(/^[a-z]{3}\s+/i, "");
+  const withoutWeekday = trimmed.replace(
+    /^(sun|mon|tue|wed|thu|fri|sat)\s+/i,
+    "",
+  );
   if (withoutWeekday.length === 0) {
     return null;
   }
@@ -477,6 +480,7 @@ export function EventDetailPanel({
         e.preventDefault();
         e.stopPropagation();
         startTimeEscapePressedRef.current = true;
+        setTimeError(null);
         setStartTimeValue(startTimeOnFocusRef.current);
         startTimeRef.current?.blur();
       }
@@ -552,6 +556,7 @@ export function EventDetailPanel({
         e.preventDefault();
         e.stopPropagation();
         endTimeEscapePressedRef.current = true;
+        setTimeError(null);
         setEndTimeValue(endTimeOnFocusRef.current);
         endTimeRef.current?.blur();
       }
@@ -624,6 +629,7 @@ export function EventDetailPanel({
         e.preventDefault();
         e.stopPropagation();
         dateEscapePressedRef.current = true;
+        setTimeError(null);
         setDateValue(dateOnFocusRef.current);
         dateRef.current?.blur();
       }
@@ -692,6 +698,7 @@ export function EventDetailPanel({
         e.preventDefault();
         e.stopPropagation();
         endDateEscapePressedRef.current = true;
+        setTimeError(null);
         setEndDateValue(endDateOnFocusRef.current);
         endDateRef.current?.blur();
       }
