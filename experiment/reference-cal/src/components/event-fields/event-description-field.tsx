@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "../week-view-types";
-import { EventFieldActions, eventFieldInputClass } from "./event-field-editor";
+import { eventFieldInputClass } from "./event-field-editor";
 
 /** Edit in place in both the event popover and the context sidebar. */
 export function EventDescriptionField({
@@ -17,14 +17,17 @@ export function EventDescriptionField({
   const [draft, setDraft] = React.useState("");
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const previouslyEditing = React.useRef(false);
+  const originalDescription = React.useRef(event.description);
+  const restoreFocus = React.useRef(false);
+  const blurFrame = React.useRef<number | null>(null);
   const id = React.useId();
 
   React.useEffect(() => {
     if (editing) textareaRef.current?.focus({ preventScroll: true });
-    else if (previouslyEditing.current)
+    else if (restoreFocus.current) {
+      restoreFocus.current = false;
       triggerRef.current?.focus({ preventScroll: true });
-    previouslyEditing.current = editing;
+    }
   }, [editing]);
 
   React.useLayoutEffect(() => {
@@ -34,47 +37,68 @@ export function EventDescriptionField({
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, [editing, draft]);
 
+  React.useEffect(
+    () => () => {
+      if (blurFrame.current !== null) cancelAnimationFrame(blurFrame.current);
+    },
+    [],
+  );
+
   return (
     <div className="flex min-w-0 flex-col gap-1 px-4">
       <label htmlFor={id} className="text-xs text-foreground/65">
         Description
       </label>
       {editing ? (
-        <form
-          aria-label="Edit description"
+        <textarea
+          ref={textareaRef}
+          id={id}
           data-inline-event-editor="description"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (draft !== (event.description ?? ""))
-              onEventChange?.({ ...event, description: draft });
-            setEditing(false);
+          value={draft}
+          onChange={(e) => {
+            const description = e.target.value;
+            setDraft(description);
+            // Like the title, keep edits through outside clicks and host changes.
+            onEventChange?.({ ...event, description });
+          }}
+          onBlur={() => {
+            if (blurFrame.current !== null)
+              cancelAnimationFrame(blurFrame.current);
+            // Let a modal move focus before removing its previously focused field.
+            blurFrame.current = requestAnimationFrame(() => {
+              blurFrame.current = null;
+              if (
+                restoreFocus.current ||
+                document.activeElement !== textareaRef.current
+              )
+                setEditing(false);
+            });
           }}
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing) return;
             if (e.key === "Escape") {
               e.preventDefault();
               e.stopPropagation();
-              setEditing(false);
+              if (draft !== (originalDescription.current ?? ""))
+                onEventChange?.({
+                  ...event,
+                  description: originalDescription.current,
+                });
+              restoreFocus.current = true;
+              e.currentTarget.blur();
             } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               e.stopPropagation();
-              e.currentTarget.requestSubmit();
+              restoreFocus.current = true;
+              e.currentTarget.blur();
             }
           }}
-        >
-          <textarea
-            ref={textareaRef}
-            id={id}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Add a description…"
-            className={cn(
-              eventFieldInputClass,
-              "block h-auto min-h-24 max-h-[40dvh] resize-none overflow-y-auto py-2 leading-relaxed [overflow-wrap:anywhere]",
-            )}
-          />
-          <EventFieldActions onCancel={() => setEditing(false)} />
-        </form>
+          placeholder="Add a description…"
+          className={cn(
+            eventFieldInputClass,
+            "block h-auto min-h-24 max-h-[40dvh] resize-none overflow-y-auto py-2 leading-relaxed [overflow-wrap:anywhere]",
+          )}
+        />
       ) : (
         <button
           ref={triggerRef}
@@ -82,6 +106,8 @@ export function EventDescriptionField({
           type="button"
           aria-label="Edit description"
           onClick={() => {
+            originalDescription.current = event.description;
+            restoreFocus.current = false;
             setDraft(event.description ?? "");
             setEditing(true);
           }}
