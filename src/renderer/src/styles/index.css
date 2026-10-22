@@ -221,9 +221,6 @@ label:has(input:not(:disabled)) {
 }
 
 .section-navigation-slot aside { border-radius: 0; background: transparent; padding: 0 8px; }
-.section-navigation-slot button[aria-label="Collapse task sidebar"],
-.section-navigation-slot button[aria-label="Collapse notes sidebar"],
-.workspace-navigation[data-collapsed="true"] .section-navigation-slot { display: none; }
 
 /* Flat working surfaces keep color reserved for selection, events and status. */
 .workspace-navigation { font-family: var(--font-family-sidebar, var(--font-family)); }
@@ -397,3 +394,23 @@ label:has(input:not(:disabled)) {
 }
 @keyframes command-scrim-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes command-scrim-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* The date navigator remains available across Calendar, Tasks and Notes. */
+.mini-calendar { padding: 0 8px 16px; }
+.mini-calendar-header { display: flex; align-items: center; min-height: 36px; gap: 2px; padding-left: 8px; }
+.mini-calendar-header h2 { flex: 1; min-width: 0; font-size: var(--text-base); font-weight: 600; }
+.mini-calendar-header button { display: grid; place-items: center; width: 28px; height: 30px; flex-shrink: 0; border-radius: 6px; color: var(--color-text-muted); }
+.mini-calendar-header button:hover { background: var(--color-surface-0); color: var(--color-text-primary); }
+.mini-calendar table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0 2px; font-variant-numeric: tabular-nums; }
+.mini-calendar th { height: 24px; font-size: var(--text-xs); font-weight: 400; color: var(--color-text-muted); text-align: center; }
+.mini-calendar th:first-child { width: 22px; }
+.mini-calendar td { padding: 0; height: 30px; }
+.mini-calendar td[data-in-range="true"] { background: var(--color-surface-0); }
+.mini-calendar td[data-in-range="true"]:nth-child(2) { border-radius: 7px 0 0 7px; }
+.mini-calendar td[data-in-range="true"]:last-child { border-radius: 0 7px 7px 0; }
+.mini-calendar-day { width: 100%; height: 30px; border-radius: 6px; font-size: var(--text-md); text-align: center; }
+.mini-calendar-day[data-outside="true"] { color: var(--color-text-muted); opacity: 0.5; }
+.mini-calendar-day:hover { background: var(--color-surface-1); }
+.mini-calendar-day[aria-pressed="true"] { background: var(--color-surface-1); }
+.mini-calendar-day[aria-current="date"] { background: var(--color-accent); color: var(--color-accent-foreground); opacity: 1; }
+@media (max-width: 900px) { .workspace-navigation { width: 220px; } }

@@ -1,6 +1,5 @@
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePanePreference } from "../../../shell/panePreferences";
 import type { CalendarEventCompletionScope, CalendarEventDetail } from "@shared/ipc/contracts";
 import { AlertTriangle, X } from "lucide-react";
 import { IconButton, StatusBanner } from "../../../../components/primitives";

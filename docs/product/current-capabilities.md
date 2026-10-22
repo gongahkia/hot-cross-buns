@@ -36,7 +36,7 @@ Memory use cannot be independent of available physical RAM. The implementation i
 - Each visible list retains at most six 100-item pages, with two reads in flight across query changes. Distant scrolling requests the destination page directly. Offscreen task columns release pages while retaining their view state.
 - Calendar retention is limited to six requested time windows in the renderer and three projected ranges in the worker. Event descriptions are previews until opened. A dense time window can still contain many events; a window count is not a fixed byte ceiling.
 - Task trees and notes use measured virtual rows. Selected task children and completed sections can be revealed without downloading intervening rows.
-- Four planner panes and twelve saved tabs per web pane are supported. Embedded pages consume additional memory only when loaded. Embedded note content loads on expansion and is released on collapse.
+- One planner workspace with a persistent mini-calendar sidebar and a contextual details panel is supported. Saved split layouts reopen their active app section; webpage links open in the default browser. Embedded note content loads on expansion and is released on collapse.
 - Search snippets, performance timing samples, logs, and projection caches have bounds.
 
 Regression measurements and their limitations belong in [the remediation checklist](../performance/audit-remediation.md). Universal latency or memory guarantees require representative hardware measurements, not only synthetic fixtures.

@@ -186,7 +186,8 @@ export function CommandPalette({
   useEffect(() => {
     if (!open) return;
     const option = document.querySelector<HTMLElement>("#command-palette-options [aria-selected='true']");
-    option?.scrollIntoView({ block: "nearest" });
+    if (highlightedIndex === 0) document.getElementById("command-palette-options")?.scrollTo({ top: 0 });
+    else option?.scrollIntoView({ block: "nearest" });
   }, [highlightedIndex, open, query]);
 
   function closePalette(): void {

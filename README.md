@@ -15,8 +15,8 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 
 ## Features
 
-* Calendar, tasks, and notes with a right-hand details panel
-* Two built-in light and dark colorschemes 
+* Calendar, tasks, and notes with a persistent mini calendar sidebar and a right-hand details panel
+* Reference light and dark color schemes, with system appearance support
 * Keyboard-first navigation
 * Comprehensive undo/redo tree
 * Local notes, tags, full-text search

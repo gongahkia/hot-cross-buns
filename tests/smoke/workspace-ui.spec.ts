@@ -24,6 +24,7 @@ async function planner(run: (page: Page, app: ElectronApplication) => Promise<vo
   } finally { await app.close(); rmSync(profile, { recursive: true, force: true }); }
 }
 
+const openPalette = (page: Page) => page.keyboard.press(process.platform === "darwin" ? "Meta+p" : "Control+p");
 const navigate = (page: Page, section: string) => page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: section, exact: true }).click();
 async function capture(page: Page, name: string) {
   mkdirSync("output/ui-review", { recursive: true });
@@ -55,12 +56,12 @@ async function seedSearchFixtures(page: Page) {
     });
 }
 
-test("opens sidebar search from every section and searches local planner data", async () => {
+test("opens keyboard search from every section and searches local planner data", async () => {
   await planner(async (page) => {
     await seedSearchFixtures(page);
     for (const section of ["Notes", "Tasks", "Calendar"]) {
       await navigate(page, section);
-      await page.getByRole("button", { name: "Search planner", exact: true }).click();
+      await openPalette(page);
       const search = page.getByRole("searchbox");
       await expect(search).toBeFocused();
       await expect(search).toHaveValue("");
@@ -74,8 +75,8 @@ test("opens sidebar search from every section and searches local planner data", 
       await expect(search).toHaveCount(0);
       await expect(page.getByTestId("app-shell")).toBeVisible();
     }
-    await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
-    await page.getByRole("button", { name: "Search planner", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Search planner", exact: true })).toHaveCount(0);
+    await openPalette(page);
     await expect(page.getByRole("searchbox")).toHaveValue("");
     await page.keyboard.press("Escape");
     await page.keyboard.press(process.platform === "darwin" ? "Meta+p" : "Control+p");
@@ -94,7 +95,7 @@ test("opens search results after the destination view has mounted", async () => 
       ["Notes", "Marmalade event", "Event title"]
     ]) {
       await navigate(page, origin);
-      await page.getByRole("button", { name: "Search planner", exact: true }).click();
+      await openPalette(page);
       await page.getByRole("searchbox").fill(title);
       await page.getByRole("listbox").getByRole("option").filter({ has: page.getByText(title, { exact: true }) }).click();
       await expect(page.getByRole("textbox", { name: field, exact: true })).toHaveValue(title);
@@ -156,7 +157,6 @@ test("restores the active app pane and sends webpage links to the default browse
 
 test("uses the reference command menu with keyboard navigation, motion and narrow layouts", async () => {
   await planner(async (page) => {
-    const searchButton = page.getByRole("button", { name: "Search planner", exact: true });
     const palette = page.locator(".command-palette");
     const search = page.getByRole("searchbox");
     for (const mode of ["light", "dark"] as const) {
@@ -166,7 +166,7 @@ test("uses the reference command menu with keyboard navigation, motion and narro
         window.dispatchEvent(new Event("hcb:core-data-invalidated"));
       }, mode);
       await expect(page.locator("html")).toHaveAttribute("data-color-theme", `hcb-neutral-${mode}`);
-      await searchButton.click();
+      await openPalette(page);
       await expect(search).toBeFocused();
       await expect(palette).toHaveCSS("animation-name", "command-menu-in");
       await expect(palette).toHaveCSS("animation-duration", "0.2s");
@@ -190,12 +190,12 @@ test("uses the reference command menu with keyboard navigation, motion and narro
       await page.keyboard.press("Enter");
       await expect(palette).toHaveCount(0);
       await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-current", "page");
-      await searchButton.click();
+      await openPalette(page);
       await page.mouse.click(10, 10);
       await expect(palette).toHaveCount(0);
     }
     await page.setViewportSize({ width: 640, height: 480 });
-    await searchButton.click();
+    await openPalette(page);
     await expect(search).toBeFocused();
     const narrowBox = await palette.boundingBox();
     expect(narrowBox!.x).toBeGreaterThanOrEqual(16);
@@ -205,7 +205,7 @@ test("uses the reference command menu with keyboard navigation, motion and narro
     await page.getByRole("button", { name: "Close command palette", exact: true }).click();
     await expect(palette).toHaveCount(0);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await searchButton.click();
+    await openPalette(page);
     expect(await palette.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThan(0.001);
     await page.keyboard.press("Escape");
     await expect(palette).toHaveCount(0);
@@ -215,10 +215,77 @@ test("uses the reference command menu with keyboard navigation, motion and narro
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
     });
     await expect(page.locator("html")).toHaveAttribute("data-animations", "disabled");
-    await searchButton.click();
+    await openPalette(page);
     expect(await palette.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThan(0.001);
     await page.keyboard.press("Escape");
     await expect(palette).toHaveCount(0);
+  });
+});
+
+test("keeps the mini calendar visible and synchronizes dates across sections and reloads", async () => {
+  await planner(async (page) => {
+    const mini = page.getByRole("region", { name: "Mini calendar" });
+    await expect(mini).toBeVisible();
+    await expect(mini.locator(".mini-calendar-day")).toHaveCount(42);
+    await expect(page.getByRole("button", { name: /^(Collapse|Expand) (navigation|task sidebar|notes sidebar)$/ })).toHaveCount(0);
+    await page.getByRole("combobox", { name: "Calendar view" }).selectOption("week");
+    await page.getByRole("button", { name: "Choose calendar date" }).click();
+    await page.getByLabel("Go to date", { exact: true }).fill("2026-12-31");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(mini.getByRole("heading")).toHaveText("January 2027");
+    await expect(mini.locator('td[data-in-range="true"]')).toHaveCount(7);
+    await expect(mini.locator('[data-date="2026-12-31"]')).toHaveAttribute("aria-pressed", "true");
+    await mini.getByRole("button", { name: "Mini calendar: next month", exact: true }).click();
+    await expect(mini.getByRole("heading")).toHaveText("February 2027");
+    await expect(page.getByRole("button", { name: "Choose calendar date" })).toContainText("2027");
+    await navigate(page, "Notes");
+    await expect(mini).toBeVisible();
+    await mini.locator('[data-date="2027-02-09"]').click();
+    await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", "2027-02-07T00:00:00.000Z");
+    await expect(mini.locator('[data-date="2027-02-09"]')).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Next week", exact: true }).click();
+    await expect(mini.locator('[data-date="2027-02-16"]')).toHaveAttribute("aria-pressed", "true");
+    await navigate(page, "Tasks");
+    await expect(mini).toBeVisible();
+    const day = mini.locator('[data-date="2027-02-16"]');
+    await day.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(mini.locator('[data-date="2027-02-17"]')).toBeFocused();
+    await page.keyboard.press("PageDown");
+    await expect(mini.locator('[data-date="2027-03-17"]')).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", "2027-03-14T00:00:00.000Z");
+    await page.reload();
+    await expect(mini).toBeVisible();
+    await expect(mini.locator('[data-date="2027-03-17"]')).toHaveAttribute("aria-pressed", "true");
+    await mini.getByRole("button", { name: "Mini calendar: return to today", exact: true }).click();
+    await expect(mini.locator('[aria-current="date"]')).toHaveAttribute("aria-pressed", "true");
+    await capture(page, "persistent-sidebar-light");
+    await page.evaluate(async () => {
+      await window.hcb!.settings.update({ theme: "dark" });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      const preferences = JSON.parse(localStorage.getItem("hcb.panePreferences.v1") ?? "{}");
+      preferences.default = { ...preferences.default, "navigation.collapsed": true };
+      localStorage.setItem("hcb.panePreferences.v1", JSON.stringify(preferences));
+    });
+    await page.reload();
+    await expect(mini).toBeVisible();
+    await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveCount(0);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await capture(page, "persistent-sidebar-dark");
+    await navigate(page, "Tasks");
+    await page.getByRole("button", { name: "New task", exact: true }).click();
+    await page.getByRole("textbox", { name: "Task title", exact: true }).fill("Preserve this draft");
+    await mini.locator('[aria-current="date"]').click();
+    await expect(page.getByRole("textbox", { name: "Task title", exact: true })).toHaveValue("Preserve this draft");
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Tasks", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.getByRole("button", { name: "Discard", exact: true }).click();
+    await mini.locator('[aria-current="date"]').click();
+    await expect(page.getByTestId("calendar-view")).toBeVisible();
+    await page.setViewportSize({ width: 640, height: 480 });
+    await expect(mini).toBeVisible();
+    await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeInViewport();
+    await noOverflow(page);
   });
 });
 
@@ -384,14 +451,14 @@ test("creates and renames lists, edits tasks, completes them and switches presen
     await page.getByRole("button", { name: "Board", exact: true }).click();
     await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-presentation", "board");
     await page.getByRole("button", { name: "List", exact: true }).click();
-    await page.getByRole("button", { name: "Collapse navigation" }).click();
+    await expect(page.getByRole("button", { name: "Collapse navigation" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "New task", exact: true })).toBeVisible();
     await capture(page, "tasks-list");
     await page.reload();
     await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-presentation", "list");
     await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Ship the polished planner", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Expand navigation" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Mini calendar" })).toBeVisible();
   });
 });
 
