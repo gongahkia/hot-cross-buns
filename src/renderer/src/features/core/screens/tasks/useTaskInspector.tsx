@@ -1,10 +1,7 @@
 import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
-import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
-import { showSaveFeedback } from "../../../shell/SaveFeedback";
 import { useInspector, type InspectorDirtyState } from "../../../../components/Inspector";
-import { Button } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";
 import { playCompletionSound } from "../../completionSounds";
@@ -388,7 +385,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   async function saveTask(): Promise<boolean> {
-    if (taskSavePromiseRef.current) {
+    while (taskSavePromiseRef.current) {
       if (!await taskSavePromiseRef.current) return false;
     }
     const snapshot = taskDraftRef.current;

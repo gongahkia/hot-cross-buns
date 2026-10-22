@@ -560,3 +560,115 @@ test("keeps settings navigation stable, searches categories and changes theme", 
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
   });
 });
+
+test("autosaves inspector fields and supports copy, duplicate, delete and both menu themes", async () => {
+  await planner(async (page, app) => {
+    await page.getByRole("button", { name: "New event", exact: true }).click();
+    const panel = page.getByTestId("inspector-shell");
+    await expect(panel.getByRole("button", { name: /Save changes|Create event/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Item type", exact: true }).click();
+    await expect(page.getByRole("menuitemradio")).toHaveText(["Event", "Task", "Birthday", "Note"]);
+    await page.getByRole("menuitemradio", { name: "Event", exact: true }).press("End");
+    await expect(page.getByRole("menuitemradio", { name: "Note", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    const title = page.getByRole("textbox", { name: "Event title" });
+    await title.fill("Architecture review");
+    await title.press("Tab");
+    await expect(panel).not.toHaveAttribute("data-inspector-id", "new");
+    const id = (await panel.getAttribute("data-inspector-id"))!;
+    await page.getByRole("textbox", { name: "Event notes" }).fill("Review the column assignment algorithm.");
+    await page.getByRole("textbox", { name: "Event location" }).fill("Studio 3");
+    await page.getByRole("textbox", { name: "Event location" }).press("Tab");
+    await page.getByRole("combobox", { name: "Event visibility" }).selectOption("private");
+    await page.getByRole("combobox", { name: "Event reminder mode" }).selectOption("custom");
+    await expect.poll(async () => page.evaluate(async (id) => {
+      const result = await window.hcb!.calendar.get({ id });
+      return result.ok && { notes: result.data.notes, location: result.data.location, visibility: result.data.visibility, custom: !result.data.remindersUseDefault };
+    }, id)).toEqual({ notes: "Review the column assignment algorithm.", location: "Studio 3", visibility: "private", custom: true });
+    await panel.getByTestId("inspector-body").evaluate((element) => { element.scrollTop = 0; });
+    await capture(page, "reference-inspector-light");
+    await page.getByRole("button", { name: "Item actions", exact: true }).click();
+    await expect(page.getByRole("menuitem")).toHaveText(["Cut", "Copy", "Duplicate", "Delete"]);
+    await page.getByRole("menuitem", { name: "Copy", exact: true }).click();
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toContain("Architecture review\n\nReview the column assignment algorithm.");
+    await page.getByRole("button", { name: "Item actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
+    await expect(title).toHaveValue("Architecture review (copy)");
+    await expect(panel).not.toHaveAttribute("data-inspector-id", id);
+    const copyId = (await panel.getAttribute("data-inspector-id"))!;
+    await page.getByRole("button", { name: "Item actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await expect(panel).toHaveCount(0);
+    expect(await page.evaluate(async (id) => (await window.hcb!.calendar.get({ id })).ok, copyId)).toBe(false);
+    expect(await page.evaluate(async (id) => (await window.hcb!.calendar.get({ id })).ok, id)).toBe(true);
+    await page.evaluate(async (id) => {
+      await window.hcb!.settings.update({ theme: "dark" });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } }));
+    }, id);
+    await expect(title).toHaveValue("Architecture review");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await page.getByRole("button", { name: "Item type", exact: true }).click();
+    await capture(page, "reference-inspector-dark-menu");
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 960, height: 620 });
+    await expect(panel).toHaveAttribute("data-inspector-layout", "sheet");
+    await noOverflow(page);
+    await capture(page, "reference-inspector-narrow");
+  });
+});
+
+test("confirms replacement and preserves content across task, note, birthday and event conversions", async () => {
+  await planner(async (page) => {
+    const confirmations: string[] = [];
+    let acceptConversion = false;
+    page.on("dialog", async (dialog) => { confirmations.push(dialog.message()); if (acceptConversion) await dialog.accept(); else await dialog.dismiss(); });
+    await navigate(page, "Tasks");
+    await page.getByRole("button", { name: "New task", exact: true }).click();
+    await page.getByRole("textbox", { name: "Task title" }).fill("Conversion keeps my writing");
+    await page.getByRole("textbox", { name: "Task notes" }).fill("Keep this description through every type.");
+    await page.getByRole("textbox", { name: "Task title" }).focus();
+    const panel = page.getByTestId("inspector-shell");
+    await expect(panel).not.toHaveAttribute("data-inspector-id", "new");
+    const taskId = (await panel.getAttribute("data-inspector-id"))!;
+    const changeType = async (kind: string) => {
+      await page.getByRole("button", { name: "Item type", exact: true }).click();
+      await page.getByRole("menuitemradio", { name: kind, exact: true }).click();
+    };
+    await changeType("Note");
+    await expect.poll(() => confirmations.length).toBe(1);
+    await expect(panel).toHaveAttribute("data-inspector-kind", "task");
+    expect(await page.evaluate(async (id) => (await window.hcb!.tasks.get({ id })).ok, taskId)).toBe(true);
+    acceptConversion = true;
+    await changeType("Note");
+    await expect(panel).toHaveAttribute("data-inspector-kind", "note");
+    await expect(panel).not.toHaveAttribute("data-inspector-id", /^note-draft-/);
+    const noteId = (await panel.getAttribute("data-inspector-id"))!;
+    await expect(page.getByRole("textbox", { name: "Note body" })).toContainText("Keep this description through every type.");
+    await expect.poll(async () => page.evaluate(async (id) => (await window.hcb!.tasks.get({ id })).ok, taskId)).toBe(false);
+    await changeType("Birthday");
+    await expect(page.getByRole("textbox", { name: "Birthday title" })).toHaveValue("Conversion keeps my writing");
+    await expect(panel).not.toHaveAttribute("data-inspector-id", "new");
+    const birthdayId = (await panel.getAttribute("data-inspector-id"))!;
+    await expect.poll(async () => page.evaluate(async (id) => {
+      const result = await window.hcb!.calendar.get({ id });
+      return result.ok && { kind: result.data.hcbKind, allDay: result.data.allDay, notes: result.data.notes };
+    }, birthdayId)).toEqual({ kind: "birthday", allDay: true, notes: "Keep this description through every type." });
+    await expect.poll(async () => page.evaluate(async (id) => (await window.hcb!.notes.get({ id })).ok, noteId)).toBe(false);
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+    await page.reload();
+    await expect(page.getByTestId("app-shell")).toBeVisible();
+    await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } })), birthdayId);
+    await expect(page.getByRole("textbox", { name: "Birthday title" })).toHaveValue("Conversion keeps my writing");
+    await changeType("Event");
+    const scope = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Save recurring event" }) }).last();
+    await scope.getByRole("button", { name: "Entire series", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Event title" })).toHaveValue("Conversion keeps my writing");
+    await expect.poll(async () => page.evaluate(async (id) => { const result = await window.hcb!.calendar.get({ id }); return result.ok && result.data.hcbKind; }, birthdayId)).toBeNull();
+    await changeType("Task");
+    await expect(panel).toHaveAttribute("data-inspector-kind", "task");
+    await expect(page.getByRole("textbox", { name: "Task notes" })).toContainText("Keep this description through every type.");
+    await expect.poll(async () => page.evaluate(async (id) => (await window.hcb!.calendar.get({ id })).ok, birthdayId)).toBe(false);
+    expect(confirmations.length).toBe(5);
+  });
+});

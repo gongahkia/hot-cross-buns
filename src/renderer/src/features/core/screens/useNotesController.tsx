@@ -2,9 +2,7 @@ import { InspectorItemToolbar, copyInspectorText } from "../../../components/Ins
 import { usePanePreference } from "../../shell/panePreferences";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
 import { useInspector } from "../../../components/Inspector";
-import { Button } from "../../../components/primitives";
 import { useTextPrompt } from "../../../components/TextPrompt";
 import {
   conversionCleanup,
@@ -109,6 +107,7 @@ export function useNotesController(source: CoreViewModelSource): {
     () => source.settings.starredNoteAt ?? readLocalStorageNumberRecord(starredNotesAtStorageKey)
   );
   const noteAliases = useRef(new Map<string, string>());
+  const localDrafts = useRef(new Map<string, NoteViewModel>());
   const noteInspectorInstance = useRef(0);
   const autoCreateNoteIds = useRef(new Set<string>());
   const [creatingNote, setCreatingNote] = useState<string | null>(null);
@@ -350,6 +349,7 @@ export function useNotesController(source: CoreViewModelSource): {
     note: NoteViewModel,
     mode: "view" | "edit" = "edit"
   ): void {
+    if (note.id.startsWith("note-draft-")) localDrafts.current.set(note.id, note);
     const instance = ++noteInspectorInstance.current;
     setNoteActionError(undefined);
     setNoteInspectorMode(mode);
@@ -683,12 +683,13 @@ export function useNotesController(source: CoreViewModelSource): {
     setNoteActionError(undefined);
     try {
       if (noteId.startsWith("note-draft-")) {
-        const note = notes.find((candidate) => candidate.id === noteId);
-        if (!note) return false;
+        const note = notes.find((candidate) => candidate.id === noteId) ?? localDrafts.current.get(noteId);
+        if (!note) { setNoteActionError("The draft could not be found. Your text is still open."); return false; }
         const result = await window.hcb?.notes.create({ title: draft.title || "Untitled note", body: draft.body, listId: note.listId, tags: draft.tags });
         if (!result?.ok) { setNoteActionError(result?.error.message ?? "Note was not saved."); return false; }
         const persisted = noteFromNative(result.data);
         noteAliases.current.set(noteId, persisted.id);
+        localDrafts.current.delete(noteId);
         fullNoteId.current = persisted.id;
         // Keep the editor mounted and retain any text entered during creation.
         const live = noteInspectorBodyRef.current?.getDraft() ?? draft;
@@ -717,6 +718,7 @@ export function useNotesController(source: CoreViewModelSource): {
     if (!result?.ok) { setNoteActionError("Note was not deleted."); return; }
     setNotes((current) => current.filter((candidate) => candidate.id !== noteId));
     createNoteIds.current.delete(noteId);
+    localDrafts.current.delete(noteId);
     conversionCleanupByNoteId.current.delete(noteId);
     if (starredNoteIds.has(noteId)) toggleNoteStar(noteId);
     if (selectedNoteId === noteId) {

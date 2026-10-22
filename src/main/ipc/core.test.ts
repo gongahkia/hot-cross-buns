@@ -3,11 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("electron", () => ({
   BrowserWindow: { getAllWindows: vi.fn(() => []), getFocusedWindow: vi.fn(() => undefined) },
   dialog: { showOpenDialog: vi.fn() },
+  clipboard: { writeText: vi.fn() },
   ipcMain: { handle: vi.fn() }
 }));
 
 import { payloadIsValid, registerCoreIpc } from "./core";
-import { ipcMain } from "electron";
+import { ipcMain, clipboard } from "electron";
 
 describe("core IPC task payload validation", () => {
   it("rejects unfinished actions instead of accepting a placeholder operation", () => {
@@ -17,6 +18,17 @@ describe("core IPC task payload validation", () => {
     expect(payloadIsValid("settings", "recoveryAction", { action: "backupNow" })).toBe(true);
     expect(payloadIsValid("settings", "recoveryAction", { action: "resetMcpToken" })).toBe(false);
   });
+  it("copies bounded text through the native bridge without exposing clipboard reads", async () => {
+    expect(payloadIsValid("native", "writeClipboardText", { text: "Title\n\nDescription" })).toBe(true);
+    expect(payloadIsValid("native", "writeClipboardText", { text: "x".repeat(1_000_001) })).toBe(false);
+    expect(payloadIsValid("native", "writeClipboardText", { text: "text", format: "html" })).toBe(false);
+    expect(payloadIsValid("native", "readClipboardText", {})).toBe(false);
+    registerCoreIpc({ core: {}, googleSync: { onStatus: vi.fn() }, googleOAuth: {}, backups: {} } as never);
+    const handler = vi.mocked(ipcMain.handle).mock.calls.filter(([channel]) => channel === "hcb:core:invoke").at(-1)![1];
+    expect(await handler({} as never, { namespace: "native", action: "writeClipboardText", payload: { text: "Copied item" } })).toMatchObject({ ok: true });
+    expect(clipboard.writeText).toHaveBeenCalledWith("Copied item");
+  });
+
   it("accepts the null duration emitted by a new task editor", () => {
     expect(payloadIsValid("tasks", "create", {
       durationMinutes: null,

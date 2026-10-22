@@ -49,8 +49,9 @@ export function InspectorItemToolbar({ kind, onKindChange, onCopy, onDuplicate, 
 
 export async function copyInspectorText(title: string, body = ""): Promise<boolean> {
   try {
-    if (!navigator.clipboard) throw new Error("Clipboard is unavailable.");
-    await navigator.clipboard.writeText([title, body].filter(Boolean).join("\n\n"));
+    const text = [title, body].filter(Boolean).join("\n\n");
+    const result = await window.hcb?.native.writeClipboardText({ text });
+    if (!result?.ok) throw new Error("Clipboard is unavailable.");
     return true;
   } catch {
     window.alert("Could not copy this item. It has not been removed.");

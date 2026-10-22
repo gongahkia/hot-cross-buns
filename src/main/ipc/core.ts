@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import { copyFile, chmod, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { CoreStoreError } from "../services/coreStoreError";
@@ -29,7 +29,7 @@ const actionMap: Record<string, readonly string[]> = {
   sync: ["status", "runNow", "forceFullResync"],
   google: ["status", "saveOAuthClient", "beginOAuth", "reconfigureOptionalAccess", "cancelOAuth", "disconnect", "searchDriveFiles", "pickAndUploadDriveFile", "searchGmailMessages", "captureGmailMessage", "previewAccountCopy", "copyAccountData"],
   undo: ["status", "undo", "redo"],
-  native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"],
+  native: ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon", "writeClipboardText"],
   diagnostics: ["summary", "logs", "history", "pendingMutations", "rescheduleNotifications", "retryPendingMutation", "cancelPendingMutation", "previewMutationResolution", "resolveMutation", "clearLogs", "copyableSummary", "exportBundle", "markCachedDataRendered", "recordTiming"],
   agent: [],
   duplicates: []
@@ -102,6 +102,7 @@ export function payloadIsValid(namespace: string, action: string, payload: Recor
   if (namespace === "notes" && action === "deleteNoteList") return z.object({ id: idSchema }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "legacyMigrationPreview") return z.object({ automatic: z.boolean().optional(), limit: z.number().int().min(1).max(1_000).optional() }).strict().safeParse(payload).success;
   if (namespace === "notes" && action === "importLegacyPseudoNotes") return z.object({ taskIds: z.array(idSchema).min(1).max(1_000) }).strict().safeParse(payload).success;
+  if (namespace === "native" && action === "writeClipboardText") return z.object({ text: z.string().max(1_000_000) }).strict().safeParse(payload).success;
   if (namespace === "native" && action === "openExternalUrl") return z.object({ url: z.string().url().max(4_096) }).safeParse(payload).success;
   if (namespace === "settings" && action === "recoveryAction") return z.object({
     action: z.enum(["refresh", "forceFullResync", "resetOnboarding", "checkForUpdates", "backupNow", "exportBackup", "openBackupsFolder", "restoreLocalNotes"]),
@@ -129,6 +130,10 @@ export function registerCoreIpc(
     }
     if (!payloadIsValid(request.data.namespace, request.data.action, request.data.payload)) {
       return validationError("Unsupported or malformed application request");
+    }
+    if (request.data.namespace === "native" && request.data.action === "writeClipboardText") {
+      clipboard.writeText(request.data.payload.text as string);
+      return ok({ copied: true });
     }
     if (isLiveGoogleReadOnlyRequest(request.data.namespace, request.data.action, request.data.payload)) {
       return validationError("Live Google read-only mode blocks mutations and non-read-only sync.");

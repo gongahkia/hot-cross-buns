@@ -2,8 +2,6 @@ import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { CalendarEventCompletionScope, CalendarEventUpdateRequest } from "@shared/ipc/contracts";
-import { ArrowRightLeft, Copy, Pencil, Save, Trash2, X } from "lucide-react";
-import { showSaveFeedback } from "../../../shell/SaveFeedback";
 import { useInspector } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
 import {
@@ -508,7 +506,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   async function saveDraft(recurrenceScope = saveScopeRef.current): Promise<boolean> {
-    if (savePromiseRef.current && !await savePromiseRef.current) return false;
+    while (savePromiseRef.current) if (!await savePromiseRef.current) return false;
     const live = calendarDraftRef.current;
     if (!live) return true;
     if (calendarEventDraftsEqual(live, calendarDraftBaselineRef.current) && !(live.mode === "create" && live.title.trim())) return true;

@@ -243,7 +243,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
     },
     undo: actions("undo", ["status", "undo", "redo"]),
     native: {
-      ...actions("native", ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon"]),
+      ...actions("native", ["capabilities", "listFontFamilies", "requestNotificationPermission", "openExternalUrl", "importMenuBarIcon", "writeClipboardText"]),
       subscribeAction: (listener: (action: any) => void): (() => void) =>
         ipc.subscribe?.("hcb:native-action", (payload) => {
           const parsed = nativeActionSchema.safeParse(payload);

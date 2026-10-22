@@ -1100,7 +1100,7 @@ export function CalendarEventForm({
             <select
               aria-label="Birthday reminder"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setDraft({ ...draft, reminderMinutes: event.target.value })}
+              onChange={(event) => setDraft({ ...draft, reminderMinutes: event.target.value, remindersUseDefault: false, reminders: event.target.value === "" ? [] : [{ method: "popup", minutes: Number(event.target.value) }] })}
               value={draft.reminderMinutes}
             >
               <option value="">None</option>

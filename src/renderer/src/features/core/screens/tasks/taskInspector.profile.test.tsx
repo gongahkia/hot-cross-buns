@@ -117,7 +117,12 @@ describe("Task inspector draft persistence", () => {
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
 
     expect(api.tasks.create).toHaveBeenCalledTimes(1);
+    fireEvent.change(title, { target: { value: "New typing during creation" } });
+    fireEvent.blur(title); fireEvent.blur(title);
     await act(async () => { releaseCreate?.(); });
+    await waitFor(() => expect(api.tasks.update).toHaveBeenLastCalledWith(expect.objectContaining({ title: "New typing during creation" })));
+    expect(api.tasks.create).toHaveBeenCalledTimes(1);
+    expect(title).toHaveValue("New typing during creation");
 
     await waitFor(() => expect(screen.getByTestId("inspector-shell")).not.toHaveAttribute("data-inspector-id", "new"));
     await waitFor(() => expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4"));
