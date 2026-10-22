@@ -1,3 +1,4 @@
+import { useCalendarWheelNavigation } from "./useCalendarWheelNavigation";
 import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
 import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -221,6 +222,7 @@ function CalendarTimelineView({
   onResizeEvent,
   onChangeEvent,
   onNavigate,
+  onScrollPeriod,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks = [],
@@ -241,6 +243,7 @@ function CalendarTimelineView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   onNavigate?: (direction: -1 | 1) => void;
+  onScrollPeriod?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -256,6 +259,7 @@ function CalendarTimelineView({
   const [dropPreview, setDropPreview] = useState<CalendarTimeBlock | null>(null);
   const [nowIso, setNowIso] = useState(() => new Date().toISOString());
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  useCalendarWheelNavigation(scrollContainerRef, "horizontal", onScrollPeriod);
   const paneId = useContext(PaneIdentity);
   const timeGridRef = useRef<HTMLDivElement | null>(null);
   const timelineDragRef = useRef<{
@@ -294,6 +298,7 @@ function CalendarTimelineView({
       : calendarTodayKey();
   const dayColumnMinWidth = days.length <= 1 ? 240 : days.length <= 3 ? 140 : 84;
   const gridTemplateColumns = `repeat(${Math.max(1, days.length)}, minmax(${dayColumnMinWidth}px, 1fr))`;
+  const initializedScrollView = useRef<string | undefined>(undefined);
   const edgeNavigation = useRef<{ direction: -1 | 1; at: number } | null>(null);
   const scrollSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; key: string; top: number; left: number } | null>(null);
   function saveScroll(): void {
@@ -397,6 +402,8 @@ function CalendarTimelineView({
       return;
     }
 
+    const firstVisit = initializedScrollView.current !== `${gridLabel}:${hourRowHeight}`;
+    initializedScrollView.current = `${gridLabel}:${hourRowHeight}`;
     const frame = window.requestAnimationFrame(() => {
       if (document.body.dataset.calendarDragging) return;
       const saved = readPanePreference<{ top: number; left: number } | null>(paneId, scrollKey, null);
@@ -405,7 +412,7 @@ function CalendarTimelineView({
         scrollContainer.scrollLeft = saved.left;
         return;
       }
-      if (currentDayIndex < 0) return;
+      if (!firstVisit || currentDayIndex < 0) return;
       const targetTop = timeGrid.offsetTop + currentTimeTop - scrollContainer.clientHeight * 0.35;
       scrollContainer.scrollTop = Math.max(0, targetTop);
     });
@@ -1074,6 +1081,7 @@ export function DayView({
   onResizeEvent,
   onChangeEvent,
   onNavigate,
+  onScrollPeriod,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks,
@@ -1090,6 +1098,7 @@ export function DayView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   onNavigate?: (direction: -1 | 1) => void;
+  onScrollPeriod?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -1110,6 +1119,7 @@ export function DayView({
       onResizeEvent={onResizeEvent}
       onChangeEvent={onChangeEvent}
       onNavigate={onNavigate}
+      onScrollPeriod={onScrollPeriod}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
       smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -1133,6 +1143,7 @@ export function MultiDayView({
   onResizeEvent,
   onChangeEvent,
   onNavigate,
+  onScrollPeriod,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks,
@@ -1151,6 +1162,7 @@ export function MultiDayView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   onNavigate?: (direction: -1 | 1) => void;
+  onScrollPeriod?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -1171,6 +1183,7 @@ export function MultiDayView({
       onResizeEvent={onResizeEvent}
       onChangeEvent={onChangeEvent}
       onNavigate={onNavigate}
+      onScrollPeriod={onScrollPeriod}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
       smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -1191,6 +1204,7 @@ export function WeekView({
   onResizeEvent,
   onChangeEvent,
   onNavigate,
+  onScrollPeriod,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks,
@@ -1207,6 +1221,7 @@ export function WeekView({
   onResizeEvent: (eventId: string, endsAt: string) => void;
   onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   onNavigate?: (direction: -1 | 1) => void;
+  onScrollPeriod?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -1227,6 +1242,7 @@ export function WeekView({
       onResizeEvent={onResizeEvent}
       onChangeEvent={onChangeEvent}
       onNavigate={onNavigate}
+      onScrollPeriod={onScrollPeriod}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
       smartScheduleGhostBlocks={smartScheduleGhostBlocks}

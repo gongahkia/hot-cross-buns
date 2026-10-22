@@ -1,3 +1,4 @@
+import { useCalendarWheelNavigation } from "./useCalendarWheelNavigation";
 import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
 import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
 import { calendarLocalPoint } from "./calendarDateUtils";
@@ -44,6 +45,7 @@ function monthOverflowStyle(dayIndex: number): CSSProperties {
 }
 
 export function MonthView({
+  onScrollPeriod,
   onChangeEvent,
   eventCompletionDefaultScope,
   weeks,
@@ -56,6 +58,7 @@ export function MonthView({
 }: {
   eventCompletionDefaultScope?: EventCompletionDefaultScope;
   weeks: CalendarMonthWeekViewModel[];
+  onScrollPeriod?: (direction: -1 | 1) => void;
   onChangeEvent: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
   onCreate: (seed?: CalendarCreateSeed) => void;
   onOpen: (event: CalendarEventViewModel) => void;
@@ -80,6 +83,9 @@ export function MonthView({
   const dragRangeRef = useRef<{ last: string; moved: boolean; start: string } | null>(null);
   const monthGridRef = useRef<HTMLDivElement | null>(null);
   const removeMonthPointerListenersRef = useRef<(() => void) | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const edgeNavigation = useRef<{ direction: -1 | 1; at: number } | null>(null);
+  useCalendarWheelNavigation(scrollRef, "vertical", onScrollPeriod);
   const todayCellRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => () => removeMonthPointerListenersRef.current?.(), []);
@@ -130,7 +136,22 @@ export function MonthView({
 
   const gesture = useCalendarPointerGesture({
     locate: (x, y) => { const day = dayKeyFromPointer({ clientX: x, clientY: y }); return day ? { day } : null; },
-    onCommit: onChangeEvent
+    onCommit: onChangeEvent,
+    onFinish: () => { edgeNavigation.current = null; },
+    onEdge: (_, y) => {
+      const node = scrollRef.current;
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const direction = y > rect.bottom - 28 ? 1 : y < rect.top + 65 ? -1 : 0;
+      if (!direction) { edgeNavigation.current = null; return false; }
+      const before = node.scrollTop; node.scrollTop += direction * 12;
+      if (node.scrollTop !== before) { edgeNavigation.current = null; return true; }
+      if (!onScrollPeriod) return false;
+      const now = performance.now(), edge = edgeNavigation.current;
+      if (!edge || edge.direction !== direction) edgeNavigation.current = { direction, at: now + 600 };
+      else if (now >= edge.at) { edge.at = now + 800; onScrollPeriod(direction); }
+      return true;
+    }
   });
   function openAfterGesture(event: CalendarEventViewModel): void {
     if (!gesture.consumeClick()) onOpen(event);
@@ -234,7 +255,7 @@ export function MonthView({
   }
 
   return (
-    <div className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view">
+    <div ref={scrollRef} className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view">
       <div className="calendar-month-head grid" style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))` }} role="row">
         {(showWeekends ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["Mon", "Tue", "Wed", "Thu", "Fri"]).map((weekday) => (
           <div className="border-r border-border px-2 py-2 last:border-r-0" key={weekday} role="columnheader">

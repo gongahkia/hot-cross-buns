@@ -613,3 +613,6 @@ body[data-calendar-dragging] { user-select: none; }
 .calendar-timeline .calendar-gesture-status { position: absolute; bottom: 12px; }
 
 [data-calendar-all-day-date][data-calendar-drop-preview="true"] { background: color-mix(in srgb, var(--color-accent) 18%, transparent); box-shadow: inset 0 0 0 1px var(--color-accent); }
+
+/* The rolling window owns its offset; browser anchoring must not pull it backward. */
+.calendar-month { overflow-anchor: none; }

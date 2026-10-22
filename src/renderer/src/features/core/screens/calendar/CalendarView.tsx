@@ -1,3 +1,4 @@
+import { useCalendarRangeLoader } from "./useCalendarRangeLoader";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEventCompletionScope, CalendarEventDetail } from "@shared/ipc/contracts";
@@ -94,9 +95,8 @@ export function CalendarView({
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
-  const { activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey, showWeekends, showDeclinedEvents } = useCalendarNavigation();
+  const { calendarWindowStart, setCalendarWindow, activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey, showWeekends, showDeclinedEvents } = useCalendarNavigation();
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
-  const [calendarRangeError, setCalendarRangeError] = useState<string>();
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
   const calendarNavigationStartedAt = useRef<number | null>(null);
   const {
@@ -171,16 +171,16 @@ export function CalendarView({
     [calendarAnchorDate, visibleEventDayIndex, todayKey]
   );
   const calendarWeekDays = useMemo(
-    () => calendarWeekDaysForDate(visibleEventDayIndex, calendarAnchorDate, todayKey),
-    [calendarAnchorDate, visibleEventDayIndex, todayKey]
+    () => calendarWindowStart ? calendarRangeDaysForDate(visibleEventDayIndex, calendarWindowStart, 7, todayKey) : calendarWeekDaysForDate(visibleEventDayIndex, calendarAnchorDate, todayKey),
+    [calendarAnchorDate, calendarWindowStart, visibleEventDayIndex, todayKey]
   );
   const calendarMultiDayDays = useMemo(
     () => calendarRangeDaysForDate(visibleEventDayIndex, calendarAnchorDate, multiDayCount, todayKey),
     [calendarAnchorDate, multiDayCount, visibleEventDayIndex, todayKey]
   );
   const calendarMonthWeeks = useMemo(
-    () => calendarMonthWeeksForDate(visibleEventDayIndex, calendarAnchorDate, todayKey),
-    [calendarAnchorDate, visibleEventDayIndex, todayKey]
+    () => calendarMonthWeeksForDate(visibleEventDayIndex, calendarAnchorDate, todayKey, calendarWindowStart),
+    [calendarAnchorDate, calendarWindowStart, visibleEventDayIndex, todayKey]
   );
   const calendarAgendaEvents = useMemo(
     () => calendarEventsForDay(visibleEventDayIndex, calendarAnchorDate),
@@ -268,6 +268,19 @@ export function CalendarView({
 
       return calendarAddUtcDays(current, direction);
     });
+  }
+
+  function scrollCalendarWindow(direction: -1 | 1): void {
+    const first = activeViewId === "month" ? calendarDayKey(calendarMonthWeeks[0].days[0])
+      : activeViewId === "week" ? calendarDayKey(calendarWeekDays[0]) : calendarAnchorDate;
+    const next = calendarAddUtcDays(first, direction * (activeViewId === "month" ? 7 : 1));
+    const last = calendarAddUtcDays(next, activeViewId === "month" ? 41 : activeViewId === "week" ? 6 : activeViewId === "multiDay" ? multiDayCount - 1 : 0);
+    const range = calendarDaysRange([next, last], source.settings.defaultTimeZone);
+    const anchor = activeViewId === "month" ? calendarAddUtcDays(next, 14) : next;
+    if (!calendarRangeAllowedByRetention(range, source.settings.eventRetentionDaysBack, source.settings.defaultTimeZone) ||
+      (activeViewId === "month" && calendarMonthOffset(todayKey, anchor) > source.settings.monthScrollFutureMonths)) return;
+    calendarNavigationStartedAt.current = rendererNow();
+    setCalendarWindow(next, anchor);
   }
 
   function resetCalendarAnchor(): void {
@@ -382,43 +395,13 @@ export function CalendarView({
     return () => window.removeEventListener("hcb:calendar-command", handleCalendarCommand);
   }, [source]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (
-      source.dataState === "loading" || source.dataState === "stale" ||
-      ((source.dataState === "offline" ||
-        source.dataState === "error") &&
-        !source.hasCachedData) ||
-      !calendarRangeAllowedByRetention(
-        calendarVisibleRange,
-        source.settings.eventRetentionDaysBack,
-        source.settings.defaultTimeZone
-      )
-    ) {
-      return;
-    }
-
-    setCalendarRangeError(undefined);
-    void source.ensureCalendarRange(calendarVisibleRange).then(async (loaded) => {
-      // A refresh can supersede an in-flight range. Retry against the current
-      // generation before presenting it as a failed load.
-      if (!loaded && !cancelled) loaded = await source.ensureCalendarRange(calendarVisibleRange);
-      if (!cancelled) setCalendarRangeError(loaded ? undefined : "Calendar range could not be loaded.");
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    calendarVisibleRange.end,
-    calendarVisibleRange.start,
-    source.dataState,
-    source.calendarDataRevision,
-    source.ensureCalendarRange,
-    source.settings.defaultTimeZone,
-    source.settings.eventRetentionDaysBack
-  ]);
+  const { error: calendarRangeError, clearError: clearCalendarRangeError } = useCalendarRangeLoader(
+    calendarVisibleRange,
+    source.dataState !== "loading" && source.dataState !== "stale" &&
+      (source.hasCachedData || (source.dataState !== "offline" && source.dataState !== "error")) &&
+      calendarRangeAllowedByRetention(calendarVisibleRange, source.settings.eventRetentionDaysBack, source.settings.defaultTimeZone),
+    source.calendarDataRevision, source.ensureCalendarRange
+  );
 
   useEffect(() => {
     scheduleRendererFrame(() => {
@@ -480,7 +463,7 @@ export function CalendarView({
             <IconButton
               icon={X}
               label="Dismiss calendar interaction error"
-              onClick={() => { setCalendarActionError(undefined); setCalendarRangeError(undefined); }}
+              onClick={() => { setCalendarActionError(undefined); clearCalendarRangeError(); }}
               variant="ghost"
             />
           }
@@ -558,6 +541,7 @@ export function CalendarView({
               onResizeEvent={resizeCalendarEvent}
               onChangeEvent={changeCalendarEventTime}
               onNavigate={shiftCalendarAnchor}
+              onScrollPeriod={scrollCalendarWindow}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
               smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -579,6 +563,7 @@ export function CalendarView({
               onResizeEvent={resizeCalendarEvent}
               onChangeEvent={changeCalendarEventTime}
               onNavigate={shiftCalendarAnchor}
+              onScrollPeriod={scrollCalendarWindow}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
               smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -598,6 +583,7 @@ export function CalendarView({
               onResizeEvent={resizeCalendarEvent}
               onChangeEvent={changeCalendarEventTime}
               onNavigate={shiftCalendarAnchor}
+              onScrollPeriod={scrollCalendarWindow}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
               smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -606,6 +592,7 @@ export function CalendarView({
           ) : null}
           {activeViewId === "month" ? (
             <MonthView
+              onScrollPeriod={scrollCalendarWindow}
               onChangeEvent={changeCalendarEventTime}
               eventCompletionDefaultScope={source.settings.eventCompletionDefaultScope}
               weeks={calendarMonthWeeks}

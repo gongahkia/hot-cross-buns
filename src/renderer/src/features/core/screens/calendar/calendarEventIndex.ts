@@ -135,15 +135,16 @@ export function calendarRangeDaysForDate(
 export function calendarMonthWeeksForDate(
   index: CalendarEventDayIndex,
   day: string,
-  todayKey = calendarTodayKey()
+  todayKey = calendarTodayKey(),
+  windowStart?: string
 ): CalendarMonthWeekViewModel[] {
   const anchor = calendarDateFromIsoDate(day);
   const first = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
-  const gridStart = new Date(first);
-  gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());
+  const gridStart = windowStart ? calendarDateFromIsoDate(windowStart) : new Date(first);
+  if (!windowStart) gridStart.setUTCDate(first.getUTCDate() - first.getUTCDay());
 
   return Array.from({ length: 6 }, (_, weekIndex) => ({
-    id: `month-${day}-week-${weekIndex}`,
+    id: `month-week-${calendarAddUtcDays(calendarIsoDate(gridStart), weekIndex * 7)}`,
     days: Array.from({ length: 7 }, (_, dayIndex) => {
       const date = new Date(gridStart);
       date.setUTCDate(gridStart.getUTCDate() + weekIndex * 7 + dayIndex);

@@ -222,3 +222,45 @@ test("moving a scheduled task keeps its block and planned dates synchronized wit
     expect(state.blocks.find((block: { id: string }) => block.id === data.blockId).startsAt).toBe("2027-01-12T09:15:00.000Z");
   });
 });
+
+test("horizontal scrolling rolls a bounded week by days, survives reload and resets on date selection", async () => {
+  await planner(async page => {
+    await chooseCalendarView(page, "week"); await date(page);
+    const calendar = page.getByTestId("calendar-view"), scroll = page.locator('[data-calendar-timeline-scroll]');
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-01-10T00:00:00.000Z");
+    await scroll.hover(); await page.mouse.wheel(160, 0);
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-01-11T00:00:00.000Z");
+    await expect(page.locator('[data-calendar-day-events]')).toHaveCount(7);
+    await page.mouse.wheel(0, 250);
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-01-11T00:00:00.000Z");
+    await page.reload();
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-01-11T00:00:00.000Z");
+    await date(page, "2027-01-20");
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-01-17T00:00:00.000Z");
+  });
+});
+
+test("Month scrolls through week windows across month boundaries without growing the DOM", async () => {
+  await planner(async page => {
+    await page.evaluate(async () => {
+      await window.hcb!.settings.update({ monthScrollFutureMonths: 24 });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    await chooseCalendarView(page, "month"); await date(page);
+    const calendar = page.getByTestId("calendar-view"), grid = page.getByRole("grid", { name: "Calendar month view" });
+    await expect(calendar).toHaveAttribute("data-range-start", "2026-12-27T00:00:00.000Z");
+    await grid.evaluate(el => { el.scrollTop = el.scrollHeight; }); await grid.hover();
+    for (let step = 1; step <= 6; step++) {
+      await page.mouse.wheel(0, 160);
+      const start = new Date(Date.parse("2026-12-27T00:00:00Z") + step * 7 * 86400000).toISOString();
+      await expect(calendar).toHaveAttribute("data-range-start", start);
+      await expect(grid.getByRole("gridcell")).toHaveCount(42);
+      await page.waitForTimeout(140); // Separate intentional wheel gestures from momentum coalescing.
+    }
+    await page.reload();
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-02-07T00:00:00.000Z");
+    await grid.evaluate(el => { el.scrollTop = 0; }); await grid.hover(); await page.mouse.wheel(0, -160);
+    await expect(calendar).toHaveAttribute("data-range-start", "2027-01-31T00:00:00.000Z");
+    await capture(page, "month-continuous-window");
+  });
+});
