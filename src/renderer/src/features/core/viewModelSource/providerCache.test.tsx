@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ok } from "@shared/ipc/result";
 import { CoreDataProvider, useCoreViewModelSource, type CoreViewModelSource } from "../coreViewModelSource";
 import { installHcb, seededHcb, testNativeCapabilities, testSettings } from "../../../test/appTestHelpers";
+import { useCalendarRangeLoader } from "../screens/calendar/useCalendarRangeLoader";
 
-function setup() {
+function setup(watchRange?: { start: string; end: string }) {
   const api = seededHcb();
   api.settings.get = vi.fn(async () => ok(testSettings()));
   api.native = { capabilities: vi.fn(async () => ok(testNativeCapabilities())) } as never;
@@ -13,12 +14,29 @@ function setup() {
   api.sync.subscribeStatus = vi.fn((next) => { listener = next; return () => undefined; });
   installHcb(api);
   let source!: CoreViewModelSource;
-  function Capture(): null { source = useCoreViewModelSource(); return null; }
+  function Capture(): null {
+    source = useCoreViewModelSource();
+    useCalendarRangeLoader(watchRange ?? { start: "2099-05-01T00:00:00.000Z", end: "2099-06-01T00:00:00.000Z" }, Boolean(watchRange) && source.dataState !== "loading", source.calendarDataRevision, source.ensureCalendarRange);
+    return null;
+  }
   render(<CoreDataProvider><Capture /></CoreDataProvider>);
   return { api, getSource: () => source, status: (value: any) => listener?.(value) };
 }
 
 describe("workspace cache consistency", () => {
+  it("reloads an unchanged visible range after refresh replaces the bootstrap snapshot", async () => {
+    const range = { start: "2099-05-01T00:00:00.000Z", end: "2099-06-01T00:00:00.000Z" };
+    const fixture = setup(range);
+    const original = fixture.api.calendar.listEvents;
+    let title = "Before edit";
+    fixture.api.calendar.listEvents = vi.fn(request => request.start === range.start
+      ? Promise.resolve(ok({ items: [{ id: "viewport-event", calendarId: "primary", title, startsAt: "2099-05-02T08:00:00Z", endsAt: "2099-05-02T09:00:00Z" }], page: { limit: 500, totalKnown: 1 } })) : original(request));
+    await waitFor(() => expect(fixture.getSource().calendarEventsById["viewport-event"]?.title).toBe("Before edit"));
+    title = "After edit";
+    act(() => fixture.getSource().refresh());
+    await waitFor(() => expect(fixture.getSource().calendarEventsById["viewport-event"]?.title).toBe("After edit"));
+  });
+
   it("reuses collection projections for unrelated sync status updates", async () => {
     const fixture = setup();
     await waitFor(() => expect(fixture.getSource().hydrationState).toBe("success"));

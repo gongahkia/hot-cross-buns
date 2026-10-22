@@ -345,6 +345,10 @@ function usePreloadCoreSource(): CoreViewModelSource {
     void loadCoreData(settingsPromise).then(
       (snapshot) => {
         if (generation !== loadGeneration.current) return;
+        // Bootstrap replaces viewport data. Cached/offline calendars remain
+        // enabled while refreshing, so explicitly reload their current range.
+        // Also discard any range response started before this replacement.
+        invalidateCalendar();
         setLoadState(() => ({
           appearanceReady: true,
           snapshot,
@@ -354,6 +358,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
       },
       (error: unknown) => {
         if (generation !== loadGeneration.current) return;
+        invalidateCalendar();
         setLoadState((current) => ({
           ...current,
           state: hasSnapshotData(current.snapshot) ? "stale" : "error",
@@ -362,7 +367,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
         }));
       }
     );
-  }, []);
+  }, [invalidateCalendar]);
 
   const ensureCalendarRange = useCallback((range: CalendarRangeLoadRequest): Promise<boolean> => {
     if (!window.hcb) {
