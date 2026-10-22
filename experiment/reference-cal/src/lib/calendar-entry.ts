@@ -10,8 +10,7 @@ export function withCalendarEntryKind(
   entry: CalendarEvent,
   kind: CalendarEntryKind,
 ): CalendarEvent {
-  if (kind !== "birthday" || entry.kind === "birthday")
-    return { ...entry, kind };
+  if (kind !== "birthday") return { ...entry, kind };
   const recurrenceRule = { frequency: "yearly", interval: 1 } as const;
   return {
     ...entry,

@@ -509,6 +509,11 @@ test("new birthdays repeat annually while events and tasks keep their scheduling
   assert.equal(birthday.recurrence, "Every year");
   assert.equal(birthday.description, base.description);
   assert.equal(birthday.location, base.location);
+  assert.deepEqual(
+    withCalendarEntryKind({ ...base, kind: "birthday" }, "birthday")
+      .recurrenceRule,
+    { frequency: "yearly", interval: 1 },
+  );
   const rows = expand(
     birthday,
     new Date("2026-01-01Z"),
