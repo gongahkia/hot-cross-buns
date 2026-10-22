@@ -40,6 +40,45 @@ async function noOverflow(page: Page) {
   expect(clipped).toEqual([]);
 }
 
+test("opens sidebar search from every section and searches local planner data", async () => {
+  await planner(async (page) => {
+    await page.evaluate(async () => {
+      const day = new Date().toISOString().slice(0, 10);
+      const results = await Promise.all([
+        window.hcb!.tasks.create({ listId: "inbox", title: "Marmalade task" }),
+        window.hcb!.notes.create({ title: "Marmalade note", body: "A searchable local document." }),
+        window.hcb!.calendar.create({ calendarId: "primary", title: "Marmalade event", startsAt: `${day}T10:00:00Z`, endsAt: `${day}T11:00:00Z`, allDay: false })
+      ]);
+      for (const result of results) if (!result.ok) throw new Error(result.error.message);
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    for (const section of ["Notes", "Tasks", "Calendar"]) {
+      await navigate(page, section);
+      await page.getByRole("button", { name: "Search planner", exact: true }).click();
+      const search = page.getByRole("searchbox");
+      await expect(search).toBeFocused();
+      await expect(search).toHaveValue("");
+      await search.fill("Marmalade");
+      for (const title of ["Marmalade task", "Marmalade note", "Marmalade event"]) {
+        await expect(page.getByRole("option").filter({ has: page.getByText(title, { exact: true }) })).toBeVisible();
+      }
+      await search.fill("marmalade-no-such-item-7781");
+      await expect(page.getByRole("option")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(search).toHaveCount(0);
+      await expect(page.getByTestId("app-shell")).toBeVisible();
+    }
+    await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
+    await page.getByRole("button", { name: "Search planner", exact: true }).click();
+    await expect(page.getByRole("searchbox")).toHaveValue("");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+p" : "Control+p");
+    await page.getByRole("searchbox").fill("Marmalade task");
+    await page.getByRole("option").filter({ has: page.getByText("Marmalade task", { exact: true }) }).click();
+    await expect(page.getByRole("textbox", { name: "Task title", exact: true })).toHaveValue("Marmalade task");
+  });
+});
+
 test("navigates calendar views, filters sources, edits in context and preserves drafts", async () => {
   await planner(async (page) => {
     // Existing profiles that selected the retired pop-up mode must dock too.

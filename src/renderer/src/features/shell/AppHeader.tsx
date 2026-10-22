@@ -165,7 +165,7 @@ export function AppHeader({
           </Button>
         ))}
       </nav>
-      <Button aria-label="Search planner" className={cx("mx-2 mt-3 justify-start", collapsed ? "px-2" : "px-3")} onClick={onOpenCommandPalette} title="Search planner" variant="ghost">
+      <Button aria-label="Search planner" className={cx("mx-2 mt-3 justify-start", collapsed ? "px-2" : "px-3")} onClick={() => onOpenCommandPalette()} title="Search planner" variant="ghost">
         <Search size={17} className="shrink-0" />{!collapsed ? <span>Search</span> : null}
       </Button>
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3">
