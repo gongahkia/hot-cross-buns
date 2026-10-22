@@ -1,6 +1,7 @@
-import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { X } from "lucide-react";
+import { PanelRight, PictureInPicture2, X } from "lucide-react";
+import { usePanePreference } from "../../features/shell/panePreferences";
 import { Badge, IconButton, cx } from "../primitives";
 import { useInspector } from "./InspectorContext";
 
@@ -28,6 +29,17 @@ function InspectorDirtyBadge({
 export function InspectorShell(): JSX.Element | null {
   const { current, close, isOpen } = useInspector();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = usePanePreference("inspector.width", 380);
+  const [docked, setDocked] = usePanePreference("inspector.docked", true);
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const narrow = viewportWidth < 1050;
+  const floating = !docked && !narrow;
+  const resolvedWidth = Math.min(Math.max(320, width), 560, viewportWidth - 32);
+  useEffect(() => {
+    const resize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -58,7 +70,7 @@ export function InspectorShell(): JSX.Element | null {
       const node = containerRef.current;
       const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
       const focusedDialog = document.activeElement?.closest('[role="dialog"][aria-modal="true"]');
-      if (!node || dialogs[dialogs.length - 1] !== node || (focusedDialog && focusedDialog !== node)) return;
+      if (!node || (dialogs.length > 0 && dialogs[dialogs.length - 1] !== node) || (focusedDialog && focusedDialog !== node)) return;
       event.preventDefault();
       requestClose();
     };
@@ -67,7 +79,7 @@ export function InspectorShell(): JSX.Element | null {
   }, [isOpen, requestClose]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== "Tab" || (event.target as HTMLElement).closest('[role="dialog"]') !== containerRef.current) return;
+    if (!narrow || event.key !== "Tab" || (event.target as HTMLElement).closest('[role="dialog"]') !== containerRef.current) return;
     const controls = [...(containerRef.current?.querySelectorAll<HTMLElement>('input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])') ?? [])]
       .filter((element) => element.getClientRects().length > 0);
     const first = controls[0], last = controls.at(-1);
@@ -84,18 +96,21 @@ export function InspectorShell(): JSX.Element | null {
 
   return (
     <>
-      <div
+      {narrow ? <div
         aria-hidden="true"
-        className="fixed inset-0 z-40 bg-bg-primary/80"
+        className="fixed inset-0 z-40 bg-black/30"
         onClick={requestClose}
-      />
+      /> : null}
       <section
         aria-label={showHeader ? undefined : current.title}
         aria-labelledby={showHeader ? titleId : undefined}
-        aria-modal="true"
+        aria-modal={narrow}
         className={cx(
-          "hcb-raised fixed left-1/2 top-1/2 z-50 flex max-h-[min(820px,calc(100dvh-32px))] w-[min(760px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-secondary"
+          "relative flex min-h-0 shrink-0 flex-col border-l border-border bg-bg-primary text-text-primary",
+          narrow ? "fixed inset-y-0 right-0 z-50 shadow-2xl" : floating ? "fixed right-5 top-20 z-30 max-h-[min(620px,calc(100dvh-100px))] rounded-hcbLg border shadow-xl" : "h-full"
         )}
+        style={{ width: resolvedWidth }}
+        data-inspector-layout={narrow ? "sheet" : floating ? "popover" : "docked"}
         data-inspector-kind={current.kind}
         data-inspector-id={current.id}
         data-testid="inspector-shell"
@@ -104,6 +119,25 @@ export function InspectorShell(): JSX.Element | null {
         role="dialog"
         tabIndex={-1}
       >
+        {!narrow && !floating ? <div
+          aria-label="Resize details panel"
+          aria-orientation="vertical"
+          aria-valuemin={320}
+          aria-valuemax={560}
+          aria-valuenow={resolvedWidth}
+          className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-accent/30 focus-visible:bg-accent/30"
+          role="separator"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+              event.preventDefault();
+              setWidth(Math.max(320, Math.min(560, resolvedWidth + (event.key === "ArrowLeft" ? 24 : -24))));
+            }
+          }}
+          onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }}
+          onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(320, Math.min(560, viewportWidth - event.clientX))); }}
+          onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+        /> : null}
         {showHeader ? (
           <header className="flex min-h-14 items-start justify-between gap-3 border-b border-border px-4 py-2">
             <div className="min-w-0 flex-1">
@@ -120,6 +154,7 @@ export function InspectorShell(): JSX.Element | null {
                 <p className="hcb-copy mt-0.5 whitespace-normal break-words text-[var(--text-xs)] leading-snug text-text-muted">{current.subtitle}</p>
               ) : null}
             </div>
+            {!narrow ? <IconButton icon={docked ? PictureInPicture2 : PanelRight} label={docked ? "Float details" : "Dock details"} onClick={() => setDocked(!docked)} variant="ghost" /> : null}
             <IconButton
               data-testid="inspector-close"
               icon={X}

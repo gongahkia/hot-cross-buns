@@ -25,6 +25,7 @@ import {
 } from "../../hooks/useRenderTiming";
 import { I18nProvider } from "../../i18n";
 import { AppHeader } from "./AppHeader";
+import { InspectorShell } from "../../components/Inspector";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
 import { PaneWorkspace } from "./PaneWorkspace";
 import { splitPaneWebUrl } from "./paneWorkspaceModel";
@@ -972,7 +973,7 @@ export function AppShell(): JSX.Element {
         toolbarActionOrder={source.settings.toolbarActionOrder}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
           <PaneWorkspace
             activeSectionId={paneWorkspace.activeSectionId}
@@ -991,6 +992,7 @@ export function AppShell(): JSX.Element {
             visibleSectionIds={visiblePaneSectionIds}
           />
         </RenderTimingBoundary>
+        <InspectorShell />
       </main>
 
       <RenderTimingBoundary id="command-palette">
