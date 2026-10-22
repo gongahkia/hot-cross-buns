@@ -1075,7 +1075,6 @@ export function EventDetailPanel({
         <EventLocationField
           key={event.id}
           event={event}
-          context={editorContext}
           onEventChange={onEventChange}
         />
       </div>
