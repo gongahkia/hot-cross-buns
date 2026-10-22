@@ -18,6 +18,7 @@ function renderTaskSurface({
   api.sync.subscribeStatus = vi.fn(() => () => undefined);
   api.native = { capabilities: vi.fn(async () => ({ ok: true, data: testNativeCapabilities() })) } as never;
   api.diagnostics = {
+    summary: vi.fn(async () => internalError("No diagnostic fixture")),
     markCachedDataRendered: vi.fn(async () => ok({ marked: true })),
     recordTiming: vi.fn(async () => ok({ recorded: true }))
   } as never;
