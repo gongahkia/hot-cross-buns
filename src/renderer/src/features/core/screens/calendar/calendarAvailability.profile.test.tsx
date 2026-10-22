@@ -50,13 +50,14 @@ describe("Share Availability title performance boundary", () => {
       </CoreDataProvider>
     );
 
-    const day = await screen.findByRole("tab", { name: "Day" });
-    fireEvent.click(day);
+    const day = await screen.findByRole("combobox", { name: "Calendar view" });
+    fireEvent.change(day, { target: { value: "day" } });
     await screen.findByTestId("day-calendar-grid");
     // Measure typing after startup hydration, which can independently update
     // the calendar even when the title editor is correctly isolated.
     await waitFor(() => expect(screen.getByTestId("hydration-status")).toHaveTextContent("success"));
-    fireEvent.click(screen.getByRole("button", { name: "Share availability" }));
+    fireEvent.click(screen.getByRole("button", { name: "Calendar tools" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Share availability" }));
     const title = await screen.findByRole("textbox", { name: "Availability title" });
     await waitFor(() => expect(api.calendar.listEvents).toHaveBeenCalled());
     await act(async () => {

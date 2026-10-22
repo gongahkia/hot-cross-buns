@@ -106,6 +106,7 @@ export function CalendarView({
   const todayKey = calendarCurrentDayKey(source.settings.defaultTimeZone);
   const [multiDayCount, setMultiDayCount] = usePanePreference("calendar.days", 3);
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
+  const [calendarRangeError, setCalendarRangeError] = useState<string>();
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
   const calendarNavigationStartedAt = useRef<number | null>(null);
   const {
@@ -241,9 +242,6 @@ export function CalendarView({
 
     calendarNavigationStartedAt.current = rendererNow();
     setActiveViewId(viewId);
-    if (viewId === "month") {
-      setCalendarAnchorDate(calendarCurrentDayKey(source.settings.defaultTimeZone));
-    }
   }
 
   function shiftCalendarAnchor(direction: -1 | 1): void {
@@ -404,10 +402,12 @@ export function CalendarView({
       return;
     }
 
-    void source.ensureCalendarRange(calendarVisibleRange).then((loaded) => {
-      if (!loaded && !cancelled) {
-        setCalendarActionError("Calendar range could not be loaded.");
-      }
+    setCalendarRangeError(undefined);
+    void source.ensureCalendarRange(calendarVisibleRange).then(async (loaded) => {
+      // A refresh can supersede an in-flight range. Retry against the current
+      // generation before presenting it as a failed load.
+      if (!loaded && !cancelled) loaded = await source.ensureCalendarRange(calendarVisibleRange);
+      if (!cancelled) setCalendarRangeError(loaded ? undefined : "Calendar range could not be loaded.");
     });
 
     return () => {
@@ -448,6 +448,8 @@ export function CalendarView({
   return (
     <div data-testid="calendar-view" data-range-start={calendarVisibleRange.start} data-range-end={calendarVisibleRange.end} data-visible-event-count={calendarAgendaEvents.length} className="flex h-full min-h-0 flex-col gap-3">
       <CalendarHeader
+        anchorDate={calendarAnchorDate}
+        onSelectDate={setCalendarAnchorDate}
         timeZone={source.settings.defaultTimeZone}
         activeViewId={activeViewId}
         calendarRangeLabel={calendarRangeLabel}
@@ -474,17 +476,17 @@ export function CalendarView({
         visibleCalendarViewIds={visibleCalendarViewIds}
       />
 
-      {calendarActionError ? (
+      {calendarActionError || calendarRangeError ? (
         <StatusBanner
           action={
             <IconButton
               icon={X}
               label="Dismiss calendar interaction error"
-              onClick={() => setCalendarActionError(undefined)}
+              onClick={() => { setCalendarActionError(undefined); setCalendarRangeError(undefined); }}
               variant="ghost"
             />
           }
-          description={calendarActionError}
+          description={calendarActionError ?? calendarRangeError!}
           icon={AlertTriangle}
           title="Calendar interaction not saved"
           tone="warning"
