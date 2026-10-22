@@ -41,7 +41,7 @@ export class MenuBarPanelController {
     }
 
     const panel = new BrowserWindow({
-      width: 340,
+      width: 360,
       height: 640,
       show: false,
       frame: false,
@@ -73,6 +73,9 @@ export class MenuBarPanelController {
       }
     });
     panel.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    panel.webContents.on("before-input-event", (event, input) => {
+      if (input.type === "keyDown" && input.key === "Escape") { event.preventDefault(); panel.hide(); }
+    });
     panel.webContents.on("will-navigate", (event, url) => {
       if (!url.startsWith("hcb-panel://")) {
         event.preventDefault();
@@ -145,8 +148,8 @@ function menuBarPanelSize(
   if (snapshot.panelStyle === "calendar") {
     const selectedRows = snapshot.calendar?.selectedItems.length ?? 0;
     return {
-      width: 320,
-      height: Math.min(maxHeight, Math.max(620, 474 + Math.min(selectedRows, 7) * 42))
+      width: 360,
+      height: Math.min(maxHeight, Math.max(660, 510 + Math.min(selectedRows, 4) * 52))
     };
   }
 
@@ -154,8 +157,8 @@ function menuBarPanelSize(
   const accountHeight = snapshot.account ? 78 : 0;
 
   return {
-    width: 340,
-    height: Math.min(maxHeight, Math.max(300, 132 + rowCount * 44 + accountHeight + 112))
+    width: 360,
+    height: Math.min(maxHeight, 720, Math.max(330, 132 + rowCount * 52 + accountHeight + 112))
   };
 }
 

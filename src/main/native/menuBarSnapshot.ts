@@ -5,6 +5,7 @@ import type {
 } from "@shared/ipc/contracts";
 import type { GoogleAccountConnectionStatusDto } from "../google";
 import type { NativeMenuBarSnapshot, NativePlannerSnapshotSource } from "./types";
+import { resolveEffectiveColorTheme } from "@shared/ipc/themeCatalog";
 
 interface BuildNativeMenuBarSnapshotOptions {
   planner: NativePlannerSnapshotSource;
@@ -76,7 +77,7 @@ export function buildNativeMenuBarSnapshot(
       ? menuBarCalendarSnapshot(todayStart, todayEvents, todayTasks, now, todayEventCount, todayTaskCount)
       : undefined;
   const accountSnapshot = menuBarAccountSnapshot(account);
-  const syncLabel = accountSnapshot?.connectionState === "connected" ? "Synced" : "Local";
+  const syncLabel = !accountSnapshot ? "On this device" : accountSnapshot.connectionState === "connected" ? "Google connected" : "Check Google connection";
   const statusLabel =
     settings.menuBarPanelStyle === "adaptive" ? adaptiveTrayLabel(now, tasks, events) : undefined;
   const title =
@@ -108,6 +109,14 @@ export function buildNativeMenuBarSnapshot(
       : title;
 
   return {
+    appearance: {
+      theme: settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system",
+      light: resolveEffectiveColorTheme(settings, "light"),
+      dark: resolveEffectiveColorTheme(settings, "dark"),
+      fontName: settings.perSurfaceFontOverrides?.menuBar?.uiFontName ?? settings.uiFontName ?? null,
+      textSize: settings.perSurfaceFontOverrides?.menuBar?.uiTextSizePoints ?? settings.uiTextSizePoints ?? 13,
+      disableAnimations: Boolean(settings.disableAnimations)
+    },
     panelStyle: settings.menuBarPanelStyle,
     iconName: settings.menuBarIconName,
     calendarIconId: settings.menuBarCalendarIconId,
@@ -153,6 +162,7 @@ function menuBarPinnedFilterItems(
 
       return {
         label: truncateMenuLabel(filter.name ?? filter.title ?? filter.id),
+        fullLabel: filter.name ?? filter.title ?? filter.id,
         detail: `${count} match${count === 1 ? "" : "es"}`,
         route: { kind: "search", query: filter.query.slice(0, 200) } as const
       };
@@ -238,6 +248,7 @@ function menuBarSections(
 function menuBarTaskItems(tasks: TaskSummary[], fallbackDetail: string, limit = 5) {
   return tasks.slice(0, limit).map((task) => ({
     label: truncateMenuLabel(task.title),
+    fullLabel: task.title.trim() || "Untitled",
     detail: task.dueAt ? dueDetail(task.dueAt, fallbackDetail) : fallbackDetail,
     route: { kind: "task", id: task.id } as const
   }));
@@ -246,6 +257,7 @@ function menuBarTaskItems(tasks: TaskSummary[], fallbackDetail: string, limit = 
 function menuBarEventItems(events: CalendarEventSummary[], limit = 5) {
   return events.slice(0, limit).map((event) => ({
     label: truncateMenuLabel(event.title),
+    fullLabel: event.title.trim() || "Untitled",
     detail: eventDetail(event),
     route: { kind: "event", id: event.id } as const
   }));

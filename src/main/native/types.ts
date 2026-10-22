@@ -68,6 +68,7 @@ export type NativeMenuBarAction =
 
 export interface NativeMenuBarItem {
   label: string;
+  fullLabel?: string;
   detail?: string;
   route?: NativeRoute;
   action?: NativeMenuBarAction;
@@ -103,6 +104,14 @@ export interface NativeMenuBarSection {
 }
 
 export interface NativeMenuBarSnapshot {
+  appearance?: {
+    theme: "light" | "dark" | "system";
+    light: import("@shared/ipc/themeCatalog").ColorThemeDefinition;
+    dark: import("@shared/ipc/themeCatalog").ColorThemeDefinition;
+    fontName: string | null;
+    textSize: number;
+    disableAnimations: boolean;
+  };
   panelStyle: SettingsSnapshot["menuBarPanelStyle"];
   iconName: SettingsSnapshot["menuBarIconName"];
   calendarIconId: SettingsSnapshot["menuBarCalendarIconId"];
