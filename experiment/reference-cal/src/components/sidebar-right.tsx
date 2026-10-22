@@ -1,14 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  Eye,
-  Link2,
-  PanelLeftIcon,
-  Plus,
-  Settings,
-  UserRound,
-} from "lucide-react";
+import { PanelLeftIcon, Plus, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Calendars } from "@/components/calendars";
@@ -79,31 +72,6 @@ export function SidebarRight({
           visibleDays={visibleDays}
           showWeekNumbers={showWeekNumbers}
         />
-        {/* Scheduling Section */}
-        <SidebarGroup className="py-0">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton className="text-sidebar-foreground">
-                  <Link2 className="size-4 text-sidebar-muted-foreground" />
-                  <span className="flex-1 text-sm">Scheduling</span>
-                  <Eye className="size-4 text-sidebar-muted-foreground" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {/* Meet with input */}
-        <SidebarGroup className="py-2 px-2">
-          <div className="flex items-center gap-2 rounded-sm bg-[#EFEFEE] dark:bg-sidebar px-2 py-1.5">
-            <UserRound className="size-4 shrink-0 text-sidebar-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Meet with..."
-              className="flex-1 bg-transparent text-sm text-sidebar-foreground placeholder:text-sidebar-muted-foreground outline-none"
-            />
-          </div>
-        </SidebarGroup>
         <Calendars
           accounts={accounts}
           onToggleVisibility={onCalendarVisibilityChange}
@@ -158,7 +126,7 @@ export function SidebarRight({
         onOpenChange={(next) => onOpenChange?.(next)}
         side="left"
         title="Calendar sidebar"
-        description="Mini calendar, scheduling and calendar list."
+        description="Mini calendar and calendar list."
         style={sidebarStyle}
       >
         {/* Same height and position as the header toggle, so tapping the same spot closes it */}
