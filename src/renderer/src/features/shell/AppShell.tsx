@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
+import { currentZonedDay } from "@shared/zonedTime";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
 import { LoadingIndicatorProvider } from "../../components/LoadingIndicator";
@@ -293,6 +294,15 @@ export function AppShell(): JSX.Element {
     [navigateToSection, paneWorkspace.focusedPaneId]
   );
 
+  const openEntity = useCallback((kind: "task" | "event" | "note", id: string): void => {
+    const section = kind === "event" ? "calendar" : kind === "task" ? "tasks" : "notes";
+    navigateToSection(section, () => {
+      window.dispatchEvent(new CustomEvent(`hcb:${kind === "event" ? "calendar" : kind}-command`, {
+        detail: { action: `open-${kind}`, [`${kind}Id`]: id }
+      }));
+    });
+  }, [navigateToSection]);
+
   const handleNativeAction = useCallback(
     (action: NativeAction): void => {
       if (action.type === "openSettings") {
@@ -320,24 +330,36 @@ export function AppShell(): JSX.Element {
         return;
       }
 
-      if (action.route.kind === "today" || action.route.kind === "calendar" || action.route.kind === "event") {
+      if (action.route.kind === "event" || action.route.kind === "task" || action.route.kind === "note") {
+        openEntity(action.route.kind, action.route.id);
+        return;
+      }
+
+      if (action.route.kind === "today") {
+        navigateToSection("calendar", () => window.dispatchEvent(new CustomEvent("hcb:calendar-command", {
+          detail: { action: "go-to-date", date: currentZonedDay(source.settings.defaultTimeZone) }
+        })));
+        return;
+      }
+
+      if (action.route.kind === "calendar") {
         navigateToSection("calendar");
         return;
       }
 
-      if (action.route.kind === "notes" || action.route.kind === "note") {
+      if (action.route.kind === "notes") {
         navigateToSection("notes");
         return;
       }
 
-      if (action.route.kind === "tasks" || action.route.kind === "task") {
+      if (action.route.kind === "tasks") {
         navigateToSection("tasks");
         return;
       }
 
       navigateToSection("calendar");
     },
-    [navigateToSection, openCommandPalette, openQuickAdd, openSettingsPanel, syncThenRefresh]
+    [navigateToSection, openEntity, openCommandPalette, openQuickAdd, openSettingsPanel, syncThenRefresh, source.settings.defaultTimeZone]
   );
 
   const handlePaletteCommand = useCallback(
@@ -517,37 +539,12 @@ export function AppShell(): JSX.Element {
         return;
       }
 
-      if (detail.kind === "task") {
-        navigateToSection("tasks");
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent("hcb:task-command", {
-            detail: { action: "open-task", taskId: detail.id }
-          }));
-        }, 0);
-        return;
-      }
-
-      if (detail.kind === "note") {
-        navigateToSection("notes");
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent("hcb:note-command", {
-            detail: { action: "open-note", noteId: detail.id }
-          }));
-        }, 0);
-        return;
-      }
-
-      navigateToSection("calendar");
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("hcb:calendar-command", {
-          detail: { action: "open-event", eventId: detail.id }
-        }));
-      }, 0);
+      openEntity(detail.kind, detail.id);
     }
 
     window.addEventListener("hcb:open-entity", handleOpenEntity);
     return () => window.removeEventListener("hcb:open-entity", handleOpenEntity);
-  }, [navigateToSection]);
+  }, [openEntity]);
 
   useEffect(() => {
     function handleOpenDiagnostics(event: Event): void {
