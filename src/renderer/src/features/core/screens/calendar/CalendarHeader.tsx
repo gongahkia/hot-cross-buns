@@ -23,6 +23,8 @@ export function CalendarHeader({
   onToggleShareAvailability,
   onToggleSmartReschedule,
   previousRangeLabel,
+  previousLimit,
+  nextLimit,
   shareAvailabilityOpen,
   shareAvailabilityVisible,
   smartRescheduleOpen,
@@ -41,6 +43,8 @@ export function CalendarHeader({
   onToggleShareAvailability: () => void;
   onToggleSmartReschedule: () => void;
   previousRangeLabel: string;
+  previousLimit?: string;
+  nextLimit?: string;
   shareAvailabilityOpen: boolean;
   shareAvailabilityVisible: boolean;
   smartRescheduleOpen: boolean;
@@ -83,8 +87,8 @@ export function CalendarHeader({
           </Menu.Content></Menu.Portal>
         </Menu.Root>
         <Button aria-label="Jump to today" onClick={onResetRange} variant="secondary">Today</Button>
-        <IconButton icon={ChevronLeft} label={previousRangeLabel} onClick={() => onShiftRange(-1)} variant="ghost" />
-        <IconButton icon={ChevronRight} label={nextRangeLabel} onClick={() => onShiftRange(1)} variant="ghost" />
+        <IconButton icon={ChevronLeft} label={previousRangeLabel} title={previousLimit ?? previousRangeLabel} disabled={Boolean(previousLimit)} onClick={() => onShiftRange(-1)} variant="ghost" />
+        <IconButton icon={ChevronRight} label={nextRangeLabel} title={nextLimit ?? nextRangeLabel} disabled={Boolean(nextLimit)} onClick={() => onShiftRange(1)} variant="ghost" />
         <Menu.Root><Menu.Trigger asChild><IconButton label="Calendar tools" icon={MoreHorizontal} variant="ghost" /></Menu.Trigger>
           <Menu.Portal><Menu.Content className="calendar-menu" align="end" sideOffset={8}>
             <Menu.Item className="calendar-menu-item" onSelect={onCreate}>New event</Menu.Item>

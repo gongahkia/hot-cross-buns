@@ -1,3 +1,4 @@
+import { calendarNavigationLimit } from "./calendarNavigationLimits";
 import { CalendarEventMenuProvider } from "./CalendarEventMenu";
 import { useCalendarRangeLoader } from "./useCalendarRangeLoader";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
@@ -35,7 +36,6 @@ import {
   calendarDayKey,
   calendarLocalPoint,
   calendarEventsForDay,
-  calendarMonthOffset,
   calendarMonthTitle,
   calendarMonthWeeksForDate,
   calendarRangeDaysForDate,
@@ -50,19 +50,6 @@ import type { CalendarCreateMode, CalendarCreateSeed, CalendarEventDraft } from 
 
 function calendarRangeForDays(days: readonly CalendarDayViewModel[], timeZone: string): { start: string; end: string } {
   return calendarDaysRange(days.map(calendarDayKey), timeZone);
-}
-
-function calendarRangeAllowedByRetention(
-  range: { start: string; end: string },
-  daysBack: number,
-  timeZone: string
-): boolean {
-  if (daysBack <= 0) {
-    return true;
-  }
-
-  const oldestDay = calendarAddUtcDays(calendarCurrentDayKey(timeZone), -daysBack);
-  return range.end > `${oldestDay}T00:00:00.000Z`;
 }
 
 function eventViewModelFromDetail(
@@ -99,6 +86,8 @@ export function CalendarView({
   const source = useCoreViewModelSource();
   const { calendarWindowStart, setCalendarWindow, activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey, showWeekends, showDeclinedEvents } = useCalendarNavigation();
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
+  const [navigationNotice, setNavigationNotice] = useState<string | null>(null);
+  useEffect(() => setNavigationNotice(null), [calendarAnchorDate, calendarWindowStart, activeViewId, source.settings.eventRetentionDaysBack, source.settings.monthScrollFutureMonths]);
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
   const calendarNavigationStartedAt = useRef<number | null>(null);
   const {
@@ -239,38 +228,35 @@ export function CalendarView({
     setActiveViewId(viewId);
   }
 
+  const navigationSettings = { eventRetentionDaysBack: source.settings.eventRetentionDaysBack, monthScrollFutureMonths: source.settings.monthScrollFutureMonths, defaultTimeZone: source.settings.defaultTimeZone };
+
+  function shiftedAnchor(direction: -1 | 1): string {
+    return activeViewId === "month" ? calendarAddUtcMonths(calendarAnchorDate, direction)
+      : calendarAddUtcDays(calendarAnchorDate, direction * (activeViewId === "week" ? 7 : activeViewId === "multiDay" ? multiDayCount : 1));
+  }
+
+  function anchorRange(anchor: string) {
+    if (activeViewId === "month") return calendarMonthRange(anchor, source.settings.defaultTimeZone);
+    const start = activeViewId === "week" ? calendarAddUtcDays(anchor, -calendarDateFromIsoDate(anchor).getUTCDay()) : anchor;
+    const length = activeViewId === "week" ? 7 : activeViewId === "multiDay" ? multiDayCount : 1;
+    return calendarDaysRange([start, calendarAddUtcDays(start, length - 1)], source.settings.defaultTimeZone);
+  }
+
+  function shiftLimit(direction: -1 | 1) {
+    const anchor = shiftedAnchor(direction);
+    const limit = calendarNavigationLimit(anchorRange(anchor), anchor, activeViewId, navigationSettings, todayKey);
+    return limit?.direction === direction ? limit : null;
+  }
+  const previousLimit = shiftLimit(-1);
+  const nextLimit = shiftLimit(1);
+  const currentLimit = calendarNavigationLimit(calendarVisibleRange, calendarAnchorDate, activeViewId, navigationSettings, todayKey);
+  const boundaryMessage = navigationNotice ?? currentLimit?.message ?? [previousLimit?.message, nextLimit?.message].filter(Boolean).join(" ");
+
   function shiftCalendarAnchor(direction: -1 | 1): void {
+    const limit = shiftLimit(direction);
+    if (limit) { setNavigationNotice(limit.message); return; }
     calendarNavigationStartedAt.current = rendererNow();
-    setCalendarAnchorDate((current) => {
-      if (activeViewId === "month") {
-        const next = calendarAddUtcMonths(current, direction);
-        const nextRange = calendarMonthRange(next, source.settings.defaultTimeZone);
-        const offset = calendarMonthOffset(calendarCurrentDayKey(source.settings.defaultTimeZone), next);
-
-        if (
-          !calendarRangeAllowedByRetention(
-            nextRange,
-            source.settings.eventRetentionDaysBack,
-            source.settings.defaultTimeZone
-          ) ||
-          offset > source.settings.monthScrollFutureMonths
-        ) {
-          return current;
-        }
-
-        return next;
-      }
-
-      if (activeViewId === "week") {
-        return calendarAddUtcDays(current, direction * 7);
-      }
-
-      if (activeViewId === "multiDay") {
-        return calendarAddUtcDays(current, direction * multiDayCount);
-      }
-
-      return calendarAddUtcDays(current, direction);
-    });
+    setCalendarAnchorDate(shiftedAnchor(direction));
   }
 
   function scrollCalendarWindow(direction: -1 | 1): void {
@@ -280,8 +266,8 @@ export function CalendarView({
     const last = calendarAddUtcDays(next, activeViewId === "month" ? 41 : activeViewId === "week" ? 6 : activeViewId === "multiDay" ? multiDayCount - 1 : 0);
     const range = calendarDaysRange([next, last], source.settings.defaultTimeZone);
     const anchor = activeViewId === "month" ? calendarAddUtcDays(next, 14) : next;
-    if (!calendarRangeAllowedByRetention(range, source.settings.eventRetentionDaysBack, source.settings.defaultTimeZone) ||
-      (activeViewId === "month" && calendarMonthOffset(todayKey, anchor) > source.settings.monthScrollFutureMonths)) return;
+    const limit = calendarNavigationLimit(range, anchor, activeViewId, navigationSettings, todayKey);
+    if (limit?.direction === direction) { setNavigationNotice(limit.message); return; }
     calendarNavigationStartedAt.current = rendererNow();
     setCalendarWindow(next, anchor);
   }
@@ -407,7 +393,7 @@ export function CalendarView({
     calendarVisibleRange,
     source.dataState !== "loading" &&
       (source.hasCachedData || (source.dataState !== "offline" && source.dataState !== "error")) &&
-      calendarRangeAllowedByRetention(calendarVisibleRange, source.settings.eventRetentionDaysBack, source.settings.defaultTimeZone),
+      currentLimit?.direction !== -1,
     source.calendarDataRevision, source.ensureCalendarRange
   );
 
@@ -460,6 +446,8 @@ export function CalendarView({
           });
         }}
         previousRangeLabel={previousRangeLabel}
+        previousLimit={previousLimit?.message}
+        nextLimit={nextLimit?.message}
         shareAvailabilityOpen={shareAvailabilityOpen}
         shareAvailabilityVisible={shareAvailabilityVisible}
         smartRescheduleOpen={smartRescheduleOpen}
@@ -469,6 +457,11 @@ export function CalendarView({
       <CalendarSyncStatus loading={calendarRangeLoading} error={calendarRangeError} onRetry={retryCalendarRange}
         sync={source.syncStatus} offline={source.isOffline} stale={source.isStale}
         hasRemote={source.calendarSources.some(calendar => calendar.accountId && calendar.accountId !== "local")} />
+
+      {boundaryMessage ? <div className="calendar-sync-status" role="status" data-calendar-navigation-limit>
+        <span>{boundaryMessage}</span>
+        <button onClick={() => window.dispatchEvent(new Event("hcb:open-settings"))}>Settings</button>
+      </div> : null}
 
       {calendarActionError ? (
         <StatusBanner
