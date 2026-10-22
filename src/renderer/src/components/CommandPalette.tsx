@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import type { KeyboardEvent } from "react";
 import { Command, Search, X } from "lucide-react";
 import {
@@ -223,13 +224,6 @@ export function CommandPalette({
     closePalette();
   }
 
-  function handleDialogKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closePalette();
-    }
-  }
-
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -259,22 +253,25 @@ export function CommandPalette({
       : undefined;
 
   return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Portal>
+    <Dialog.Overlay asChild>
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-bg-tertiary/80 px-4 pt-[12vh]"
-      onKeyDown={handleDialogKeyDown}
-      role="presentation"
     >
+      <Dialog.Content asChild aria-describedby={undefined} onOpenAutoFocus={(event) => {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }}>
       <div
         aria-labelledby="command-palette-title"
-        aria-modal="true"
         className="hcb-raised w-full max-w-[960px] overflow-hidden rounded-hcbLg border border-border bg-bg-secondary"
-        role="dialog"
       >
         <div className="flex min-h-12 items-center gap-3 border-b border-border px-3">
           <Command aria-hidden="true" className="text-accent" size={17} />
-          <h2 className="hcb-heading min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold" id="command-palette-title">
+          <Dialog.Title asChild><h2 className="hcb-heading min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold" id="command-palette-title">
             {mode === "open" ? t("command.title") : "Action Palette"}
-          </h2>
+          </h2></Dialog.Title>
           <IconButton icon={X} label={t("command.close")} onClick={closePalette} variant="ghost" />
         </div>
 
@@ -417,6 +414,10 @@ export function CommandPalette({
           )}
         </div>
       </div>
+      </Dialog.Content>
     </div>
+    </Dialog.Overlay>
+    </Dialog.Portal>
+    </Dialog.Root>
   );
 }

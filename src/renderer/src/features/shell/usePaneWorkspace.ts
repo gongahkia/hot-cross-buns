@@ -1,83 +1,30 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SetStateAction } from "react";
 import type { CoreViewModelSource } from "../core/coreViewModelSource";
 import type { SectionId } from "../../data/mockPlanner";
 import { writeLocalStorageJSON } from "../core/localStorageHelpers";
 import {
-  closePaneLeaf,
   createDefaultPaneTree,
-  createSplitPaneWebContent,
-  createSplitPaneWebTab,
-  findPaneLeaf,
-  firstPaneLeaf,
-  firstPaneSectionId,
-  maxPaneLeaves,
-  movePaneToEdge,
-  paneLeafCount,
-  paneLeafIds,
   paneWorkspaceStorageKey,
-  replacePaneContent,
   sanitizeStoredPaneWorkspace,
-  setPaneSplitRatio,
-  splitPaneLeaf,
-  splitPaneWebContentTitle,
-  splitPaneWebUrl,
-  swapPaneContents,
-  type PaneContent,
-  type PaneDropZone,
-  type PaneNode,
-  type PaneSplitDirection
+  type StoredPaneWorkspace
 } from "./paneWorkspaceModel";
 
-interface PaneWorkspaceState {
-  updatedAt?: number;
-  focusedPaneId: string;
-  root: PaneNode;
-}
+interface PaneWorkspaceState extends StoredPaneWorkspace { updatedAt?: number }
 
 function readPaneWorkspaceState(): PaneWorkspaceState {
   try {
     const parsed = JSON.parse(window.localStorage?.getItem?.(paneWorkspaceStorageKey) ?? "null");
     const stored = sanitizeStoredPaneWorkspace(parsed);
-
-    if (stored) {
-      return { ...stored, updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0 };
-    }
+    if (stored) return { ...stored, updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0 };
   } catch {
-    // best-effort persisted UI only
+    // View preferences must never prevent opening the planner.
   }
-
-  const root = createDefaultPaneTree("calendar");
+  const root = createDefaultPaneTree();
   return { focusedPaneId: root.id, root };
 }
 
-export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" | "dataState" | "updateSettings">): {
-  activeSectionId: SectionId;
-  canSplit: boolean;
-  closePane: (paneId: string) => void;
-  focusedPaneId: string;
-  focusedSectionId: SectionId | null;
-  focusedTitle: string;
-  focusPane: (paneId: string) => void;
-  focusPaneByDirection: (direction: "left" | "right" | "up" | "down") => void;
-  newWebTab: (paneId: string) => void;
-  movePane: (sourcePaneId: string, targetPaneId: string, dropZone: PaneDropZone) => void;
-  openChooser: () => void;
-  openUrl: (url: string, label: string | null) => void;
-  openWebPageInPane: (rawUrl: string, label: string | null, paneId: string) => boolean;
-  replaceFocusedWithSection: (sectionId: SectionId) => void;
-  replacePane: (paneId: string, content: PaneContent) => void;
-  root: PaneNode;
-  setSplitRatio: (splitId: string, ratio: number) => void;
-  splitPane: (paneId: string, direction: PaneSplitDirection, content?: PaneContent) => void;
-} {
-  const [state, setWorkspaceState] = useState<PaneWorkspaceState>(() => readPaneWorkspaceState());
-  const setState = useCallback((update: SetStateAction<PaneWorkspaceState>): void => {
-    setWorkspaceState((current) => {
-      const next = typeof update === "function" ? update(current) : update;
-      return next === current ? current : { ...next, updatedAt: Date.now() };
-    });
-  }, []);
+export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" | "dataState" | "updateSettings">) {
+  const [state, setState] = useState<PaneWorkspaceState>(readPaneWorkspaceState);
   const hydrated = useRef(false);
   const [preferencesReady, setPreferencesReady] = useState(!source);
   useEffect(() => {
@@ -86,334 +33,33 @@ export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" |
     const saved = sanitizeStoredPaneWorkspace(source.settings.paneWorkspace);
     if (saved) {
       const updatedAt = Number(source.settings.paneWorkspace?.updatedAt) || 0;
-      setWorkspaceState((current) => updatedAt >= (current.updatedAt ?? 0) ? { ...saved, updatedAt } : current);
+      setState((current) => updatedAt >= (current.updatedAt ?? 0) ? { ...saved, updatedAt } : current);
     }
     setPreferencesReady(true);
   }, [source?.dataState, source?.settings.paneWorkspace]);
+
   const savedPreferences = JSON.stringify(source?.settings.paneWorkspace);
   useEffect(() => {
     if (!source || !preferencesReady || savedPreferences === JSON.stringify(state)) return;
     const timer = window.setTimeout(() => { void source.updateSettings({ paneWorkspace: state }); }, 300);
     return () => window.clearTimeout(timer);
   }, [preferencesReady, state, savedPreferences, source?.updateSettings]);
-  const focusedLeaf = findPaneLeaf(state.root, state.focusedPaneId) ?? firstPaneLeaf(state.root);
-  const focusedSectionId = focusedLeaf.content.kind === "section" ? focusedLeaf.content.sectionId : null;
-  const activeSectionId = focusedSectionId ?? firstPaneSectionId(state.root);
-  const focusedTitle = paneContentTitle(focusedLeaf.content);
-  const canSplit = paneLeafCount(state.root) < maxPaneLeaves;
 
-  useEffect(() => {
-    writeLocalStorageJSON(paneWorkspaceStorageKey, state);
-  }, [state]);
-
-  const focusPane = useCallback((paneId: string): void => {
-    setState((current) =>
-      current.focusedPaneId !== paneId && findPaneLeaf(current.root, paneId)
-        ? { ...current, focusedPaneId: paneId }
-        : current
-    );
-  }, []);
-
-  const focusPaneByDirection = useCallback((direction: "left" | "right" | "up" | "down"): void => {
-    setState((current) => {
-      const currentElement = document.querySelector<HTMLElement>(`[data-pane-id="${current.focusedPaneId}"]`);
-
-      if (!currentElement) {
-        return current;
-      }
-
-      const currentRect = currentElement.getBoundingClientRect();
-      const currentCenter = {
-        x: currentRect.left + currentRect.width / 2,
-        y: currentRect.top + currentRect.height / 2
-      };
-      const candidates = paneLeafIds(current.root)
-        .filter((paneId) => paneId !== current.focusedPaneId)
-        .flatMap((paneId) => {
-          const element = document.querySelector<HTMLElement>(`[data-pane-id="${paneId}"]`);
-
-          if (!element) {
-            return [];
-          }
-
-          const rect = element.getBoundingClientRect();
-          const center = {
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2
-          };
-          const dx = center.x - currentCenter.x;
-          const dy = center.y - currentCenter.y;
-
-          if (
-            (direction === "left" && dx >= 0) ||
-            (direction === "right" && dx <= 0) ||
-            (direction === "up" && dy >= 0) ||
-            (direction === "down" && dy <= 0)
-          ) {
-            return [];
-          }
-
-          const primary = direction === "left" || direction === "right" ? Math.abs(dx) : Math.abs(dy);
-          const secondary = direction === "left" || direction === "right" ? Math.abs(dy) : Math.abs(dx);
-
-          return [{ paneId, score: primary * 1_000 + secondary }];
-        })
-        .sort((left, right) => left.score - right.score);
-      const nextPaneId = candidates[0]?.paneId;
-
-      return nextPaneId ? { ...current, focusedPaneId: nextPaneId } : current;
-    });
-  }, []);
-
-  const replacePane = useCallback((paneId: string, content: PaneContent): void => {
-    setState((current) =>
-      findPaneLeaf(current.root, paneId)
-        ? {
-            ...current,
-            focusedPaneId: paneId,
-            root: replacePaneContent(current.root, paneId, content)
-          }
-        : current
-    );
-  }, []);
+  useEffect(() => { writeLocalStorageJSON(paneWorkspaceStorageKey, state); }, [state]);
 
   const replaceFocusedWithSection = useCallback((sectionId: SectionId): void => {
-    // A primary tab can suspend while its small route module loads. Keep the
-    // current view until it is ready instead of committing a Loading surface
-    // and inheriting React's fallback reveal throttle.
-    startTransition(() => setState((current) => {
-      const focusedPane = findPaneLeaf(current.root, current.focusedPaneId);
-
-      if (focusedPane?.content.kind === "section" && focusedPane.content.sectionId === sectionId) {
-        return current;
-      }
-
-      return {
-        ...current,
-        root: replacePaneContent(current.root, current.focusedPaneId, {
-          kind: "section",
-          sectionId
-        })
-      };
-    }));
-  }, []);
-
-  const splitPane = useCallback((
-    paneId: string,
-    direction: PaneSplitDirection,
-    content: PaneContent = { kind: "chooser" }
-  ): void => {
-    setState((current) => {
-      if (!findPaneLeaf(current.root, paneId) || paneLeafCount(current.root) >= maxPaneLeaves) {
-        return current;
-      }
-
-      const result = splitPaneLeaf(current.root, paneId, direction, content);
-      return result.newPaneId
-        ? { ...current, focusedPaneId: result.newPaneId, root: result.node }
-        : current;
-    });
-  }, []);
-
-  const openChooser = useCallback((): void => {
-    setState((current) => {
-      if (paneLeafCount(current.root) >= maxPaneLeaves) {
-        return {
-          ...current,
-          root: replacePaneContent(current.root, current.focusedPaneId, { kind: "chooser" })
-        };
-      }
-
-      const result = splitPaneLeaf(current.root, current.focusedPaneId, "row", { kind: "chooser" });
-      return result.newPaneId
-        ? { ...current, focusedPaneId: result.newPaneId, root: result.node }
-        : current;
-    });
-  }, []);
-
-  const closePane = useCallback((paneId: string): void => {
-    const currentLeaf = findPaneLeaf(state.root, paneId);
-
-    if (paneLeafCount(state.root) <= 1 && currentLeaf?.content.kind === "chooser") {
-      window.close();
-      return;
-    }
-
-    setState((current) => {
-      if (paneLeafCount(current.root) <= 1) {
-        const leaf = findPaneLeaf(current.root, paneId);
-
-        return leaf
-          ? {
-              ...current,
-              focusedPaneId: leaf.id,
-              root: replacePaneContent(current.root, leaf.id, { kind: "chooser" })
-            }
-          : current;
-      }
-
-      const nextRoot = closePaneLeaf(current.root, paneId);
-
-      if (!nextRoot) {
-        return current;
-      }
-
-      const nextFocusedPaneId = findPaneLeaf(nextRoot, current.focusedPaneId)
-        ? current.focusedPaneId
-        : firstPaneLeaf(nextRoot).id;
-
-      return { ...current, focusedPaneId: nextFocusedPaneId, root: nextRoot };
-    });
-  }, [state.root]);
-
-  const setSplitRatio = useCallback((splitId: string, ratio: number): void => {
-    setState((current) => ({
+    // Keep the current view visible while its next route module loads.
+    startTransition(() => setState((current) => current.root.content.sectionId === sectionId ? current : {
       ...current,
-      root: setPaneSplitRatio(current.root, splitId, ratio)
+      updatedAt: Date.now(),
+      root: { ...current.root, content: { kind: "section", sectionId } }
     }));
   }, []);
 
-  const movePane = useCallback((sourcePaneId: string, targetPaneId: string, dropZone: PaneDropZone): void => {
-    setState((current) => {
-      if (!findPaneLeaf(current.root, sourcePaneId) || !findPaneLeaf(current.root, targetPaneId)) {
-        return current;
-      }
-
-      if (dropZone === "center") {
-        return {
-          ...current,
-          focusedPaneId: targetPaneId,
-          root: swapPaneContents(current.root, sourcePaneId, targetPaneId)
-        };
-      }
-
-      const result = movePaneToEdge(current.root, sourcePaneId, targetPaneId, dropZone);
-      return result.movedPaneId
-        ? { ...current, focusedPaneId: result.movedPaneId, root: result.node }
-        : current;
-    });
-  }, []);
-
-  const openUrl = useCallback((rawUrl: string, label: string | null): void => {
-    const url = splitPaneWebUrl(rawUrl, window.location.href);
-
-    if (!url) {
-      return;
-    }
-
-    setState((current) => {
-      const leafIds = paneLeafIds(current.root);
-      const secondaryPaneId = leafIds.find((paneId) => paneId !== current.focusedPaneId);
-      const content = createSplitPaneWebContent(url, label);
-
-      if (secondaryPaneId) {
-        return {
-          ...current,
-          focusedPaneId: secondaryPaneId,
-          root: replacePaneContent(current.root, secondaryPaneId, content)
-        };
-      }
-
-      const result = splitPaneLeaf(current.root, current.focusedPaneId, "row", content);
-      return result.newPaneId
-        ? { ...current, focusedPaneId: result.newPaneId, root: result.node }
-        : current;
-    });
-  }, []);
-
-  const openWebPageInPane = useCallback((rawUrl: string, label: string | null, paneId: string): boolean => {
-    const url = splitPaneWebUrl(rawUrl, window.location.href);
-
-    if (!url) {
-      return false;
-    }
-
-    setState((current) =>
-      findPaneLeaf(current.root, paneId)
-        ? {
-            ...current,
-            focusedPaneId: paneId,
-            root: replacePaneContent(current.root, paneId, createSplitPaneWebContent(url, label))
-          }
-        : current
-    );
-
-    return true;
-  }, []);
-
-  const newWebTab = useCallback((paneId: string): void => {
-    setState((current) => {
-      const leaf = findPaneLeaf(current.root, paneId);
-
-      if (leaf?.content.kind !== "web") {
-        return current;
-      }
-
-      const tab = createSplitPaneWebTab("", "New tab");
-      return {
-        ...current,
-        focusedPaneId: paneId,
-        root: replacePaneContent(current.root, paneId, {
-          ...leaf.content,
-          activeTabId: tab.id,
-          tabs: [...leaf.content.tabs, tab].slice(-12)
-        })
-      };
-    });
-  }, []);
-
-  return useMemo(
-    () => ({
-      activeSectionId,
-      canSplit,
-      closePane,
-      focusedPaneId: state.focusedPaneId,
-      focusedSectionId,
-      focusedTitle,
-      focusPane,
-      focusPaneByDirection,
-      newWebTab,
-      movePane,
-      openChooser,
-      openUrl,
-      openWebPageInPane,
-      replaceFocusedWithSection,
-      replacePane,
-      root: state.root,
-      setSplitRatio,
-      splitPane
-    }),
-    [
-      activeSectionId,
-      canSplit,
-      closePane,
-      focusPane,
-      focusPaneByDirection,
-      focusedSectionId,
-      focusedTitle,
-      movePane,
-      newWebTab,
-      openChooser,
-      openUrl,
-      openWebPageInPane,
-      replaceFocusedWithSection,
-      replacePane,
-      setSplitRatio,
-      splitPane,
-      state.focusedPaneId,
-      state.root
-    ]
-  );
-}
-
-function paneContentTitle(content: PaneContent): string {
-  if (content.kind === "chooser") {
-    return "Open in this pane";
-  }
-
-  if (content.kind === "web") {
-    return splitPaneWebContentTitle(content);
-  }
-
-  return content.sectionId[0].toUpperCase() + content.sectionId.slice(1);
+  return useMemo(() => ({
+    activeSectionId: state.root.content.sectionId,
+    focusedPaneId: state.root.id,
+    replaceFocusedWithSection,
+    root: state.root
+  }), [state.root, replaceFocusedWithSection]);
 }
