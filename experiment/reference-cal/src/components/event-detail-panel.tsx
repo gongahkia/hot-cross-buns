@@ -17,12 +17,9 @@ import {
   Clock,
   Copy,
   MoreHorizontal,
-  NotepadText,
   SquareDashed,
   TabletSmartphone,
   Trash2,
-  User,
-  Video,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -213,26 +210,6 @@ function formatVisibility(
     return "Private";
   }
   return "Default visibility";
-}
-
-function FieldRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <Icon className="size-4 shrink-0 text-[#C7C5C1] dark:text-[#595959]" />
-      <span className="text-xs text-[#C7C5C1] dark:text-[#595959]">
-        {label}
-      </span>
-      {value && <span className="text-muted-foreground text-xs">{value}</span>}
-    </div>
-  );
 }
 
 const EVENT_TYPES = [
@@ -1095,9 +1072,6 @@ export function EventDetailPanel({
 
       {/* Field sections */}
       <div className="flex flex-col px-4">
-        <FieldRow icon={User} label="Participants and Rooms" />
-        <FieldRow icon={Video} label="Conferencing" />
-        <FieldRow icon={NotepadText} label="AI Meeting Notes and Docs" />
         <EventLocationField
           key={event.id}
           event={event}
