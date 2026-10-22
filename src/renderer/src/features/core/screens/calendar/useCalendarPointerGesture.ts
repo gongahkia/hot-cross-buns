@@ -8,7 +8,9 @@ export interface CalendarGesturePreview extends CalendarEventRange { event: Cale
 export function useCalendarPointerGesture(options: {
   locate: (x: number, y: number) => CalendarGesturePoint | null;
   onCommit: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
-  onEdge?: (x: number, y: number) => void;
+  onEdge?: (x: number, y: number) => boolean;
+  onFinish?: () => void;
+  resizeCursor?: string;
 }) {
   const latest = useRef(options); latest.current = options;
   const [preview, setPreview] = useState<CalendarGesturePreview | null>(null);
@@ -31,12 +33,13 @@ export function useCalendarPointerGesture(options: {
     const update = () => {
       frame = 0;
       if (!moved) return;
-      latest.current.onEdge?.(clientX, clientY);
+      const atEdge = latest.current.onEdge?.(clientX, clientY);
       const target = latest.current.locate(clientX, clientY);
       if (target) {
         const range = calendarGestureRange(event, kind, origin, target);
         if (!next || calendarRangeChanged(next, range)) { next = { ...range, event }; setPreview(next); }
       }
+      if (atEdge) frame = requestAnimationFrame(update);
     };
     const move = (e: PointerEvent) => {
       if (e.pointerId !== pointerId) return;
@@ -44,7 +47,7 @@ export function useCalendarPointerGesture(options: {
       if (!moved && Math.hypot(clientX - x, clientY - y) < 5) return;
       e.preventDefault(); moved = true;
       document.body.dataset.calendarDragging = "true";
-      document.body.style.cursor = kind === "move" ? "grabbing" : "ew-resize";
+      document.body.style.cursor = kind === "move" ? "grabbing" : latest.current.resizeCursor ?? "ew-resize";
       if (!frame) frame = requestAnimationFrame(update);
     };
     const cleanup = () => {
@@ -58,6 +61,7 @@ export function useCalendarPointerGesture(options: {
       document.body.style.cursor = previousCursor;
       if (trigger.hasPointerCapture(pointerId)) trigger.releasePointerCapture(pointerId);
       cleanupRef.current = null;
+      latest.current.onFinish?.();
     };
     const cancel = () => { suppressClick.current = moved; cleanup(); setPreview(null); };
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); cancel(); } };

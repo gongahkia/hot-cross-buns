@@ -135,3 +135,90 @@ test("Month reports a failed gesture instead of treating the preview as saved", 
     await expect(page.locator("[data-calendar-gesture-preview]")).toHaveCount(0);
   });
 });
+
+async function timelinePoint(page: Page, day: string, minutes: number) {
+  const column = page.locator(`[data-calendar-day-events][data-calendar-date="${day}"]`);
+  const rect = await column.boundingBox(); expect(rect).not.toBeNull();
+  return { x: rect!.x + rect!.width / 2, y: rect!.y + rect!.height * minutes / 1440 };
+}
+
+async function dragToTime(page: Page, from: Locator, day: string, minutes: number) {
+  await from.scrollIntoViewIfNeeded();
+  const a = (await from.boundingBox())!, b = await timelinePoint(page, day, minutes);
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 8 }); await page.mouse.up();
+}
+
+test("timeline resizes both ends and moves between days while retaining duration", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Timeline planning", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
+    await chooseCalendarView(page, "week"); await date(page);
+    await dragToTime(page, page.getByRole("button", { name: "Resize Timeline planning start", exact: true }), "2027-01-12", 8 * 60 + 30);
+    await expect.poll(async () => (await record(page, id)).startsAt).toBe("2027-01-12T08:30:00.000Z");
+    await dragToTime(page, page.getByRole("button", { name: "Resize Timeline planning end", exact: true }), "2027-01-12", 10 * 60 + 30);
+    await expect.poll(async () => (await record(page, id)).endsAt).toBe("2027-01-12T10:30:00.000Z");
+    const chip = page.locator('.calendar-timeline .calendar-event-chip').filter({ hasText: "Timeline planning" });
+    await dragToTime(page, chip, "2027-01-13", 9 * 60 + 30);
+    await expect.poll(async () => (await record(page, id)).startsAt).toBe("2027-01-13T08:30:00.000Z");
+    expect((await record(page, id)).endsAt).toBe("2027-01-13T10:30:00.000Z");
+    await capture(page, "timeline-event-resized");
+  });
+});
+
+test("timeline all-day spans resize both ends and keep their date-only meaning", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Timeline trip", allDay: true, startsAt: "2027-01-12T00:00:00Z", endsAt: "2027-01-14T00:00:00Z" }]);
+    await chooseCalendarView(page, "week"); await date(page);
+    await drag(page, page.getByRole("button", { name: "Resize Timeline trip end", exact: true }), page.locator('[data-calendar-all-day-date="2027-01-14"]'));
+    await expect.poll(async () => (await record(page, id)).endsAt).toBe("2027-01-15T00:00:00.000Z");
+    await drag(page, page.getByRole("button", { name: "Resize Timeline trip start", exact: true }), page.locator('[data-calendar-all-day-date="2027-01-11"]'));
+    await expect.poll(async () => (await record(page, id)).startsAt).toBe("2027-01-11T00:00:00.000Z");
+    expect((await record(page, id)).allDay).toBe(true);
+  });
+});
+
+test("timeline edge dragging scrolls and navigates without saving until release; blur cancels", async () => {
+  await planner(async page => {
+    const [id] = await seed(page, [{ title: "Edge session", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" }]);
+    await chooseCalendarView(page, "week"); await date(page);
+    const chip = page.locator('.calendar-timeline .calendar-event-chip').filter({ hasText: "Edge session" });
+    await chip.scrollIntoViewIfNeeded();
+    const a = (await chip.boundingBox())!, scroll = page.locator('[data-calendar-timeline-scroll]'), b = (await scroll.boundingBox())!;
+    const oldTop = await scroll.evaluate(el => el.scrollTop);
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height - 6, { steps: 8 });
+    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeGreaterThan(oldTop + 30);
+    await page.mouse.move(b.x + b.width - 4, b.y + b.height / 2, { steps: 8 });
+    await expect(page.locator('[data-calendar-day-events][data-calendar-date="2027-01-17"]')).toHaveCount(1);
+    expect((await record(page, id)).startsAt).toBe("2027-01-12T09:00:00Z");
+    await page.evaluate(() => window.dispatchEvent(new Event("blur"))); await page.mouse.up();
+    await expect(page.locator('[data-calendar-gesture-preview]')).toHaveCount(0);
+    expect((await record(page, id)).startsAt).toBe("2027-01-12T09:00:00Z");
+  });
+});
+
+test("moving a scheduled task keeps its block and planned dates synchronized without moving its due date", async () => {
+  await planner(async page => {
+    const data = await page.evaluate(async () => {
+      const task = await window.hcb!.tasks.create({ listId: "inbox", title: "Linked work", dueDate: "2027-01-20", durationMinutes: 60 });
+      if (!task.ok) throw new Error(task.error.message);
+      const block = await window.hcb!.calendar.scheduleTaskBlock({ taskId: task.data.id, calendarId: "primary", startsAt: "2027-01-12T09:00:00Z", durationMinutes: 60 });
+      if (!block.ok) throw new Error(block.error.message);
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      return { taskId: task.data.id, eventId: block.data.calendarEventId, blockId: block.data.id };
+    });
+    await chooseCalendarView(page, "week"); await date(page);
+    const chip = page.locator('.calendar-timeline .calendar-event-chip').filter({ hasText: "Linked work" });
+    await chip.focus(); await page.keyboard.press("ArrowDown");
+    await expect.poll(async () => (await record(page, data.eventId)).startsAt).toBe("2027-01-12T09:15:00.000Z");
+    const state = await page.evaluate(async ({ taskId }) => {
+      const task = await window.hcb!.tasks.get({ id: taskId });
+      const blocks = await window.hcb!.calendar.listScheduledTaskBlocks({ start: "2027-01-12T00:00:00Z", end: "2027-01-13T00:00:00Z" });
+      if (!task.ok || !blocks.ok) throw new Error("Cannot read scheduling state");
+      return { task: task.data, blocks: blocks.data.items ?? blocks.data };
+    }, data);
+    expect(state.task.plannedStart).toBe("2027-01-12T09:15:00.000Z");
+    expect(state.task.dueAt.slice(0, 10)).toBe("2027-01-20");
+    expect(state.blocks.find((block: { id: string }) => block.id === data.blockId).startsAt).toBe("2027-01-12T09:15:00.000Z");
+  });
+});

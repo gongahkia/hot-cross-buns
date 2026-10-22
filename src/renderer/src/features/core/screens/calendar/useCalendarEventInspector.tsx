@@ -640,6 +640,14 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     try {
       // Close/save an existing editor before writing a gesture over its record.
       if (!await closeInspector()) return;
+      const block = source.scheduledTaskBlocks.find((candidate) => candidate.calendarEventId === (event.eventId ?? event.id));
+      if (block) {
+        if (range.allDay) { setCalendarActionError("Scheduled tasks need a timed block. Move this block within the time grid."); return; }
+        const saved = await source.moveScheduledTaskBlock({ id: block.id, startsAt: range.startsAt,
+          durationMinutes: Math.round((Date.parse(range.endsAt) - Date.parse(range.startsAt)) / 60000) });
+        setCalendarActionError(saved ? undefined : "Scheduled task could not be moved. Try again.");
+        return;
+      }
       const request = { id: event.eventId ?? event.id, ...range, ...(scope ? { scope } : {}),
         timeChangeOrigin: { startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay },
         ...(event.originalStartAt ? { originalStartAt: event.originalStartAt } : {}) };

@@ -32,9 +32,10 @@ export function calendarGestureRange(event: CalendarEventViewModel, kind: Calend
     ? (event.allDay && kind === "end" ? calendarAddUtcDays(target.day, 1) : target.day)
     : target.day;
   const minutes = target.minutes ?? original.minutes;
+  const normalizedMinutes = ((minutes % 1440) + 1440) % 1440;
   const value = event.allDay
     ? `${day}T00:00:00.000Z`
-    : zonedDateTimeIso(calendarAddUtcDays(day, Math.floor(minutes / 1440)), Math.floor((minutes % 1440) / 60), minutes % 60, zone);
+    : zonedDateTimeIso(calendarAddUtcDays(day, Math.floor(minutes / 1440)), Math.floor(normalizedMinutes / 60), normalizedMinutes % 60, zone);
   const minimum = event.allDay ? 86400000 : 15 * 60000;
   return {
     startsAt: kind === "start" ? new Date(Math.min(Date.parse(value), Date.parse(event.endsAt) - minimum)).toISOString() : event.startsAt,

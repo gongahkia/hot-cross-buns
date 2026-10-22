@@ -607,3 +607,9 @@ label:has(input:not(:disabled)) {
 .calendar-month-event:hover .calendar-month-resize, .calendar-month-resize:focus-visible { background: color-mix(in srgb, var(--color-text-primary) 20%, transparent); }
 .calendar-gesture-status { position: sticky; bottom: 8px; z-index: 20; align-self: center; max-width: calc(100% - 24px); padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg-primary); color: var(--color-text-primary); box-shadow: 0 2px 12px #0002; font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; }
 body[data-calendar-dragging] { user-select: none; }
+
+.calendar-event-resize-start { top: 0; bottom: auto; border-radius: 8px 8px 0 0; }
+.calendar-all-day-event:hover .calendar-month-resize, .calendar-all-day-event .calendar-month-resize:focus-visible { background: color-mix(in srgb, var(--color-text-primary) 20%, transparent); }
+.calendar-timeline .calendar-gesture-status { position: absolute; bottom: 12px; }
+
+[data-calendar-all-day-date][data-calendar-drop-preview="true"] { background: color-mix(in srgb, var(--color-accent) 18%, transparent); box-shadow: inset 0 0 0 1px var(--color-accent); }

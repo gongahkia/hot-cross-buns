@@ -1,3 +1,5 @@
+import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
+import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { PaneIdentity, readPanePreference, writePanePreference } from "../../../shell/panePreferences";
 import type { CSSProperties, DragEvent, PointerEvent, ReactNode } from "react";
@@ -61,7 +63,11 @@ function CalendarTimelineEventChip({
   onOpen,
   onToggleEvent,
   onToggleTask,
-  showContent = true
+  showContent = true,
+  onGestureStart,
+  onResizeKey,
+  allowStart = true,
+  allowEnd = true
 }: {
   className?: string;
   event: CalendarEventViewModel;
@@ -72,6 +78,10 @@ function CalendarTimelineEventChip({
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   showContent?: boolean;
+  allowStart?: boolean;
+  allowEnd?: boolean;
+  onGestureStart?: (pointer: PointerEvent<HTMLElement>, event: CalendarEventViewModel, kind?: CalendarGestureKind) => void;
+  onResizeKey?: (event: CalendarEventViewModel, edge: "start" | "end", direction: -1 | 1) => void;
 }): JSX.Element {
   const draggable = event.sourceKind !== "task";
 
@@ -79,11 +89,12 @@ function CalendarTimelineEventChip({
     <>
       <CalendarEventChip
         className={cx("h-full min-h-0", className)}
-        draggable={draggable}
+        draggable={draggable && !onGestureStart}
         event={event}
         eventCompletionDefaultScope={eventCompletionDefaultScope}
         labelVariant={labelVariant}
         onDragStart={draggable ? (dragEvent) => startCalendarEventDrag(dragEvent, event.id) : undefined}
+        onPointerDown={onGestureStart ? (pointer) => onGestureStart(pointer, event) : undefined}
         onKeyDown={(keyEvent) => {
           if (!draggable) {
             return;
@@ -112,16 +123,23 @@ function CalendarTimelineEventChip({
         showContent={showContent}
         size={event.allDay ? "compact" : "default"}
       />
-      {draggable && !event.allDay ? (
-        <button
-          aria-label={`Resize ${event.title} end`}
-          className="calendar-event-resize-handle"
-          draggable
-          onDragStart={(dragEvent) => startCalendarEventResizeDrag(dragEvent, event.id)}
-          title={`Resize ${event.title} end`}
+      {draggable ? (["start", "end"] as const).filter(edge => edge === "start" ? allowStart && !!onGestureStart : allowEnd).map((edge) => (
+        <button key={edge}
+          aria-label={`Resize ${event.title} ${edge}`}
+          className={event.allDay ? `calendar-month-resize calendar-month-resize-${edge}` : `calendar-event-resize-handle calendar-event-resize-${edge}`}
+          draggable={!onGestureStart && edge === "end"}
+          onDragStart={!onGestureStart ? (dragEvent) => startCalendarEventResizeDrag(dragEvent, event.id) : undefined}
+          onPointerDown={onGestureStart ? (pointer) => onGestureStart(pointer, event, edge) : undefined}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(key) => {
+            const negative = event.allDay ? "ArrowLeft" : "ArrowUp", positive = event.allDay ? "ArrowRight" : "ArrowDown";
+            if (key.key !== negative && key.key !== positive) return;
+            key.preventDefault(); key.stopPropagation(); onResizeKey?.(event, edge, key.key === positive ? 1 : -1);
+          }}
+          title={`Resize ${edge}: drag or use ${event.allDay ? "Left/Right" : "Up/Down"} arrow keys`}
           type="button"
         />
-      ) : null}
+      )) : null}
     </>
   );
 }
@@ -201,6 +219,8 @@ function CalendarTimelineView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onChangeEvent,
+  onNavigate,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks = [],
@@ -219,6 +239,8 @@ function CalendarTimelineView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
+  onNavigate?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -272,11 +294,76 @@ function CalendarTimelineView({
       : calendarTodayKey();
   const dayColumnMinWidth = days.length <= 1 ? 240 : days.length <= 3 ? 140 : 84;
   const gridTemplateColumns = `repeat(${Math.max(1, days.length)}, minmax(${dayColumnMinWidth}px, 1fr))`;
+  const edgeNavigation = useRef<{ direction: -1 | 1; at: number } | null>(null);
+  const scrollSave = useRef<{ timer: ReturnType<typeof setTimeout> | null; key: string; top: number; left: number } | null>(null);
+  function saveScroll(): void {
+    const pending = scrollSave.current;
+    if (!pending) return;
+    if (pending.timer) clearTimeout(pending.timer);
+    writePanePreference(paneId, pending.key, { top: pending.top, left: pending.left });
+    scrollSave.current = null;
+  }
+  useEffect(() => () => saveScroll(), [paneId]);
+  function gesturePoint(x: number, y: number) {
+    const scroller = scrollContainerRef.current;
+    const columns = scroller?.querySelectorAll<HTMLElement>("[data-calendar-day-events]");
+    if (!scroller || !columns?.length) return null;
+    const viewport = scroller.getBoundingClientRect();
+    const allDay = scroller.querySelector<HTMLElement>("[data-calendar-all-day-events]")?.getBoundingClientRect();
+    const inAllDay = Boolean(allDay && y >= allDay.top && y <= allDay.bottom);
+    const index = [...columns].findIndex(column => { const rect = column.getBoundingClientRect(); return x >= rect.left && x <= rect.right; });
+    const resolved = index >= 0 ? index : x < columns[0].getBoundingClientRect().left ? 0 : columns.length - 1;
+    const day = visibleDays[resolved]?.day;
+    if (!day) return null;
+    if (inAllDay) return { day: calendarDayKey(day), allDay: true };
+    const grid = timeGridRef.current?.getBoundingClientRect();
+    if (!grid) return null;
+    const clampedY = Math.min(viewport.bottom - 1, Math.max((allDay?.bottom ?? viewport.top) + 1, y));
+    return { day: calendarDayKey(day), minutes: Math.max(0, Math.min(1440, Math.round((clampedY - grid.top) / hourRowHeight * 4) * 15)), allDay: false };
+  }
+  const gesture = useCalendarPointerGesture({
+    locate: gesturePoint,
+    resizeCursor: "ns-resize",
+    onCommit: (event, range) => onChangeEvent?.(event, range),
+    onFinish: () => { edgeNavigation.current = null; saveScroll(); },
+    onEdge: (x, y) => {
+      const node = scrollContainerRef.current;
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const allDay = node.querySelector<HTMLElement>("[data-calendar-all-day-events]")?.getBoundingClientRect();
+      const top = allDay?.bottom ?? rect.top;
+      let active = false;
+      const before = node.scrollTop;
+      if (y > rect.bottom - 36) node.scrollTop += Math.min(18, (y - rect.bottom + 36) / 2);
+      else if (y > top && y < top + 36) node.scrollTop -= Math.min(18, (top + 36 - y) / 2);
+      active = node.scrollTop !== before;
+      const direction = x > rect.right - 28 ? 1 : x < rect.left + 80 ? -1 : 0;
+      if (direction && onNavigate) {
+        const beforeLeft = node.scrollLeft;
+        node.scrollLeft += direction * 12;
+        if (node.scrollLeft !== beforeLeft) { edgeNavigation.current = null; return true; }
+        const now = performance.now(), current = edgeNavigation.current;
+        if (!current || current.direction !== direction) edgeNavigation.current = { direction, at: now + 600 };
+        else if (now >= current.at) { current.at = now + 800; onNavigate(direction); }
+        active = true;
+      } else edgeNavigation.current = null;
+      return active;
+    }
+  });
+  function openAfterGesture(event: CalendarEventViewModel): void { if (!gesture.consumeClick()) onOpen(event); }
+  function resizeWithKey(event: CalendarEventViewModel, edge: "start" | "end", direction: -1 | 1): void {
+    const point = calendarLocalPoint(edge === "start" ? event.startsAt : event.endsAt, event.displayTimeZone || event.timeZone);
+    if (event.allDay) {
+      const day = (edge === "start" ? event.startsAt : addUtcMinutesIso(event.endsAt, -1440)).slice(0, 10);
+      onChangeEvent?.(event, calendarGestureRange(event, edge, { day }, { day: addUtcMinutesIso(`${day}T00:00:00Z`, direction * 1440).slice(0, 10) }));
+    } else onChangeEvent?.(event, calendarGestureRange(event, edge, { day: point.dayKey, minutes: point.minutes }, { day: point.dayKey, minutes: point.minutes + direction * 15 }));
+  }
   const previewSegments = timelinePreviewSegments(
     [
       ...availabilitySlots,
       ...(dragSelection ? [dragSelection] : []),
-      ...(dropPreview ? [dropPreview] : [])
+      ...(dropPreview ? [dropPreview] : []),
+      ...(gesture.preview && !gesture.preview.allDay ? [calendarTimeBlock(gesture.preview.startsAt, gesture.preview.endsAt, source.settings.defaultTimeZone)] : [])
     ],
     visibleDays,
     hourRowHeight,
@@ -311,6 +398,7 @@ function CalendarTimelineView({
     }
 
     const frame = window.requestAnimationFrame(() => {
+      if (document.body.dataset.calendarDragging) return;
       const saved = readPanePreference<{ top: number; left: number } | null>(paneId, scrollKey, null);
       if (saved) {
         scrollContainer.scrollTop = saved.top;
@@ -590,7 +678,10 @@ function CalendarTimelineView({
       <div
         className="min-h-0 flex-1 overflow-auto"
         data-calendar-timeline-scroll
-        onScroll={(event) => writePanePreference(paneId, scrollKey, { top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft })}
+        onScroll={(event) => {
+          if (scrollSave.current?.timer) clearTimeout(scrollSave.current.timer);
+          scrollSave.current = { key: scrollKey, top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft, timer: setTimeout(saveScroll, 160) };
+        }}
         ref={scrollContainerRef}
         role="grid"
         aria-label={gridLabel}
@@ -639,6 +730,8 @@ function CalendarTimelineView({
                   return (
                     <div
                       className="border-r border-border bg-bg-tertiary last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      data-calendar-all-day-date={dayKey}
+                      data-calendar-drop-preview={Boolean(gesture.preview?.allDay && dayKey >= gesture.preview.startsAt.slice(0, 10) && dayKey < gesture.preview.endsAt.slice(0, 10))}
                       key={day.id}
                       onClick={() => {
                         if (!availabilityMode) {
@@ -676,7 +769,7 @@ function CalendarTimelineView({
               >
                 {timeline.allDaySegments.map((segment) => (
                   <div
-                    className="pointer-events-auto min-w-0 px-2"
+                    className="calendar-all-day-event relative pointer-events-auto min-w-0 px-2"
                     data-calendar-all-day-segment={segment.event.id}
                     data-day-span={segment.daySpan}
                     data-ends-after-range={segment.endsAfterRange}
@@ -692,8 +785,12 @@ function CalendarTimelineView({
                       event={segment.event}
                       eventCompletionDefaultScope={eventCompletionDefaultScope}
                       labelVariant="title"
+                      allowStart={!segment.startsBeforeRange}
+                      allowEnd={!segment.endsAfterRange}
                       onMoveEvent={onMoveEvent}
-                      onOpen={onOpen}
+                      onOpen={openAfterGesture}
+                      onGestureStart={onChangeEvent ? gesture.begin : undefined}
+                      onResizeKey={resizeWithKey}
                       onToggleEvent={onToggleEvent}
                       onToggleTask={onToggleTask}
                     />
@@ -873,6 +970,7 @@ function CalendarTimelineView({
                 <div
                   className="relative min-w-0 border-r border-transparent last:border-r-0"
                   data-calendar-day-events
+                  data-calendar-date={calendarDayKey(day)}
                   key={`${day.id}-events`}
                 >
                   {timedEventLayouts.flatMap((layout) => {
@@ -901,8 +999,12 @@ function CalendarTimelineView({
                           event={layout.event}
                           eventCompletionDefaultScope={eventCompletionDefaultScope}
                           labelVariant={timedLabelVariant}
+                          allowStart={segment === layout.segments[0] && calendarLocalPoint(layout.event.startsAt, source.settings.defaultTimeZone).dayKey === calendarDayKey(day)}
+                          allowEnd={segment === layout.segments[layout.segments.length - 1] && (calendarLocalPoint(layout.event.endsAt, source.settings.defaultTimeZone).dayKey === calendarDayKey(day) || calendarLocalPoint(addUtcMinutesIso(layout.event.endsAt, -1), source.settings.defaultTimeZone).dayKey === calendarDayKey(day))}
                           onMoveEvent={onMoveEvent}
-                          onOpen={onOpen}
+                          onOpen={openAfterGesture}
+                          onGestureStart={onChangeEvent ? gesture.begin : undefined}
+                          onResizeKey={resizeWithKey}
                           onToggleEvent={onToggleEvent}
                           onToggleTask={onToggleTask}
                           showContent={segment === contentSegment}
@@ -940,6 +1042,11 @@ function CalendarTimelineView({
           </div>
         </div>
       </div>
+      {gesture.preview ? <div className="calendar-gesture-status" role="status" data-calendar-gesture-preview>
+        {gesture.preview.event.title}: {gesture.preview.allDay
+          ? `${gesture.preview.startsAt.slice(0, 10)} – ${addUtcMinutesIso(gesture.preview.endsAt, -1440).slice(0, 10)} (all day)`
+          : `${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: source.settings.defaultTimeZone }).format(new Date(gesture.preview.startsAt))} – ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: source.settings.defaultTimeZone }).format(new Date(gesture.preview.endsAt))}`}. Release to save; Escape to cancel.
+      </div> : null}
       {activeOverflow ? (
         <CalendarOverflowPopover
           eventCompletionDefaultScope={eventCompletionDefaultScope}
@@ -965,6 +1072,8 @@ export function DayView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onChangeEvent,
+  onNavigate,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks,
@@ -979,6 +1088,8 @@ export function DayView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
+  onNavigate?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -997,6 +1108,8 @@ export function DayView({
       onMoveEvent={onMoveEvent}
       onOpen={onOpen}
       onResizeEvent={onResizeEvent}
+      onChangeEvent={onChangeEvent}
+      onNavigate={onNavigate}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
       smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -1018,6 +1131,8 @@ export function MultiDayView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onChangeEvent,
+  onNavigate,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks,
@@ -1034,6 +1149,8 @@ export function MultiDayView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
+  onNavigate?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -1052,6 +1169,8 @@ export function MultiDayView({
       onMoveEvent={onMoveEvent}
       onOpen={onOpen}
       onResizeEvent={onResizeEvent}
+      onChangeEvent={onChangeEvent}
+      onNavigate={onNavigate}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
       smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -1070,6 +1189,8 @@ export function WeekView({
   onMoveEvent,
   onOpen,
   onResizeEvent,
+  onChangeEvent,
+  onNavigate,
   onToggleEvent,
   onToggleTask,
   smartScheduleGhostBlocks,
@@ -1084,6 +1205,8 @@ export function WeekView({
   onMoveEvent: (eventId: string, startsAt: string, allDay: boolean) => void;
   onOpen: (event: CalendarEventViewModel) => void;
   onResizeEvent: (eventId: string, endsAt: string) => void;
+  onChangeEvent?: (event: CalendarEventViewModel, range: CalendarEventRange) => void;
+  onNavigate?: (direction: -1 | 1) => void;
   onToggleEvent?: (eventId: string, scope?: CalendarEventCompletionScope) => void;
   onToggleTask?: (taskId: string) => void;
   smartScheduleGhostBlocks?: SmartScheduleGhostBlock[];
@@ -1102,6 +1225,8 @@ export function WeekView({
       onMoveEvent={onMoveEvent}
       onOpen={onOpen}
       onResizeEvent={onResizeEvent}
+      onChangeEvent={onChangeEvent}
+      onNavigate={onNavigate}
       onToggleEvent={onToggleEvent}
       onToggleTask={onToggleTask}
       smartScheduleGhostBlocks={smartScheduleGhostBlocks}

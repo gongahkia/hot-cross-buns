@@ -556,6 +556,8 @@ export function CalendarView({
               onMoveEvent={moveCalendarEvent}
               onOpen={openCalendarItem}
               onResizeEvent={resizeCalendarEvent}
+              onChangeEvent={changeCalendarEventTime}
+              onNavigate={shiftCalendarAnchor}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
               smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -575,6 +577,8 @@ export function CalendarView({
               onMoveEvent={moveCalendarEvent}
               onOpen={openCalendarItem}
               onResizeEvent={resizeCalendarEvent}
+              onChangeEvent={changeCalendarEventTime}
+              onNavigate={shiftCalendarAnchor}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
               smartScheduleGhostBlocks={smartScheduleGhostBlocks}
@@ -592,6 +596,8 @@ export function CalendarView({
               onMoveEvent={moveCalendarEvent}
               onOpen={openCalendarItem}
               onResizeEvent={resizeCalendarEvent}
+              onChangeEvent={changeCalendarEventTime}
+              onNavigate={shiftCalendarAnchor}
               onToggleEvent={toggleCalendarEvent}
               onToggleTask={toggleCalendarTask}
               smartScheduleGhostBlocks={smartScheduleGhostBlocks}

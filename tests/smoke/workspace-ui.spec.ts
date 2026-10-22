@@ -815,7 +815,7 @@ test("creates a time range with the pointer, moves and resizes an event, and ret
     await expect.poll(async () => Date.parse((await read()).startsAt)).toBe(Date.parse(original.startsAt) + 15 * 60_000);
     await chip.hover();
     const resize = page.getByRole("button", { name: "Resize Pointer planning session end" });
-    await resize.dragTo(grid.getByRole("gridcell", { name: /12 PM$/ }));
+    await resize.dragTo(grid.getByRole("gridcell", { name: /12 PM$/ }), { targetPosition: { x: 80, y: 1 } });
     await expect.poll(async () => (await read()).endsAt).toBe(`${day}T12:00:00.000Z`);
     await chip.hover();
     await chip.getByRole("button", { name: "Mark Pointer planning session complete" }).click();

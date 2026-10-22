@@ -31,6 +31,10 @@ describe("calendar gesture date arithmetic", () => {
     expect(result.startsAt).toBe("2027-03-14T04:45:00.000Z");
     expect(Date.parse(result.endsAt) - Date.parse(result.startsAt)).toBe(3600000);
   });
+  it("normalizes keyboard resizing through midnight", () => {
+    const item = event({ startsAt: "2027-03-13T00:00:00Z", endsAt: "2027-03-13T01:00:00Z", displayTimeZone: "UTC" });
+    expect(calendarGestureRange(item, "start", { day: "2027-03-13", minutes: 0 }, { day: "2027-03-13", minutes: -15 }).startsAt).toBe("2027-03-12T23:45:00.000Z");
+  });
   it("resizes the start without moving the end, with a minimum timed duration", () => {
     const result = calendarGestureRange(event(), "start", { day: "2027-03-13", minutes: 540 }, { day: "2027-03-13", minutes: 615 });
     expect(result.startsAt).toBe("2027-03-13T14:45:00.000Z");
