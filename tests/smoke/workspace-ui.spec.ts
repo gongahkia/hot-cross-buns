@@ -289,6 +289,27 @@ test("keeps the mini calendar visible and synchronizes dates across sections and
   });
 });
 
+test("uses the display timezone for mini-calendar Today across leap day and midnight", async () => {
+  await planner(async (page) => {
+    await page.clock.setFixedTime(new Date("2028-02-29T23:30:00Z"));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    const mini = page.getByRole("region", { name: "Mini calendar" });
+    await mini.getByRole("button", { name: "Mini calendar: return to today", exact: true }).click();
+    await expect(mini.locator('[data-date="2028-02-29"]')).toHaveAttribute("aria-current", "date");
+    await expect(mini.locator('[data-date="2028-02-29"]')).toHaveAttribute("aria-pressed", "true");
+    await page.evaluate(async () => {
+      await window.hcb!.settings.update({ defaultTimeZone: "Pacific/Kiritimati" });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    await expect(mini.locator('[data-date="2028-03-01"]')).toHaveAttribute("aria-current", "date");
+    await expect(mini.locator('[data-date="2028-03-01"]')).toHaveAttribute("aria-pressed", "true");
+    await page.clock.setFixedTime(new Date("2028-03-01T10:01:00Z"));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(mini.locator('[data-date="2028-03-02"]')).toHaveAttribute("aria-current", "date");
+    await expect(mini.locator('[data-date="2028-03-01"]')).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
 test("navigates calendar views, filters sources, edits in context and preserves drafts", async () => {
   await planner(async (page) => {
     // Existing profiles that selected the retired pop-up mode must dock too.

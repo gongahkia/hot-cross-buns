@@ -406,6 +406,8 @@ label:has(input:not(:disabled)) {
 .mini-calendar th:first-child { width: 22px; }
 .mini-calendar td { padding: 0; height: 30px; }
 .mini-calendar td[data-in-range="true"] { background: var(--color-surface-0); }
+[data-theme="light"] .mini-calendar td[data-in-range="true"],
+[data-theme="light"] .workspace-navigation nav [aria-current="page"] { background: var(--color-surface-1); }
 .mini-calendar td[data-in-range="true"]:nth-child(2) { border-radius: 7px 0 0 7px; }
 .mini-calendar td[data-in-range="true"]:last-child { border-radius: 0 7px 7px 0; }
 .mini-calendar-day { width: 100%; height: 30px; border-radius: 6px; font-size: var(--text-md); text-align: center; }
