@@ -119,6 +119,8 @@ body {
   animation-iteration-count: 1 !important;
 }
 
+/* Resets belong below component utilities in the cascade. */
+@layer base {
 button,
 input,
 textarea,
@@ -140,6 +142,7 @@ button {
   border: 0;
   background: transparent;
   color: inherit;
+}
 }
 
 button:not(:disabled),

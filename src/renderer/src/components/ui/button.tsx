@@ -9,14 +9,14 @@ export const buttonVariants = cva(
     defaultVariants: { size: "md", variant: "secondary" },
     variants: {
       variant: {
-        primary: "border-accent bg-accent text-[var(--color-accent-foreground)] hover:bg-info hover:border-info",
+        primary: "border-accent bg-accent text-[color:var(--color-accent-foreground)] hover:bg-info hover:border-info",
         secondary: "border-border bg-surface-0 text-text-primary hover:bg-surface-1",
         ghost: "border-transparent bg-transparent text-text-secondary hover:bg-surface-0 hover:text-text-primary",
         danger: "border-danger bg-transparent text-danger ring-1 ring-danger/70 hover:bg-surface-0 hover:ring-danger"
       },
       size: {
-        sm: "min-h-10 px-3 text-[var(--text-sm)]",
-        md: "min-h-10 px-3 text-[var(--text-base)]"
+        sm: "min-h-10 px-3 text-[length:var(--text-sm)]",
+        md: "min-h-10 px-3 text-[length:var(--text-base)]"
       }
     }
   }
