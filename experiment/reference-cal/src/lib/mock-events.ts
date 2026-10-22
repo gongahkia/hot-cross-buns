@@ -2040,6 +2040,7 @@ export function generateMockEvents(
     ...(includeHolidays ? holidayEvents(today) : []),
   ].map((event) => ({
     ...event,
+    kind: "event",
     calendarId:
       event.calendarId === SAMPLE_ACCOUNT_EMAIL
         ? accountEmail

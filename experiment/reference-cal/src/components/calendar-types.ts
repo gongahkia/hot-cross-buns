@@ -1,4 +1,6 @@
 import type {
+  CalendarEntryKind,
+  CalendarEventType,
   EventRecurrenceRule,
   EventOccurrenceException,
   EventRecurrenceAnchor,
@@ -51,11 +53,15 @@ export interface EventReminder {
 }
 
 /**
- * Represents a calendar event
+ * Shared calendar record for events and tasks.
  */
 export interface CalendarEvent {
   /** Unique identifier for the event */
   id: string;
+  /** Missing on older records, which are treated as events. */
+  kind?: CalendarEntryKind;
+  /** Event category; tasks use the same editor without an event category. */
+  eventType?: CalendarEventType;
   /** Event title */
   title: string;
   /** Start date and time */

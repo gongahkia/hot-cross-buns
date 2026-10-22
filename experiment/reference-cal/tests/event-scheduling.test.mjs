@@ -370,7 +370,7 @@ test("sample-series conversion retains every original event's identity, dates an
   for (const row of original) {
     const converted = byId.get(row.id);
     assert.ok(converted, `Missing sample ${row.id}`);
-    for (const key of ["title", "location", "description", "color"])
+    for (const key of ["kind", "title", "location", "description", "color"])
       assert.equal(converted[key], row[key], `${row.id} ${key}`);
     assert.equal(converted.start.getTime(), row.start.getTime(), row.id);
     assert.equal(converted.end.getTime(), row.end.getTime(), row.id);
@@ -410,4 +410,85 @@ test("timed repeats keep their duration when the end crosses a daylight-saving g
   assert.ok(
     rows.every((row) => row.end.getTime() - row.start.getTime() === 3600000),
   );
+});
+
+test("converting a recurring occurrence to a task survives edits and leaves its siblings as events", () => {
+  const master = event({ kind: "event" });
+  const [first, second, third] = expand(master);
+  let sources = updateCalendarEvents([master], {
+    ...second,
+    kind: "task",
+    eventType: undefined,
+  });
+  const task = findCalendarEvent(sources, second.id);
+  assert.equal(task.kind, "task");
+  assert.equal(task.id, second.id);
+  sources = updateCalendarEvents(sources, {
+    ...task,
+    title: "A scheduled task",
+    description: "Keep these details",
+    location: "Singapore",
+    start: instant(2028, 1, 4),
+    end: instant(2028, 1, 4, 10),
+  });
+  const moved = findCalendarEvent(sources, second.id);
+  assert.equal(moved.kind, "task");
+  assert.equal(moved.location, "Singapore");
+  assert.equal(moved.description, "Keep these details");
+  assert.equal(findCalendarEvent(sources, first.id).kind, "event");
+  assert.equal(findCalendarEvent(sources, third.id).kind, "event");
+  assert.equal(sources[0].kind, "event");
+});
+
+test("task series preserve their kind across repeat changes and conversion back to an event", () => {
+  const master = event({
+    kind: "task",
+    recurrenceRule: { frequency: "weekly", interval: 1, count: 3 },
+  });
+  const occurrences = expand(master);
+  assert.ok(occurrences.every((row) => row.kind === "task"));
+  let sources = updateCalendarEvents([master], {
+    ...occurrences[1],
+    kind: "event",
+    eventType: "focus",
+  });
+  let converted = findCalendarEvent(sources, occurrences[1].id);
+  sources = updateCalendarEvents(sources, {
+    ...converted,
+    title: "Focus work",
+  });
+  sources = updateCalendarEvents(sources, {
+    ...findCalendarEvent(sources, occurrences[0].id),
+    recurrenceRule: { frequency: "weekly", interval: 1, count: 2 },
+  });
+  converted = findCalendarEvent(sources, occurrences[1].id);
+  assert.equal(converted.kind, "event");
+  assert.equal(converted.eventType, "focus");
+  assert.equal(converted.title, "Focus work");
+  assert.equal(expand(sources[0])[0].kind, "task");
+  const stopped = updateCalendarEvents(sources, {
+    ...findCalendarEvent(sources, occurrences[0].id),
+    recurrenceRule: undefined,
+  });
+  assert.equal(stopped[0].kind, "task");
+  assert.equal(stopped[0].recurrenceRule, undefined);
+});
+
+test("sample-series grouping keeps tasks and event categories separate", () => {
+  const sample = event({
+    recurrenceRule: undefined,
+    recurrence: "Every week on Mon",
+  });
+  const samples = [
+    { ...sample, id: "event", kind: "event" },
+    { ...sample, id: "task", kind: "task" },
+    { ...sample, id: "focus", kind: "event", eventType: "focus" },
+  ];
+  const sources = prepareSampleSeries(samples);
+  assert.equal(sources.length, 3);
+  for (const sample of samples) {
+    const resolved = findCalendarEvent(sources, sample.id);
+    assert.equal(resolved.kind, sample.kind);
+    assert.equal(resolved.eventType, sample.eventType);
+  }
 });

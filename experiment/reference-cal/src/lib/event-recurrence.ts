@@ -35,6 +35,8 @@ const WEEKDAYS = [
 ];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EDITABLE_KEYS = [
+  "kind",
+  "eventType",
   "title",
   "start",
   "end",
@@ -383,6 +385,8 @@ export function prepareSampleSeries(events: CalendarEvent[]): CalendarEvent[] {
       continue;
     }
     const key = JSON.stringify([
+      event.kind ?? "event",
+      event.eventType ?? "event",
       event.title,
       event.calendarId,
       event.recurrence,

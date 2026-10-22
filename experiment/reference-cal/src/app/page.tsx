@@ -8,7 +8,15 @@ import {
   PanelRightIcon,
 } from "lucide-react";
 
-import { addDays, addMonths, format, startOfDay, startOfWeek } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  format,
+  isSameDay,
+  isSameMonth,
+  startOfDay,
+  startOfWeek,
+} from "date-fns";
 import { useTheme } from "next-themes";
 import { useIsClient } from "@/hooks/use-is-client";
 import { useMediaQuery, useViewportWidth } from "@/hooks/use-media-query";
@@ -21,10 +29,11 @@ import {
   prepareSampleSeries,
   updateCalendarEvents,
 } from "@/lib/event-recurrence";
-import { pickRandomEventColor } from "@/lib/event-utils";
+import { getNewEventRange, pickRandomEventColor } from "@/lib/event-utils";
 import { CommandMenu } from "@/components/command-menu";
 import { SidebarLeft } from "@/components/sidebar-left";
 import type {
+  CalendarEntryKind,
   CalendarEvent,
   EventColor,
   NewEventRange,
@@ -54,9 +63,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Kbd } from "@/components/ui/kbd";
-
-/** Title given to an event created by clicking an empty time slot */
-const NEW_EVENT_TITLE = "New event";
 
 /** Primary calendar (and its account email) that click-created events belong to */
 const PRIMARY_CALENDAR_ID = SAMPLE_ACCOUNT_EMAIL;
@@ -257,14 +263,15 @@ function PageContent({ isWideLayout }: PageContentProps) {
   const lastCreatedColorRef = React.useRef<EventColor | null>(null);
 
   const handleEventCreate = React.useCallback(
-    (range: NewEventRange) => {
+    (range: NewEventRange, kind: CalendarEntryKind = "event") => {
       // Demo choice: a random color per created event makes each click visibly
       // new. A real app would use the target calendar's color instead.
       const color = pickRandomEventColor(lastCreatedColorRef.current);
       lastCreatedColorRef.current = color;
       const newEvent: CalendarEvent = {
         id: crypto.randomUUID(),
-        title: NEW_EVENT_TITLE,
+        kind,
+        title: kind === "task" ? "New task" : "New event",
         start: range.start,
         end: range.end,
         color,
@@ -430,6 +437,23 @@ function PageContent({ isWideLayout }: PageContentProps) {
     view === "month"
       ? (monthViewDisplayMonth ?? currentDate)
       : (visibleDays[0] ?? currentDate);
+  const handleCommandCreate = React.useCallback(
+    (kind: CalendarEntryKind) => {
+      const now = new Date();
+      const todayVisible =
+        view === "month"
+          ? isSameMonth(now, headerDate)
+          : visibleDays.some((day) => isSameDay(day, now));
+      const day = todayVisible ? now : headerDate;
+      handleEventCreate(
+        getNewEventRange(day, now.getHours() * 60 + now.getMinutes()),
+        kind,
+      );
+      setSettingsOpen(false);
+      dockToSidebar();
+    },
+    [view, headerDate, visibleDays, handleEventCreate, dockToSidebar],
+  );
   // Week/day views name the month after the LAST visible day, so a week
   // crossing into the next month is labeled with the later month (Notion
   // Calendar's behavior). Month view labels its own month instead.
@@ -622,6 +646,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
         onCycleTheme={cycleTheme}
         onOpenSettings={openSettings}
         onSearchEvents={openEventSearch}
+        onCreateEntry={handleCommandCreate}
       />
       {!settingsOpen && (
         <SidebarRight

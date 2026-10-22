@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import * as ReactDOM from "react-dom";
 import {
   addDays,
   differenceInCalendarDays,
@@ -11,9 +10,6 @@ import {
 } from "date-fns";
 import {
   Bell,
-  Check,
-  ChevronDown,
-  CircleHelp,
   Clock,
   Copy,
   MoreHorizontal,
@@ -38,6 +34,7 @@ import type {
   EventColor,
   EventEditorContext,
 } from "./week-view-types";
+import { EventKindSelector } from "./event-kind-selector";
 import { EventLocationField } from "./event-fields/event-location-field";
 import { EventDescriptionField } from "./event-fields/event-description-field";
 import { eventInlineTextClass } from "./event-fields/event-field-editor";
@@ -212,69 +209,6 @@ function formatVisibility(
   return "Default visibility";
 }
 
-const EVENT_TYPES = [
-  "Event",
-  "Focus time",
-  "Out of office",
-  "Birthday",
-] as const;
-type EventType = (typeof EVENT_TYPES)[number];
-
-const EVENT_TYPE_TOOLTIPS: Partial<Record<EventType, string>> = {
-  "Focus time":
-    "Create a focus time event with the option to automatically decline meetings during this time. Available for work and school accounts.",
-  "Out of office":
-    "Create an out of office (OOO) event with the option to automatically decline meetings during this time. Available for work and school accounts.",
-  Birthday:
-    "Create a birthday event to keep track of a person's upcoming birthdays. Birthdays from your Google Contacts may appear on a separate Birthday calendar.",
-};
-
-function EventTypeHelpIcon({ tooltip }: { tooltip?: string }) {
-  const [tooltipPos, setTooltipPos] = React.useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-
-  if (!tooltip) {
-    return null;
-  }
-
-  function handleMouseEnter(e: React.MouseEvent<HTMLSpanElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setTooltipPos({ top: rect.top + rect.height / 2, left: rect.left });
-  }
-
-  function handleMouseLeave() {
-    setTooltipPos(null);
-  }
-
-  return (
-    <span
-      className="ml-auto shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <CircleHelp className="size-3.5 text-white" />
-      {tooltipPos &&
-        ReactDOM.createPortal(
-          <div
-            className="pointer-events-none fixed z-[100] max-w-[240px] rounded-sm bg-[#252525] border border-[#303030] px-2 py-1 text-xs text-white shadow-md"
-            style={{
-              top: tooltipPos.top,
-              left: tooltipPos.left - 8,
-              transform: "translate(-100%, -50%)",
-            }}
-          >
-            {tooltip}
-          </div>,
-          document.body,
-        )}
-    </span>
-  );
-}
-
 export function EventDetailPanel({
   editorContext = "sidebar",
   event,
@@ -296,9 +230,6 @@ export function EventDetailPanel({
   );
   const [timeError, setTimeError] = React.useState<string | null>(null);
   const color = event.color ?? "blue";
-  const [eventType, setEventType] = React.useState<EventType>("Event");
-  const [eventDropdownOpen, setEventDropdownOpen] = React.useState(false);
-  const [hoveredOther, setHoveredOther] = React.useState(false);
   /** Whether the compact "All-day / Time zone / Repeat" row is expanded into individual rows. */
   const [optionsExpanded, setOptionsExpanded] = React.useState(false);
   const [titleValue, setTitleValue] = React.useState(event.title);
@@ -728,74 +659,11 @@ export function EventDetailPanel({
     [event, onEventChange, editStart, editEnd, zone],
   );
 
-  const otherTypes = EVENT_TYPES.filter((t) => t !== eventType);
-
   return (
     <div className="flex flex-col gap-3 py-3">
       {/* Header */}
       <div className="flex items-center justify-between px-4">
-        <DropdownMenu
-          open={eventDropdownOpen}
-          onOpenChange={(open) => {
-            setEventDropdownOpen(open);
-            if (open) setHoveredOther(false);
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "flex items-center gap-0.5 text-xs font-medium rounded-sm border border-transparent px-2.5 py-1.5 -ml-2.5 gap-1.5 hover:border-[#E8E8E4] dark:hover:border-[#373737]",
-                eventDropdownOpen
-                  ? "bg-[#252525] text-white"
-                  : "text-foreground",
-              )}
-            >
-              {eventType}
-              <ChevronDown
-                className={cn(
-                  "size-3.5",
-                  eventDropdownOpen
-                    ? "text-[#595959]"
-                    : "text-[#C7C5C1] dark:text-[#595959]",
-                )}
-              />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            side="left"
-            sideOffset={12}
-            alignOffset={-4}
-            className="min-w-[180px] bg-[#252525] border-[#303030]"
-            onMouseLeave={() => setHoveredOther(false)}
-          >
-            <DropdownMenuItem
-              className={cn(
-                "group/item text-xs text-white focus:bg-[#303030] focus:text-white",
-                !hoveredOther && "bg-[#303030]",
-              )}
-              onSelect={() => setEventType(eventType)}
-              onMouseEnter={() => setHoveredOther(false)}
-            >
-              <Check className="size-3.5" />
-              <span className="flex-1">{eventType}</span>
-              <EventTypeHelpIcon tooltip={EVENT_TYPE_TOOLTIPS[eventType]} />
-            </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-[#303030]" />
-            {otherTypes.map((type) => (
-              <DropdownMenuItem
-                key={type}
-                className="group/item text-xs text-white focus:bg-[#303030] focus:text-white pl-8"
-                onSelect={() => setEventType(type)}
-                onMouseEnter={() => setHoveredOther(true)}
-              >
-                <span className="flex-1">{type}</span>
-                <EventTypeHelpIcon tooltip={EVENT_TYPE_TOOLTIPS[type]} />
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EventKindSelector event={event} onEventChange={onEventChange} />
         <div className="flex items-center gap-0.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

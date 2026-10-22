@@ -34,6 +34,14 @@ export interface SidebarSizingProps {
   onWidthChange: (width: number) => void;
 }
 
+/** Both primitives share the calendar's scheduling, rendering, and editor. */
+export type CalendarEntryKind = "event" | "task";
+export type CalendarEventType =
+  | "event"
+  | "focus"
+  | "out-of-office"
+  | "birthday";
+
 export interface EventRecurrenceRule {
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   interval: number;
@@ -49,6 +57,8 @@ export type EventOccurrenceException = Partial<
   Pick<
     CalendarEvent,
     | "id"
+    | "kind"
+    | "eventType"
     | "title"
     | "start"
     | "end"

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 
-import type { ViewType } from "@/components/week-view-types";
+import type { CalendarEntryKind, ViewType } from "@/components/week-view-types";
 
 /** Reusable "Soon" badge for unimplemented command items */
 const SOON_BADGE = (
@@ -33,6 +33,7 @@ interface CommandMenuProps {
   onCycleTheme: () => void;
   onOpenSettings: () => void;
   onSearchEvents: () => void;
+  onCreateEntry: (kind: CalendarEntryKind) => void;
 }
 
 export function CommandMenu({
@@ -47,6 +48,7 @@ export function CommandMenu({
   onCycleTheme,
   onOpenSettings,
   onSearchEvents,
+  onCreateEntry,
 }: CommandMenuProps) {
   const runCommand = React.useCallback(
     (command: () => void) => {
@@ -72,9 +74,13 @@ export function CommandMenu({
 
         {/* ── Calendar ── */}
         <CommandGroup heading="Calendar">
-          <CommandItem disabled>
+          <CommandItem
+            onSelect={() => runCommand(() => onCreateEntry("event"))}
+          >
             Create event...
-            {SOON_BADGE}
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => onCreateEntry("task"))}>
+            Create task...
           </CommandItem>
           <CommandItem disabled>
             Meet with...
