@@ -1,3 +1,4 @@
+import { usePanePreference } from "../../../shell/panePreferences";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   GoogleOptionalWorkspaceService,
@@ -157,7 +158,7 @@ export function SettingsView({
   const [confirmationInput, setConfirmationInput] = useState("");
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
   const [autoTagBackgroundNotice, setAutoTagBackgroundNotice] = useState<AutoTagBackgroundNotice | null>(null);
-  const [selectedSettingsTab, setSelectedSettingsTab] = useState<SettingsTabId>("profile");
+  const [selectedSettingsTab, setSelectedSettingsTab] = usePanePreference<SettingsTabId>("settings.category", "general");
   const [settingsQuery, setSettingsQuery] = useState("");
   const [customRetentionAmount, setCustomRetentionAmount] = useState("60");
   const [customRetentionUnit, setCustomRetentionUnit] = useState<"days" | "months" | "years">("days");
@@ -263,7 +264,7 @@ export function SettingsView({
       return;
     }
 
-    if (selectedSettingsTab !== matchingSettingsTabs[0]) {
+    if (!matchingSettingsTabs.includes(selectedSettingsTab)) {
       setSelectedSettingsTab(matchingSettingsTabs[0]);
     }
   }, [matchingSettingsTabs, normalizedSettingsQuery, selectedSettingsTab]);
@@ -613,62 +614,28 @@ export function SettingsView({
   }
 
   return (
-    <div className="grid min-h-0 gap-3">
-      <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-b border-border pb-2">
-        <SettingsTabButton
-          active={selectedSettingsTab === "profile"}
-          icon={Users}
-          label="Profile"
-          onClick={() => setSelectedSettingsTab("profile")}
-        />
+    <div className="settings-workspace grid h-full min-h-0 grid-cols-[210px_minmax(0,1fr)]">
+      <nav aria-label="Settings categories" className="flex min-h-0 flex-col gap-1 overflow-auto border-r border-border bg-bg-secondary p-4">
+        <div className="relative mb-5">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+          <Input aria-label="Search settings" className="w-full min-w-0 pl-8" onChange={(event) => setSettingsQuery(event.currentTarget.value)} placeholder="Search settings" value={settingsQuery} />
+        </div>
+        <p className="px-2 pb-1 text-xs font-semibold text-text-muted">Workspace</p>
+        <SettingsTabButton active={selectedSettingsTab === "profile"} icon={Users} label="Accounts" onClick={() => setSelectedSettingsTab("profile")} />
+        <p className="mt-5 px-2 pb-1 text-xs font-semibold text-text-muted">Preferences</p>
+        <SettingsTabButton active={selectedSettingsTab === "general"} icon={SlidersHorizontal} label="General" onClick={() => setSelectedSettingsTab("general")} />
+        <SettingsTabButton active={selectedSettingsTab === "appearance"} icon={Brush} label="Appearance" onClick={() => setSelectedSettingsTab("appearance")} />
+        <SettingsTabButton active={selectedSettingsTab === "hotkeys"} icon={Keyboard} label="Hotkeys" onClick={() => setSelectedSettingsTab("hotkeys")} />
+        <SettingsTabButton active={selectedSettingsTab === "alerts"} icon={Bell} label="Alerts" onClick={() => setSelectedSettingsTab("alerts")} />
+        <p className="mt-5 px-2 pb-1 text-xs font-semibold text-text-muted">Maintenance</p>
         <SettingsTabButton active={selectedSettingsTab === "data"} icon={SlidersHorizontal} label="Data" onClick={() => setSelectedSettingsTab("data")} />
-        <SettingsTabButton
-          active={selectedSettingsTab === "general"}
-          icon={SlidersHorizontal}
-          label="General"
-          onClick={() => setSelectedSettingsTab("general")}
-        />
-        <SettingsTabButton
-          active={selectedSettingsTab === "appearance"}
-          icon={Brush}
-          label="Appearance"
-          onClick={() => setSelectedSettingsTab("appearance")}
-        />
-        <SettingsTabButton
-          active={selectedSettingsTab === "hotkeys"}
-          icon={Keyboard}
-          label="Hotkeys"
-          onClick={() => setSelectedSettingsTab("hotkeys")}
-        />
-        <SettingsTabButton
-          active={selectedSettingsTab === "alerts"}
-          icon={Bell}
-          label="Alerts"
-          onClick={() => setSelectedSettingsTab("alerts")}
-        />
-        <SettingsTabButton
-          active={selectedSettingsTab === "about"}
-          icon={Info}
-          label="About"
-          onClick={() => setSelectedSettingsTab("about")}
-        />
-      </div>
-
-      <div className="relative">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
-          size={15}
-        />
-        <Input
-          aria-label="Search settings"
-          className="pl-9"
-          onChange={(event) => setSettingsQuery(event.currentTarget.value)}
-          placeholder="Search settings"
-          value={settingsQuery}
-        />
-      </div>
-
+        <Button className="justify-start" variant="ghost" onClick={() => void openDiagnosticsDetails()}>Diagnostics</Button>
+        <SettingsTabButton active={selectedSettingsTab === "about"} icon={Info} label="About" onClick={() => setSelectedSettingsTab("about")} />
+      </nav>
+      <div className="min-h-0 overflow-auto px-6 py-5" key={selectedSettingsTab}>
+      <div className="mx-auto grid max-w-4xl gap-4">
+      <h2 className="text-xl font-semibold">{{ profile: "Accounts", general: "General", appearance: "Appearance", hotkeys: "Hotkeys", alerts: "Alerts", data: "Data and recovery", about: "About" }[selectedSettingsTab]}</h2>
+      {normalizedSettingsQuery.length >= 2 ? <div role="status" className="text-sm text-text-muted">{matchingSettingsTabs.length ? `Matches in ${matchingSettingsTabs.length} categories` : "No settings match your search."}<Button className="ml-2" size="sm" variant="ghost" onClick={() => setSettingsQuery("")}>Clear search</Button></div> : null}
       {source.settingsMutationError ? (
         <StatusBanner
           description={source.settingsMutationError}
@@ -798,6 +765,7 @@ export function SettingsView({
           />
         ) : null}
       </SettingsSearchProvider>
+      </div></div>
     </div>
   );
 }

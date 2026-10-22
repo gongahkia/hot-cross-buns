@@ -23,7 +23,7 @@ test("opens deferred diagnostics through its keyboard shortcut", async () => {
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
     });
     await expect(onboarding).toBeHidden();
-    await page.getByRole("button", { name: "Diagnostics", exact: true }).focus();
+    await page.getByRole("button", { name: "Settings", exact: true }).focus();
     await page.keyboard.press(process.platform === "darwin" ? "Meta+Alt+d" : "Control+Alt+d");
     await expect(page.getByRole("dialog", { name: "Diagnostics", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");

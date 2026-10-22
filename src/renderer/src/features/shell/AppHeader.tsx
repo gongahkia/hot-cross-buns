@@ -203,7 +203,7 @@ export function AppHeader({
         <div ref={sidebarMount} className="section-navigation-slot" />
       </div>
       <div className={cx("flex shrink-0 gap-1 border-t border-border p-2", collapsed ? "flex-col" : "flex-wrap")} role="toolbar" aria-label="Planner actions">
-        {toolbarActionOrder.filter((id) => id !== "commandPalette").map((id) => toolbarButtons[id])}
+        {toolbarActionOrder.filter((id) => id !== "commandPalette" && id !== "diagnostics").map((id) => toolbarButtons[id])}
       </div>
     </aside>
   );

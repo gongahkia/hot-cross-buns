@@ -280,3 +280,12 @@ label:has(input:not(:disabled)) {
 .document-markdown { border-color: transparent; background: transparent; }
 .document-markdown .markdown-content, .document-markdown .markdown-source { min-height: max(320px, calc(100dvh - 360px)); }
 .document-markdown .markdown-toolbar { position: sticky; top: -24px; z-index: 5; background: var(--color-bg-primary); }
+
+.document-markdown .markdown-content { max-height: none; overflow: visible; }
+@media (max-width: 1050px) {
+  .settings-workspace { grid-template-columns: 180px minmax(0, 1fr); }
+  .settings-workspace > nav { padding: 12px; }
+}
+
+.note-document .document-markdown { border-color: transparent; background: transparent; }
+.markdown-bubble-layer { z-index: 10; }

@@ -98,7 +98,7 @@ export function SettingsSearchProvider({
 export function SettingsTabButton({
   active,
   alertCount = 0,
-  icon: _Icon,
+  icon: Icon,
   label,
   onClick
 }: {
@@ -112,7 +112,7 @@ export function SettingsTabButton({
     <button
       aria-pressed={active}
       className={cx(
-        "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-[background-color,border-color,color] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        "inline-flex min-h-10 shrink-0 items-center justify-start gap-2 rounded-hcbMd border px-2.5 text-[var(--text-base)] font-medium transition-[background-color,border-color,color] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         active
           ? "border-border bg-surface-0 text-text-primary"
           : "border-transparent text-text-muted hover:bg-surface-0 hover:text-text-primary"
@@ -120,7 +120,7 @@ export function SettingsTabButton({
       onClick={onClick}
       type="button"
     >
-      <span className="truncate">{label}</span>
+      <Icon aria-hidden="true" size={16} className="shrink-0" /><span className="truncate">{label}</span>
       {alertCount > 0 ? (
         <span
           aria-hidden="true"

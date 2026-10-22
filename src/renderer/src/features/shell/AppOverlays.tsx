@@ -1,3 +1,4 @@
+import * as Dialog from "@radix-ui/react-dialog";
 import type { RefObject } from "react";
 import { Bell, Settings2, X } from "lucide-react";
 import { Badge, Button, IconButton } from "../../components/primitives";
@@ -131,41 +132,23 @@ export function SettingsOverlay({
   onClose: () => void;
 }): JSX.Element {
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-auto bg-bg-tertiary/80 p-3 sm:p-5"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
+    <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Dialog.Portal>
+      <Dialog.Content asChild aria-describedby={undefined}>
       <section
         aria-labelledby="settings-overlay-title"
-        aria-modal="true"
-        className="hcb-raised flex max-h-[calc(100dvh-24px)] w-full max-w-[1120px] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary sm:max-h-[calc(100dvh-72px)]"
+        className="fixed inset-0 z-50 flex min-h-0 flex-col bg-bg-primary text-text-primary"
         ref={dialogRef}
-        role="dialog"
-        tabIndex={-1}
+        data-testid="settings-workspace"
       >
-        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-bg-secondary px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-hcbMd bg-surface-0 text-accent">
-              <Settings2 aria-hidden="true" size={18} />
-            </div>
-            <div className="min-w-0">
-              <h2 className="hcb-heading truncate text-[var(--text-lg)] font-semibold" id="settings-overlay-title">
-                Settings
-              </h2>
-              <p className="hcb-copy truncate text-[var(--text-sm)] text-text-muted">App preferences</p>
-            </div>
-          </div>
-          <IconButton icon={X} label="Close settings" onClick={onClose} variant="ghost" />
+        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-5">
+          <Dialog.Title asChild><h1 className="text-lg font-semibold" id="settings-overlay-title">Settings</h1></Dialog.Title>
+          <Dialog.Close asChild><Button variant="ghost" aria-label="Close settings"><X size={16} />Back to planner</Button></Dialog.Close>
         </header>
-
-        <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-          <SettingsView onOpenDiagnostics={onOpenDiagnostics} />
-        </div>
+        <div className="min-h-0 flex-1 overflow-hidden"><SettingsView onOpenDiagnostics={onOpenDiagnostics} /></div>
       </section>
-    </div>
+      </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
