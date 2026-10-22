@@ -88,7 +88,7 @@ function createFixture() {
 function createCalendarFixture() {
   const fixture = createFixture();
   const { store, accountId, googleFetch } = fixture;
-  const remoteCalendar = { id: "remote-calendar", summary: "Calendar" };
+  const remoteCalendar = { accessRole: "owner", id: "remote-calendar", summary: "Calendar" };
   const calendar = store.upsertGoogleCalendar(remoteCalendar, accountId);
   const remoteEvents = new Map<string, RemoteTask>();
   store.dispatch("settings", "update", { syncTasksEnabled: false, syncCalendarEventsEnabled: true });
@@ -121,6 +121,20 @@ afterEach(() => {
 });
 
 describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+  it("refreshes CalendarList permissions before exposing editable calendar events", async () => {
+    const { store, service, calendar, remoteCalendar, importEvent } = createCalendarFixture();
+    const event = importEvent("permission-target");
+    remoteCalendar.accessRole = "reader";
+    await service.runNow({ readOnly: true });
+    expect(store.googleCalendarForSync(calendar.id)?.accessRole).toBe("reader");
+    expect(store.dispatch("calendar", "get", { id: event.id }).canWrite).toBe(false);
+    expect(() => store.dispatch("calendar", "update", { id: event.id, title: "Stale editor" })).toThrow("read-only");
+    remoteCalendar.accessRole = "writer";
+    await service.runNow({ readOnly: true });
+    expect(store.dispatch("calendar", "get", { id: event.id }).canWrite).toBe(true);
+    expect(store.dispatch("calendar", "update", { id: event.id, title: "Allowed edit" }).title).toBe("Allowed edit");
+  });
+
   it("reconciles cancelled recurring instances after token expiry and a later complete snapshot", async () => {
     const { store, service, accountId, calendar, remoteEvents, googleFetch } = createCalendarFixture();
     const master = { id: "series", summary: "Daily", start: { dateTime: "2026-10-22T09:00:00Z" },
@@ -218,7 +232,7 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
   it("preserves a moved task's local identity when its former Google list disappears", async () => {
     const { store, service, accountId, list, importTask, remoteLists } = createFixture();
     const task = importTask({ id: "moved-task" });
-    const destinationRemote = { id: "destination", title: "Destination", etag: "v1" };
+    const destinationRemote = { accessRole: "owner", id: "destination", title: "Destination", etag: "v1" };
     const destination = store.upsertGoogleTaskList(destinationRemote, accountId);
     remoteLists.clear();
     remoteLists.set(destinationRemote.id, destinationRemote);
@@ -350,7 +364,7 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
   it("recognizes a removed Calendar as the source of a pending event move", async () => {
     const { store, service, accountId, calendar, importEvent, googleFetch } = createCalendarFixture();
     const event = importEvent("moving-event");
-    const destinationRemote = { id: "destination", summary: "Destination" };
+    const destinationRemote = { accessRole: "owner", id: "destination", summary: "Destination" };
     const destination = store.upsertGoogleCalendar(destinationRemote, accountId);
     store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id });
     googleFetch.mockImplementation(async (_account, target) => Response.json(target.pathname.endsWith("/calendarList")
@@ -790,7 +804,7 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
   it("restores an optimistic Calendar move to its source with the same local identity", async () => {
     const { store, service, importEvent, accountId, calendar } = createCalendarFixture();
     const event = importEvent("moved-event");
-    const destination = store.upsertGoogleCalendar({ id: "destination", summary: "Destination" }, accountId);
+    const destination = store.upsertGoogleCalendar({ accessRole: "owner", id: "destination", summary: "Destination" }, accountId);
     store.dispatch("calendar", "update", { id: event.id, calendarId: destination.id, title: "Moved locally" });
     const id = store.dispatch("diagnostics", "pendingMutations", {}).mutations[0].id;
     await service.runNow({ readOnly: true });
@@ -954,7 +968,7 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
   it.each([false, true])("scopes recovery to the event's Calendar when another Calendar uses the same event id (reverse=%s)", async (reverse) => {
     const { store, service, accountId, calendar, remoteCalendar, remoteEvents, googleFetch, importEvent } = createCalendarFixture();
     const first = importEvent("same-event-id");
-    const otherRemote = { id: "other-calendar", summary: "Other Calendar" };
+    const otherRemote = { accessRole: "owner", id: "other-calendar", summary: "Other Calendar" };
     const otherCalendar = store.upsertGoogleCalendar(otherRemote, accountId);
     const remoteCopy = { ...remoteEvents.get("same-event-id")!, summary: "Independent other event" };
     const other = store.upsertGoogleEvent(remoteCopy, otherCalendar.id)!;
@@ -977,7 +991,7 @@ describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQ
   it.each(["remote-calendar", "middle", "final"])("rebases a queued edit and multiple moves from Google's actual location %s", async (actual) => {
     const { store, service, importEvent, remoteEvents, remoteCalendar, googleFetch, accountId, calendar } = createCalendarFixture();
     const event = importEvent("rebase-move");
-    const middleRemote = { id: "middle", summary: "Middle" }, finalRemote = { id: "final", summary: "Final" };
+    const middleRemote = { accessRole: "owner", id: "middle", summary: "Middle" }, finalRemote = { accessRole: "owner", id: "final", summary: "Final" };
     const middle = store.upsertGoogleCalendar(middleRemote, accountId), destination = store.upsertGoogleCalendar(finalRemote, accountId);
     const records = new Map<string, Map<string, RemoteTask>>([[remoteCalendar.id, remoteEvents], ["middle", new Map()], ["final", new Map()]]);
     if (actual !== remoteCalendar.id) { records.get(actual)!.set("rebase-move", remoteEvents.get("rebase-move")!); remoteEvents.clear(); }

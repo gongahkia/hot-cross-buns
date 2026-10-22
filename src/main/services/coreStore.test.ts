@@ -29,6 +29,34 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it.each(["reader", "freeBusyReader", undefined])("keeps %s calendars readable while rejecting writes before enqueueing", (accessRole) => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "permissions", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "shared", summary: "Shared calendar", accessRole }, account.accountId);
+    const event = store.upsertGoogleEvent({ id: "shared-event", summary: "Shared appointment", start: { dateTime: "2027-01-12T09:00:00Z" }, end: { dateTime: "2027-01-12T10:00:00Z" } }, calendar.id)!;
+    expect(store.dispatch("calendar", "listCalendars", {}).items.find((item: any) => item.id === calendar.id)).toMatchObject({ canWrite: false, accessRole: accessRole ?? null });
+    expect(store.dispatch("calendar", "get", { id: event.id })).toMatchObject({ canWrite: false, title: "Shared appointment" });
+    for (const [action, payload] of [
+      ["update", { id: event.id, title: "Attempted edit" }], ["delete", { id: event.id }], ["complete", { id: event.id }],
+      ["create", { calendarId: calendar.id, title: "Attempted create", startsAt: event.startsAt, endsAt: event.endsAt }]
+    ] as const) expect(() => store.dispatch("calendar", action, payload)).toThrow(accessRole ? "read-only" : "permissions have not loaded");
+    expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(0);
+    expect(store.dispatch("calendar", "get", { id: event.id }).title).toBe("Shared appointment");
+  });
+
+  it.each(["owner", "writer", "writerWithoutPrivateAccess"])("honors %s access and prevents writes after a permission downgrade", accessRole => {
+    const store = createStore();
+    const account = store.upsertGoogleAccount({ googleAccountId: "permissions", connectionState: "connected" });
+    const calendar = store.upsertGoogleCalendar({ id: "shared", summary: "Shared calendar", accessRole }, account.accountId);
+    const event = store.dispatch("calendar", "create", { calendarId: calendar.id, title: "Editable", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" });
+    expect(event.canWrite).toBe(true);
+    const queued = store.unresolvedSyncMutationCount(account.accountId);
+    store.upsertGoogleCalendar({ id: "shared", summary: "Shared calendar", accessRole: "reader" }, account.accountId);
+    expect(() => store.dispatch("calendar", "update", { id: event.id, title: "Stale editor" })).toThrow("read-only");
+    expect(store.unresolvedSyncMutationCount(account.accountId)).toBe(queued);
+    expect(store.dispatch("calendar", "get", { id: event.id }).canWrite).toBe(false);
+  });
+
   it("shifts a whole recurring series relative to the dragged occurrence across DST and preserves undo", () => {
     const store = createStore();
     const master = store.dispatch("calendar", "create", { calendarId: "primary", title: "Weekly call", startsAt: "2027-03-06T14:00:00.000Z", endsAt: "2027-03-06T15:00:00.000Z", timeZone: "America/New_York", recurrenceLines: ["RRULE:FREQ=WEEKLY;COUNT=8"] });
@@ -67,7 +95,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("refuses a series gesture with stored exceptions before changing its master", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "series-account", email: "series@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "series-calendar", summary: "Calendar", timeZone: "UTC" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "series-calendar", summary: "Calendar", timeZone: "UTC" }, account.accountId);
     const master = store.upsertGoogleEvent({ id: "series-master", summary: "Review", start: { dateTime: "2027-01-05T09:00:00Z" }, end: { dateTime: "2027-01-05T10:00:00Z" }, recurrence: ["RRULE:FREQ=WEEKLY;COUNT=8"] }, calendar.id)!;
     const exception = store.upsertGoogleEvent({ id: "series-exception", recurringEventId: "series-master", originalStartTime: { dateTime: "2027-01-12T09:00:00Z" }, summary: "Review", start: { dateTime: "2027-01-12T09:00:00Z" }, end: { dateTime: "2027-01-12T10:00:00Z" } }, calendar.id)!;
     expect(() => store.dispatch("calendar", "update", { id: exception.id, scope: "series", startsAt: "2027-01-12T11:00:00Z", endsAt: "2027-01-12T12:00:00Z", originalStartAt: "2027-01-12T09:00:00Z", timeChangeOrigin: { startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z", allDay: false } })).toThrow("edited or cancelled occurrences");
@@ -139,7 +167,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it.each([false, true])("retains recurring occurrence cancellations across restarts (all-day=%s)", (allDay) => {
     let store = createStore();
     const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "calendar", summary: "Calendar" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "calendar", summary: "Calendar" }, account.accountId);
     const time = (day: number) => allDay ? { date: `2026-10-${day}` } : { dateTime: `2026-10-${day}T09:00:00Z` };
     // A cancellation may arrive on an earlier page than its parent and need
     // not have summary/start/end fields in Google's response.
@@ -161,7 +189,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("restores a cancelled recurring exception when Google confirms it again", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ googleAccountId: "account" });
-    const calendar = store.upsertGoogleCalendar({ id: "calendar", summary: "Calendar" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "calendar", summary: "Calendar" }, account.accountId);
     store.upsertGoogleEvent({ id: "series", summary: "Daily", start: { dateTime: "2026-10-22T09:00:00Z" },
       end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
     const exception = { id: "exception", summary: "Moved occurrence", recurringEventId: "series",
@@ -181,7 +209,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("scopes recurring exceptions to their own Calendar when Google series ids match", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ googleAccountId: "account" });
-    const calendars = ["first", "second"].map((id) => store.upsertGoogleCalendar({ id, summary: id }, account.accountId));
+    const calendars = ["first", "second"].map((id) => store.upsertGoogleCalendar({ accessRole: "owner", id, summary: id }, account.accountId));
     for (const calendar of calendars) store.upsertGoogleEvent({ id: "shared-series-id", summary: "Daily",
       start: { dateTime: "2026-10-22T09:00:00Z" }, end: { dateTime: "2026-10-22T10:00:00Z" }, recurrence: ["RRULE:FREQ=DAILY;COUNT=3"] }, calendar.id);
     store.upsertGoogleEvent({ id: "exception", summary: "Moved", recurringEventId: "shared-series-id",
@@ -303,7 +331,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const store = createStore();
     const task = store.dispatch("tasks", "create", { title: "Two calendars" });
     const account = store.upsertGoogleAccount({ googleAccountId: "account", connectionState: "connected" });
-    const removed = store.upsertGoogleCalendar({ id: "removed", summary: "Removed" }, account.accountId);
+    const removed = store.upsertGoogleCalendar({ accessRole: "owner", id: "removed", summary: "Removed" }, account.accountId);
     const surviving = store.dispatch("calendar", "scheduleTaskBlock", {
       taskId: task.id, calendarId: "primary", startsAt: "2026-10-22T09:00:00Z", durationMinutes: 30
     });
@@ -668,7 +696,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("upserts a Google Calendar event into the local cache", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
 
     const event = store.upsertGoogleEvent({
       id: "remote-event",
@@ -690,8 +718,8 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("removes a Google calendar cache entry when it no longer appears in that account's calendar list", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const retained = store.upsertGoogleCalendar({ id: "primary", summary: "Primary" }, account.accountId);
-    const removed = store.upsertGoogleCalendar({ id: "retired", summary: "Retired" }, account.accountId);
+    const retained = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Primary" }, account.accountId);
+    const removed = store.upsertGoogleCalendar({ accessRole: "owner", id: "retired", summary: "Retired" }, account.accountId);
     const removedEvent = store.upsertGoogleEvent({
       id: "retired-event",
       summary: "Old event",
@@ -714,7 +742,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("uses Google recurrence lines as the canonical Calendar recurrence model", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
     const rawRecurrence = [
       "RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO;BYSETPOS=1;WKST=SU",
       "EXDATE:20270105T010000Z,20270705T010000Z",
@@ -752,7 +780,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("queues one coordinated future-series split and partitions advanced recurrence lines locally", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
     const master = store.upsertGoogleEvent({
       id: "remote-master",
       etag: "master-etag",
@@ -812,7 +840,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("projects Google recurrence masters into the requested window and edits a generated instance as an exception", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Primary", timeZone: "Asia/Singapore" }, account.accountId);
     const master = store.upsertGoogleEvent({
       id: "weekly-master",
       summary: "Weekly planning",
@@ -907,7 +935,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const note = store.dispatch("notes", "create", { title: "Keep this note", listId: "inbox" });
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
     const googleList = store.upsertGoogleTaskList({ id: "google-inbox", title: "Google Inbox" }, account.accountId);
-    const googleCalendar = store.upsertGoogleCalendar({ id: "primary", summary: "Google Primary" }, account.accountId);
+    const googleCalendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Google Primary" }, account.accountId);
     const googleTask = store.dispatch("tasks", "create", { listId: googleList.id, title: "Google task" });
     const googleEvent = store.dispatch("calendar", "create", {
       calendarId: googleCalendar.id, title: "Google event", startsAt: "2027-01-02T10:00:00.000Z", endsAt: "2027-01-02T11:00:00.000Z"
@@ -1062,7 +1090,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("blocks opaque events while explicitly transparent events remain available to Smart Schedule", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "work", summary: "Work", timeZone: "UTC" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "work", summary: "Work", timeZone: "UTC" }, account.accountId);
     store.dispatch("settings", "update", { defaultTimeZone: "UTC", selectedCalendarIds: [calendar.id] });
     const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Plan around meetings", durationMinutes: 30 });
     store.upsertGoogleEvent({
@@ -1105,9 +1133,9 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const store = createStore();
     const first = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
     const second = store.upsertGoogleAccount({ id: "google-b", email: "b@example.test", connectionState: "connected" });
-    const source = store.upsertGoogleCalendar({ id: "source", summary: "Source" }, first.accountId);
-    const destination = store.upsertGoogleCalendar({ id: "destination", summary: "Destination" }, first.accountId);
-    const foreign = store.upsertGoogleCalendar({ id: "foreign", summary: "Foreign" }, second.accountId);
+    const source = store.upsertGoogleCalendar({ accessRole: "owner", id: "source", summary: "Source" }, first.accountId);
+    const destination = store.upsertGoogleCalendar({ accessRole: "owner", id: "destination", summary: "Destination" }, first.accountId);
+    const foreign = store.upsertGoogleCalendar({ accessRole: "owner", id: "foreign", summary: "Foreign" }, second.accountId);
     const event = store.dispatch("calendar", "create", {
       calendarId: source.id, title: "Move me", startsAt: "2026-10-06T09:00:00.000Z", endsAt: "2026-10-06T10:00:00.000Z", allDay: false
     });
@@ -1196,7 +1224,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
   it("round-trips Calendar conferencing, Drive attachment metadata, RSVP, and status-event data", () => {
     const store = createStore();
     const account = store.upsertGoogleAccount({ id: "google-a", email: "a@example.test", connectionState: "connected" });
-    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Primary" }, account.accountId);
+    const calendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Primary" }, account.accountId);
     const event = store.dispatch("calendar", "create", {
       calendarId: calendar.id,
       title: "Focus work",
@@ -1235,10 +1263,10 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     const source = store.upsertGoogleAccount({ id: "source", email: "source@example.test", connectionState: "connected" });
     const destination = store.upsertGoogleAccount({ id: "destination", email: "destination@example.test", connectionState: "connected" });
     const sourceList = store.upsertGoogleTaskList({ id: "source-list", title: "Source list" }, source.accountId);
-    const destinationCalendar = store.upsertGoogleCalendar({ id: "primary", summary: "Destination" }, destination.accountId);
+    const destinationCalendar = store.upsertGoogleCalendar({ accessRole: "owner", id: "primary", summary: "Destination" }, destination.accountId);
     store.dispatch("tasks", "create", { listId: sourceList.id, title: "Copy task" });
     store.dispatch("calendar", "create", {
-      calendarId: store.upsertGoogleCalendar({ id: "source-calendar", summary: "Source" }, source.accountId).id,
+      calendarId: store.upsertGoogleCalendar({ accessRole: "owner", id: "source-calendar", summary: "Source" }, source.accountId).id,
       title: "Copy event", startsAt: "2027-01-02T09:00:00.000Z", endsAt: "2027-01-02T10:00:00.000Z",
       guestEmails: ["guest@example.test"], conferenceCreateRequest: { type: "hangoutsMeet" }, attachments: [{ fileUrl: "https://drive.google.com/open?id=brief", title: "Brief" }]
     });

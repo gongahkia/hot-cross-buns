@@ -84,7 +84,7 @@ function CalendarTimelineEventChip({
   onGestureStart?: (pointer: PointerEvent<HTMLElement>, event: CalendarEventViewModel, kind?: CalendarGestureKind) => void;
   onResizeKey?: (event: CalendarEventViewModel, edge: "start" | "end", direction: -1 | 1) => void;
 }): JSX.Element {
-  const draggable = event.sourceKind !== "task";
+  const draggable = event.sourceKind !== "task" && event.canWrite !== false;
 
   return (
     <>

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
 import { resolutionGoogleEvent } from "./syncResolution";
 import { claimedLocalEventId } from "./googleEventIdentity";
+import { calendarCanWrite, calendarWriteRestriction } from "@shared/calendarPermissions";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
@@ -609,7 +610,7 @@ export class CoreStore {
   }
 
   googleCalendarForSync(id: string): JsonRecord | null {
-    return (this.statement("SELECT id,account_id AS accountId,title,color,time_zone AS timeZone,google_id AS googleId,google_etag AS googleEtag FROM calendars WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
+    return (this.statement("SELECT id,account_id AS accountId,title,color,time_zone AS timeZone,google_id AS googleId,google_etag AS googleEtag,access_role AS accessRole FROM calendars WHERE id=?").get(id) as JsonRecord | undefined) ?? null;
   }
 
   googleEventForSync(id: string): JsonRecord | null {
@@ -895,11 +896,11 @@ export class CoreStore {
     const existing = this.statement("SELECT id FROM calendars WHERE account_id=? AND google_id=?").get(accountId, googleId) as { id: string } | undefined;
     const id = existing?.id ?? randomUUID();
     const now = timestamp();
-    this.statement(`INSERT INTO calendars(id,account_id,title,color,time_zone,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
+    this.statement(`INSERT INTO calendars(id,account_id,title,color,time_zone,google_id,google_etag,access_role,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET title=excluded.title,color=excluded.color,google_id=excluded.google_id,
-      time_zone=excluded.time_zone,google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
+      time_zone=excluded.time_zone,google_etag=excluded.google_etag,access_role=excluded.access_role,updated_at=excluded.updated_at`)
       .run(id, accountId, title, remote.backgroundColor ?? remote.color ?? null, remote.timeZone ?? this.settings().defaultTimeZone,
-        googleId, remote.etag ?? null, now, now);
+        googleId, remote.etag ?? null, typeof remote.accessRole === "string" ? remote.accessRole : null, now, now);
     return this.googleCalendarForSync(id)!;
   }
 
@@ -1347,6 +1348,7 @@ export class CoreStore {
     this.addColumn("calendars", "account_id TEXT NOT NULL DEFAULT 'local'");
     this.addColumn("calendars", "google_id TEXT");
     this.addColumn("calendars", "google_etag TEXT");
+    this.addColumn("calendars", "access_role TEXT");
     this.addColumn("calendars", "time_zone TEXT");
     this.addColumn("events", "attendees_json TEXT NOT NULL DEFAULT '[]'");
     this.addColumn("events", "reminders_json TEXT NOT NULL DEFAULT '[]'");
@@ -1715,10 +1717,12 @@ export class CoreStore {
 
   private calendars(): JsonRecord[] {
     const selectedCalendars = new Set(this.settings().selectedCalendarIds);
-    return this.statement(`SELECT calendar.id,calendar.account_id AS accountId,calendar.title,calendar.color,calendar.time_zone AS timeZone,calendar.updated_at AS updatedAt,
+    return this.statement(`SELECT calendar.id,calendar.account_id AS accountId,calendar.title,calendar.color,calendar.time_zone AS timeZone,calendar.updated_at AS updatedAt,calendar.access_role AS accessRole,
       (SELECT COUNT(*) FROM events WHERE events.calendar_id = calendar.id) AS eventCount
       FROM calendars AS calendar ORDER BY calendar.title COLLATE NOCASE`).all().map((calendar: any) => ({
       ...calendar,
+      canWrite: calendarCanWrite(calendar),
+      writeRestriction: calendarCanWrite(calendar) ? null : calendarWriteRestriction(calendar),
       selected: selectedCalendars.size === 0 || selectedCalendars.has(calendar.id),
       timeZone: calendar.timeZone ?? this.settings().defaultTimeZone,
       backgroundColor: calendar.color,
@@ -1749,7 +1753,7 @@ export class CoreStore {
       event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt,
-      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt
+      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt,calendar.access_role AS accessRole
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
       LEFT JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id LEFT JOIN tasks task ON task.id=block.task_id
       WHERE (event.starts_at < ? AND event.ends_at > ?)
@@ -1814,7 +1818,7 @@ export class CoreStore {
       event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt,
-      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt
+      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt,calendar.access_role AS accessRole
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
       LEFT JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id LEFT JOIN tasks task ON task.id=block.task_id WHERE event.id=?`).get(id);
     if (!row) throw new CoreStoreError("Calendar event no longer exists");
@@ -1835,6 +1839,7 @@ export class CoreStore {
     const id = typeof input.id === "string" ? input.id : randomUUID();
     const calendarId = input.calendarId ?? this.defaultWritableCalendarId();
     if (!this.statement("SELECT 1 FROM calendars WHERE id=?").get(calendarId)) throw new CoreStoreError("Calendar no longer exists");
+    this.assertCalendarWritable(calendarId);
     const eventType = normalizedEventType(input.eventType);
     this.assertStatusEventCalendar(calendarId, eventType);
     const statusProperties = normalizedStatusEventProperties(eventType, input);
@@ -1869,6 +1874,8 @@ export class CoreStore {
 
   private updateEvent(input: JsonRecord, options: EventWriteOptions = {}): JsonRecord {
     const previous = this.requireEvent(requiredText(input.id, "Event id"));
+    this.assertCalendarWritable(previous.calendarId);
+    if (input.calendarId && input.calendarId !== previous.calendarId) this.assertCalendarWritable(input.calendarId);
     if ((input.scope === "series" || input.scope === "seriesAll") && previous.googleRecurringEventId) {
       const series = this.findEventByGoogleId(previous.calendarId, previous.googleRecurringEventId);
       if (!series) throw new CoreStoreError("The recurring series is not available in the local cache.");
@@ -2126,6 +2133,7 @@ export class CoreStore {
   private deleteEvent(input: JsonRecord, options: { relatedTaskListId?: string } = {}): JsonRecord {
     const id = requiredText(input.id, "Event id");
     const eventBeforeDelete = this.requireEvent(id);
+    this.assertCalendarWritable(eventBeforeDelete.calendarId);
     const originalStartAt = typeof input.originalStartAt === "string" ? requiredIso(input.originalStartAt, "Recurring occurrence date") : null;
     if (originalStartAt && !eventBeforeDelete.googleRecurringEventId && input.scope === "occurrence") {
       const recurrenceLines = recurrenceLinesFromStored(eventBeforeDelete.googleRecurrence, eventBeforeDelete.recurrence);
@@ -2338,6 +2346,7 @@ export class CoreStore {
     const range = workingRange(date, input.workingHours ?? {}, this.settings());
     const calendar = this.googleCalendarForSync(calendarId);
     if (!calendar) throw new CoreStoreError("Calendar no longer exists");
+    this.assertCalendarWritable(calendarId);
 
     const calendarIds = this.selectedCalendarIds();
     const busy = this.busyEvents(range.start, range.end, calendarIds);
@@ -3445,6 +3454,12 @@ export class CoreStore {
     throw new CoreStoreError("Connect Google before creating a task.");
   }
 
+  private assertCalendarWritable(id: string): void {
+    const calendar = this.googleCalendarForSync(id);
+    if (!calendar) throw new CoreStoreError("Calendar no longer exists");
+    if (!calendarCanWrite(calendar)) throw new CoreStoreError(calendarWriteRestriction(calendar));
+  }
+
   private defaultWritableCalendarId(): string {
     const selected = new Set(this.selectedCalendarIds());
     const connectedAccountIds = new Set(
@@ -3453,10 +3468,10 @@ export class CoreStore {
         .map((account) => account.accountId)
     );
     const writable = this.calendars().find((calendar) =>
-      connectedAccountIds.has(calendar.accountId) && (selected.size === 0 || selected.has(calendar.id))
+      calendar.canWrite && connectedAccountIds.has(calendar.accountId) && (selected.size === 0 || selected.has(calendar.id))
     );
     if (writable) return writable.id;
-    if (connectedAccountIds.size > 0) throw new CoreStoreError("Google Calendar has not finished syncing a calendar yet.");
+    if (connectedAccountIds.size > 0) throw new CoreStoreError("No writable Google calendar is available. Sync to check access or select a calendar you can edit.");
     const local = this.calendars().find((calendar) => calendar.accountId === localAccountId);
     if (local) return local.id;
     throw new CoreStoreError("Connect Google before creating an event.");
@@ -3517,6 +3532,8 @@ function eventFromRow(row: JsonRecord): JsonRecord {
   const attachments = safeJson(row.attachments, []);
   return {
     ...row,
+    canWrite: calendarCanWrite(row),
+    writeRestriction: calendarCanWrite(row) ? null : calendarWriteRestriction(row),
     tags: safeJson(row.tags, []),
     allDay: Boolean(row.allDay),
     detailsTruncated: Boolean(row.detailsTruncated),

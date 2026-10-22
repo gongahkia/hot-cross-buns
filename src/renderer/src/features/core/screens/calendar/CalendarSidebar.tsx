@@ -465,7 +465,7 @@ export function SmartReschedulePanel({
   onClose: () => void;
   onPreviewChange: (preview: SmartSchedulePreview | null) => void;
 }): JSX.Element {
-  const defaultCalendarId = calendars.find((calendar) => calendar.selected)?.id ?? calendars[0]?.id ?? "";
+  const defaultCalendarId = calendars.find((calendar) => calendar.selected && calendar.canWrite !== false)?.id ?? calendars.find(calendar => calendar.canWrite !== false)?.id ?? "";
   const [date, setDate] = useState(initialDate);
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
   const [workStartMinutes, setWorkStartMinutes] = useState(9 * 60);
@@ -478,6 +478,7 @@ export function SmartReschedulePanel({
 
   const previewKey = `${date}|${calendarId}|${workStartMinutes}|${workEndMinutes}|${candidateScope}`;
   const previewIsCurrent = Boolean(result?.planId && result.applied === false && result.previewKey === previewKey);
+  const writable = calendars.some(calendar => calendar.id === calendarId && calendar.canWrite !== false);
   const invalidWorkingHours = workEndMinutes <= workStartMinutes;
 
   function setPreview(next: SmartRescheduleResponse | null): void {
@@ -577,8 +578,8 @@ export function SmartReschedulePanel({
               value={calendarId}
             >
               {calendars.map((calendar) => (
-                <SelectItem key={calendar.id} value={calendar.id}>
-                  {calendar.title}
+                <SelectItem disabled={calendar.canWrite === false} key={calendar.id} value={calendar.id}>
+                  {calendar.title}{calendar.canWrite === false ? " (read-only)" : ""}
                 </SelectItem>
               ))}
             </Select>
@@ -602,11 +603,11 @@ export function SmartReschedulePanel({
             Uses all available free time in this window. Free Calendar events remain visible but do not reserve time.
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button disabled={pending || !calendarId || invalidWorkingHours} onClick={() => void runSmartReschedule("preview")} size="sm" variant="secondary">
+            <Button disabled={pending || !writable || invalidWorkingHours} onClick={() => void runSmartReschedule("preview")} size="sm" variant="secondary">
               <Sparkles aria-hidden="true" size={14} />
               {pending ? "Checking" : "Preview"}
             </Button>
-            <Button disabled={pending || !previewIsCurrent || !result || result.suggestions.length === 0} onClick={() => void runSmartReschedule("apply")} size="sm" variant="primary">
+            <Button disabled={pending || !writable || !previewIsCurrent || !result || result.suggestions.length === 0} onClick={() => void runSmartReschedule("apply")} size="sm" variant="primary">
               <Check aria-hidden="true" size={14} />
               Apply {result?.suggestions.length ?? 0} changes
             </Button>

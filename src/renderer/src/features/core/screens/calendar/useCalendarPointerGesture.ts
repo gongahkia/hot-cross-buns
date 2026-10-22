@@ -19,7 +19,7 @@ export function useCalendarPointerGesture(options: {
   useEffect(() => () => cleanupRef.current?.(), []);
 
   function begin(pointer: ReactPointerEvent<HTMLElement>, event: CalendarEventViewModel, kind: CalendarGestureKind = "move") {
-    if (pointer.button !== 0 || event.sourceKind === "task" || (kind === "move" && (pointer.target as HTMLElement).closest("button,input,a"))) return;
+    if (pointer.button !== 0 || event.canWrite === false || event.sourceKind === "task" || (kind === "move" && (pointer.target as HTMLElement).closest("button,input,a"))) return;
     const origin = latest.current.locate(pointer.clientX, pointer.clientY);
     if (!origin) return;
     pointer.preventDefault(); pointer.stopPropagation();

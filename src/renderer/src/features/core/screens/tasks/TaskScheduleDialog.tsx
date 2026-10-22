@@ -12,7 +12,9 @@ export function TaskScheduleDialog({ task, onClose }: { task: TaskViewModel; onC
   const source = useCoreViewModelSource();
   const existing = source.scheduledTaskBlocks.find((block) => block.taskId === task.id);
   const timeZone = source.settings.defaultTimeZone;
-  const [calendarId, setCalendarId] = useState(existing?.calendarId ?? source.calendarSources.find((calendar) => calendar.selected)?.id ?? source.calendarSources[0]?.id ?? "");
+  const writableCalendars = source.calendarSources.filter(calendar => calendar.canWrite !== false);
+  const [calendarId, setCalendarId] = useState(existing?.calendarId ?? writableCalendars.find((calendar) => calendar.selected)?.id ?? writableCalendars[0]?.id ?? "");
+  const readOnly = Boolean(existing && source.calendarSources.find(calendar => calendar.id === existing.calendarId)?.canWrite === false);
   const [start, setStart] = useState(() => calendarDateTimeLocalInputValue(existing?.startsAt ?? new Date(Math.ceil((Date.now() + 60_000) / 1800_000) * 1800_000).toISOString(), timeZone));
   const [duration, setDuration] = useState(() => existing ? Math.round((Date.parse(existing.endsAt) - Date.parse(existing.startsAt)) / 60_000) : task.durationMinutes ?? 30);
   const [pending, setPending] = useState(false);
@@ -48,7 +50,7 @@ export function TaskScheduleDialog({ task, onClose }: { task: TaskViewModel; onC
           <Dialog.Description className="text-sm text-text-secondary">Create a linked Calendar event for “{task.title}”. Its Google Tasks due date stays separate. Choose a time here, or use Calendar → Smart schedule to find free time automatically.</Dialog.Description>
           <label className="grid gap-1 text-sm">Calendar
             <Select aria-label="Schedule calendar" className="h-9 rounded-hcbMd border border-border bg-surface-0 px-2" value={calendarId} disabled={pending} onValueChange={(value) => setCalendarId(value)}>
-              {source.calendarSources.map((calendar) => <SelectItem key={calendar.id} value={calendar.id}>{calendar.title}{calendar.accountId === "local" ? " (this device)" : ""}</SelectItem>)}
+              {source.calendarSources.map((calendar) => <SelectItem disabled={calendar.canWrite === false} key={calendar.id} value={calendar.id}>{calendar.title}{calendar.canWrite === false ? " (read-only)" : calendar.accountId === "local" ? " (this device)" : ""}</SelectItem>)}
             </Select>
           </label>
           <label className="grid gap-1 text-sm">Start ({timeZone})
@@ -57,10 +59,11 @@ export function TaskScheduleDialog({ task, onClose }: { task: TaskViewModel; onC
           <label className="grid gap-1 text-sm">Duration (minutes)
             <Input aria-label="Schedule duration" type="number" min={5} max={1440} step={5} value={duration} disabled={pending} onChange={(event) => setDuration(Number(event.currentTarget.value))} />
           </label>
+          {readOnly || !writableCalendars.length ? <p role="status" className="text-sm text-text-secondary">{readOnly ? "This block belongs to a read-only calendar." : "No writable calendar is available. Sync to check your calendar access."}</p> : null}
           {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
           <div className="flex justify-end gap-2">
             <Button onClick={onClose} disabled={pending} variant="ghost">Cancel</Button>
-            <Button onClick={() => void save()} disabled={pending || !calendarId || !start || !Number.isInteger(duration) || duration < 5 || duration > 1440} variant="primary">{pending ? "Saving…" : existing ? "Move Calendar block" : "Create Calendar block"}</Button>
+            <Button onClick={() => void save()} disabled={pending || readOnly || !writableCalendars.some(calendar => calendar.id === calendarId) || !start || !Number.isInteger(duration) || duration < 5 || duration > 1440} variant="primary">{pending ? "Saving…" : existing ? "Move Calendar block" : "Create Calendar block"}</Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

@@ -25,8 +25,8 @@ function recurrenceWeekdayForIso(value: string): CalendarRepeatWeekday {
 
 export function defaultCalendarId(source: ReturnType<typeof useCoreViewModelSource>): string {
   return (
-    source.calendarSources.find((calendar) => calendar.selected)?.id ??
-    source.calendarSources[0]?.id ??
+    source.calendarSources.find((calendar) => calendar.selected && calendar.canWrite !== false)?.id ??
+    source.calendarSources.find((calendar) => calendar.canWrite !== false)?.id ??
     ""
   );
 }

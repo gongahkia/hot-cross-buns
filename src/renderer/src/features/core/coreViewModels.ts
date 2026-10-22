@@ -76,6 +76,8 @@ export interface CalendarEventViewModel {
   taskId?: string;
   /** A real calendar block whose completion belongs to this task. */
   scheduledTaskId?: string;
+  canWrite?: boolean;
+  writeRestriction?: string | null;
   taskListId?: string;
   taskStatus?: TaskStatus;
   calendarId: string;

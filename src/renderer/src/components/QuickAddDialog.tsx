@@ -254,7 +254,7 @@ export function QuickAddDialog({
   const [mode, setMode] = useState<QuickAddMode>("event");
   const [input, setInput] = useState("");
   const [selectedTaskListId, setSelectedTaskListId] = useState(source.taskLists[0]?.id ?? "");
-  const [selectedCalendarId, setSelectedCalendarId] = useState(source.calendarSources[0]?.id ?? "");
+  const [selectedCalendarId, setSelectedCalendarId] = useState(source.calendarSources.find(calendar => calendar.canWrite !== false)?.id ?? "");
   const [selectedNoteListId, setSelectedNoteListId] = useState(source.noteLists[0]?.id ?? "");
   const [selectedTaskTemplateId, setSelectedTaskTemplateId] = useState("");
   const [selectedEventTemplateId, setSelectedEventTemplateId] = useState("");
@@ -314,10 +314,10 @@ export function QuickAddDialog({
   });
   const hashHint = firstHashHint(input);
   const matchedTaskList = destinationMatch(source.taskLists, parsedTask.taskListHint);
-  const matchedCalendar = destinationMatch(source.calendarSources, hashHint);
+  const matchedCalendar = destinationMatch(source.calendarSources.filter(calendar => calendar.canWrite !== false), hashHint);
   const matchedNoteList = destinationMatch(source.noteLists, parsedTask.taskListHint);
   const templateTaskListId = source.taskLists.some((list) => list.id === activeTaskTemplate?.listId) ? activeTaskTemplate?.listId ?? "" : "";
-  const templateCalendarId = source.calendarSources.some((calendar) => calendar.id === activeEventTemplate?.calendarId) ? activeEventTemplate?.calendarId ?? "" : "";
+  const templateCalendarId = source.calendarSources.some((calendar) => calendar.id === activeEventTemplate?.calendarId && calendar.canWrite !== false) ? activeEventTemplate?.calendarId ?? "" : "";
   const effectiveTaskListId = matchedTaskList?.id ?? (templateTaskListId || selectedTaskListId);
   const effectiveCalendarId = matchedCalendar?.id ?? (templateCalendarId || selectedCalendarId);
   const effectiveNoteListId = matchedNoteList?.id ?? selectedNoteListId;
@@ -347,7 +347,7 @@ export function QuickAddDialog({
 
   useEffect(() => {
     setSelectedTaskListId((current) => current || (source.taskLists[0]?.id ?? ""));
-    setSelectedCalendarId((current) => current || (source.calendarSources[0]?.id ?? ""));
+    setSelectedCalendarId((current) => source.calendarSources.some(calendar => calendar.id === current && calendar.canWrite !== false) ? current : (source.calendarSources.find(calendar => calendar.canWrite !== false)?.id ?? ""));
     setSelectedNoteListId((current) => current || (source.noteLists[0]?.id ?? ""));
   }, [source.calendarSources, source.noteLists, source.taskLists]);
 
@@ -605,8 +605,8 @@ export function QuickAddDialog({
                 value={effectiveCalendarId}
               >
                 {source.calendarSources.map((calendar) => (
-                  <SelectItem key={calendar.id} value={calendar.id}>
-                    {calendar.title}
+                  <SelectItem disabled={calendar.canWrite === false} key={calendar.id} value={calendar.id}>
+                    {calendar.title}{calendar.canWrite === false ? " (read-only)" : ""}
                   </SelectItem>
                 ))}
               </Select>

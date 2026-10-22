@@ -2,7 +2,7 @@ import { useCalendarEventMenu } from "./calendarEventMenuContext";
 import { useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, PointerEvent } from "react";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Circle, ListTodo, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Circle, ListTodo, LockKeyhole, X } from "lucide-react";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { cx, IconButton } from "../../../../components/primitives";
 import type { CalendarEventViewModel } from "../../coreViewModels";
@@ -231,7 +231,7 @@ export function CalendarItemCompletionButton({
     );
   }
 
-  if (event.sourceKind !== "event" || !onToggleEvent) {
+  if (event.sourceKind !== "event" || !onToggleEvent || (event.canWrite === false && !event.scheduledTaskId)) {
     return isTask ? <Icon aria-hidden="true" className="shrink-0" size={iconSize} /> : null;
   }
 
@@ -346,7 +346,7 @@ export function CalendarEventChip({
 
   return (
     <div
-      aria-label={label}
+      aria-label={event.canWrite === false ? `${label} (read-only)` : label}
       className={cx(
         "calendar-event-chip group flex w-full min-w-0 cursor-default gap-1.5 overflow-hidden rounded-hcbSm border border-border bg-surface-0 text-left text-text-secondary transition-colors duration-fast ease-hcb hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         size === "compact" ? "items-start" : "items-center",
@@ -361,6 +361,7 @@ export function CalendarEventChip({
       data-completed={completed}
       data-all-day={event.allDay}
       data-source={event.sourceKind}
+      data-read-only={event.canWrite === false || undefined}
       data-size={size}
       draggable={draggable}
       onClick={(clickEvent) => {
@@ -387,7 +388,7 @@ export function CalendarEventChip({
       role="button"
       style={accentStyle}
       tabIndex={0}
-      title={`${label} - ${event.calendar}`}
+      title={`${label} - ${event.calendar}${event.canWrite === false ? " · Read-only" : ""}`}
     >
       {showContent ? (
         <>
@@ -401,6 +402,7 @@ export function CalendarEventChip({
           <span className="calendar-event-content min-w-0 flex-1 truncate leading-tight">
             {size === "compact" ? <>{!event.allDay && labelVariant !== "title" ? <span className="calendar-event-time">{event.timeLabel} </span> : null}<span className="calendar-event-title">{event.title}</span></> : <><span className="calendar-event-title">{event.title}</span>{!event.allDay ? <small className="calendar-event-range">{event.rangeLabel}</small> : null}</>}
           </span>
+          {event.canWrite === false ? <LockKeyhole aria-hidden="true" size={12} className="shrink-0" /> : null}
         </>
       ) : null}
     </div>

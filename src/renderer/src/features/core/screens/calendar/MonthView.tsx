@@ -157,7 +157,7 @@ export function MonthView({
     if (!gesture.consumeClick()) onOpen(event);
   }
   function eventKeys(key: KeyboardEvent<HTMLElement>, event: CalendarEventViewModel, kind: CalendarGestureKind = "move"): void {
-    if ((key.key !== "ArrowLeft" && key.key !== "ArrowRight") || event.sourceKind === "task") return;
+    if ((key.key !== "ArrowLeft" && key.key !== "ArrowRight") || event.sourceKind === "task" || event.canWrite === false) return;
     key.preventDefault(); key.stopPropagation();
     const value = kind === "end" ? event.endsAt : event.startsAt;
     const point = event.allDay ? value.slice(0, 10) : calendarLocalPoint(value, event.displayTimeZone || event.timeZone).dayKey;
@@ -362,7 +362,7 @@ export function MonthView({
                   onToggleTask={onToggleTask}
                   size="compact"
                 />
-                {segment.event.sourceKind !== "task" ? <>
+                {segment.event.sourceKind !== "task" && segment.event.canWrite !== false ? <>
                   {!segment.startsBeforeRange ? <button className="calendar-month-resize calendar-month-resize-start" aria-label={`Resize ${segment.event.title} start`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => eventKeys(e, segment.event, "start")} title="Resize start: drag or use Left and Right arrow keys" onPointerDown={(e) => gesture.begin(e, segment.event, "start")} /> : null}
                   {!segment.endsAfterRange ? <button className="calendar-month-resize calendar-month-resize-end" aria-label={`Resize ${segment.event.title} end`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => eventKeys(e, segment.event, "end")} title="Resize end: drag or use Left and Right arrow keys" onPointerDown={(e) => gesture.begin(e, segment.event, "end")} /> : null}
                 </> : null}

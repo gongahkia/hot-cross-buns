@@ -164,6 +164,7 @@ function buildProjection(snapshot: CoreDataSnapshot, options: CoreViewModelSourc
   const calendarForegroundColorById = Object.fromEntries(
     snapshot.calendars.map((calendar) => [calendar.id, calendar.foregroundColor ?? null])
   );
+  const calendarById = Object.fromEntries(snapshot.calendars.map(calendar => [calendar.id, calendar]));
   const events = snapshot.events.flatMap((event) => {
     const linkedTask = event.linkedTaskId ? taskById[event.linkedTaskId] : undefined;
 
@@ -196,7 +197,8 @@ function buildProjection(snapshot: CoreDataSnapshot, options: CoreViewModelSourc
 
     return [
       stableCalendarEventViewModel(
-        event,
+        { ...event, canWrite: calendarById[event.calendarId]?.canWrite ?? event.canWrite,
+          writeRestriction: calendarById[event.calendarId]?.writeRestriction ?? event.writeRestriction },
         calendarTitleById[event.calendarId],
         calendarTimeZoneById[event.calendarId] ?? null,
         calendarBackgroundColorById[event.calendarId] ?? null,

@@ -29,12 +29,12 @@ export function CalendarEventMenuProvider({ children, onOpen, onAction }: {
       <Menu.Portal><Menu.Content className="calendar-menu calendar-event-menu" aria-label="Calendar item actions" align="start" sideOffset={2} collisionPadding={8}
         onCloseAutoFocus={(e) => { e.preventDefault(); if (!selected.current && target?.trigger.isConnected) target.trigger.focus({ preventScroll: true }); }}>
         <Menu.Label className="calendar-event-menu-title">{event?.title}</Menu.Label>
-        <Menu.Item className="calendar-menu-item" onSelect={() => select("open")}><Pencil size={15} />{event?.sourceKind === "task" ? "Open task" : "Edit event"}</Menu.Item>
+        <Menu.Item className="calendar-menu-item" onSelect={() => select("open")}><Pencil size={15} />{event?.sourceKind === "task" ? "Open task" : event?.canWrite === false ? "View event (read-only)" : "Edit event"}</Menu.Item>
         {event?.sourceKind !== "task" ? <>
           <Menu.Item className="calendar-menu-item" onSelect={() => select("copy")}><Copy size={15} />Copy text</Menu.Item>
           <Menu.Item className="calendar-menu-item" onSelect={() => select("duplicate")}><Files size={15} />{recurring ? "Duplicate this occurrence" : "Duplicate event"}</Menu.Item>
           <Menu.Separator className="calendar-menu-separator" />
-          <Menu.Item className="calendar-menu-item text-danger" onSelect={() => select("delete")}><Trash2 size={15} />Delete event{recurring ? "…" : ""}</Menu.Item>
+          <Menu.Item disabled={event?.canWrite === false} className="calendar-menu-item text-danger" onSelect={() => select("delete")}><Trash2 size={15} />Delete event{recurring ? "…" : ""}</Menu.Item>
         </> : null}
       </Menu.Content></Menu.Portal>
     </Menu.Root>

@@ -26,6 +26,7 @@ import {
   calendarDraftRangeLabel,
   calendarEventDraftsEqual,
   calendarEventPayload,
+  defaultCalendarId,
   editCalendarDraft,
   newCalendarDraft
 } from "./drafts";
@@ -183,7 +184,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
   function eventInspectorToolbar(nextDraft: CalendarEventDraft): ReactNode {
     const kind = nextDraft.hcbKind === "birthday" ? "birthday" : nextDraft.mode === "create" ? createModeRef.current : "event";
-    return <InspectorItemToolbar kind={kind} persisted={nextDraft.mode === "edit"} busy={saving}
+    return <InspectorItemToolbar kind={kind} persisted={nextDraft.mode === "edit"} busy={saving} readOnly={draftReadOnly(nextDraft)}
       onKindChange={async (target: InspectorEntryKind) => {
         if (nextDraft.mode === "edit" && !await saveDraft()) return;
         const live = calendarDraftRef.current;
@@ -217,11 +218,16 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     return `${calendar?.title ?? "Calendar"} · ${calendarDraftRangeLabel(nextDraft, nextDraft.timeZone ?? calendar?.timeZone ?? source.settings.defaultTimeZone)}`;
   }
 
+  function draftReadOnly(nextDraft: CalendarEventDraft): boolean {
+    return nextDraft.mode === "edit" && source.calendarSources.find(calendar => calendar.id === nextDraft.calendarId)?.canWrite === false;
+  }
+
   function eventInspectorBody(
     nextDraft: CalendarEventDraft,
     mode = calendarInspectorModeRef.current
   ): ReactNode {
-    const body = nextDraft.mode === "edit" && mode === "view"
+    const readOnly = draftReadOnly(nextDraft);
+    const body = nextDraft.mode === "edit" && (mode === "view" || readOnly)
       ? (
         <CalendarEventDetails
           calendars={source.calendarSources}
@@ -252,7 +258,10 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       />
       );
 
-    return <>{body}{recurrenceScopeDialog()}</>;
+    return <>{nextDraft.mode === "create" && createModeRef.current !== "task" && !source.calendarSources.some(calendar => calendar.canWrite !== false)
+      ? <p className="mb-4 text-sm text-text-secondary" role="status">No writable calendar is available. Sync to check your calendar access.</p> : null}{readOnly ? <p className="mb-4 rounded-lg border border-border p-3 text-sm text-text-secondary" role="status">
+      {source.calendarSources.find(calendar => calendar.id === nextDraft.calendarId)?.writeRestriction ?? "This calendar is read-only."}
+    </p> : null}{body}{recurrenceScopeDialog()}</>;
   }
 
   function recurrenceScopeDialog(): ReactNode {
@@ -355,6 +364,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       originalStartAt: undefined,
       recurringEventId: undefined,
       mode: "create",
+      calendarId: source.calendarSources.find(calendar => calendar.id === sourceDraft.calendarId)?.canWrite === false
+        ? defaultCalendarId(source) : sourceDraft.calendarId,
       mutationState: undefined,
       title: copiedTitle(sourceDraft.title, "Untitled event")
     }, nextMode);
@@ -708,7 +719,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   function changeCalendarEventTime(event: CalendarEventViewModel, range: CalendarEventRange): void {
-    if (event.sourceKind === "task" || timeWritePending.current) return;
+    if (event.sourceKind === "task" || event.canWrite === false || timeWritePending.current) return;
     if (event.originalStartAt || event.recurringEventId || event.recurrenceRule || event.recurrenceLines.length) { setTimeChange({ event, range }); return; }
     void commitCalendarEventTime(event, range);
   }

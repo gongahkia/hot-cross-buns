@@ -1083,8 +1083,8 @@ export function CalendarEventForm({
               value={draft.calendarId}
             >
               {calendars.map((calendar) => (
-                <SelectItem key={calendar.id} value={calendar.id}>
-                  {calendar.title}
+                <SelectItem key={calendar.id} value={calendar.id} disabled={calendar.canWrite === false}>
+                  {calendar.title}{calendar.canWrite === false ? " (read-only)" : ""}
                 </SelectItem>
               ))}
             </Select>
@@ -1488,8 +1488,8 @@ export function CalendarEventForm({
             value={draft.calendarId}
           >
             {calendars.map((calendar) => (
-              <SelectItem key={calendar.id} value={calendar.id}>
-                {calendar.title}
+              <SelectItem key={calendar.id} value={calendar.id} disabled={calendar.canWrite === false}>
+                {calendar.title}{calendar.canWrite === false ? " (read-only)" : ""}
               </SelectItem>
             ))}
           </Select>
