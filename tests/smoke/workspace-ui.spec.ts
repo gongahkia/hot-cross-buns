@@ -49,6 +49,8 @@ async function seedSearchFixtures(page: Page) {
         window.hcb!.calendar.create({ calendarId: "primary", title: "Marmalade event", startsAt: `${day}T10:00:00Z`, endsAt: `${day}T11:00:00Z`, allDay: false })
       ]);
       for (const result of results) if (!result.ok) throw new Error(result.error.message);
+      const secondNote = await window.hcb!.notes.create({ title: "Unrelated recent note", body: "Search should open the older result." });
+      if (!secondNote.ok) throw new Error(secondNote.error.message);
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
     });
 }
@@ -149,6 +151,74 @@ test("restores the active app pane and sends webpage links to the default browse
     })).toBe("leaf");
     await page.reload();
     await expect(page.getByTestId("pane-leaf")).toHaveAttribute("data-pane-id", "saved-notes");
+  });
+});
+
+test("uses the reference command menu with keyboard navigation, motion and narrow layouts", async () => {
+  await planner(async (page) => {
+    const searchButton = page.getByRole("button", { name: "Search planner", exact: true });
+    const palette = page.locator(".command-palette");
+    const search = page.getByRole("searchbox");
+    for (const mode of ["light", "dark"] as const) {
+      // Retired preferences must also land on the new defaults.
+      await page.evaluate(async (theme) => {
+        await window.hcb!.settings.update({ theme, colorTheme: "catppuccin-latte" });
+        window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      }, mode);
+      await expect(page.locator("html")).toHaveAttribute("data-color-theme", `hcb-neutral-${mode}`);
+      await searchButton.click();
+      await expect(search).toBeFocused();
+      await expect(palette).toHaveCSS("animation-name", "command-menu-in");
+      await expect(palette).toHaveCSS("animation-duration", "0.2s");
+      await expect(page.locator(".command-palette-group").getByText("Navigation", { exact: true })).toHaveCount(1);
+      const box = await palette.boundingBox();
+      expect(box!.width).toBeLessThanOrEqual(512);
+      expect(Math.abs(box!.x + box!.width / 2 - 590)).toBeLessThan(2);
+      await page.keyboard.press("End");
+      const selected = page.getByRole("option", { selected: true });
+      await expect(selected).toHaveText("Open Sync Issues");
+      await expect(selected).toBeInViewport();
+      await page.keyboard.press("Home");
+      await expect(selected).toHaveText("Quick Add");
+      for (let index = 0; index < 16; index += 1) {
+        await page.keyboard.press("ArrowDown");
+        await expect(selected).toBeEnabled();
+      }
+      await page.keyboard.press("Home");
+      await capture(page, `command-palette-${mode}`);
+      await search.fill("Go to Notes");
+      await page.keyboard.press("Enter");
+      await expect(palette).toHaveCount(0);
+      await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-current", "page");
+      await searchButton.click();
+      await page.mouse.click(10, 10);
+      await expect(palette).toHaveCount(0);
+    }
+    await page.setViewportSize({ width: 640, height: 480 });
+    await searchButton.click();
+    await expect(search).toBeFocused();
+    const narrowBox = await palette.boundingBox();
+    expect(narrowBox!.x).toBeGreaterThanOrEqual(16);
+    expect(narrowBox!.y).toBeGreaterThanOrEqual(16);
+    expect(narrowBox!.y + narrowBox!.height).toBeLessThanOrEqual(464);
+    await capture(page, "command-palette-narrow");
+    await page.getByRole("button", { name: "Close command palette", exact: true }).click();
+    await expect(palette).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await searchButton.click();
+    expect(await palette.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThan(0.001);
+    await page.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(async () => {
+      await window.hcb!.settings.update({ disableAnimations: true });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    await expect(page.locator("html")).toHaveAttribute("data-animations", "disabled");
+    await searchButton.click();
+    expect(await palette.evaluate((element) => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThan(0.001);
+    await page.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
   });
 });
 
@@ -372,6 +442,18 @@ test("keeps settings navigation stable, searches categories and changes theme", 
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
     await capture(page, "settings-dark");
+    await expect(page.getByRole("textbox", { name: "Search color themes" })).toHaveCount(0);
+    const themeSelect = page.getByRole("combobox", { name: "Theme", exact: true });
+    await expect(themeSelect.locator("option")).toHaveText(["Follow system", "Light", "Dark"]);
+    await themeSelect.selectOption("light");
+    await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-light");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await themeSelect.selectOption("system");
+    await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-light");
+    await themeSelect.selectOption("dark");
+    await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
     await page.getByRole("textbox", { name: "Search settings", exact: true }).fill("nothing-matches-this-query");
     await expect(page.getByRole("status").filter({ hasText: "No settings match" })).toBeVisible();
     await page.getByRole("button", { name: "Clear search", exact: true }).click();

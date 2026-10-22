@@ -16,11 +16,11 @@ import {
 } from "./themeCatalog";
 
 describe("theme catalogue", () => {
-  it("ships neutral defaults alongside the fifty curated palettes", () => {
-    expect(colorThemeDefinitions).toHaveLength(52);
-    expect(new Set(colorThemeDefinitions.map((theme) => theme.id)).size).toBe(52);
-    expect(themesForMode("dark").length).toBeGreaterThan(30);
-    expect(themesForMode("light").length).toBeGreaterThan(10);
+  it("ships only the reference light and dark palettes", () => {
+    expect(colorThemeDefinitions).toHaveLength(2);
+    expect(new Set(colorThemeDefinitions.map((theme) => theme.id)).size).toBe(2);
+    expect(themesForMode("dark")).toHaveLength(1);
+    expect(themesForMode("light")).toHaveLength(1);
     expect(colorThemeDefinitions.every((theme) => theme.isDark === (theme.mode === "dark"))).toBe(true);
   });
 
@@ -30,7 +30,7 @@ describe("theme catalogue", () => {
 
       expect(contrast(colors.text, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
       expect(contrast(colors.textSecondary, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(colors.accent, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(colors.accentText ?? colors.accent, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
       expect(contrast(colors.danger, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
       expect(contrast(colors.warning, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
       expect(contrast(colors.success, colors.background), theme.label).toBeGreaterThanOrEqual(4.5);
@@ -39,11 +39,14 @@ describe("theme catalogue", () => {
     }
   });
 
-  it("uses a paired family where available when the base mode changes", () => {
+  it("resolves retired palettes and mode changes to the reference pair", () => {
     expect(resolveEffectiveThemeMode({ theme: "system" }, true)).toBe("dark");
     expect(resolveEffectiveThemeMode({ theme: "system" }, false)).toBe("light");
-    expect(resolveEffectiveColorTheme({ colorTheme: "catppuccin-mocha" }, "light").id).toBe("catppuccin-latte");
+    expect(resolveEffectiveColorTheme({ colorTheme: "catppuccin-mocha" }, "light").id).toBe("hcb-neutral-light");
     expect(resolveEffectiveColorTheme({ colorTheme: "notion" }, "dark").id).toBe("hcb-neutral-dark");
+    expect(resolveEffectiveColorTheme({ colorTheme: "hcb-neutral-light" }, "dark").id).toBe("hcb-neutral-dark");
+    expect(resolveEffectiveColorTheme({}, "light").colors).toMatchObject({ background: "#ffffff", secondary: "#f8f8f7", text: "#32302c", accent: "#f04842" });
+    expect(resolveEffectiveColorTheme({}, "dark").colors).toMatchObject({ background: "#191919", secondary: "#202020", text: "#d9d9d9", accent: "#f15550" });
   });
 
   it("returns a complete semantic palette for legacy and new custom backgrounds", () => {
