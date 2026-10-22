@@ -161,11 +161,11 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
           }}
         >
           {current.body}
+        </div>
           {current.onSave ? <div className="inspector-save-status" role={current.saveError ? "alert" : "status"}>
-            {current.saveError ?? (current.saving ? "Saving…" : "Changes save when you leave a field")}
+            <span>{current.saveError ?? (current.saving ? "Saving…" : "Changes save when you leave a field")}</span>
             {current.saveError ? <><Button onClick={() => void current.onSave?.()} size="sm" variant="ghost">Retry</Button><Button onClick={() => void current.onDiscard?.()} size="sm" variant="ghost">Discard edits</Button></> : null}
           </div> : null}
-        </div>
 
         {current.actions ? (
           <footer

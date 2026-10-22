@@ -503,7 +503,7 @@ function PrivacyControls({
   setDraft: (draft: CalendarEventDraft) => void;
 }): JSX.Element {
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+    <div className="inspector-inline-grid grid grid-cols-2 gap-2">
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>Show as</span>
         <select
@@ -1491,12 +1491,12 @@ export function CalendarEventForm({
             ))}
           </select>
         </label>
-        <EventColorSelect
+        {showMoreOptions ? <EventColorSelect
           draft={draft}
           eventColorOverrides={eventColorOverrides}
           selectedCalendar={selectedCalendar}
           setDraft={setDraft}
-        />
+        /> : null}
         <PrivacyControls draft={draft} setDraft={setDraft} />
       </fieldset>
       <ReminderControls draft={draft} setDraft={setDraft} /></>

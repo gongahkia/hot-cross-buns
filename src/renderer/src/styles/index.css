@@ -454,3 +454,10 @@ label:has(input:not(:disabled)) {
 .inspector-save-status[role="alert"] { color: var(--color-danger); }
 [data-document-editor="true"] .inspector-header { padding-inline: 16px; }
 [data-document-editor="true"] .inspector-editor .markdown-content { min-height: max(320px, calc(100dvh - 360px)); font-size: 14px; }
+.inspector-editor :is(input:not([type="checkbox"]):not([type="radio"]), select) { height: 30px; min-height: 30px; padding-block: 4px; }
+.inspector-editor .event-editor { gap: 12px; }
+.inspector-editor .event-editor fieldset { row-gap: 4px; padding-top: 8px; }
+.inspector-editor .markdown-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+.inspector-editor .markdown-toolbar > * { flex-shrink: 0; }
+.inspector-editor .markdown-content { min-height: 56px; }
+.inspector-save-status { flex-shrink: 0; margin: 0; padding: 8px 16px; background: var(--color-bg-primary); border-top: 1px solid var(--color-border); }

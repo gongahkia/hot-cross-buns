@@ -36,7 +36,7 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("calendar", "get", { id: birthday.id }).tags).toEqual(["family"]);
     store.dispatch("calendar", "update", { id: birthday.id, title: "Ada's updated birthday", scope: "series" });
     expect(store.dispatch("calendar", "get", { id: birthday.id }).hcbKind).toBe("birthday");
-    const range = store.dispatch("calendar", "list", { start: "2027-10-01T00:00:00Z", end: "2027-11-01T00:00:00Z" });
+    const range = store.dispatch("calendar", "listEvents", { start: "2027-10-01T00:00:00Z", end: "2027-11-01T00:00:00Z" });
     expect(range.items.find((event: any) => event.eventId === birthday.id)?.hcbKind).toBe("birthday");
     store.dispatch("calendar", "update", { id: birthday.id, hcbKind: null, tags: ["friends"], scope: "series" });
     expect(store.dispatch("calendar", "get", { id: birthday.id }).hcbKind).toBeNull();
