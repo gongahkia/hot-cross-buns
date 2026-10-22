@@ -82,6 +82,7 @@ export function EventKindSelector({
         alignOffset={-4}
         className="min-w-[180px] bg-[#252525] border-[#303030]"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
         onEscapeKeyDown={(event) => event.stopPropagation()}
         onMouseLeave={() => setHoveredOther(false)}
       >
