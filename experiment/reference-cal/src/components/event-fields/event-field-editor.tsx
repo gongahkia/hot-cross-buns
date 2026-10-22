@@ -43,7 +43,10 @@ export function EventFieldEditor({
     getBoundingClientRect: () => DOMRect;
     contextElement: HTMLElement;
   } | null>(null);
-  const virtualAnchor = React.useMemo(() => ({ current: anchor }), [anchor]);
+  const virtualAnchor = React.useMemo(
+    () => (anchor ? { current: anchor } : null),
+    [anchor],
+  );
   function changePopoverOpen(next: boolean) {
     if (next) {
       const trigger = triggerRef.current;
@@ -55,8 +58,10 @@ export function EventFieldEditor({
           contextElement: card,
           getBoundingClientRect: () => {
             // Registering a custom Radix anchor can replace the trigger node.
-            const field = (triggerRef.current ?? trigger).getBoundingClientRect(),
-              bounds = card.getBoundingClientRect();
+            const field = (
+              triggerRef.current ?? trigger
+            ).getBoundingClientRect();
+            const bounds = card.getBoundingClientRect();
             return new DOMRect(
               bounds.left,
               field.top,
@@ -105,7 +110,7 @@ export function EventFieldEditor({
   if (context === "popover") {
     return (
       <Popover open={open} onOpenChange={changePopoverOpen}>
-        {anchor && <PopoverAnchor virtualRef={virtualAnchor} />}
+        {virtualAnchor && <PopoverAnchor virtualRef={virtualAnchor} />}
         <div className="flex min-w-0 items-center">
           <PopoverTrigger asChild>{button}</PopoverTrigger>
           {actions}
@@ -117,7 +122,7 @@ export function EventFieldEditor({
           align="start"
           sideOffset={8}
           collisionPadding={12}
-          className="z-[60] w-72 max-w-[calc(100vw-24px)] max-h-[min(540px,80dvh)] overflow-y-auto p-3 text-xs motion-reduce:animate-none"
+          className="z-[60] w-72 max-w-[calc(100vw-24px)] max-h-[min(540px,80dvh)] overflow-y-auto p-3 text-xs motion-reduce:animate-none!"
           onClick={(event) => event.stopPropagation()}
           onEscapeKeyDown={(event) => event.stopPropagation()}
         >
@@ -142,7 +147,7 @@ export function EventFieldEditor({
           aria-label={label}
           data-event-field-editor="true"
           className={cn(
-            "mx-2 mt-1 rounded-sm border border-border bg-popover p-3 text-popover-foreground shadow-xs animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none",
+            "mx-2 mt-1 rounded-sm border border-border bg-popover p-3 text-xs text-popover-foreground shadow-xs animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none",
             compact && "col-span-3 col-start-1 -ml-6 mr-0",
           )}
           onKeyDown={(event) => {

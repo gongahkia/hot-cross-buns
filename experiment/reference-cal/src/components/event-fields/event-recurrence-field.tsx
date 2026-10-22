@@ -55,11 +55,7 @@ function FieldSelect({
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent
-        position="popper"
-        className="z-[70]"
-        onCloseAutoFocus={(event) => event.preventDefault()}
-      >
+      <SelectContent position="popper" className="z-[70]">
         {choices.map((choice) => (
           <SelectItem
             key={choice.value}
@@ -158,7 +154,7 @@ export function EventRecurrenceField({
       label="Edit repeat"
       open={open}
       onOpenChange={changeOpen}
-      className={compact ? "-ml-2 text-muted-foreground" : "-mx-2 flex-1"}
+      className={compact ? "-ml-2 text-foreground/65" : "-mx-2 flex-1"}
       actions={
         !compact &&
         existing && (
@@ -167,7 +163,7 @@ export function EventRecurrenceField({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-6 text-muted-foreground"
+              className="size-6 text-foreground/65"
               aria-label="Previous week"
               onClick={onPrevWeek}
             >
@@ -177,7 +173,7 @@ export function EventRecurrenceField({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-6 text-muted-foreground"
+              className="size-6 text-foreground/65"
               aria-label="Next week"
               onClick={onNextWeek}
             >
@@ -191,11 +187,11 @@ export function EventRecurrenceField({
           "Repeat"
         ) : (
           <>
-            <RefreshCcw className="size-4 shrink-0 text-muted-foreground" />
+            <RefreshCcw className="size-4 shrink-0 text-foreground/65" />
             <span
               className={cn(
                 "min-w-0",
-                existing ? "text-foreground" : "text-muted-foreground",
+                existing ? "text-foreground" : "text-foreground/65",
               )}
             >
               {summary}
@@ -247,7 +243,7 @@ export function EventRecurrenceField({
                 onChange={(e) => setInterval(e.target.value)}
                 className={cn(eventFieldInputClass, "w-16")}
               />
-              <span className="text-muted-foreground">
+              <span className="text-foreground/65">
                 {
                   {
                     daily: "day",
@@ -261,9 +257,7 @@ export function EventRecurrenceField({
             </div>
             {frequency === "weekly" && (
               <fieldset>
-                <legend className="mb-2 text-muted-foreground">
-                  Repeat on
-                </legend>
+                <legend className="mb-2 text-foreground/65">Repeat on</legend>
                 <div
                   className="grid grid-cols-7 gap-1 max-md:grid-cols-4"
                   role="group"
@@ -310,7 +304,7 @@ export function EventRecurrenceField({
               />
             )}
             <div className="space-y-2">
-              <span className="text-muted-foreground">Ends</span>
+              <span className="text-foreground/65">Ends</span>
               <FieldSelect
                 label="Repeat ends"
                 value={ends}
@@ -318,7 +312,7 @@ export function EventRecurrenceField({
                 choices={[
                   { value: "never", label: "Never" },
                   { value: "date", label: "On a date" },
-                  { value: "count", label: "After a number of occurrences" },
+                  { value: "count", label: "After a set number" },
                 ]}
               />
               {ends === "date" && (
@@ -343,7 +337,7 @@ export function EventRecurrenceField({
                     onChange={(e) => setCount(e.target.value)}
                     className={cn(eventFieldInputClass, "w-20")}
                   />
-                  <span className="text-muted-foreground">occurrences</span>
+                  <span className="text-foreground/65">occurrences</span>
                 </label>
               )}
             </div>
@@ -356,11 +350,11 @@ export function EventRecurrenceField({
           </p>
         )}
         {!invalid && draft && (
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-[11px] leading-relaxed text-foreground/65">
             {recurrenceSummary(draft, anchor, zone)}
           </p>
         )}
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-[11px] leading-relaxed text-foreground/65">
           Repeat settings apply to the whole series. Other edits change only the
           selected event.
         </p>

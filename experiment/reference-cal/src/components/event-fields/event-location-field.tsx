@@ -34,8 +34,8 @@ export function EventLocationField({
       className="-mx-2 w-[calc(100%+16px)]"
       trigger={
         <>
-          <MapPin className="size-4 shrink-0 text-muted-foreground" />
-          <span className="text-muted-foreground">Location</span>
+          <MapPin className="size-4 shrink-0 text-foreground/65" />
+          <span className="text-foreground/65">Location</span>
           {event.location && (
             <span className="min-w-0 break-words text-foreground">
               {event.location}
@@ -63,7 +63,7 @@ export function EventLocationField({
           className={eventFieldInputClass}
           autoComplete="off"
         />
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-[11px] text-foreground/65">
           Enter a place or address. Clear the field to remove it.
         </p>
         <EventFieldActions onCancel={() => setOpen(false)} />

@@ -57,14 +57,14 @@ export function EventTimezoneField({
       open={open}
       onOpenChange={changeOpen}
       className={
-        compact ? "-ml-2 text-muted-foreground" : "-mx-2 w-[calc(100%+16px)]"
+        compact ? "-ml-2 text-foreground/65" : "-mx-2 w-[calc(100%+16px)]"
       }
       trigger={
         compact ? (
           "Time zone"
         ) : (
           <>
-            <Globe className="size-4 shrink-0 text-muted-foreground" />
+            <Globe className="size-4 shrink-0 text-foreground/65" />
             <span className="min-w-0 text-foreground">{label}</span>
           </>
         )
@@ -104,7 +104,7 @@ export function EventTimezoneField({
                 />
                 <span className="min-w-0">
                   <span className="block">{choice.label}</span>
-                  <span className="block text-[10px] text-muted-foreground">
+                  <span className="block text-[10px] text-foreground/65">
                     {choice.value}
                   </span>
                 </span>
@@ -115,7 +115,7 @@ export function EventTimezoneField({
         <p className="mt-3 font-medium">
           {format(inTimeZone(event.start, draft), "EEE, MMM d · h:mm a")}
         </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-1 text-[11px] leading-relaxed text-foreground/65">
           Changes how this event’s times are displayed. The event stays at the
           same moment.
         </p>
