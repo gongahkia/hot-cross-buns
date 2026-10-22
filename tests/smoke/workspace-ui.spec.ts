@@ -675,3 +675,132 @@ test("confirms replacement and preserves content across task, note, birthday and
     expect(confirmations.length).toBe(5);
   });
 });
+
+test("searches in the sliding sidebar and edits tasks, birthdays and events without leaving the calendar", async () => {
+  await planner(async (page) => {
+    await seedSearchFixtures(page);
+    await page.evaluate(async () => {
+      const day = new Date().toISOString().slice(0, 10);
+      const birthday = await window.hcb!.calendar.create({ calendarId: "primary", title: "Marmalade birthday", startsAt: `${day}T00:00:00Z`, endsAt: new Date(Date.parse(`${day}T00:00:00Z`) + 86400000).toISOString(), allDay: true, hcbKind: "birthday", recurrence: { frequency: "yearly", interval: 1 } });
+      if (!birthday.ok) throw new Error(birthday.error.message);
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    await chooseCalendarView(page, "month");
+    const range = await page.getByTestId("calendar-view").getAttribute("data-range-start");
+    const panel = page.getByTestId("inspector-shell");
+    await page.getByRole("button", { name: "Toggle search sidebar" }).click();
+    const search = page.getByRole("searchbox", { name: "Search events, tasks and birthdays" });
+    await expect(search).toBeFocused();
+    await expect(panel.getByText("Useful shortcuts")).toBeVisible();
+    await search.fill("Marmalade");
+    await expect(panel.locator(".inspector-search-result")).toHaveCount(3);
+    await capture(page, "reference-sidebar-search-light");
+    await panel.getByRole("button", { name: "Marmalade task", exact: false }).click();
+    await expect(page.getByRole("textbox", { name: "Task title", exact: true })).toHaveValue("Marmalade task");
+    await page.getByRole("textbox", { name: "Task title", exact: true }).fill("Marmalade task edited");
+    await panel.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(search).toHaveValue("Marmalade");
+    await expect(panel.getByRole("button", { name: "Marmalade task edited", exact: false })).toBeVisible();
+    await panel.getByRole("button", { name: "Marmalade birthday", exact: false }).click();
+    await expect(panel.getByRole("button", { name: "Item type" })).toHaveText("Birthday");
+    await panel.getByRole("button", { name: "Search", exact: true }).click();
+    await panel.getByRole("button", { name: "Marmalade event", exact: false }).click();
+    await page.getByRole("textbox", { name: "Event title", exact: true }).fill("Marmalade event edited");
+    await panel.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(panel.getByRole("button", { name: "Marmalade event edited", exact: false })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Calendar", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
+    await search.fill("no-such-result-938324");
+    await expect(panel.getByText("No matching events, tasks or birthdays.")).toBeVisible();
+    await panel.getByRole("button", { name: "Clear search" }).click();
+    await expect(search).toBeFocused();
+    await search.fill("Marmalade");
+    await expect(panel.locator(".inspector-search-result")).toHaveCount(3);
+    await page.evaluate(async () => { await window.hcb!.settings.update({ theme: "dark" }); window.dispatchEvent(new Event("hcb:core-data-invalidated")); });
+    await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
+    await capture(page, "reference-sidebar-search-dark");
+    await page.getByRole("button", { name: "Toggle search sidebar" }).click();
+    await expect(panel).toHaveCount(0);
+    await page.setViewportSize({ width: 820, height: 700 });
+    await page.getByRole("button", { name: "Toggle search sidebar" }).click();
+    await expect(panel).toHaveAttribute("aria-modal", "true");
+    await expect(search).toHaveValue("Marmalade");
+    await capture(page, "reference-sidebar-search-narrow");
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.getByRole("button", { name: "Toggle search sidebar" }).click();
+    await expect(search).toBeFocused();
+    await page.getByRole("button", { name: "Close inspector" }).click();
+    await expect(panel).toHaveCount(0);
+  });
+});
+
+test("uses nested calendar menus, persists view settings and renders the reference calendar layouts", async () => {
+  await planner(async (page) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.evaluate(async () => {
+      const day = new Date().toISOString().slice(0, 10);
+      for (const [index, title] of ["Architecture review", "Lunch with Sarah", "Gym", "Declined meeting"].entries()) {
+        const result = await window.hcb!.calendar.create({ calendarId: "primary", title, startsAt: `${day}T${12 + index}:00:00Z`, endsAt: `${day}T${13 + index}:00:00Z`, allDay: false, ...(index === 3 ? { selfResponseStatus: "declined" } : {}) });
+        if (!result.ok) throw new Error(result.error.message);
+        if (index === 0) await window.hcb!.calendar.complete({ id: result.data.id, scope: "occurrence" });
+      }
+      const result = await window.hcb!.calendar.create({ calendarId: "primary", title: "Weekend in Hudson Valley", startsAt: `${day}T00:00:00Z`, endsAt: new Date(Date.parse(`${day}T00:00:00Z`) + 3 * 86400000).toISOString(), allDay: true });
+      if (!result.ok) throw new Error(result.error.message);
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    for (const view of ["day", "week", "month"]) {
+      await chooseCalendarView(page, view);
+      await noOverflow(page);
+      await expect(page.getByRole("grid", { name: `Calendar ${view} view`, exact: true })).toBeVisible();
+      await capture(page, `reference-calendar-${view}-light`);
+    }
+    const menu = () => page.getByRole("button", { name: "Calendar view", exact: true }).click();
+    await menu();
+    const numberOfDays = page.getByRole("menuitem", { name: "Number of days" });
+    await numberOfDays.focus(); await numberOfDays.press("ArrowRight");
+    await page.getByRole("menuitem", { name: "9 days", exact: true }).click();
+    await expect(page.getByRole("grid", { name: "Calendar multi-day view" }).getByRole("columnheader")).toHaveCount(9);
+    await menu(); await page.getByRole("menuitem", { name: "Number of days" }).hover();
+    await page.getByRole("menuitem", { name: "Other…" }).click();
+    await page.getByRole("spinbutton", { name: "Number of days" }).fill("12");
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(page.getByRole("grid", { name: "Calendar multi-day view" }).getByRole("columnheader")).toHaveCount(12);
+    await chooseCalendarView(page, "week");
+    await menu(); await page.getByRole("menuitem", { name: "View settings" }).hover();
+    await capture(page, "reference-calendar-view-settings");
+    await page.getByRole("menuitemcheckbox", { name: "Weekends", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Week numbers", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Declined events", exact: true }).click();
+    await page.keyboard.press("Escape"); await page.keyboard.press("Escape");
+    await expect(page.getByRole("grid", { name: "Calendar week view" }).getByRole("columnheader")).toHaveCount(5);
+    await expect(page.getByTestId("calendar-view").getByText("Declined meeting", { exact: true })).toHaveCount(0);
+    await chooseCalendarView(page, "month");
+    await expect(page.getByRole("grid", { name: "Calendar month view" }).getByRole("gridcell")).toHaveCount(30);
+    await expect(page.locator(".calendar-week-number")).toHaveCount(0);
+    await expect(page.locator(".mini-calendar-week")).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("grid", { name: "Calendar month view" }).getByRole("gridcell")).toHaveCount(30);
+    await menu(); await page.getByRole("menuitem", { name: "View settings" }).hover();
+    await expect(page.getByRole("menuitemcheckbox", { name: "Weekends", exact: true })).toHaveAttribute("aria-checked", "false");
+    await page.getByRole("menuitemcheckbox", { name: "Weekends", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Week numbers", exact: true }).click();
+    await page.keyboard.press("Escape"); await page.keyboard.press("Escape");
+    await chooseCalendarView(page, "day");
+    const completed = page.locator('.calendar-event-chip[data-completed="true"]').first();
+    await expect(completed).toBeVisible();
+    await expect(completed).toHaveCSS("opacity", "0.5");
+    await page.evaluate(async () => { await window.hcb!.settings.update({ theme: "dark" }); window.dispatchEvent(new Event("hcb:core-data-invalidated")); });
+    await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
+    for (const view of ["day", "week", "month"]) { await chooseCalendarView(page, view); await capture(page, `reference-calendar-${view}-dark`); }
+    const calendar = page.locator(".calendar-source-toggle").first();
+    await calendar.click(); await expect(calendar).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("calendar-view").getByText("Weekend in Hudson Valley", { exact: true })).toHaveCount(0);
+    await calendar.click(); await expect(calendar).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("calendar-view").getByText("Weekend in Hudson Valley", { exact: true }).first()).toBeVisible();
+    await menu(); await page.getByRole("menuitem", { name: "View settings" }).hover();
+    await page.getByRole("menuitem", { name: "General settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
+  });
+});

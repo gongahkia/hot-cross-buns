@@ -53,7 +53,7 @@ describe("Share Availability title performance boundary", () => {
 
     const day = await screen.findByRole("button", { name: "Calendar view" });
     fireEvent.keyDown(day, { key: "Enter" });
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Day", exact: true }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Day" }));
     await screen.findByTestId("day-calendar-grid");
     // Measure typing after startup hydration, which can independently update
     // the calendar even when the title editor is correctly isolated.

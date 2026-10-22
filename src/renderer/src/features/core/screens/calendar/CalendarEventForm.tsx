@@ -1,3 +1,4 @@
+import { InspectorReveal } from "../../../../components/Inspector/InspectorReveal";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -1197,7 +1198,7 @@ export function CalendarEventForm({
         </label>
         <MeetControl draft={draft} setDraft={setDraft} />
         </> : null}
-        {showMoreOptions ? <>
+        <InspectorReveal open={showMoreOptions}>
           <AttendeeStatusPreview draft={draft} />
           <RsvpControl draft={draft} setDraft={setDraft} />
           <AvailabilityControl accountId={selectedCalendar?.accountId} draft={draft} />
@@ -1215,10 +1216,10 @@ export function CalendarEventForm({
             }}
             rules={rules}
           />
-        </> : null}
+        </InspectorReveal>
       </fieldset>
-      {showMoreOptions ? <EventTypeControl draft={draft} setDraft={setDraft} /> : null}
-      {showMoreOptions || draft.repeatFrequency !== "none" ? <>
+      <InspectorReveal open={showMoreOptions}><EventTypeControl draft={draft} setDraft={setDraft} /></InspectorReveal>
+      <InspectorReveal open={showMoreOptions || draft.repeatFrequency !== "none"}>
       <fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">
           <span className="inline-flex items-center gap-1">
@@ -1459,7 +1460,7 @@ export function CalendarEventForm({
           </div>
         )}
       </fieldset>
-      </> : null}
+      </InspectorReveal>
       <div className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">
           <FileText aria-hidden="true" size={13} />
@@ -1491,12 +1492,12 @@ export function CalendarEventForm({
             ))}
           </select>
         </label>
-        {showMoreOptions ? <EventColorSelect
+        <InspectorReveal open={showMoreOptions}><EventColorSelect
           draft={draft}
           eventColorOverrides={eventColorOverrides}
           selectedCalendar={selectedCalendar}
           setDraft={setDraft}
-        /> : null}
+        /></InspectorReveal>
         <PrivacyControls draft={draft} setDraft={setDraft} />
       </fieldset>
       <ReminderControls draft={draft} setDraft={setDraft} /></>

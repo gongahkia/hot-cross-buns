@@ -7,7 +7,7 @@ import { useInspector } from "../../../../components/Inspector";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { weekNumber } from "../../../shell/MiniCalendar";
 import type { CalendarViewId } from "../../coreViewModels";
-import { calendarViewLabel, calendarMonthTitle, calendarDateTitleFromIso } from "./calendarGrid";
+import { calendarViewLabel, calendarMonthTitle, calendarDateTitleFromIso, calendarAddUtcDays, calendarDateFromIsoDate } from "./calendarGrid";
 
 export function CalendarHeader({
   anchorDate, onSelectDate,
@@ -47,19 +47,21 @@ export function CalendarHeader({
 }): JSX.Element {
   const nav = useCalendarNavigation();
   const inspector = useInspector();
+  const weekStart = calendarAddUtcDays(anchorDate, -calendarDateFromIsoDate(anchorDate).getUTCDay());
+  const headingDate = activeViewId === "week" ? calendarAddUtcDays(weekStart, 6) : activeViewId === "multiDay" ? calendarAddUtcDays(anchorDate, nav.multiDayCount - 1) : anchorDate;
   const [customDays, setCustomDays] = useState(false);
   const [count, setCount] = useState(String(nav.multiDayCount));
   function days(value: number) { nav.setMultiDayCount(value); onSetView("multiDay"); }
   return (
     <header className="calendar-header">
       <Popover.Root>
-        <Popover.Trigger asChild><button className="calendar-range" aria-label="Choose calendar date"><span>{calendarMonthTitle(anchorDate)}</span></button></Popover.Trigger>
+        <Popover.Trigger asChild><button className="calendar-range" aria-label="Choose calendar date"><span>{calendarMonthTitle(headingDate)}</span></button></Popover.Trigger>
         <Popover.Portal><Popover.Content className="calendar-menu calendar-date-menu" align="start" sideOffset={8}>
           <label>Go to date<input aria-label="Go to date" type="date" value={anchorDate.slice(0, 10)} onChange={(e) => { if (e.target.value) onSelectDate(e.target.value); }} /></label>
           <Popover.Close asChild><Button variant="ghost">Done</Button></Popover.Close>
         </Popover.Content></Popover.Portal>
       </Popover.Root>
-      <span className="calendar-range-detail">{activeViewId === "week" && nav.showWeekNumbers ? `Week ${weekNumber(anchorDate)}` : activeViewId === "day" ? calendarDateTitleFromIso(anchorDate) : ""}</span>
+      <span className="calendar-range-detail">{activeViewId === "week" && nav.showWeekNumbers ? `Week ${weekNumber(weekStart)}` : activeViewId === "day" ? calendarDateTitleFromIso(anchorDate) : ""}</span>
       <div className="calendar-header-controls">
         <Menu.Root>
           <Menu.Trigger asChild><button className="calendar-view-select" aria-label="Calendar view">{activeViewId === "multiDay" ? `${nav.multiDayCount} days` : calendarViewLabel(activeViewId)}<ChevronDown size={16} /></button></Menu.Trigger>

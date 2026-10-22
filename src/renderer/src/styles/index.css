@@ -540,3 +540,8 @@ label:has(input:not(:disabled)) {
 .inspector-search-result > span { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; }
 .inspector-search-result > small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .calendar-menu { animation: none; } }
+.inspector-reveal { overflow: hidden; min-width: 0; }
+[data-inspector-kind="search"] .inspector-header { position: absolute; top: 8px; right: 0; z-index: 1; }
+[data-inspector-kind="search"] .inspector-header h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+[data-inspector-kind="search"] .inspector-editor { padding-top: 16px; }
+[data-inspector-kind="search"] .inspector-search-input { margin-right: 30px; }
