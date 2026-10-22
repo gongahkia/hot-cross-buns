@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
@@ -189,10 +190,10 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
       controls[event.key === "Home" ? 0 : event.key === "End" ? controls.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + controls.length) % controls.length]?.focus();
     }}>
       {!source ? <>
-        <select className="markdown-block-select" aria-label="Text style" disabled={disabled} value={editor.isActive("heading") ? `h${editor.getAttributes("heading").level}` : "paragraph"}
-          onChange={(event) => { const level = Number(event.target.value.slice(1)); if (level) editor.chain().focus().setHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run(); else editor.chain().focus().setParagraph().run(); }}>
-          <option value="paragraph">Normal text</option>{[1, 2, 3, 4, 5, 6].map((level) => <option value={`h${level}`} key={level}>Heading {level}</option>)}
-        </select>
+        <Select className="markdown-block-select" aria-label="Text style" disabled={disabled} value={editor.isActive("heading") ? `h${editor.getAttributes("heading").level}` : "paragraph"}
+          onValueChange={(value) => { const level = Number(value.slice(1)); if (level) editor.chain().focus().setHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run(); else editor.chain().focus().setParagraph().run(); }}>
+          <SelectItem value="paragraph">Normal text</SelectItem>{[1, 2, 3, 4, 5, 6].map((level) => <SelectItem value={`h${level}`} key={level}>Heading {level}</SelectItem>)}
+        </Select>
         {marks()}
         {tool("Bullet list", List, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"))}
         {tool("Numbered list", ListOrdered, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"))}

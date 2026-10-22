@@ -1,3 +1,5 @@
+import { Select, SelectItem } from "@renderer/components/Select";
+import { DateTimeField } from "@renderer/components/DateTimeField";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
 import { CalendarClock, X } from "lucide-react";
@@ -45,12 +47,12 @@ export function TaskScheduleDialog({ task, onClose }: { task: TaskViewModel; onC
           </div>
           <Dialog.Description className="text-sm text-text-secondary">Create a linked Calendar event for “{task.title}”. Its Google Tasks due date stays separate. Choose a time here, or use Calendar → Smart schedule to find free time automatically.</Dialog.Description>
           <label className="grid gap-1 text-sm">Calendar
-            <select aria-label="Schedule calendar" className="h-9 rounded-hcbMd border border-border bg-surface-0 px-2" value={calendarId} disabled={pending} onChange={(event) => setCalendarId(event.currentTarget.value)}>
-              {source.calendarSources.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.title}{calendar.accountId === "local" ? " (this device)" : ""}</option>)}
-            </select>
+            <Select aria-label="Schedule calendar" className="h-9 rounded-hcbMd border border-border bg-surface-0 px-2" value={calendarId} disabled={pending} onValueChange={(value) => setCalendarId(value)}>
+              {source.calendarSources.map((calendar) => <SelectItem key={calendar.id} value={calendar.id}>{calendar.title}{calendar.accountId === "local" ? " (this device)" : ""}</SelectItem>)}
+            </Select>
           </label>
           <label className="grid gap-1 text-sm">Start ({timeZone})
-            <Input aria-label="Schedule start" type="datetime-local" value={start} disabled={pending} onChange={(event) => setStart(event.currentTarget.value)} />
+            <DateTimeField aria-label="Schedule start" type="datetime-local" value={start} disabled={pending} onValueChange={(value) => setStart(value)} />
           </label>
           <label className="grid gap-1 text-sm">Duration (minutes)
             <Input aria-label="Schedule duration" type="number" min={5} max={1440} step={5} value={duration} disabled={pending} onChange={(event) => setDuration(Number(event.currentTarget.value))} />

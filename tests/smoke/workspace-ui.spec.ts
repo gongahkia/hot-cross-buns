@@ -1,37 +1,9 @@
+import { planner, openPalette, navigate, capture } from "./planner";
+import { chooseOption } from "./controls";
 import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
-import { _electron as electron, expect, test, type Page, type ElectronApplication } from "@playwright/test";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { expect, test, type Page } from "@playwright/test";
 
 test.setTimeout(120_000);
-
-async function planner(run: (page: Page, app: ElectronApplication) => Promise<void>) {
-  const profile = mkdtempSync(join(tmpdir(), "hcb-workspace-ui-"));
-  const app = await electron.launch({ args: [...(process.platform === "linux" ? ["--disable-gpu"] : []), resolve(__dirname, "../.."), `--user-data-dir=${profile}`], env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
-  const errors: string[] = [];
-  try {
-    const page = await app.firstWindow();
-    page.on("pageerror", (error) => errors.push(error.message));
-    await expect(page.getByTestId("app-shell")).toBeVisible();
-    await page.evaluate(async () => {
-      await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", defaultTimeZone: "UTC", theme: "light", colorTheme: "hcb-neutral-light" });
-      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
-    });
-    await expect(page.getByRole("dialog", { name: "Hot Cross Buns", exact: true })).toBeHidden();
-    await page.setViewportSize({ width: 1180, height: 760 });
-    await run(page, app);
-    expect(errors).toEqual([]);
-  } finally { await app.close(); rmSync(profile, { recursive: true, force: true }); }
-}
-
-const openPalette = (page: Page) => page.keyboard.press(process.platform === "darwin" ? "Meta+p" : "Control+p");
-const navigate = (page: Page, section: string) => page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: section, exact: true }).click();
-async function capture(page: Page, name: string) {
-  mkdirSync("output/ui-review", { recursive: true });
-  await page.locator(".inspector-item-menu, .calendar-menu").evaluateAll((menus) => Promise.all(menus.flatMap((menu) => menu.getAnimations().map((animation) => animation.finished.catch(() => undefined)))));
-  await page.screenshot({ path: `output/ui-review/${name}.png` });
-}
 
 async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -403,7 +375,7 @@ test("validates event edits and requires a scope for recurring edits", async () 
     await expect(page.getByText("Title is required.", { exact: true })).toBeVisible();
     await title.fill("Daily design check-in");
     await page.getByRole("button", { name: "More details", exact: true }).click();
-    await page.getByRole("combobox", { name: "Event repeat frequency" }).selectOption("daily");
+    await chooseOption(page, page.getByRole("combobox", { name: "Event repeat frequency" }), "Daily");
     await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     await page.getByTestId("calendar-view").getByText("Daily design check-in", { exact: true }).click();
@@ -463,7 +435,7 @@ test("creates and renames lists, edits tasks, completes them and switches presen
     await page.getByRole("dialog", { name: "Rename list" }).getByRole("button", { name: "Save" }).click();
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page.getByRole("textbox", { name: "Task title" }).fill("Ship the new planner");
-    await page.getByLabel("Task due date").fill("2027-02-03");
+    await page.getByLabel("Task due date", { exact: true }).fill("2027-02-03");
     await page.getByRole("button", { name: "Close inspector", exact: true }).click();
     await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
     const task = page.getByRole("button", { name: "Ship the new planner", exact: true });
@@ -534,21 +506,23 @@ test("keeps settings navigation stable, searches categories and changes theme", 
       await categories.getByRole("button", { name, exact: true }).click();
       await expect(categories.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true");
     }
-    await page.getByRole("combobox", { name: "Theme", exact: true }).selectOption("dark");
+    await chooseOption(page, page.getByRole("combobox", { name: "Theme", exact: true }), "Dark");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
     await capture(page, "settings-dark");
     await expect(page.getByRole("textbox", { name: "Search color themes" })).toHaveCount(0);
     const themeSelect = page.getByRole("combobox", { name: "Theme", exact: true });
-    await expect(themeSelect.locator("option")).toHaveText(["Follow system", "Light", "Dark"]);
-    await themeSelect.selectOption("light");
+    await themeSelect.click();
+    await expect(page.getByRole("listbox").getByRole("option")).toHaveText(["Follow system", "Light", "Dark"]);
+    await page.keyboard.press("Escape");
+    await chooseOption(page, themeSelect, "Light");
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-light");
     await page.emulateMedia({ colorScheme: "dark" });
-    await themeSelect.selectOption("system");
+    await chooseOption(page, themeSelect, "Follow system");
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
     await page.emulateMedia({ colorScheme: "light" });
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-light");
-    await themeSelect.selectOption("dark");
+    await chooseOption(page, themeSelect, "Dark");
     await expect(page.locator("html")).toHaveAttribute("data-color-theme", "hcb-neutral-dark");
     await page.getByRole("textbox", { name: "Search settings", exact: true }).fill("nothing-matches-this-query");
     await expect(page.getByRole("status").filter({ hasText: "No settings match" })).toBeVisible();
@@ -583,8 +557,8 @@ test("autosaves inspector fields and supports copy, duplicate, delete and both m
     await page.getByRole("textbox", { name: "Event notes" }).fill("Review the column assignment algorithm.");
     await page.getByRole("textbox", { name: "Event location" }).fill("Studio 3");
     await page.getByRole("textbox", { name: "Event location" }).press("Tab");
-    await page.getByRole("combobox", { name: "Event visibility" }).selectOption("private");
-    await page.getByRole("combobox", { name: "Event reminder mode" }).selectOption("custom");
+    await chooseOption(page, page.getByRole("combobox", { name: "Event visibility" }), "Private");
+    await chooseOption(page, page.getByRole("combobox", { name: "Event reminder mode" }), "Custom");
     await expect.poll(async () => page.evaluate(async (id) => {
       const result = await window.hcb!.calendar.get({ id });
       return result.ok && { notes: result.data.notes, location: result.data.location, visibility: result.data.visibility, custom: !result.data.remindersUseDefault };

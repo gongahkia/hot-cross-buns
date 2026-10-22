@@ -1,3 +1,5 @@
+import { Select, SelectItem } from "@renderer/components/Select";
+import { DateTimeField } from "@renderer/components/DateTimeField";
 import { useEffect, useMemo, useState } from "react";
 import type { SmartRescheduleResponse } from "@shared/ipc/contracts";
 import { CalendarPlus, Check, Copy, Eye, EyeOff, MapPin, Minus, Sparkles, X } from "lucide-react";
@@ -313,59 +315,59 @@ export function ShareAvailabilityPanel({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <label className="grid gap-1 text-[var(--text-sm)] font-semibold text-text-secondary">
             <span>Duration</span>
-            <select
+            <Select
               aria-label="Availability duration"
               className={selectClass}
-              onChange={(event) => onDurationChange(Number(event.target.value))}
+              onValueChange={(value) => onDurationChange(Number(value))}
               value={durationMinutes}
             >
               {[15, 30, 45, 60, 90, 120].map((duration) => (
-                <option key={duration} value={duration}>
+                <SelectItem key={duration} value={duration}>
                   {duration}m
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="grid gap-1 text-[var(--text-sm)] font-semibold text-text-secondary">
             <span>Calendar</span>
-            <select
+            <Select
               aria-label="Availability calendar"
               className={selectClass}
-              onChange={(event) => onCalendarChange(event.target.value)}
+              onValueChange={(value) => onCalendarChange(value)}
               value={calendarId}
             >
               {calendars.map((calendar) => (
-                <option key={calendar.id} value={calendar.id}>
+                <SelectItem key={calendar.id} value={calendar.id}>
                   {calendar.title}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
         <label className="grid gap-1 text-[var(--text-sm)] font-semibold text-text-secondary">
           <span>Timezone</span>
-          <select aria-label="Availability timezone" className={selectClass} disabled value={timeZone}>
-            <option value={timeZone}>{timeZone}</option>
-          </select>
+          <Select aria-label="Availability timezone" className={selectClass} disabled value={timeZone}>
+            <SelectItem value={timeZone}>{timeZone}</SelectItem>
+          </Select>
         </label>
         <div className="grid gap-3 border-t border-border pt-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <label className="grid gap-1 text-[var(--text-sm)] font-semibold text-text-secondary">
               <span>Start</span>
-              <input
+              <DateTimeField
                 aria-label="Availability start"
                 className={selectClass}
-                onChange={(event) => onStartDateChange(event.target.value)}
+                onValueChange={(value) => onStartDateChange(value)}
                 type="date"
                 value={startDate}
               />
             </label>
             <label className="grid gap-1 text-[var(--text-sm)] font-semibold text-text-secondary">
               <span>End</span>
-              <input
+              <DateTimeField
                 aria-label="Availability end"
                 className={selectClass}
-                onChange={(event) => onEndDateChange(event.target.value)}
+                onValueChange={(value) => onEndDateChange(value)}
                 type="date"
                 value={endDate}
               />
@@ -552,43 +554,43 @@ export function SmartReschedulePanel({
           </p>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Date</span>
-            <Input aria-label="Smart reschedule date" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+            <DateTimeField aria-label="Smart reschedule date" onValueChange={(value) => setDate(value)} type="date" value={date} />
           </label>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Tasks to consider</span>
-            <select
+            <Select
               aria-label="Smart schedule task scope"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setCandidateScope(event.target.value as "dueSoon" | "allOpen")}
+              onValueChange={(value) => setCandidateScope(value as "dueSoon" | "allOpen")}
               value={candidateScope}
             >
-              <option value="allOpen">All open top-level tasks</option>
-              <option value="dueSoon">Overdue and due within 14 days</option>
-            </select>
+              <SelectItem value="allOpen">All open top-level tasks</SelectItem>
+              <SelectItem value="dueSoon">Overdue and due within 14 days</SelectItem>
+            </Select>
           </label>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Calendar</span>
-            <select
+            <Select
               aria-label="Smart reschedule calendar"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
-              onChange={(event) => setCalendarId(event.target.value)}
+              onValueChange={(value) => setCalendarId(value)}
               value={calendarId}
             >
               {calendars.map((calendar) => (
-                <option key={calendar.id} value={calendar.id}>
+                <SelectItem key={calendar.id} value={calendar.id}>
                   {calendar.title}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           </label>
           <div className="grid grid-cols-2 gap-2">
             <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
               <span>From</span>
-              <Input aria-label="Working hours start" onChange={(event) => setWorkStartMinutes(timeInputToMinutes(event.target.value))} type="time" value={minutesToTimeInput(workStartMinutes)} />
+              <DateTimeField aria-label="Working hours start" onValueChange={(value) => setWorkStartMinutes(timeInputToMinutes(value))} type="time" value={minutesToTimeInput(workStartMinutes)} />
             </label>
             <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
               <span>To</span>
-              <Input aria-label="Working hours end" onChange={(event) => setWorkEndMinutes(timeInputToMinutes(event.target.value))} type="time" value={minutesToTimeInput(workEndMinutes)} />
+              <DateTimeField aria-label="Working hours end" onValueChange={(value) => setWorkEndMinutes(timeInputToMinutes(value))} type="time" value={minutesToTimeInput(workEndMinutes)} />
             </label>
           </div>
           {invalidWorkingHours ? (

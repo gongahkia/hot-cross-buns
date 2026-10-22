@@ -1,3 +1,5 @@
+import { Select, SelectItem } from "@renderer/components/Select";
+import { DateTimeField } from "@renderer/components/DateTimeField";
 import { InspectorReveal } from "../../../../components/Inspector/InspectorReveal";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
@@ -381,19 +383,19 @@ function EventColorSelect({
             borderColor: displayColor.background ?? undefined
           }}
         />
-        <select
+        <Select
           aria-label="Event color"
           className="h-8 min-w-0 flex-1 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onChange={(event) => setDraft({ ...draft, colorId: event.target.value })}
+          onValueChange={(value) => setDraft({ ...draft, colorId: value })}
           value={draft.colorId}
         >
-          <option value="">Calendar default</option>
+          <SelectItem value="">Calendar default</SelectItem>
           {googleCalendarEventColors.filter((color) => color.id !== "default").map((color) => (
-            <option key={color.id} value={color.id}>
+            <SelectItem key={color.id} value={color.id}>
               {eventColorOverrides[color.id] ? `${color.label} (custom)` : color.label}
-            </option>
+            </SelectItem>
           ))}
-        </select>
+        </Select>
       </div>
     </label>
   );
@@ -443,30 +445,30 @@ function ReminderControls({
           <Bell aria-hidden="true" size={13} />
           Reminders
         </span>
-        <select
+        <Select
           aria-label="Event reminder mode"
           className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          onChange={(event) => setMode(event.target.value)}
+          onValueChange={(value) => setMode(value)}
           value={mode}
         >
-          <option value="default">Calendar default</option>
-          <option value="none">None</option>
-          <option value="custom">Custom</option>
-        </select>
+          <SelectItem value="default">Calendar default</SelectItem>
+          <SelectItem value="none">None</SelectItem>
+          <SelectItem value="custom">Custom</SelectItem>
+        </Select>
       </label>
       {mode === "custom" ? (
         <div className="grid gap-2">
           {draft.reminders.map((reminder, index) => (
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(9rem,0.55fr)_32px] gap-2" key={`${reminder.method}-${index}`}>
-              <select
+              <Select
                 aria-label={`Reminder ${index + 1} method`}
                 className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
-                onChange={(event) => setReminder(index, { method: event.target.value as "popup" | "email" })}
+                onValueChange={(value) => setReminder(index, { method: value as "popup" | "email" })}
                 value={reminder.method}
               >
-                <option value="popup">Popup</option>
-                <option value="email">Email</option>
-              </select>
+                <SelectItem value="popup">Popup</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+              </Select>
               <ReminderOffsetInput
                 label={`Reminder ${index + 1} offset`}
                 minutes={reminder.minutes}
@@ -507,28 +509,28 @@ function PrivacyControls({
     <div className="inspector-inline-grid grid grid-cols-2 gap-2">
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>Show as</span>
-        <select
+        <Select
           aria-label="Event transparency"
           className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
-          onChange={(event) => setDraft({ ...draft, transparency: event.target.value as CalendarEventDraft["transparency"] })}
+          onValueChange={(value) => setDraft({ ...draft, transparency: value as CalendarEventDraft["transparency"] })}
           value={draft.transparency ?? "opaque"}
         >
-          <option value="opaque">Busy</option>
-          <option value="transparent">Free</option>
-        </select>
+          <SelectItem value="opaque">Busy</SelectItem>
+          <SelectItem value="transparent">Free</SelectItem>
+        </Select>
       </label>
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>Visibility</span>
-        <select
+        <Select
           aria-label="Event visibility"
           className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary"
-          onChange={(event) => setDraft({ ...draft, visibility: event.target.value as CalendarEventDraft["visibility"] })}
+          onValueChange={(value) => setDraft({ ...draft, visibility: value as CalendarEventDraft["visibility"] })}
           value={draft.visibility ?? "default"}
         >
-          <option value="default">Default</option>
-          <option value="public">Public</option>
-          <option value="private">Private</option>
-        </select>
+          <SelectItem value="default">Default</SelectItem>
+          <SelectItem value="public">Public</SelectItem>
+          <SelectItem value="private">Private</SelectItem>
+        </Select>
       </label>
     </div>
   );
@@ -584,11 +586,11 @@ function RsvpControl({ draft, setDraft }: { draft: CalendarEventDraft; setDraft:
   return (
     <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
       <span className="inline-flex items-center gap-1"><Check aria-hidden="true" size={13} />Your RSVP</span>
-      <select
+      <Select
         aria-label="Your RSVP"
         className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        onChange={(event) => {
-          const responseStatus = event.target.value as NonNullable<CalendarEventDraft["selfResponseStatus"]>;
+        onValueChange={(value) => {
+          const responseStatus = value as NonNullable<CalendarEventDraft["selfResponseStatus"]>;
           setDraft({
             ...draft,
             selfResponseStatus: responseStatus,
@@ -597,11 +599,11 @@ function RsvpControl({ draft, setDraft }: { draft: CalendarEventDraft; setDraft:
         }}
         value={value}
       >
-        <option value="needsAction">Needs action</option>
-        <option value="accepted">Accept</option>
-        <option value="tentative">Tentative</option>
-        <option value="declined">Decline</option>
-      </select>
+        <SelectItem value="needsAction">Needs action</SelectItem>
+        <SelectItem value="accepted">Accept</SelectItem>
+        <SelectItem value="tentative">Tentative</SelectItem>
+        <SelectItem value="declined">Decline</SelectItem>
+      </Select>
     </label>
   );
 }
@@ -633,24 +635,24 @@ function EventTypeControl({ draft, setDraft }: { draft: CalendarEventDraft; setD
       <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Event type</legend>
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>Type</span>
-        <select aria-label="Calendar event type" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" onChange={(event) => setEventType(event.target.value as CalendarEventDraft["eventType"])} value={draft.eventType}>
-          <option value="default">Event</option>
-          <option value="focusTime">Focus time</option>
-          <option value="outOfOffice">Out of office</option>
-          <option value="workingLocation">Working location</option>
-        </select>
+        <Select aria-label="Calendar event type" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" onValueChange={(value) => setEventType(value as CalendarEventDraft["eventType"])} value={draft.eventType}>
+          <SelectItem value="default">Event</SelectItem>
+          <SelectItem value="focusTime">Focus time</SelectItem>
+          <SelectItem value="outOfOffice">Out of office</SelectItem>
+          <SelectItem value="workingLocation">Working location</SelectItem>
+        </Select>
       </label>
       {draft.eventType !== "default" ? <p className="text-[var(--text-xs)] text-text-muted">Google supports status events only on a connected primary calendar. Their availability and visibility rules are applied automatically.</p> : null}
       {draft.eventType === "focusTime" ? (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Decline conflicts</span><select aria-label="Focus time decline mode" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={focus.autoDeclineMode ?? "declineNone"} onChange={(event) => setDraft({ ...draft, focusTimeProperties: { ...focus, autoDeclineMode: event.target.value } })}><option value="declineNone">Do not decline</option><option value="declineAllConflictingInvitations">All conflicts</option><option value="declineOnlyNewConflictingInvitations">New conflicts</option></select></label>
-          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Google Chat</span><select aria-label="Focus time chat status" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={focus.chatStatus ?? "available"} onChange={(event) => setDraft({ ...draft, focusTimeProperties: { ...focus, chatStatus: event.target.value } })}><option value="available">Available</option><option value="doNotDisturb">Do not disturb</option></select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Decline conflicts</span><Select aria-label="Focus time decline mode" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={focus.autoDeclineMode ?? "declineNone"} onValueChange={(value) => setDraft({ ...draft, focusTimeProperties: { ...focus, autoDeclineMode: value } })}><SelectItem value="declineNone">Do not decline</SelectItem><SelectItem value="declineAllConflictingInvitations">All conflicts</SelectItem><SelectItem value="declineOnlyNewConflictingInvitations">New conflicts</SelectItem></Select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Google Chat</span><Select aria-label="Focus time chat status" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={focus.chatStatus ?? "available"} onValueChange={(value) => setDraft({ ...draft, focusTimeProperties: { ...focus, chatStatus: value } })}><SelectItem value="available">Available</SelectItem><SelectItem value="doNotDisturb">Do not disturb</SelectItem></Select></label>
         </div>
       ) : null}
-      {draft.eventType === "outOfOffice" ? <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Decline conflicts</span><select aria-label="Out of office decline mode" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={outOfOffice.autoDeclineMode ?? "declineNone"} onChange={(event) => setDraft({ ...draft, outOfOfficeProperties: { ...outOfOffice, autoDeclineMode: event.target.value } })}><option value="declineNone">Do not decline</option><option value="declineAllConflictingInvitations">All conflicts</option><option value="declineOnlyNewConflictingInvitations">New conflicts</option></select></label> : null}
+      {draft.eventType === "outOfOffice" ? <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Decline conflicts</span><Select aria-label="Out of office decline mode" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={outOfOffice.autoDeclineMode ?? "declineNone"} onValueChange={(value) => setDraft({ ...draft, outOfOfficeProperties: { ...outOfOffice, autoDeclineMode: value } })}><SelectItem value="declineNone">Do not decline</SelectItem><SelectItem value="declineAllConflictingInvitations">All conflicts</SelectItem><SelectItem value="declineOnlyNewConflictingInvitations">New conflicts</SelectItem></Select></label> : null}
       {draft.eventType === "workingLocation" ? (
         <div className="grid gap-2">
-          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Location</span><select aria-label="Working location type" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={locationType} onChange={(event) => setDraft({ ...draft, workingLocationProperties: { type: event.target.value } })}><option value="homeOffice">Home</option><option value="officeLocation">Office</option><option value="customLocation">Custom</option></select></label>
+          <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary"><span>Location</span><Select aria-label="Working location type" className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary" value={locationType} onValueChange={(value) => setDraft({ ...draft, workingLocationProperties: { type: value } })}><SelectItem value="homeOffice">Home</SelectItem><SelectItem value="officeLocation">Office</SelectItem><SelectItem value="customLocation">Custom</SelectItem></Select></label>
           {locationType === "customLocation" ? <Input aria-label="Custom working location" onChange={(event) => setDraft({ ...draft, workingLocationProperties: { type: "customLocation", customLocation: { label: event.target.value } } })} placeholder="Custom location" value={workingLocation.customLocation?.label ?? ""} /> : null}
         </div>
       ) : null}
@@ -1023,27 +1025,27 @@ export function CalendarEventForm({
           <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Date & list</legend>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Date</span>
-            <Input
+            <DateTimeField
               aria-label="Task date"
-              onChange={(event) => setCreateDate(event.target.value)}
+              onValueChange={(value) => setCreateDate(value)}
               type="date"
               value={dateInputValue(draft.startsAt)}
             />
           </label>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>List</span>
-            <select
+            <Select
               aria-label="Task list"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setTaskListId(event.target.value)}
+              onValueChange={(value) => setTaskListId(value)}
               value={taskListId}
             >
               {taskLists.map((taskList) => (
-                <option key={taskList.id} value={taskList.id}>
+                <SelectItem key={taskList.id} value={taskList.id}>
                   {taskList.title}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           </label>
         </fieldset>
       </div>
@@ -1065,27 +1067,27 @@ export function CalendarEventForm({
           <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Birthday</legend>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Date</span>
-            <Input
+            <DateTimeField
               aria-label="Birthday date"
-              onChange={(event) => setCreateDate(event.target.value)}
+              onValueChange={(value) => setCreateDate(value)}
               type="date"
               value={dateInputValue(draft.startsAt)}
             />
           </label>
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Calendar</span>
-            <select
+            <Select
               aria-label="Birthday calendar"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setDraft({ ...draft, calendarId: event.target.value })}
+              onValueChange={(value) => setDraft({ ...draft, calendarId: value })}
               value={draft.calendarId}
             >
               {calendars.map((calendar) => (
-                <option key={calendar.id} value={calendar.id}>
+                <SelectItem key={calendar.id} value={calendar.id}>
                   {calendar.title}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           </label>
           <EventColorSelect
             draft={draft}
@@ -1098,21 +1100,21 @@ export function CalendarEventForm({
               <Bell aria-hidden="true" size={13} />
               Reminder
             </span>
-            <select
+            <Select
               aria-label="Birthday reminder"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setDraft({ ...draft, reminderMinutes: event.target.value, remindersUseDefault: false, reminders: event.target.value === "" ? [] : [{ method: "popup", minutes: Number(event.target.value) }] })}
+              onValueChange={(value) => setDraft({ ...draft, reminderMinutes: value, remindersUseDefault: false, reminders: value === "" ? [] : [{ method: "popup", minutes: Number(value) }] })}
               value={draft.reminderMinutes}
             >
-              <option value="">None</option>
-              <option value="0">At start</option>
-              <option value="5">5 minutes before</option>
-              <option value="10">10 minutes before</option>
-              <option value="15">15 minutes before</option>
-              <option value="30">30 minutes before</option>
-              <option value="60">1 hour before</option>
-              <option value="1440">1 day before</option>
-            </select>
+              <SelectItem value="">None</SelectItem>
+              <SelectItem value="0">At start</SelectItem>
+              <SelectItem value="5">5 minutes before</SelectItem>
+              <SelectItem value="10">10 minutes before</SelectItem>
+              <SelectItem value="15">15 minutes before</SelectItem>
+              <SelectItem value="30">30 minutes before</SelectItem>
+              <SelectItem value="60">1 hour before</SelectItem>
+              <SelectItem value="1440">1 day before</SelectItem>
+            </Select>
           </label>
           <MarkdownEditor showControls={false} aria-label="Birthday notes" onValueChange={(notes) => setDraft({ ...draft, notes })} value={draft.notes} />
           <p className="text-[var(--text-xs)] text-text-muted">
@@ -1146,23 +1148,23 @@ export function CalendarEventForm({
           All day
         </label>
         <div className="grid min-w-0 grid-cols-1 gap-2">
-          <Input
+          <DateTimeField
             aria-label="Event starts"
-            onChange={(event) =>
+            onValueChange={(value) =>
               draft.allDay
-                ? setAllDayStart(event.target.value)
-                : setDraft({ ...draft, startsAt: calendarDateTimeLocalInputToIso(event.target.value, sourceTimeZone) })
+                ? setAllDayStart(value)
+                : setDraft({ ...draft, startsAt: calendarDateTimeLocalInputToIso(value, sourceTimeZone) })
             }
             type={draft.allDay ? "date" : "datetime-local"}
             value={draft.allDay ? dateInputValue(draft.startsAt) : calendarDateTimeLocalInputValue(draft.startsAt, sourceTimeZone)}
           />
-          <Input
+          <DateTimeField
             aria-label="Event ends"
             min={draft.allDay ? dateInputValue(draft.startsAt) : undefined}
-            onChange={(event) =>
+            onValueChange={(value) =>
               draft.allDay
-                ? setAllDayEnd(event.target.value)
-                : setDraft({ ...draft, endsAt: calendarDateTimeLocalInputToIso(event.target.value, sourceTimeZone) })
+                ? setAllDayEnd(value)
+                : setDraft({ ...draft, endsAt: calendarDateTimeLocalInputToIso(value, sourceTimeZone) })
             }
             type={draft.allDay ? "date" : "datetime-local"}
             value={draft.allDay ? allDayEndInputValue(draft.endsAt) : calendarDateTimeLocalInputValue(draft.endsAt, sourceTimeZone)}
@@ -1231,21 +1233,21 @@ export function CalendarEventForm({
           <div className="grid min-w-0 grid-cols-1 gap-2">
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Frequency</span>
-            <select
+            <Select
               aria-label="Event repeat frequency"
               className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) =>
-                setRepeatFrequency(event.target.value as CalendarRepeatFrequency)
+              onValueChange={(value) =>
+                setRepeatFrequency(value as CalendarRepeatFrequency)
               }
               value={draft.repeatFrequency}
             >
-              <option value="none">Does not repeat</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-              <option value="custom">Custom</option>
-            </select>
+              <SelectItem value="none">Does not repeat</SelectItem>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="yearly">Yearly</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </Select>
           </label>
           </div>
         ) : null}
@@ -1261,22 +1263,22 @@ export function CalendarEventForm({
                 type="number"
                 value={draft.repeatInterval}
               />
-              <select
+              <Select
                 aria-label="Repeat unit"
                 className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onChange={(event) =>
+                onValueChange={(value) =>
                   setDraft({
                     ...draft,
-                    repeatCustomFrequency: event.target.value as CalendarEventDraft["repeatCustomFrequency"]
+                    repeatCustomFrequency: value as CalendarEventDraft["repeatCustomFrequency"]
                   })
                 }
                 value={draft.repeatCustomFrequency}
               >
-                <option value="daily">day</option>
-                <option value="weekly">week</option>
-                <option value="monthly">month</option>
-                <option value="yearly">year</option>
-              </select>
+                <SelectItem value="daily">day</SelectItem>
+                <SelectItem value="weekly">week</SelectItem>
+                <SelectItem value="monthly">month</SelectItem>
+                <SelectItem value="yearly">year</SelectItem>
+              </Select>
             </div>
             {draft.repeatCustomFrequency === "weekly" ? (
               <div className="grid gap-2">
@@ -1307,15 +1309,15 @@ export function CalendarEventForm({
               <div className="grid gap-2">
                 <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
                   <span>Monthly rule</span>
-                  <select
+                  <Select
                     aria-label="Monthly repeat rule"
                     className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary"
-                    onChange={(event) => setDraft({ ...draft, repeatMonthlyMode: event.target.value as CalendarEventDraft["repeatMonthlyMode"] })}
+                    onValueChange={(value) => setDraft({ ...draft, repeatMonthlyMode: value as CalendarEventDraft["repeatMonthlyMode"] })}
                     value={draft.repeatMonthlyMode}
                   >
-                    <option value="dayOfMonth">Day of month</option>
-                    <option value="weekday">Weekday position</option>
-                  </select>
+                    <SelectItem value="dayOfMonth">Day of month</SelectItem>
+                    <SelectItem value="weekday">Weekday position</SelectItem>
+                  </Select>
                 </label>
                 {draft.repeatMonthlyMode === "dayOfMonth" ? (
                   <Input
@@ -1328,30 +1330,30 @@ export function CalendarEventForm({
                   />
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
-                    <select
+                    <Select
                       aria-label="Repeat weekday position"
                       className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary"
-                      onChange={(event) => setDraft({ ...draft, repeatSetPos: event.target.value })}
+                      onValueChange={(value) => setDraft({ ...draft, repeatSetPos: value })}
                       value={draft.repeatSetPos}
                     >
-                      <option value="1">First</option>
-                      <option value="2">Second</option>
-                      <option value="3">Third</option>
-                      <option value="4">Fourth</option>
-                      <option value="-1">Last</option>
-                    </select>
-                    <select
+                      <SelectItem value="1">First</SelectItem>
+                      <SelectItem value="2">Second</SelectItem>
+                      <SelectItem value="3">Third</SelectItem>
+                      <SelectItem value="4">Fourth</SelectItem>
+                      <SelectItem value="-1">Last</SelectItem>
+                    </Select>
+                    <Select
                       aria-label="Repeat weekday"
                       className="h-8 rounded-hcbMd border border-border bg-bg-tertiary px-2 text-[var(--text-base)] text-text-primary"
-                      onChange={(event) => setDraft({ ...draft, repeatWeekdays: [event.target.value as CalendarRepeatWeekday] })}
+                      onValueChange={(value) => setDraft({ ...draft, repeatWeekdays: [value as CalendarRepeatWeekday] })}
                       value={draft.repeatWeekdays[0] ?? repeatWeekdayForIso(draft.startsAt)}
                     >
                       {repeatWeekdays.map((weekday) => (
-                        <option key={weekday.id} value={weekday.id}>
+                        <SelectItem key={weekday.id} value={weekday.id}>
                           {weekday.id}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 )}
               </div>
@@ -1377,10 +1379,10 @@ export function CalendarEventForm({
                   type="radio"
                 />
                 <span>On</span>
-                <Input
+                <DateTimeField
                   aria-label="Repeat end date"
                   disabled={draft.repeatEndMode !== "on"}
-                  onChange={(event) => setDraft({ ...draft, repeatEndsOn: event.target.value })}
+                  onValueChange={(value) => setDraft({ ...draft, repeatEndsOn: value })}
                   type="date"
                   value={draft.repeatEndsOn}
                 />
@@ -1479,18 +1481,18 @@ export function CalendarEventForm({
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Calendar</legend>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Source</span>
-          <select
+          <Select
             aria-label="Event calendar"
             className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => setDraft({ ...draft, calendarId: event.target.value })}
+            onValueChange={(value) => setDraft({ ...draft, calendarId: value })}
             value={draft.calendarId}
           >
             {calendars.map((calendar) => (
-              <option key={calendar.id} value={calendar.id}>
+              <SelectItem key={calendar.id} value={calendar.id}>
                 {calendar.title}
-              </option>
+              </SelectItem>
             ))}
-          </select>
+          </Select>
         </label>
         <InspectorReveal open={showMoreOptions}><EventColorSelect
           draft={draft}

@@ -1,3 +1,4 @@
+import { DateTimeField } from "@renderer/components/DateTimeField";
 import * as Popover from "@radix-ui/react-popover";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useRef, useState } from "react";
@@ -58,7 +59,7 @@ export function CalendarHeader({
       <Popover.Root>
         <Popover.Trigger asChild><button className="calendar-range" aria-label="Choose calendar date"><span>{calendarMonthTitle(headingDate)}</span></button></Popover.Trigger>
         <Popover.Portal><Popover.Content className="calendar-menu calendar-date-menu" align="start" sideOffset={8}>
-          <label>Go to date<input aria-label="Go to date" type="date" value={anchorDate.slice(0, 10)} onChange={(e) => { if (e.target.value) onSelectDate(e.target.value); }} /></label>
+          <label>Go to date<DateTimeField aria-label="Go to date" type="date" value={anchorDate.slice(0, 10)} onValueChange={(value) => { if (value) onSelectDate(value); }} /></label>
           <Popover.Close asChild><Button variant="ghost">Done</Button></Popover.Close>
         </Popover.Content></Popover.Portal>
       </Popover.Root>

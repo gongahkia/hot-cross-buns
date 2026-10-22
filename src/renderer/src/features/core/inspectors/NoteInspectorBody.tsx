@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import {
   forwardRef,
   useCallback,
@@ -212,18 +213,18 @@ export const NoteInspectorBody = forwardRef<NoteInspectorBodyHandle, NoteInspect
           {createMode && templates.length > 0 ? (
             <label className="grid gap-1 text-[var(--text-sm)] font-medium text-text-secondary">
               Template
-              <select
+              <Select
                 aria-label="Note template"
                 className="h-9 rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onChange={(event) => applyTemplate(event.currentTarget.value)}
+                onValueChange={(value) => applyTemplate(value)}
                 value={selectedTemplateId}
               >
                 {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
+                  <SelectItem key={template.id} value={template.id}>
                     {template.name}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
+              </Select>
             </label>
           ) : null}
 

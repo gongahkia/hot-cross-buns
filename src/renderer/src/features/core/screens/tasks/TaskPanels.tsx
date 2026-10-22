@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import type { SavedTaskView } from "@shared/ipc/contracts";
 import type { Dispatch, SetStateAction } from "react";
 import {
@@ -241,18 +242,18 @@ export function BulkTaskSelectionBanner({
     <StatusBanner
       action={
         <div className="flex items-center gap-2">
-          <select
+          <Select
             aria-label="Bulk move list"
             className="h-7 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => onSelectMoveList(event.target.value)}
+            onValueChange={(value) => onSelectMoveList(value)}
             value={bulkMoveTargetListId}
           >
             {source.taskLists.map((taskList) => (
-              <option key={taskList.id} value={taskList.id}>
+              <SelectItem key={taskList.id} value={taskList.id}>
                 {taskList.title}
-              </option>
+              </SelectItem>
             ))}
-          </select>
+          </Select>
           <Button
             disabled={!bulkMoveTargetListId || source.taskMutationPending}
             onClick={onMoveSelectedTasks}

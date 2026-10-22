@@ -62,7 +62,7 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
 
     // Respect an editor's own autofocus and complete the fallback handoff
     // before paint, so immediate typing/Escape cannot land behind the dialog.
-    if (node.contains(document.activeElement) || document.activeElement?.closest(".inspector-item-menu")) return;
+    if (node.contains(document.activeElement) || document.activeElement?.closest(".inspector-item-menu, .app-select-content, .date-picker")) return;
     const focusable = node.querySelector<HTMLElement>('input:not([disabled]),textarea:not([disabled]),select:not([disabled])') ??
       node.querySelector<HTMLElement>('button:not([disabled]),[tabindex]:not([tabindex="-1"]),a[href]');
     (focusable ?? node).focus();
@@ -71,6 +71,13 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
   const requestClose = useCallback(() => {
     void close();
   }, [close]);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    const commit = () => queueMicrotask(() => { void current.onSave?.(); });
+    node?.addEventListener("hcb:field-commit", commit);
+    return () => node?.removeEventListener("hcb:field-commit", commit);
+  }, [current.onSave]);
 
   useLayoutEffect(() => {
     if (!isOpen) return;

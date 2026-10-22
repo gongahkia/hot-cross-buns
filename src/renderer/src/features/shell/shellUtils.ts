@@ -26,6 +26,7 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
   const tagName = target.tagName.toLowerCase();
   return (
     target.isContentEditable ||
+    Boolean(target.closest('[role="combobox"], [role="listbox"], [role="menu"], .date-picker')) ||
     tagName === "input" ||
     tagName === "select" ||
     tagName === "textarea"

@@ -1,3 +1,5 @@
+import { Select, SelectItem } from "@renderer/components/Select";
+import { DateTimeField } from "@renderer/components/DateTimeField";
 import { cachedDateTimeFormat } from "@shared/zonedTime";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import {
@@ -232,7 +234,7 @@ export function GoogleTasksBoard({
             <Button aria-pressed={presentation === "list"} onClick={() => setPresentation("list")} size="sm" variant={presentation === "list" ? "secondary" : "ghost"}>List</Button>
             <Button aria-pressed={presentation === "board"} onClick={() => setPresentation("board")} size="sm" variant={presentation === "board" ? "secondary" : "ghost"}>Board</Button>
           </div>
-          {presentation === "list" && selectedView.listIds === null && selectedView.mode !== "starred" ? <select aria-label="Sort tasks" className="max-w-28 rounded-md border border-border bg-bg-primary px-2 text-xs" value={allSort} onChange={(event) => setAllSort(event.target.value as TaskListSort)}>{Object.entries(sortLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}
+          {presentation === "list" && selectedView.listIds === null && selectedView.mode !== "starred" ? <Select aria-label="Sort tasks" className="max-w-28 rounded-md border border-border bg-bg-primary px-2 text-xs" value={allSort} onValueChange={(value) => setAllSort(value as TaskListSort)}>{Object.entries(sortLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</Select> : null}
           <Button aria-pressed={showBulkSelection} onClick={() => setBulkModeActive((active) => !active)} size="sm" variant="ghost">Select tasks</Button>
           {effectiveSidebarCollapsed ? <Button onClick={onCreateList} size="sm" variant="ghost">New list</Button> : null}
           <Button onClick={() => onCreateTask(selectedView.listIds?.length === 1 ? selectedView.listIds[0] : undefined)} size="sm" variant="primary">New task</Button>
@@ -537,10 +539,10 @@ function BoardBulkRescheduleBanner({
       <Button disabled={pending} onClick={() => onReschedule(dateOnlyFromLocalOffset(7))} size="sm" variant="secondary">
         Next week
       </Button>
-      <Input
+      <DateTimeField
         aria-label="Bulk due date"
         className="h-8 w-36"
-        onChange={(event) => onCustomDueDateChange(event.target.value)}
+        onValueChange={(value) => onCustomDueDateChange(value)}
         type="date"
         value={customDueDate}
       />

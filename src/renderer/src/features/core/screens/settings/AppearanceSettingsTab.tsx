@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import { useEffect, useMemo, useState } from "react";
 import {
   calendarEventColorForTheme,
@@ -251,16 +252,16 @@ export function AppearanceSettingsTab({
           description="Warm white or charcoal surfaces with coral accents. Follow your system appearance or choose a mode."
           label="Colour scheme"
         >
-          <select
+          <Select
             aria-label="Theme"
             className={settingsSelectClass}
-            onChange={(event) => updateBaseTheme(event.target.value as SettingsSnapshot["theme"])}
+            onValueChange={(value) => updateBaseTheme(value as SettingsSnapshot["theme"])}
             value={settings.theme}
           >
-            <option value="system">Follow system</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+            <SelectItem value="system">Follow system</SelectItem>
+            <SelectItem value="light">Light</SelectItem>
+            <SelectItem value="dark">Dark</SelectItem>
+          </Select>
         </SettingsControlRow>
         <SettingsControlRow
           description="Use a local image as the app backdrop and infer the palette from its pixels."
@@ -355,16 +356,16 @@ export function AppearanceSettingsTab({
                   </label>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <select
+                  <Select
                     aria-label="Crop rectangle"
                     className={settingsSelectClass}
-                    onChange={(event) => setCropAspect(event.currentTarget.value as CropAspect)}
+                    onValueChange={(value) => setCropAspect(value as CropAspect)}
                     value={cropAspect}
                   >
                     {cropAspects.map((aspect) => (
-                      <option key={aspect.value} value={aspect.value}>{aspect.label}</option>
+                      <SelectItem key={aspect.value} value={aspect.value}>{aspect.label}</SelectItem>
                     ))}
-                  </select>
+                  </Select>
                   <div className="flex items-center gap-2">
                     <Button onClick={() => void selectCustomBackground(pendingBackground.file)} variant="ghost">
                       Use full image
@@ -470,45 +471,45 @@ export function AppearanceSettingsTab({
           </div>
         </SettingsControlRow>
         <SettingsControlRow label="UI font">
-          <select
+          <Select
             aria-label="Font family"
             className={settingsSelectClass}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateSettings({
-                uiFontName: event.target.value.trim() ? event.target.value : null
+                uiFontName: value.trim() ? value : null
               })
             }
             value={settings.uiFontName ?? ""}
           >
-            <option value="">System</option>
+            <SelectItem value="">System</SelectItem>
             {availableFontFamilies.map((fontName) => (
-              <option key={fontName} value={fontName}>
+              <SelectItem key={fontName} value={fontName}>
                 {fontName}
-              </option>
+              </SelectItem>
             ))}
-          </select>
+          </Select>
         </SettingsControlRow>
         <SettingsControlRow
           description="Used for notes and structured-text buffers, code, diagnostics, and keyboard shortcuts."
           label="Monospace and buffer font"
         >
-          <select
+          <Select
             aria-label="Monospace and buffer font family"
             className={settingsSelectClass}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateSettings({
-                uiMonoFontName: event.target.value.trim() ? event.target.value : null
+                uiMonoFontName: value.trim() ? value : null
               })
             }
             value={settings.uiMonoFontName ?? ""}
           >
-            <option value="">System monospace</option>
+            <SelectItem value="">System monospace</SelectItem>
             {availableFontFamilies.map((fontName) => (
-              <option key={fontName} value={fontName}>
+              <SelectItem key={fontName} value={fontName}>
                 {fontName}
-              </option>
+              </SelectItem>
             ))}
-          </select>
+          </Select>
         </SettingsControlRow>
       </SettingsGroup>
 
@@ -527,18 +528,18 @@ export function AppearanceSettingsTab({
               >
                 <LoadingIndicator size={18} surface={surface.id} />
               </span>
-              <select
+              <Select
                 aria-label={`${surface.label} loading indicator`}
                 className={settingsSelectClass}
-                onChange={(event) =>
-                  updateLoadingIndicator(surface.id, event.currentTarget.value as LoadingIndicatorVariant)
+                onValueChange={(value) =>
+                  updateLoadingIndicator(surface.id, value as LoadingIndicatorVariant)
                 }
                 value={loadingIndicators[surface.id]}
               >
                 {loadingIndicatorVariants.map((variant) => (
-                  <option key={variant} value={variant}>{loadingIndicatorLabel(variant)}</option>
+                  <SelectItem key={variant} value={variant}>{loadingIndicatorLabel(variant)}</SelectItem>
                 ))}
-              </select>
+              </Select>
             </div>
           </SettingsControlRow>
         ))}
@@ -610,23 +611,23 @@ export function AppearanceSettingsTab({
           return (
             <SettingsControlRow key={surface.id} label={surface.label}>
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                <select
+                <Select
                   aria-label={`${surface.label} font`}
                   className={settingsSelectClass}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     updatePerSurfaceFont(surface.id, {
-                      uiFontName: event.target.value.trim() ? event.target.value : null
+                      uiFontName: value.trim() ? value : null
                     })
                   }
                   value={override?.uiFontName ?? ""}
                 >
-                  <option value="">(inherit)</option>
+                  <SelectItem value="">(inherit)</SelectItem>
                   {availableFontFamilies.map((fontName) => (
-                    <option key={fontName} value={fontName}>
+                    <SelectItem key={fontName} value={fontName}>
                       {fontName}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
+                </Select>
                 <Input
                   aria-label={`${surface.label} size`}
                   className="w-20"
@@ -741,20 +742,20 @@ export function AppearanceSettingsTab({
           description="Controls hour row height in day, multi-day, and week views."
           label="Calendar timeline density"
         >
-          <select
+          <Select
             aria-label="Calendar timeline density"
             className={settingsSelectClass}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateSettings({
-                calendarTimelineDensity: event.target.value as SettingsSnapshot["calendarTimelineDensity"]
+                calendarTimelineDensity: value as SettingsSnapshot["calendarTimelineDensity"]
               })
             }
             value={settings.calendarTimelineDensity}
           >
-            <option value="compact">Compact</option>
-            <option value="comfortable">Comfortable</option>
-            <option value="spacious">Spacious</option>
-          </select>
+            <SelectItem value="compact">Compact</SelectItem>
+            <SelectItem value="comfortable">Comfortable</SelectItem>
+            <SelectItem value="spacious">Spacious</SelectItem>
+          </Select>
         </SettingsControlRow>
         <SettingsSwitch
           checked={settings.quickCreateExpandedByDefault}

@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
 import { useState } from "react";
 import { Bell, Download, Play, Volume2 } from "lucide-react";
@@ -190,47 +191,47 @@ export function AlertsSettingsTab({
         </SettingsControlRow>
         <SettingsControlRow description="Calendar is the default icon." label="Menu bar icon">
           <div className="grid justify-items-end gap-2">
-            <select
+            <Select
               aria-label="Calendar menu bar icon"
               className={settingsSelectClass}
-              onChange={(event) => {
-                if (event.target.value === "custom") {
+              onValueChange={(value) => {
+                if (value === "custom") {
                   setCustomIconOpen(true);
                   return;
                 }
 
                 updateSettings({
-                  menuBarCalendarIconId: event.target.value,
+                  menuBarCalendarIconId: value,
                   menuBarIconName: "calendar"
                 });
               }}
               value={selectedMenuBarIconId(settings)}
             >
-              <option value="calendar">Calendar</option>
+              <SelectItem value="calendar">Calendar</SelectItem>
               {settings.customMenuBarIcons.map((icon) => (
-                <option key={icon.id} value={icon.id}>
+                <SelectItem key={icon.id} value={icon.id}>
                   {icon.name}
-                </option>
+                </SelectItem>
               ))}
-              <option value="custom">Custom +</option>
-            </select>
+              <SelectItem value="custom">Custom +</SelectItem>
+            </Select>
           </div>
         </SettingsControlRow>
         <SettingsControlRow label="Calendar done icon">
-          <select
+          <Select
             aria-label="Calendar done icon"
             className={settingsSelectClass}
-            onChange={(event) =>
+            onValueChange={(value) =>
               updateSettings({
-                menuBarCalendarDoneMode: event.target.value as SettingsSnapshot["menuBarCalendarDoneMode"]
+                menuBarCalendarDoneMode: value as SettingsSnapshot["menuBarCalendarDoneMode"]
               })
             }
             value={settings.menuBarCalendarDoneMode}
           >
-            <option value="visibleTodayDone">Visible today done</option>
-            <option value="tasksOnly">Tasks only</option>
-            <option value="neverAutoSwitch">Never auto-switch</option>
-          </select>
+            <SelectItem value="visibleTodayDone">Visible today done</SelectItem>
+            <SelectItem value="tasksOnly">Tasks only</SelectItem>
+            <SelectItem value="neverAutoSwitch">Never auto-switch</SelectItem>
+          </Select>
         </SettingsControlRow>
         <SettingsSwitch
           checked={settings.showMenuBarBadge}
@@ -347,18 +348,18 @@ function SoundPicker({
 }): JSX.Element {
   return (
     <div className="flex items-center gap-2">
-      <select
+      <Select
         aria-label="Completion sound"
         className={settingsSelectClass}
-        onChange={(event) => onChange(event.target.value as SettingsSnapshot["taskCompletionSoundId"])}
+        onValueChange={(value) => onChange(value as SettingsSnapshot["taskCompletionSoundId"])}
         value={value}
       >
         {soundOptions.map((option) => (
-          <option key={option.value} value={option.value}>
+          <SelectItem key={option.value} value={option.value}>
             {option.label}
-          </option>
+          </SelectItem>
         ))}
-      </select>
+      </Select>
       <Button onClick={onPreview} variant="ghost">
         <Play aria-hidden="true" size={14} />
         Preview

@@ -1,3 +1,4 @@
+import { chooseOptionValue } from "../smoke/controls";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
 import { existsSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -886,13 +887,13 @@ test.describe.serial("live Google account smoke", () => {
       const quickAdd = page.getByRole("dialog", { name: "Quick Add" });
       await expect(quickAdd).toBeVisible();
       await quickAdd.getByLabel("Quick add text").fill(`${eventTitle} tomorrow 10:00 AM - 10:30 AM tz Asia/Singapore`);
-      await quickAdd.getByLabel("Quick add calendar").selectOption(calendarId);
+      await chooseOptionValue(page, quickAdd.getByLabel("Quick add calendar"), calendarId);
       await quickAdd.getByRole("button", { name: "Add", exact: true }).click();
 
       const eventInspector = page.getByTestId("inspector-shell");
       await expect(eventInspector).toBeVisible();
       await expect(eventInspector.getByLabel("Event title")).toHaveValue(eventTitle);
-      await expect(eventInspector.getByLabel("Event calendar")).toHaveValue(calendarId);
+      await expect(eventInspector.getByLabel("Event calendar")).toHaveAttribute("data-value", calendarId);
       await eventInspector.getByRole("button", { name: "Save", exact: true }).click();
       await expect(eventInspector).toBeHidden();
 
@@ -919,13 +920,13 @@ test.describe.serial("live Google account smoke", () => {
       await expect(quickAdd).toBeVisible();
       await quickAdd.getByRole("tab", { name: "Task", exact: true }).click();
       await quickAdd.getByLabel("Quick add text").fill(`${taskTitle} tomorrow`);
-      await quickAdd.getByLabel("Quick add task list").selectOption(taskListId);
+      await chooseOptionValue(page, quickAdd.getByLabel("Quick add task list"), taskListId);
       await quickAdd.getByRole("button", { name: "Add", exact: true }).click();
 
       const taskInspector = page.getByTestId("inspector-shell");
       await expect(taskInspector).toBeVisible();
       await expect(taskInspector.getByLabel("Task title")).toHaveValue(taskTitle);
-      await expect(taskInspector.getByLabel("Task list")).toHaveValue(taskListId);
+      await expect(taskInspector.getByLabel("Task list")).toHaveAttribute("data-value", taskListId);
       await taskInspector.getByRole("button", { name: "Save", exact: true }).click();
 
       await expect.poll(async () => page.evaluate(async ({ taskListId, taskTitle }) => {

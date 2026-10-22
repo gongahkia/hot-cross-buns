@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import type {
   SettingsRecoveryActionRequest,
   SettingsSnapshot,
@@ -81,18 +82,18 @@ export function GeneralSettingsTab({
           icon={Languages}
           label={t("settings.appLanguage")}
         >
-          <select
+          <Select
             aria-label={t("settings.appLanguage")}
             className={settingsSelectClass}
-            onChange={(event) =>
-              updateSettings({ appLanguage: event.target.value as SettingsSnapshot["appLanguage"] })
+            onValueChange={(value) =>
+              updateSettings({ appLanguage: value as SettingsSnapshot["appLanguage"] })
             }
             value={settings.appLanguage}
           >
             {languageOptions(t).map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
             ))}
-          </select>
+          </Select>
         </SettingsControlRow>
       </SettingsGroup>
 
@@ -130,56 +131,56 @@ export function GeneralSettingsTab({
           description="Manual syncs only when you refresh. Balanced refreshes every 5 minutes; Near real-time every 30 seconds. Both automatic modes send edits shortly after you make them."
           label="Mode"
         >
-          <select
+          <Select
             aria-label="Sync mode"
             className={settingsSelectClass}
-            onChange={(event) =>
-              updateSettings({ syncMode: event.target.value as SettingsSnapshot["syncMode"] })
+            onValueChange={(value) =>
+              updateSettings({ syncMode: value as SettingsSnapshot["syncMode"] })
             }
             value={settings.syncMode}
           >
-            <option value="manual">Manual</option>
-            <option value="balanced">Balanced</option>
-            <option value="near-real-time">Near real-time</option>
-          </select>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="balanced">Balanced</SelectItem>
+            <SelectItem value="near-real-time">Near real-time</SelectItem>
+          </Select>
         </SettingsControlRow>
         <SettingsControlRow label="Keep past events">
-          <select
+          <Select
             aria-label="Keep past events"
             className={settingsSelectClass}
-            onChange={(event) => {
-              if (event.target.value !== "custom") {
-                updateSettings({ eventRetentionDaysBack: Number(event.target.value) });
+            onValueChange={(value) => {
+              if (value !== "custom") {
+                updateSettings({ eventRetentionDaysBack: Number(value) });
               }
             }}
             value={retentionPresetValue(settings.eventRetentionDaysBack)}
           >
             {retentionOptions.map((option) => (
-              <option key={option.value} value={option.value}>
+              <SelectItem key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </SelectItem>
             ))}
-            <option value="custom">Custom</option>
-          </select>
+            <SelectItem value="custom">Custom</SelectItem>
+          </Select>
         </SettingsControlRow>
         <SettingsControlRow label="Keep completed tasks">
-          <select
+          <Select
             aria-label="Keep completed tasks"
             className={settingsSelectClass}
-            onChange={(event) => {
-              if (event.target.value !== "custom") {
-                updateSettings({ completedTaskRetentionDaysBack: Number(event.target.value) });
+            onValueChange={(value) => {
+              if (value !== "custom") {
+                updateSettings({ completedTaskRetentionDaysBack: Number(value) });
               }
             }}
             value={retentionPresetValue(settings.completedTaskRetentionDaysBack)}
           >
             {retentionOptions.map((option) => (
-              <option key={option.value} value={option.value}>
+              <SelectItem key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </SelectItem>
             ))}
-            <option value="custom">Custom</option>
-          </select>
+            <SelectItem value="custom">Custom</SelectItem>
+          </Select>
         </SettingsControlRow>
         <SettingsControlRow
           description="Applies the same retention window to past events and completed tasks."
@@ -194,16 +195,16 @@ export function GeneralSettingsTab({
               type="number"
               value={customRetentionAmount}
             />
-            <select
+            <Select
               aria-label="Custom retention unit"
               className={settingsSelectClass}
-              onChange={(event) => setCustomRetentionUnit(event.target.value as "days" | "months" | "years")}
+              onValueChange={(value) => setCustomRetentionUnit(value as "days" | "months" | "years")}
               value={customRetentionUnit}
             >
-              <option value="days">Days</option>
-              <option value="months">Months</option>
-              <option value="years">Years</option>
-            </select>
+              <SelectItem value="days">Days</SelectItem>
+              <SelectItem value="months">Months</SelectItem>
+              <SelectItem value="years">Years</SelectItem>
+            </Select>
             <Button onClick={applyCustomRetention} variant="primary">Apply</Button>
           </div>
         </SettingsControlRow>

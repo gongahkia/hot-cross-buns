@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEventRecurrence, EventTemplate, TaskTemplate } from "@shared/ipc/contracts";
 import { CalendarPlus, CheckSquare, FileText, Gift, Search, X, type LucideIcon } from "lucide-react";
@@ -521,35 +522,35 @@ export function QuickAddDialog({
           />
 
           {mode === "task" && source.settings.taskTemplates.length > 0 ? (
-            <select
+            <Select
               aria-label="Task template"
               className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setSelectedTaskTemplateId(event.target.value)}
+              onValueChange={(value) => setSelectedTaskTemplateId(value)}
               value={selectedTaskTemplateId}
             >
-              <option value="">No template</option>
+              <SelectItem value="">No template</SelectItem>
               {source.settings.taskTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
+                <SelectItem key={template.id} value={template.id}>
                   {template.name}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           ) : null}
 
           {mode === "event" && source.settings.eventTemplates.length > 0 ? (
-            <select
+            <Select
               aria-label="Event template"
               className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => setSelectedEventTemplateId(event.target.value)}
+              onValueChange={(value) => setSelectedEventTemplateId(value)}
               value={selectedEventTemplateId}
             >
-              <option value="">No template</option>
+              <SelectItem value="">No template</SelectItem>
               {source.settings.eventTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
+                <SelectItem key={template.id} value={template.id}>
                   {template.name}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
           ) : null}
 
           {activeTemplatePrompts.length > 0 || activeTemplateUsesClipboard || templateError ? (
@@ -597,45 +598,45 @@ export function QuickAddDialog({
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
             {mode === "event" || mode === "birthday" ? (
-              <select
+              <Select
                 aria-label="Quick add calendar"
                 className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onChange={(event) => setSelectedCalendarId(event.target.value)}
+                onValueChange={(value) => setSelectedCalendarId(value)}
                 value={effectiveCalendarId}
               >
                 {source.calendarSources.map((calendar) => (
-                  <option key={calendar.id} value={calendar.id}>
+                  <SelectItem key={calendar.id} value={calendar.id}>
                     {calendar.title}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
+              </Select>
             ) : mode === "note" ? (
-              <select
+              <Select
                 aria-label="Quick add note list"
                 className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onChange={(event) => setSelectedNoteListId(event.target.value)}
+                onValueChange={(value) => setSelectedNoteListId(value)}
                 value={effectiveNoteListId}
               >
-                {source.noteLists.length === 0 ? <option value="">Notes</option> : null}
+                {source.noteLists.length === 0 ? <SelectItem value="">Notes</SelectItem> : null}
                 {source.noteLists.map((list) => (
-                  <option key={list.id} value={list.id}>
+                  <SelectItem key={list.id} value={list.id}>
                     {list.title}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
+              </Select>
             ) : (
-              <select
+              <Select
                 aria-label="Quick add task list"
                 className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                onChange={(event) => setSelectedTaskListId(event.target.value)}
+                onValueChange={(value) => setSelectedTaskListId(value)}
                 value={effectiveTaskListId}
               >
                 {source.taskLists.map((list) => (
-                  <option key={list.id} value={list.id}>
+                  <SelectItem key={list.id} value={list.id}>
                     {list.title}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
+              </Select>
             )}
             <div className="flex items-center gap-2">
               <Button onClick={onClose} variant="ghost">

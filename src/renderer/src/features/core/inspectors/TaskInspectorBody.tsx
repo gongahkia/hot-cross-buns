@@ -1,3 +1,5 @@
+import { Select, SelectItem } from "@renderer/components/Select";
+import { DateTimeField } from "@renderer/components/DateTimeField";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
@@ -360,27 +362,27 @@ export function TaskInspectorBody({
       />
       <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
         <span>List</span>
-        <select
+        <Select
           aria-label="Task list"
           className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           disabled={source.taskLists.length === 0}
-          onChange={(event) => patchDraft({ listId: event.target.value })}
+          onValueChange={(value) => patchDraft({ listId: value })}
           value={dirty.value.listId}
         >
-          {source.taskLists.length === 0 ? <option value="">No lists available</option> : null}
+          {source.taskLists.length === 0 ? <SelectItem value="">No lists available</SelectItem> : null}
           {source.taskLists.map((taskList) => (
-            <option key={taskList.id} value={taskList.id}>
+            <SelectItem key={taskList.id} value={taskList.id}>
               {taskList.title}
-            </option>
+            </SelectItem>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Due</span>
-          <Input
+          <DateTimeField
             aria-label="Task due date"
-            onChange={(event) => patchDraft({ dueDate: event.target.value })}
+            onValueChange={(value) => patchDraft({ dueDate: value })}
             type="date"
             value={dirty.value.dueDate}
           />
@@ -390,17 +392,17 @@ export function TaskInspectorBody({
         </label>
         <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Priority</span>
-          <select
+          <Select
             aria-label="Task priority"
             className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => patchDraft({ priority: event.target.value as CorePriority })}
+            onValueChange={(value) => patchDraft({ priority: value as CorePriority })}
             value={dirty.value.priority}
           >
-            <option value="none">None</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
+            <SelectItem value="none">None</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+          </Select>
         </label>
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -434,9 +436,9 @@ export function TaskInspectorBody({
           <div className="grid gap-2">
             <label className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
               <span>Snooze until</span>
-              <Input
+              <DateTimeField
                 aria-label="Snooze until"
-                onChange={(event) => patchDraft({ snoozeUntil: localDateTimeInputToIso(event.target.value) })}
+                onValueChange={(value) => patchDraft({ snoozeUntil: localDateTimeInputToIso(value) })}
                 type="datetime-local"
                 value={localDateTimeInputValue(dirty.value.snoozeUntil)}
               />
@@ -451,15 +453,15 @@ export function TaskInspectorBody({
           <div className="grid min-w-0 gap-1 text-[var(--text-sm)] text-text-secondary">
             <label htmlFor="task-parent-search">Parent · Search within this list</label>
             <Input id="task-parent-search" aria-label="Find a parent task" value={parents.query} onChange={(event) => parents.setQuery(event.target.value)} placeholder="Find a parent task…" />
-            <select
+            <Select
               aria-label="Parent task"
               className="h-8 min-w-0 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              onChange={(event) => patchDraft({ parentId: event.target.value })}
+              onValueChange={(value) => patchDraft({ parentId: value })}
               value={dirty.value.parentId}
             >
-              <option value="">No parent</option>
-              {parents.items.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
-            </select>
+              <SelectItem value="">No parent</SelectItem>
+              {parents.items.map((task) => <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>)}
+            </Select>
             <p role={parents.error ? "alert" : undefined} className="text-xs text-text-muted">{parents.error ?? (parents.loading ? "Loading parent tasks…" : "Up to 30 matches. Type to find another task.")}</p>
           </div>
           <TagInput onChange={(tags) => patchDraft({ tags })} value={dirty.value.tags ?? []} />

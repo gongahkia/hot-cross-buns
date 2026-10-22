@@ -1,3 +1,4 @@
+import { Select, SelectItem } from "@renderer/components/Select";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
@@ -411,16 +412,16 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
           {activeStep === 4 ? (
             <SetupOption title="Sync mode" icon={RefreshCw}>
-              <select
+              <Select
                 aria-label="Onboarding sync mode"
                 className={onboardingSelectClass}
-                onChange={(event) => setSyncMode(event.target.value as SettingsSnapshot["syncMode"])}
+                onValueChange={(value) => setSyncMode(value as SettingsSnapshot["syncMode"])}
                 value={syncMode}
               >
-                <option value="manual">Manual</option>
-                <option value="balanced">Balanced</option>
-                <option value="near-real-time">Near real time</option>
-              </select>
+                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="balanced">Balanced</SelectItem>
+                <SelectItem value="near-real-time">Near real time</SelectItem>
+              </Select>
             </SetupOption>
           ) : null}
 
