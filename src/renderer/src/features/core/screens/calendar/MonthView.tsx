@@ -77,14 +77,6 @@ export function MonthView({
   const removeMonthPointerListenersRef = useRef<(() => void) | null>(null);
   const todayCellRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      todayCellRef.current?.scrollIntoView?.({ block: "center", inline: "nearest" });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [todayKey, visibleWeekIds]);
-
   useEffect(() => () => removeMonthPointerListenersRef.current?.(), []);
 
   function orderedRange(start: string, end: string): { end: string; start: string } {

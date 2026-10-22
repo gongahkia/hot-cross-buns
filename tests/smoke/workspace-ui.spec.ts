@@ -29,7 +29,7 @@ const openPalette = (page: Page) => page.keyboard.press(process.platform === "da
 const navigate = (page: Page, section: string) => page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: section, exact: true }).click();
 async function capture(page: Page, name: string) {
   mkdirSync("output/ui-review", { recursive: true });
-  await page.locator(".inspector-item-menu").evaluateAll((menus) => Promise.all(menus.flatMap((menu) => menu.getAnimations().map((animation) => animation.finished.catch(() => undefined)))));
+  await page.locator(".inspector-item-menu, .calendar-menu").evaluateAll((menus) => Promise.all(menus.flatMap((menu) => menu.getAnimations().map((animation) => animation.finished.catch(() => undefined)))));
   await page.screenshot({ path: `output/ui-review/${name}.png` });
 }
 
@@ -350,6 +350,7 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     const resize = page.getByRole("separator", { name: "Resize details panel" });
     await resize.focus(); await resize.press("ArrowLeft");
     await expect(resize).toHaveAttribute("aria-valuenow", "404");
+    await resize.click({ trial: true });
     const dividerBounds = (await resize.boundingBox())!;
     await page.mouse.move(dividerBounds.x + 3, dividerBounds.y + 100);
     await page.mouse.down(); await page.mouse.move(dividerBounds.x - 33, dividerBounds.y + 100, { steps: 5 }); await page.mouse.up();
@@ -769,6 +770,7 @@ test("uses nested calendar menus, persists view settings and renders the referen
     await expect(page.getByRole("grid", { name: "Calendar multi-day view" }).getByRole("columnheader")).toHaveCount(12);
     await chooseCalendarView(page, "week");
     await menu(); await page.getByRole("menuitem", { name: "View settings" }).hover();
+    await expect(page.getByRole("menuitemcheckbox", { name: "Weekends", exact: true })).toBeVisible();
     await capture(page, "reference-calendar-view-settings");
     await page.getByRole("menuitemcheckbox", { name: "Weekends", exact: true }).click();
     await page.getByRole("menuitemcheckbox", { name: "Week numbers", exact: true }).click();
@@ -802,5 +804,53 @@ test("uses nested calendar menus, persists view settings and renders the referen
     await menu(); await page.getByRole("menuitem", { name: "View settings" }).hover();
     await page.getByRole("menuitem", { name: "General settings" }).click();
     await expect(page.getByRole("dialog", { name: "Settings", exact: true })).toBeVisible();
+  });
+});
+
+test("creates a time range with the pointer, moves and resizes an event, and retains completion after reload", async () => {
+  await planner(async (page) => {
+    const day = await page.evaluate(async () => {
+      await window.hcb!.settings.update({ eventCompletionDefaultScope: "occurrence" });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      return new Date().toISOString().slice(0, 10);
+    });
+    await chooseCalendarView(page, "day");
+    const grid = page.getByRole("grid", { name: "Calendar day view", exact: true });
+    const slot = grid.getByRole("gridcell", { name: /10 AM$/ });
+    await slot.scrollIntoViewIfNeeded();
+    const bounds = (await slot.boundingBox())!;
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 4);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 48, { steps: 6 });
+    await page.mouse.up();
+    const title = page.getByRole("textbox", { name: "Event title", exact: true });
+    await expect(title).toBeVisible();
+    await title.fill("Pointer planning session");
+    await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+    await expect(page.getByTestId("inspector-shell")).toHaveCount(0);
+    const chip = grid.locator(".calendar-event-chip").filter({ hasText: "Pointer planning session" });
+    await expect(chip).toBeVisible();
+    const read = () => page.evaluate(async (day) => {
+      const result = await window.hcb!.calendar.listEvents({ start: `${day}T00:00:00Z`, end: new Date(Date.parse(`${day}T00:00:00Z`) + 86400000).toISOString() });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.data.items.find(event => event.title === "Pointer planning session");
+    }, day);
+    const original = await read();
+    expect(Date.parse(original.endsAt)).toBeGreaterThan(Date.parse(original.startsAt));
+    await chip.focus(); await chip.press("ArrowDown");
+    await expect.poll(async () => Date.parse((await read()).startsAt)).toBe(Date.parse(original.startsAt) + 15 * 60_000);
+    await chip.hover();
+    const resize = page.getByRole("button", { name: "Resize Pointer planning session end" });
+    await resize.dragTo(grid.getByRole("gridcell", { name: /12 PM$/ }));
+    await expect.poll(async () => (await read()).endsAt).toBe(`${day}T12:00:00.000Z`);
+    await chip.hover();
+    await chip.getByRole("button", { name: "Mark Pointer planning session complete" }).click();
+    await expect(chip).toHaveAttribute("data-completed", "true");
+    await page.reload();
+    await expect(chip).toHaveAttribute("data-completed", "true");
+    await chip.hover();
+    await chip.getByRole("button", { name: "Reopen Pointer planning session" }).click();
+    await expect(chip).toHaveAttribute("data-completed", "false");
+    await expect.poll(async () => (await read()).completedAt).toBe(null);
   });
 });

@@ -52,7 +52,7 @@ export function MiniCalendar({ onSelectDate }: { onSelectDate: (date: string) =>
   }
 
   return (
-    <section className="mini-calendar" aria-label="Mini calendar">
+    <section data-week-numbers={showWeekNumbers} className="mini-calendar" aria-label="Mini calendar">
       <div className="mini-calendar-header">
         <h2 aria-live="polite">{calendarMonthTitle(displayedMonth)}</h2>
         {displayedMonth.slice(0, 7) !== todayKey.slice(0, 7) ? (

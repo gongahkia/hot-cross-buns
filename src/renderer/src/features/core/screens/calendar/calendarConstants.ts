@@ -3,7 +3,7 @@ export const calendarTimelineHours = Array.from({ length: 24 }, (_, index) => in
 export const calendarDaySlotRowHeight = 64;
 export const calendarDayViewportHeight = 520;
 export const calendarWeekColumnWidth = 160;
-export const calendarMonthVisibleChipCount = 3;
+export const calendarMonthVisibleChipCount = 2;
 export const calendarWeekVisibleTimedCount = 4;
 export const calendarWeekVisibleAllDayCount = 2;
 export const calendarTimelineVisibleAllDayCount = 4;

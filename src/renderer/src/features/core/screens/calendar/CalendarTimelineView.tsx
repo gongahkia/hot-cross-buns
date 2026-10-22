@@ -110,12 +110,12 @@ function CalendarTimelineEventChip({
         onToggleEvent={onToggleEvent}
         onToggleTask={onToggleTask}
         showContent={showContent}
-        size="compact"
+        size={event.allDay ? "compact" : "default"}
       />
       {draggable && !event.allDay ? (
         <button
           aria-label={`Resize ${event.title} end`}
-          className="sr-only"
+          className="calendar-event-resize-handle"
           draggable
           onDragStart={(dragEvent) => startCalendarEventResizeDrag(dragEvent, event.id)}
           title={`Resize ${event.title} end`}
@@ -617,7 +617,7 @@ function CalendarTimelineView({
             </div>
           </div>
           <div
-            className="grid grid-cols-[64px_minmax(0,1fr)] border-b border-border"
+            className="calendar-all-day-row sticky top-11 z-[35] grid grid-cols-[64px_minmax(0,1fr)] border-b border-border bg-bg-primary"
             style={{ minHeight: allDayRowHeight }}
           >
             <div className="border-r border-border px-2 py-3 text-[var(--text-xs)] font-semibold text-text-muted">
@@ -927,8 +927,8 @@ function CalendarTimelineView({
                         data-calendar-now-minute={currentPoint.minutes}
                         style={{ top: currentTimeTop }}
                       >
-                        <span className="absolute -left-1.5 -top-1 block size-2.5 rounded-full bg-danger" />
-                        <span className="block h-[3px] bg-danger" />
+                        <span className="absolute -left-1.5 -top-1 block size-2.5 rounded-full bg-accent" />
+                        <span className="block h-[3px] bg-accent" />
                       </div>
                     ) : null}
                   </div>

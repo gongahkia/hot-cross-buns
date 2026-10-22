@@ -19,14 +19,21 @@ export function InspectorSearchHost({ onCommandMenu, onSettings }: { onCommandMe
   const events = useCalendarEventInspector(source);
   const tasks = useTaskInspector(source);
   const query = useRef("");
+  const request = useRef(0);
   const current = useRef(inspector.current);
   current.current = inspector.current;
   useEffect(() => {
     const open = () => inspector.open({ kind: "search", id: "planner-search", title: "Search", body: <InspectorSearchBody initialQuery={() => query.current} onQuery={value => { query.current = value; }} onCommandMenu={onCommandMenu} onOpen={async hit => {
-      if (hit.kind === "task") { await tasks.selectTask(hit.id); return; }
+      const generation = ++request.current;
+      const stillSelected = () => current.current?.kind === "search" && request.current === generation;
+      if (hit.kind === "task") {
+        const opened = await tasks.selectTask(hit.id, stillSelected);
+        if (!opened && stillSelected()) throw new Error("This task could not be opened. Please try again.");
+        return;
+      }
       const result = await window.hcb?.calendar.get({ id: hit.id });
       if (!result?.ok) throw new Error(result?.error.message ?? "This event could not be opened.");
-      if (current.current?.kind !== "search") return;
+      if (!stillSelected()) return;
       const calendar = source.calendarSources.find(item => item.id === result.data.calendarId);
       events.openEdit(stableCalendarEventViewModel(result.data, calendar?.title ?? result.data.calendarTitle, calendar?.timeZone ?? null, calendar?.backgroundColor ?? null, calendar?.foregroundColor ?? null, source.settings.calendarEventColorOverrides, source.activeColorTheme, source.settings.defaultTimeZone, new Map()));
     }} /> });
@@ -41,7 +48,7 @@ function InspectorSearchBody({ initialQuery, onQuery, onOpen, onCommandMenu }: {
   const source = useCoreViewModelSource();
   const { todayKey } = useCalendarNavigation();
   const [query, setQuery] = useState(initialQuery);
-  const search = useLocalSearch(query);
+  const search = useLocalSearch(query, ["calendar", "tasks"]);
   const [hits, setHits] = useState<Hit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +73,7 @@ function InspectorSearchBody({ initialQuery, onQuery, onOpen, onCommandMenu }: {
   const busy = loading || search.state === "loading" || search.state === "stale";
   return <div className="inspector-search">
     <div className="inspector-search-input"><CalendarSearch size={18} /><input ref={input} autoFocus type="search" aria-label="Search events, tasks and birthdays" placeholder="Search events, tasks, birthdays" value={query} onChange={event => { setQuery(event.target.value); onQuery(event.target.value); }} />{query ? <button aria-label="Clear search" onClick={() => { setQuery(""); onQuery(""); input.current?.focus(); }}><X size={16} /></button> : null}</div>
-    {!query.trim() ? <div className="inspector-shortcuts"><h3>Useful shortcuts</h3><button onClick={onCommandMenu}><span>Command menu</span><kbd>{displayAccelerator(source.settings.keybindings["navigation.search"] ?? "CommandOrControl+P")}</kbd></button><p>Find an event, task or birthday by its title or description.</p></div> : <>
+    {!query.trim() ? <div className="inspector-shortcuts"><h3>Useful shortcuts</h3><button onClick={onCommandMenu}><span>Command menu</span><kbd>{displayAccelerator(source.settings.keybindings["commandPalette.open"] ?? source.settings.keybindings["navigation.search"] ?? "")}</kbd></button><p>Find an event, task or birthday by its title or description.</p></div> : <>
       <p className="sr-only" role="status">{busy ? "Searching…" : `${hits.length} results`}</p>
       {error || search.errorMessage ? <p role="alert">{error || search.errorMessage}</p> : null}
       {busy ? <p className="inspector-search-message">Searching…</p> : !hits.length && !error && !search.errorMessage ? <p className="inspector-search-message">No matching events, tasks or birthdays.</p> : null}

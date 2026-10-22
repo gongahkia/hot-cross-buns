@@ -1,6 +1,6 @@
 import * as Popover from "@radix-ui/react-popover";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, PanelRight } from "lucide-react";
 import { Button, IconButton } from "../../../../components/primitives";
 import { useInspector } from "../../../../components/Inspector";
@@ -49,6 +49,7 @@ export function CalendarHeader({
   const inspector = useInspector();
   const weekStart = calendarAddUtcDays(anchorDate, -calendarDateFromIsoDate(anchorDate).getUTCDay());
   const headingDate = activeViewId === "week" ? calendarAddUtcDays(weekStart, 6) : activeViewId === "multiDay" ? calendarAddUtcDays(anchorDate, nav.multiDayCount - 1) : anchorDate;
+  const customDaysPending = useRef(false);
   const [customDays, setCustomDays] = useState(false);
   const [count, setCount] = useState(String(nav.multiDayCount));
   function days(value: number) { nav.setMultiDayCount(value); onSetView("multiDay"); }
@@ -65,11 +66,11 @@ export function CalendarHeader({
       <div className="calendar-header-controls">
         <Menu.Root>
           <Menu.Trigger asChild><button className="calendar-view-select" aria-label="Calendar view">{activeViewId === "multiDay" ? `${nav.multiDayCount} days` : calendarViewLabel(activeViewId)}<ChevronDown size={16} /></button></Menu.Trigger>
-          <Menu.Portal><Menu.Content className="calendar-menu" align="end" sideOffset={8}>
+          <Menu.Portal><Menu.Content className="calendar-menu" align="end" sideOffset={8} onCloseAutoFocus={event => { if (customDaysPending.current) { event.preventDefault(); customDaysPending.current = false; setCustomDays(true); } }}>
             {(["day", "week", "month", "agenda"] as CalendarViewId[]).filter(view => visibleCalendarViewIds.includes(view)).map(view => <Menu.Item key={view} onSelect={() => onSetView(view)} className="calendar-menu-item" role="menuitemradio" aria-checked={view === activeViewId}><Check size={16} style={{ visibility: view === activeViewId ? "visible" : "hidden" }} />{calendarViewLabel(view)}</Menu.Item>)}
             {visibleCalendarViewIds.includes("multiDay") ? <><Menu.Separator className="calendar-menu-separator" /><Menu.Sub>
               <Menu.SubTrigger className="calendar-menu-item calendar-sub-trigger">Number of days<ChevronRight size={16} /></Menu.SubTrigger>
-              <Menu.Portal><Menu.SubContent className="calendar-menu" sideOffset={4}>{[2,3,4,5,6,7,8,9].map(n => <Menu.Item className="calendar-menu-item" key={n} onSelect={() => days(n)}><Check size={16} style={{ visibility: nav.multiDayCount === n && activeViewId === "multiDay" ? "visible" : "hidden" }} />{n} days</Menu.Item>)}<Menu.Separator className="calendar-menu-separator" /><Menu.Item className="calendar-menu-item" onSelect={() => { setCount(String(nav.multiDayCount)); setCustomDays(true); }}>Other…</Menu.Item></Menu.SubContent></Menu.Portal>
+              <Menu.Portal><Menu.SubContent className="calendar-menu" sideOffset={4}>{[2,3,4,5,6,7,8,9].map(n => <Menu.Item className="calendar-menu-item" key={n} onSelect={() => days(n)}><Check size={16} style={{ visibility: nav.multiDayCount === n && activeViewId === "multiDay" ? "visible" : "hidden" }} />{n} days</Menu.Item>)}<Menu.Separator className="calendar-menu-separator" /><Menu.Item className="calendar-menu-item" onSelect={() => { setCount(String(nav.multiDayCount)); customDaysPending.current = true; }}>Other…</Menu.Item></Menu.SubContent></Menu.Portal>
             </Menu.Sub></> : null}
             <Menu.Separator className="calendar-menu-separator" />
             <Menu.Sub><Menu.SubTrigger className="calendar-menu-item calendar-sub-trigger">View settings<ChevronRight size={16} /></Menu.SubTrigger>

@@ -36,6 +36,7 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
 function InspectorPanel({ current, documentMode }: { current: InspectorItem; documentMode: boolean }): JSX.Element {
   const { close, isOpen, backToSearch } = useInspector();
   const present = useIsPresent();
+  const [opened, setOpened] = useState(false);
   const reduceMotion = useReducedMotion() || document.documentElement.dataset.animations === "disabled";
   const dirty = useSyncExternalStore(current?.dirtyState?.subscribe ?? subscribeStaticDirty, current?.dirtyState?.getSnapshot ?? (current?.dirty ? getStaticDirtyTrue : getStaticDirty));
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -109,8 +110,9 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
       <motion.section
         initial={documentMode ? { opacity: 0 } : narrow ? { x: "100%" } : { width: 0, opacity: 0 }}
         animate={documentMode && !narrow ? { opacity: 1 } : { width: resolvedWidth, x: 0, opacity: 1 }}
-        exit={narrow ? { x: "100%" } : { width: 0, opacity: 0 }}
-        transition={{ duration: reduceMotion ? 0 : .24, ease: [.22, 1, .36, 1] }}
+        exit={narrow ? { x: "100%", transition: { duration: reduceMotion ? 0 : .24 } } : { width: 0, opacity: 0, transition: { duration: reduceMotion ? 0 : .24 } }}
+        transition={{ duration: reduceMotion || opened ? 0 : .24, ease: [.22, 1, .36, 1] }}
+        onAnimationComplete={() => setOpened(true)}
         inert={!present}
         data-state={present ? "open" : "closed"}
         aria-label={showHeader ? undefined : current.title}
@@ -137,7 +139,7 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
           aria-valuemin={320}
           aria-valuemax={560}
           aria-valuenow={resolvedWidth}
-          className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-accent/30 focus-visible:bg-accent/30"
+          className="absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize hover:bg-accent/30 focus-visible:bg-accent/30"
           role="separator"
           tabIndex={0}
           onKeyDown={(event) => {

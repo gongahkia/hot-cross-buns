@@ -69,7 +69,7 @@ export interface TaskInspectorController {
     cleanup?: ConvertSourceCleanup
   ) => void;
   selectedTaskId: string | null;
-  selectTask: (taskId: string) => void;
+  selectTask: (taskId: string, shouldOpen?: () => boolean) => Promise<boolean>;
   toggleTask: (taskId: string) => Promise<void>;
 }
 
@@ -294,18 +294,19 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     }
   }
 
-  async function selectTask(taskId: string): Promise<void> {
+  async function selectTask(taskId: string, shouldOpen: () => boolean = () => true): Promise<boolean> {
     if (!await canReplaceTaskInspector()) {
-      return;
+      return false;
     }
 
     const generation = ++readGeneration.current;
     const task = await readTask(taskId);
-    if (!task || generation !== readGeneration.current || !await canReplaceTaskInspector()) return;
+    if (!task || generation !== readGeneration.current || !shouldOpen() || !await canReplaceTaskInspector()) return false;
     setLoadedTask(task);
     setSelectedTaskId(taskId);
     conversionCleanupRef.current = null;
     openTaskInspector(editTaskDraft(task), "edit");
+    return true;
   }
 
   async function duplicateTask(taskId: string): Promise<void> {
