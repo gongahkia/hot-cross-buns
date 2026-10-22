@@ -100,6 +100,7 @@ export function AppShell(): JSX.Element {
       .map((filter) => ({ id: filter.id, name: filter.name, query: filter.query }));
   }, [source.settings.pinnedSavedSearchViewIds, source.settings.savedSearchViews]);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [pendingNavigationAction, setPendingNavigationAction] = useState<{ sectionId: SectionId; run: () => void } | null>(null);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -150,9 +151,19 @@ export function AppShell(): JSX.Element {
     source.dataState !== "offline" &&
     source.dataState !== "error";
 
-  const navigateToSection = useCallback((sectionId: SectionId): void => {
-    void closeInspector().then((allowed) => { if (allowed) paneWorkspace.replaceFocusedWithSection(sectionId); });
+  const navigateToSection = useCallback((sectionId: SectionId, afterNavigate?: () => void): void => {
+    void closeInspector().then((allowed) => {
+      if (!allowed) return;
+      setPendingNavigationAction(afterNavigate ? { sectionId, run: afterNavigate } : null);
+      paneWorkspace.replaceFocusedWithSection(sectionId);
+    });
   }, [paneWorkspace, closeInspector]);
+
+  const handleSectionReady = useCallback((sectionId: SectionId): void => {
+    if (!pendingNavigationAction || pendingNavigationAction.sectionId !== sectionId) return;
+    setPendingNavigationAction(null);
+    pendingNavigationAction.run();
+  }, [pendingNavigationAction]);
 
   const dismissNotification = useCallback((id: string): void => {
     setDismissedNotificationIds((current) =>
@@ -198,13 +209,13 @@ export function AppShell(): JSX.Element {
   }, []);
 
   const navigateOrOpenSettings = useCallback(
-    (sectionId: SectionId): void => {
+    (sectionId: SectionId, afterNavigate?: () => void): void => {
       if (sectionId === "settings") {
         openSettingsPanel();
         return;
       }
 
-      navigateToSection(sectionId);
+      navigateToSection(sectionId, afterNavigate);
     },
     [navigateToSection, openSettingsPanel]
   );
@@ -932,6 +943,7 @@ export function AppShell(): JSX.Element {
       <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-document-open={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes"}>
         <RenderTimingBoundary id={`pane-workspace:${paneWorkspace.activeSectionId}`}>
           <PaneWorkspace
+            onReady={handleSectionReady}
             root={paneWorkspace.root}
             taskCommand={taskCommand}
             visibleCalendarIds={visibleCalendarIdSet}

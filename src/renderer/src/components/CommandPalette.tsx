@@ -20,7 +20,7 @@ interface CommandPaletteProps {
   initialQuery?: string;
   mode?: "open" | "action";
   onCommand?: (command: PlannerAction) => boolean | void;
-  onNavigate: (sectionId: SectionId) => void;
+  onNavigate: (sectionId: SectionId, afterNavigate?: () => void) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   pinnedFilters?: Array<{ id: string; name: string; query: string }>;
@@ -204,12 +204,12 @@ export function CommandPalette({
       return;
     }
 
-    if (command.sectionId) {
-      onNavigate(command.sectionId);
-    }
-
-    dispatchCalendarCommand(command);
-    dispatchNoteCommand(command);
+    const dispatch = () => {
+      dispatchCalendarCommand(command);
+      dispatchNoteCommand(command);
+    };
+    if (command.sectionId) onNavigate(command.sectionId, dispatch);
+    else dispatch();
 
     closePalette();
   }
@@ -219,8 +219,7 @@ export function CommandPalette({
       return;
     }
 
-    onNavigate(searchResultSection(result.source));
-    dispatchSearchResultOpen(result);
+    onNavigate(searchResultSection(result.source), () => dispatchSearchResultOpen(result));
     closePalette();
   }
 

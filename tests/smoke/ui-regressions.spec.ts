@@ -57,7 +57,7 @@ test("creates a named list through an accessible application dialog", async () =
   });
 });
 
-test("retains the calendar range, view and scroll through navigation and splitting", async () => {
+test("retains the calendar range, view and scroll through navigation and reload", async () => {
   await withPlanner(async (page) => {
     await page.getByRole("combobox", { name: "Calendar view" }).selectOption("week");
     const range = await page.getByTestId("calendar-view").getAttribute("data-range-start");
@@ -68,7 +68,7 @@ test("retains the calendar range, view and scroll through navigation and splitti
     await expect(page.getByRole("combobox", { name: "Calendar view" })).toHaveValue("week");
     await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
     await expect.poll(() => timeline.evaluate((node) => node.scrollTop)).toBe(550);
-    await page.getByRole("button", { name: "Split view", exact: true }).click();
+    await page.reload();
     await expect(page.getByRole("combobox", { name: "Calendar view" })).toHaveValue("week");
     await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
   });

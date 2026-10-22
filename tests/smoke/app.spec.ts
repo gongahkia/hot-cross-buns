@@ -1,6 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { currentZonedDay, zonedDateTimeIso, zonedDayRange } from "../../src/shared/zonedTime";
@@ -306,32 +305,25 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
 });
 
 
-test("restores embedded pages paused and releases their web contents on pause", async () => {
-  const server = createServer((_request, response) => { response.writeHead(200, { "Content-Type": "text/html" }); response.end("<html><head><title>Memory fixture</title></head><body>Local reference page</body></html>"); });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address() as { port: number };
-  const profileDir = mkdtempSync(join(tmpdir(), "hcb-web-pause-smoke-"));
+test("restores web-only workspaces to Calendar with embedded browsing disabled", async () => {
+  const profileDir = mkdtempSync(join(tmpdir(), "hcb-retired-web-smoke-"));
   const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
   try {
     const page = await electronApp.firstWindow();
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    await page.evaluate(async (url) => {
-      const paneWorkspace = { focusedPaneId: "web-fixture", updatedAt: Date.now(), root: { id: "web-fixture", kind: "leaf", content: { kind: "web", activeTabId: "tab-fixture", tabs: [{ id: "tab-fixture", title: "Memory fixture", url }] } } };
+    await page.evaluate(async () => {
+      const paneWorkspace = { focusedPaneId: "web-fixture", updatedAt: Date.now(), root: { id: "web-fixture", kind: "leaf", content: { kind: "web", activeTabId: "tab-fixture", tabs: [{ id: "tab-fixture", title: "Old reference page", url: "https://example.com/" }] } } };
       await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", paneWorkspace });
       localStorage.setItem("hcb.paneWorkspace.v1", JSON.stringify(paneWorkspace));
-    }, `http://127.0.0.1:${address.port}`);
+    });
     await page.reload();
-    await expect(page.getByRole("button", { name: "Load webpage", exact: true })).toBeVisible();
-    await expect(page.getByTestId("split-webview")).toHaveCount(0);
-    await page.getByRole("button", { name: "Load webpage", exact: true }).click();
-    await expect(page.getByTestId("split-webview")).toHaveCount(1);
-    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(1);
-    await page.getByRole("button", { name: "Pause page", exact: true }).click();
-    await expect(page.getByTestId("split-webview")).toHaveCount(0);
-    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(0);
+    await expect(page.getByTestId("calendar-view")).toBeVisible();
+    await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
+    await expect(page.locator("webview")).toHaveCount(0);
+    expect(await electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(0);
+    expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences().webviewTag)).toBe(false);
   } finally {
     await electronApp.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
     rmSync(profileDir, { recursive: true, force: true });
   }
 });

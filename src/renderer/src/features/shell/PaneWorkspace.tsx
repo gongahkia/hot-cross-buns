@@ -1,10 +1,11 @@
-import { getPlannerSection } from "../../data/mockPlanner";
+import { getPlannerSection, type SectionId } from "../../data/mockPlanner";
 import { SectionContent, type TaskSurfaceCommand } from "../core/CoreScreens";
 import { PaneIdentity } from "./panePreferences";
 import type { PaneLeafNode } from "./paneWorkspaceModel";
 
-export function PaneWorkspace({ root, taskCommand, visibleCalendarIds }: {
+export function PaneWorkspace({ root, taskCommand, visibleCalendarIds, onReady }: {
   root: PaneLeafNode;
+  onReady?: (sectionId: SectionId) => void;
   taskCommand?: TaskSurfaceCommand | null;
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
@@ -20,6 +21,7 @@ export function PaneWorkspace({ root, taskCommand, visibleCalendarIds }: {
           <PaneIdentity.Provider value={root.id}>
             <SectionContent
               activeSectionId={root.content.sectionId}
+              onReady={onReady}
               taskCommand={taskCommand?.paneId === root.id ? taskCommand : null}
               visibleCalendarIds={visibleCalendarIds}
             />

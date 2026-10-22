@@ -5,7 +5,6 @@ import {
   PanelLeftOpen,
   Search,
   CalendarDays,
-  Columns2,
   Command,
   Gauge,
   ListTodo,
@@ -29,7 +28,6 @@ export function AppHeader({
   activeSectionId,
   onNavigateToSection,
   onOpenCommandPalette,
-  onOpenSplitPane,
   onRefresh,
   onToggleDiagnostics,
   onToggleSettings,
@@ -48,7 +46,6 @@ export function AppHeader({
   activeSectionId: SectionId;
   onNavigateToSection: (sectionId: SectionId) => void;
   onOpenCommandPalette: () => void;
-  onOpenSplitPane: () => void;
   onRefresh: () => void;
   onToggleDiagnostics: () => void;
   onToggleSettings: () => void;
@@ -104,19 +101,6 @@ export function AppHeader({
         variant={diagnosticsOpen ? "secondary" : "ghost"}
       >
         <Gauge aria-hidden="true" size={15} />
-      </Button>
-    ),
-    splitPane: (
-      <Button
-        aria-keyshortcuts={ariaKeyShortcuts(keybindings["pane.split.horizontal"])}
-        aria-label={t("action.splitView")}
-        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
-        key="splitPane"
-        onClick={onOpenSplitPane}
-        title={t("action.splitView")}
-        variant="ghost"
-      >
-        <Columns2 aria-hidden="true" size={15} />
       </Button>
     ),
     refresh: (

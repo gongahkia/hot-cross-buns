@@ -154,10 +154,9 @@ test("navigates calendar views, filters sources, edits in context and preserves 
     await expect(inspector).toHaveAttribute("aria-modal", "true");
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await noOverflow(page);
-    await page.getByRole("button", { name: "Split view", exact: true }).click();
-    await expect(page.getByTestId("pane-leaf")).toHaveCount(2);
+    await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
     await noOverflow(page);
-    await capture(page, "split-960");
+    await capture(page, "calendar-960");
   });
 });
 
