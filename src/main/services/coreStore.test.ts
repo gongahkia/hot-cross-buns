@@ -29,6 +29,26 @@ afterEach(() => {
 // different ABI in this repository, so these run in Electron smoke/CI where
 // the ABI matches instead of failing every Node-only unit invocation.
 describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+  it("returns durable completion state to calendar views and clears it when reopened", () => {
+    const store = createStore();
+    const event = store.dispatch("calendar", "create", { calendarId: "primary", title: "Review", startsAt: "2026-10-22T12:00:00Z", endsAt: "2026-10-22T13:00:00Z", allDay: false });
+    expect(event.completedAt).toBeNull();
+    store.dispatch("calendar", "complete", { id: event.id });
+    expect(store.dispatch("calendar", "get", { id: event.id }).completedAt).toEqual(expect.any(String));
+    expect(store.dispatch("calendar", "listEvents", { start: "2026-10-22T00:00:00Z", end: "2026-10-23T00:00:00Z" }).items.find((item: any) => item.id === event.id).completedAt).toEqual(expect.any(String));
+    store.dispatch("calendar", "reopen", { id: event.id });
+    expect(store.dispatch("calendar", "get", { id: event.id }).completedAt).toBeNull();
+  });
+
+  it("treats punctuation and FTS operators in ordinary searches as literal text", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Design follow-up AND review" });
+    for (const query of ["follow-up", "AND", "follow-up review"]) {
+      expect(store.dispatch("search", "query", { query }).items.some((item: any) => item.id === task.id)).toBe(true);
+    }
+    expect(store.dispatch("search", "query", { query: "no-such-result-938324" }).items).toEqual([]);
+  });
+
   it("persists birthday identity and tags through reads, edits and recurrence", () => {
     const store = createStore();
     const birthday = store.dispatch("calendar", "create", { calendarId: "primary", title: "Ada's birthday", startsAt: "2026-10-22T00:00:00Z", endsAt: "2026-10-23T00:00:00Z", allDay: true, hcbKind: "birthday", tags: ["family"], recurrenceLines: ["RRULE:FREQ=YEARLY"] });

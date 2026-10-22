@@ -3484,6 +3484,7 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     allDay: Boolean(row.allDay),
     detailsTruncated: Boolean(row.detailsTruncated),
     completed: Boolean(row.completed),
+    completedAt: row.completed ? row.updatedAt : null,
     eventId: row.eventId ?? row.id,
     recurringEventId: row.recurringEventId ?? row.googleRecurringEventId ?? null,
     originalStartAt: row.originalStartAt ?? row.googleOriginalStartTime ?? null,
@@ -3788,7 +3789,7 @@ function ftsQuery(value: string): string | null {
     .map((term) => term.replace(/[^\p{L}\p{N}_-]/gu, ""))
     .filter(Boolean)
     .slice(0, 12);
-  return terms.length ? terms.map((term) => `${term}*`).join(" AND ") : null;
+  return terms.length ? terms.map((term) => `"${term}"*`).join(" AND ") : null;
 }
 
 function timestamp(): string { return new Date().toISOString(); }
