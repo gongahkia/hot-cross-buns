@@ -60,10 +60,10 @@ test("opens sidebar search from every section and searches local planner data", 
       await expect(search).toHaveValue("");
       await search.fill("Marmalade");
       for (const title of ["Marmalade task", "Marmalade note", "Marmalade event"]) {
-        await expect(page.getByRole("option").filter({ has: page.getByText(title, { exact: true }) })).toBeVisible();
+        await expect(page.getByRole("listbox").getByRole("option").filter({ has: page.getByText(title, { exact: true }) })).toBeVisible();
       }
       await search.fill("marmalade-no-such-item-7781");
-      await expect(page.getByRole("option")).toHaveCount(0);
+      await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(search).toHaveCount(0);
       await expect(page.getByTestId("app-shell")).toBeVisible();
@@ -74,7 +74,7 @@ test("opens sidebar search from every section and searches local planner data", 
     await page.keyboard.press("Escape");
     await page.keyboard.press(process.platform === "darwin" ? "Meta+p" : "Control+p");
     await page.getByRole("searchbox").fill("Marmalade task");
-    await page.getByRole("option").filter({ has: page.getByText("Marmalade task", { exact: true }) }).click();
+    await page.getByRole("listbox").getByRole("option").filter({ has: page.getByText("Marmalade task", { exact: true }) }).click();
     await expect(page.getByRole("textbox", { name: "Task title", exact: true })).toHaveValue("Marmalade task");
   });
 });
