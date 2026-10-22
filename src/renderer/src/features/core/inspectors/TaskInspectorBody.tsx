@@ -353,7 +353,7 @@ export function TaskInspectorBody({
       <p className="text-[var(--text-xs)] text-text-muted">
         {source.taskLists.find((list) => list.id === dirty.value.listId)?.accountId === "local"
           ? "This task is stored on this device."
-          : "Title, notes, and due date sync with Google Tasks. HCB priority, tags, duration, and planning fields are saved in a marked footer in the Google task’s notes."}
+          : "Saves locally, then syncs with Google Tasks."}
       </p>
       <EmojiInput
         aria-label="Task title"
@@ -430,7 +430,7 @@ export function TaskInspectorBody({
           type="button"
           variant="ghost"
         >
-          {showMoreOptions ? "Fewer options" : "More options"}
+          {showMoreOptions ? "Fewer details" : "More details"}
         </Button>
       </div>
       {showMoreOptions ? (

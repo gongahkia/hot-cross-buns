@@ -143,7 +143,6 @@ describe("Task inspector draft persistence", () => {
     const api = renderTaskSurface();
     const task = await screen.findByRole("button", { name: "Draft inbox triage rules" });
     fireEvent.click(task);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
     await screen.findByRole("textbox", { name: "Task notes" }, { timeout: 5000 });
     fireEvent.click(await screen.findByRole("button", { name: "Source" }));

@@ -1164,7 +1164,7 @@ export function CalendarEventForm({
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="event-editor grid gap-4">
       {draft.mode === "create" ? (
         <CalendarCreateModeTabs mode={createMode} onChange={onCreateModeChange} />
       ) : null}
@@ -1176,7 +1176,7 @@ export function CalendarEventForm({
         placeholder="Title"
         value={draft.title}
       />
-      {showMoreOptions ? <><fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+      {showMoreOptions ? <><fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Calendar</legend>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span>Source</span>
@@ -1202,8 +1202,9 @@ export function CalendarEventForm({
         <PrivacyControls draft={draft} setDraft={setDraft} />
       </fieldset>
       <EventTypeControl draft={draft} setDraft={setDraft} /></> : null}
-      <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+      <fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Time</legend>
+        <p className="text-xs text-text-muted">Times in {sourceTimeZone}</p>
         <label className="flex min-h-8 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
           <input
             checked={draft.allDay}
@@ -1213,7 +1214,7 @@ export function CalendarEventForm({
           />
           All day
         </label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-2">
           <Input
             aria-label="Event starts"
             onChange={(event) =>
@@ -1237,7 +1238,7 @@ export function CalendarEventForm({
           />
         </div>
       </fieldset>
-      <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+      <fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Details</legend>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span className="inline-flex items-center gap-1">
@@ -1251,6 +1252,7 @@ export function CalendarEventForm({
             value={draft.location}
           />
         </label>
+        {showMoreOptions ? <>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span className="inline-flex items-center gap-1">
             <Users aria-hidden="true" size={13} />
@@ -1265,6 +1267,7 @@ export function CalendarEventForm({
         </label>
         <ReminderControls draft={draft} setDraft={setDraft} />
         <MeetControl draft={draft} setDraft={setDraft} />
+        </> : null}
         {showMoreOptions ? <>
           <AttendeeStatusPreview draft={draft} />
           <RsvpControl draft={draft} setDraft={setDraft} />
@@ -1285,7 +1288,8 @@ export function CalendarEventForm({
           />
         </> : null}
       </fieldset>
-      <fieldset className="grid gap-2 rounded-hcbMd border border-border bg-bg-tertiary p-3">
+      {showMoreOptions || draft.repeatFrequency !== "none" ? <>
+      <fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">
           <span className="inline-flex items-center gap-1">
             <RotateCcw aria-hidden="true" size={13} />
@@ -1293,7 +1297,7 @@ export function CalendarEventForm({
           </span>
         </legend>
         {draft.recurrenceEditor === "simple" ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-2">
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span>Frequency</span>
             <select
@@ -1525,6 +1529,7 @@ export function CalendarEventForm({
           </div>
         )}
       </fieldset>
+      </> : null}
       <div className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">
           <FileText aria-hidden="true" size={13} />
@@ -1532,6 +1537,7 @@ export function CalendarEventForm({
         </span>
         <MarkdownEditor
           accountId={selectedCalendar?.accountId}
+          showControls={showMoreOptions}
           aria-label="Event notes"
           onValueChange={(notes) => setDraft({ ...draft, notes })}
           placeholder="Notes"
@@ -1546,7 +1552,7 @@ export function CalendarEventForm({
           type="button"
           variant="ghost"
         >
-          {showMoreOptions ? "Fewer options" : "More options"}
+          {showMoreOptions ? "Fewer details" : "More details"}
         </Button>
       </div>
     </div>

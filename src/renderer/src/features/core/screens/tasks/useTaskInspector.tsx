@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { ArrowRightLeft, Copy, Pencil, Save, Trash2 } from "lucide-react";
+import { showSaveFeedback } from "../../../shell/SaveFeedback";
 import { useInspector, type InspectorDirtyState } from "../../../../components/Inspector";
 import { Button } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
@@ -203,6 +204,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       return !(currentInspector.dirtyState?.getSnapshot() ?? currentInspector.dirty);
     }
 
+    if (taskInspectorDirtyRef.current) showSaveFeedback("Save or discard your edits before opening another item.");
     return taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current;
   }
 
@@ -270,24 +272,19 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     }
 
     return (
-      <>
-        {nextDraft.mode === "edit" ? (
-          <Button
-            data-action-id="task.deleteSelected"
-            onClick={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined}
-            size="sm"
-            variant="danger"
-          >
-            <Trash2 aria-hidden="true" size={14} />
-            Delete
-          </Button>
-        ) : null}
-        <TaskInspectorSaveAction
-          canSaveState={taskInspectorCanSaveState}
-          mode={nextDraft.mode}
-          onSave={saveTask}
-        />
-      </>
+      <div className="flex w-full items-center justify-end gap-2">
+        {nextDraft.mode === "edit" ? <details className="relative mr-auto">
+          <summary className="cursor-pointer rounded-md px-2 py-2 text-sm text-text-secondary">More actions</summary>
+          <div className="absolute bottom-full left-0 z-20 mb-2 grid w-56 gap-1 rounded-lg border border-border bg-bg-primary p-2 shadow-xl">
+            <Button disabled={source.taskMutationPending} onClick={() => duplicateTaskDraftValue(taskDraftRef.current)} size="sm" variant="ghost">Duplicate</Button>
+            <Button disabled={source.taskMutationPending} onClick={() => convertTaskDraft(taskDraftRef.current, "event")} size="sm" variant="ghost">Create event from task</Button>
+            <Button disabled={source.taskMutationPending} onClick={() => convertTaskDraft(taskDraftRef.current, "note")} size="sm" variant="ghost">Create note from task</Button>
+            <Button disabled={source.taskMutationPending} data-action-id="task.deleteSelected" onClick={() => nextDraft.id ? void deleteTask(nextDraft.id) : undefined} size="sm" variant="danger">Delete task</Button>
+          </div>
+        </details> : null}
+        <Button disabled={source.taskMutationPending} onClick={() => void cancelTaskInspector()} size="sm" variant="ghost">Discard</Button>
+        <TaskInspectorSaveAction canSaveState={taskInspectorCanSaveState} mode={nextDraft.mode} onSave={saveTask} />
+      </div>
     );
   }
 
@@ -297,7 +294,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
 
   function openTaskInspector(
     nextDraft: TaskDraft,
-    mode: "view" | "edit" = nextDraft.mode === "edit" ? "view" : "edit"
+    mode: "view" | "edit" = "edit"
   ): void {
     taskSaveInFlightRef.current = false;
     taskInspectorInstanceRef.current += 1;
@@ -317,7 +314,11 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       hideHeader: taskInspectorHidesHeader(nextDraft, mode),
       id: nextDraft.id ?? "new",
       kind: "task",
-      onConfirmClose: () => taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current,
+      onConfirmClose: () => {
+        if (taskSaveInFlightRef.current) return false;
+        if (taskInspectorDirtyRef.current) showSaveFeedback("Save or discard your edits before closing details.");
+        return taskInspectorModeRef.current !== "edit" || !taskInspectorDirtyRef.current;
+      },
       ownerId: ownerIdRef.current,
       title: taskInspectorScreenTitle(nextDraft, mode)
     });
@@ -362,7 +363,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     setLoadedTask(task);
     setSelectedTaskId(taskId);
     conversionCleanupRef.current = null;
-    openTaskInspector(editTaskDraft(task), "view");
+    openTaskInspector(editTaskDraft(task), "edit");
   }
 
   async function duplicateTask(taskId: string): Promise<void> {
@@ -470,6 +471,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
         setTaskInspectorCanSave(false);
         setTaskInspectorMode("edit");
         setSelectedTaskId(null);
+        taskSaveInFlightRef.current = false;
+        showSaveFeedback(source.taskLists.find((list) => list.id === currentDraft.listId)?.accountId === "local" ? "Task saved on this device" : "Task saved locally · Google sync follows your sync settings");
         await closeInspector();
         setDraft(nextDraft);
       }

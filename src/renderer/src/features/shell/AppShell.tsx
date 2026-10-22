@@ -27,6 +27,7 @@ import { I18nProvider } from "../../i18n";
 import { AppHeader } from "./AppHeader";
 import { InspectorShell } from "../../components/Inspector";
 import { WorkspaceSidebarContext } from "./WorkspaceSidebar";
+import { SaveFeedback } from "./SaveFeedback";
 import { usePanePreference } from "./panePreferences";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
 import { PaneWorkspace } from "./PaneWorkspace";
@@ -1005,6 +1006,7 @@ export function AppShell(): JSX.Element {
         </RenderTimingBoundary>
         <InspectorShell />
       </main>
+      <SaveFeedback />
 
       <RenderTimingBoundary id="command-palette">
         <Suspense fallback={null}>
