@@ -57,7 +57,7 @@ export function PaneWorkspace({
   const openSectionIds = new Set(paneSectionIds(root));
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="pane-workspace">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="pane-workspace" data-multiple-panes={root.kind === "split"}>
       <PaneNodeView
         activeSectionId={activeSectionId}
         canSplit={canSplit}

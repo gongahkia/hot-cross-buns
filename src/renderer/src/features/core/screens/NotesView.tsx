@@ -8,13 +8,15 @@ import { NotesSidebar } from "./NotesSidebar";
 import { useAutoCollapsedSidebar } from "./useAutoCollapsedSidebar";
 import { StatusBanner } from "../../../components/primitives";
 import { useNotesController } from "./useNotesController";
+import { SectionSidebar, useWorkspaceSidebar } from "../../shell/WorkspaceSidebar";
 
 export function NotesView(): JSX.Element {
   const source = useCoreViewModelSource();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [legacyMigrationPreview, setLegacyMigrationPreview] = useState<LegacyPseudoNotesMigrationPreview | null>(null);
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
-  const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
+  const sharedSidebar = useWorkspaceSidebar();
+  const effectiveSidebarCollapsed = sharedSidebar ? sharedSidebar.collapsed : sidebarCollapsed || autoCollapsed;
   const {
     noteActionError,
     createNote,
@@ -63,18 +65,18 @@ export function NotesView(): JSX.Element {
 
   return (
     <div
-      className={`grid h-full min-h-0 gap-2 ${effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[244px_minmax(0,1fr)]"}`}
+      className={`grid h-full min-h-0 gap-2 ${sharedSidebar ? "grid-cols-1" : effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"}`}
       ref={containerRef}
     >
-      <NotesSidebar
+      <SectionSidebar><NotesSidebar
         collapsed={effectiveSidebarCollapsed}
         onCreateNote={() => void createNote(selectedNoteViews[0]?.slice("list:".length))}
         onCreateNoteList={() => void createNoteList()}
-        onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        onToggleCollapsed={() => sharedSidebar ? sharedSidebar.toggle() : setSidebarCollapsed((collapsed) => !collapsed)}
         onToggleView={toggleNoteView}
         noteLists={noteLists}
         selectedNoteViews={selectedNoteViews}
-      />
+      /></SectionSidebar>
       <div className="flex min-h-0 flex-col">
       {noteActionError ? <StatusBanner tone="danger" title="Note action failed" description={noteActionError} /> : null}
       <NotesBoard

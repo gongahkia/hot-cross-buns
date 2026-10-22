@@ -217,3 +217,16 @@ label:has(input:not(:disabled)) {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* The workspace owns navigation; a single pane does not need a second title bar. */
+[data-multiple-panes="false"] > [data-testid="pane-leaf"] {
+  border: 0;
+  box-shadow: none;
+}
+[data-multiple-panes="false"] > [data-testid="pane-leaf"] > div:first-child {
+  display: none;
+}
+.section-navigation-slot aside { border-radius: 0; background: transparent; padding: 0 8px; }
+.section-navigation-slot button[aria-label="Collapse task sidebar"],
+.section-navigation-slot button[aria-label="Collapse notes sidebar"],
+.workspace-navigation[data-collapsed="true"] .section-navigation-slot { display: none; }

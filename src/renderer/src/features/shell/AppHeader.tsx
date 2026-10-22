@@ -1,6 +1,10 @@
-import type { SettingsSnapshot } from "@shared/ipc/contracts";
+import { useState } from "react";
+import type { CalendarListSummary, SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   Bell,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
   CalendarDays,
   Columns2,
   Command,
@@ -19,6 +23,7 @@ import { ariaKeyShortcuts, displayAccelerator } from "../core/hotkeys";
 type ToolbarActionId = SettingsSnapshot["toolbarActionOrder"][number];
 
 export function AppHeader({
+  collapsed, onToggleCollapsed, sidebarMount, calendars, visibleCalendarIds, onToggleCalendar,
   appNotificationsCount,
   commandPaletteOpen,
   diagnosticsOpen,
@@ -35,6 +40,12 @@ export function AppHeader({
   settingsOpen,
   toolbarActionOrder
 }: {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  sidebarMount: (node: HTMLElement | null) => void;
+  calendars: CalendarListSummary[];
+  visibleCalendarIds: ReadonlySet<string>;
+  onToggleCalendar: (id: string) => void;
   appNotificationsCount: number;
   commandPaletteOpen: boolean;
   diagnosticsOpen: boolean;
@@ -52,6 +63,7 @@ export function AppHeader({
   toolbarActionOrder: SettingsSnapshot["toolbarActionOrder"];
 }): JSX.Element {
   const { t } = useI18n();
+  const [calendarSearch, setCalendarSearch] = useState("");
   const primaryNavigation = [
     {
       id: "calendar" as const,
@@ -78,7 +90,7 @@ export function AppHeader({
         aria-expanded={commandPaletteOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["commandPalette.open"])}
         aria-label={t("action.commandPalette")}
-        className="min-w-10"
+        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
         key="commandPalette"
         onClick={() => onOpenCommandPalette()}
         title={t("action.commandPalette")}
@@ -92,16 +104,14 @@ export function AppHeader({
         aria-expanded={notificationsOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.notifications.toggle"])}
         aria-label={`${t("action.notifications")}, ${appNotificationsCount} active`}
-        className="min-w-10"
+        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
         key="notifications"
         onClick={onToggleNotifications}
         title={t("action.notifications")}
         variant={notificationsOpen ? "secondary" : "ghost"}
       >
         <Bell aria-hidden="true" size={15} />
-        <Badge tone={appNotificationsCount > 1 ? "warning" : "neutral"}>
-          {appNotificationsCount}
-        </Badge>
+        {!collapsed && appNotificationsCount > 0 ? <Badge tone={appNotificationsCount > 1 ? "warning" : "neutral"}>{appNotificationsCount}</Badge> : null}
       </Button>
     ),
     diagnostics: (
@@ -109,7 +119,7 @@ export function AppHeader({
         aria-expanded={diagnosticsOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.diagnostics.toggle"])}
         aria-label={t("action.diagnostics")}
-        className="min-w-10"
+        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
         key="diagnostics"
         onClick={onToggleDiagnostics}
         title={t("action.diagnostics")}
@@ -122,7 +132,7 @@ export function AppHeader({
       <Button
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["pane.split.horizontal"])}
         aria-label={t("action.splitView")}
-        className="min-w-10"
+        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
         key="splitPane"
         onClick={onOpenSplitPane}
         title={t("action.splitView")}
@@ -135,7 +145,7 @@ export function AppHeader({
       <Button
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["sync.refresh"])}
         aria-label={t("action.refresh")}
-        className="min-w-10"
+        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
         data-action-id="sync.refresh"
         key="refresh"
         onClick={onRefresh}
@@ -150,7 +160,7 @@ export function AppHeader({
         aria-expanded={settingsOpen}
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["navigation.settings"])}
         aria-label={t("action.settings")}
-        className="min-w-10"
+        className={cx("min-w-9 px-2", collapsed && "size-10 px-0") }
         key="settings"
         onClick={onToggleSettings}
         title={t("action.settings")}
@@ -162,52 +172,39 @@ export function AppHeader({
   };
 
   return (
-    <header className="grid min-h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-bg-primary px-3 py-2 md:grid-cols-[minmax(11rem,1fr)_auto_minmax(11rem,1fr)] md:gap-3 md:px-5">
-      <div className="flex min-w-0 items-center gap-3">
-        <img
-          alt=""
-          aria-hidden="true"
-          className="hcb-media-outline size-8 shrink-0 rounded-hcbMd object-cover"
-          draggable={false}
-          src={appIconUrl}
-        />
-        <h1 className="truncate text-[var(--text-md)] font-semibold" id="planner-title">Hot Cross Buns</h1>
+    <aside aria-label="Workspace navigation" data-collapsed={collapsed} className={cx("workspace-navigation flex min-h-0 shrink-0 flex-col border-r border-border bg-bg-secondary", collapsed ? "w-14" : "w-[220px]")}>
+      <div className="flex h-14 shrink-0 items-center gap-2 px-2">
+        {!collapsed ? <><img alt="" className="size-6 rounded-md" draggable={false} src={appIconUrl} /><h1 className="min-w-0 flex-1 truncate text-sm font-semibold" id="planner-title">Hot Cross Buns</h1></> : null}
+        <Button aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed} className="size-9 shrink-0 px-0" onClick={onToggleCollapsed} title={collapsed ? "Expand navigation" : "Collapse navigation"} variant="ghost">
+          {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+        </Button>
       </div>
-
-      <nav
-        aria-label="Primary"
-        className="order-3 col-span-2 flex min-w-0 items-center justify-start gap-1 overflow-x-auto border-t border-border pt-2 md:order-none md:col-span-1 md:justify-center md:border-t-0 md:pt-0"
-      >
-        {primaryNavigation.map(({ icon: Icon, id, label, shortcut }) => {
-          const active = activeSectionId === id;
-          const shortcutLabel = displayAccelerator(shortcut);
-
-          return (
-            <Button
-              aria-current={active ? "page" : undefined}
-              aria-keyshortcuts={ariaKeyShortcuts(shortcut)}
-              className={cx(
-                "min-w-10 gap-2 px-3 text-[var(--text-sm)]",
-                active ? "border-accent bg-surface-0 text-text-primary" : "text-text-secondary"
-              )}
-              key={id}
-              onClick={() => onNavigateToSection(id)}
-              title={`${label} (${shortcutLabel})`}
-              variant="ghost"
-            >
-              <Icon aria-hidden="true" size={15} strokeWidth={2} />
-              <span>{label}</span>
-              <kbd className="hidden rounded-hcbSm border border-border bg-bg-secondary px-1.5 py-0.5 font-mono text-[11px] font-medium text-text-muted lg:inline">
-                {shortcutLabel}
-              </kbd>
-            </Button>
-          );
-        })}
+      <nav aria-label="Primary" className="grid gap-1 px-2">
+        {primaryNavigation.map(({ icon: Icon, id, label, shortcut }) => (
+          <Button aria-current={activeSectionId === id ? "page" : undefined} aria-label={label} aria-keyshortcuts={ariaKeyShortcuts(shortcut)} className={cx("min-w-0 justify-start gap-2", collapsed ? "px-2" : "px-3", activeSectionId === id && "bg-surface-0 text-text-primary")} key={id} onClick={() => onNavigateToSection(id)} title={`${label} (${displayAccelerator(shortcut)})`} variant="ghost">
+            <Icon size={17} className="shrink-0" />
+            {!collapsed ? <span>{label}</span> : null}
+          </Button>
+        ))}
       </nav>
-
-      <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 overflow-x-auto" role="toolbar" aria-label="Planner actions">
-        {toolbarActionOrder.map((actionId) => toolbarButtons[actionId])}
+      <Button aria-label="Search planner" className={cx("mx-2 mt-3 justify-start", collapsed ? "px-2" : "px-3")} onClick={onOpenCommandPalette} title="Search planner" variant="ghost">
+        <Search size={17} className="shrink-0" />{!collapsed ? <span>Search</span> : null}
+      </Button>
+      <div className="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-border pt-3">
+        {activeSectionId === "calendar" && !collapsed ? <div className="space-y-3 px-3">
+          <p className="px-1 text-xs font-semibold text-text-muted">My calendars</p>
+          <input aria-label="Filter calendars" className="w-full min-w-0 rounded-md border border-border bg-bg-primary px-2 text-xs" placeholder="Filter calendars…" value={calendarSearch} onChange={(event) => setCalendarSearch(event.target.value)} />
+          <div className="grid gap-1">{calendars.filter((calendar) => calendar.title.toLowerCase().includes(calendarSearch.toLowerCase())).map((calendar) => <label key={calendar.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-1 text-sm hover:bg-surface-0">
+            <input type="checkbox" className="size-4 shrink-0 accent-[var(--color-accent)]" checked={visibleCalendarIds.has(calendar.id)} onChange={() => onToggleCalendar(calendar.id)} />
+            <span className="truncate">{calendar.title}</span>
+          </label>)}</div>
+          {calendars.length === 0 ? <p className="text-xs text-text-muted">Add a calendar in Settings.</p> : null}
+        </div> : null}
+        <div ref={sidebarMount} className="section-navigation-slot" />
       </div>
-    </header>
+      <div className={cx("flex shrink-0 gap-1 border-t border-border p-2", collapsed ? "flex-col" : "flex-wrap")} role="toolbar" aria-label="Planner actions">
+        {toolbarActionOrder.filter((id) => id !== "commandPalette").map((id) => toolbarButtons[id])}
+      </div>
+    </aside>
   );
 }

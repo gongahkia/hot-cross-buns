@@ -26,6 +26,8 @@ import {
 import { I18nProvider } from "../../i18n";
 import { AppHeader } from "./AppHeader";
 import { InspectorShell } from "../../components/Inspector";
+import { WorkspaceSidebarContext } from "./WorkspaceSidebar";
+import { usePanePreference } from "./panePreferences";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
 import { PaneWorkspace } from "./PaneWorkspace";
 import { splitPaneWebUrl } from "./paneWorkspaceModel";
@@ -85,6 +87,8 @@ export function AppShell(): JSX.Element {
   useRenderTiming("App");
 
   const source = useCoreViewModelSource();
+  const [sidebarTarget, setSidebarTarget] = useState<HTMLElement | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = usePanePreference("navigation.collapsed", false);
   useAppliedTheme(source.settings);
   const paneWorkspace = usePaneWorkspace(source);
   const pinnedSearchFilters = useMemo(() => {
@@ -950,12 +954,19 @@ export function AppShell(): JSX.Element {
       animationsDisabled={source.settings.disableAnimations}
       preferences={source.settings.loadingIndicators}
     >
+    <WorkspaceSidebarContext.Provider value={{ target: sidebarTarget, focusedPaneId: paneWorkspace.focusedPaneId, collapsed: sidebarCollapsed, toggle: () => setSidebarCollapsed((value) => !value) }}>
     <div
-      className="flex h-dvh min-h-0 flex-col overflow-hidden text-text-primary"
+      className="flex h-dvh min-h-0 overflow-hidden text-text-primary"
       data-testid="app-shell"
       style={{ background: "var(--app-shell-background)" }}
     >
       <AppHeader
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+        sidebarMount={setSidebarTarget}
+        calendars={source.calendarSources}
+        visibleCalendarIds={visibleCalendarIdSet}
+        onToggleCalendar={(id) => setVisibleCalendarIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id])}
         activeSectionId={paneWorkspace.activeSectionId}
         appNotificationsCount={visibleNotifications.length}
         commandPaletteOpen={commandPaletteOpen}
@@ -1081,6 +1092,7 @@ export function AppShell(): JSX.Element {
         </div>
       ) : null}
     </div>
+    </WorkspaceSidebarContext.Provider>
     </LoadingIndicatorProvider>
     </MotionConfig>
     </I18nProvider>

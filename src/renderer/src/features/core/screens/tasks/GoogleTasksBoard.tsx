@@ -40,6 +40,7 @@ import {
   taskScheduleTone
 } from "../../coreScreenShared";
 import { useAutoCollapsedSidebar } from "../useAutoCollapsedSidebar";
+import { SectionSidebar, useWorkspaceSidebar } from "../../../shell/WorkspaceSidebar";
 
 export interface TaskBoardSelection {
   mode: "lists" | "starred";
@@ -136,7 +137,8 @@ export function GoogleTasksBoard({
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkCustomDueDate, setBulkCustomDueDate] = useState("");
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
-  const effectiveSidebarCollapsed = sidebarCollapsed || autoCollapsed;
+  const sharedSidebar = useWorkspaceSidebar();
+  const effectiveSidebarCollapsed = sharedSidebar ? sharedSidebar.collapsed : sidebarCollapsed || autoCollapsed;
   const starredVisibleCount = source.taskLists.reduce((count, list) => count + (list.starredRootTaskCount ?? 0), 0);
   const visibleListIds = useMemo(() => selectedView.listIds ?? source.taskLists.map((list) => list.id), [selectedView.listIds, source.taskLists]);
   const columns = useMemo(() => {
@@ -203,21 +205,21 @@ export function GoogleTasksBoard({
       data-hydration-state={source.hydrationState}
       className={cx(
         "grid min-h-0 flex-1 gap-3",
-        effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[260px_minmax(0,1fr)]"
+        sharedSidebar ? "grid-cols-1" : effectiveSidebarCollapsed ? "grid-cols-[56px_minmax(0,1fr)]" : "grid-cols-[220px_minmax(0,1fr)]"
       )}
       ref={containerRef}
     >
-      <TaskBoardSidebar
+      <SectionSidebar><TaskBoardSidebar
         collapsed={effectiveSidebarCollapsed}
         onCreateList={onCreateList}
         onCreateTask={() => onCreateTask(selectedView.mode === "lists" && selectedView.listIds?.length === 1 ? selectedView.listIds[0] : undefined)}
-        onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        onToggleCollapsed={() => sharedSidebar ? sharedSidebar.toggle() : setSidebarCollapsed((collapsed) => !collapsed)}
         selectedView={selectedView}
         setSelectedView={setSelectedView}
         source={source}
         starredCount={starredVisibleCount}
         visibleListIds={visibleListIds}
-      />
+      /></SectionSidebar>
       <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
         {bulkSelectedTaskIds.length > 0 ? (
           <BoardBulkRescheduleBanner
