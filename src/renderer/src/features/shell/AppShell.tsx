@@ -468,8 +468,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (detail.target === "task") {
-        navigateToSection("tasks");
-        window.setTimeout(() => {
+        navigateToSection("tasks", () => {
           window.dispatchEvent(new CustomEvent("hcb:task-command", {
             detail: {
               action: "convert-to-task",
@@ -477,13 +476,12 @@ export function AppShell(): JSX.Element {
               draft: detail.taskDraft ?? {}
             }
           }));
-        }, 0);
+        });
         return;
       }
 
       if (detail.target === "note") {
-        navigateToSection("notes");
-        window.setTimeout(() => {
+        navigateToSection("notes", () => {
           window.dispatchEvent(new CustomEvent("hcb:note-command", {
             detail: {
               action: "convert-to-note",
@@ -491,12 +489,11 @@ export function AppShell(): JSX.Element {
               draft: detail.noteDraft
             }
           }));
-        }, 0);
+        });
         return;
       }
 
-      navigateToSection("calendar");
-      window.setTimeout(() => {
+      navigateToSection("calendar", () => {
         window.dispatchEvent(new CustomEvent("hcb:calendar-command", {
           detail: {
             action: "convert-to-event",
@@ -504,7 +501,7 @@ export function AppShell(): JSX.Element {
             draft: detail.eventDraft
           }
         }));
-      }, 0);
+      });
     }
 
     window.addEventListener("hcb:convert-command", handleConvertCommand);

@@ -416,3 +416,41 @@ label:has(input:not(:disabled)) {
 .mini-calendar-day[aria-pressed="true"] { background: var(--color-surface-1); }
 .mini-calendar-day[aria-current="date"] { background: var(--color-accent); color: var(--color-accent-foreground); opacity: 1; }
 @media (max-width: 900px) { .workspace-navigation { width: 220px; } }
+
+/* Compact, inline editors follow the reference calendar's details panel. */
+.inspector-item-toolbar { display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0; }
+.inspector-type-trigger, .inspector-actions-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 30px; border-radius: 5px; padding: 4px 8px; font-size: 12px; color: var(--color-text-primary); }
+.inspector-type-trigger svg, .inspector-actions-trigger { color: var(--color-text-muted); }
+.inspector-type-trigger:hover, .inspector-actions-trigger:hover, .inspector-type-trigger[data-state="open"], .inspector-actions-trigger[data-state="open"] { background: var(--color-surface-0); }
+.inspector-type-trigger:focus-visible, .inspector-actions-trigger:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.inspector-item-menu { z-index: 90; min-width: 180px; padding: 4px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-bg-secondary); color: var(--color-text-primary); box-shadow: 0 6px 20px #0003; animation: inspector-menu-enter 120ms ease-out; }
+.inspector-item-menu button { display: flex; align-items: center; gap: 10px; min-height: 32px; width: 100%; padding: 6px 8px; border-radius: 4px; font-size: 12px; text-align: left; }
+.inspector-item-menu button svg { color: var(--color-text-muted); }
+.inspector-item-menu button:hover, .inspector-item-menu button:focus-visible, .inspector-item-menu [aria-checked="true"] { background: var(--color-surface-0); outline: none; }
+.inspector-item-menu button:disabled { opacity: .4; cursor: default; }
+.inspector-item-menu .inspector-menu-delete, .inspector-item-menu .inspector-menu-delete svg { color: var(--color-danger); }
+.inspector-menu-separator { height: 1px; margin: 4px -4px; background: var(--color-border); }
+@keyframes inspector-menu-enter { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .inspector-item-menu { animation: none; } }
+.inspector-header { padding-inline: 8px; }
+.inspector-editor { font-size: 12px; }
+.inspector-editor :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { min-width: 0; background: transparent; border-color: transparent; font-size: 12px; border-radius: 5px; }
+.inspector-editor :is(input, select, textarea):hover { background: var(--color-bg-secondary); }
+.inspector-editor :is(input, select, textarea):focus { border-color: var(--color-border); }
+.inspector-editor input[aria-label$="title"] { min-height: 32px; padding: 6px 8px; border: 1px solid var(--color-border); font-size: 14px; font-weight: 400; }
+.inspector-editor :is(fieldset, .border-t) { border-radius: 0; border-inline: 0; border-bottom: 0; background: transparent; }
+.inspector-editor fieldset { padding-inline: 0; }
+.inspector-editor legend { font-size: 11px; color: var(--color-text-muted); }
+.inspector-editor label { font-size: 12px; }
+.inspector-editor .markdown-editor { background: transparent; border-color: transparent; border-radius: 5px; }
+.inspector-editor .markdown-editor:focus-within { outline: 1px solid var(--color-border); outline-offset: 0; }
+.inspector-editor .markdown-toolbar { border: 0; padding: 0; }
+.inspector-editor .markdown-editor:not(:focus-within):not(:hover) .markdown-toolbar { opacity: .65; }
+.inspector-editor :is(.markdown-tool, .markdown-mode, .markdown-block-select) { min-height: 28px; min-width: 28px; padding: 0 6px; }
+.inspector-editor .markdown-content { padding: 4px 8px; min-height: 72px; font-size: 12px; line-height: 1.5; }
+.inspector-editor .markdown-help { display: none; }
+.inspector-editor .markdown-source { min-height: 96px; padding: 6px 8px; }
+.inspector-save-status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 16px; color: var(--color-text-muted); font-size: 11px; }
+.inspector-save-status[role="alert"] { color: var(--color-danger); }
+[data-document-editor="true"] .inspector-header { padding-inline: 16px; }
+[data-document-editor="true"] .inspector-editor .markdown-content { min-height: max(320px, calc(100dvh - 360px)); font-size: 14px; }

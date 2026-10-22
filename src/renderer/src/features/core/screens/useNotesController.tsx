@@ -1,3 +1,4 @@
+import { InspectorItemToolbar, copyInspectorText } from "../../../components/Inspector/InspectorItemToolbar";
 import { usePanePreference } from "../../shell/panePreferences";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -107,7 +108,9 @@ export function useNotesController(source: CoreViewModelSource): {
   const [starredNoteAt, setStarredNoteAt] = useState<Record<string, number>>(
     () => source.settings.starredNoteAt ?? readLocalStorageNumberRecord(starredNotesAtStorageKey)
   );
-  const pendingNoteCreate = useRef<string | null>(null);
+  const noteAliases = useRef(new Map<string, string>());
+  const noteInspectorInstance = useRef(0);
+  const autoCreateNoteIds = useRef(new Set<string>());
   const [creatingNote, setCreatingNote] = useState<string | null>(null);
   const [draftCounter, setDraftCounter] = useState(1);
   const createNoteIds = useRef(new Set<string>());
@@ -260,7 +263,12 @@ export function useNotesController(source: CoreViewModelSource): {
     }
 
     updateInspector({
-      actions: noteInspectorActions(selectedNote),
+      actions: null,
+      toolbar: noteInspectorToolbar(selectedNote),
+      onSave: flushCurrentNote,
+      onDiscard: discardNoteEdits,
+      saving: creatingNote !== null,
+      saveError: noteActionError,
       body: noteInspectorBody(selectedNote),
       dirty: noteInspectorMode === "view" ? false : currentInspector.dirty,
       hideHeader: false,
@@ -299,7 +307,7 @@ export function useNotesController(source: CoreViewModelSource): {
 
     return (
       <NoteInspectorBody
-        key={note.id}
+        key={noteInspectorInstance.current}
         note={note}
         notes={notes}
         onDraftChange={updateNoteDraft}
@@ -316,106 +324,48 @@ export function useNotesController(source: CoreViewModelSource): {
     );
   }
 
-  function noteInspectorActions(note: NoteViewModel, mode = noteInspectorModeRef.current): ReactNode {
-    const localDraft = note.id.startsWith("note-draft-");
-
-    if (mode === "view") {
-      return (
-        <div className="flex w-full flex-wrap items-center gap-2">
-            <Button onClick={() => setNoteInspectorMode("edit")} size="sm" variant="primary">
-              <Pencil aria-hidden="true" size={14} />
-              Edit
-            </Button>
-          <details className="relative">
-            <summary className="flex min-h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border px-2.5 text-[var(--text-sm)] text-text-secondary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-              More actions
-            </summary>
-            <div className="absolute bottom-full left-0 z-30 mb-1 grid min-w-52 gap-1 rounded-hcbMd border border-border bg-bg-primary p-1 shadow-xl">
-              <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="ghost">
-                <Copy aria-hidden="true" size={14} />
-                Duplicate
-              </Button>
-              {!localDraft ? (
-                <>
-                  <Button onClick={() => convertNote(note, "task")} size="sm" variant="ghost">
-                    <ArrowRightLeft aria-hidden="true" size={14} />
-                    Create task from note
-                  </Button>
-                  <Button onClick={() => convertNote(note, "event")} size="sm" variant="ghost">
-                    <ArrowRightLeft aria-hidden="true" size={14} />
-                    Create event from note
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </details>
-          <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
-            <Trash2 aria-hidden="true" size={14} />
-            Delete note
-          </Button>
-        </div>
-      );
-    }
-
-    if (localDraft) {
-      return (
-        <>
-          <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
-            <Trash2 aria-hidden="true" size={14} />
-            Discard draft
-          </Button>
-          <Button disabled={creatingNote === note.id} onClick={() => void saveLocalNoteDraft(note.id)} size="sm" variant="primary">
-            <Save aria-hidden="true" size={14} />
-            {creatingNote === note.id ? "Creating…" : "Create note"}
-          </Button>
-        </>
-      );
-    }
-
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => void deleteNote(note.id)} size="sm" variant="danger">
-          <Trash2 aria-hidden="true" size={14} />
-          Delete note
-        </Button>
-        <details className="relative">
-          <summary className="flex min-h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border px-2.5 text-[var(--text-sm)] text-text-secondary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-            More actions
-          </summary>
-          <div className="absolute bottom-full left-0 z-30 mb-1 grid min-w-52 gap-1 rounded-hcbMd border border-border bg-bg-primary p-1 shadow-xl">
-            <Button onClick={() => void duplicateNote(note.id)} size="sm" variant="ghost">
-              <Copy aria-hidden="true" size={14} />
-              Duplicate
-            </Button>
-            <Button onClick={() => convertNote(note, "task")} size="sm" variant="ghost">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create task from note
-            </Button>
-            <Button onClick={() => convertNote(note, "event")} size="sm" variant="ghost">
-              <ArrowRightLeft aria-hidden="true" size={14} />
-              Create event from note
-            </Button>
-          </div>
-        </details>
-      </div>
-    );
+  function noteInspectorToolbar(note: NoteViewModel): ReactNode {
+    return <InspectorItemToolbar kind="note" persisted={!note.id.startsWith("note-draft-")} busy={creatingNote !== null}
+      onKindChange={async (kind) => { if (kind !== "note" && await flushCurrentNote()) convertNote({ ...note, id: noteAliases.current.get(note.id) ?? note.id }, kind); }}
+      onCopy={() => { const live = noteInspectorBodyRef.current?.getDraft(); return copyInspectorText(live?.title ?? note.title, live?.body ?? note.body); }}
+      onDuplicate={() => duplicateNote(noteAliases.current.get(note.id) ?? note.id)}
+      onDelete={() => deleteNote(noteAliases.current.get(note.id) ?? note.id)} />;
   }
+
+  async function discardNoteEdits(): Promise<void> {
+    await noteInspectorBodyRef.current?.settle();
+    setNoteInspectorMode("view");
+    setNoteActionError(undefined);
+    if (selectedNoteId?.startsWith("note-draft-")) setNotes((current) => current.filter((note) => note.id !== selectedNoteId));
+    await closeInspector();
+    source.refresh();
+  }
+
+  useEffect(() => {
+    if (currentInspector?.kind === "note" && autoCreateNoteIds.current.delete(currentInspector.id)) void flushCurrentNote();
+  }, [currentInspector?.id, currentInspector?.kind]);
 
   function openNoteInspector(
     note: NoteViewModel,
     mode: "view" | "edit" = "edit"
   ): void {
+    const instance = ++noteInspectorInstance.current;
     setNoteActionError(undefined);
     setNoteInspectorMode(mode);
     openInspector({
-      actions: noteInspectorActions(note, mode),
+      actions: null,
+      toolbar: noteInspectorToolbar(note),
+      onSave: flushCurrentNote,
+      onDiscard: discardNoteEdits,
+      saving: false,
+      saveError: undefined,
       body: noteInspectorBody(note, mode),
       dirty: false,
       hideHeader: false,
       id: note.id,
       kind: "note",
       onConfirmClose: async () => {
-        if (note.id.startsWith("note-draft-") && !createNoteIds.current.has(note.id)) return true;
+        if (instance !== noteInspectorInstance.current) return true;
         if (noteInspectorModeRef.current === "edit") {
           return await flushCurrentNote();
         }
@@ -441,9 +391,7 @@ export function useNotesController(source: CoreViewModelSource): {
   async function flushCurrentNote(): Promise<boolean> {
     if (noteInspectorModeRef.current !== "edit") return true;
     const saved = await noteInspectorBodyRef.current?.flush() ?? true;
-    if (!saved) setNoteActionError(selectedNoteId?.startsWith("note-draft-")
-      ? "Use Create note to keep this draft, or Discard draft to remove it."
-      : "Your changes are still open. Retry saving before leaving this note.");
+    if (!saved) setNoteActionError((message) => message ?? "Your changes are still open. Retry saving before leaving this note.");
     return saved;
   }
 
@@ -550,53 +498,22 @@ export function useNotesController(source: CoreViewModelSource): {
 
     if (cleanup) {
       conversionCleanupByNoteId.current.set(draftId, cleanup);
+      autoCreateNoteIds.current.add(draftId);
     }
   }
 
-  function convertNote(note: NoteViewModel, target: "event" | "task"): void {
-    if (note.id.startsWith("note-draft-")) {
+  function convertNote(note: NoteViewModel, target: "event" | "birthday" | "task"): void {
+    const live = noteInspectorBodyRef.current?.getDraft();
+    const title = live?.title ?? note.title;
+    const body = live?.body ?? note.body;
+    const tags = live?.tags ?? note.tags ?? [];
+    const cleanup = note.id.startsWith("note-draft-") ? undefined : conversionCleanup("note", note.id, target);
+    if (cleanup === null) return;
+    if (target === "event" || target === "birthday") {
+      dispatchConvertCommand({ cleanup, target: "event", eventDraft: { title, notes: body, tags, ...(target === "birthday" ? { hcbKind: "birthday" } : {}) } });
       return;
     }
-
-    const liveDraft =
-      currentInspector?.kind === "note" && currentInspector.id === note.id
-        ? noteInspectorBodyRef.current?.getDraft()
-        : null;
-    const title = liveDraft?.title ?? note.title;
-    const body = liveDraft?.body ?? note.body;
-    const tags = liveDraft?.tags ?? note.tags ?? [];
-
-    if (target === "event") {
-      dispatchConvertCommand({
-        cleanup: conversionCleanup("note", note.id, target),
-        target,
-        eventDraft: {
-          title,
-          notes: body,
-          tags
-        }
-      });
-      return;
-    }
-
-    const dueDate = dateInputValue(new Date().toISOString());
-
-    dispatchConvertCommand({
-      cleanup: conversionCleanup("note", note.id, target),
-      target,
-      taskDraft: {
-        title,
-        notes: body,
-        dueDate,
-        listId: note.listId,
-        priority: "none",
-        plannedStart: null,
-        plannedEnd: null,
-        durationMinutes: null,
-        lockedSchedule: false,
-        tags
-      }
-    });
+    dispatchConvertCommand({ cleanup, target, taskDraft: { title, notes: body, tags, dueDate: dateInputValue(new Date().toISOString()), listId: source.taskLists[0]?.id, priority: "none", plannedStart: null, plannedEnd: null, durationMinutes: null, lockedSchedule: false } });
   }
 
   async function cleanupConvertedSource(noteId: string): Promise<string | null> {
@@ -657,81 +574,14 @@ export function useNotesController(source: CoreViewModelSource): {
         ? noteInspectorBodyRef.current?.getDraft()
         : null;
 
-    openLocalNoteDraft({
+    const draftId = openLocalNoteDraft({
       title: copiedTitle(liveDraft?.title ?? note.title, "Untitled note"),
       body: liveDraft?.body ?? note.body,
       tags: liveDraft?.tags ?? note.tags ?? [],
       listId: note.listId,
       listTitle: note.listTitle
     });
-  }
-
-  async function saveLocalNoteDraft(noteId: string): Promise<void> {
-    const note = notes.find((candidate) => candidate.id === noteId);
-
-    if (pendingNoteCreate.current) return;
-    if (!note) {
-      return;
-    }
-
-    const draft = noteInspectorBodyRef.current?.getDraft() ?? {
-      title: note.title,
-      body: note.body,
-      tags: note.tags ?? []
-    };
-    setNoteActionError(undefined);
-    pendingNoteCreate.current = noteId;
-    setCreatingNote(noteId);
-    try {
-    const result = await window.hcb?.notes.create({
-      title: draft.title || "Untitled note",
-      body: draft.body,
-      listId: note.listId,
-      tags: draft.tags,
-    });
-
-    if (!result?.ok) {
-      const message = result?.error.message ?? "Note duplicate was not saved.";
-      const failedDraft = {
-        ...note,
-        title: draft.title || "Untitled note",
-        body: draft.body,
-        preview: buildNotePreview(draft.body),
-        tags: draft.tags,
-        updatedLabel: "Edited"
-      };
-
-      setNoteActionError(message);
-      updateInspector({
-        actions: noteInspectorActions(failedDraft, "edit"),
-        body: noteInspectorBody(failedDraft, "edit", message),
-        dirty: true,
-        hideHeader: false,
-        subtitle: failedDraft.updatedLabel,
-        title: failedDraft.title || "Untitled note"
-      });
-      return;
-    }
-
-    const cleanupError = await cleanupConvertedSource(noteId);
-    if (cleanupError) {
-      window.alert(`Converted item was saved, but ${cleanupError}`);
-    }
-    const persisted = noteFromNative(result.data);
-    fullNoteId.current = persisted.id;
-
-    setNotes((current) => current.map((candidate) => candidate.id === noteId ? persisted : candidate));
-    setSelectedNoteId(persisted.id);
-    createNoteIds.current.delete(noteId);
-    createNoteIds.current.add(persisted.id);
-    openNoteInspector(persisted, "edit");
-    source.refresh();
-    } catch (error) {
-      setNoteActionError(error instanceof Error ? error.message : "Note was not created.");
-    } finally {
-      pendingNoteCreate.current = null;
-      setCreatingNote(null);
-    }
+    autoCreateNoteIds.current.add(draftId);
   }
 
   async function createNoteList(): Promise<void> {
@@ -793,6 +643,7 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   function updateNoteDraft(noteId: string, draft: NoteDraftValue): void {
+    noteId = noteAliases.current.get(noteId) ?? noteId;
     const startedAt = rendererNow();
     if (currentInspector?.kind === "note" && currentInspector.id === noteId) {
       setNoteActionError(undefined);
@@ -826,64 +677,41 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   async function persistNoteDraft(noteId: string, draft: NoteDraftValue): Promise<boolean> {
-    if (noteId.startsWith("note-draft-")) {
-      const note = notes.find((candidate) => candidate.id === noteId);
-      if (!note) {
-        return false;
+    noteId = noteAliases.current.get(noteId) ?? noteId;
+    setCreatingNote(noteId);
+    setNoteActionError(undefined);
+    try {
+      if (noteId.startsWith("note-draft-")) {
+        const note = notes.find((candidate) => candidate.id === noteId);
+        if (!note) return false;
+        const result = await window.hcb?.notes.create({ title: draft.title || "Untitled note", body: draft.body, listId: note.listId, tags: draft.tags });
+        if (!result?.ok) { setNoteActionError(result?.error.message ?? "Note was not saved."); return false; }
+        const persisted = noteFromNative(result.data);
+        noteAliases.current.set(noteId, persisted.id);
+        fullNoteId.current = persisted.id;
+        // Keep the editor mounted and retain any text entered during creation.
+        const live = noteInspectorBodyRef.current?.getDraft() ?? draft;
+        setNotes((current) => current.map((candidate) => candidate.id === noteId ? { ...persisted, ...live, preview: buildNotePreview(live.body) } : candidate));
+        setSelectedNoteId(persisted.id);
+        updateInspector({ id: persisted.id });
+        createNoteIds.current.delete(noteId);
+        const cleanupError = await cleanupConvertedSource(noteId);
+        if (cleanupError) setNoteActionError(`The new note was saved, but ${cleanupError}`);
+      } else {
+        const result = await window.hcb?.notes.update({ id: noteId, title: draft.title || "Untitled note", body: draft.body, tags: draft.tags });
+        if (!result?.ok) { setNoteActionError(result?.error.message ?? "Note was not saved."); return false; }
       }
-
-      if (draft.title.trim() === "Untitled note" && draft.body.trim().length === 0) {
-        return true;
-      }
-
-      const result = await window.hcb?.notes.create({
-        title: draft.title || "Untitled note",
-        body: draft.body,
-        listId: note.listId,
-        tags: draft.tags,
-      });
-
-      if (!result?.ok) {
-        setNoteActionError(result?.error.message ?? "Note was not saved.");
-        return false;
-      }
-
-      const cleanupError = await cleanupConvertedSource(noteId);
-      if (cleanupError) {
-        window.alert(`Converted item was saved, but ${cleanupError}`);
-      }
-      const persisted = noteFromNative(result.data);
-      fullNoteId.current = persisted.id;
-      setNotes((current) => current.map((candidate) => candidate.id === noteId ? persisted : candidate));
-      setSelectedNoteId(persisted.id);
-      createNoteIds.current.delete(noteId);
-      createNoteIds.current.add(persisted.id);
       source.refresh();
       return true;
-    }
-
-    const result = await window.hcb?.notes.update({
-      id: noteId,
-      title: draft.title,
-      body: draft.body,
-      tags: draft.tags
-    });
-
-    if (result?.ok) {
-      setNoteActionError(undefined);
-      const cleanupError = await cleanupConvertedSource(noteId);
-      if (cleanupError) {
-        window.alert(`Converted item was saved, but ${cleanupError}`);
-      }
-      source.refresh();
-    } else {
-      setNoteActionError(result?.error.message ?? "Note was not saved.");
-    }
-
-    return result?.ok ?? false;
+    } catch (error) {
+      setNoteActionError(error instanceof Error ? error.message : "Note was not saved.");
+      return false;
+    } finally { setCreatingNote(null); }
   }
 
   async function deleteNote(noteId: string): Promise<void> {
+    await noteInspectorBodyRef.current?.settle();
+    noteId = noteAliases.current.get(noteId) ?? noteId;
     const result = noteId.startsWith("note-draft-") ? { ok: true } : await window.hcb?.notes.delete({ id: noteId });
     if (!result?.ok) { setNoteActionError("Note was not deleted."); return; }
     setNotes((current) => current.filter((candidate) => candidate.id !== noteId));

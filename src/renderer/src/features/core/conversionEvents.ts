@@ -28,13 +28,14 @@ export interface ConvertCommandDetail {
 export function conversionCleanup(
   kind: ConvertItemKind,
   id: string,
-  target: ConvertItemKind
-): ConvertSourceCleanup | undefined {
+  target: ConvertItemKind | "birthday",
+  recurring = false
+): ConvertSourceCleanup | null {
   const replace = window.confirm(
-    `Also remove the original ${kind} after the new ${target} is saved? Choose OK to remove it, or Cancel to keep it.`
+    `Convert this ${recurring ? "recurring event series" : kind} to a ${target}? The new item keeps its title and notes. The original ${recurring ? "series" : kind} will be removed only after the replacement saves successfully.`
   );
 
-  return replace ? { id, kind } : undefined;
+  return replace ? { id, kind } : null;
 }
 
 export function dispatchConvertCommand(detail: ConvertCommandDetail): void {

@@ -860,44 +860,6 @@ export function CalendarEventDetails({
   );
 }
 
-function CalendarCreateModeTabs({
-  mode,
-  onChange
-}: {
-  mode: CalendarCreateMode;
-  onChange: (mode: CalendarCreateMode) => void;
-}): JSX.Element {
-  return (
-    <div className="grid grid-cols-3 gap-1 rounded-hcbMd bg-surface-0 p-1" role="tablist" aria-label="Create item type">
-      {([
-        { id: "event" as const, label: "Event", icon: CalendarPlus },
-        { id: "task" as const, label: "Task", icon: ListPlus },
-        { id: "birthday" as const, label: "Birthday", icon: Gift }
-      ]).map((item) => {
-        const Icon = item.icon;
-        const active = item.id === mode;
-
-        return (
-          <button
-            aria-selected={active}
-            className={cx(
-              "inline-flex min-h-8 items-center justify-center gap-2 rounded-hcbSm px-2 text-[var(--text-sm)] font-medium transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              active ? "bg-accent text-[var(--color-accent-foreground)]" : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"
-            )}
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            role="tab"
-            type="button"
-          >
-            <Icon aria-hidden="true" size={14} />
-            {item.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function CalendarEventForm({
   calendars,
   createMode,
@@ -1039,9 +1001,8 @@ export function CalendarEventForm({
 
   if (draft.mode === "create" && createMode === "task") {
     return (
-      <div className="grid gap-3">
-        <CalendarCreateModeTabs mode={createMode} onChange={onCreateModeChange} />
-        {error ? <ErrorState description={error} title="Task not saved" /> : null}
+      <div className="event-editor grid gap-3">
+        
         <EmojiInput
           aria-label="Task title"
           autoFocus
@@ -1053,7 +1014,7 @@ export function CalendarEventForm({
           accountId={taskLists.find((taskList) => taskList.id === taskListId)?.accountId}
           aria-label="Task notes"
           onValueChange={(notes) => setDraft({ ...draft, notes })}
-          placeholder="Notes"
+          placeholder="Add a description…"
           value={draft.notes}
         />
         <TagInput onChange={(tags) => setDraft({ ...draft, tags })} value={draft.tags} />
@@ -1090,11 +1051,8 @@ export function CalendarEventForm({
 
   if (isBirthdayDraft) {
     return (
-      <div className="grid gap-3">
-        {draft.mode === "create" ? (
-          <CalendarCreateModeTabs mode={createMode} onChange={onCreateModeChange} />
-        ) : null}
-        {error ? <ErrorState description={error} title="Birthday not saved" /> : null}
+      <div className="event-editor grid gap-3">
+        
         <EmojiInput
           aria-label="Birthday title"
           autoFocus
@@ -1155,6 +1113,7 @@ export function CalendarEventForm({
               <option value="1440">1 day before</option>
             </select>
           </label>
+          <MarkdownEditor showControls={false} aria-label="Birthday notes" onValueChange={(notes) => setDraft({ ...draft, notes })} value={draft.notes} />
           <p className="text-[var(--text-xs)] text-text-muted">
             Repeats yearly as an all-day calendar event.
           </p>
@@ -1165,10 +1124,7 @@ export function CalendarEventForm({
 
   return (
     <div className="event-editor grid gap-4">
-      {draft.mode === "create" ? (
-        <CalendarCreateModeTabs mode={createMode} onChange={onCreateModeChange} />
-      ) : null}
-      {error ? <ErrorState description={error} title="Event not saved" /> : null}
+      
       <EmojiInput
         aria-label="Event title"
         autoFocus={draft.mode === "create"}
@@ -1176,32 +1132,6 @@ export function CalendarEventForm({
         placeholder="Title"
         value={draft.title}
       />
-      {showMoreOptions ? <><fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
-        <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Calendar</legend>
-        <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
-          <span>Source</span>
-          <select
-            aria-label="Event calendar"
-            className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            onChange={(event) => setDraft({ ...draft, calendarId: event.target.value })}
-            value={draft.calendarId}
-          >
-            {calendars.map((calendar) => (
-              <option key={calendar.id} value={calendar.id}>
-                {calendar.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <EventColorSelect
-          draft={draft}
-          eventColorOverrides={eventColorOverrides}
-          selectedCalendar={selectedCalendar}
-          setDraft={setDraft}
-        />
-        <PrivacyControls draft={draft} setDraft={setDraft} />
-      </fieldset>
-      <EventTypeControl draft={draft} setDraft={setDraft} /></> : null}
       <fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Time</legend>
         <p className="text-xs text-text-muted">Times in {sourceTimeZone}</p>
@@ -1252,7 +1182,7 @@ export function CalendarEventForm({
             value={draft.location}
           />
         </label>
-        {showMoreOptions ? <>
+        {selectedCalendar?.accountId !== "local" ? <>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span className="inline-flex items-center gap-1">
             <Users aria-hidden="true" size={13} />
@@ -1265,7 +1195,6 @@ export function CalendarEventForm({
             value={draft.guests}
           />
         </label>
-        <ReminderControls draft={draft} setDraft={setDraft} />
         <MeetControl draft={draft} setDraft={setDraft} />
         </> : null}
         {showMoreOptions ? <>
@@ -1288,6 +1217,7 @@ export function CalendarEventForm({
           />
         </> : null}
       </fieldset>
+      {showMoreOptions ? <EventTypeControl draft={draft} setDraft={setDraft} /> : null}
       {showMoreOptions || draft.repeatFrequency !== "none" ? <>
       <fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">
@@ -1533,17 +1463,43 @@ export function CalendarEventForm({
       <div className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">
           <FileText aria-hidden="true" size={13} />
-          Notes
+          Description
         </span>
         <MarkdownEditor
           accountId={selectedCalendar?.accountId}
           showControls={showMoreOptions}
           aria-label="Event notes"
           onValueChange={(notes) => setDraft({ ...draft, notes })}
-          placeholder="Notes"
+          placeholder="Add a description…"
           value={draft.notes}
         />
       </div>
+      <><fieldset className="grid min-w-0 gap-2 border-t border-border pt-3">
+        <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Calendar</legend>
+        <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
+          <span>Source</span>
+          <select
+            aria-label="Event calendar"
+            className="h-8 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            onChange={(event) => setDraft({ ...draft, calendarId: event.target.value })}
+            value={draft.calendarId}
+          >
+            {calendars.map((calendar) => (
+              <option key={calendar.id} value={calendar.id}>
+                {calendar.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <EventColorSelect
+          draft={draft}
+          eventColorOverrides={eventColorOverrides}
+          selectedCalendar={selectedCalendar}
+          setDraft={setDraft}
+        />
+        <PrivacyControls draft={draft} setDraft={setDraft} />
+      </fieldset>
+      <ReminderControls draft={draft} setDraft={setDraft} /></>
       <div className="border-t border-border pt-2">
         <Button
           aria-expanded={showMoreOptions}

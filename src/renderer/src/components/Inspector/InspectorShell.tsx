@@ -148,16 +148,16 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
         <div className="inspector-editor min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4" data-testid="inspector-body"
           onBlurCapture={(event) => {
             if (!current.onSave || !(event.target instanceof HTMLElement)) return;
-            if (!event.target.matches('input,textarea,select,[contenteditable="true"]')) return;
+            if (!event.target.matches('input,textarea,select,[contenteditable="true"]') && !event.target.closest(".markdown-editor")) return;
             const editor = event.target.closest(".markdown-editor");
             if (editor && event.relatedTarget instanceof Node && editor.contains(event.relatedTarget)) return;
             queueMicrotask(() => { void current.onSave?.(); });
           }}
           onChangeCapture={(event) => {
-            if (event.target instanceof HTMLElement && event.target.matches('select,input[type="checkbox"],input[type="radio"]')) queueMicrotask(() => { void current.onSave?.(); });
+            if (event.target instanceof HTMLElement && event.target.matches('select,input[type="checkbox"],input[type="radio"]') && !event.target.closest(".markdown-editor")) queueMicrotask(() => { void current.onSave?.(); });
           }}
           onClick={(event) => {
-            if ((event.target as HTMLElement).closest("button") && !(event.target as HTMLElement).closest('[role="dialog"]:not([data-testid="inspector-shell"])')) queueMicrotask(() => { void current.onSave?.(); });
+            if ((event.target as HTMLElement).closest("button") && !(event.target as HTMLElement).closest(".markdown-editor") && !(event.target as HTMLElement).closest('[role="dialog"]:not([data-testid="inspector-shell"])')) queueMicrotask(() => { void current.onSave?.(); });
           }}
         >
           {current.body}

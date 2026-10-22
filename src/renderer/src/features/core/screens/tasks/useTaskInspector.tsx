@@ -282,6 +282,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     setSelectedTaskId(null);
     conversionCleanupRef.current = cleanup ?? null;
     openTaskInspector(isTaskDraft(draftSeed) ? draftSeed : newTaskDraft(source, draftSeed), "edit");
+    if (cleanup) await saveTask();
   }
 
   async function readTask(taskId: string): Promise<TaskViewModel | null> {
@@ -338,25 +339,25 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   function convertTaskDraft(sourceDraft: TaskDraft, target: "event" | "birthday" | "note"): void {
-    if (!sourceDraft.id) {
-      return;
-    }
-
     if (target === "event" || target === "birthday") {
-      const cleanup = conversionCleanup("task", sourceDraft.id, target === "birthday" ? "event" : target);
+      const cleanup = sourceDraft.id ? conversionCleanup("task", sourceDraft.id, target) : undefined;
+      if (cleanup === null) return;
       dispatchConvertCommand({
         cleanup,
         target: "event",
-        eventDraft: { ...taskEventDraft(sourceDraft), ...(target === "birthday" ? { hcbKind: "birthday" as const } : {}) }
+        eventDraft: { ...taskEventDraft(sourceDraft), tags: sourceDraft.tags, ...(target === "birthday" ? { hcbKind: "birthday" as const } : {}) }
       });
       return;
     }
 
+    const cleanup = sourceDraft.id ? conversionCleanup("task", sourceDraft.id, "note") : undefined;
+    if (cleanup === null) return;
     dispatchConvertCommand({
-      cleanup: conversionCleanup("task", sourceDraft.id, target === "birthday" ? "event" : target),
+      cleanup,
       target,
       noteDraft: {
         body: sourceDraft.notes,
+        tags: sourceDraft.tags,
         listId: sourceDraft.listId,
         title: sourceDraft.title
       }
@@ -423,7 +424,10 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       } finally { taskSaveInFlightRef.current = false; setSaving(false); }
     })();
     taskSavePromiseRef.current = pending;
-    try { return await pending; } finally { if (taskSavePromiseRef.current === pending) taskSavePromiseRef.current = null; }
+    let saved: boolean;
+    try { saved = await pending; } finally { if (taskSavePromiseRef.current === pending) taskSavePromiseRef.current = null; }
+    if (saved && !taskDraftsEqual(taskDraftRef.current, taskDraftBaselineRef.current)) return saveTask();
+    return saved;
   }
 
   async function toggleTask(taskId: string): Promise<void> {
@@ -455,6 +459,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   async function deleteTask(taskId: string): Promise<void> {
+    await taskSavePromiseRef.current;
     const deleted = await source.deleteTask(taskId);
 
     if (deleted && selectedTaskId === taskId) {
@@ -471,6 +476,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
   }
 
   async function cancelTaskInspector(): Promise<void> {
+    await taskSavePromiseRef.current;
     const nextDraft = newTaskDraft(source, { listId: taskDraftRef.current.listId });
     taskDraftBaselineRef.current = nextDraft;
     taskDraftRef.current = nextDraft;
@@ -487,7 +493,8 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     addSubtaskForTask(selectedTask);
   }
 
-  function addSubtaskForTask(task: TaskViewModel | null): void {
+  async function addSubtaskForTask(task: TaskViewModel | null): Promise<void> {
+    if (!await canReplaceTaskInspector()) return;
     if (!task) {
       return;
     }

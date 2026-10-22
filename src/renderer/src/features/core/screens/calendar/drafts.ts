@@ -197,7 +197,7 @@ export function calendarEventPayload(draft: CalendarEventDraft): CalendarEventCr
     recurrenceLines: draft.recurrenceEditor === "google"
       ? normalizeGoogleRecurrenceLines(draft.recurrenceLines)
       : calendarSimpleRecurrenceLines(draft),
-    hcbKind: draft.hcbKind,
+    hcbKind: draft.hcbKind ?? null,
     ...(draft.originalStartAt ? { originalStartAt: draft.originalStartAt } : {})
   };
 }

@@ -78,7 +78,7 @@ describe("Task inspector draft persistence", () => {
 
     fireEvent.change(title, { target: { value: "Write release notes" } });
     fireEvent.change(notes, { target: { value: "Keep this local until Save." } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Task title" })).toBeEnabled());
 
     expect(api.tasks.create).not.toHaveBeenCalled();
     expect(api.tasks.update).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe("Task inspector draft persistence", () => {
       notes: "Keep this local until Save.",
       title: "Write release notes"
     }));
-    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Task title" })).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("inspector-shell")).not.toHaveAttribute("data-inspector-id", "new"));
     await waitFor(() => expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4"));
     expect(api.tasks.listTaskLists).toHaveBeenCalledTimes(taskListReadsBeforeSubmit);
   }, 15_000); // Includes the first cold import of the shared editor.
@@ -111,7 +111,7 @@ describe("Task inspector draft persistence", () => {
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
     fireEvent.change(title, { target: { value: "Only create once" } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Task title" })).toBeEnabled());
 
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
@@ -119,7 +119,7 @@ describe("Task inspector draft persistence", () => {
     expect(api.tasks.create).toHaveBeenCalledTimes(1);
     await act(async () => { releaseCreate?.(); });
 
-    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Task title" })).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("inspector-shell")).not.toHaveAttribute("data-inspector-id", "new"));
     await waitFor(() => expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4"));
   });
 
@@ -131,15 +131,15 @@ describe("Task inspector draft persistence", () => {
     window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
     const title = await screen.findByRole("textbox", { name: "Task title" });
     fireEvent.change(title, { target: { value: "Keep this draft" } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Task title" })).toBeEnabled());
     fireEvent.keyDown(title, { key: "Enter", metaKey: true });
 
     await waitFor(() => expect(api.tasks.create).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(title).toHaveValue("Keep this draft"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Add task" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Task title" })).toBeEnabled());
   });
 
-  it("keeps existing Task title and notes local until Save changes", async () => {
+  it("saves existing task fields on blur and keeps the editor open", async () => {
     const api = renderTaskSurface();
     const task = await screen.findByRole("button", { name: "Draft inbox triage rules" });
     fireEvent.click(task);
@@ -152,7 +152,7 @@ describe("Task inspector draft persistence", () => {
 
     expect(api.tasks.update).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.blur(notes);
 
     await waitFor(() => expect(api.tasks.update).toHaveBeenCalledTimes(1));
     expect(api.tasks.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -179,7 +179,7 @@ describe("Task inspector draft persistence", () => {
     const inspector = await screen.findByTestId("inspector-shell");
     const inspectorQueries = within(inspector);
     const title = inspectorQueries.getByRole("textbox", { name: "Task title" });
-    const addTask = inspectorQueries.getByRole("button", { name: "Add task" });
+    expect(inspectorQueries.queryByRole("button", { name: "Add task" })).toBeNull();
     await inspectorQueries.findByRole("textbox", { name: "Task notes" }, { timeout: 5000 });
     await act(async () => {
       await Promise.resolve();
@@ -188,17 +188,15 @@ describe("Task inspector draft persistence", () => {
 
     fireEvent.change(title, { target: { value: "A" } });
 
-    await waitFor(() => expect(addTask).toBeEnabled());
+    expect(title).toHaveValue("A");
     expect(commits).toEqual([]);
     expect(api.tasks.create).not.toHaveBeenCalled();
     expect(api.tasks.update).not.toHaveBeenCalled();
-    expect(inspectorQueries.getByText("Unsaved")).toBeTruthy();
+    expect(inspectorQueries.getByText("Changes save when you leave a field")).toBeTruthy();
 
     fireEvent.click(inspectorQueries.getByRole("button", { name: "Close inspector" }));
 
-    expect(title.isConnected).toBe(true);
 
-    fireEvent.keyDown(title, { key: "Enter", metaKey: true });
 
     await waitFor(() => expect(api.tasks.create).toHaveBeenCalledTimes(1));
     expect(api.tasks.create).toHaveBeenCalledWith(expect.objectContaining({

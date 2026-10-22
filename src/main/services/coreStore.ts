@@ -670,7 +670,7 @@ export class CoreStore {
       : event.googleRecurringEventId ?? null;
     this.statement(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
-      working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
+      working_location_properties_json=?,self_response_status=?,updated_at=?,hcb_kind=?,tags_json=? WHERE id=?`)
       .run(
         requiredText(remote.id, "Google event id"), remote.etag ?? null,
         remoteRecurringEventId, remoteOriginalStart,
@@ -1361,6 +1361,8 @@ export class CoreStore {
     this.addColumn("events", "attachments_json TEXT NOT NULL DEFAULT '[]'");
     this.addColumn("events", "attachments_managed INTEGER NOT NULL DEFAULT 0");
     this.addColumn("events", "event_type TEXT NOT NULL DEFAULT 'default'");
+    this.addColumn("events", "hcb_kind TEXT");
+    this.addColumn("events", "tags_json TEXT NOT NULL DEFAULT '[]'");
     this.addColumn("events", "focus_time_properties_json TEXT");
     this.addColumn("events", "out_of_office_properties_json TEXT");
     this.addColumn("events", "working_location_properties_json TEXT");
@@ -1742,7 +1744,7 @@ export class CoreStore {
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       transparency,visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_recurring_event_id AS recurringEventId,
       event.google_original_start_time AS originalStartAt,event.conference_json AS conference,event.attachments_json AS attachments,
-      event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
+      event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
@@ -1805,7 +1807,7 @@ export class CoreStore {
       attendees_json AS attendees,reminders_json AS reminders,reminders_use_default AS remindersUseDefault,
       event.transparency,event.visibility,event.time_zone AS timeZone,event.google_id AS googleId,event.google_recurring_event_id AS googleRecurringEventId,
       event.google_original_start_time AS googleOriginalStartTime,event.conference_json AS conference,event.attachments_json AS attachments,
-      event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
+      event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
       event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.id=?`).get(id);
     if (!row) throw new CoreStoreError("Calendar event no longer exists");
@@ -1827,8 +1829,8 @@ export class CoreStore {
       this.statement(`INSERT INTO events(id,calendar_id,title,description,starts_at,ends_at,all_day,completed,color_id,location,recurrence_json,google_recurrence_json,
         attendees_json,reminders_json,reminders_use_default,transparency,visibility,time_zone,conference_json,conference_create_requested,
         attachments_json,attachments_managed,event_type,focus_time_properties_json,out_of_office_properties_json,working_location_properties_json,
-        self_response_status,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        self_response_status,created_at,updated_at,hcb_kind,tags_json)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         id, calendarId, requiredText(input.title, "Event title"), stringValue(input.description ?? input.notes), requiredText(input.startsAt, "Event start"),
         requiredText(input.endsAt, "Event end"), input.allDay ? 1 : 0, 0, input.colorId ?? null, input.location ?? null,
         JSON.stringify(recurrence), JSON.stringify(recurrenceLines), JSON.stringify(input.attendees ?? input.guestEmails ?? []),
@@ -1837,7 +1839,8 @@ export class CoreStore {
         JSON.stringify(null), input.conferenceCreateRequest ? 1 : 0,
         JSON.stringify(normalizeCalendarAttachments(input.attachments)), Object.hasOwn(input, "attachments") ? 1 : 0,
         eventType, JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
-        JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus), now, now
+        JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus), now, now,
+        input.hcbKind === "birthday" ? "birthday" : null, JSON.stringify(input.tags ?? [])
       );
       if (options.enqueue !== false) this.enqueue("event.create", id, {}, this.accountForCalendar(calendarId));
     })();
@@ -1901,7 +1904,7 @@ export class CoreStore {
       this.statement(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,google_recurrence_json=?,
         attendees_json=?,reminders_json=?,reminders_use_default=?,transparency=?,visibility=?,time_zone=?,conference_create_requested=?,
         attachments_json=?,attachments_managed=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
-        working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`).run(
+        working_location_properties_json=?,self_response_status=?,updated_at=?,hcb_kind=?,tags_json=? WHERE id=?`).run(
         nextCalendarId, input.title ?? previous.title, input.description ?? input.notes ?? previous.description,
         input.startsAt ?? previous.startsAt, input.endsAt ?? previous.endsAt,
         input.allDay === undefined ? Number(previous.allDay) : input.allDay ? 1 : 0,
@@ -1916,7 +1919,8 @@ export class CoreStore {
         JSON.stringify(Object.hasOwn(input, "attachments") ? normalizeCalendarAttachments(input.attachments) : previous.attachments ?? []),
         Object.hasOwn(input, "attachments") ? 1 : Number(previous.attachmentsManaged ?? 0), eventType,
         JSON.stringify(statusProperties.focusTimeProperties), JSON.stringify(statusProperties.outOfOfficeProperties),
-        JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus ?? previous.selfResponseStatus), now, previous.id
+        JSON.stringify(statusProperties.workingLocationProperties), normalizedResponseStatus(input.selfResponseStatus ?? previous.selfResponseStatus), now,
+        hasOwn(input, "hcbKind") ? (input.hcbKind === "birthday" ? "birthday" : null) : previous.hcbKind ?? null, JSON.stringify(input.tags ?? previous.tags ?? []), previous.id
       );
       const movedExistingRemoteEvent = nextCalendarId !== previous.calendarId && Boolean(previousForSync?.googleId);
       if (options.enqueue !== false) {
@@ -3476,6 +3480,7 @@ function eventFromRow(row: JsonRecord): JsonRecord {
   const attachments = safeJson(row.attachments, []);
   return {
     ...row,
+    tags: safeJson(row.tags, []),
     allDay: Boolean(row.allDay),
     detailsTruncated: Boolean(row.detailsTruncated),
     completed: Boolean(row.completed),
@@ -3929,7 +3934,7 @@ function eventCreatePayload(event: JsonRecord): JsonRecord {
     transparency: event.transparency, visibility: event.visibility, timeZone: event.timeZone,
     attachments: event.attachments, eventType: event.eventType, focusTimeProperties: event.focusTimeProperties,
     outOfOfficeProperties: event.outOfOfficeProperties, workingLocationProperties: event.workingLocationProperties,
-    selfResponseStatus: event.selfResponseStatus
+    selfResponseStatus: event.selfResponseStatus, hcbKind: event.hcbKind ?? null, tags: event.tags ?? []
   };
 }
 function eventUpdatePayload(event: JsonRecord): JsonRecord { return eventCreatePayload(event); }

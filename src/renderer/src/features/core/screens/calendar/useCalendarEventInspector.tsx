@@ -1,3 +1,4 @@
+import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { CalendarEventCompletionScope, CalendarEventUpdateRequest } from "@shared/ipc/contracts";
@@ -66,23 +67,17 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   const createTaskListIdRef = useRef(createTaskListId);
   const readGeneration = useRef(0);
   const saveInFlight = useRef(false);
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
+  const saveScopeRef = useRef<CalendarEventCompletionScope | undefined>(undefined);
+  const recurrencePromptRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const conversionCleanupRef = useRef<ConvertSourceCleanup | null>(null);
   const setDraft = useCallback<Dispatch<SetStateAction<CalendarEventDraft | null>>>((next) => {
-    setDraftState((current) => {
-      const resolved =
-        typeof next === "function"
-          ? (next as (value: CalendarEventDraft | null) => CalendarEventDraft | null)(current)
-          : next;
-
-      calendarDraftRef.current = resolved;
-      calendarInspectorDirtyRef.current = !calendarEventDraftsEqual(
-        resolved,
-        calendarDraftBaselineRef.current
-      );
-
-      return resolved;
-    });
+    const current = calendarDraftRef.current;
+    const resolved = typeof next === "function" ? next(current) : next;
+    calendarDraftRef.current = resolved;
+    calendarInspectorDirtyRef.current = !calendarEventDraftsEqual(resolved, calendarDraftBaselineRef.current);
+    setDraftState(resolved);
   }, []);
 
   function setCalendarInspectorMode(mode: "view" | "edit"): void {
@@ -102,7 +97,6 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       allDay: true,
       startsAt,
       endsAt: addUtcDaysIso(startsAt, 1),
-      tags: [],
       repeatFrequency: "yearly",
       repeatCustomFrequency: "yearly",
       repeatEndMode: "never",
@@ -138,7 +132,11 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
       !calendarEventDraftsEqual(draft, calendarDraftBaselineRef.current);
     calendarInspectorDirtyRef.current = dirty;
     updateInspector({
-      actions: eventInspectorActions(draft, calendarInspectorMode),
+      actions: null,
+      toolbar: eventInspectorToolbar(draft),
+      onSave: saveDraft,
+      saving,
+      saveError: formError,
       body: eventInspectorBody(draft, calendarInspectorMode),
       dirty,
       hideHeader: eventInspectorHidesHeader(draft, calendarInspectorMode),
@@ -169,13 +167,25 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setCreateTaskListId(defaultTaskListId(source));
   }, [source, source.taskLists]);
 
-  function canReplaceEventInspector(): boolean {
-    if (calendarInspectorDirtyRef.current) showSaveFeedback("Save or discard your edits before opening another item.");
-    return (
-      currentInspector?.kind !== "event" ||
-      calendarInspectorModeRef.current !== "edit" ||
-      !calendarInspectorDirtyRef.current
-    );
+  async function canReplaceEventInspector(): Promise<boolean> {
+    return currentInspector?.kind !== "event" || await saveDraft();
+  }
+
+  function eventInspectorToolbar(nextDraft: CalendarEventDraft): ReactNode {
+    const kind = nextDraft.hcbKind === "birthday" ? "birthday" : nextDraft.mode === "create" ? createModeRef.current : "event";
+    return <InspectorItemToolbar kind={kind} persisted={nextDraft.mode === "edit"} busy={saving}
+      onKindChange={async (target: InspectorEntryKind) => {
+        if (nextDraft.mode === "edit" && !await saveDraft()) return;
+        const live = calendarDraftRef.current;
+        if (!live) return;
+        if (target === "task" || target === "note") { convertEventDraft(live, target); return; }
+        if (live.mode === "edit" && !window.confirm(target === "birthday" ? "Change this event into an all-day birthday that repeats every year? Its title and notes will be kept." : "Change this birthday into an event? Its title, notes and yearly schedule will be kept.")) return;
+        setCreateMode(target);
+        if (live.mode === "edit") await saveDraft();
+      }}
+      onCopy={() => copyInspectorText(calendarDraftRef.current?.title ?? "", calendarDraftRef.current?.notes ?? "")}
+      onDuplicate={async () => { if (await saveDraft() && calendarDraftRef.current) { duplicateEventDraftValue(calendarDraftRef.current); await saveDraft(); } }}
+      onDelete={async () => { if (calendarDraftRef.current?.id) await deleteDraft(); else await cancelEventInspector(); }} />;
   }
 
   function eventInspectorTitle(nextDraft: CalendarEventDraft): string {
@@ -250,6 +260,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
             event.preventDefault();
             event.stopPropagation();
             setRecurrenceOperation(null);
+            recurrencePromptRef.current = false;
           }
         }}
         role="dialog"
@@ -280,67 +291,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
               </Button>
             ))}
           </div>
-          <Button onClick={() => setRecurrenceOperation(null)} size="sm" variant="ghost">Cancel</Button>
+          <Button onClick={() => { recurrencePromptRef.current = false; setRecurrenceOperation(null); }} size="sm" variant="ghost">Cancel</Button>
         </div>
-      </div>
-    );
-  }
-
-  function eventInspectorActions(
-    nextDraft: CalendarEventDraft,
-    mode = calendarInspectorModeRef.current
-  ): ReactNode {
-    if (nextDraft.mode === "edit" && mode === "view") {
-      return (
-        <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            <Button onClick={() => setCalendarInspectorMode("edit")} size="sm" variant="primary">
-              <Pencil aria-hidden="true" size={14} />
-              Edit
-            </Button>
-            <details className="group relative">
-              <summary className="flex h-8 cursor-pointer list-none items-center rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-sm)] font-medium text-text-secondary hover:bg-surface-1 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-                More actions
-              </summary>
-              <div className="absolute bottom-full right-0 z-20 mb-2 grid min-w-56 gap-1 rounded-hcbMd border border-border bg-bg-secondary p-1 shadow-xl">
-                <Button onClick={() => duplicateEventDraftValue(nextDraft)} size="sm" variant="ghost">
-                  <Copy aria-hidden="true" size={14} />
-                  Create standalone copy
-                </Button>
-                {nextDraft.hcbKind !== "birthday" ? <>
-                <Button onClick={() => convertEventDraft(nextDraft, "task")} size="sm" variant="secondary">
-                  <ArrowRightLeft aria-hidden="true" size={14} />
-                  Create task from event
-                </Button>
-                <Button onClick={() => convertEventDraft(nextDraft, "note")} size="sm" variant="secondary">
-                  <ArrowRightLeft aria-hidden="true" size={14} />
-                  Create note from event
-                </Button>
-                </> : null}
-              </div>
-            </details>
-            <Button onClick={() => void deleteDraft()} size="sm" variant="danger">
-              <Trash2 aria-hidden="true" size={14} />
-              Delete event
-            </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex w-full items-center justify-end gap-2">
-        {nextDraft.mode === "edit" ? <details className="relative mr-auto">
-          <summary className="cursor-pointer rounded-md px-2 py-2 text-sm text-text-secondary">More actions</summary>
-          <div className="absolute bottom-full left-0 z-20 mb-2 grid w-60 gap-1 rounded-lg border border-border bg-bg-primary p-2 shadow-xl">
-            <Button disabled={saving} onClick={() => duplicateEventDraftValue(calendarDraftRef.current ?? nextDraft)} size="sm" variant="ghost">Create standalone copy</Button>
-            {nextDraft.hcbKind !== "birthday" ? <>
-              <Button disabled={saving} onClick={() => convertEventDraft(calendarDraftRef.current ?? nextDraft, "task")} size="sm" variant="ghost">Create task from event</Button>
-              <Button disabled={saving} onClick={() => convertEventDraft(calendarDraftRef.current ?? nextDraft, "note")} size="sm" variant="ghost">Create note from event</Button>
-            </> : null}
-            <Button disabled={saving} onClick={() => void deleteDraft()} size="sm" variant="danger">Delete event</Button>
-          </div>
-        </details> : null}
-        <Button disabled={saving} onClick={() => void cancelEventInspector()} size="sm" variant="ghost">{calendarInspectorDirtyRef.current ? "Discard" : "Cancel"}</Button>
-        <Button disabled={saving} onClick={() => void saveDraft()} size="sm" variant="primary">{saving ? "Saving…" : "Save changes"}</Button>
       </div>
     );
   }
@@ -357,6 +309,9 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     mode: "view" | "edit" = "edit"
   ): void {
     calendarInspectorInstanceRef.current += 1;
+    const instance = calendarInspectorInstanceRef.current;
+    saveScopeRef.current = undefined;
+    recurrencePromptRef.current = false;
     calendarDraftBaselineRef.current = nextDraft;
     calendarDraftRef.current = nextDraft;
     calendarInspectorDirtyRef.current = false;
@@ -365,29 +320,30 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setFormError(undefined);
     setDraft(nextDraft);
     openInspector({
-      actions: eventInspectorActions(nextDraft, mode),
+      actions: null,
+      toolbar: eventInspectorToolbar(nextDraft),
+      onSave: saveDraft,
+      onDiscard: cancelEventInspector,
+      saving: false,
+      saveError: undefined,
       body: eventInspectorBody(nextDraft, mode),
       dirty: false,
       hideHeader: eventInspectorHidesHeader(nextDraft, mode),
       id: nextDraft.id ?? "new",
       kind: "event",
-      onConfirmClose: () => {
-        if (saveInFlight.current) return false;
-        if (calendarInspectorDirtyRef.current) showSaveFeedback("Save or discard your edits before closing details.");
-        return calendarInspectorModeRef.current !== "edit" || !calendarInspectorDirtyRef.current;
-      },
+      onConfirmClose: () => instance !== calendarInspectorInstanceRef.current ? true : saveDraft(),
       subtitle: eventInspectorSubtitle(nextDraft),
       title: eventInspectorTitle(nextDraft)
     });
   }
 
-  function openCreate(seed?: CalendarCreateSeed, options: CalendarCreateOptions = {}): void {
+  async function openCreate(seed?: CalendarCreateSeed, options: CalendarCreateOptions = {}): Promise<void> {
     ++readGeneration.current;
-    if (!canReplaceEventInspector()) {
+    if (!await canReplaceEventInspector()) {
       return;
     }
 
-    const nextMode = options.createMode ?? "event";
+    const nextMode = options.draft?.hcbKind === "birthday" ? "birthday" : options.createMode ?? "event";
     const nextDraft = applyCreateModeToDraft({
       ...newCalendarDraft(source, seed),
       ...options.draft,
@@ -398,11 +354,12 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setCreateTaskListId(options.taskListId ?? defaultTaskListId(source));
     conversionCleanupRef.current = options.cleanup ?? null;
     openEventInspector(nextDraft, "edit");
+    if (options.cleanup) await saveDraft();
   }
 
-  function openEdit(event: CalendarEventViewModel): void {
+  async function openEdit(event: CalendarEventViewModel): Promise<void> {
     const generation = ++readGeneration.current;
-    if (!canReplaceEventInspector()) return;
+    if (!await canReplaceEventInspector()) return;
     const open = (complete: CalendarEventViewModel): void => {
       if (generation !== readGeneration.current) return;
       setCreateMode("event");
@@ -437,11 +394,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   function convertEventDraft(sourceDraft: CalendarEventDraft, target: "task" | "note"): void {
-    if (!sourceDraft.id || sourceDraft.hcbKind === "birthday") {
-      return;
-    }
-
-    const cleanup = conversionCleanup("event", sourceDraft.id, target);
+    const cleanup = sourceDraft.id ? conversionCleanup("event", sourceDraft.id, target, recurringDraft(sourceDraft)) : undefined;
+    if (cleanup === null) return;
 
     if (target === "task") {
       dispatchConvertCommand({
@@ -542,41 +496,54 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   async function continueRecurrenceOperation(scope: CalendarEventCompletionScope): Promise<void> {
     const operation = recurrenceOperation;
     setRecurrenceOperation(null);
+    recurrencePromptRef.current = false;
     if (operation === "delete") {
       await deleteDraft(scope);
       return;
     }
     if (operation === "save") {
+      saveScopeRef.current = scope;
       await saveDraft(scope);
     }
   }
 
-  async function saveDraft(recurrenceScope?: CalendarEventCompletionScope): Promise<void> {
-    if (saveInFlight.current) return;
+  async function saveDraft(recurrenceScope = saveScopeRef.current): Promise<boolean> {
+    if (savePromiseRef.current && !await savePromiseRef.current) return false;
+    const live = calendarDraftRef.current;
+    if (!live) return true;
+    if (calendarEventDraftsEqual(live, calendarDraftBaselineRef.current) && !(live.mode === "create" && live.title.trim())) return true;
+    if (recurrencePromptRef.current) return false;
     saveInFlight.current = true;
     setSaving(true);
-    try { await performSaveDraft(recurrenceScope); }
-    catch { setFormError("The event could not be saved. Your edits are still here; try again."); }
-    finally { saveInFlight.current = false; setSaving(false); }
+    const pending = performSaveDraft(recurrenceScope).catch(() => {
+      setFormError("Could not save. Your edits are still here; try again.");
+      return false;
+    }).finally(() => { saveInFlight.current = false; setSaving(false); });
+    savePromiseRef.current = pending;
+    let saved: boolean;
+    try { saved = await pending; } finally { if (savePromiseRef.current === pending) savePromiseRef.current = null; }
+    if (saved && !calendarEventDraftsEqual(calendarDraftRef.current, calendarDraftBaselineRef.current)) return saveDraft(recurrenceScope);
+    return saved;
   }
 
-  async function performSaveDraft(recurrenceScope?: CalendarEventCompletionScope): Promise<void> {
+  async function performSaveDraft(recurrenceScope?: CalendarEventCompletionScope): Promise<boolean> {
     const currentDraft = calendarDraftRef.current;
 
     if (!currentDraft) {
-      return;
+      return false;
     }
 
-    if (currentDraft.mode === "edit" && recurringDraft(currentDraft) && !recurrenceScope) {
+    if (currentDraft.mode === "edit" && calendarDraftBaselineRef.current && recurringDraft(calendarDraftBaselineRef.current) && !recurrenceScope) {
+      recurrencePromptRef.current = true;
       setRecurrenceOperation("save");
-      return;
+      return false;
     }
 
     const payload = calendarEventPayload(currentDraft);
 
     if (!payload.title) {
       setFormError("Title is required.");
-      return;
+      return false;
     }
 
     if (currentDraft.mode === "create" && createModeRef.current === "task") {
@@ -584,7 +551,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
       if (!listId) {
         setFormError("Choose a task list.");
-        return;
+        return false;
       }
 
       const saved = await source.createTask({
@@ -603,16 +570,21 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
       if (!saved) {
         setFormError(source.taskMutationError ?? "Task write failed.");
-        return;
+        return false;
       }
 
       await closeEventInspectorAfterMutation();
-      return;
+      return true;
+    }
+
+    if (!Number.isFinite(Date.parse(payload.startsAt)) || !Number.isFinite(Date.parse(payload.endsAt)) || Date.parse(payload.endsAt) <= Date.parse(payload.startsAt)) {
+      setFormError("Choose an end time after the start time.");
+      return false;
     }
 
     if (!payload.calendarId) {
       setFormError("Choose a calendar.");
-      return;
+      return false;
     }
 
     const isBirthdayDraft =
@@ -626,9 +598,6 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
             startsAt: startOfUtcDayIso(currentDraft.startsAt),
             endsAt: addUtcDaysIso(startOfUtcDayIso(currentDraft.startsAt), 1),
             hcbKind: "birthday" as const,
-            location: "",
-            notes: "",
-            tags: [],
             guestEmails: [],
             recurrence: {
               frequency: "yearly" as const,
@@ -651,19 +620,24 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
 
     if (!result?.ok) {
       setFormError(result?.error.message ?? "Calendar event write failed.");
-      return;
+      return false;
     }
 
+    const baseline: CalendarEventDraft = { ...currentDraft, mode: "edit", id: result.data.id };
+    const live: CalendarEventDraft = { ...calendarDraftRef.current!, mode: "edit", id: result.data.id };
+    calendarDraftBaselineRef.current = baseline;
+    if (currentDraft.mode === "create") saveScopeRef.current = "series";
+    setDraft(live);
+    setFormError(undefined);
+    updateInspector({ id: result.data.id });
     const cleanupError = await cleanupConvertedSource();
-    showSaveFeedback(source.calendarSources.find((item) => item.id === currentDraft.calendarId)?.accountId === "local" ? "Event saved on this device" : "Event saved locally · Google sync follows your sync settings");
-    await closeEventInspectorAfterMutation();
-
-    if (cleanupError) {
-      setCalendarActionError(`Converted item was saved, but ${cleanupError}`);
-    }
+    if (cleanupError) setFormError(`The new item was saved, but ${cleanupError}`);
+    source.refresh();
+    return true;
   }
 
   async function deleteDraft(recurrenceScope?: CalendarEventCompletionScope): Promise<void> {
+    await savePromiseRef.current;
     const currentDraft = calendarDraftRef.current;
 
     if (!currentDraft?.id) {
@@ -690,6 +664,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   async function cancelEventInspector(): Promise<void> {
+    await savePromiseRef.current;
     discardEventInspectorState();
     await closeInspector();
   }

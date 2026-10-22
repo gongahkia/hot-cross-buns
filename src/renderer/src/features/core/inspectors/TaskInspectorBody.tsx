@@ -315,10 +315,6 @@ export function TaskInspectorBody({
     [dirty.value, mutationPending]
   );
 
-  useEffect(() => {
-    onDraftChange(dirty.value);
-  }, [dirty.value, onDraftChange]);
-
   useEffect(() => { dirty.reset(draft); }, [draft]);
 
   useEffect(() => {

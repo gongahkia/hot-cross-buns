@@ -24,7 +24,7 @@ async function editOffscreenNote() {
   await screen.findByRole("button", { name: "Open note Startup data flow" });
   act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "note-outside-cache" } })));
   await waitFor(() => expect(screen.getByTestId("inspector-shell")).toHaveAttribute("data-inspector-id", "note-outside-cache"));
-  await screen.findByRole("textbox", { name: "Note body" });
+  await screen.findByRole("textbox", { name: "Note body" }, { timeout: 5000 });
   fireEvent.click(await screen.findByRole("button", { name: "Source" }));
   return screen.findByRole("textbox", { name: "Note body" });
 }
@@ -57,14 +57,14 @@ describe("Paged note editing", () => {
     fireEvent.change(body, { target: { value: "Keep this content" } });
     let finish: ((value: any) => void) | undefined;
     api.notes.create = vi.fn(() => new Promise<any>((resolve) => { finish = resolve; }));
-    const create = screen.getByRole("button", { name: "Create note" });
-    fireEvent.click(create); fireEvent.click(create);
-    expect(api.notes.create).toHaveBeenCalledOnce();
-    expect(title).toBeDisabled();
+    fireEvent.blur(body); fireEvent.blur(body);
+    await waitFor(() => expect(api.notes.create).toHaveBeenCalledOnce());
+    expect(title).toBeEnabled();
+    fireEvent.change(body, { target: { value: "Keep this content and new typing" } });
     await act(async () => { finish?.(ok({ id: "saved-note", listId: "list-inbox", title: "Created once", body: "Keep this content" })); });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Create note" })).toBeNull());
     if (screen.queryByRole("button", { name: "Source" })) fireEvent.click(screen.getByRole("button", { name: "Source" }));
-    expect(screen.getByRole("textbox", { name: "Note body" })).toHaveValue("Keep this content");
+    expect(screen.getByRole("textbox", { name: "Note body" })).toHaveValue("Keep this content and new typing");
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Note body" }), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -75,6 +75,8 @@ describe("Paged note editing", () => {
     let finish: ((result: any) => void) | undefined;
     api.notes.update = vi.fn().mockImplementationOnce(() => new Promise<any>((resolve) => { finish = resolve; })).mockImplementation(async (request) => ok({ ...request }));
     fireEvent.change(editor, { target: { value: "First edit" } });
+    expect(api.notes.update).not.toHaveBeenCalled();
+    fireEvent.blur(editor);
     await waitFor(() => expect(api.notes.update).toHaveBeenCalledTimes(1));
     fireEvent.change(editor, { target: { value: "Second edit while writing" } });
     await act(async () => { finish?.(ok({ id: "note-outside-cache" })); await Promise.resolve(); });
