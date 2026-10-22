@@ -15,10 +15,11 @@
 .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 { font-weight: 650; margin: .8em 0 .3em; line-height: 1.3; text-wrap: balance; }
 .markdown-content h1 { font-size: 1.8em; } .markdown-content h2 { font-size: 1.5em; } .markdown-content h3 { font-size: 1.25em; }
 .markdown-content ul, .markdown-content ol { padding-left: 1.5em; margin: .5em 0; } .markdown-content ul { list-style: disc; } .markdown-content ol { list-style: decimal; }
-.markdown-content ul[data-type="taskList"] { list-style: none; padding-left: 0; }
-.markdown-content li[data-type="taskItem"] { display: flex; align-items: baseline; gap: 8px; }
-.markdown-content li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
-.markdown-content li[data-type="taskItem"] > label { cursor: pointer; }
+.markdown-content ul[data-type="taskList"], .markdown-content ul:has(> li[data-checked]) { list-style: none; padding-left: 0; }
+/* Tiptap node views expose data-checked; serialized HTML also has data-type. */
+.markdown-content li:is([data-type="taskItem"], [data-checked]) { display: flex; align-items: baseline; gap: 8px; }
+.markdown-content li:is([data-type="taskItem"], [data-checked]) > div { flex: 1; min-width: 0; }
+.markdown-content li:is([data-type="taskItem"], [data-checked]) > label { cursor: pointer; flex: 0 0 auto; }
 .markdown-content input[type="checkbox"] { accent-color: var(--color-accent); }
 .markdown-content blockquote { border-left: 3px solid var(--color-accent); padding-left: 12px; margin: .75em 0; color: var(--color-text-secondary); }
 .markdown-content code, .markdown-source { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

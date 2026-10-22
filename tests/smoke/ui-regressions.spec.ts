@@ -73,3 +73,23 @@ test("retains the calendar range, view and scroll through navigation and splitti
     await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
   });
 });
+
+test("aligns rich-editor checklist controls with their text", async () => {
+  await withPlanner(async (page) => {
+    await page.evaluate(async () => {
+      await window.hcb!.notes.create({ title: "Checklist layout", body: "- [ ] Review the design\n- [ ] Ship the changes" });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+    });
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
+    await page.getByRole("button", { name: "Open note Checklist layout", exact: true }).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    const row = page.locator(".markdown-content li[data-checked]").first();
+    await expect(row).toHaveCSS("display", "flex");
+    const offset = await row.evaluate((element) => {
+      const control = element.querySelector("input")!.getBoundingClientRect();
+      const text = element.querySelector("p")!.getBoundingClientRect();
+      return Math.abs(control.top - text.top);
+    });
+    expect(offset).toBeLessThan(12);
+  });
+});
