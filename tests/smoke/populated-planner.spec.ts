@@ -8,6 +8,9 @@ import { goToPopulatedDay, seedPopulatedPlanner } from "./populatedPlanner";
 test.setTimeout(120_000);
 
 async function measuredView(page: Page, view: string) {
+  const profiler = process.env.HCB_PROFILE_VIEWS ? await page.context().newCDPSession(page) : null;
+  if (profiler) { await profiler.send("Profiler.enable"); await profiler.send("Performance.enable"); }
+  let metricsBefore: Record<string, number> = {};
   const label = ({ month: "Month", week: "Week", day: "Day", multiDay: "3 days" } as Record<string, string>)[view];
   const gridLabel = `Calendar ${view === "multiDay" ? "multi-day" : view} view`;
   await page.evaluate(({ label, gridLabel }) => {
@@ -32,8 +35,22 @@ async function measuredView(page: Page, view: string) {
       document.addEventListener("click", listener, true);
     });
   }, { label, gridLabel });
-  await chooseCalendarView(page, view);
+  await chooseCalendarView(page, view, profiler ? async () => {
+    const { metrics } = await profiler.send("Performance.getMetrics");
+    metricsBefore = Object.fromEntries(metrics.map(metric => [metric.name, metric.value]));
+    await profiler.send("Profiler.start");
+  } : undefined);
   const sample = await page.evaluate(() => (window as any).__populatedTransition) as { durationMs: number; frames: number[] };
+  if (profiler) {
+    const { profile } = await profiler.send("Profiler.stop");
+    mkdirSync("output/ui-review", { recursive: true });
+    const theme = await page.locator("html").getAttribute("data-color-theme");
+    writeFileSync(`output/ui-review/calendar-${view}-${theme}.cpuprofile`, JSON.stringify(profile));
+    const { metrics } = await profiler.send("Performance.getMetrics");
+    const phases = Object.fromEntries(metrics.filter(metric => ["LayoutDuration", "RecalcStyleDuration", "ScriptDuration", "TaskDuration"].includes(metric.name)).map(metric => [metric.name, Math.round((metric.value - (metricsBefore[metric.name] ?? 0)) * 1000)]));
+    writeFileSync(`output/ui-review/calendar-${view}-${theme}-phases.json`, JSON.stringify(phases, null, 2));
+    await profiler.detach();
+  }
   const frames = sample.frames.slice(1).sort((a, b) => a - b);
   const frameP95Ms = frames[Math.min(frames.length - 1, Math.floor(frames.length * .95))];
   expect(sample.durationMs, `${view} click to settled grid`).toBeLessThan(1500);
