@@ -56,3 +56,20 @@ test("creates a named list through an accessible application dialog", async () =
     })).toBe(true);
   });
 });
+
+test("retains the calendar range, view and scroll through navigation and splitting", async () => {
+  await withPlanner(async (page) => {
+    await page.getByRole("tab", { name: "Week", exact: true }).click();
+    const range = await page.getByTestId("calendar-view").getAttribute("data-range-start");
+    const timeline = page.locator("[data-calendar-timeline-scroll]");
+    await timeline.evaluate((node) => { node.scrollTop = 550; node.dispatchEvent(new Event("scroll")); });
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Calendar/ }).click();
+    await expect(page.getByRole("tab", { name: "Week", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
+    await expect.poll(() => timeline.evaluate((node) => node.scrollTop)).toBe(550);
+    await page.getByRole("button", { name: "Split view", exact: true }).click();
+    await expect(page.getByRole("tab", { name: "Week", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("calendar-view")).toHaveAttribute("data-range-start", range!);
+  });
+});

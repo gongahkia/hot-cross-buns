@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { PaneIdentity, readPanePreference, writePanePreference } from "../../../shell/panePreferences";
 import type { CSSProperties, DragEvent, PointerEvent, ReactNode } from "react";
 import type { CalendarEventCompletionScope } from "@shared/ipc/contracts";
 import { Minus, Plus } from "lucide-react";
@@ -231,6 +232,7 @@ function CalendarTimelineView({
   const [dropPreview, setDropPreview] = useState<CalendarTimeBlock | null>(null);
   const [nowIso, setNowIso] = useState(() => new Date().toISOString());
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const paneId = useContext(PaneIdentity);
   const timeGridRef = useRef<HTMLDivElement | null>(null);
   const timelineDragRef = useRef<{
     dayKey: string;
@@ -249,6 +251,7 @@ function CalendarTimelineView({
   );
   const visibleDays = timeline.days;
   const visibleDayKeys = visibleDays.map(({ day }) => calendarDayKey(day)).join("|");
+  const scrollKey = `calendar.scroll:${gridLabel}:${visibleDayKeys}`;
   const currentPoint = useMemo(
     () => calendarLocalPoint(nowIso, source.settings.defaultTimeZone),
     [nowIso, source.settings.defaultTimeZone]
@@ -298,10 +301,6 @@ function CalendarTimelineView({
   }, []);
 
   useEffect(() => {
-    if (currentDayIndex < 0) {
-      return;
-    }
-
     const scrollContainer = scrollContainerRef.current;
     const timeGrid = timeGridRef.current;
 
@@ -310,12 +309,19 @@ function CalendarTimelineView({
     }
 
     const frame = window.requestAnimationFrame(() => {
+      const saved = readPanePreference<{ top: number; left: number } | null>(paneId, scrollKey, null);
+      if (saved) {
+        scrollContainer.scrollTop = saved.top;
+        scrollContainer.scrollLeft = saved.left;
+        return;
+      }
+      if (currentDayIndex < 0) return;
       const targetTop = timeGrid.offsetTop + currentTimeTop - scrollContainer.clientHeight * 0.35;
       scrollContainer.scrollTop = Math.max(0, targetTop);
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [currentDayIndex, currentPoint.dayKey, gridLabel, hourRowHeight, visibleDayKeys]);
+  }, [currentDayIndex, currentPoint.dayKey, gridLabel, hourRowHeight, visibleDayKeys, paneId, scrollKey]);
 
   function handleDrop(
     dragEvent: DragEvent<HTMLElement>,
@@ -582,6 +588,7 @@ function CalendarTimelineView({
       <div
         className="min-h-0 flex-1 overflow-auto"
         data-calendar-timeline-scroll
+        onScroll={(event) => writePanePreference(paneId, scrollKey, { top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft })}
         ref={scrollContainerRef}
         role="grid"
         aria-label={gridLabel}

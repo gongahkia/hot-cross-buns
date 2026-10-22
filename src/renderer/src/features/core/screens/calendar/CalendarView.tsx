@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePanePreference } from "../../../shell/panePreferences";
 import type { CalendarEventCompletionScope, CalendarEventDetail } from "@shared/ipc/contracts";
 import { AlertTriangle, X } from "lucide-react";
 import { IconButton, StatusBanner } from "../../../../components/primitives";
@@ -92,8 +93,8 @@ export function CalendarView({
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
-  const [activeViewId, setActiveViewId] = useState<CalendarViewId>("agenda");
-  const [calendarAnchorDate, setCalendarAnchorDate] = useState(() =>
+  const [activeViewId, setActiveViewId] = usePanePreference<CalendarViewId>("calendar.view", "agenda");
+  const [calendarAnchorDate, setCalendarAnchorDate] = usePanePreference("calendar.date", () =>
     calendarCurrentDayKey(source.settings.defaultTimeZone)
   );
   const anchorTimeZone = useRef(source.settings.defaultTimeZone);
@@ -103,7 +104,7 @@ export function CalendarView({
     if (previous !== source.settings.defaultTimeZone) setCalendarAnchorDate((day) => day === calendarCurrentDayKey(previous) ? calendarCurrentDayKey(source.settings.defaultTimeZone) : day);
   }, [source.settings.defaultTimeZone]);
   const todayKey = calendarCurrentDayKey(source.settings.defaultTimeZone);
-  const [multiDayCount, setMultiDayCount] = useState(3);
+  const [multiDayCount, setMultiDayCount] = usePanePreference("calendar.days", 3);
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
   const calendarNavigationStartedAt = useRef<number | null>(null);

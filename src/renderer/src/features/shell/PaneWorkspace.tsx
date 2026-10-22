@@ -4,6 +4,7 @@ import { ExternalLink, GripVertical, Plus, X } from "lucide-react";
 import { Button, cx } from "../../components/primitives";
 import { getPlannerSection, type SectionId } from "../../data/mockPlanner";
 import { SectionContent, type TaskSurfaceCommand } from "../core/CoreScreens";
+import { PaneIdentity } from "./panePreferences";
 import {
   activeSplitPaneWebTab,
   clampPaneRatio,
@@ -358,11 +359,11 @@ function PaneLeafContent({
 
   return (
     <section className="h-full min-h-0 overflow-auto p-2 sm:p-3" aria-label={`${paneContentTitle(leaf.content)} split content`}>
-      <SectionContent
+      <PaneIdentity.Provider value={leaf.id}><SectionContent
         activeSectionId={leaf.content.sectionId}
         taskCommand={taskCommand?.paneId === leaf.id ? taskCommand : null}
         visibleCalendarIds={visibleCalendarIds}
-      />
+      /></PaneIdentity.Provider>
     </section>
   );
 }
