@@ -645,7 +645,7 @@ test("confirms replacement and preserves content across task, note, birthday and
     await expect(panel).not.toHaveAttribute("data-inspector-id", /^note-draft-/);
     const noteId = (await panel.getAttribute("data-inspector-id"))!;
     await expect(page.getByRole("textbox", { name: "Note body" })).toContainText("Keep this description through every type.");
-    await expect.poll(async () => page.evaluate(async (id) => (await window.hcb!.tasks.get({ id })).ok, taskId)).toBe(false);
+    await expect.poll(async () => page.evaluate(async (id) => { const result = await window.hcb!.tasks.get({ id }); return result.ok && result.data.status; }, taskId)).toBe("deleted");
     await changeType("Birthday");
     await expect(page.getByRole("textbox", { name: "Birthday title" })).toHaveValue("Conversion keeps my writing");
     await expect(panel).not.toHaveAttribute("data-inspector-id", "new");

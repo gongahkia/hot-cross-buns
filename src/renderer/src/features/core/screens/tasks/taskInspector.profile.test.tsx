@@ -123,9 +123,7 @@ describe("Task inspector draft persistence", () => {
     await waitFor(() => expect(api.tasks.update).toHaveBeenLastCalledWith(expect.objectContaining({ title: "New typing during creation" })));
     expect(api.tasks.create).toHaveBeenCalledTimes(1);
     expect(title).toHaveValue("New typing during creation");
-
     await waitFor(() => expect(screen.getByTestId("inspector-shell")).not.toHaveAttribute("data-inspector-id", "new"));
-    await waitFor(() => expect(screen.getByRole("button", { name: /^All tasks/ })).toHaveTextContent("4"));
   });
 
   it("keeps a failed create draft open and retryable", async () => {

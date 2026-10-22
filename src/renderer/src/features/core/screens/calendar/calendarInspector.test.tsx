@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { internalError, ok } from "@shared/ipc/result";
 import { InspectorProvider, InspectorShell } from "../../../../components/Inspector";
 import { CoreDataProvider, useCoreViewModelSource } from "../../coreViewModelSource";
-import { installHcb, seededHcb, testSettings } from "../../../../test/appTestHelpers";
+import { installHcb, seededHcb, testSettings, testNativeCapabilities } from "../../../../test/appTestHelpers";
 import { useCalendarEventInspector } from "./useCalendarEventInspector";
 
 function Harness() {
@@ -15,6 +15,8 @@ function surface() {
   const api = seededHcb();
   api.settings.get = vi.fn(async () => ok(testSettings()));
   api.sync.subscribeStatus = vi.fn(() => () => undefined);
+  api.native = { capabilities: vi.fn(async () => ok(testNativeCapabilities())) } as never;
+  api.diagnostics = { markCachedDataRendered: vi.fn(async () => ok({ marked: true })), recordTiming: vi.fn(async () => ok({ recorded: true })) } as never;
   api.calendar.create = vi.fn(async (request) => ok({ ...request, id: "created-event" }));
   api.calendar.update = vi.fn(async (request) => ok(request));
   installHcb(api);
