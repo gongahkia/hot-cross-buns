@@ -1,10 +1,9 @@
 /**
- * Curated editor and terminal palettes. The semantic layers are derived from
- * each theme's canonical background, foreground, and ANSI accent colors so a
- * palette affects every HCB surface instead of only its application chrome.
+ * The light and dark palettes from experiment/reference-cal. Stable HCB IDs
+ * preserve existing preferences; retired catalogue IDs resolve to these defaults.
  */
 export type ThemeMode = "light" | "dark";
-export type ThemeSource = "VS Code" | "Ghostty" | "VS Code + Ghostty" | "HCB";
+export type ThemeSource = "HCB";
 export type AppColorThemeId = string;
 
 export interface ThemeColors {
@@ -20,6 +19,7 @@ export interface ThemeColors {
   border: string;
   accent: string;
   accentForeground: string;
+  accentText?: string;
   danger: string;
   warning: string;
   success: string;
@@ -61,91 +61,31 @@ interface ThemeSeed {
   cyan: string;
 }
 
-const crossPlatform: ThemeSource = "VS Code + Ghostty";
-
-function dark(
-  id: string,
-  label: string,
-  family: string,
-  colors: [string, string, string, string, string, string, string],
-  source: ThemeSource = crossPlatform
-): ThemeSeed {
-  const [background, foreground, red, green, yellow, blue, cyan] = colors;
-  return { id, label, family, mode: "dark", source, background, foreground, red, green, yellow, blue, cyan };
-}
-
-function light(
-  id: string,
-  label: string,
-  family: string,
-  colors: [string, string, string, string, string, string, string],
-  source: ThemeSource = crossPlatform
-): ThemeSeed {
-  const [background, foreground, red, green, yellow, blue, cyan] = colors;
-  return { id, label, family, mode: "light", source, background, foreground, red, green, yellow, blue, cyan };
-}
-
-/**
- * Two HCB palettes and 50 curated themes exposed in Appearance. Most have a matching
- * VS Code port and are bundled by Ghostty via iTerm2-Color-Schemes; One Dark
- * Pro is retained as the heavily installed VS Code edition of Atom One Dark.
- */
-const themeSeeds: readonly ThemeSeed[] = [
-  dark("hcb-neutral-dark", "HCB Dark", "hcb-neutral", ["#191919", "#eeeeec", "#ef7c82", "#78b897", "#d9b46c", "#a5b9d3", "#81b4be"], "HCB"),
-  light("hcb-neutral-light", "HCB Light", "hcb-neutral", ["#ffffff", "#262626", "#ba3f4b", "#35775c", "#946615", "#345d8d", "#316d79"], "HCB"),
-  dark("one-dark-pro", "One Dark Pro", "one-dark", ["#282c34", "#abb2bf", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#56b6c2"], "VS Code"),
-  dark("dracula", "Dracula", "dracula", ["#282a36", "#f8f8f2", "#ff5555", "#50fa7b", "#f1fa8c", "#bd93f9", "#8be9fd"]),
-  dark("dracula-plus", "Dracula+", "dracula", ["#212121", "#f8f8f2", "#ff5555", "#50fa7b", "#ffcb6b", "#82aaff", "#8be9fd"]),
-  dark("catppuccin-mocha", "Catppuccin Mocha", "catppuccin", ["#1e1e2e", "#cdd6f4", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#94e2d5"]),
-  dark("catppuccin-macchiato", "Catppuccin Macchiato", "catppuccin", ["#24273a", "#cad3f5", "#ed8796", "#a6da95", "#eed49f", "#8aadf4", "#8bd5ca"]),
-  dark("catppuccin-frappe", "Catppuccin Frappe", "catppuccin", ["#303446", "#c6d0f5", "#e78284", "#a6d189", "#e5c890", "#8caaee", "#81c8be"]),
-  light("catppuccin-latte", "Catppuccin Latte", "catppuccin", ["#eff1f5", "#4c4f69", "#d20f39", "#40a02b", "#df8e1d", "#1e66f5", "#179299"]),
-  dark("tokyo-night", "Tokyo Night", "tokyo-night", ["#1a1b26", "#c0caf5", "#f7768e", "#9ece6a", "#e0af68", "#7aa2f7", "#7dcfff"]),
-  dark("tokyo-night-storm", "Tokyo Night Storm", "tokyo-night", ["#24283b", "#c0caf5", "#f7768e", "#9ece6a", "#e0af68", "#7aa2f7", "#7dcfff"]),
-  dark("tokyo-night-moon", "Tokyo Night Moon", "tokyo-night", ["#222436", "#c8d3f5", "#ff757f", "#c3e88d", "#ffc777", "#82aaff", "#86e1fc"]),
-  light("tokyo-night-day", "Tokyo Night Day", "tokyo-night", ["#e1e2e7", "#3760bf", "#f52a65", "#587539", "#8c6c3e", "#2e7de9", "#007197"]),
-  dark("nord", "Nord", "nord", ["#2e3440", "#d8dee9", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#88c0d0"]),
-  dark("nord-wave", "Nord Wave", "nord", ["#212121", "#d8dee9", "#bf616a", "#a3be8c", "#ebcb8b", "#81a1c1", "#88c0d0"]),
-  light("nord-light", "Nord Light", "nord", ["#e5e9f0", "#414858", "#bf616a", "#96b17f", "#c5a565", "#81a1c1", "#7bb3c3"]),
-  dark("gruvbox-dark", "Gruvbox Dark", "gruvbox", ["#282828", "#ebdbb2", "#cc241d", "#98971a", "#d79921", "#458588", "#689d6a"]),
-  dark("gruvbox-dark-hard", "Gruvbox Dark Hard", "gruvbox", ["#1d2021", "#ebdbb2", "#cc241d", "#98971a", "#d79921", "#458588", "#689d6a"]),
-  dark("gruvbox-material-dark", "Gruvbox Material Dark", "gruvbox", ["#282828", "#d4be98", "#ea6962", "#a9b665", "#d8a657", "#7daea3", "#89b482"]),
-  light("gruvbox-light", "Gruvbox Light", "gruvbox", ["#fbf1c7", "#3c3836", "#cc241d", "#98971a", "#d79921", "#458588", "#689d6a"]),
-  light("gruvbox-material-light", "Gruvbox Material Light", "gruvbox", ["#fbf1c7", "#654735", "#c14a4a", "#6c782e", "#b47109", "#45707a", "#4c7a5d"]),
-  dark("solarized-dark", "Solarized Dark", "solarized", ["#001e27", "#708284", "#d11c24", "#738a05", "#a57706", "#2176c7", "#259286"]),
-  light("solarized-light", "Solarized Light", "solarized", ["#fdf6e3", "#657b83", "#dc322f", "#859900", "#b58900", "#268bd2", "#2aa198"]),
-  dark("monokai-pro", "Monokai Pro", "monokai", ["#2d2a2e", "#fcfcfa", "#ff6188", "#a9dc76", "#ffd866", "#fc9867", "#78dce8"]),
-  light("monokai-pro-light", "Monokai Pro Light", "monokai", ["#faf4f2", "#29242a", "#e14775", "#269d69", "#cc7a0a", "#e16032", "#1c8ca8"]),
-  dark("ayu-dark", "Ayu Dark", "ayu", ["#0b0e14", "#bfbdb6", "#ea6c73", "#7fd962", "#f9af4f", "#53bdfa", "#90e1c6"]),
-  dark("ayu-mirage", "Ayu Mirage", "ayu", ["#1f2430", "#cccac2", "#ed8274", "#87d96c", "#facc6e", "#6dcbfa", "#90e1c6"]),
-  light("ayu-light", "Ayu Light", "ayu", ["#f8f9fa", "#5c6166", "#ea6c6d", "#6cbf43", "#eca944", "#3199e1", "#46ba94"]),
-  dark("github-dark-default", "GitHub Dark Default", "github", ["#0d1117", "#e6edf3", "#ff7b72", "#3fb950", "#d29922", "#58a6ff", "#39c5cf"]),
-  dark("github-dark-dimmed", "GitHub Dark Dimmed", "github", ["#22272e", "#adbac7", "#f47067", "#57ab5a", "#c69026", "#539bf5", "#39c5cf"]),
-  light("github-light-default", "GitHub Light Default", "github", ["#ffffff", "#1f2328", "#cf222e", "#116329", "#4d2d00", "#0969da", "#1b7c83"]),
-  light("github-light-high-contrast", "GitHub Light High Contrast", "github", ["#ffffff", "#0e1116", "#a0111f", "#024c1a", "#3f2200", "#0349b4", "#1b7c83"]),
-  light("material-light", "Material Light", "material", ["#eaeaea", "#232322", "#b7141f", "#457b24", "#f6981e", "#134eb2", "#0e717c"]),
-  dark("material-darker", "Material Darker", "material", ["#212121", "#eeffff", "#ff5370", "#c3e88d", "#ffcb6b", "#82aaff", "#89ddff"]),
-  dark("material-ocean", "Material Ocean", "material", ["#0f111a", "#8f93a2", "#ff5370", "#c3e88d", "#ffcb6b", "#82aaff", "#89ddff"]),
-  dark("night-owl", "Night Owl", "night-owl", ["#011627", "#d6deeb", "#ef5350", "#22da6e", "#addb67", "#82aaff", "#21c7a8"]),
-  light("night-owlish-light", "Night Owlish Light", "night-owl", ["#ffffff", "#403f53", "#d3423e", "#2aa298", "#daaa01", "#4876d6", "#08916a"]),
-  dark("cobalt2", "Cobalt2", "cobalt", ["#132738", "#ffffff", "#ff0000", "#38de21", "#ffe50a", "#1460d2", "#00bbbb"]),
-  dark("shades-of-purple", "Shades of Purple", "shades-of-purple", ["#1e1d40", "#ffffff", "#d90429", "#3ad900", "#ffe700", "#6943ff", "#00c5c7"]),
-  dark("synthwave-84", "SynthWave '84", "synthwave", ["#000000", "#dad9c7", "#f6188f", "#1ebb2b", "#fdf834", "#2186ec", "#12c3e2"]),
-  dark("rose-pine", "Rosé Pine", "rose-pine", ["#191724", "#e0def4", "#eb6f92", "#31748f", "#f6c177", "#9ccfd8", "#ebbcba"]),
-  dark("rose-pine-moon", "Rosé Pine Moon", "rose-pine", ["#232136", "#e0def4", "#eb6f92", "#3e8fb0", "#f6c177", "#9ccfd8", "#ea9a97"]),
-  light("rose-pine-dawn", "Rosé Pine Dawn", "rose-pine", ["#faf4ed", "#575279", "#b4637a", "#286983", "#ea9d34", "#56949f", "#d7827e"]),
-  dark("kanagawa-wave", "Kanagawa Wave", "kanagawa", ["#1f1f28", "#dcd7ba", "#c34043", "#76946a", "#c0a36e", "#7e9cd8", "#6a9589"]),
-  dark("kanagawa-dragon", "Kanagawa Dragon", "kanagawa", ["#181616", "#c5c9c5", "#c4746e", "#8a9a7b", "#c4b28a", "#8ba4b0", "#8ea4a2"]),
-  light("kanagawa-lotus", "Kanagawa Lotus", "kanagawa", ["#f2ecbc", "#545464", "#c84053", "#6f894e", "#77713f", "#4d699b", "#597b75"]),
-  dark("everforest-dark", "Everforest Dark", "everforest", ["#232a2e", "#d3c6aa", "#e67e80", "#a7c080", "#dbbc7f", "#7fbbb3", "#83c092"]),
-  light("everforest-light", "Everforest Light", "everforest", ["#efebd4", "#5c6a72", "#e67e80", "#9ab373", "#c1a266", "#7fbbb3", "#83c092"]),
-  dark("atom-one-dark", "Atom One Dark", "one-dark", ["#21252b", "#abb2bf", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#56b6c2"]),
-  light("atom-one-light", "Atom One Light", "one-dark", ["#f9f9f9", "#2a2c33", "#de3e35", "#3f953a", "#d2b67c", "#2f5af3", "#3f953a"]),
-  dark("oxocarbon", "Oxocarbon", "oxocarbon", ["#161616", "#f2f4f8", "#00dfdb", "#00b4ff", "#ff4297", "#00c15a", "#ff74b8"]),
-  dark("vesper", "Vesper", "vesper", ["#101010", "#ffffff", "#f5a191", "#90b99f", "#e6b99d", "#aca1cf", "#ea83a5"])
+// Background, sidebar, hover, border and primary colors match the reference.
+// Text on coral controls uses a contrasting foreground; plain coral text gets
+// a darker variant in light mode so small labels remain readable.
+export const colorThemeDefinitions: readonly ColorThemeDefinition[] = [
+  {
+    id: "hcb-neutral-light", label: "HCB Light", family: "hcb-neutral", mode: "light", isDark: false, source: "HCB",
+    colors: {
+      background: "#ffffff", secondary: "#f8f8f7", tertiary: "#ffffff",
+      surface0: "#f8f8f7", surface1: "#efefef", surface2: "#e5e5e5",
+      text: "#32302c", textSecondary: "#73726f", muted: "#797875", border: "#eeeeee",
+      accent: "#f04842", accentForeground: "#191919", accentText: "#b23e31",
+      danger: "#b23e31", warning: "#855100", success: "#027326", info: "#006cbf"
+    }
+  },
+  {
+    id: "hcb-neutral-dark", label: "HCB Dark", family: "hcb-neutral", mode: "dark", isDark: true, source: "HCB",
+    colors: {
+      background: "#191919", secondary: "#202020", tertiary: "#191919",
+      surface0: "#2a2a2a", surface1: "#333333", surface2: "#3d3d3d",
+      text: "#d9d9d9", textSecondary: "#a0a0a0", muted: "#7f7f7f", border: "#202020",
+      accent: "#f15550", accentForeground: "#191919", accentText: "#f15550",
+      danger: "#f15550", warning: "#d4a83a", success: "#52b577", info: "#4895c8"
+    }
+  }
 ];
-
-export const colorThemeDefinitions: readonly ColorThemeDefinition[] = themeSeeds.map(defineTheme);
 export const appColorThemes = colorThemeDefinitions;
 export const customBackgroundThemeId = "custom-background";
 
@@ -180,7 +120,7 @@ export function resolveEffectiveColorTheme(
         family: customBackgroundThemeId,
         mode,
         isDark: mode === "dark",
-        source: "Ghostty",
+        source: "HCB",
         colors
       };
     }
@@ -221,6 +161,7 @@ export function semanticThemeVariables(theme: ColorThemeDefinition): Record<stri
     "--color-border": colors.border,
     "--color-accent": colors.accent,
     "--color-accent-foreground": colors.accentForeground,
+    "--color-accent-text": colors.accentText ?? colors.accent,
     "--color-danger": colors.danger,
     "--color-warning": colors.warning,
     "--color-success": colors.success,
@@ -258,23 +199,6 @@ export function inferColorThemePaletteFromSamples(samples: Array<{ red: number; 
     cyan: fallback.info,
     mode
   });
-}
-
-function defineTheme(seed: ThemeSeed): ColorThemeDefinition {
-  return {
-    id: seed.id,
-    label: seed.label,
-    family: seed.family,
-    mode: seed.mode,
-    isDark: seed.mode === "dark",
-    source: seed.source,
-    colors: {
-      ...createThemeColors(seed),
-      ...(seed.family === "hcb-neutral" && seed.mode === "light" ? {
-        secondary: "#f8f8f7", tertiary: "#fafafa", surface0: "#f3f3f2", surface1: "#eaeae9", border: "#e3e3e1", muted: "#737373"
-      } : {})
-    }
-  };
 }
 
 function normalizeCustomPalette(value: unknown, mode: ThemeMode): ThemeColors | null {

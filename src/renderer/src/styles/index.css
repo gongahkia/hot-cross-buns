@@ -3,27 +3,27 @@
 
 :root {
   color-scheme: dark;
-  --color-bg-primary: #1e1e2e;
-  --color-bg-secondary: #181825;
-  --color-bg-tertiary: #11111b;
-  --color-surface-0: #313244;
-  --color-surface-1: #45475a;
-  --color-surface-2: #585b70;
-  --color-text-primary: #cdd6f4;
-  --color-text-secondary: #bac2de;
-  --color-text-muted: #a6adc8;
-  --color-border: #45475a;
-  --color-accent: #89b4fa;
-  --color-accent-foreground: #11111b;
-  --color-danger: #f38ba8;
-  --color-warning: #fab387;
-  --color-success: #a6e3a1;
-  --color-info: #89dceb;
-  --priority-low: #89b4fa;
-  --priority-medium: #fab387;
-  --priority-high: #f38ba8;
-  --color-selection-background: #89b4fa;
-  --color-selection-foreground: #11111b;
+  --color-bg-primary: #191919;
+  --color-bg-secondary: #202020;
+  --color-bg-tertiary: #191919;
+  --color-surface-0: #2a2a2a;
+  --color-surface-1: #333333;
+  --color-surface-2: #3d3d3d;
+  --color-text-primary: #d9d9d9;
+  --color-text-secondary: #a0a0a0;
+  --color-text-muted: #7f7f7f;
+  --color-border: #202020;
+  --color-accent: #f15550;
+  --color-accent-foreground: #191919;
+  --color-danger: #f15550;
+  --color-warning: #d4a83a;
+  --color-success: #52b577;
+  --color-info: #4895c8;
+  --priority-low: #f15550;
+  --priority-medium: #d4a83a;
+  --priority-high: #f15550;
+  --color-selection-background: #f15550;
+  --color-selection-foreground: #191919;
   --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-family-mono: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace,
@@ -54,34 +54,36 @@
   --elevation-surface: 0 1px 2px rgb(0 0 0 / 0.18), 0 10px 28px rgb(0 0 0 / 0.2);
   --elevation-surface-hover: 0 2px 4px rgb(0 0 0 / 0.2), 0 14px 32px rgb(0 0 0 / 0.24);
   --media-outline: rgb(255 255 255 / 0.16);
+  --color-accent-text: #f15550;
 }
 
 [data-theme="light"] {
   color-scheme: light;
-  --color-bg-primary: #eff1f5;
-  --color-bg-secondary: #e6e9ef;
-  --color-bg-tertiary: #dce0e8;
-  --color-surface-0: #ccd0da;
-  --color-surface-1: #bcc0cc;
-  --color-surface-2: #acb0be;
-  --color-text-primary: #4c4f69;
-  --color-text-secondary: #5c5f77;
-  --color-text-muted: #6c6f85;
-  --color-border: #bcc0cc;
-  --color-accent: #1e66f5;
-  --color-accent-foreground: #ffffff;
-  --color-danger: #d20f39;
-  --color-warning: #fe640b;
-  --color-success: #40a02b;
-  --color-info: #04a5e5;
-  --priority-low: #1e66f5;
-  --priority-medium: #fe640b;
-  --priority-high: #d20f39;
-  --color-selection-background: #1e66f5;
-  --color-selection-foreground: #ffffff;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f8f7;
+  --color-bg-tertiary: #ffffff;
+  --color-surface-0: #f8f8f7;
+  --color-surface-1: #efefef;
+  --color-surface-2: #e5e5e5;
+  --color-text-primary: #32302c;
+  --color-text-secondary: #73726f;
+  --color-text-muted: #797875;
+  --color-border: #eeeeee;
+  --color-accent: #f04842;
+  --color-accent-foreground: #191919;
+  --color-danger: #b23e31;
+  --color-warning: #855100;
+  --color-success: #027326;
+  --color-info: #006cbf;
+  --priority-low: #f04842;
+  --priority-medium: #855100;
+  --priority-high: #b23e31;
+  --color-selection-background: #f04842;
+  --color-selection-foreground: #191919;
   --elevation-surface: 0 1px 2px rgb(76 79 105 / 0.12), 0 10px 28px rgb(76 79 105 / 0.16);
   --elevation-surface-hover: 0 2px 4px rgb(76 79 105 / 0.15), 0 14px 32px rgb(76 79 105 / 0.2);
   --media-outline: rgb(76 79 105 / 0.22);
+  --color-accent-text: #b23e31;
 }
 
 * {
@@ -281,3 +283,6 @@ label:has(input:not(:disabled)) {
 
 .note-document .document-markdown { border-color: transparent; background: transparent; }
 .markdown-bubble-layer { z-index: 10; }
+
+/* Keep small accent labels readable while retaining coral primary controls. */
+.text-accent { color: var(--color-accent-text); }

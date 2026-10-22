@@ -8,8 +8,7 @@ import type {
 } from "@shared/ipc/contracts";
 import { previewAutoTagRules, validateAutoTagRule, type AutoTagTargetKind } from "@shared/ipc/autoTags";
 import {
-  appColorThemes,
-  resolveAppColorTheme,
+  defaultAppColorTheme,
   resolveEffectiveColorTheme,
   resolveEffectiveThemeMode,
   resolveAppThemeMode
@@ -165,11 +164,7 @@ export function SettingsView({
   const settings = source.settings;
   const diagnostics = source.diagnosticsSummary;
   const googleStatus = source.googleStatus;
-  const baseThemeMode = resolveAppThemeMode(settings.theme, currentSystemPrefersDark());
   const effectiveThemeMode = resolveEffectiveThemeMode(settings, currentSystemPrefersDark());
-  const matchingColorThemes = appColorThemes.filter(
-    (theme) => theme.mode === effectiveThemeMode
-  );
   const activeColorTheme = resolveEffectiveColorTheme(settings, effectiveThemeMode);
   const autoTagBulkCounts = useMemo(() => ({
     task: source.largeTaskWindow.filter((task) => {
@@ -426,14 +421,10 @@ export function SettingsView({
 
   function updateBaseTheme(theme: SettingsSnapshot["theme"]): void {
     const nextMode = resolveAppThemeMode(theme, currentSystemPrefersDark());
-    const currentColorTheme = resolveAppColorTheme(settings, baseThemeMode);
-    const nextColorTheme = currentColorTheme.mode === nextMode
-      ? currentColorTheme
-      : resolveAppColorTheme({ colorTheme: settings.colorTheme }, nextMode);
-
     updateSettings({
       theme,
-      colorTheme: nextColorTheme.id
+      colorTheme: defaultAppColorTheme(nextMode).id,
+      useInferredBackgroundTheme: false
     });
   }
 
@@ -736,7 +727,6 @@ export function SettingsView({
           <AppearanceSettingsTab
             activeColorTheme={activeColorTheme}
             availableFontFamilies={availableFontFamilies}
-            matchingColorThemes={matchingColorThemes}
             settings={settings}
             updateBaseTheme={updateBaseTheme}
             updateSettings={updateSettings}

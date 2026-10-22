@@ -7,12 +7,10 @@ import {
   type SettingsUpdateRequest
 } from "@shared/ipc/contracts";
 import type {
-  AppColorThemeDefinition,
-  AppColorThemeId,
   ColorThemeDefinition
 } from "@shared/ipc/themeCatalog";
 import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
-import { ArrowDown, ArrowUp, Check, RotateCcw, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import {
   LoadingIndicator,
   defaultLoadingIndicatorPreferences,
@@ -63,7 +61,6 @@ const cropAspects: Array<{ label: string; value: CropAspect }> = [
 interface AppearanceSettingsTabProps {
   activeColorTheme: ColorThemeDefinition;
   availableFontFamilies: string[];
-  matchingColorThemes: readonly AppColorThemeDefinition[];
   settings: SettingsSnapshot;
   updateBaseTheme: (theme: SettingsSnapshot["theme"]) => void;
   updateSettings: (request: SettingsUpdateRequest) => void;
@@ -72,7 +69,6 @@ interface AppearanceSettingsTabProps {
 export function AppearanceSettingsTab({
   activeColorTheme,
   availableFontFamilies,
-  matchingColorThemes,
   settings,
   updateBaseTheme,
   updateSettings
@@ -85,18 +81,10 @@ export function AppearanceSettingsTab({
   const [cropZoom, setCropZoom] = useState(1);
   const [cropX, setCropX] = useState(50);
   const [cropY, setCropY] = useState(50);
-  const [themeQuery, setThemeQuery] = useState("");
   const inferredThemeActive = activeColorTheme.id === customBackgroundThemeId;
   const customBackgroundPreviewUrl = customBackgroundPreview(settings);
   const cropAspectValue = useMemo(() => cropAspectNumber(cropAspect), [cropAspect]);
   const loadingIndicators = resolveLoadingIndicatorPreferences(settings.loadingIndicators);
-  const visibleColorThemes = useMemo(() => {
-    const normalized = themeQuery.trim().toLocaleLowerCase();
-
-    return matchingColorThemes.filter((theme) =>
-      normalized.length === 0 || `${theme.label} ${theme.family} ${theme.source}`.toLocaleLowerCase().includes(normalized)
-    );
-  }, [matchingColorThemes, themeQuery]);
 
   useEffect(() => {
     return () => {
@@ -256,24 +244,12 @@ export function AppearanceSettingsTab({
     }
   }
 
-  function updateColorTheme(value: string): void {
-    if (value === customBackgroundThemeId) {
-      updateSettings({ useInferredBackgroundTheme: true });
-      return;
-    }
-
-    updateSettings({
-      colorTheme: value as AppColorThemeId,
-      ...(settings.customBackground ? { useInferredBackgroundTheme: false } : {})
-    });
-  }
-
   return (
     <div className="grid gap-5">
       <SettingsGroup title="Appearance">
         <SettingsControlRow
-          description="Choose whether app chrome resolves as dark, light, or follows macOS."
-          label="Base colour scheme"
+          description="Warm white or charcoal surfaces with coral accents. Follow your system appearance or choose a mode."
+          label="Colour scheme"
         >
           <select
             aria-label="Theme"
@@ -281,50 +257,11 @@ export function AppearanceSettingsTab({
             onChange={(event) => updateBaseTheme(event.target.value as SettingsSnapshot["theme"])}
             value={settings.theme}
           >
-            <option value="system">System</option>
+            <option value="system">Follow system</option>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
           </select>
         </SettingsControlRow>
-        <div className="grid gap-2 px-3 py-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <div>
-              <p className="text-[var(--text-sm)] font-semibold text-text-primary">Colour theme</p>
-              <p className="hcb-copy text-[var(--text-xs)] text-text-muted">{matchingColorThemes.length} curated {effectiveThemeLabel(activeColorTheme.mode)} palettes for every app surface.</p>
-            </div>
-            <span className="text-[var(--text-xs)] font-medium text-text-secondary">{activeColorTheme.label}</span>
-          </div>
-          <label className="relative block">
-            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-            <Input
-              aria-label="Search color themes"
-              className="pl-9"
-              onChange={(event) => setThemeQuery(event.currentTarget.value)}
-              placeholder="Filter themes"
-              value={themeQuery}
-            />
-          </label>
-          <div aria-label="Color themes" className="grid max-h-96 grid-cols-1 gap-2 overflow-y-auto rounded-hcbMd border border-border bg-bg-tertiary p-2 sm:grid-cols-2" role="list">
-            {settings.customBackground ? (
-              <ThemeCard
-                active={activeColorTheme.id === customBackgroundThemeId}
-                label="Inferred from background"
-                onSelect={() => updateColorTheme(customBackgroundThemeId)}
-              />
-            ) : null}
-            {visibleColorThemes.map((theme) => (
-              <ThemeCard
-                active={theme.id === activeColorTheme.id}
-                key={theme.id}
-                label={theme.label}
-                onSelect={() => updateColorTheme(theme.id)}
-              />
-            ))}
-            {visibleColorThemes.length === 0 ? (
-              <p className="col-span-full px-2 py-5 text-center text-[var(--text-sm)] text-text-muted">No themes match “{themeQuery}”.</p>
-            ) : null}
-          </div>
-        </div>
         <SettingsControlRow
           description="Use a local image as the app backdrop and infer the palette from its pixels."
           label="Custom background"
@@ -834,39 +771,6 @@ export function AppearanceSettingsTab({
       </SettingsGroup>
     </div>
   );
-}
-
-function ThemeCard({
-  active,
-  label,
-  onSelect
-}: {
-  active: boolean;
-  label: string;
-  onSelect: () => void;
-}): JSX.Element {
-  return (
-    <div role="listitem">
-      <button
-        aria-pressed={active}
-        className={cx(
-          "group flex min-h-12 w-full items-center rounded-hcbSm border px-3 py-2 text-left text-text-primary transition-[border-color,box-shadow,transform] duration-fast ease-hcb hover:-translate-y-px hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
-          active ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-bg-tertiary" : "border-border hover:shadow-sm"
-        )}
-        onClick={onSelect}
-        type="button"
-      >
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--text-sm)] font-semibold">
-          <span className="truncate">{label}</span>
-          {active ? <Check aria-label="Selected" className="shrink-0 text-accent" size={14} strokeWidth={2} /> : null}
-        </span>
-      </button>
-    </div>
-  );
-}
-
-function effectiveThemeLabel(mode: "light" | "dark"): string {
-  return mode === "dark" ? "dark" : "light";
 }
 
 function moveItem<T>(items: readonly T[], item: T, direction: -1 | 1): T[] {
