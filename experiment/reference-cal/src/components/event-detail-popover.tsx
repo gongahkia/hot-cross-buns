@@ -108,6 +108,7 @@ export function EventDetailPopover({
       }}
     >
       <EventDetailPanel
+        editorContext="popover"
         event={event}
         onEventChange={onEventChange}
         onPrevWeek={onPrevWeek}

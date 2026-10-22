@@ -1,3 +1,9 @@
+import type {
+  EventRecurrenceRule,
+  EventOccurrenceException,
+  EventRecurrenceAnchor,
+} from "./week-view-types";
+
 /**
  * Calendar view mode — "day" shows a single column, "week" shows 7 columns
  */
@@ -66,10 +72,17 @@ export interface CalendarEvent {
   description?: string;
   /** Optional location */
   location?: string;
-  /** Timezone string (e.g. "GMT-3 Sao Paulo") */
+  /** IANA time zone; legacy sample labels are normalized at the editor boundary. */
   timezone?: string;
   /** Recurrence rule display string (e.g. "Every week on Thu") */
   recurrence?: string;
+  recurrenceRule?: EventRecurrenceRule;
+  /** Per-occurrence edits keyed by the original start instant; null skips a date. */
+  recurrenceExceptions?: Record<string, EventOccurrenceException | null>;
+  /** Present on rendered occurrences, never a second series owner. */
+  seriesId?: string;
+  occurrenceStart?: Date;
+  recurrenceAnchor?: EventRecurrenceAnchor;
   /** Reminders list */
   reminders?: EventReminder[];
   /** Busy/Free status */

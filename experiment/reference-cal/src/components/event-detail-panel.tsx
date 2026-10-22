@@ -14,15 +14,10 @@ import {
   Check,
   ChevronDown,
   CircleHelp,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   Copy,
-  Globe,
-  MapPin,
   MoreHorizontal,
   NotepadText,
-  RefreshCcw,
   SquareDashed,
   TabletSmartphone,
   Trash2,
@@ -41,9 +36,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import type { CalendarEvent, EventColor } from "./week-view-types";
+import type {
+  CalendarEvent,
+  EventColor,
+  EventEditorContext,
+} from "./week-view-types";
+import { EventLocationField } from "./event-fields/event-location-field";
+import { EventTimezoneField } from "./event-fields/event-timezone-field";
+import { EventRecurrenceField } from "./event-fields/event-recurrence-field";
+import {
+  allDayDates,
+  applyZonedTime,
+  eventTimeZone,
+  inTimeZone,
+  shiftZonedDays,
+} from "@/lib/event-timezone";
 
 interface EventDetailPanelProps {
+  editorContext?: EventEditorContext;
   event: CalendarEvent;
   onEventChange?: (event: CalendarEvent) => void;
   onPrevWeek?: () => void;
@@ -159,16 +169,6 @@ function parseTimeInput(input: string): ParsedTime | null {
   return { hours, minutes };
 }
 
-/**
- * Returns a new Date with the same year/month/day as `base`
- * but with hours and minutes replaced.
- */
-function applyTimeToDate(base: Date, hours: number, minutes: number): Date {
-  const result = new Date(base);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
-}
-
 function formatDateDisplay(date: Date): string {
   return format(date, "EEE MMM d");
 }
@@ -227,44 +227,6 @@ function FieldRow({
       </span>
       {value && <span className="text-muted-foreground text-xs">{value}</span>}
     </div>
-  );
-}
-
-function TimezoneDisplay({ timezone }: { timezone: string }) {
-  const spaceIdx = timezone.indexOf(" ");
-  if (spaceIdx === -1) {
-    return (
-      <span className="text-xs text-[#C7C5C1] dark:text-[#595959]">
-        {timezone}
-      </span>
-    );
-  }
-
-  const code = timezone.substring(0, spaceIdx);
-  const city = timezone.substring(spaceIdx + 1);
-
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs">
-      <span className="text-[#C7C5C1] dark:text-[#595959]">{code}</span>
-      <span className="text-foreground">{city}</span>
-    </span>
-  );
-}
-
-function RecurrenceDisplay({ recurrence }: { recurrence: string }) {
-  const onIdx = recurrence.indexOf(" on ");
-  if (onIdx === -1) {
-    return <span className="text-foreground text-xs">{recurrence}</span>;
-  }
-
-  const main = recurrence.substring(0, onIdx);
-  const suffix = recurrence.substring(onIdx);
-
-  return (
-    <span className="text-xs">
-      <span className="text-foreground">{main}</span>
-      <span className="text-[#C7C5C1] dark:text-[#595959]">{suffix}</span>
-    </span>
   );
 }
 
@@ -332,6 +294,7 @@ function EventTypeHelpIcon({ tooltip }: { tooltip?: string }) {
 }
 
 export function EventDetailPanel({
+  editorContext = "sidebar",
   event,
   onEventChange,
   onPrevWeek,
@@ -340,6 +303,16 @@ export function EventDetailPanel({
   autoFocusTitle,
   onTitleAutoFocused,
 }: EventDetailPanelProps) {
+  const zone = eventTimeZone(event);
+  const editStart = React.useMemo(
+    () => (event.isAllDay ? event.start : inTimeZone(event.start, zone)),
+    [event.start, event.isAllDay, zone],
+  );
+  const editEnd = React.useMemo(
+    () => (event.isAllDay ? event.end : inTimeZone(event.end, zone)),
+    [event.end, event.isAllDay, zone],
+  );
+  const [timeError, setTimeError] = React.useState<string | null>(null);
   const color = event.color ?? "blue";
   const [eventType, setEventType] = React.useState<EventType>("Event");
   const [eventDropdownOpen, setEventDropdownOpen] = React.useState(false);
@@ -359,6 +332,8 @@ export function EventDetailPanel({
   // Reset expanded options when switching to a different event
   React.useEffect(() => {
     setOptionsExpanded(false);
+    setTimeError(null);
+    savedTimeOfDayRef.current = null;
   }, [event.id]);
 
   // Focus + select the title on request so a new event can be named right away.
@@ -420,15 +395,15 @@ export function EventDetailPanel({
 
   // --- Start time input state & handlers ---
   const [startTimeValue, setStartTimeValue] = React.useState(() =>
-    formatTimeDisplay(event.start),
+    formatTimeDisplay(editStart),
   );
   const startTimeRef = React.useRef<HTMLInputElement>(null);
   const startTimeEscapePressedRef = React.useRef(false);
-  const startTimeOnFocusRef = React.useRef(formatTimeDisplay(event.start));
+  const startTimeOnFocusRef = React.useRef(formatTimeDisplay(editStart));
 
   React.useEffect(() => {
-    setStartTimeValue(formatTimeDisplay(event.start));
-  }, [event.start]);
+    setStartTimeValue(formatTimeDisplay(editStart));
+  }, [editStart]);
 
   const handleStartTimeChange = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -438,11 +413,11 @@ export function EventDetailPanel({
   );
 
   const handleStartTimeFocus = React.useCallback(() => {
-    startTimeOnFocusRef.current = formatTimeDisplay(event.start);
+    startTimeOnFocusRef.current = formatTimeDisplay(editStart);
     requestAnimationFrame(() => {
       startTimeRef.current?.select();
     });
-  }, [event.start]);
+  }, [editStart]);
 
   const commitStartTime = React.useCallback(() => {
     if (startTimeEscapePressedRef.current) {
@@ -454,14 +429,26 @@ export function EventDetailPanel({
       setStartTimeValue(startTimeOnFocusRef.current);
       return;
     }
-    const newStart = applyTimeToDate(event.start, parsed.hours, parsed.minutes);
+    const newStart = applyZonedTime(
+      event.start,
+      parsed.hours,
+      parsed.minutes,
+      zone,
+    );
+    if (!newStart) {
+      setTimeError(
+        "This time does not exist in the event’s time zone because the clocks move forward.",
+      );
+      return;
+    }
     if (newStart.getTime() >= event.end.getTime()) {
       setStartTimeValue(startTimeOnFocusRef.current);
       return;
     }
-    setStartTimeValue(formatTimeDisplay(newStart));
+    setTimeError(null);
+    setStartTimeValue(formatTimeDisplay(inTimeZone(newStart, zone)));
     onEventChange?.({ ...event, start: newStart });
-  }, [startTimeValue, event, onEventChange]);
+  }, [startTimeValue, event, onEventChange, zone]);
 
   const handleStartTimeKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -483,15 +470,15 @@ export function EventDetailPanel({
 
   // --- End time input state & handlers ---
   const [endTimeValue, setEndTimeValue] = React.useState(() =>
-    formatTimeDisplay(event.end),
+    formatTimeDisplay(editEnd),
   );
   const endTimeRef = React.useRef<HTMLInputElement>(null);
   const endTimeEscapePressedRef = React.useRef(false);
-  const endTimeOnFocusRef = React.useRef(formatTimeDisplay(event.end));
+  const endTimeOnFocusRef = React.useRef(formatTimeDisplay(editEnd));
 
   React.useEffect(() => {
-    setEndTimeValue(formatTimeDisplay(event.end));
-  }, [event.end]);
+    setEndTimeValue(formatTimeDisplay(editEnd));
+  }, [editEnd]);
 
   const handleEndTimeChange = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -501,11 +488,11 @@ export function EventDetailPanel({
   );
 
   const handleEndTimeFocus = React.useCallback(() => {
-    endTimeOnFocusRef.current = formatTimeDisplay(event.end);
+    endTimeOnFocusRef.current = formatTimeDisplay(editEnd);
     requestAnimationFrame(() => {
       endTimeRef.current?.select();
     });
-  }, [event.end]);
+  }, [editEnd]);
 
   const commitEndTime = React.useCallback(() => {
     if (endTimeEscapePressedRef.current) {
@@ -517,14 +504,26 @@ export function EventDetailPanel({
       setEndTimeValue(endTimeOnFocusRef.current);
       return;
     }
-    const newEnd = applyTimeToDate(event.end, parsed.hours, parsed.minutes);
+    const newEnd = applyZonedTime(
+      event.end,
+      parsed.hours,
+      parsed.minutes,
+      zone,
+    );
+    if (!newEnd) {
+      setTimeError(
+        "This time does not exist in the event’s time zone because the clocks move forward.",
+      );
+      return;
+    }
     if (newEnd.getTime() <= event.start.getTime()) {
       setEndTimeValue(endTimeOnFocusRef.current);
       return;
     }
-    setEndTimeValue(formatTimeDisplay(newEnd));
+    setTimeError(null);
+    setEndTimeValue(formatTimeDisplay(inTimeZone(newEnd, zone)));
     onEventChange?.({ ...event, end: newEnd });
-  }, [endTimeValue, event, onEventChange]);
+  }, [endTimeValue, event, onEventChange, zone]);
 
   const handleEndTimeKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -546,15 +545,15 @@ export function EventDetailPanel({
 
   // --- Date input state & handlers ---
   const [dateValue, setDateValue] = React.useState(() =>
-    formatDateDisplay(event.start),
+    formatDateDisplay(editStart),
   );
   const dateRef = React.useRef<HTMLInputElement>(null);
   const dateEscapePressedRef = React.useRef(false);
-  const dateOnFocusRef = React.useRef(formatDateDisplay(event.start));
+  const dateOnFocusRef = React.useRef(formatDateDisplay(editStart));
 
   React.useEffect(() => {
-    setDateValue(formatDateDisplay(event.start));
-  }, [event.start]);
+    setDateValue(formatDateDisplay(editStart));
+  }, [editStart]);
 
   const handleDateChange = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -564,32 +563,39 @@ export function EventDetailPanel({
   );
 
   const handleDateFocus = React.useCallback(() => {
-    dateOnFocusRef.current = formatDateDisplay(event.start);
+    dateOnFocusRef.current = formatDateDisplay(editStart);
     requestAnimationFrame(() => {
       dateRef.current?.select();
     });
-  }, [event.start]);
+  }, [editStart]);
 
   const commitDate = React.useCallback(() => {
     if (dateEscapePressedRef.current) {
       dateEscapePressedRef.current = false;
       return;
     }
-    const parsed = parseDateInput(dateValue, event.start);
+    const parsed = parseDateInput(dateValue, editStart);
     if (!parsed) {
       setDateValue(dateOnFocusRef.current);
       return;
     }
-    const dayDiff = differenceInCalendarDays(parsed, event.start);
+    const dayDiff = differenceInCalendarDays(parsed, editStart);
     if (dayDiff === 0) {
-      setDateValue(formatDateDisplay(event.start));
+      setDateValue(formatDateDisplay(editStart));
       return;
     }
-    const newStart = addDays(event.start, dayDiff);
-    const newEnd = addDays(event.end, dayDiff);
-    setDateValue(formatDateDisplay(newStart));
+    const newStart = shiftZonedDays(event.start, dayDiff, zone);
+    const newEnd = shiftZonedDays(event.end, dayDiff, zone);
+    if (!newStart || !newEnd) {
+      setTimeError(
+        "That date would put the event in a skipped daylight-saving time.",
+      );
+      return;
+    }
+    setTimeError(null);
+    setDateValue(formatDateDisplay(inTimeZone(newStart, zone)));
     onEventChange?.({ ...event, start: newStart, end: newEnd });
-  }, [dateValue, event, onEventChange]);
+  }, [dateValue, event, onEventChange, zone, editStart]);
 
   const handleDateKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -611,15 +617,15 @@ export function EventDetailPanel({
 
   // --- End date input state & handlers (shown only for all-day events) ---
   const [endDateValue, setEndDateValue] = React.useState(() =>
-    formatDateDisplay(event.end),
+    formatDateDisplay(editEnd),
   );
   const endDateRef = React.useRef<HTMLInputElement>(null);
   const endDateEscapePressedRef = React.useRef(false);
-  const endDateOnFocusRef = React.useRef(formatDateDisplay(event.end));
+  const endDateOnFocusRef = React.useRef(formatDateDisplay(editEnd));
 
   React.useEffect(() => {
-    setEndDateValue(formatDateDisplay(event.end));
-  }, [event.end]);
+    setEndDateValue(formatDateDisplay(editEnd));
+  }, [editEnd]);
 
   const handleEndDateChange = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -629,25 +635,25 @@ export function EventDetailPanel({
   );
 
   const handleEndDateFocus = React.useCallback(() => {
-    endDateOnFocusRef.current = formatDateDisplay(event.end);
+    endDateOnFocusRef.current = formatDateDisplay(editEnd);
     requestAnimationFrame(() => {
       endDateRef.current?.select();
     });
-  }, [event.end]);
+  }, [editEnd]);
 
   const commitEndDate = React.useCallback(() => {
     if (endDateEscapePressedRef.current) {
       endDateEscapePressedRef.current = false;
       return;
     }
-    const parsed = parseDateInput(endDateValue, event.end);
+    const parsed = parseDateInput(endDateValue, editEnd);
     if (!parsed) {
       setEndDateValue(endDateOnFocusRef.current);
       return;
     }
-    const dayDiff = differenceInCalendarDays(parsed, event.end);
+    const dayDiff = differenceInCalendarDays(parsed, editEnd);
     if (dayDiff === 0) {
-      setEndDateValue(formatDateDisplay(event.end));
+      setEndDateValue(formatDateDisplay(editEnd));
       return;
     }
     const newEnd = addDays(event.end, dayDiff);
@@ -657,7 +663,7 @@ export function EventDetailPanel({
     }
     setEndDateValue(formatDateDisplay(newEnd));
     onEventChange?.({ ...event, end: newEnd });
-  }, [endDateValue, event, onEventChange]);
+  }, [endDateValue, event, onEventChange, editEnd]);
 
   const handleEndDateKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -691,41 +697,45 @@ export function EventDetailPanel({
 
   const handleAllDayToggle = React.useCallback(
     (checked: boolean) => {
+      setTimeError(null);
       if (checked) {
         savedTimeOfDayRef.current = {
-          startHours: event.start.getHours(),
-          startMinutes: event.start.getMinutes(),
-          endHours: event.end.getHours(),
-          endMinutes: event.end.getMinutes(),
+          startHours: editStart.getHours(),
+          startMinutes: editStart.getMinutes(),
+          endHours: editEnd.getHours(),
+          endMinutes: editEnd.getMinutes(),
         };
-        onEventChange?.({ ...event, isAllDay: true });
-        return;
-      }
-
-      if (savedTimeOfDayRef.current) {
-        const { startHours, startMinutes, endHours, endMinutes } =
-          savedTimeOfDayRef.current;
         onEventChange?.({
           ...event,
-          isAllDay: false,
-          start: applyTimeToDate(event.start, startHours, startMinutes),
-          end: applyTimeToDate(event.end, endHours, endMinutes),
+          ...allDayDates(event, true),
+          isAllDay: true,
         });
-        savedTimeOfDayRef.current = null;
         return;
       }
-
-      /** Default 9 AM – 10 AM when no saved times (e.g., existing all-day event). */
-      const DEFAULT_START_HOUR = 9;
-      const DEFAULT_END_HOUR = 10;
-      onEventChange?.({
-        ...event,
-        isAllDay: false,
-        start: applyTimeToDate(event.start, DEFAULT_START_HOUR, 0),
-        end: applyTimeToDate(event.end, DEFAULT_END_HOUR, 0),
-      });
+      const dates = allDayDates(event, false);
+      const saved = savedTimeOfDayRef.current;
+      if (saved) {
+        dates.start =
+          applyZonedTime(
+            dates.start,
+            saved.startHours,
+            saved.startMinutes,
+            event.timezone ? eventTimeZone({ timezone: event.timezone }) : zone,
+          ) ?? dates.start;
+        dates.end =
+          applyZonedTime(
+            dates.end,
+            saved.endHours,
+            saved.endMinutes,
+            event.timezone ? eventTimeZone({ timezone: event.timezone }) : zone,
+          ) ?? dates.end;
+      }
+      if (dates.end.getTime() <= dates.start.getTime())
+        dates.end = new Date(dates.start.getTime() + 3600000);
+      savedTimeOfDayRef.current = null;
+      onEventChange?.({ ...event, ...dates, isAllDay: false });
     },
-    [event, onEventChange],
+    [event, onEventChange, editStart, editEnd, zone],
   );
 
   const otherTypes = EVENT_TYPES.filter((t) => t !== eventType);
@@ -864,10 +874,7 @@ export function EventDetailPanel({
       <div className="border-border border-t" />
 
       {/* Time — muted and non-interactive for all-day events */}
-      {(event.start.getHours() !== 0 ||
-        event.start.getMinutes() !== 0 ||
-        event.end.getHours() !== 0 ||
-        event.end.getMinutes() !== 0) && (
+      {!event.isAllDay && (
         <div className="flex min-w-0 items-center gap-1 px-2 text-xs">
           {/* Start time group — Clock icon + input in one bordered container */}
           <div
@@ -884,6 +891,7 @@ export function EventDetailPanel({
             <Clock className="size-4 shrink-0 text-[#C7C5C1] dark:text-[#595959]" />
             <input
               ref={startTimeRef}
+              aria-label="Start time"
               type="text"
               value={startTimeValue}
               onChange={handleStartTimeChange}
@@ -917,6 +925,7 @@ export function EventDetailPanel({
             </span>
             <input
               ref={endTimeRef}
+              aria-label="End time"
               type="text"
               value={endTimeValue}
               onChange={handleEndTimeChange}
@@ -940,16 +949,17 @@ export function EventDetailPanel({
         </div>
       )}
 
+      {timeError && (
+        <p role="alert" className="px-4 text-xs text-destructive">
+          {timeError}
+        </p>
+      )}
+
       {/* Date — editable inline input(s), indented to align with time text */}
       <div
         className={cn(
           "flex items-center gap-2 -mt-2",
-          event.start.getHours() !== 0 ||
-            event.start.getMinutes() !== 0 ||
-            event.end.getHours() !== 0 ||
-            event.end.getMinutes() !== 0
-            ? "ml-8"
-            : "ml-4",
+          !event.isAllDay ? "ml-8" : "ml-4",
         )}
       >
         {/* Start date */}
@@ -959,6 +969,7 @@ export function EventDetailPanel({
         >
           <input
             ref={dateRef}
+            aria-label="Start date"
             type="text"
             value={dateValue}
             onChange={handleDateChange}
@@ -977,6 +988,7 @@ export function EventDetailPanel({
           >
             <input
               ref={endDateRef}
+              aria-label="End date"
               type="text"
               value={endDateValue}
               onChange={handleEndDateChange}
@@ -998,6 +1010,7 @@ export function EventDetailPanel({
             onClick={() => handleAllDayToggle(!(event.isAllDay ?? false))}
           >
             <Switch
+              aria-label="All-day event"
               size="xs"
               checked={event.isAllDay ?? false}
               onCheckedChange={handleAllDayToggle}
@@ -1007,65 +1020,54 @@ export function EventDetailPanel({
             <span className="text-foreground text-xs">All-day</span>
           </div>
 
-          {/* Timezone row — hidden when all-day */}
           {!event.isAllDay && (
-            <div className="flex items-center gap-3 px-4">
-              <Globe className="size-4 shrink-0 text-[#C7C5C1] dark:text-[#595959]" />
-              <TimezoneDisplay timezone={event.timezone ?? "GMT-3 Sao Paulo"} />
+            <div className="px-4">
+              <EventTimezoneField
+                key={event.id}
+                event={event}
+                context={editorContext}
+                onEventChange={onEventChange}
+              />
             </div>
           )}
-
-          {/* Recurrence row — active display for recurring, placeholder for non-recurring */}
-          {event.recurrence ? (
-            <div className="flex items-center gap-3 px-4">
-              <RefreshCcw className="size-4 shrink-0 text-[#C7C5C1] dark:text-[#595959]" />
-              <div className="flex flex-1 items-center justify-between">
-                <RecurrenceDisplay recurrence={event.recurrence} />
-                <div className="flex items-center">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 text-[#C7C5C1] dark:text-[#595959]"
-                    onClick={onPrevWeek}
-                  >
-                    <ChevronLeft className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 text-[#C7C5C1] dark:text-[#595959]"
-                    onClick={onNextWeek}
-                  >
-                    <ChevronRight className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 px-4">
-              <RefreshCcw className="size-4 shrink-0 text-[#C7C5C1] dark:text-[#595959]" />
-              <span className="text-xs text-[#C7C5C1] dark:text-[#595959]">
-                Repeat
-              </span>
-            </div>
-          )}
+          <div className="px-4">
+            <EventRecurrenceField
+              key={event.id}
+              event={event}
+              context={editorContext}
+              onEventChange={onEventChange}
+              onPrevWeek={onPrevWeek}
+              onNextWeek={onNextWeek}
+            />
+          </div>
         </>
       ) : (
-        <div className="-mt-2 flex items-center pl-8">
-          <div
-            className="group/options flex cursor-default items-center gap-4 rounded-sm px-2 py-1.5 hover:bg-[#E8E8E4] dark:hover:bg-[#242424]"
-            onClick={() => setOptionsExpanded(true)}
+        <div className="-mt-2 flex items-center gap-1 pl-8 pr-2">
+          <button
+            type="button"
+            aria-label="Make event all-day"
+            className="min-h-8 rounded-sm px-2 py-1.5 text-xs text-muted-foreground outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/30"
+            onClick={() => {
+              setOptionsExpanded(true);
+              handleAllDayToggle(true);
+            }}
           >
-            <span className="text-xs text-[#C7C5C1] dark:text-[#595959] dark:group-hover/options:text-[#636363]">
-              All-day
-            </span>
-            <span className="text-xs text-[#C7C5C1] dark:text-[#595959] dark:group-hover/options:text-[#636363]">
-              Time zone
-            </span>
-            <span className="text-xs text-[#C7C5C1] dark:text-[#595959] dark:group-hover/options:text-[#636363]">
-              Repeat
-            </span>
-          </div>
+            All-day
+          </button>
+          <EventTimezoneField
+            key={`zone-${event.id}`}
+            compact
+            event={event}
+            context={editorContext}
+            onEventChange={onEventChange}
+          />
+          <EventRecurrenceField
+            key={`repeat-${event.id}`}
+            compact
+            event={event}
+            context={editorContext}
+            onEventChange={onEventChange}
+          />
         </div>
       )}
 
@@ -1077,7 +1079,12 @@ export function EventDetailPanel({
         <FieldRow icon={User} label="Participants and Rooms" />
         <FieldRow icon={Video} label="Conferencing" />
         <FieldRow icon={NotepadText} label="AI Meeting Notes and Docs" />
-        <FieldRow icon={MapPin} label="Location" value={event.location} />
+        <EventLocationField
+          key={event.id}
+          event={event}
+          context={editorContext}
+          onEventChange={onEventChange}
+        />
       </div>
 
       {/* Divider */}

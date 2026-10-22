@@ -1,4 +1,4 @@
-import { SAMPLE_ACCOUNT_EMAIL } from "./sample-account";
+import { SAMPLE_ACCOUNT_EMAIL } from "./sample-account.ts";
 import { addDays, addMinutes, format, startOfWeek } from "date-fns";
 import type { Day } from "date-fns";
 

@@ -15,6 +15,11 @@ import { useMediaQuery, useViewportWidth } from "@/hooks/use-media-query";
 import { generateMockEvents } from "@/lib/mock-events";
 import { SAMPLE_ACCOUNTS, SAMPLE_ACCOUNT_EMAIL } from "@/lib/sample-account";
 import { shiftVisibleDate, filterCalendarEvents } from "@/lib/calendar-view";
+import {
+  expandRecurringEvents,
+  prepareSampleSeries,
+  updateCalendarEvents,
+} from "@/lib/event-recurrence";
 import { pickRandomEventColor } from "@/lib/event-utils";
 import { CommandMenu } from "@/components/command-menu";
 import { SidebarLeft } from "@/components/sidebar-left";
@@ -101,7 +106,9 @@ function PageContent({ isWideLayout }: PageContentProps) {
   const [currentDate, setCurrentDate] = React.useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 0 }),
   );
-  const [events, setEvents] = React.useState(() => generateMockEvents());
+  const [events, setEvents] = React.useState(() =>
+    prepareSampleSeries(generateMockEvents()),
+  );
   const [accounts, setAccounts] = React.useState(() =>
     structuredClone(SAMPLE_ACCOUNTS),
   );
@@ -161,6 +168,22 @@ function PageContent({ isWideLayout }: PageContentProps) {
     showDeclinedEvents: true,
     showWeekNumbers: true,
   });
+  const recurrenceWindow = React.useMemo(
+    () => ({
+      start: addMonths(currentDate, -6),
+      end: addMonths(currentDate, 6),
+    }),
+    [currentDate],
+  );
+  const expandedEvents = React.useMemo(
+    () =>
+      expandRecurringEvents(
+        events,
+        recurrenceWindow.start,
+        recurrenceWindow.end,
+      ),
+    [events, recurrenceWindow],
+  );
   const visibleEvents = React.useMemo(() => {
     const visibleIds = new Set(
       accounts.flatMap((account) =>
@@ -170,19 +193,19 @@ function PageContent({ isWideLayout }: PageContentProps) {
       ),
     );
     return filterCalendarEvents(
-      events,
+      expandedEvents,
       visibleIds,
       viewSettings.showDeclinedEvents,
     );
-  }, [accounts, events, viewSettings.showDeclinedEvents]);
+  }, [accounts, expandedEvents, viewSettings.showDeclinedEvents]);
   const [highlightedDate, setHighlightedDate] = React.useState<Date | null>(
     null,
   );
   const [monthViewDisplayMonth, setMonthViewDisplayMonth] =
     React.useState<Date | null>(null);
   const selectedEvent = React.useMemo(
-    () => events.find((e) => e.id === selectedEventId) ?? null,
-    [events, selectedEventId],
+    () => expandedEvents.find((e) => e.id === selectedEventId) ?? null,
+    [expandedEvents, selectedEventId],
   );
 
   // Phones show event details in the context panel sheet: the 320px popover
@@ -208,9 +231,7 @@ function PageContent({ isWideLayout }: PageContentProps) {
   }, [isMobile, setContextPanelOpen, setContextPanelOpenMobile]);
 
   const handleEventChange = React.useCallback((updatedEvent: CalendarEvent) => {
-    setEvents((prev) =>
-      prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)),
-    );
+    setEvents((prev) => updateCalendarEvents(prev, updatedEvent));
   }, []);
 
   /** ID of a just-created event whose title input should be focused once */

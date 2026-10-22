@@ -34,6 +34,45 @@ export interface SidebarSizingProps {
   onWidthChange: (width: number) => void;
 }
 
+export interface EventRecurrenceRule {
+  frequency: "daily" | "weekly" | "monthly" | "yearly";
+  interval: number;
+  /** Sunday = 0, Saturday = 6. */
+  weekdays?: number[];
+  monthlyMode?: "day" | "weekday";
+  /** Inclusive calendar date in the event's time zone (yyyy-MM-dd). */
+  until?: string;
+  count?: number;
+}
+
+export type EventOccurrenceException = Partial<
+  Pick<
+    CalendarEvent,
+    | "id"
+    | "title"
+    | "start"
+    | "end"
+    | "isAllDay"
+    | "color"
+    | "description"
+    | "location"
+    | "timezone"
+    | "reminders"
+    | "status"
+    | "visibility"
+    | "calendarId"
+    | "calendarEmail"
+    | "responseStatus"
+  >
+>;
+
+export type EventEditorContext = "popover" | "sidebar";
+
+export interface EventRecurrenceAnchor {
+  start: Date;
+  timezone: string;
+}
+
 // Re-export all shared types for backward compatibility
 export type {
   ViewType,
