@@ -43,6 +43,7 @@ import type {
 } from "./week-view-types";
 import { EventLocationField } from "./event-fields/event-location-field";
 import { EventDescriptionField } from "./event-fields/event-description-field";
+import { eventInlineTextClass } from "./event-fields/event-field-editor";
 import { EventTimezoneField } from "./event-fields/event-timezone-field";
 import { EventRecurrenceField } from "./event-fields/event-recurrence-field";
 import {
@@ -879,7 +880,7 @@ export function EventDetailPanel({
         onBlur={commitTitle}
         onKeyDown={handleTitleKeyDown}
         placeholder="Title"
-        className="text-foreground placeholder:text-[#C7C5C1] dark:placeholder:text-[#595959] mx-2 rounded-sm border border-transparent bg-transparent px-2 py-1.5 text-xs outline-none hover:border-[#E8E8E4] dark:hover:border-[#373737] focus:border-[#F5F5F5] focus:bg-[#F5F5F5] dark:focus:border-[#242424] dark:focus:bg-[#242424]"
+        className={cn(eventInlineTextClass, "mx-2")}
       />
 
       {/* Divider */}

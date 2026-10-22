@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "../week-view-types";
-import { eventFieldInputClass } from "./event-field-editor";
+import { eventInlineTextClass } from "./event-field-editor";
 
 /** Edit in place in both the event popover and the context sidebar. */
 export function EventDescriptionField({
@@ -34,7 +34,8 @@ export function EventDescriptionField({
     const textarea = textareaRef.current;
     if (!editing || !textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = `${textarea.scrollHeight}px`;
+    const borderHeight = textarea.offsetHeight - textarea.clientHeight;
+    textarea.style.height = `${textarea.scrollHeight + borderHeight}px`;
   }, [editing, draft]);
 
   React.useEffect(
@@ -53,6 +54,7 @@ export function EventDescriptionField({
         <textarea
           ref={textareaRef}
           id={id}
+          rows={1}
           data-inline-event-editor="description"
           value={draft}
           onChange={(e) => {
@@ -95,8 +97,8 @@ export function EventDescriptionField({
           }}
           placeholder="Add a description…"
           className={cn(
-            eventFieldInputClass,
-            "block h-auto min-h-24 max-h-[40dvh] resize-none overflow-y-auto py-2 leading-relaxed [overflow-wrap:anywhere]",
+            eventInlineTextClass,
+            "-mx-2 block h-auto min-h-8 w-[calc(100%+16px)] max-h-[40dvh] resize-none overflow-y-auto [overflow-wrap:anywhere]",
           )}
         />
       ) : (
@@ -112,7 +114,8 @@ export function EventDescriptionField({
             setEditing(true);
           }}
           className={cn(
-            "-mx-2 min-h-8 min-w-0 rounded-sm border border-transparent px-2 py-1.5 text-left text-xs whitespace-pre-wrap outline-none [overflow-wrap:anywhere] hover:border-border hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
+            eventInlineTextClass,
+            "-mx-2 min-h-8 min-w-0 text-left whitespace-pre-wrap [overflow-wrap:anywhere]",
             event.description ? "text-foreground" : "text-foreground/65",
           )}
         >

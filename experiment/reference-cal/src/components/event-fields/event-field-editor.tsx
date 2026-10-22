@@ -208,3 +208,6 @@ export function EventFieldActions({
 
 export const eventFieldInputClass =
   "h-8 w-full min-w-0 rounded-sm border border-input bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
+
+export const eventInlineTextClass =
+  "text-foreground placeholder:text-[#C7C5C1] dark:placeholder:text-[#595959] rounded-sm border border-transparent bg-transparent px-2 py-1.5 text-xs outline-none hover:border-[#E8E8E4] dark:hover:border-[#373737] focus:border-[#F5F5F5] focus:bg-[#F5F5F5] dark:focus:border-[#242424] dark:focus:bg-[#242424]";
