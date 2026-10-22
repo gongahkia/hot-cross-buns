@@ -1,5 +1,5 @@
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { Copy, Files, Pencil, Trash2 } from "lucide-react";
+import { Clock3, Copy, Files, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { EventMenuContext, type CalendarMenuTarget } from "./calendarEventMenuContext";
 import type { CalendarEventViewModel } from "../../coreViewModels";
@@ -34,6 +34,7 @@ export function CalendarEventMenuProvider({ children, onOpen, onAction }: {
         {event?.mutationState === "queued" || event?.mutationState === "failed" ? <Menu.Item className="calendar-menu-item" onSelect={() => { selected.current = true; setOpen(false); target?.beforeAction?.(); openCalendarSyncDetails(); }}>Review sync status</Menu.Item> : null}
         <Menu.Item className="calendar-menu-item" onSelect={() => select("open")}><Pencil size={15} />{event?.sourceKind === "task" ? "Open task" : event?.canWrite === false ? "View event (read-only)" : "Edit event"}</Menu.Item>
         {event?.sourceKind !== "task" ? <>
+          {event?.canWrite !== false ? <Menu.Item className="calendar-menu-item" onSelect={() => select("open")}><Clock3 size={15} />Change date and time…</Menu.Item> : null}
           <Menu.Item className="calendar-menu-item" onSelect={() => select("copy")}><Copy size={15} />Copy text</Menu.Item>
           <Menu.Item className="calendar-menu-item" onSelect={() => select("duplicate")}><Files size={15} />{recurring ? "Duplicate this occurrence" : "Duplicate event"}</Menu.Item>
           <Menu.Separator className="calendar-menu-separator" />

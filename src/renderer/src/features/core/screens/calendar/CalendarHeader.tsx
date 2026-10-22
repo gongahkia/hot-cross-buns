@@ -90,6 +90,11 @@ export function CalendarHeader({
             <Menu.Item className="calendar-menu-item" onSelect={onCreate}>New event</Menu.Item>
             <Menu.Item className="calendar-menu-item" onSelect={onToggleSmartReschedule}>Smart schedule</Menu.Item>
             {shareAvailabilityVisible ? <Menu.Item className="calendar-menu-item" onSelect={onToggleShareAvailability}>Share availability</Menu.Item> : null}
+            <Menu.Separator className="calendar-menu-separator" />
+            <Menu.Label className="max-w-64 px-3 py-2 text-xs leading-relaxed text-text-muted">
+              Grid: arrow keys move between cells; Enter creates an event. Tab reaches events. Shift+F10 opens event actions.<br />
+              Scroll Month by week. Scroll sideways (or Shift+wheel) in a timeline to advance by day.
+            </Menu.Label>
           </Menu.Content></Menu.Portal>
         </Menu.Root>
         <IconButton icon={PanelRight} label="Toggle search sidebar" aria-expanded={inspector.isOpen} onClick={() => { if (inspector.isOpen) void inspector.close(); else window.dispatchEvent(new Event("hcb:open-sidebar-search")); }} variant="ghost" />

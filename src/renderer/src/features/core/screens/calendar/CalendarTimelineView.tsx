@@ -1,4 +1,5 @@
 import { CalendarOverflowPopover } from "./CalendarOverflowPopover";
+import { useCalendarGridFocus } from "./useCalendarGridFocus";
 import { useCalendarWheelNavigation } from "./useCalendarWheelNavigation";
 import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
 import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
@@ -283,6 +284,8 @@ function CalendarTimelineView({
     [days, hourRowHeight, visibleCalendarIds]
   );
   const visibleDays = timeline.days;
+  const cellKeys = useMemo(() => [-1, ...calendarTimelineHours].flatMap(hour => visibleDays.map(({ day }) => `${calendarDayKey(day)}:${hour}`)), [visibleDays]);
+  const gridFocus = useCalendarGridFocus(cellKeys, visibleDays.length);
   const visibleDayKeys = visibleDays.map(({ day }) => calendarDayKey(day)).join("|");
   const scrollKey = `calendar.scroll:${gridLabel}:${visibleDayKeys}`;
   const currentPoint = useMemo(
@@ -696,6 +699,7 @@ function CalendarTimelineView({
         }}
         ref={scrollContainerRef}
         role="grid"
+        aria-description="Use arrow keys to move between days and hours, Home or End for a row, and Enter to create an event. Tab moves to event controls."
         aria-label={gridLabel}
       >
         <div style={{ minWidth: `${64 + dayColumnMinWidth * Math.max(1, days.length)}px` }}>
@@ -756,15 +760,15 @@ function CalendarTimelineView({
                       onDrop={(dragEvent) =>
                         handleDrop(dragEvent, dayKey, `${dayKey}T00:00:00.000Z`, true)
                       }
-                      onKeyDown={(event) =>
-                        !availabilityMode
-                          ? handleActivationKeyDown(event, () =>
+                      onKeyDown={(event) => {
+                        if (gridFocus.onKeyDown(event)) return;
+                        if (!availabilityMode) handleActivationKeyDown(event, () =>
                               onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true })
-                            )
-                          : undefined
-                      }
+                            );
+                      }}
                       role="gridcell"
-                      tabIndex={0}
+                      aria-label={`All day ${calendarDateTitle(day)}`}
+                      {...gridFocus.cellProps(`${dayKey}:-1`)}
                     />
                   );
                 })}
@@ -904,24 +908,24 @@ function CalendarTimelineView({
                           timelineDragRef.current = null;
                           clearDragSelection();
                         }}
-                        onKeyDown={(event) =>
-                          !availabilityMode
-                            ? handleActivationKeyDown(event, () =>
+                        onKeyDown={(event) => {
+                          if (gridFocus.onKeyDown(event)) return;
+                          if (!availabilityMode) handleActivationKeyDown(event, () =>
                                 onCreate({
                                   allDay: false,
                                   startsAt,
                                   endsAt: addUtcMinutesIso(startsAt, 60)
                                 })
-                              )
-                            : undefined
-                        }
+                              );
+                        }}
                         role="gridcell"
-                        tabIndex={0}
+                        {...gridFocus.cellProps(`${dayKey}:${hour}`)}
                       >
                         {!availabilityMode ? (
                           <button
                             aria-label={`Create event at ${hourSlotLabel(hour)}`}
                             className="sr-only"
+                            tabIndex={-1}
                             onClick={(buttonEvent) => {
                               buttonEvent.stopPropagation();
                               onCreate({

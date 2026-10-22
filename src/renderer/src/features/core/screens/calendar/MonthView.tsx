@@ -1,4 +1,5 @@
 import { CalendarOverflowPopover } from "./CalendarOverflowPopover";
+import { useCalendarGridFocus } from "./useCalendarGridFocus";
 import { useCalendarWheelNavigation } from "./useCalendarWheelNavigation";
 import { useCalendarPointerGesture } from "./useCalendarPointerGesture";
 import { calendarGestureRange, type CalendarEventRange, type CalendarGestureKind } from "./calendarGesture";
@@ -80,6 +81,8 @@ export function MonthView({
     [weeks, visibleCalendarIds, showWeekends]
   );
   const visibleWeekIds = visibleWeeks.map((week) => week.id).join("|");
+  const cellKeys = useMemo(() => visibleWeeks.flatMap(week => week.days.map(({ day }) => calendarDayKey(day))), [visibleWeeks]);
+  const gridFocus = useCalendarGridFocus(cellKeys, dayCount, todayKey);
   const dragRangeRef = useRef<{ last: string; moved: boolean; start: string } | null>(null);
   const monthGridRef = useRef<HTMLDivElement | null>(null);
   const removeMonthPointerListenersRef = useRef<(() => void) | null>(null);
@@ -255,7 +258,7 @@ export function MonthView({
   }
 
   return (
-    <div ref={scrollRef} className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view">
+    <div ref={scrollRef} className="calendar-month flex h-full min-h-0 select-none flex-col overflow-auto" data-week-numbers={showWeekNumbers} role="grid" aria-label="Calendar month view" aria-description="Use arrow keys to move between dates, Home or End for a row, and Enter to create an event. Tab moves to event controls.">
       <div className="calendar-month-head grid" style={{ gridTemplateColumns: `repeat(${dayCount}, minmax(0, 1fr))` }} role="row">
         {(showWeekends ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["Mon", "Tue", "Wed", "Thu", "Fri"]).map((weekday) => (
           <div className="border-r border-border px-2 py-2 last:border-r-0" key={weekday} role="columnheader">
@@ -311,11 +314,12 @@ export function MonthView({
 
                     onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true });
                   }}
-                  onKeyDown={(event) =>
+                  onKeyDown={(event) => {
+                    if (gridFocus.onKeyDown(event)) return;
                     handleActivationKeyDown(event, () =>
                       onCreate({ startsAt: `${dayKey}T00:00:00.000Z`, allDay: true })
-                    )
-                  }
+                    );
+                  }}
                   onPointerEnter={updateDayPointerDrag}
                   onPointerDown={(event) => handleDayPointerDown(event, dayKey)}
                   onPointerMove={updateDayPointerDrag}
@@ -327,7 +331,7 @@ export function MonthView({
                   }}
                   role="gridcell"
                   style={{ gridColumn: `${dayIndex + 1}`, gridRow: "1 / -1" }}
-                  tabIndex={0}
+                  {...gridFocus.cellProps(dayKey)}
                 >
                   <span className="sr-only">{day.weekday}</span>
                   <span className="calendar-month-date">{day.dateLabel}</span>
