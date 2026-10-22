@@ -334,6 +334,11 @@ export function CalendarView({
   function toggleCalendarEvent(eventId: string, scope?: CalendarEventCompletionScope): void {
     const event = source.calendarEventsById[eventId];
 
+    if (event?.scheduledTaskId) {
+      void (event.completedAt ? source.reopenTask(event.scheduledTaskId) : source.completeTask(event.scheduledTaskId));
+      return;
+    }
+
     if (event?.completedAt) {
       void source.reopenEvent(eventId, scope);
       return;

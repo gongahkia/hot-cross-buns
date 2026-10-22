@@ -86,6 +86,26 @@ describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
     expect(store.dispatch("calendar", "get", { id: event.id }).completedAt).toBeNull();
   });
 
+  it("completes and reopens the task behind every scheduled block, with one undoable task write", () => {
+    const store = createStore();
+    const task = store.dispatch("tasks", "create", { listId: "inbox", title: "Linked work", dueAt: "2027-01-20T00:00:00Z" });
+    const blocks = ["2027-01-12T09:00:00Z", "2027-01-13T09:00:00Z"].map(startsAt =>
+      store.dispatch("calendar", "scheduleTaskBlock", { taskId: task.id, calendarId: "primary", startsAt, durationMinutes: 60 }));
+    const before = store.dispatch("tasks", "get", { id: task.id });
+    store.dispatch("calendar", "complete", { id: blocks[0].calendarEventId });
+    expect(store.dispatch("tasks", "get", { id: task.id })).toMatchObject({ status: "completed", dueAt: before.dueAt, plannedStart: before.plannedStart });
+    for (const block of blocks) expect(store.dispatch("calendar", "get", { id: block.calendarEventId })).toMatchObject({ scheduledTaskId: task.id, completed: true });
+    store.dispatch("undo", "undo");
+    expect(store.dispatch("tasks", "get", { id: task.id }).status).toBe("active");
+    expect(store.dispatch("calendar", "get", { id: blocks[1].calendarEventId }).completedAt).toBeNull();
+    store.dispatch("tasks", "complete", { id: task.id });
+    const projected = store.dispatch("calendar", "listEvents", { start: "2027-01-01T00:00:00Z", end: "2027-02-01T00:00:00Z" }).items;
+    expect(projected.every((event: any) => event.completedAt && event.scheduledTaskId === task.id)).toBe(true);
+    store.dispatch("calendar", "reopen", { id: blocks[1].calendarEventId });
+    expect(store.dispatch("tasks", "get", { id: task.id }).status).toBe("active");
+    expect(store.dispatch("calendar", "get", { id: blocks[0].calendarEventId }).completedAt).toBeNull();
+  });
+
   it("filters search domains before limiting results so notes cannot crowd out planner matches", () => {
     const store = createStore();
     for (let i = 0; i < 35; i++) store.dispatch("notes", "create", { title: "Marmalade", body: "" });

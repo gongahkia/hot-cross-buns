@@ -1087,9 +1087,9 @@ export class CoreStore {
       case "calendar.delete":
         return this.deleteEvent(input);
       case "calendar.complete":
-        return this.updateEvent({ ...input, completed: true });
+        return this.setEventCompletion(input, true);
       case "calendar.reopen":
-        return this.updateEvent({ ...input, completed: false });
+        return this.setEventCompletion(input, false);
       case "calendar.listScheduledTaskBlocks":
         return this.listScheduledTaskBlocks(input);
       case "calendar.scheduleTaskBlock":
@@ -1283,6 +1283,7 @@ export class CoreStore {
         starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS scheduled_task_blocks_range_idx ON scheduled_task_blocks(calendar_id, starts_at, ends_at);
+      CREATE INDEX IF NOT EXISTS scheduled_task_blocks_event_idx ON scheduled_task_blocks(calendar_event_id);
       CREATE TABLE IF NOT EXISTS notes (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', list_id TEXT,
         tags_json TEXT NOT NULL DEFAULT '[]',
@@ -1747,8 +1748,10 @@ export class CoreStore {
       event.google_original_start_time AS originalStartAt,event.conference_json AS conference,event.attachments_json AS attachments,
       event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
-      event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt
+      event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt,
+      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt
       FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
+      LEFT JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id LEFT JOIN tasks task ON task.id=block.task_id
       WHERE (event.starts_at < ? AND event.ends_at > ?)
         OR (event.google_recurrence_json IS NOT NULL AND event.google_recurrence_json != 'null')
         OR event.google_recurring_event_id IS NOT NULL
@@ -1810,9 +1813,21 @@ export class CoreStore {
       event.google_original_start_time AS googleOriginalStartTime,event.conference_json AS conference,event.attachments_json AS attachments,
       event.hcb_kind AS hcbKind,event.tags_json AS tags,event.event_type AS eventType,event.focus_time_properties_json AS focusTimeProperties,
       event.out_of_office_properties_json AS outOfOfficeProperties,event.working_location_properties_json AS workingLocationProperties,
-      event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id WHERE event.id=?`).get(id);
+      event.self_response_status AS selfResponseStatus,event.updated_at AS updatedAt,
+      block.task_id AS scheduledTaskId,task.status AS scheduledTaskStatus,task.updated_at AS scheduledTaskUpdatedAt
+      FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
+      LEFT JOIN scheduled_task_blocks block ON block.calendar_event_id=event.id LEFT JOIN tasks task ON task.id=block.task_id WHERE event.id=?`).get(id);
     if (!row) throw new CoreStoreError("Calendar event no longer exists");
     return eventFromRow(row);
+  }
+
+  private setEventCompletion(input: JsonRecord, completed: boolean): JsonRecord {
+    const event = this.requireEvent(requiredText(input.id, "Event id"));
+    if (!event.scheduledTaskId) return this.updateEvent({ ...input, completed });
+    // A scheduled block represents its task. Use the task's existing outbox and
+    // undo operation; every block derives completion from that one task record.
+    this.updateTask({ id: event.scheduledTaskId, status: completed ? "completed" : "active" });
+    return this.requireEvent(event.id);
   }
 
   private createEvent(input: JsonRecord, options: EventWriteOptions = {}): JsonRecord {
@@ -3505,8 +3520,10 @@ function eventFromRow(row: JsonRecord): JsonRecord {
     tags: safeJson(row.tags, []),
     allDay: Boolean(row.allDay),
     detailsTruncated: Boolean(row.detailsTruncated),
-    completed: Boolean(row.completed),
-    completedAt: row.completed ? row.updatedAt : null,
+    completed: row.scheduledTaskId ? row.scheduledTaskStatus === "completed" : Boolean(row.completed),
+    completedAt: row.scheduledTaskId
+      ? row.scheduledTaskStatus === "completed" ? row.scheduledTaskUpdatedAt : null
+      : row.completed ? row.updatedAt : null,
     eventId: row.eventId ?? row.id,
     recurringEventId: row.recurringEventId ?? row.googleRecurringEventId ?? null,
     originalStartAt: row.originalStartAt ?? row.googleOriginalStartTime ?? null,

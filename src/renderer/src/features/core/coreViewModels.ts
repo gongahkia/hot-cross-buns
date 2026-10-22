@@ -74,6 +74,8 @@ export interface CalendarEventViewModel {
   status?: "confirmed" | "tentative" | "cancelled";
   sourceKind?: "event" | "task";
   taskId?: string;
+  /** A real calendar block whose completion belongs to this task. */
+  scheduledTaskId?: string;
   taskListId?: string;
   taskStatus?: TaskStatus;
   calendarId: string;

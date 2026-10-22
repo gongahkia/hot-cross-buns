@@ -235,7 +235,9 @@ export function CalendarItemCompletionButton({
     return isTask ? <Icon aria-hidden="true" className="shrink-0" size={iconSize} /> : null;
   }
 
-  const label = isCompletedEvent ? `Reopen ${event.title}` : `Mark ${event.title} complete`;
+  const label = event.scheduledTaskId
+    ? isCompletedEvent ? `Reopen task ${event.title}` : `Complete task ${event.title}`
+    : isCompletedEvent ? `Reopen ${event.title}` : `Mark ${event.title} complete`;
 
   function chooseScope(scope: CalendarEventCompletionScope): void {
     setScopeMenuOpen(false);
@@ -249,7 +251,7 @@ export function CalendarItemCompletionButton({
         className="shrink-0 rounded-full text-current transition-colors duration-fast ease-hcb hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         onClick={(clickEvent) => {
           clickEvent.stopPropagation();
-          if (eventCompletionDefaultScope === "ask") {
+          if (eventCompletionDefaultScope === "ask" && !event.scheduledTaskId) {
             setScopeMenuOpen(true);
             return;
           }
