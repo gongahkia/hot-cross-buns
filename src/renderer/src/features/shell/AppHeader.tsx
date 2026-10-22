@@ -1,12 +1,14 @@
 import { useState } from "react";
 import type { CalendarListSummary, SettingsSnapshot } from "@shared/ipc/contracts";
 import {
+  Eye, EyeOff,
   CalendarDays,
   ListTodo,
   RefreshCw,
   Settings2,
   StickyNote
 } from "lucide-react";
+import { CalendarSourceSwatch } from "../core/screens/calendar/CalendarEventChips";
 import appIconUrl from "../../../../../assets/logo/logo.png";
 import { Button, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
@@ -113,10 +115,11 @@ export function AppHeader({
         {activeSectionId === "calendar" ? <div className="space-y-3 px-3">
           <p className="px-1 text-xs font-semibold text-text-muted">My calendars</p>
           <input aria-label="Filter calendars" className="w-full min-w-0 rounded-md border border-border bg-bg-primary px-2 text-xs" placeholder="Filter calendars…" value={calendarSearch} onChange={(event) => setCalendarSearch(event.target.value)} />
-          <div className="grid gap-1">{calendars.filter((calendar) => calendar.title.toLowerCase().includes(calendarSearch.toLowerCase())).map((calendar) => <label key={calendar.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-1 text-sm hover:bg-surface-0">
-            <input type="checkbox" className="size-4 shrink-0 accent-[var(--color-accent)]" checked={visibleCalendarIds.has(calendar.id)} onChange={() => onToggleCalendar(calendar.id)} />
+          <div className="grid gap-1">{calendars.filter((calendar) => calendar.title.toLowerCase().includes(calendarSearch.toLowerCase())).map((calendar) => <button key={calendar.id} className="calendar-source-toggle" aria-label={`${visibleCalendarIds.has(calendar.id) ? "Hide" : "Show"} ${calendar.title}`} aria-pressed={visibleCalendarIds.has(calendar.id)} onClick={() => onToggleCalendar(calendar.id)}>
+            <CalendarSourceSwatch calendarId={calendar.id} color={calendar.backgroundColor} />
             <span className="truncate">{calendar.title}</span>
-          </label>)}</div>
+            {visibleCalendarIds.has(calendar.id) ? <Eye className="calendar-source-eye" size={16} /> : <EyeOff className="calendar-source-eye" size={16} />}
+          </button>)}</div>
           {calendars.length === 0 ? <p className="text-xs text-text-muted">Add a calendar in Settings.</p> : null}
         </div> : null}
         <div ref={sidebarMount} className="section-navigation-slot" />

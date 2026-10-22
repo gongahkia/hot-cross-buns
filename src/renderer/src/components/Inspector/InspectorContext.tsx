@@ -9,6 +9,7 @@ import {
 import type { ReactNode, RefObject } from "react";
 
 export type InspectorItemKind =
+  | "search"
   | "task"
   | "event"
   | "note"
@@ -51,6 +52,7 @@ interface InspectorContextValue {
   close: () => Promise<boolean>;
   update: (patch: Partial<Pick<InspectorItem, "title" | "subtitle" | "dirty" | "body" | "actions" | "hideHeader" | "id" | "toolbar" | "onSave" | "onDiscard" | "saving" | "saveError">>) => void;
   isOpen: boolean;
+  backToSearch: (() => void) | null;
 }
 
 const InspectorReactContext = createContext<InspectorContextValue | null>(null);
@@ -61,6 +63,7 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
   currentRef.current = current;
 
   const transition = useRef(0);
+  const searchReturn = useRef<InspectorItem | null>(null);
   const open = useCallback((item: InspectorItem): void => {
     const generation = ++transition.current;
     const active = currentRef.current;
@@ -68,6 +71,8 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
     const nextItem = item.returnFocus === undefined ? { ...item, returnFocus } : item;
     const commit = () => {
       if (transition.current !== generation) return;
+      if (active?.kind === "search" && item.kind !== "search") searchReturn.current = active;
+      if (item.kind === "search") searchReturn.current = null;
       currentRef.current = nextItem;
       setCurrent(nextItem);
     };
@@ -90,6 +95,7 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
     // Chrome updates during an awaited save do not replace the selected item.
     // Only a newer open/close transition supersedes this close request.
     if (transition.current !== generation) return false;
+    searchReturn.current = null;
     currentRef.current = null;
     setCurrent(null);
     queueMicrotask(() => active?.returnFocus?.current?.focus());
@@ -101,7 +107,7 @@ export function InspectorProvider({ children }: { children: ReactNode }): JSX.El
   }, []);
 
   const value = useMemo<InspectorContextValue>(
-    () => ({ current, open, close, update, isOpen: current !== null }),
+    () => ({ current, open, close, update, isOpen: current !== null, backToSearch: searchReturn.current && current?.kind !== "search" ? () => { if (searchReturn.current) open(searchReturn.current); } : null }),
     [current, open, close, update]
   );
 

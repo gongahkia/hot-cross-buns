@@ -49,6 +49,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     open: openInspector,
     update: updateInspector
   } = useInspector();
+  const ownerId = useRef(`event-inspector-${Math.random().toString(36).slice(2)}`);
   const [draft, setDraftState] = useState<CalendarEventDraft | null>(null);
   const [createMode, setCreateModeState] = useState<CalendarCreateMode>("event");
   const [createTaskListId, setCreateTaskListIdState] = useState(() => defaultTaskListId(source));
@@ -121,7 +122,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }
 
   useEffect(() => {
-    if (currentInspector?.kind !== "event" || !draft) {
+    if (currentInspector?.kind !== "event" || currentInspector.ownerId !== ownerId.current || !draft) {
       return;
     }
 
@@ -143,6 +144,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     });
   }, [
     currentInspector?.kind,
+    currentInspector?.ownerId,
     draft,
     formError,
     calendarInspectorMode,
@@ -166,7 +168,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
   }, [source, source.taskLists]);
 
   async function canReplaceEventInspector(): Promise<boolean> {
-    return currentInspector?.kind !== "event" || await saveDraft();
+    return currentInspector?.kind !== "event" || currentInspector.ownerId !== ownerId.current || await saveDraft();
   }
 
   function eventInspectorToolbar(nextDraft: CalendarEventDraft): ReactNode {
@@ -318,6 +320,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setFormError(undefined);
     setDraft(nextDraft);
     openInspector({
+      ownerId: ownerId.current,
       actions: null,
       toolbar: eventInspectorToolbar(nextDraft),
       onSave: saveDraft,

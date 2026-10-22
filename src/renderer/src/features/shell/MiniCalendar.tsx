@@ -7,7 +7,7 @@ import {
 import { useCalendarNavigation } from "./CalendarNavigation";
 
 export function MiniCalendar({ onSelectDate }: { onSelectDate: (date: string) => void }): JSX.Element {
-  const { calendarAnchorDate, activeViewId, multiDayCount, todayKey } = useCalendarNavigation();
+  const { calendarAnchorDate, activeViewId, multiDayCount, todayKey, showWeekNumbers } = useCalendarNavigation();
   const weekStart = calendarAddUtcDays(calendarAnchorDate, -calendarDateFromIsoDate(calendarAnchorDate).getUTCDay());
   const rangeStart = activeViewId === "week" ? weekStart : calendarAnchorDate;
   const rangeEnd = calendarAddUtcDays(rangeStart, activeViewId === "week" ? 6 : activeViewId === "multiDay" ? multiDayCount - 1 : 0);
@@ -62,9 +62,9 @@ export function MiniCalendar({ onSelectDate }: { onSelectDate: (date: string) =>
         <button aria-label="Mini calendar: next month" onClick={() => browseMonth(1)} type="button"><ChevronDown size={16} /></button>
       </div>
       <table ref={grid} aria-label={calendarMonthTitle(displayedMonth)}>
-        <thead><tr><th scope="col"><span className="sr-only">Week</span></th>{weeks[0].map((day) => <th scope="col" key={day} title={calendarWeekdayLabel(calendarDateFromIsoDate(day), "long")}>{calendarWeekdayLabel(calendarDateFromIsoDate(day)).slice(0, 2)}</th>)}</tr></thead>
+        <thead><tr>{showWeekNumbers ? <th scope="col"><span className="sr-only">Week</span></th> : null}{weeks[0].map((day) => <th scope="col" key={day} title={calendarWeekdayLabel(calendarDateFromIsoDate(day), "long")}>{calendarWeekdayLabel(calendarDateFromIsoDate(day)).slice(0, 2)}</th>)}</tr></thead>
         <tbody>{weeks.map((week) => <tr key={week[0]}>
-          <th scope="row" className="mini-calendar-week" aria-label={`Week ${weekNumber(week[0])}`}>{weekNumber(week[0])}</th>
+          {showWeekNumbers ? <th scope="row" className="mini-calendar-week" aria-label={`Week ${weekNumber(week[0])}`}>{weekNumber(week[0])}</th> : null}
           {week.map((day) => <td key={day} data-in-range={activeViewId !== "month" && day >= rangeStart && day <= rangeEnd}>
             <button
               aria-label={calendarDateTitleFromIso(day)}
@@ -87,7 +87,7 @@ export function MiniCalendar({ onSelectDate }: { onSelectDate: (date: string) =>
 }
 
 // Sunday-start week numbers, matching the reference and the main calendar.
-function weekNumber(day: string): number {
+export function weekNumber(day: string): number {
   const date = calendarDateFromIsoDate(day);
   const end = calendarDateFromIsoDate(calendarAddUtcDays(day, 6));
   const yearStart = new Date(Date.UTC(end.getUTCFullYear(), 0, 1));

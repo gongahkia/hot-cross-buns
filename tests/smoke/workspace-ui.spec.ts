@@ -28,7 +28,8 @@ const openPalette = (page: Page) => page.keyboard.press(process.platform === "da
 const navigate = (page: Page, section: string) => page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: section, exact: true }).click();
 async function capture(page: Page, name: string) {
   mkdirSync("output/ui-review", { recursive: true });
-  await page.screenshot({ path: `output/ui-review/${name}.png`, animations: "disabled" });
+  await page.locator(".inspector-item-menu").evaluateAll((menus) => Promise.all(menus.flatMap((menu) => menu.getAnimations().map((animation) => animation.finished.catch(() => undefined)))));
+  await page.screenshot({ path: `output/ui-review/${name}.png` });
 }
 
 async function noOverflow(page: Page) {
@@ -191,6 +192,7 @@ test("uses the reference command menu with keyboard navigation, motion and narro
       await expect(palette).toHaveCount(0);
       await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-current", "page");
       await openPalette(page);
+      await expect(search).toBeFocused();
       await page.mouse.click(10, 10);
       await expect(palette).toHaveCount(0);
     }

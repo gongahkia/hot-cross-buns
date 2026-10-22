@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { X } from "lucide-react";
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
+import type { InspectorItem } from "./InspectorContext";
+import { ArrowLeft, PanelRight } from "lucide-react";
 import { usePanePreference } from "../../features/shell/panePreferences";
 import { Badge, Button, IconButton, cx } from "../primitives";
 import { useInspector } from "./InspectorContext";
@@ -27,7 +29,14 @@ function InspectorDirtyBadge({
 }
 
 export function InspectorShell({ documentMode = false }: { documentMode?: boolean }): JSX.Element | null {
-  const { current, close, isOpen } = useInspector();
+  const { current } = useInspector();
+  return <AnimatePresence initial={false}>{current ? <InspectorPanel key="context-panel" current={current} documentMode={documentMode} /> : null}</AnimatePresence>;
+}
+
+function InspectorPanel({ current, documentMode }: { current: InspectorItem; documentMode: boolean }): JSX.Element {
+  const { close, isOpen, backToSearch } = useInspector();
+  const present = useIsPresent();
+  const reduceMotion = useReducedMotion() || document.documentElement.dataset.animations === "disabled";
   const dirty = useSyncExternalStore(current?.dirtyState?.subscribe ?? subscribeStaticDirty, current?.dirtyState?.getSnapshot ?? (current?.dirty ? getStaticDirtyTrue : getStaticDirty));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = usePanePreference("inspector.width", 380);
@@ -87,25 +96,28 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
 
-  if (!current) {
-    return null;
-  }
 
   const showHeader = !current.hideHeader;
 
   return (
     <>
-      {narrow ? <div
+      {narrow ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduceMotion ? 0 : .22 }}
         aria-hidden="true"
         className="fixed inset-0 z-40 bg-black/30"
         onClick={requestClose}
       /> : null}
-      <section
+      <motion.section
+        initial={documentMode ? { opacity: 0 } : narrow ? { x: "100%" } : { width: 0, opacity: 0 }}
+        animate={documentMode && !narrow ? { opacity: 1 } : { width: resolvedWidth, x: 0, opacity: 1 }}
+        exit={narrow ? { x: "100%" } : { width: 0, opacity: 0 }}
+        transition={{ duration: reduceMotion ? 0 : .24, ease: [.22, 1, .36, 1] }}
+        inert={!present}
+        data-state={present ? "open" : "closed"}
         aria-label={showHeader ? undefined : current.title}
         aria-labelledby={showHeader ? titleId : undefined}
         aria-modal={narrow}
         className={cx(
-          "relative flex min-h-0 shrink-0 flex-col border-l border-border bg-bg-primary text-text-primary",
+          "inspector-panel relative flex min-h-0 shrink-0 flex-col border-l border-border bg-bg-primary text-text-primary",
           narrow ? "fixed inset-y-0 right-0 z-50 shadow-2xl" : "h-full"
         )}
         style={documentMode && !narrow ? { flex: "1 1 0", minWidth: 320 } : { width: resolvedWidth }}
@@ -138,11 +150,12 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
           onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(320, Math.min(560, viewportWidth - event.clientX))); }}
           onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
         /> : null}
+        {backToSearch ? <button className="inspector-search-back" onClick={backToSearch}><ArrowLeft size={16} />Search</button> : null}
         {showHeader ? (
           <header className="inspector-header flex min-h-12 items-center gap-2 px-4 py-2">
             <h2 className={current.toolbar ? "sr-only" : "min-w-0 flex-1 text-sm font-semibold"} id={titleId}>{current.title}</h2>
             {current.toolbar ?? <InspectorDirtyBadge dirty={current.dirty} dirtyState={current.dirtyState} />}
-            <IconButton data-testid="inspector-close" icon={X} label="Close inspector" onClick={requestClose} size="sm" variant="ghost" />
+            <IconButton data-testid="inspector-close" icon={PanelRight} label="Close inspector" onClick={requestClose} size="sm" variant="ghost" />
           </header>
         ) : null}
 
@@ -176,7 +189,7 @@ export function InspectorShell({ documentMode = false }: { documentMode?: boolea
             {current.actions}
           </footer>
         ) : null}
-      </section>
+      </motion.section>
     </>
   );
 }

@@ -25,6 +25,7 @@ import {
 } from "../../hooks/useRenderTiming";
 import { I18nProvider } from "../../i18n";
 import { AppHeader } from "./AppHeader";
+import { InspectorSearchHost } from "../../components/Inspector/InspectorSearch";
 import { InspectorShell, useInspector } from "../../components/Inspector";
 import { WorkspaceSidebarContext } from "./WorkspaceSidebar";
 import { SaveFeedback } from "./SaveFeedback";
@@ -946,6 +947,7 @@ export function AppShell(): JSX.Element {
             visibleCalendarIds={visibleCalendarIdSet}
           />
         </RenderTimingBoundary>
+        <InspectorSearchHost onCommandMenu={() => openCommandPalette()} onSettings={openSettingsPanel} />
         <InspectorShell documentMode={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes"} />
       </main>
       <SaveFeedback />

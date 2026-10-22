@@ -1,8 +1,13 @@
 import * as Popover from "@radix-ui/react-popover";
-import { CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import * as Menu from "@radix-ui/react-dropdown-menu";
+import { useState } from "react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, PanelRight } from "lucide-react";
 import { Button, IconButton } from "../../../../components/primitives";
+import { useInspector } from "../../../../components/Inspector";
+import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
+import { weekNumber } from "../../../shell/MiniCalendar";
 import type { CalendarViewId } from "../../coreViewModels";
-import { calendarViewLabel } from "./calendarGrid";
+import { calendarViewLabel, calendarMonthTitle, calendarDateTitleFromIso } from "./calendarGrid";
 
 export function CalendarHeader({
   anchorDate, onSelectDate,
@@ -40,38 +45,52 @@ export function CalendarHeader({
   smartRescheduleOpen: boolean;
   visibleCalendarViewIds: CalendarViewId[];
 }): JSX.Element {
+  const nav = useCalendarNavigation();
+  const inspector = useInspector();
+  const [customDays, setCustomDays] = useState(false);
+  const [count, setCount] = useState(String(nav.multiDayCount));
+  function days(value: number) { nav.setMultiDayCount(value); onSetView("multiDay"); }
   return (
-    <header className="calendar-header flex min-w-0 items-center gap-2 border-b border-border pb-3">
+    <header className="calendar-header">
       <Popover.Root>
-        <Popover.Trigger asChild>
-          <Button aria-label="Choose calendar date" className="calendar-range min-w-0 justify-start px-1 text-lg font-semibold" variant="ghost">
-            <span className="truncate">{calendarRangeLabel}</span><ChevronDown size={14} className="shrink-0 text-text-muted" />
-          </Button>
-        </Popover.Trigger>
-        <Popover.Portal><Popover.Content sideOffset={8} align="start" className="z-50 grid w-64 gap-3 rounded-lg border border-border bg-bg-primary p-4 text-text-primary shadow-xl">
-          <label className="grid gap-2 text-sm">Go to date<input aria-label="Go to date" type="date" className="min-w-0 rounded-md border border-border bg-bg-secondary px-2" value={anchorDate.slice(0, 10)} onChange={(event) => { if (event.target.value) onSelectDate(event.target.value); }} /></label>
-          <Popover.Close asChild><Button variant="secondary">Done</Button></Popover.Close>
+        <Popover.Trigger asChild><button className="calendar-range" aria-label="Choose calendar date"><span>{calendarMonthTitle(anchorDate)}</span></button></Popover.Trigger>
+        <Popover.Portal><Popover.Content className="calendar-menu calendar-date-menu" align="start" sideOffset={8}>
+          <label>Go to date<input aria-label="Go to date" type="date" value={anchorDate.slice(0, 10)} onChange={(e) => { if (e.target.value) onSelectDate(e.target.value); }} /></label>
+          <Popover.Close asChild><Button variant="ghost">Done</Button></Popover.Close>
         </Popover.Content></Popover.Portal>
       </Popover.Root>
-      <div aria-label="Calendar range navigation" className="flex shrink-0 items-center gap-0.5" role="group">
-        <IconButton icon={ChevronLeft} label={previousRangeLabel} onClick={() => onShiftRange(-1)} size="sm" variant="ghost" />
-        <IconButton icon={ChevronRight} label={nextRangeLabel} onClick={() => onShiftRange(1)} size="sm" variant="ghost" />
-        <Button aria-label="Jump to today" onClick={onResetRange} size="sm" variant="secondary">Today</Button>
+      <span className="calendar-range-detail">{activeViewId === "week" && nav.showWeekNumbers ? `Week ${weekNumber(anchorDate)}` : activeViewId === "day" ? calendarDateTitleFromIso(anchorDate) : ""}</span>
+      <div className="calendar-header-controls">
+        <Menu.Root>
+          <Menu.Trigger asChild><button className="calendar-view-select" aria-label="Calendar view">{activeViewId === "multiDay" ? `${nav.multiDayCount} days` : calendarViewLabel(activeViewId)}<ChevronDown size={16} /></button></Menu.Trigger>
+          <Menu.Portal><Menu.Content className="calendar-menu" align="end" sideOffset={8}>
+            {(["day", "week", "month", "agenda"] as CalendarViewId[]).filter(view => visibleCalendarViewIds.includes(view)).map(view => <Menu.Item key={view} onSelect={() => onSetView(view)} className="calendar-menu-item" role="menuitemradio" aria-checked={view === activeViewId}><Check size={16} style={{ visibility: view === activeViewId ? "visible" : "hidden" }} />{calendarViewLabel(view)}</Menu.Item>)}
+            {visibleCalendarViewIds.includes("multiDay") ? <><Menu.Separator className="calendar-menu-separator" /><Menu.Sub>
+              <Menu.SubTrigger className="calendar-menu-item calendar-sub-trigger">Number of days<ChevronRight size={16} /></Menu.SubTrigger>
+              <Menu.Portal><Menu.SubContent className="calendar-menu" sideOffset={4}>{[2,3,4,5,6,7,8,9].map(n => <Menu.Item className="calendar-menu-item" key={n} onSelect={() => days(n)}><Check size={16} style={{ visibility: nav.multiDayCount === n && activeViewId === "multiDay" ? "visible" : "hidden" }} />{n} days</Menu.Item>)}<Menu.Separator className="calendar-menu-separator" /><Menu.Item className="calendar-menu-item" onSelect={() => { setCount(String(nav.multiDayCount)); setCustomDays(true); }}>Other…</Menu.Item></Menu.SubContent></Menu.Portal>
+            </Menu.Sub></> : null}
+            <Menu.Separator className="calendar-menu-separator" />
+            <Menu.Sub><Menu.SubTrigger className="calendar-menu-item calendar-sub-trigger">View settings<ChevronRight size={16} /></Menu.SubTrigger>
+              <Menu.Portal><Menu.SubContent className="calendar-menu" sideOffset={4}>
+                {([ ["Weekends", nav.showWeekends, nav.setShowWeekends], ["Declined events", nav.showDeclinedEvents, nav.setShowDeclinedEvents], ["Week numbers", nav.showWeekNumbers, nav.setShowWeekNumbers] ] as const).map(([label, checked, change]) => <Menu.CheckboxItem className="calendar-menu-item" key={label} checked={checked} onCheckedChange={change} onSelect={e => e.preventDefault()}><span className="calendar-menu-check"><Menu.ItemIndicator><Check size={16} /></Menu.ItemIndicator></span>{label}</Menu.CheckboxItem>)}
+                <Menu.Separator className="calendar-menu-separator" /><Menu.Item className="calendar-menu-item" onSelect={() => window.dispatchEvent(new Event("hcb:open-settings"))}>General settings</Menu.Item>
+              </Menu.SubContent></Menu.Portal>
+            </Menu.Sub>
+          </Menu.Content></Menu.Portal>
+        </Menu.Root>
+        <Button aria-label="Jump to today" onClick={onResetRange} variant="secondary">Today</Button>
+        <IconButton icon={ChevronLeft} label={previousRangeLabel} onClick={() => onShiftRange(-1)} variant="ghost" />
+        <IconButton icon={ChevronRight} label={nextRangeLabel} onClick={() => onShiftRange(1)} variant="ghost" />
+        <Menu.Root><Menu.Trigger asChild><IconButton label="Calendar tools" icon={MoreHorizontal} variant="ghost" /></Menu.Trigger>
+          <Menu.Portal><Menu.Content className="calendar-menu" align="end" sideOffset={8}>
+            <Menu.Item className="calendar-menu-item" onSelect={onCreate}>New event</Menu.Item>
+            <Menu.Item className="calendar-menu-item" onSelect={onToggleSmartReschedule}>Smart schedule</Menu.Item>
+            {shareAvailabilityVisible ? <Menu.Item className="calendar-menu-item" onSelect={onToggleShareAvailability}>Share availability</Menu.Item> : null}
+          </Menu.Content></Menu.Portal>
+        </Menu.Root>
+        <IconButton icon={PanelRight} label="Toggle search sidebar" aria-expanded={inspector.isOpen} onClick={() => { if (inspector.isOpen) void inspector.close(); else window.dispatchEvent(new Event("hcb:open-sidebar-search")); }} variant="ghost" />
       </div>
-      <span className="calendar-timezone truncate text-xs text-text-muted" title="Calendar timezone">{timeZone}</span>
-      <div className="ml-auto flex shrink-0 items-center gap-2">
-        <select aria-label="Calendar view" className="calendar-view-select min-w-0 rounded-md border border-border bg-bg-primary px-2 text-sm" value={activeViewId} onChange={(event) => onSetView(event.target.value as CalendarViewId)}>
-          {visibleCalendarViewIds.map((view) => <option key={view} value={view}>{calendarViewLabel(view)}</option>)}
-        </select>
-        <Button aria-label="New event" className="calendar-create" data-action-id="calendar.create" onClick={onCreate} size="sm" variant="primary"><CalendarPlus size={15} /><span>New event</span></Button>
-        <Popover.Root>
-          <Popover.Trigger asChild><IconButton label="Calendar tools" icon={MoreHorizontal} size="sm" variant="ghost" /></Popover.Trigger>
-          <Popover.Portal><Popover.Content sideOffset={8} align="end" className="z-50 grid w-56 gap-1 rounded-lg border border-border bg-bg-primary p-2 text-text-primary shadow-xl">
-            <Popover.Close asChild><Button aria-pressed={smartRescheduleOpen} className="justify-start" onClick={onToggleSmartReschedule} variant="ghost">Smart schedule</Button></Popover.Close>
-            {shareAvailabilityVisible ? <Popover.Close asChild><Button aria-pressed={shareAvailabilityOpen} className="justify-start" onClick={onToggleShareAvailability} variant="ghost">Share availability</Button></Popover.Close> : null}
-          </Popover.Content></Popover.Portal>
-        </Popover.Root>
-      </div>
+      <Popover.Root open={customDays} onOpenChange={setCustomDays}><Popover.Anchor className="calendar-custom-anchor" /><Popover.Portal><Popover.Content className="calendar-menu calendar-date-menu" align="end"><form onSubmit={e => { e.preventDefault(); const n = Number(count); if (Number.isInteger(n) && n >= 2 && n <= 31) { days(n); setCustomDays(false); } }}><label>Number of days<input autoFocus aria-label="Number of days" type="number" min={2} max={31} required value={count} onChange={e => setCount(e.target.value)} /></label><Button type="submit" variant="secondary">Apply</Button></form></Popover.Content></Popover.Portal></Popover.Root>
       <div aria-label="Calendar status" className="sr-only" role="status" />
     </header>
   );

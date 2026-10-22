@@ -9,6 +9,9 @@ function useCalendarNavigationState(timeZone: string) {
   const [activeViewId, setActiveViewId] = usePanePreference<CalendarViewId>("calendar.view", "agenda");
   const [calendarAnchorDate, setCalendarAnchorDate] = usePanePreference("calendar.date", () => calendarCurrentDayKey(timeZone));
   const [multiDayCount, setMultiDayCount] = usePanePreference("calendar.days", 3);
+  const [showWeekends, setShowWeekends] = usePanePreference("calendar.weekends", true);
+  const [showWeekNumbers, setShowWeekNumbers] = usePanePreference("calendar.weekNumbers", true);
+  const [showDeclinedEvents, setShowDeclinedEvents] = usePanePreference("calendar.declined", true);
   const [todayKey, setTodayKey] = useState(() => calendarCurrentDayKey(timeZone));
   const previousTimeZone = useRef(timeZone);
 
@@ -25,7 +28,7 @@ function useCalendarNavigationState(timeZone: string) {
     return () => { window.clearInterval(timer); window.removeEventListener("focus", updateToday); };
   }, [timeZone, setCalendarAnchorDate]);
 
-  return { activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey };
+  return { activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey, showWeekends, setShowWeekends, showWeekNumbers, setShowWeekNumbers, showDeclinedEvents, setShowDeclinedEvents };
 }
 
 function CalendarNavigationState({ children, timeZone }: { children: ReactNode; timeZone: string }) {
