@@ -138,7 +138,7 @@ export function testSettings(overrides: Partial<SettingsSnapshot> = {}): Setting
     navigationPlacement: "left",
     hiddenNavigationTabs: [],
     navigationTabOrder: ["calendar", "tasks", "notes"],
-    toolbarActionOrder: ["commandPalette", "notifications", "diagnostics", "splitPane", "refresh", "settings"],
+    toolbarActionOrder: ["refresh", "settings"],
     hiddenCalendarViewModes: [],
     showCompletedInCalendarViews: true,
     eventCompletionDefaultScope: "occurrence",

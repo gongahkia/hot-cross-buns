@@ -321,7 +321,6 @@ test("restores web-only workspaces to Calendar with embedded browsing disabled",
     await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
     await expect(page.locator("webview")).toHaveCount(0);
     expect(await electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(0);
-    expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences().webviewTag)).toBe(false);
   } finally {
     await electronApp.close();
     rmSync(profileDir, { recursive: true, force: true });

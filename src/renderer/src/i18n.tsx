@@ -14,7 +14,6 @@ type TranslationKey =
   | "action.refresh"
   | "action.reset"
   | "action.settings"
-  | "action.splitView"
   | "action.viewDiagnostics"
   | "app.name"
   | "command.close"
@@ -76,7 +75,6 @@ const en: Dictionary = {
   "action.refresh": "Reload",
   "action.reset": "Reset",
   "action.settings": "Settings",
-  "action.splitView": "Split view",
   "action.viewDiagnostics": "View diagnostics",
   "app.name": "Hot Cross Buns",
   "command.close": "Close command palette",
@@ -140,7 +138,6 @@ const dictionaries: Record<SupportedLocale, Dictionary> = {
     "action.refresh": "重新加载",
     "action.reset": "重置",
     "action.settings": "设置",
-    "action.splitView": "分屏视图",
     "action.viewDiagnostics": "查看诊断",
     "command.close": "关闭命令面板",
     "command.empty.noCommands": "未找到命令",
@@ -198,7 +195,6 @@ const dictionaries: Record<SupportedLocale, Dictionary> = {
     "action.refresh": "மீண்டும் ஏற்று",
     "action.reset": "மீட்டமை",
     "action.settings": "அமைப்புகள்",
-    "action.splitView": "பிரிப்பு காட்சி",
     "action.viewDiagnostics": "கண்டறிதலை பார்க்க",
     "command.close": "கட்டளை பலகையை மூடு",
     "command.empty.noCommands": "கட்டளைகள் இல்லை",
@@ -256,7 +252,6 @@ const dictionaries: Record<SupportedLocale, Dictionary> = {
     "action.refresh": "Muat semula",
     "action.reset": "Tetap semula",
     "action.settings": "Tetapan",
-    "action.splitView": "Paparan pisah",
     "action.viewDiagnostics": "Lihat diagnostik",
     "command.close": "Tutup palet arahan",
     "command.empty.noCommands": "Tiada arahan ditemui",
@@ -314,7 +309,6 @@ const dictionaries: Record<SupportedLocale, Dictionary> = {
     "action.refresh": "다시 불러오기",
     "action.reset": "재설정",
     "action.settings": "설정",
-    "action.splitView": "분할 보기",
     "action.viewDiagnostics": "진단 보기",
     "command.close": "명령 팔레트 닫기",
     "command.empty.noCommands": "명령을 찾을 수 없음",
@@ -372,7 +366,6 @@ const dictionaries: Record<SupportedLocale, Dictionary> = {
     "action.refresh": "再読み込み",
     "action.reset": "リセット",
     "action.settings": "設定",
-    "action.splitView": "分割表示",
     "action.viewDiagnostics": "診断を表示",
     "command.close": "コマンドパレットを閉じる",
     "command.empty.noCommands": "コマンドが見つかりません",
