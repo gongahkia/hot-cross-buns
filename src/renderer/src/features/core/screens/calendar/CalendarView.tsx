@@ -15,6 +15,7 @@ import {
 } from "../../coreScreenShared";
 import { calendarDayRange, calendarDaysRange, calendarMonthRange } from "./calendarViewportRange";
 import { CalendarAgendaView } from "./CalendarAgendaView";
+import { CalendarViewTransition } from "./CalendarViewTransition";
 import { CalendarHeader } from "./CalendarHeader";
 import { ShareAvailabilityPanel, SmartReschedulePanel, type SmartSchedulePreview } from "./CalendarSidebar";
 import { DayView, MultiDayView, WeekView, type SmartScheduleGhostBlock } from "./CalendarTimelineView";
@@ -530,7 +531,7 @@ export function CalendarView({
           ) : undefined
         }
       >
-        <div className="h-full min-h-0">
+        <CalendarViewTransition viewKey={`${activeViewId}:${activeViewId === "multiDay" ? multiDayCount : ""}:${showWeekends}`} disabled={source.settings.disableAnimations}>
           {activeViewId === "agenda" ? (
             <CalendarAgendaView
               eventCompletionDefaultScope={source.settings.eventCompletionDefaultScope}
@@ -606,7 +607,7 @@ export function CalendarView({
               visibleCalendarIds={visibleCalendarIds}
             />
           ) : null}
-        </div>
+        </CalendarViewTransition>
       </SectionChrome>
     </div>
   );

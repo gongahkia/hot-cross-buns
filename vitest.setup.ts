@@ -11,6 +11,15 @@ vi.stubGlobal("ResizeObserver", class {
   disconnect(): void {}
 });
 
+// Media changes and animation frames are exercised in the Electron suite.
+vi.stubGlobal("matchMedia", (query: string) => Object.assign(new EventTarget(), {
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener() {},
+  removeListener() {}
+}));
+
 const hcbApi: HcbApi = {
   diagnostics: {
     health: vi.fn(async () =>

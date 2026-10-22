@@ -591,3 +591,7 @@ label:has(input:not(:disabled)) {
 .date-picker-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid var(--color-border); }
 .date-picker-footer button { font-size: 12px; padding: 5px 8px; border-radius: 4px; }
 @media (prefers-reduced-motion: reduce) { .app-select-content, .date-picker { animation: none; } }
+
+.calendar-transition { position: relative; isolation: isolate; height: 100%; min-height: 0; overflow: hidden; }
+.calendar-transition-frame { position: absolute; inset: 0; min-width: 0; min-height: 0; }
+.calendar-transition-frame[data-active="false"] { pointer-events: none; }
