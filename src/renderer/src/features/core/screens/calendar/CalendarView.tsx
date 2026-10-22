@@ -1,3 +1,4 @@
+import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePanePreference } from "../../../shell/panePreferences";
 import type { CalendarEventCompletionScope, CalendarEventDetail } from "@shared/ipc/contracts";
@@ -93,18 +94,7 @@ export function CalendarView({
   visibleCalendarIds: ReadonlySet<string>;
 }): JSX.Element {
   const source = useCoreViewModelSource();
-  const [activeViewId, setActiveViewId] = usePanePreference<CalendarViewId>("calendar.view", "agenda");
-  const [calendarAnchorDate, setCalendarAnchorDate] = usePanePreference("calendar.date", () =>
-    calendarCurrentDayKey(source.settings.defaultTimeZone)
-  );
-  const anchorTimeZone = useRef(source.settings.defaultTimeZone);
-  useEffect(() => {
-    const previous = anchorTimeZone.current;
-    anchorTimeZone.current = source.settings.defaultTimeZone;
-    if (previous !== source.settings.defaultTimeZone) setCalendarAnchorDate((day) => day === calendarCurrentDayKey(previous) ? calendarCurrentDayKey(source.settings.defaultTimeZone) : day);
-  }, [source.settings.defaultTimeZone]);
-  const todayKey = calendarCurrentDayKey(source.settings.defaultTimeZone);
-  const [multiDayCount, setMultiDayCount] = usePanePreference("calendar.days", 3);
+  const { activeViewId, setActiveViewId, calendarAnchorDate, setCalendarAnchorDate, multiDayCount, setMultiDayCount, todayKey } = useCalendarNavigation();
   const [smartRescheduleOpen, setSmartRescheduleOpen] = useState(false);
   const [calendarRangeError, setCalendarRangeError] = useState<string>();
   const [smartSchedulePreview, setSmartSchedulePreview] = useState<SmartSchedulePreview | null>(null);
@@ -345,6 +335,7 @@ export function CalendarView({
     function handleCalendarCommand(event: Event): void {
       const detail = (event as CustomEvent<{
         action: string;
+        date?: string;
         createMode?: CalendarCreateMode;
         cleanup?: ConvertSourceCleanup;
         draft?: Partial<CalendarEventDraft>;
@@ -352,6 +343,10 @@ export function CalendarView({
         seed?: CalendarCreateSeed;
         viewId?: CalendarViewId;
       }>).detail;
+
+      if (detail?.action === "go-to-date" && detail.date && /^\d{4}-\d{2}-\d{2}$/.test(detail.date)) {
+        setCalendarAnchorDate(detail.date);
+      }
 
       if (detail?.action === "new-event") {
         openCreate(detail.seed);

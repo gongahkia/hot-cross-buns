@@ -16,7 +16,7 @@ export function NotesSidebar({
   collapsed: boolean;
   onCreateNote: () => void;
   onCreateNoteList: () => void;
-  onToggleCollapsed: () => void;
+  onToggleCollapsed?: () => void;
   onToggleView: (view: NoteBoardSelection) => void;
   noteLists: NoteListSummary[];
   selectedNoteViews: NoteBoardSelection[];
@@ -50,13 +50,13 @@ export function NotesSidebar({
           <Plus aria-hidden="true" size={18} />
           New note
         </Button>
-        <IconButton
+        {onToggleCollapsed ? <IconButton
           className="size-10 rounded-hcbMd"
           icon={PanelLeftClose}
           label="Collapse notes sidebar"
           onClick={onToggleCollapsed}
           variant="ghost"
-        />
+        /> : null}
       </div>
       <p className="mt-3 px-2 text-[var(--text-xs)] text-text-muted">Notes stay on this device. Back up in Settings → Data.</p>
       <div className="mt-6">

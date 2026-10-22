@@ -141,7 +141,7 @@ export function GoogleTasksBoard({
   const [bulkCustomDueDate, setBulkCustomDueDate] = useState("");
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const sharedSidebar = useWorkspaceSidebar();
-  const effectiveSidebarCollapsed = sharedSidebar ? sharedSidebar.collapsed : sidebarCollapsed || autoCollapsed;
+  const effectiveSidebarCollapsed = sharedSidebar ? false : sidebarCollapsed || autoCollapsed;
   const starredVisibleCount = source.taskLists.reduce((count, list) => count + (list.starredRootTaskCount ?? 0), 0);
   const visibleListIds = useMemo(() => selectedView.listIds ?? source.taskLists.map((list) => list.id), [selectedView.listIds, source.taskLists]);
   const columns = useMemo(() => {
@@ -218,7 +218,7 @@ export function GoogleTasksBoard({
         collapsed={effectiveSidebarCollapsed}
         onCreateList={onCreateList}
         onCreateTask={() => onCreateTask(selectedView.mode === "lists" && selectedView.listIds?.length === 1 ? selectedView.listIds[0] : undefined)}
-        onToggleCollapsed={() => sharedSidebar ? sharedSidebar.toggle() : setSidebarCollapsed((collapsed) => !collapsed)}
+        onToggleCollapsed={sharedSidebar ? undefined : () => setSidebarCollapsed((collapsed) => !collapsed)}
         selectedView={selectedView}
         setSelectedView={setSelectedView}
         source={source}
@@ -326,7 +326,7 @@ function TaskBoardSidebar({
   collapsed: boolean;
   onCreateList: () => void;
   onCreateTask: () => void;
-  onToggleCollapsed: () => void;
+  onToggleCollapsed?: () => void;
   selectedView: TaskBoardSelection;
   setSelectedView: (selection: TaskBoardSelection) => void;
   source: CoreViewModelSource;
@@ -375,13 +375,13 @@ function TaskBoardSidebar({
     <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Task board navigation">
       <div className="flex items-center gap-2">
 
-        <IconButton
+        {onToggleCollapsed ? <IconButton
           className="size-10 rounded-hcbMd"
           icon={PanelLeftClose}
           label="Collapse task sidebar"
           onClick={onToggleCollapsed}
           variant="ghost"
-        />
+        /> : null}
       </div>
       <div className="mt-5 grid gap-1">
         <TaskSidebarButton

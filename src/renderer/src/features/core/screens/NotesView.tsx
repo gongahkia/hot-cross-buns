@@ -19,7 +19,7 @@ export function NotesView(): JSX.Element {
   const [legacyMigrationPreview, setLegacyMigrationPreview] = useState<LegacyPseudoNotesMigrationPreview | null>(null);
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const sharedSidebar = useWorkspaceSidebar();
-  const effectiveSidebarCollapsed = sharedSidebar ? sharedSidebar.collapsed : sidebarCollapsed || autoCollapsed;
+  const effectiveSidebarCollapsed = sharedSidebar ? false : sidebarCollapsed || autoCollapsed;
   const {
     noteActionError,
     createNote,
@@ -81,7 +81,7 @@ export function NotesView(): JSX.Element {
         collapsed={effectiveSidebarCollapsed}
         onCreateNote={() => void createNote(selectedNoteViews[0]?.slice("list:".length))}
         onCreateNoteList={() => void createNoteList()}
-        onToggleCollapsed={() => sharedSidebar ? sharedSidebar.toggle() : setSidebarCollapsed((collapsed) => !collapsed)}
+        onToggleCollapsed={sharedSidebar ? undefined : () => setSidebarCollapsed((collapsed) => !collapsed)}
         onToggleView={toggleNoteView}
         noteLists={noteLists}
         selectedNoteViews={selectedNoteViews}

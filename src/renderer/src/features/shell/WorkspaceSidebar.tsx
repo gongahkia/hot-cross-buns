@@ -5,8 +5,6 @@ import { PaneIdentity } from "./panePreferences";
 export const WorkspaceSidebarContext = createContext<{
   target: HTMLElement | null;
   focusedPaneId: string;
-  collapsed: boolean;
-  toggle: () => void;
 } | null>(null);
 
 export function useWorkspaceSidebar() {

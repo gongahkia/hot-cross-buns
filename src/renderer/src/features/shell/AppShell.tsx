@@ -28,7 +28,7 @@ import { AppHeader } from "./AppHeader";
 import { InspectorShell, useInspector } from "../../components/Inspector";
 import { WorkspaceSidebarContext } from "./WorkspaceSidebar";
 import { SaveFeedback } from "./SaveFeedback";
-import { usePanePreference } from "./panePreferences";
+import { CalendarNavigationProvider } from "./CalendarNavigation";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
 import { PaneWorkspace } from "./PaneWorkspace";
 import { plannerExternalUrl } from "./plannerExternalUrl";
@@ -90,7 +90,6 @@ export function AppShell(): JSX.Element {
   const source = useCoreViewModelSource();
   const { close: closeInspector, current: currentInspector } = useInspector();
   const [sidebarTarget, setSidebarTarget] = useState<HTMLElement | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = usePanePreference("navigation.collapsed", false);
   useAppliedTheme(source.settings);
   const paneWorkspace = usePaneWorkspace(source);
   const pinnedSearchFilters = useMemo(() => {
@@ -914,27 +913,28 @@ export function AppShell(): JSX.Element {
       animationsDisabled={source.settings.disableAnimations}
       preferences={source.settings.loadingIndicators}
     >
-    <WorkspaceSidebarContext.Provider value={{ target: sidebarTarget, focusedPaneId: paneWorkspace.focusedPaneId, collapsed: sidebarCollapsed, toggle: () => setSidebarCollapsed((value) => !value) }}>
+    <CalendarNavigationProvider paneId={paneWorkspace.focusedPaneId} timeZone={source.settings.defaultTimeZone}>
+    <WorkspaceSidebarContext.Provider value={{ target: sidebarTarget, focusedPaneId: paneWorkspace.focusedPaneId }}>
     <div
       className="flex h-dvh min-h-0 overflow-hidden text-text-primary"
       data-testid="app-shell"
       style={{ background: "var(--app-shell-background)" }}
     >
       <AppHeader
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
         sidebarMount={setSidebarTarget}
+        onSelectCalendarDate={(date) => {
+          setCommandPaletteOpen(false);
+          setSettingsOpen(false);
+          setNotificationsOpen(false);
+          navigateToSection("calendar", () => window.dispatchEvent(new CustomEvent("hcb:calendar-command", { detail: { action: "go-to-date", date } })));
+        }}
         calendars={source.calendarSources}
         visibleCalendarIds={visibleCalendarIdSet}
         onToggleCalendar={(id) => setVisibleCalendarIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id])}
         activeSectionId={paneWorkspace.activeSectionId}
-        commandPaletteOpen={commandPaletteOpen}
-        diagnosticsOpen={diagnosticsOpen}
         keybindings={source.settings.keybindings}
         onNavigateToSection={navigateToPrimarySection}
-        onOpenCommandPalette={openCommandPalette}
         onRefresh={() => syncThenRefresh("toolbar")}
-        onToggleDiagnostics={toggleDiagnosticsPanel}
         onToggleSettings={toggleSettingsPanel}
         settingsOpen={settingsOpen}
         toolbarActionOrder={source.settings.toolbarActionOrder}
@@ -1040,6 +1040,7 @@ export function AppShell(): JSX.Element {
       ) : null}
     </div>
     </WorkspaceSidebarContext.Provider>
+    </CalendarNavigationProvider>
     </LoadingIndicatorProvider>
     </MotionConfig>
     </I18nProvider>

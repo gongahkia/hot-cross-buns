@@ -1,3 +1,4 @@
+import { CalendarNavigationProvider } from "../../../shell/CalendarNavigation";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ok } from "@shared/ipc/result";
@@ -44,7 +45,7 @@ describe("Share Availability title performance boundary", () => {
       <CoreDataProvider>
         <HydrationProbe />
         <InspectorProvider>
-          <CalendarView visibleCalendarIds={new Set(["cal-product"])} />
+          <CalendarNavigationProvider paneId="default" timeZone="UTC"><CalendarView visibleCalendarIds={new Set(["cal-product"])} /></CalendarNavigationProvider>
           <InspectorShell />
         </InspectorProvider>
       </CoreDataProvider>
