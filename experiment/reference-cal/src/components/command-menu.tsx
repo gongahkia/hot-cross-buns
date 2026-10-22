@@ -87,22 +87,6 @@ export function CommandMenu({
           >
             Create birthday...
           </CommandItem>
-          <CommandItem disabled>
-            Meet with...
-            {SOON_BADGE}
-          </CommandItem>
-          <CommandItem disabled>
-            Show teammate calendar...
-            {SOON_BADGE}
-          </CommandItem>
-          <CommandItem disabled>
-            Create recurring scheduling link...
-            {SOON_BADGE}
-          </CommandItem>
-          <CommandItem disabled>
-            Create one-off scheduling link...
-            {SOON_BADGE}
-          </CommandItem>
         </CommandGroup>
 
         {/* ── Navigation ── */}
@@ -129,18 +113,6 @@ export function CommandMenu({
               <Kbd>⌘</Kbd>
               <Kbd>F</Kbd>
             </KbdGroup>
-          </CommandItem>
-        </CommandGroup>
-
-        {/* ── Time zones ── */}
-        <CommandGroup heading="Time zones">
-          <CommandItem disabled>
-            Travel to time zone...
-            {SOON_BADGE}
-          </CommandItem>
-          <CommandItem disabled>
-            Show additional time zones...
-            {SOON_BADGE}
           </CommandItem>
         </CommandGroup>
 
@@ -222,10 +194,6 @@ export function CommandMenu({
 
         {/* ── Settings & help ── */}
         <CommandGroup heading="Settings & help">
-          <CommandItem disabled>
-            Get CalendarCN mobile app
-            {SOON_BADGE}
-          </CommandItem>
           <CommandItem onSelect={() => runCommand(onOpenSettings)}>
             Show keyboard shortcuts
             <Kbd className="ml-auto">?</Kbd>
@@ -259,14 +227,11 @@ export function CommandMenu({
           </CommandItem>
         </CommandGroup>
 
-        {/* ── CalendarCN ── */}
-        <CommandGroup heading="CalendarCN">
+        {/* ── Updates ── */}
+        <CommandGroup heading="Updates">
           <CommandItem disabled>
             Check for update
             {SOON_BADGE}
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(onOpenSettings)}>
-            About CalendarCN
           </CommandItem>
         </CommandGroup>
 
