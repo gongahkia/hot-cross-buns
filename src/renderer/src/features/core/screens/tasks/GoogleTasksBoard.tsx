@@ -40,6 +40,7 @@ import {
   taskScheduleTone
 } from "../../coreScreenShared";
 import { useAutoCollapsedSidebar } from "../useAutoCollapsedSidebar";
+import { usePanePreference } from "../../../shell/panePreferences";
 import { SectionSidebar, useWorkspaceSidebar } from "../../../shell/WorkspaceSidebar";
 
 export interface TaskBoardSelection {
@@ -133,6 +134,8 @@ export function GoogleTasksBoard({
   starred
 }: GoogleTasksBoardProps): JSX.Element {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [presentation, setPresentation] = usePanePreference<"list" | "board">("tasks.presentation", "list");
+  const [allSort, setAllSort] = usePanePreference<TaskListSort>("tasks.sort", "deadline");
   const [bulkModeActive, setBulkModeActive] = useState(false);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkCustomDueDate, setBulkCustomDueDate] = useState("");
@@ -143,9 +146,10 @@ export function GoogleTasksBoard({
   const visibleListIds = useMemo(() => selectedView.listIds ?? source.taskLists.map((list) => list.id), [selectedView.listIds, source.taskLists]);
   const columns = useMemo(() => {
     if (selectedView.mode === "starred") return [{ id: "starred", list: null, title: "Starred on this device" }];
+    if (presentation === "list" && selectedView.listIds === null) return [{ id: "all", list: null, title: "All tasks" }];
     const visibleIds = new Set(visibleListIds);
     return source.taskLists.filter((list) => visibleIds.has(list.id)).map((list) => ({ id: list.id, list, title: list.title }));
-  }, [selectedView.mode, source.taskLists, visibleListIds]);
+  }, [selectedView.mode, selectedView.listIds, source.taskLists, visibleListIds, presentation]);
   useEffect(() => {
     if (!selectedTaskId || !window.hcb?.tasks.context) return;
     let active = true;
@@ -200,6 +204,7 @@ export function GoogleTasksBoard({
   return (
     <div
       data-testid="tasks-board"
+      data-presentation={presentation}
       data-task-count={source.resourceCounts.tasks ?? source.largeTaskWindow.length}
       data-cached-task-count={source.largeTaskWindow.length}
       data-hydration-state={source.hydrationState}
@@ -220,7 +225,18 @@ export function GoogleTasksBoard({
         starredCount={starredVisibleCount}
         visibleListIds={visibleListIds}
       /></SectionSidebar>
-      <div className="min-h-0 min-w-0 overflow-hidden rounded-hcbLg bg-bg-secondary">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg-primary">
+        <header className="task-toolbar flex shrink-0 items-center gap-2 border-b border-border pb-3">
+          <h1 className="mr-auto text-lg font-semibold">Tasks</h1>
+          <div className="flex items-center gap-1" aria-label="Task presentation" role="group">
+            <Button aria-pressed={presentation === "list"} onClick={() => setPresentation("list")} size="sm" variant={presentation === "list" ? "secondary" : "ghost"}>List</Button>
+            <Button aria-pressed={presentation === "board"} onClick={() => setPresentation("board")} size="sm" variant={presentation === "board" ? "secondary" : "ghost"}>Board</Button>
+          </div>
+          {presentation === "list" && selectedView.listIds === null && selectedView.mode !== "starred" ? <select aria-label="Sort tasks" className="max-w-28 rounded-md border border-border bg-bg-primary px-2 text-xs" value={allSort} onChange={(event) => setAllSort(event.target.value as TaskListSort)}>{Object.entries(sortLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}
+          <Button aria-pressed={showBulkSelection} onClick={() => setBulkModeActive((active) => !active)} size="sm" variant="ghost">Select tasks</Button>
+          {effectiveSidebarCollapsed ? <Button onClick={onCreateList} size="sm" variant="ghost">New list</Button> : null}
+          <Button onClick={() => onCreateTask(selectedView.listIds?.length === 1 ? selectedView.listIds[0] : undefined)} size="sm" variant="primary">New task</Button>
+        </header>
         {bulkSelectedTaskIds.length > 0 ? (
           <BoardBulkRescheduleBanner
             customDueDate={bulkCustomDueDate}
@@ -238,8 +254,8 @@ export function GoogleTasksBoard({
         ) : null}
         <div
           className={cx(
-            "flex h-full min-h-[480px] min-w-0 gap-3 p-3",
-            "overflow-x-auto"
+            "flex min-h-0 min-w-0 flex-1 gap-3",
+            presentation === "list" ? "overflow-auto" : "overflow-x-auto pt-3"
           )}
           role="list"
           aria-label={selectedView.mode === "starred" ? "Starred task lists" : "Task lists"}
@@ -247,9 +263,11 @@ export function GoogleTasksBoard({
           {columns.length > 0 ? (
             columns.map((column) => (
               <TaskListColumn
-                key={column.id}
+                key={`${presentation}:${column.id}`}
+                compact={presentation === "list"}
+                allTasks={column.id === "all"}
                 list={column.list}
-                listSort={column.list ? listSorts[column.list.id] ?? "myOrder" : "starred"}
+                listSort={column.list ? listSorts[column.list.id] ?? "myOrder" : column.id === "all" ? allSort : "starred"}
                 onCreateList={onCreateList}
                 onCreateTask={onCreateTask}
                 onDeleteList={onDeleteList}
@@ -356,10 +374,7 @@ function TaskBoardSidebar({
   return (
     <aside className="min-h-0 rounded-hcbLg bg-bg-secondary p-3" aria-label="Task board navigation">
       <div className="flex items-center gap-2">
-        <Button className="h-12 min-w-0 flex-1 justify-start rounded-hcbLg shadow-sm" onClick={onCreateTask} variant="primary">
-          <Plus aria-hidden="true" size={18} />
-          New task
-        </Button>
+
         <IconButton
           className="size-10 rounded-hcbMd"
           icon={PanelLeftClose}
@@ -541,6 +556,7 @@ function BoardBulkRescheduleBanner({
 }
 
 function TaskListColumn({
+  compact, allTasks,
   list,
   listSort,
   onCreateList,
@@ -568,6 +584,8 @@ function TaskListColumn({
   singleColumn,
   title
 }: {
+  compact: boolean;
+  allTasks: boolean;
   list: TaskListSummary | null;
   listSort: TaskListSort;
   onCreateList: () => void;
@@ -618,9 +636,9 @@ function TaskListColumn({
     });
   }, []);
   const viewModels = useMemo(() => new WeakMap<object, TaskViewModel>(), [title]);
-  const queryKey = JSON.stringify([list?.id, listSort, completedOpen, [...collapsedTaskIds], source.taskDataRevision, [...starred.ids], starred.starredAt]);
+  const queryKey = JSON.stringify([list?.id, allTasks, listSort, completedOpen, [...collapsedTaskIds], source.taskDataRevision, [...starred.ids], starred.starredAt]);
   const collection = usePagedCollection<StoredBoardRow, TaskBoardPage>(queryKey, async (offset, limit) => {
-    const result = await window.hcb!.tasks.board({ ...(list ? { listId: list.id } : { starred: true }), sort: listSort, completedOpen, collapsedTaskIds: [...collapsedTaskIds], cursor: String(offset), limit });
+    const result = await window.hcb!.tasks.board({ ...(list ? { listId: list.id } : allTasks ? {} : { starred: true }), sort: listSort, completedOpen, collapsedTaskIds: [...collapsedTaskIds], cursor: String(offset), limit });
     if (!result.ok) throw new Error(result.error.message);
     return result.data as TaskBoardPage;
   }, 100, visible);
@@ -631,7 +649,7 @@ function TaskListColumn({
     if (!selectedTaskId || !visible) return;
     let active = true;
     const options = locateOptions.current;
-    void window.hcb!.tasks.board({ ...(list ? { listId: list.id } : { starred: true }), sort: options.listSort,
+    void window.hcb!.tasks.board({ ...(list ? { listId: list.id } : allTasks ? {} : { starred: true }), sort: options.listSort,
       locateTaskId: selectedTaskId, collapsedTaskIds: [...options.collapsedTaskIds], completedOpen: options.completedOpen, limit: 1 }).then((result) => {
       if (!active || !result.ok || result.data.locatedIndex == null) return;
       if (result.data.revealParentId) toggleChildren(result.data.revealParentId, true);
@@ -674,7 +692,8 @@ function TaskListColumn({
       data-column-loaded={visible}
       data-task-list-id={list?.id}
       className={cx(
-        "flex max-h-full flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary",
+        "flex max-h-full min-h-0 flex-col overflow-hidden bg-bg-primary",
+        !compact && "rounded-hcbLg border border-border",
         singleColumn ? "w-full" : "w-[min(420px,calc(100vw-2rem))] shrink-0",
         dropActive && "ring-2 ring-info"
       )}
@@ -683,8 +702,8 @@ function TaskListColumn({
       onDrop={handleDrop}
       role="listitem"
     >
-      <div className="relative flex items-center gap-2 px-4 py-3">
-        <h2 className="min-w-0 flex-1 truncate text-[var(--text-xl)] font-medium text-text-primary">{title}</h2>
+      <div className="relative flex shrink-0 items-center gap-2 px-3 py-2">
+        <h2 className="min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
         {showAccounts && list?.accountId ? <Badge tone="neutral">{googleAccountLabel(source, list.accountId)}</Badge> : null}
         {list ? (
           <IconButton
@@ -714,16 +733,17 @@ function TaskListColumn({
         type="button"
       >
         <CheckCircle2 aria-hidden="true" size={18} />
-        {list ? "Add a task" : "Add a starred task"}
+        {list || allTasks ? "Add a task" : "Add a starred task"}
       </button>
         {visible ? <PagedVirtualList
+          estimateRowHeight={compact ? 48 : 88}
           scrollToIndex={selectedIndex}
           initialScrollTop={lastScrollTop.current}
           onScrollPositionChange={(top) => { lastScrollTop.current = top; }}
-          ariaLabel={`${title} tasks`}
+          ariaLabel={allTasks ? "All tasks" : `${title} tasks`}
           collection={collection}
           getKey={(row) => row.kind === "completed" ? "completed-header" : row.task.id}
-          emptyState={<div className="grid min-h-[240px] place-items-center px-6"><EmptyState description={list ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list ? `${title} is empty` : "No starred tasks"} /></div>}
+          emptyState={<div className="grid min-h-[240px] place-items-center px-6"><EmptyState description={list || allTasks ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list || allTasks ? `${title} is empty` : "No starred tasks"} /></div>}
           renderRow={(row) => {
             if (row.kind === "completed") return (
               <button aria-expanded={completedOpen} className="flex h-11 w-full items-center gap-2 border-t border-border px-4 text-left text-text-secondary hover:bg-surface-0" onClick={() => setCompletedOpen((open) => !open)} type="button">
@@ -733,7 +753,7 @@ function TaskListColumn({
             );
             let task = viewModels.get(row.task);
             if (!task) {
-              task = stableTaskViewModel(row.task, title, [], new Map());
+              task = stableTaskViewModel(row.task, source.taskLists.find((item) => item.id === row.task.listId)?.title ?? title, [], new Map());
               viewModels.set(row.task, task);
             }
             if (row.kind === "child") return (
@@ -747,6 +767,7 @@ function TaskListColumn({
             );
             return (
               <GoogleTaskRow
+                compact={compact}
                 onCreateList={onCreateList} onDeleteTask={onDeleteTask} onDuplicateTask={onDuplicateTask}
                 onMoveTask={onMoveTask} onMoveTaskRequest={onMoveTaskRequest} onOpenTask={onOpenTask}
                 onScheduleTask={onScheduleTask} onToggleStar={onToggleStar} onToggleTask={onToggleTask}
@@ -805,6 +826,7 @@ function ListActionMenu({
 }
 
 interface GoogleTaskRowProps {
+  compact: boolean;
   bulkSelected: boolean;
   bulkSelectedIds: ReadonlySet<string>;
   onCreateList: () => void;
@@ -831,6 +853,7 @@ interface GoogleTaskRowProps {
 }
 
 const GoogleTaskRow = memo(function GoogleTaskRow({
+  compact,
   bulkSelected,
   bulkSelectedIds,
   onCreateList,
@@ -873,10 +896,10 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
   }
 
   return (
-    <div onContextMenu={openContextMenu} role="listitem">
+    <div onContextMenu={openContextMenu} role="listitem" data-task-row={task.id} data-compact={compact}>
       <div
         className={cx(
-          "group relative grid gap-2 px-4 py-2 transition-colors duration-fast ease-hcb",
+          "group relative grid items-center gap-2 border-b border-border/50 px-3 py-2 transition-colors duration-fast ease-hcb",
           showBulkSelection ? "grid-cols-[24px_32px_minmax(0,1fr)_auto]" : "grid-cols-[32px_minmax(0,1fr)_auto]",
           selected ? "bg-surface-0" : "hover:bg-surface-0",
           futureSnoozed && "opacity-65"
@@ -911,10 +934,10 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               {childrenOpen ? <ChevronDown aria-hidden="true" size={15} /> : <ChevronRight aria-hidden="true" size={15} />}
             </button>
           ) : null}
-        <div className="min-w-0 flex-1">
+        <div className={cx("min-w-0 flex-1", compact && "flex items-center gap-3")} >
           <button
             data-virtual-focus
-            className="min-w-0 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="min-w-0 w-full flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             onClick={() => onOpenTask(task.id)}
             onKeyDown={(event) => {
               if (childCount === 0) return;
@@ -931,7 +954,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
           >
             <div className="flex min-w-0 items-start gap-1">
               <span className={cx(
-                "line-clamp-2 min-w-0 text-[var(--text-md)] font-medium",
+                compact ? "truncate min-w-0 text-[var(--text-base)] font-medium" : "line-clamp-2 min-w-0 text-[var(--text-md)] font-medium",
                 completed ? "text-text-muted line-through" : "text-text-primary"
               )}>{task.title}</span>
               {childCount > 0 ? (
@@ -941,7 +964,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               ) : null}
             </div>
           </button>
-          {preview && hasRenderableMixedMarkup(preview) ? (
+          {!compact && preview && hasRenderableMixedMarkup(preview) ? (
             <div
               className={cx("mt-0.5 min-w-0", completed && "text-text-muted line-through")}
               onClick={(clickEvent) => clickEvent.stopPropagation()}
@@ -955,7 +978,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               />
             </div>
           ) : null}
-          {scheduleLabel || task.dueDate || task.snoozeUntil || (showAccountBadge && task.accountId) ? (
+          {!compact && (scheduleLabel || task.dueDate || task.snoozeUntil || (showAccountBadge && task.accountId)) ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {showAccountBadge && task.accountId ? (
                 <Badge tone="neutral">{googleAccountLabel(source, task.accountId)}</Badge>
@@ -980,10 +1003,14 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               ) : null}
             </div>
           ) : null}
+          {compact ? <div className="task-row-metadata flex shrink-0 items-center gap-3 text-xs tabular-nums text-text-muted">
+            <span className="w-24 truncate" title={task.dueDate ?? "No due date"}>{task.dueDate ? task.dueLabel : "—"}</span>
+            <span className="task-row-duration w-12 text-right">{task.durationMinutes ? `${task.durationMinutes}m` : "—"}</span>
+          </div> : null}
         </div>
         </div>
         <div
-          className="relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"
+          className="task-row-actions relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <IconButton
             className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent [&_svg]:fill-current" : undefined)}
@@ -999,6 +1026,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
             onClick={() => onScheduleTask(task)}
             variant="ghost"
           />
+          <IconButton className="size-9" icon={MoreVertical} label={`More actions for ${task.title}`} variant="ghost" onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenuPoint({ x: rect.right, y: rect.bottom }); setMenuOpen(true); }} />
           {menuOpen ? (
             <TaskActionMenu
               anchorPoint={menuPoint ?? undefined}
@@ -1010,6 +1038,9 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
               onMoveTask={(listId) => { onMoveTask(task.id, listId); setMenuOpen(false); }}
               onMoveTaskRequest={(request) => { onMoveTaskRequest(request); setMenuOpen(false); }}
               onOpen={() => { onOpenTask(task.id); setMenuOpen(false); }}
+              onSchedule={() => { onScheduleTask(task); setMenuOpen(false); }}
+              onToggleStar={() => { onToggleStar(task.id); setMenuOpen(false); }}
+              starred={starred}
               source={source}
               task={task}
             />
@@ -1023,6 +1054,7 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
 
 function areGoogleTaskRowPropsEqual(previous: GoogleTaskRowProps, next: GoogleTaskRowProps): boolean {
   return (
+    previous.compact === next.compact &&
     previous.childrenOpen === next.childrenOpen &&
     previous.onToggleChildren === next.onToggleChildren &&
     previous.bulkSelected === next.bulkSelected &&
@@ -1163,6 +1195,7 @@ function TaskChildRow({
 }
 
 function TaskActionMenu({
+  onSchedule, onToggleStar, starred,
   anchorPoint,
   onClose,
   onAddSubtask,
@@ -1175,6 +1208,9 @@ function TaskActionMenu({
   source,
   task
 }: {
+  onSchedule?: () => void;
+  onToggleStar?: () => void;
+  starred?: boolean;
   anchorPoint?: { x: number; y: number };
   onClose: () => void;
   onAddSubtask: () => void;
@@ -1229,6 +1265,8 @@ function TaskActionMenu({
 
   return (
     <FloatingMenu anchorPoint={anchorPoint} onClose={onClose} width={320}>
+      {onSchedule ? <MenuButton onClick={onSchedule}><CalendarClock size={18} />Schedule on calendar</MenuButton> : null}
+      {onToggleStar ? <MenuButton onClick={onToggleStar}><Star size={18} />{starred ? "Remove star" : "Star task"}</MenuButton> : null}
       <MenuButton onClick={onOpen}>
         <Target aria-hidden="true" size={18} />
         Set due date

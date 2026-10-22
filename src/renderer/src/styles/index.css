@@ -262,3 +262,13 @@ label:has(input:not(:disabled)) {
 @container inspector (max-width: 430px) {
   [data-testid="inspector-body"] .sm\:grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
 }
+
+@container pane (max-width: 720px) {
+  .task-row-duration { display: none; }
+  .task-row-actions button:not(:last-of-type) { display: none; }
+  .task-toolbar { flex-wrap: wrap; }
+}
+@container pane (max-width: 420px) {
+  .task-row-metadata { display: none; }
+}
+@media (hover: none) { .task-row-actions { opacity: 1; } }

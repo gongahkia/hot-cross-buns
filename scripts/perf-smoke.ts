@@ -133,7 +133,9 @@ async function measureRenderedNavigation(measurements: Measurement[], page: Page
         const total = section === "Notes" ? viewport?.dataset.totalCount : viewport?.dataset.taskCount;
         const content = section === "Notes"
           ? viewport?.querySelector(`button[aria-label="Open note Performance note ${String(count - 1).padStart(4, "0")}"]`)
-          : [...(viewport?.querySelectorAll("button[data-virtual-focus]") ?? [])].find((button) => button.textContent?.trim() === "Performance task 0000");
+          : [...(viewport?.querySelectorAll("button[data-virtual-focus]") ?? [])].find((button) => refresh
+            ? /^Performance task \d+$/.test(button.textContent?.trim() ?? "")
+            : button.textContent?.trim() === "Performance task 0000");
         if (total === String(count) && (!refresh || viewport?.dataset.hydrationState === "success") && content?.getClientRects().length) {
           observer.disconnect(); window.clearTimeout(timer); resolve();
         }
@@ -324,13 +326,14 @@ async function run(): Promise<void> {
 
     await measure(measurements, "automation-cold-hydration-and-validation", async () => {
       await measureRenderedNavigation(measurements, page, "Tasks", TASK_COUNT, true);
+      await page.getByRole("combobox", { name: "Sort tasks", exact: true }).selectOption("title");
       await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-task-count", String(TASK_COUNT), { timeout: 60_000 });
       await expect(page.getByTestId("tasks-board")).toHaveAttribute("data-hydration-state", "success", { timeout: 60_000 });
       await page.getByRole("button", { name: "Performance task 0000", exact: true }).waitFor({ state: "visible" });
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     }, TASK_COUNT + EVENT_COUNT);
 
-    const taskViewport = page.getByRole("list", { name: "Inbox tasks", exact: true });
+    const taskViewport = page.getByRole("list", { name: "All tasks", exact: true });
     const renderedRows = await taskViewport.getByRole("listitem").count();
     if (renderedRows > 100) throw new Error(`Tasks rendered ${renderedRows} rows; the DOM should stay bounded by the viewport.`);
     resources.push(await sampleResources(app, page, "tasks-hydrated"));

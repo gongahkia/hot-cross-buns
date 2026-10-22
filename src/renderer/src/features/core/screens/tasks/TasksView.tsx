@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
+import { usePanePreference } from "../../../shell/panePreferences";
 import { useTextPrompt } from "../../../../components/TextPrompt";
 import { StatusBanner } from "../../../../components/primitives";
 import { DuplicateReviewPanel } from "../../DuplicateReviewPanel";
@@ -65,7 +66,7 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     toggleTask,
     taskReadError
   } = useTaskInspector(source);
-  const [selectedBoardView, setSelectedBoardView] = useState<TaskBoardSelection>({
+  const [selectedBoardView, setSelectedBoardView] = usePanePreference<TaskBoardSelection>("tasks.filter", {
     mode: "lists",
     listIds: null
   });
