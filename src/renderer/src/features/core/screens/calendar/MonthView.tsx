@@ -95,13 +95,13 @@ export function MonthView({
   useEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
-    const measure = () => {
-      const rowHeight = (node.clientHeight - 40) / 6;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      // The observer supplies the initial size without forcing layout after mount.
+      const rowHeight = (Math.round(entry.contentRect.height) - 40) / 6;
       // Date header, overflow row and gaps stay visible; event lanes remain bounded.
       setVisibleChipCount(Math.max(1, Math.min(6, Math.floor((rowHeight - 50) / 25))));
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
+    });
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
