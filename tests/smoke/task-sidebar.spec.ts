@@ -33,3 +33,22 @@ test("Lists collapse accessibly, retain selection and stay collapsed after reloa
     expect(await sidebar.locator(".task-lists-disclosure").evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration))).toBeLessThan(0.001);
   });
 });
+
+test("a previously saved starred view returns to All tasks", async () => {
+  await planner(async (page) => {
+    await navigate(page, "Tasks");
+    await page.getByRole("complementary", { name: "Task board navigation" }).getByRole("button", { name: /^Inbox/ }).click();
+    await page.evaluate(() => {
+      const key = "hcb.panePreferences.v1";
+      const preferences = JSON.parse(localStorage.getItem(key) ?? "{}");
+      const pane = Object.values(preferences).find((value: any) => value["tasks.filter"]) as Record<string, unknown> | undefined;
+      if (!pane) throw new Error("Expected a persisted task filter");
+      pane["tasks.filter"] = { mode: "starred", listIds: null };
+      localStorage.setItem(key, JSON.stringify(preferences));
+    });
+    await page.reload();
+    const sidebar = page.getByRole("complementary", { name: "Task board navigation" });
+    await expect(sidebar.getByRole("button", { name: /^All tasks/ })).toHaveAttribute("aria-current", "page");
+    await expect(sidebar.getByRole("button", { name: /^Starred/ })).toHaveCount(0);
+  });
+});
