@@ -57,6 +57,9 @@ export async function planner(run: (page: Page, app: ElectronApplication) => Pro
     record("requesting Playwright close");
     try {
       await within(app.close().then(() => processExited!), gracefulCloseMs, `Electron did not close gracefully within ${gracefulCloseMs}ms.`);
+      if (child.exitCode !== 0 || child.signalCode !== null) {
+        throw new Error(`Electron exited abnormally (code=${child.exitCode}, signal=${child.signalCode}).`);
+      }
       record("Playwright close completed");
     } catch (error) {
       record(`graceful close failed: ${String(error)}`);
@@ -116,8 +119,7 @@ export async function planner(run: (page: Page, app: ElectronApplication) => Pro
   await app.evaluate(({ app }) => {
     const record = (message: string) => process.stderr.write(`[hcb-test-lifecycle] ${Date.now()} ${message}\n`);
     app.on("before-quit", (event) => {
-      record("before-quit");
-      queueMicrotask(() => record(`before-quit defaultPrevented=${event.defaultPrevented}`));
+      record(`before-quit defaultPrevented=${event.defaultPrevented}`);
     });
     app.on("will-quit", () => record("will-quit"));
     app.on("quit", (_event, code) => record(`quit code=${code}`));
@@ -125,6 +127,7 @@ export async function planner(run: (page: Page, app: ElectronApplication) => Pro
     process.on("uncaughtExceptionMonitor", (error) => record(`uncaught exception: ${error.stack ?? error.message}`));
   });
   const page = await app.firstWindow();
+  page.on("crash", () => record("renderer crashed"));
   page.on("pageerror", (error) => errors.push(error.message));
   await expect(page.getByTestId("app-shell")).toBeVisible();
   await page.evaluate(async () => {
