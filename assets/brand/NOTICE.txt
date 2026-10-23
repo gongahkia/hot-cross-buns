@@ -1,6 +1,9 @@
 Croissant emoji (U+1F950) from Google Noto Emoji.
-Copyright Google LLC. Licensed under Apache License 2.0.
+Copyright 2013 Google, Inc. All Rights Reserved. Licensed under Apache License 2.0.
 See LICENSE-noto-emoji.txt.
 
 Source (unmodified 512px PNG):
 https://github.com/googlefonts/noto-emoji/blob/e20cbc2bbec1926686be9f9bee7d1d2cfa1fea0e/2D/png/512/emoji_u1f950.png
+
+Artwork license:
+https://github.com/googlefonts/noto-emoji/blob/e20cbc2bbec1926686be9f9bee7d1d2cfa1fea0e/2D/svg/LICENSE

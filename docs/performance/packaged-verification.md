@@ -12,8 +12,9 @@ still exercised.
 The package includes the compiled main process, preload, renderer, worker and
 production dependencies. Native SQLite binaries are unpacked from ASAR, and
 electron-builder rebuilds them for the bundled Electron ABI. The icon preparation
-script places the existing 64-pixel logo in an ICNS container without inventing
-higher-resolution artwork.
+script builds standard and Retina ICNS sizes from the 512-pixel Noto croissant
+emoji in `assets/brand/app-icon.png`. The same PNG supplies the development and
+packaged Dock/window icon; its attribution and artwork license ship alongside it.
 
 The smoke script exercises actual packaged IPC and SQLite, local task/event writes,
 backup integrity, native menu delivery, a deep link, the calendar tray image and
