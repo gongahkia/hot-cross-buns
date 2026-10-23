@@ -36,8 +36,8 @@ test("menu bar shares app appearance, remains usable at large text sizes, and pr
     await capture(panel, "menu-bar-agenda-light");
     await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
     await panel.getByRole("link", { name: /Architecture review/ }).click({ noWaitAfter: true });
-    const destination = await app.evaluate(({ BrowserWindow }, id) => (BrowserWindow.fromId(id) as any).__destination, windowId);
-    expect(parseMenuBarPanelUrl(destination)).toEqual({ kind: "route", route: { kind: "event", id: "event-0" } });
+    await expect.poll(async () => parseMenuBarPanelUrl(await app.evaluate(({ BrowserWindow }, id) => (BrowserWindow.fromId(id) as any).__destination, windowId)))
+      .toEqual({ kind: "route", route: { kind: "event", id: "event-0" } });
 
     for (const [theme, style, size, height, empty] of [["dark", "calendar", 13, 720, false], ["light", "compact", 24, 480, false], ["dark", "compact", 13, 420, true]] as const) {
       await app.evaluate(async ({ BrowserWindow }, { id, url, height }) => { const window = BrowserWindow.fromId(id)!; window.setSize(360, height); await window.loadURL(url); }, { id: windowId, url: menuBarPanelDataUrl(makeSnapshot(theme, style, size, empty)), height });
