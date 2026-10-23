@@ -70,6 +70,10 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     mode: "lists",
     listIds: null
   });
+  useEffect(() => {
+    // restore older saved starred views to the remaining task navigation.
+    if (selectedBoardView.mode !== "lists") setSelectedBoardView({ mode: "lists", listIds: null });
+  }, [selectedBoardView.mode, setSelectedBoardView]);
   const [schedulingTask, setSchedulingTask] = useState<TaskViewModel | null>(null);
   const [starredTaskIds, setStarredTaskIds] = useState<Set<string>>(
     () => new Set<string>(source.settings.starredTaskIds ?? readLocalStorageStringArray(starredTasksStorageKey))

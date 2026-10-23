@@ -8,8 +8,15 @@ const directory = mkdtempSync(join(tmpdir(), "hcb-icon-"));
 try {
   const iconset = join(directory, "App.iconset");
   mkdirSync(iconset);
-  // Preserve the original 64px artwork exactly in a native ICNS container.
-  copyFileSync(resolve("assets/logo/logo.png"), join(iconset, "icon_32x32@2x.png"));
+  const source = resolve("assets/brand/app-icon.png");
+  for (const size of [16, 32, 128, 256]) {
+    for (const scale of [1, 2]) {
+      const pixels = String(size * scale);
+      const target = join(iconset, `icon_${size}x${size}${scale === 2 ? "@2x" : ""}.png`);
+      execFileSync("sips", ["-z", pixels, pixels, source, "--out", target], { stdio: "ignore" });
+    }
+  }
+  copyFileSync(source, join(iconset, "icon_512x512.png"));
   mkdirSync(resolve("dist/brand"), { recursive: true });
   execFileSync("iconutil", ["--convert", "icns", "--output", resolve("dist/brand/app.icns"), iconset]);
 } finally { rmSync(directory, { recursive: true, force: true }); }

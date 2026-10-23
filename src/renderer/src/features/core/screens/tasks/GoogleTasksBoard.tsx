@@ -1,7 +1,7 @@
 import { Select, SelectItem } from "@renderer/components/Select";
 import { DateTimeField } from "@renderer/components/DateTimeField";
 import { cachedDateTimeFormat } from "@shared/zonedTime";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import {
   CalendarClock,
   Clock,
@@ -46,7 +46,7 @@ import { usePanePreference } from "../../../shell/panePreferences";
 import { SectionSidebar, useWorkspaceSidebar } from "../../../shell/WorkspaceSidebar";
 
 export interface TaskBoardSelection {
-  mode: "lists" | "starred";
+  mode: "lists";
   listIds: string[] | null;
 }
 
@@ -144,10 +144,8 @@ export function GoogleTasksBoard({
   const { autoCollapsed, containerRef } = useAutoCollapsedSidebar();
   const sharedSidebar = useWorkspaceSidebar();
   const effectiveSidebarCollapsed = sharedSidebar ? false : sidebarCollapsed || autoCollapsed;
-  const starredVisibleCount = source.taskLists.reduce((count, list) => count + (list.starredRootTaskCount ?? 0), 0);
   const visibleListIds = useMemo(() => selectedView.listIds ?? source.taskLists.map((list) => list.id), [selectedView.listIds, source.taskLists]);
   const columns = useMemo(() => {
-    if (selectedView.mode === "starred") return [{ id: "starred", list: null, title: "Starred on this device" }];
     if (presentation === "list" && selectedView.listIds === null) return [{ id: "all", list: null, title: "All tasks" }];
     const visibleIds = new Set(visibleListIds);
     return source.taskLists.filter((list) => visibleIds.has(list.id)).map((list) => ({ id: list.id, list, title: list.title }));
@@ -224,8 +222,6 @@ export function GoogleTasksBoard({
         selectedView={selectedView}
         setSelectedView={setSelectedView}
         source={source}
-        starredCount={starredVisibleCount}
-        visibleListIds={visibleListIds}
       /></SectionSidebar>
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg-primary">
         <header className="task-toolbar flex shrink-0 items-center gap-2 border-b border-border pb-3">
@@ -234,7 +230,7 @@ export function GoogleTasksBoard({
             <Button aria-pressed={presentation === "list"} onClick={() => setPresentation("list")} size="sm" variant={presentation === "list" ? "secondary" : "ghost"}>List</Button>
             <Button aria-pressed={presentation === "board"} onClick={() => setPresentation("board")} size="sm" variant={presentation === "board" ? "secondary" : "ghost"}>Board</Button>
           </div>
-          {presentation === "list" && selectedView.listIds === null && selectedView.mode !== "starred" ? <Select aria-label="Sort tasks" className="max-w-28 rounded-md border border-border bg-bg-primary px-2 text-xs" value={allSort} onValueChange={(value) => setAllSort(value as TaskListSort)}>{Object.entries(sortLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</Select> : null}
+          {presentation === "list" && selectedView.listIds === null ? <Select aria-label="Sort tasks" className="max-w-28 rounded-md border border-border bg-bg-primary px-2 text-xs" value={allSort} onValueChange={(value) => setAllSort(value as TaskListSort)}>{Object.entries(sortLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</Select> : null}
           <Button aria-pressed={showBulkSelection} onClick={() => setBulkModeActive((active) => !active)} size="sm" variant="ghost">Select tasks</Button>
           {effectiveSidebarCollapsed ? <Button onClick={onCreateList} size="sm" variant="ghost">New list</Button> : null}
           <Button onClick={() => onCreateTask(selectedView.listIds?.length === 1 ? selectedView.listIds[0] : undefined)} size="sm" variant="primary">New task</Button>
@@ -260,7 +256,7 @@ export function GoogleTasksBoard({
             presentation === "list" ? "overflow-auto" : "overflow-x-auto pt-3"
           )}
           role="list"
-          aria-label={selectedView.mode === "starred" ? "Starred task lists" : "Task lists"}
+          aria-label="Task lists"
         >
           {columns.length > 0 ? (
             columns.map((column) => (
@@ -321,9 +317,7 @@ function TaskBoardSidebar({
   onToggleCollapsed,
   selectedView,
   setSelectedView,
-  source,
-  starredCount,
-  visibleListIds
+  source
 }: {
   collapsed: boolean;
   onCreateList: () => void;
@@ -332,10 +326,9 @@ function TaskBoardSidebar({
   selectedView: TaskBoardSelection;
   setSelectedView: (selection: TaskBoardSelection) => void;
   source: CoreViewModelSource;
-  starredCount: number;
-  visibleListIds: string[];
 }): JSX.Element {
-  const visibleListIdSet = new Set(visibleListIds);
+  const [listsOpen, setListsOpen] = usePanePreference("tasks.listsOpen", true);
+  const listsId = useId();
   const listCounts = useMemo(() => {
     const counts = new Map<string, number>();
     let total = 0;
@@ -349,10 +342,6 @@ function TaskBoardSidebar({
 
   function selectAllLists(): void {
     setSelectedView({ mode: "lists", listIds: null });
-  }
-
-  function selectStarredTasks(): void {
-    setSelectedView({ mode: "starred", listIds: selectedView.listIds });
   }
 
   function selectList(listId: string): void {
@@ -388,22 +377,26 @@ function TaskBoardSidebar({
       <div className="mt-5 grid gap-1">
         <TaskSidebarButton
           count={listCounts.total}
-          icon="all"
           label="All tasks"
           onClick={selectAllLists}
           selected={selectedView.mode === "lists" && selectedView.listIds === null}
         />
-        <TaskSidebarButton
-          count={starredCount}
-          icon="star"
-          label="Starred on this device"
-          onClick={selectStarredTasks}
-          selected={selectedView.mode === "starred"}
-        />
+
       </div>
       <div className="mt-6">
-        <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
-        <div className="mt-2 grid gap-1">
+        <button
+          aria-controls={listsId}
+          aria-expanded={listsOpen}
+          className="flex min-h-8 w-full items-center justify-between rounded-hcbMd px-2 text-[var(--text-sm)] font-semibold text-text-primary hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          onClick={() => setListsOpen((open) => !open)}
+          type="button"
+        >
+          Lists
+          <ChevronDown aria-hidden="true" size={14} className={cx("transition-transform duration-200 ease-hcb", !listsOpen && "-rotate-90")} />
+        </button>
+        <div className="task-lists-disclosure" data-open={listsOpen} id={listsId} inert={!listsOpen} aria-hidden={!listsOpen}>
+        <div className="min-h-0 overflow-hidden">
+        <div className="grid gap-1 pt-2">
           {source.taskLists.map((list) => (
             <TaskListButton
               count={listCounts.counts.get(list.id) ?? 0}
@@ -413,6 +406,8 @@ function TaskBoardSidebar({
               selected={selectedView.mode === "lists" && selectedView.listIds?.includes(list.id) === true}
             />
           ))}
+        </div>
+        </div>
         </div>
       </div>
       <Button className="mt-5 justify-start" onClick={onCreateList} variant="ghost">
@@ -425,13 +420,11 @@ function TaskBoardSidebar({
 
 function TaskSidebarButton({
   count,
-  icon,
   label,
   onClick,
   selected
 }: {
   count: number;
-  icon: "all" | "star";
   label: string;
   onClick: () => void;
   selected: boolean;
@@ -446,11 +439,7 @@ function TaskSidebarButton({
       onClick={onClick}
       type="button"
     >
-      {icon === "star" ? (
-        <Star aria-hidden="true" className={selected ? "fill-current" : undefined} size={17} />
-      ) : (
-        <CheckCircle2 aria-hidden="true" size={17} />
-      )}
+      <CheckCircle2 aria-hidden="true" size={17} />
       <span className="truncate text-[var(--text-base)] font-medium">{label}</span>
       <span className="text-[var(--text-xs)] text-text-muted">{count}</span>
     </button>

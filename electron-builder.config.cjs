@@ -6,7 +6,7 @@ module.exports = {
   files: ["out/**/*", "package.json"],
   asar: true,
   asarUnpack: ["node_modules/better-sqlite3/**/*"],
-  extraResources: [{ from: "assets/logo/logo.png", to: "assets/brand/app-icon.png" }],
+  extraResources: [{ from: "assets/brand", to: "assets/brand" }],
   protocols: [{ name: "Hot Cross Buns planner links", schemes: ["hotcrossbuns"] }],
   mac: {
     category: "public.app-category.productivity",

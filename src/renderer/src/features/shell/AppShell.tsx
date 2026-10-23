@@ -108,6 +108,7 @@ export function AppShell(): JSX.Element {
   const [diagnosticsInitialTab, setDiagnosticsInitialTab] = useState<DiagnosticsTab>("overview");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddFromPalette, setQuickAddFromPalette] = useState(false);
   const [commandPaletteMode, setCommandPaletteMode] = useState<"open" | "action">("open");
   const [leaderActive, setLeaderActive] = useState(false);
   const [commandPaletteInitialQuery, setCommandPaletteInitialQuery] = useState("");
@@ -241,7 +242,8 @@ export function AppShell(): JSX.Element {
     setCommandPaletteOpen(true);
   }, []);
 
-  const openQuickAdd = useCallback((): void => {
+  const openQuickAdd = useCallback((fromPalette = false): void => {
+    setQuickAddFromPalette(fromPalette);
     setCommandPaletteOpen(false);
     setNotificationsOpen(false);
     setDiagnosticsOpen(false);
@@ -365,7 +367,7 @@ export function AppShell(): JSX.Element {
   const handlePaletteCommand = useCallback(
     (command: PlannerAction): boolean => {
       if (command.id === "quickAdd.open") {
-        openQuickAdd();
+        openQuickAdd(true);
         return true;
       }
 
@@ -967,6 +969,7 @@ export function AppShell(): JSX.Element {
             onNavigate={navigateOrOpenSettings}
             onOpenChange={setCommandPaletteOpen}
             open={commandPaletteOpen}
+            handingOff={quickAddOpen}
             pinnedFilters={pinnedSearchFilters}
           />
         </Suspense>
@@ -977,6 +980,7 @@ export function AppShell(): JSX.Element {
           onClose={() => setQuickAddOpen(false)}
           onSubmit={handleQuickAddSubmit}
           open={quickAddOpen}
+          fromPalette={quickAddFromPalette}
           source={source}
         />
       </Suspense>

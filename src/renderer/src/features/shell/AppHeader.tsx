@@ -9,7 +9,6 @@ import {
   StickyNote
 } from "lucide-react";
 import { CalendarSourceSwatch } from "../core/screens/calendar/CalendarEventChips";
-import appIconUrl from "../../../../../assets/logo/logo.png";
 import { Button, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
 import { useI18n } from "../../i18n";
@@ -98,7 +97,6 @@ export function AppHeader({
   return (
     <aside aria-label="Workspace navigation" className="workspace-navigation flex min-h-0 w-[248px] shrink-0 flex-col border-r border-border bg-bg-secondary">
       <div className="flex h-12 shrink-0 items-center gap-2 px-3">
-        <img alt="" className="size-5 rounded-md" draggable={false} src={appIconUrl} />
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold" id="planner-title">Hot Cross Buns</h1>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">

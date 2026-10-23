@@ -262,11 +262,11 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     await expect(page.getByRole("button", { name: "Task in list 19", exact: true })).toBeVisible();
     await expect.poll(() => page.locator('[data-column-loaded="true"]').count()).toBeLessThanOrEqual(6);
     const starredNavigation = page.getByRole("button", { name: /^Starred on this device/ });
-    await expect(starredNavigation).toContainText("1");
+    await expect(starredNavigation).toHaveCount(0);
     await page.getByRole("button", { name: "Unstar Task in list 19", exact: true }).click();
-    await expect(starredNavigation).toContainText("0");
+    await expect(page.getByRole("button", { name: "Star Task in list 19", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Star Task in list 19", exact: true }).click();
-    await expect(starredNavigation).toContainText("1");
+    await expect(starredNavigation).toHaveCount(0);
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
     await expect(page.getByRole("button", { name: "Open note Paged note 000", exact: true })).toBeVisible();
     const viewport = page.getByRole("list", { name: "Notes", exact: true });

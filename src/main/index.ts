@@ -6,6 +6,7 @@ import { configureNavigationLockdown, configureSessionHardening } from "./securi
 import { WorkspaceClient } from "./services/workspaceClient";
 import { markStartupTiming } from "./startupTiming";
 import { createNativeAdapter, NativeShellService } from "./native";
+import { brandImage } from "./native/brandAssets";
 import { isLiveGoogleReadOnlyTest, isLiveGoogleTest } from "./liveGoogleTestMode";
 
 let mainWindow: BrowserWindow | null = null;
@@ -28,6 +29,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 620,
     show: false,
     title: "Hot Cross Buns",
+    icon: brandImage("app-icon.png"),
     backgroundColor: "#1e1e2e",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),

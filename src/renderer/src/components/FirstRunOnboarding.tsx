@@ -1,4 +1,3 @@
-import { Select, SelectItem } from "@renderer/components/Select";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
@@ -12,7 +11,6 @@ import {
   Save,
   X
 } from "lucide-react";
-import appIconUrl from "../../../../assets/logo/logo.png";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
@@ -37,6 +35,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
   const refreshedConnectedAccount = useRef<string | null>(null);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
   const selectedCalendars = useMemo(() => new Set(selectedCalendarIds), [selectedCalendarIds]);
@@ -61,11 +60,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       : activeStep === 1
         ? googleResourcesReady
         : activeStep === 2
-          ? selectedTaskListIds.length > 0
-          : activeStep === 3
-            ? selectedCalendarIds.length > 0
+          ? selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0
           : true;
   const canFinish = googleResourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
+
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [activeStep]);
 
   useEffect(() => {
     setGoogleClientId(source.googleStatus.clientId ?? "");
@@ -147,7 +148,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
   function goForward(): void {
     setLocalError(null);
-    setActiveStep((current) => Math.min(5, current + 1));
+    setActiveStep((current) => Math.min(4, current + 1));
   }
 
   async function completeSetup(
@@ -252,34 +253,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       role="dialog"
     >
       <div className="hcb-raised flex h-[min(760px,calc(100dvh-48px))] w-[min(1180px,calc(100vw-48px))] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
-        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-3 py-2 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <img
-              alt=""
-              aria-hidden="true"
-              className="hcb-media-outline size-8 shrink-0 rounded-hcbMd object-cover"
-              draggable={false}
-              src={appIconUrl}
-            />
-            <h2 className="truncate text-[var(--text-md)] font-semibold text-text-primary" id="first-run-title">
-              Hot Cross Buns
-            </h2>
-          </div>
-          <p aria-live="polite" className="shrink-0 text-[var(--text-sm)] text-text-muted">
-            Step {activeStep + 1} of 6
-          </p>
-        </header>
+        <h2 className="sr-only" id="first-run-title">Hot Cross Buns</h2>
 
-        <div className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 sm:p-6">
+        <div ref={contentRef} className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 sm:p-6">
           {activeStep === 0 ? (
             <section className="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-5 py-12 text-center sm:py-20">
-              <img
-                alt=""
-                aria-hidden="true"
-                className="size-20 rounded-hcbLg object-cover"
-                draggable={false}
-                src={appIconUrl}
-              />
               <div>
                 <h3 className="hcb-heading text-balance text-[var(--text-2xl)] font-bold text-text-primary">
                   Welcome to Hot Cross Buns
@@ -353,79 +331,91 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
           ) : null}
 
           {activeStep === 2 ? (
-            <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
-              <div className="border-b border-border px-3 py-2">
-                <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
-                <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the task lists HCB should show and sync.</p>
-              </div>
-              <div className="grid max-h-44 gap-2 overflow-y-auto p-3">
-                {source.taskLists.length === 0 ? (
-                  <p className="text-[var(--text-sm)] text-text-muted">
-                    No task lists are available yet.
-                  </p>
-                ) : source.taskLists.map((taskList) => (
-                  <label
-                    className="flex min-h-8 items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 text-[var(--text-sm)] text-text-secondary"
-                    key={taskList.id}
-                  >
-                    <Checkbox
-                      aria-label={`Select task list ${taskList.title}`}
-                      checked={selectedTaskLists.has(taskList.id)}
-                      onCheckedChange={(checked) => toggleTaskList(taskList.id, checked === true)}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{taskList.title}</span>
-                    <Badge>{taskList.activeTaskCount ?? taskList.taskCount ?? 0}</Badge>
-                  </label>
-                ))}
-              </div>
-            </section>
+            <div className="grid items-start gap-8 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <section className="min-w-0">
+                <div className="mb-3 border-b border-border pb-3">
+                  <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
+                  <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the task lists HCB should show and sync.</p>
+                </div>
+                <div className="grid gap-1">
+                  {source.taskLists.length === 0 ? (
+                    <p className="text-[var(--text-sm)] text-text-muted">
+                      No task lists are available yet.
+                    </p>
+                  ) : source.taskLists.map((taskList) => (
+                    <label
+                      className="flex min-h-10 items-center gap-3 rounded-hcbMd px-2 text-[var(--text-base)] text-text-secondary transition-colors hover:bg-surface-0"
+                      key={taskList.id}
+                    >
+                      <Checkbox
+                        aria-label={`Select task list ${taskList.title}`}
+                        checked={selectedTaskLists.has(taskList.id)}
+                        onCheckedChange={(checked) => toggleTaskList(taskList.id, checked === true)}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{taskList.title}</span>
+                      <Badge>{taskList.activeTaskCount ?? taskList.taskCount ?? 0}</Badge>
+                    </label>
+                  ))}
+                </div>
+              </section>
+              <section className="min-w-0">
+                <div className="mb-3 border-b border-border pb-3">
+                  <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Calendars</h3>
+                  <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the calendars HCB should show and sync.</p>
+                </div>
+                <div className="grid gap-1">
+                  {source.calendarSources.length === 0 ? (
+                    <p className="text-[var(--text-sm)] text-text-muted">
+                      No calendars are available yet.
+                    </p>
+                  ) : source.calendarSources.map((calendar) => (
+                    <label
+                      className="flex min-h-10 items-center gap-3 rounded-hcbMd px-2 text-[var(--text-base)] text-text-secondary transition-colors hover:bg-surface-0"
+                      key={calendar.id}
+                    >
+                      <Checkbox
+                        aria-label={`Select calendar ${calendar.title}`}
+                        checked={selectedCalendars.has(calendar.id)}
+                        onCheckedChange={(checked) => toggleCalendar(calendar.id, checked === true)}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{calendar.title}</span>
+                      <Badge>{calendar.eventCount ?? 0}</Badge>
+                    </label>
+                  ))}
+                </div>
+              </section>
+            </div>
           ) : null}
 
           {activeStep === 3 ? (
-            <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary">
-              <div className="border-b border-border px-3 py-2">
-                <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Calendars</h3>
-                <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the calendars HCB should show and sync.</p>
-              </div>
-              <div className="grid max-h-44 gap-2 overflow-y-auto p-3">
-                {source.calendarSources.length === 0 ? (
-                  <p className="text-[var(--text-sm)] text-text-muted">
-                    No calendars are available yet.
-                  </p>
-                ) : source.calendarSources.map((calendar) => (
-                  <label
-                    className="flex min-h-8 items-center gap-2 rounded-hcbMd border border-border bg-bg-tertiary px-3 text-[var(--text-sm)] text-text-secondary"
-                    key={calendar.id}
-                  >
-                    <Checkbox
-                      aria-label={`Select calendar ${calendar.title}`}
-                      checked={selectedCalendars.has(calendar.id)}
-                      onCheckedChange={(checked) => toggleCalendar(calendar.id, checked === true)}
+            <SetupOption title="Sync mode" icon={RefreshCw}>
+              <fieldset className="grid gap-3" aria-label="Onboarding sync mode">
+                {syncOptions.map((option) => (
+                  <label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-hcbMd border border-border bg-bg-primary p-4 transition-colors has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5">
+                    <input
+                      className="mt-1 size-4 shrink-0 accent-[var(--color-accent)]"
+                      type="radio"
+                      name="onboarding-sync-mode"
+                      value={option.value}
+                      aria-label={option.label}
+                      checked={syncMode === option.value}
+                      onChange={() => setSyncMode(option.value)}
+                      aria-describedby={`sync-${option.value}-description`}
                     />
-                    <span className="min-w-0 flex-1 truncate">{calendar.title}</span>
-                    <Badge>{calendar.eventCount ?? 0}</Badge>
+                    <span className="min-w-0">
+                      <span className="text-[var(--text-md)] font-medium text-text-primary">{option.label}</span>
+                      <span id={`sync-${option.value}-description`} className="mt-1 block text-[var(--text-sm)] leading-relaxed text-text-secondary">
+                        {option.description}
+                        <span className="mt-1 block text-text-muted">{option.example}</span>
+                      </span>
+                    </span>
                   </label>
                 ))}
-              </div>
-            </section>
-          ) : null}
-
-          {activeStep === 4 ? (
-            <SetupOption title="Sync mode" icon={RefreshCw}>
-              <Select
-                aria-label="Onboarding sync mode"
-                className={onboardingSelectClass}
-                onValueChange={(value) => setSyncMode(value as SettingsSnapshot["syncMode"])}
-                value={syncMode}
-              >
-                <SelectItem value="manual">Manual</SelectItem>
-                <SelectItem value="balanced">Balanced</SelectItem>
-                <SelectItem value="near-real-time">Near real time</SelectItem>
-              </Select>
+              </fieldset>
             </SetupOption>
           ) : null}
 
-          {activeStep === 5 ? (
+          {activeStep === 4 ? (
             <SetupOption title="Notifications" icon={Bell}>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <Checkbox
@@ -454,8 +444,9 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               Back
             </Button>
           ) : <span />}
+          <p aria-live="polite" className="text-[var(--text-sm)] text-text-muted">Step {activeStep + 1} of 5</p>
           <div className="flex flex-wrap items-center gap-2">
-            {activeStep < 5 ? (
+            {activeStep < 4 ? (
               <Button disabled={!canAdvance} onClick={goForward} variant="primary">
                 {activeStep === 0 ? "Get started" : "Continue"}
                 <ArrowRight aria-hidden="true" size={14} />
@@ -524,5 +515,23 @@ function SetupOption({
   );
 }
 
-const onboardingSelectClass =
-  "min-h-10 w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+const syncOptions: Array<{ value: SettingsSnapshot["syncMode"]; label: string; description: string; example: string }> = [
+  {
+    value: "manual",
+    label: "Manual",
+    description: "Sync with Google only when you press Refresh. Your edits stay local until then.",
+    example: "For example, plan offline on a flight, then refresh when you’re connected again."
+  },
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "Sync after your edits and check Google for changes every 5 minutes.",
+    example: "For example, organize your day here while occasional changes from your phone arrive in the background."
+  },
+  {
+    value: "near-real-time",
+    label: "Near real time",
+    description: "Sync after your edits and check Google every 30 seconds. Uses more network activity.",
+    example: "For example, coordinate a busy calendar across devices and pick up changes sooner."
+  }
+];

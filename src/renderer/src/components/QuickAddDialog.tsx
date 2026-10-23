@@ -1,7 +1,8 @@
 import { Select, SelectItem } from "@renderer/components/Select";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEventRecurrence, EventTemplate, TaskTemplate } from "@shared/ipc/contracts";
-import { CalendarPlus, CheckSquare, FileText, Gift, Search, X, type LucideIcon } from "lucide-react";
+import { CalendarPlus, CheckSquare, FileText, Gift, Clock3, X, type LucideIcon } from "lucide-react";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import {
   firstHashHint,
@@ -48,6 +49,7 @@ interface QuickAddDialogProps {
   onClose: () => void;
   onSubmit: (payload: QuickAddSubmitPayload) => void;
   open: boolean;
+  fromPalette?: boolean;
   source: CoreViewModelSource;
 }
 
@@ -249,6 +251,7 @@ export function QuickAddDialog({
   onClose,
   onSubmit,
   open,
+  fromPalette = false,
   source
 }: QuickAddDialogProps): JSX.Element | null {
   const [mode, setMode] = useState<QuickAddMode>("event");
@@ -357,10 +360,6 @@ export function QuickAddDialog({
     setTemplateError(null);
   }, [selectedTaskTemplateId, selectedEventTemplateId]);
 
-  if (!open) {
-    return null;
-  }
-
   async function loadTemplateClipboard(): Promise<void> {
     setTemplateError(null);
 
@@ -436,45 +435,30 @@ export function QuickAddDialog({
     });
   }
 
-  const destinationLabel =
-    mode === "event" || mode === "birthday"
-      ? source.calendarSources.find((calendar) => calendar.id === effectiveCalendarId)?.title ?? "Calendar"
-      : mode === "note"
-        ? source.noteLists.find((list) => list.id === effectiveNoteListId)?.title ?? "Notes"
-        : source.taskLists.find((list) => list.id === effectiveTaskListId)?.title ?? "Inbox";
   const previewTokens = mode === "event" || mode === "birthday"
     ? parsedEvent.matchedTokens
     : parsedTask.matchedTokens;
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-bg-tertiary/80 px-4 pt-[12vh]"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-      role="presentation"
-    >
-      <section
-        aria-labelledby="quick-add-title"
-        aria-modal="true"
-        className="hcb-raised w-full max-w-[720px] overflow-hidden rounded-hcbLg border border-border bg-bg-primary"
-        role="dialog"
-      >
-        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-secondary px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <Search aria-hidden="true" className="text-accent" size={17} />
-            <h2 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary" id="quick-add-title">
-              Quick Add
-            </h2>
-          </div>
-          <IconButton icon={X} label="Close quick add" onClick={onClose} variant="ghost" />
+    <Dialog.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="quick-add-overlay" data-from-palette={fromPalette} />
+        <Dialog.Content
+          className="quick-add-dialog"
+          data-from-palette={fromPalette}
+          aria-describedby="quick-add-hint"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            inputRef.current?.focus();
+          }}
+        >
+        <header className="quick-add-header">
+          <Dialog.Title className="quick-add-title">Quick Add</Dialog.Title>
+          <IconButton icon={X} label="Close quick add" onClick={onClose} variant="ghost" className="size-7" />
         </header>
 
-        <div className="grid gap-3 p-3">
-          <div className="inline-flex max-w-full overflow-hidden rounded-hcbMd border border-border bg-surface-0 p-1" role="tablist" aria-label="Quick add type">
+        <div className="quick-add-body">
+          <div className="quick-add-modes" role="tablist" aria-label="Quick add type">
             {modes.map((candidate) => {
               const Icon = candidate.icon;
               const selected = mode === candidate.id;
@@ -482,10 +466,19 @@ export function QuickAddDialog({
               return (
                 <button
                   aria-selected={selected}
-                  className={cx(
-                    "inline-flex min-h-10 items-center gap-2 rounded-hcbSm px-3 text-[var(--text-sm)] font-medium transition-[background-color,color,box-shadow] duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    selected ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
-                  )}
+                  className={cx("quick-add-mode", selected && "quick-add-mode-selected")}
+                  tabIndex={selected ? 0 : -1}
+                  onKeyDown={(event) => {
+                    const index = modes.findIndex((item) => item.id === candidate.id);
+                    const next = event.key === "ArrowRight" ? (index + 1) % modes.length
+                      : event.key === "ArrowLeft" ? (index + modes.length - 1) % modes.length
+                      : event.key === "Home" ? 0 : event.key === "End" ? modes.length - 1 : null;
+                    if (next === null) return;
+                    event.preventDefault();
+                    setMode(modes[next].id);
+                    const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+                    tabs?.[next]?.focus();
+                  }}
                   key={candidate.id}
                   onClick={() => setMode(candidate.id)}
                   role="tab"
@@ -500,7 +493,8 @@ export function QuickAddDialog({
 
           <textarea
             aria-label="Quick add text"
-            className="min-h-24 resize-none rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-lg)] font-medium leading-snug text-text-primary placeholder:text-text-muted transition-colors duration-fast ease-hcb focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="quick-add-input"
+            rows={3}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
               if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -510,16 +504,22 @@ export function QuickAddDialog({
             }}
             placeholder={
               mode === "task"
-                ? "Email rent receipt tmr #Inbox"
+                ? "What needs to get done?"
                 : mode === "note"
-                  ? "Follow up on pricing #Notes"
+                  ? "Capture a thought…"
                   : mode === "birthday"
-                    ? "Maya Apr 25"
-                    : "Lunch tomorrow 1pm–2pm at Philz with bob@example.com tz America/Los_Angeles #Product"
+                    ? "Whose birthday is coming up?"
+                    : "What’s happening?"
             }
             ref={inputRef}
             value={input}
           />
+          <p className="quick-add-hint" id="quick-add-hint">
+            {mode === "task" ? "Try “Send the proposal tomorrow #Work”"
+              : mode === "note" ? "Try “Ideas for the next launch #Notes”"
+              : mode === "birthday" ? "Try “Maya Apr 25”"
+              : "Try “Lunch tomorrow 1pm at Philz”"}
+          </p>
 
           {mode === "task" && source.settings.taskTemplates.length > 0 ? (
             <Select
@@ -577,30 +577,30 @@ export function QuickAddDialog({
             </div>
           ) : null}
 
-          <div className="flex min-h-8 flex-wrap items-center gap-2">
-            {title ? (
-              <Badge tone="neutral">{title}</Badge>
-            ) : null}
-            <Badge tone="accent">{destinationLabel}</Badge>
-            {mode === "event" || mode === "birthday" ? (
-              <Badge tone="info">
-                {eventTimeLabel(parsedEvent.startDate ?? templateEventStart, parsedEvent.endDate ?? templateEventEnd, mode === "birthday" || parsedEvent.isAllDay)}
-              </Badge>
-            ) : parsedTask.dueDate || templateTaskDueDate ? (
-              <Badge tone="info">{parsedTask.dueDate ?? templateTaskDueDate}</Badge>
-            ) : null}
-            {previewTokens.map((token, index) => (
-              <Badge key={`${token.kind}-${index}`} tone={token.kind === "location" ? "success" : "neutral"}>
-                {tokenLabel(token)}
-              </Badge>
-            ))}
-          </div>
+          {input.trim() || activeTemplate ? (
+            <div className="quick-add-preview" aria-label="Quick add preview" aria-live="polite">
+              {title ? <span className="quick-add-preview-title">{title}</span> : null}
+              <div className="quick-add-details">
+                {mode === "event" || mode === "birthday" ? (
+                  <span className="quick-add-detail"><Clock3 aria-hidden="true" size={12} />
+                    {eventTimeLabel(parsedEvent.startDate ?? templateEventStart, parsedEvent.endDate ?? templateEventEnd, mode === "birthday" || parsedEvent.isAllDay)}
+                  </span>
+                ) : parsedTask.dueDate || templateTaskDueDate ? (
+                  <span className="quick-add-detail"><Clock3 aria-hidden="true" size={12} />{parsedTask.dueDate ?? templateTaskDueDate}</span>
+                ) : null}
+                {previewTokens.filter((token) => !["date", "time", "list", "duration", "allDay"].includes(token.kind)).map((token, index) => (
+                  <span className="quick-add-detail" key={`${token.kind}-${index}`}>{tokenLabel(token)}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+          <footer className="quick-add-footer">
             {mode === "event" || mode === "birthday" ? (
               <Select
                 aria-label="Quick add calendar"
-                className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="quick-add-destination"
                 onValueChange={(value) => setSelectedCalendarId(value)}
                 value={effectiveCalendarId}
               >
@@ -613,7 +613,7 @@ export function QuickAddDialog({
             ) : mode === "note" ? (
               <Select
                 aria-label="Quick add note list"
-                className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="quick-add-destination"
                 onValueChange={(value) => setSelectedNoteListId(value)}
                 value={effectiveNoteListId}
               >
@@ -627,7 +627,7 @@ export function QuickAddDialog({
             ) : (
               <Select
                 aria-label="Quick add task list"
-                className="min-h-10 min-w-44 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="quick-add-destination"
                 onValueChange={(value) => setSelectedTaskListId(value)}
                 value={effectiveTaskListId}
               >
@@ -638,17 +638,13 @@ export function QuickAddDialog({
                 ))}
               </Select>
             )}
-            <div className="flex items-center gap-2">
-              <Button onClick={onClose} variant="ghost">
-                Cancel
-              </Button>
-              <Button disabled={!canSubmit} onClick={submit} variant="primary">
-                Add
-              </Button>
+            <div className="quick-add-submit">
+              <span className="quick-add-shortcut" aria-hidden="true">{navigator.platform.includes("Mac") ? "⌘" : "Ctrl"} ↵</span>
+              <Button disabled={!canSubmit} onClick={submit} variant="primary" size="sm">Add</Button>
             </div>
-          </div>
-        </div>
-      </section>
-    </div>
+          </footer>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

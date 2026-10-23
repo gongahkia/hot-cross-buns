@@ -24,6 +24,7 @@ interface CommandPaletteProps {
   onNavigate: (sectionId: SectionId, afterNavigate?: () => void) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  handingOff?: boolean;
   pinnedFilters?: Array<{ id: string; name: string; query: string }>;
 }
 
@@ -127,6 +128,7 @@ export function CommandPalette({
   onNavigate,
   onOpenChange,
   open,
+  handingOff = false,
   pinnedFilters = []
 }: CommandPaletteProps): JSX.Element | null {
   const { t } = useI18n();
@@ -263,10 +265,12 @@ export function CommandPalette({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="command-palette-overlay" />
+        <Dialog.Overlay className="command-palette-overlay" data-handoff={handingOff} />
         <Dialog.Content
           aria-describedby={undefined}
           className="command-palette"
+          data-handoff={handingOff}
+          onCloseAutoFocus={(event) => { if (handingOff) event.preventDefault(); }}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             inputRef.current?.focus();
