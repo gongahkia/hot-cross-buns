@@ -1,5 +1,6 @@
+import { browserApp, type BrowserApplication } from "./browserApp";
 import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
-import { _electron as electron, expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,7 +9,7 @@ test.setTimeout(60_000);
 
 async function withPlanner(run: (page: Page) => Promise<void>): Promise<void> {
   const profile = mkdtempSync(join(tmpdir(), "hcb-ui-regression-"));
-  const app = await electron.launch({
+  const app = await browserApp.launch({
     args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`],
     env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile }
   });

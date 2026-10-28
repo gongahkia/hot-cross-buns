@@ -47,9 +47,9 @@ describe("Paged note editing", () => {
 
   it("creates a draft once and transitions to the saved editor", async () => {
     const api = surface();
-    await screen.findByRole("button", { name: "New note" });
-    await waitFor(() => expect(screen.getByRole("button", { name: "New note" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "New note" }));
+    await screen.findByRole("button", { name: "Add a note" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add a note" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Add a note" }));
     const title = await screen.findByRole("textbox", { name: "Note title" });
     fireEvent.change(title, { target: { value: "Created once" } });
     fireEvent.click(await screen.findByRole("button", { name: "Source" }));
@@ -86,7 +86,7 @@ describe("Paged note editing", () => {
   it("keeps the original when conversion fails and removes it only after retry succeeds", async () => {
     const api = surface();
     api.notes.create = vi.fn().mockResolvedValueOnce(internalError("Disk is full")).mockImplementation(async (request) => ok({ ...request, id: "converted-note" }));
-    await screen.findByRole("button", { name: "New note" });
+    await screen.findByRole("button", { name: "Add a note" });
     act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "convert-to-note", draft: { title: "Converted task", body: "Keep all writing" }, cleanup: { kind: "task", id: "original-task" } } })));
     await screen.findByText("Disk is full", {}, { timeout: 5000 });
     expect(api.tasks.delete).not.toHaveBeenCalled();

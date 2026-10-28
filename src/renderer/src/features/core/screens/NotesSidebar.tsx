@@ -1,12 +1,10 @@
 import { ListTodo, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import type { NoteListSummary } from "@shared/ipc/contracts";
 import { Button, IconButton, cx } from "../../../components/primitives";
-import { actionDescription } from "../coreScreenShared";
 import type { NoteBoardSelection } from "./notesTypes";
 
 export function NotesSidebar({
   collapsed,
-  onCreateNote,
   onCreateNoteList,
   onToggleCollapsed,
   onToggleView,
@@ -14,7 +12,6 @@ export function NotesSidebar({
   selectedNoteViews
 }: {
   collapsed: boolean;
-  onCreateNote: () => void;
   onCreateNoteList: () => void;
   onToggleCollapsed?: () => void;
   onToggleView: (view: NoteBoardSelection) => void;
@@ -38,18 +35,6 @@ export function NotesSidebar({
   return (
     <aside className="min-h-0 rounded-hcbLg bg-bg-secondary/70 p-3" aria-label="Notes navigation">
       <div className="flex items-center gap-2">
-        <Button
-          aria-label="New note"
-          className="h-12 min-w-0 flex-1 justify-start rounded-hcbLg shadow-sm"
-          disabled={noteLists.length === 0}
-          data-action-id="note.create"
-          onClick={onCreateNote}
-          title={actionDescription("note.create")}
-          variant="primary"
-        >
-          <Plus aria-hidden="true" size={18} />
-          New note
-        </Button>
         {onToggleCollapsed ? <IconButton
           className="size-10 rounded-hcbMd"
           icon={PanelLeftClose}

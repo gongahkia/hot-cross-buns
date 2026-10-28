@@ -1,5 +1,7 @@
 # Local Data Spec
 
+**Browser implementation:** SQLite WASM runs in a dedicated worker and IndexedDB stores its complete durable snapshots. A SQL commit is acknowledged only after the IndexedDB transaction completes. The [migration checkpoint](../web-migration.md) and [backup/recovery guide](../workspace-backups.md) supersede the desktop filesystem, Keychain and automatic-backup sections below. Browser tokens are memory-only; reviewed imports replace the full workspace and quarantine Google queues. The remaining text preserves historical domain/schema design and desktop regression context.
+
 ## Scope
 
 SQLite is the local operating store for Hot Cross Buns 2. It stores mirrored Google data, local notes, settings, sync checkpoints, pending mutations, diagnostics metadata, and local-only UI preferences.

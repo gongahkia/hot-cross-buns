@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,14 +27,21 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Build and typecheck
         run: pnpm build
+      - name: Production shell and offline recovery tests
+        run: pnpm test:production && pnpm test:offline
       - name: Unit and mocked Google transport tests
         run: pnpm test:unit
-      - name: Electron SQLite tests
+      - name: SQLite domain regression tests
         run: pnpm test:db
-      - name: Electron interaction and persistence tests
+      - name: Browser interaction and IndexedDB persistence tests
         run: pnpm test:ui
+      - name: Measure mixed workspace performance
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm measure:storage
       - name: Upload UI evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,7 +53,8 @@ jobs:
             output/playwright-report/
             output/playwright-results.xml
             output/ui-review/
+            output/offline-validation.json
+            docs/performance/browser-mixed.json
 
-# Live Google tests, performance scale tests, packaging, signing, and
-# notarization intentionally remain release/operator actions. They need a
-# user-owned signed-in profile, controlled hardware, or private credentials.
+# Google transport and consent handling are tested with mocked services; live consent requires a configured OAuth project.
+# The dist/ directory is the static web distribution.

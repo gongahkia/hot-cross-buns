@@ -295,6 +295,7 @@ export function GoogleTasksBoard({
           ) : (
             <div className="grid min-h-[360px] min-w-80 flex-1 place-items-center rounded-hcbLg border border-border bg-bg-primary">
               <EmptyState
+                showIcon={false}
                 description={
                   source.taskLists.length > 0
                     ? "Select at least one list from the sidebar to show it here."
@@ -719,11 +720,11 @@ function TaskListColumn({
         ) : null}
       </div>
       <button
-        className="flex h-9 items-center gap-3 px-4 text-left text-[var(--text-base)] font-medium text-accent transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => onCreateTask(list?.id)}
         type="button"
       >
-        <CheckCircle2 aria-hidden="true" size={18} />
+        <Plus aria-hidden="true" size={18} />
         {list || allTasks ? "Add a task" : "Add a starred task"}
       </button>
         {visible ? <PagedVirtualList
@@ -734,7 +735,7 @@ function TaskListColumn({
           ariaLabel={allTasks ? "All tasks" : `${title} tasks`}
           collection={collection}
           getKey={(row) => row.kind === "completed" ? "completed-header" : row.task.id}
-          emptyState={<div className="grid min-h-[240px] place-items-center px-6"><EmptyState description={list || allTasks ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list || allTasks ? `${title} is empty` : "No starred tasks"} /></div>}
+          emptyState={<div className="grid min-h-[240px] place-items-center px-6"><EmptyState showIcon={false} description={list || allTasks ? "Add a task to keep this list moving." : "Stars are saved on this device. Star a task from any list to collect it here."} title={list || allTasks ? `${title} is empty` : "No starred tasks"} /></div>}
           renderRow={(row) => {
             if (row.kind === "completed") return (
               <button aria-expanded={completedOpen} className="flex h-11 w-full items-center gap-2 border-t border-border px-4 text-left text-text-secondary hover:bg-surface-0" onClick={() => setCompletedOpen((open) => !open)} type="button">

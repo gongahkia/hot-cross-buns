@@ -1,0 +1,114 @@
+{
+  "browser": "148.0.7778.96",
+  "results": [
+    {
+      "taskCount": 1000,
+      "bytes": 1122304,
+      "samples": [
+        {
+          "roundTripMs": 88.9,
+          "exportMs": 1.3,
+          "persistMs": 17.5,
+          "loadMs": 6.2
+        },
+        {
+          "roundTripMs": 21.6,
+          "exportMs": 1.1,
+          "persistMs": 10.1,
+          "loadMs": 4.2
+        },
+        {
+          "roundTripMs": 31.6,
+          "exportMs": 1,
+          "persistMs": 14.5,
+          "loadMs": 5.1
+        },
+        {
+          "roundTripMs": 24,
+          "exportMs": 1.1,
+          "persistMs": 14,
+          "loadMs": 4.8
+        },
+        {
+          "roundTripMs": 39,
+          "exportMs": 2.4,
+          "persistMs": 14.4,
+          "loadMs": 9.8
+        }
+      ]
+    },
+    {
+      "taskCount": 5000,
+      "bytes": 3325952,
+      "samples": [
+        {
+          "roundTripMs": 54.5,
+          "exportMs": 3.1,
+          "persistMs": 26.4,
+          "loadMs": 15.2
+        },
+        {
+          "roundTripMs": 60.4,
+          "exportMs": 5.3,
+          "persistMs": 32.8,
+          "loadMs": 20
+        },
+        {
+          "roundTripMs": 72.7,
+          "exportMs": 5.5,
+          "persistMs": 33.3,
+          "loadMs": 9.6
+        },
+        {
+          "roundTripMs": 65,
+          "exportMs": 4.6,
+          "persistMs": 32.3,
+          "loadMs": 16.1
+        },
+        {
+          "roundTripMs": 45.7,
+          "exportMs": 3.7,
+          "persistMs": 27.2,
+          "loadMs": 11
+        }
+      ]
+    },
+    {
+      "taskCount": 10000,
+      "bytes": 6365184,
+      "samples": [
+        {
+          "roundTripMs": 92.1,
+          "exportMs": 8.3,
+          "persistMs": 51.4,
+          "loadMs": 22
+        },
+        {
+          "roundTripMs": 77.6,
+          "exportMs": 8.6,
+          "persistMs": 41,
+          "loadMs": 19
+        },
+        {
+          "roundTripMs": 81.7,
+          "exportMs": 9.2,
+          "persistMs": 49.4,
+          "loadMs": 23.6
+        },
+        {
+          "roundTripMs": 74.6,
+          "exportMs": 5.1,
+          "persistMs": 44.2,
+          "loadMs": 20.3
+        },
+        {
+          "roundTripMs": 72.5,
+          "exportMs": 5,
+          "persistMs": 45.5,
+          "loadMs": 24.3
+        }
+      ]
+    }
+  ],
+  "environment": "Headless Chromium on Linux; five sequential edits per dataset, concurrent UI validation on the same host. Observations, not latency guarantees."
+}

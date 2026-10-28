@@ -1,4 +1,19 @@
-# Privacy And Threat Model
+# Browser privacy and threat model
+
+The current product is a browser application. This section supersedes the historical desktop specification below. See [migration evidence](../web-migration.md) and [Google Web OAuth setup](../google-browser-setup.md).
+
+- Planner content, mirrored Google records and queues live in SQLite snapshots in IndexedDB under this browser profile and origin. HCB does not encrypt these snapshots. Exports contain personal content; persistent storage is not an independent backup.
+- Google access tokens live only in window/worker memory. There are no browser client secrets, refresh tokens, Keychain credentials or local MCP server. Tokens are excluded from SQL, exports, logs, URL parameters and application-shell caches. Reload/expiry requires explicit reconnection.
+- GIS verifies Google's userinfo subject and checks identity when reconnecting an existing account. Partial grants enable only granted services. Optional-scope reconfiguration replaces the current token; it does not claim to revoke prior application-wide grants.
+- Authorized transport restricts HTTPS API hosts, omits cookies, refuses redirects, applies response/body deadlines and never silently resends rejected mutations. Creation intent and receipts cross durable checkpoints; uncertain remote work remains visible for review.
+- Worker isolation is an execution boundary, not a vault against compromised same-origin scripts. XSS could read IndexedDB, call services or use an active session. CSP and the native-runtime build guard reduce exposure; trusted dependencies and deployment origins remain essential.
+- Requests use validated actions and parameterized SQL. Production excludes raw-SQL fixtures and failure hooks. External links permit HTTP/HTTPS/mailto and detach the opener. Clipboard, picker and notification requests use browser controls and user activation.
+- Imports are limited to 128 MiB and staged on a separate SQLite connection with schema, integrity and relationship checks. Explicit review precedes replacement; Google queues are quarantined. Failed commits restore prior durable data and caches. WAL-dependent copies require a consistent backup.
+- Offline caches contain deliberately listed application assets only, never Google API/authentication responses. Synchronization and reminders require an open application and remain subject to browser suspension. No default analytics SDK, cloud crash reporter or application backend is introduced.
+
+Automated tests cover token exclusion, identity/account isolation, expiry/denial, remote checkpoints, failed saves/imports, multi-tab fencing and offline updates. Live OAuth project approval and real-account verification remain operator work. Browser extensions or other software with access to the profile are outside the application boundary.
+
+## Historical desktop design (not browser runtime requirements)
 
 Status: this document includes design targets and future platform/agent requirements. It is not a list of shipped capabilities. Local MCP/agent access and semantic search are currently unavailable; see the [current product contract](../product/current-capabilities.md).
 

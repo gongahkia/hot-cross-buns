@@ -68,6 +68,21 @@ function renderTaskSurface({
 }
 
 describe("Task inspector draft persistence", () => {
+  it("retains the live draft when a pending workspace refresh replaces task lists", async () => {
+    const api = renderTaskSurface();
+    await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());
+    window.dispatchEvent(new CustomEvent("hcb:task-command", { detail: { action: "new-task" } }));
+    const title = await screen.findByRole("textbox", { name: "Task title" });
+    fireEvent.change(title, { target: { value: "Draft survives refreshed resources" } });
+    const readsBefore = vi.mocked(api.tasks.listTaskLists).mock.calls.length;
+    act(() => { window.dispatchEvent(new Event("hcb:core-data-invalidated")); });
+    await waitFor(() => expect(vi.mocked(api.tasks.listTaskLists).mock.calls.length).toBeGreaterThan(readsBefore));
+    await waitFor(() => expect(screen.getByTestId("tasks-board")).toHaveAttribute("data-hydration-state", "success"));
+    expect(title).toHaveValue("Draft survives refreshed resources");
+    fireEvent.click(screen.getByRole("button", { name: "Close inspector" }));
+    await waitFor(() => expect(api.tasks.create).toHaveBeenCalledWith(expect.objectContaining({ title: "Draft survives refreshed resources" })));
+  });
+
   it("keeps New Task typing local and creates once with Cmd/Ctrl+Enter", async () => {
     const api = renderTaskSurface();
     await waitFor(() => expect(screen.getByRole("button", { name: "New task" })).toBeTruthy());

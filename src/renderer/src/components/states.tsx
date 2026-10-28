@@ -4,7 +4,7 @@ import { LoadingIndicator } from "./LoadingIndicator";
 import { Button } from "./primitives";
 
 interface StateBlockProps {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   title: string;
   description: string;
   role?: "alert" | "status";
@@ -29,10 +29,10 @@ function StateBlock({
       aria-live={role === "status" ? "polite" : undefined}
     >
       <div className="max-w-sm">
-        <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent">
-          {loading ? <LoadingIndicator size={20} /> : <Icon aria-hidden="true" size={20} />}
-        </div>
-        <h3 className="mt-3 text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
+        {loading || Icon ? <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent">
+          {loading ? <LoadingIndicator size={20} /> : Icon ? <Icon aria-hidden="true" size={20} /> : null}
+        </div> : null}
+        <h3 className={`${loading || Icon ? "mt-3 " : ""}text-[var(--text-md)] font-semibold text-text-primary`}>{title}</h3>
         <p className="mt-1 text-[var(--text-sm)] text-text-muted">{description}</p>
         {actionLabel && onAction ? (
           <Button className="mt-4" onClick={onAction} size="sm" variant="secondary">
@@ -64,12 +64,14 @@ export function LoadingState({
 
 export function EmptyState({
   description,
-  title
+  title,
+  showIcon = true
 }: {
   title: string;
   description: string;
+  showIcon?: boolean;
 }): JSX.Element {
-  return <StateBlock description={description} icon={FolderSearch} title={title} />;
+  return <StateBlock description={description} icon={showIcon ? FolderSearch : undefined} title={title} />;
 }
 
 export function OfflineState({

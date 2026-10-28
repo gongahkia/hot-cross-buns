@@ -42,13 +42,26 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = usePanePreference("inspector.width", 380);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const narrow = viewportWidth < (documentMode ? 840 : 1050);
-  const resolvedWidth = Math.min(Math.max(320, width), 560, viewportWidth - 32);
+  const resolvedWidth = documentMode && !narrow
+    ? Math.max(320, (workspaceWidth || viewportWidth - 248) - 320)
+    : Math.min(Math.max(320, width), 560, viewportWidth - 32);
   useEffect(() => {
     const resize = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, []);
+
+  useLayoutEffect(() => {
+    const workspace = containerRef.current?.parentElement;
+    if (!documentMode || !workspace) return;
+    const measure = () => setWorkspaceWidth(workspace.getBoundingClientRect().width);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [documentMode]);
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -115,8 +128,8 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
         onClick={requestClose}
       /> : null}
       <motion.section
-        initial={documentMode ? { opacity: 0 } : narrow ? { x: "100%" } : { width: 0, opacity: 0 }}
-        animate={documentMode && !narrow ? { opacity: 1 } : { width: resolvedWidth, x: 0, opacity: 1 }}
+        initial={narrow ? { x: "100%" } : { width: 0, opacity: 0 }}
+        animate={{ width: resolvedWidth, x: 0, opacity: 1 }}
         exit={narrow ? { x: "100%", transition: { duration: reduceMotion ? 0 : .24 } } : { width: 0, opacity: 0, transition: { duration: reduceMotion ? 0 : .24 } }}
         transition={{ duration: reduceMotion || opened ? 0 : .24, ease: [.22, 1, .36, 1] }}
         onAnimationComplete={() => setOpened(true)}
@@ -126,10 +139,10 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
         aria-labelledby={showHeader ? titleId : undefined}
         aria-modal={narrow}
         className={cx(
-          "inspector-panel relative flex min-h-0 shrink-0 flex-col border-l border-border bg-bg-primary text-text-primary",
+          "inspector-panel relative flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-border bg-bg-primary text-text-primary",
           narrow ? "fixed inset-y-0 right-0 z-50 shadow-2xl" : "h-full"
         )}
-        style={documentMode && !narrow ? { flex: "1 1 0", minWidth: 320 } : { width: resolvedWidth }}
+        style={{ width: resolvedWidth }}
         data-document-editor={documentMode}
         data-inspector-layout={narrow ? "sheet" : "docked"}
         data-inspector-kind={current.kind}

@@ -335,7 +335,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.reload();
       await expect(page.getByTestId("app-shell")).toBeVisible();
       expect(await page.evaluate(async id => { const result = await window.hcb!.calendar.get({ id }); return result.ok && result.data.completed; }, fixture.ids.completedEvent)).toBe(true);
-      const report = { theme, fixture: fixture.counts, environment: { platform: platform(), release: release(), logicalCpuCount: cpus().length, profilingEnabled: Boolean(process.env.HCB_PROFILE_VIEWS), viewport: "1600x1000", graphics: process.platform === "linux" ? "Electron --disable-gpu / Xvfb" : "Electron" }, measurements };
+      const report = { theme, fixture: fixture.counts, environment: { platform: platform(), release: release(), logicalCpuCount: cpus().length, profilingEnabled: Boolean(process.env.HCB_PROFILE_VIEWS), viewport: "1600x1000", graphics: "Playwright Chromium headless" }, measurements };
       mkdirSync("output/ui-review", { recursive: true });
       const path = `output/ui-review/populated-performance-${theme}.json`;
       writeFileSync(path, JSON.stringify(report, null, 2));

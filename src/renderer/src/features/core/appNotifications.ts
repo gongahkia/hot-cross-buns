@@ -18,7 +18,7 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
     notifications.push({
       id: "cache.loading",
       title: "Loading planner data",
-      description: "Opening the synced planner workspace.",
+      description: "Opening the planner workspace.",
       status: "Loading",
       tone: "info"
     });
@@ -34,7 +34,7 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
     notifications.push({
       id: "cache.offline",
       title: "Offline",
-      description: source.errorMessage ?? "The preload bridge is unavailable in this renderer context.",
+      description: source.errorMessage ?? "The workspace service is unavailable. Reload the page to retry.",
       status: "Offline",
       tone: "offline"
     });
@@ -67,6 +67,7 @@ export function getAppNotifications(source: CoreViewModelSource): AppNotificatio
   if (
     source.dataState !== "loading" &&
     source.dataState !== "offline" &&
+    source.native.capabilityReport.flags.supportsOAuthLoopback === true &&
     googleConnectionState !== "connected"
   ) {
     notifications.push({

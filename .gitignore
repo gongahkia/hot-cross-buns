@@ -12,3 +12,8 @@ artifacts/perf/
 .DS_Store
 *.log
 AGENTS.md
+dist-test/
+dist-benchmark/
+.env.local
+.env.*.local
+.vercel/

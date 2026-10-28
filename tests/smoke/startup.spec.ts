@@ -1,13 +1,14 @@
-import { _electron as electron, expect, test } from "@playwright/test";
+import { browserApp, type BrowserApplication } from "./browserApp";
+import { expect, test } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-test.setTimeout(60_000); // Match the desktop suite, including graceful Electron shutdown.
+test.setTimeout(60_000); // Allow deferred UI startup, including browser shutdown.
 
 test("opens deferred diagnostics through its keyboard shortcut", async () => {
   const profile = mkdtempSync(join(tmpdir(), "hcb-deferred-diagnostics-"));
-  const app = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`],
+  const app = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`],
     env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
   try {
     const page = await app.firstWindow();

@@ -268,8 +268,6 @@ label:has(input:not(:disabled)) {
 }
 @media (hover: none) { .task-row-actions { opacity: 1; } }
 
-[data-document-open="true"] > [data-testid="pane-workspace"] { flex: 0 1 320px; min-width: 250px; }
-[data-document-open="true"] [data-testid="pane-leaf"] { border-right: 1px solid var(--color-border); }
 [data-document-editor="true"] [data-testid="inspector-body"] { padding: 24px clamp(16px, 4vw, 56px); }
 .note-document { align-content: start; }
 .document-markdown { border-color: transparent; background: transparent; }

@@ -120,7 +120,7 @@ afterEach(() => {
   }
 });
 
-describe.skipIf(process.versions.modules !== "130")("Google sync with durable SQLite state", () => {
+describe("Google sync with durable SQLite state", () => {
   it("refreshes CalendarList permissions before exposing editable calendar events", async () => {
     const { store, service, calendar, remoteCalendar, importEvent } = createCalendarFixture();
     const event = importEvent("permission-target");

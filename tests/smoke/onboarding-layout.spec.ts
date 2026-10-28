@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test, planner, capture } from "./planner";
 import { seedDatabase } from "./database";
 
-test("onboarding shows complete resource lists together and explains every sync mode", async () => {
+test("onboarding shows complete resource lists together and explains durable browser storage", async () => {
   await planner(async (page, app) => {
     await page.evaluate(async () => {
       for (const title of ["Climbing", "Dev Roadmap", "End of Month", "Future Plans", "My Tasks", "Quotes", "SMU", "To Do", "Workout", "Travel"]) {
@@ -26,7 +26,18 @@ test("onboarding shows complete resource lists together and explains every sync 
     await dialog.getByRole("button", { name: "Continue" }).click();
     await expect(dialog.getByRole("heading", { name: "Task lists", exact: true })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Calendars", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("checkbox", { name: /^Select task list/ })).toHaveCount(11);
+    // Reopening a Google-only desktop workspace also creates usable local resources.
+    await expect(dialog.getByRole("checkbox", { name: /^Select task list/ })).toHaveCount(12);
+    await expect(dialog.getByRole("checkbox", { name: "Select calendar Primary", exact: true })).toBeVisible();
+    const localResources = await page.evaluate(async () => {
+      const result = await window.hcb!.bootstrap.get({});
+      if (!result.ok) throw new Error(result.error.message);
+      return {
+        lists: result.data.taskLists.items.filter(list => list.accountId === 'local').map(list => list.title),
+        calendars: result.data.calendars.items.filter(calendar => calendar.accountId === 'local').map(calendar => calendar.title),
+      };
+    });
+    expect(localResources).toEqual({ lists: ['Inbox'], calendars: ['Primary'] });
     await expect(dialog.locator("header, img")).toHaveCount(0);
     // the resource list grows naturally; only the page owns vertical scrolling.
     for (const heading of ["Task lists", "Calendars"]) {
@@ -41,12 +52,11 @@ test("onboarding shows complete resource lists together and explains every sync 
     await capture(page, "onboarding-resources-narrow");
     await dialog.getByRole("button", { name: "Continue" }).click();
     await page.setViewportSize({ width: 1180, height: 760 });
-    for (const name of ["Manual", "Balanced", "Near real time"]) {
-      await expect(dialog.getByRole("radio", { name, exact: true })).toBeVisible();
-      await expect(dialog.getByRole("radio", { name, exact: true })).toHaveAccessibleDescription(/For example/);
-    }
-    await capture(page, "onboarding-sync-modes");
-    await dialog.getByRole("radio", { name: "Manual", exact: true }).check();
+    await expect(dialog.getByRole("heading", { name: "Saved in this browser", exact: true })).toBeVisible();
+    await expect(dialog).toContainText("Changes save automatically");
+    await expect(dialog).toContainText("Clearing this site's browser data removes the workspace");
+    await expect(dialog.getByRole("radio")).toHaveCount(0);
+    await capture(page, "onboarding-browser-storage");
     await dialog.getByRole("button", { name: "Continue" }).click();
     await expect(dialog).toContainText("Step 5 of 5");
     await dialog.getByRole("button", { name: "Finish setup" }).click();

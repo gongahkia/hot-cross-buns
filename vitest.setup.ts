@@ -1,17 +1,30 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { afterAll, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+// Native domain regression tests always execute, including ordinary test:unit.
+const ownedDatabaseRoot = process.env.HCB_TEST_DATABASE_ROOT ? null : mkdtempSync(join(tmpdir(), "hcb-unit-db-"));
+if (ownedDatabaseRoot) process.env.HCB_TEST_DATABASE_ROOT = ownedDatabaseRoot;
+afterAll(() => {
+  if (ownedDatabaseRoot) {
+    rmSync(ownedDatabaseRoot, { recursive: true, force: true });
+    delete process.env.HCB_TEST_DATABASE_ROOT;
+  }
+});
 import type { HcbApi } from "./src/shared/preloadApi";
 import { ok } from "./src/shared/result";
 
 // JSDOM has no layout engine; real viewport and row measurements are covered
-// by the Electron performance suite.
+// by the browser performance suite.
 vi.stubGlobal("ResizeObserver", class {
   observe(): void {}
   unobserve(): void {}
   disconnect(): void {}
 });
 
-// Media changes and animation frames are exercised in the Electron suite.
+// Media changes and animation frames are exercised in the browser suite.
 vi.stubGlobal("matchMedia", (query: string) => Object.assign(new EventTarget(), {
   matches: false,
   media: query,

@@ -442,6 +442,7 @@ export function SavedTaskPerspectivesPanel({
           })
         ) : (
           <EmptyState
+            showIcon={false}
             description="Saved task perspectives will appear here once settings contain task views."
             title="No saved perspectives"
           />
@@ -482,6 +483,7 @@ export function TaskPerspectiveContent({
     return (
       <Panel title="Task list" description="Empty filtered state">
         <EmptyState
+          showIcon={false}
           description={
             activeFilterId === "empty"
               ? "No tasks match this filter."

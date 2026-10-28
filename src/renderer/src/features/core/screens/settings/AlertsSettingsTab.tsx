@@ -13,6 +13,8 @@ import {
 } from "./SettingsPrimitives";
 
 interface AlertsSettingsTabProps {
+  browserRuntime?: boolean;
+  notificationsAvailable?: boolean;
   settings: SettingsSnapshot;
   updateSettings: (request: SettingsUpdateRequest) => void;
 }
@@ -37,8 +39,11 @@ const soundOptions: Array<{ label: string; value: SettingsSnapshot["taskCompleti
 
 export function AlertsSettingsTab({
   settings,
-  updateSettings
+  updateSettings,
+  browserRuntime = false,
+  notificationsAvailable = true
 }: AlertsSettingsTabProps): JSX.Element {
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [customIconOpen, setCustomIconOpen] = useState(false);
   const [customIconName, setCustomIconName] = useState("");
   const [customIconDataBase64, setCustomIconDataBase64] = useState("");
@@ -48,9 +53,14 @@ export function AlertsSettingsTab({
 
   async function enableNotifications(checked: boolean): Promise<void> {
     if (checked) {
-      await window.hcb?.native.requestNotificationPermission();
+      const result = await window.hcb?.native.requestNotificationPermission();
+      if (browserRuntime && (!result?.ok || result.data.permission !== "granted")) {
+        setNotificationMessage(result && !result.ok ? result.error.message : result?.data.message ?? "Allow notifications in your browser's site settings, then try again.");
+        return;
+      }
     }
 
+    setNotificationMessage(null);
     updateSettings({ notificationsEnabled: checked });
   }
 
@@ -103,14 +113,15 @@ export function AlertsSettingsTab({
   return (
     <div className="grid gap-5">
       <SettingsGroup title="Notifications">
-        <SettingsSwitch
+        {notificationsAvailable ? <SettingsSwitch
           checked={settings.notificationsEnabled}
           icon={Bell}
           label="Local reminders"
-          description="While HCB is running, prepare up to 40 reminders for the next 24 hours. Task due dates use local midnight; the lead time below applies to Calendar events."
+          description={browserRuntime ? "Reminders work while this app is open. Browsers may delay background tabs; reminders cannot run after the app closes. Task due dates use local midnight." : "While HCB is running, prepare up to 40 reminders for the next 24 hours. Task due dates use local midnight; the lead time below applies to Calendar events."}
           onChange={(checked) => void enableNotifications(checked)}
           trailing={<Badge>{settings.notificationLeadMinutes} min</Badge>}
-        />
+        /> : <p className="px-3 py-3 text-sm text-text-secondary">Notifications are unavailable in this browser. Your planner remains available without reminders.</p>}
+        {notificationMessage ? <p role="alert" className="px-3 text-sm text-danger">{notificationMessage}</p> : null}
         <SettingsControlRow label="Calendar reminder lead time">
           <input
             aria-label="Calendar reminder lead time"
@@ -154,7 +165,7 @@ export function AlertsSettingsTab({
             value={settings.eventCompletionSoundId}
           />
         </SettingsControlRow>
-        <SettingsControlRow
+        {!browserRuntime ? <SettingsControlRow
           description="Imported sounds are counted in settings; built-in preview tones remain available everywhere."
           label="Imported sounds"
         >
@@ -168,10 +179,10 @@ export function AlertsSettingsTab({
             </Button>
             <Badge>{settings.importedSoundCount} imported</Badge>
           </div>
-        </SettingsControlRow>
+        </SettingsControlRow> : <p className="px-3 pb-3 text-sm text-text-muted">Built-in sounds play in the browser. Importing custom sound files is not available.</p>}
       </SettingsGroup>
 
-      <SettingsGroup title="Menu bar">
+      {!browserRuntime ? <><SettingsGroup title="Menu bar">
         <SettingsSwitch
           checked={settings.showTrayIcon}
           label="Menu bar extra"
@@ -247,6 +258,7 @@ export function AlertsSettingsTab({
           onChange={(checked) => updateSettings({ showDockBadge: checked })}
         />
       </SettingsGroup>
+      </> : null}
       {customIconOpen ? (
         <div
           aria-modal="true"

@@ -23,6 +23,7 @@ import {
 import { retentionOptions } from "./settingsUtils";
 
 interface GeneralSettingsTabProps {
+  browserRuntime?: boolean;
   beginRecoveryAction: (action: SettingsRecoveryActionRequest["action"]) => void;
   customRetentionAmount: string;
   customRetentionUnit: "days" | "months" | "years";
@@ -35,6 +36,7 @@ interface GeneralSettingsTabProps {
 }
 
 export function GeneralSettingsTab({
+  browserRuntime = false,
   beginRecoveryAction,
   customRetentionAmount,
   customRetentionUnit,
@@ -97,7 +99,7 @@ export function GeneralSettingsTab({
         </SettingsControlRow>
       </SettingsGroup>
 
-      <SettingsGroup title="Startup">
+      {!browserRuntime ? <SettingsGroup title="Startup">
         <SettingsSwitch
           checked={settings.startOnLogin}
           description="Starts the app automatically when you sign in to this Mac."
@@ -105,7 +107,7 @@ export function GeneralSettingsTab({
           label="Open Hot Cross Buns at login"
           onChange={(checked) => updateSettings({ startOnLogin: checked })}
         />
-      </SettingsGroup>
+      </SettingsGroup> : null}
 
       <SettingsGroup title={t("diagnostics.title")}>
         <SettingsControlRow
@@ -128,7 +130,7 @@ export function GeneralSettingsTab({
 
       <SettingsGroup title="Sync">
         <SettingsControlRow
-          description="Manual syncs only when you refresh. Balanced refreshes every 5 minutes; Near real-time every 30 seconds. Both automatic modes send edits shortly after you make them."
+          description="Sync runs while HCB is open and your Google session is connected. Manual syncs only when you refresh. Balanced refreshes every 5 minutes; Near real-time every 30 seconds. Both automatic modes send edits shortly after you make them."
           label="Mode"
         >
           <Select

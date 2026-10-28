@@ -1,5 +1,6 @@
-import { _electron as electron, expect, test, type ElectronApplication } from "@playwright/test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { browserApp, type BrowserApplication } from "./browserApp";
+import { expect, test } from "@playwright/test";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { currentZonedDay, zonedDateTimeIso, zonedDayRange } from "../../src/shared/zonedTime";
@@ -8,9 +9,9 @@ test.setTimeout(60_000);
 
 test("uses the displayed timezone at midnight and preserves the event timezone in its editor", async () => {
   const profileDir = mkdtempSync(join(tmpdir(), "hcb-calendar-zone-smoke-"));
-  const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  const browserApplication = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
   try {
-    const page = await electronApp.firstWindow();
+    const page = await browserApplication.firstWindow();
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const day = currentZonedDay("Asia/Singapore");
     const range = zonedDayRange(day, "Asia/Singapore");
@@ -51,17 +52,17 @@ test("uses the displayed timezone at midnight and preserves the event timezone i
     await page.getByRole("checkbox", { name: "All day", exact: true }).uncheck();
     await expect(startInput).toHaveValue(`${originalDay}T09:00`);
   } finally {
-    await electronApp.close();
+    await browserApplication.close();
     rmSync(profileDir, { recursive: true, force: true });
   }
 });
 
 test("launches and renders the planner shell", async () => {
-  let electronApp: ElectronApplication | undefined;
+  let browserApplication: BrowserApplication | undefined;
   const profileDir = mkdtempSync(join(tmpdir(), "hcb-smoke-"));
 
   try {
-    electronApp = await electron.launch({
+    browserApplication = await browserApp.launch({
       args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`],
       env: {
         ...process.env,
@@ -70,7 +71,7 @@ test("launches and renders the planner shell", async () => {
       }
     });
 
-    const page = await electronApp.firstWindow();
+    const page = await browserApplication.firstWindow();
     page.on("pageerror", (error) => {
       console.error(`Renderer error: ${error.stack ?? error.message}`);
     });
@@ -88,61 +89,17 @@ test("launches and renders the planner shell", async () => {
     await expect(onboarding).toContainText("preview free time with Smart Schedule");
     await expect(onboarding.getByRole("button", { name: "Get started" })).toBeVisible();
   } finally {
-    await electronApp?.close();
+    await browserApplication?.close();
     rmSync(profileDir, { recursive: true, force: true });
   }
 });
 
-test("persists a backup and recovers local notes through the worker", async () => {
-  const profileDir = mkdtempSync(join(tmpdir(), "hcb-recovery-smoke-"));
-  const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
-  try {
-    const page = await electronApp.firstWindow();
-    await expect(page.getByTestId("app-shell")).toBeVisible();
-    const created = await page.evaluate(async () => window.hcb!.notes.create({ title: "Recover this note", body: "Original text" }));
-    if (!created.ok) throw new Error(created.error.message);
-    const backup = await page.evaluate(async () => window.hcb!.settings.recoveryAction({ action: "backupNow" }));
-    if (!backup.ok) throw new Error(backup.error.message);
-    expect(backup.data.path).toContain(profileDir);
-    const changed = await page.evaluate(async (id) => window.hcb!.notes.update({ id, body: "Changed text" }), created.data.id);
-    if (!changed.ok) throw new Error(changed.error.message);
-    await electronApp.evaluate(({ dialog }, filePath) => {
-      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [filePath] })) as typeof dialog.showOpenDialog;
-    }, backup.data.path);
-    const rejected = await page.evaluate(async () => window.hcb!.settings.recoveryAction({ action: "restoreLocalNotes" }));
-    expect(rejected.ok).toBe(false);
-    const restored = await page.evaluate(async () => window.hcb!.settings.recoveryAction({ action: "restoreLocalNotes", confirmation: { accepted: true, phrase: "RESTORE NOTES" } }));
-    if (!restored.ok) throw new Error(restored.error.message);
-    const note = await page.evaluate(async (id) => window.hcb!.notes.get({ id }), created.data.id);
-    if (!note.ok) throw new Error(note.error.message);
-    expect(note.data.body).toBe("Original text");
-    const unsupported = await page.evaluate(async () => window.hcb!.search.installModel({ modelId: "unused" }));
-    expect(unsupported.ok).toBe(false);
-    const timing = await page.evaluate(async () => window.hcb!.diagnostics.recordTiming({ name: "smoke.timing", kind: "ipc", durationMs: 7.25 }));
-    if (!timing.ok) throw new Error(timing.error.message);
-    expect(timing.data.recorded).toBe(true);
-    const reportPath = join(profileDir, "diagnostics.json");
-    await electronApp.evaluate(({ dialog }, filePath) => {
-      dialog.showSaveDialog = (async () => ({ canceled: false, filePath })) as typeof dialog.showSaveDialog;
-    }, reportPath);
-    const exported = await page.evaluate(async () => window.hcb!.diagnostics.exportBundle());
-    if (!exported.ok) throw new Error(exported.error.message);
-    expect(exported.data.exported).toBe(true);
-    const reportText = readFileSync(reportPath, "utf8");
-    const report = JSON.parse(reportText);
-    expect(report.summary.performance.timings).toContainEqual(expect.objectContaining({ name: "smoke.timing", durationMs: 7.25 }));
-    expect(reportText).not.toContain("Original text");
-  } finally {
-    await electronApp.close();
-    rmSync(profileDir, { recursive: true, force: true });
-  }
-});
 
 test("virtualizes task trees while retaining keyboard navigation", async () => {
   const profileDir = mkdtempSync(join(tmpdir(), "hcb-task-tree-smoke-"));
-  const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  const browserApplication = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
   try {
-    const page = await electronApp.firstWindow();
+    const page = await browserApplication.firstWindow();
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const fixture = await page.evaluate(async () => {
       // Creation timestamps can tie, so use title order for the Home/End assertions.
@@ -203,16 +160,16 @@ test("virtualizes task trees while retaining keyboard navigation", async () => {
     await expect(page.getByRole("list", { name: "Destination tasks", exact: true }).getByRole("button", { name: "Planner task 198", exact: true })).toBeVisible();
 
   } finally {
-    await electronApp.close();
+    await browserApplication.close();
     rmSync(profileDir, { recursive: true, force: true });
   }
 });
 
 test("bounds offscreen columns and reads full notes beyond the initial cache", async () => {
   const profileDir = mkdtempSync(join(tmpdir(), "hcb-paging-smoke-"));
-  let electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  let browserApplication = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
   try {
-    let page = await electronApp.firstWindow();
+    let page = await browserApplication.firstWindow();
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await expect(page.getByTestId("app-shell")).toBeVisible();
@@ -291,9 +248,9 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     }, event.data.id);
     expect((await page.getByRole("textbox", { name: "Event notes", exact: true }).innerText()).length).toBeGreaterThan(4000);
     await page.keyboard.press("Escape");
-    await electronApp.close();
-    electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
-    page = await electronApp.firstWindow();
+    await browserApplication.close();
+    browserApplication = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+    page = await browserApplication.firstWindow();
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await expect(page.getByTestId("app-shell")).toBeVisible();
     const settings = await page.evaluate(async () => window.hcb!.settings.get());
@@ -305,7 +262,7 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
     expect(settings.data.paneWorkspace.updatedAt).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);
   } finally {
-    await electronApp.close();
+    await browserApplication.close();
     rmSync(profileDir, { recursive: true, force: true });
   }
 });
@@ -313,22 +270,20 @@ test("bounds offscreen columns and reads full notes beyond the initial cache", a
 
 test("restores web-only workspaces to Calendar with embedded browsing disabled", async () => {
   const profileDir = mkdtempSync(join(tmpdir(), "hcb-retired-web-smoke-"));
-  const electronApp = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
+  const browserApplication = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profileDir}`], env: { ...process.env, HCB_TEST_DATABASE_ROOT: profileDir, NODE_ENV: "test" } });
   try {
-    const page = await electronApp.firstWindow();
+    const page = await browserApplication.firstWindow();
     await expect(page.getByTestId("app-shell")).toBeVisible();
     await page.evaluate(async () => {
       const paneWorkspace = { focusedPaneId: "web-fixture", updatedAt: Date.now(), root: { id: "web-fixture", kind: "leaf", content: { kind: "web", activeTabId: "tab-fixture", tabs: [{ id: "tab-fixture", title: "Old reference page", url: "https://example.com/" }] } } };
       await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", paneWorkspace });
-      localStorage.setItem("hcb.paneWorkspace.v1", JSON.stringify(paneWorkspace));
     });
     await page.reload();
     await expect(page.getByTestId("calendar-view")).toBeVisible();
     await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
     await expect(page.locator("webview")).toHaveCount(0);
-    expect(await electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().filter((contents) => contents.getType() === "webview").length)).toBe(0);
   } finally {
-    await electronApp.close();
+    await browserApplication.close();
     rmSync(profileDir, { recursive: true, force: true });
   }
 });

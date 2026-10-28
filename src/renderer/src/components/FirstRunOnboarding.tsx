@@ -45,24 +45,26 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const googleAccountLabel =
     connectedGoogleAccount?.displayName ?? connectedGoogleAccount?.email ?? source.googleStatus.account?.displayName ?? source.googleStatus.account?.email ?? "Google account";
   const nativeFlags = source.diagnosticsSummary?.native.flags ?? source.native.capabilityReport.flags;
-  const oauthRuntimeReady =
-    nativeFlags.supportsOAuthLoopback ??
+  const notificationsAvailable = nativeFlags.supportsNotifications === true;
+  const browserRuntime = source.native.capabilityReport.platform === "web";
+  const oauthRuntimeReady = browserRuntime ||
+    (nativeFlags.supportsOAuthLoopback ??
     nativeFlags.supportsCredentialStorage ??
-    false;
+    false);
   const googleClientConfigured = source.googleStatus.oauthClientConfigured;
   const googleConnecting = source.googleStatus.authorizationInProgress === true;
   const googleTaskLists = source.taskLists.filter((taskList) => taskList.accountId !== "local");
   const googleCalendars = source.calendarSources.filter((calendar) => calendar.accountId !== "local");
-  const googleResourcesReady = googleConnected && googleTaskLists.length > 0 && googleCalendars.length > 0;
+  const resourcesReady = source.taskLists.length > 0 && source.calendarSources.length > 0;
   const canAdvance =
     activeStep === 0
       ? true
       : activeStep === 1
-        ? googleResourcesReady
+        ? resourcesReady
         : activeStep === 2
           ? selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0
           : true;
-  const canFinish = googleResourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
+  const canFinish = resourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
 
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
@@ -160,18 +162,28 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
       | "notificationsEnabled"
     >> = {}
   ): Promise<void> {
-    if (!googleResourcesReady) {
-      setLocalError("Wait for Google Calendar and Google Tasks to finish their first sync.");
+    if (!canFinish) {
+      setLocalError("Choose at least one task list and calendar to finish setup.");
       return;
     }
     setSubmitting(true);
     setLocalError(null);
 
+    let enableNotifications = notificationsAvailable && (overrides.notificationsEnabled ?? notificationsEnabled);
+    if (browserRuntime && enableNotifications) {
+      const permission = await window.hcb?.native.requestNotificationPermission();
+      if (!permission?.ok || permission.data.permission !== "granted") {
+        setNotificationsEnabled(false);
+        setSubmitting(false);
+        setLocalError(permission && !permission.ok ? permission.error.message : "Notification permission was not granted. Finish setup again to continue without reminders, or allow notifications in your browser's site settings.");
+        return;
+      }
+    }
     const saved = await source.updateSettings({
       selectedTaskListIds: overrides.selectedTaskListIds ?? selectedTaskListIds,
       selectedCalendarIds: overrides.selectedCalendarIds ?? selectedCalendarIds,
       syncMode: overrides.syncMode ?? syncMode,
-      notificationsEnabled: overrides.notificationsEnabled ?? notificationsEnabled,
+      notificationsEnabled: enableNotifications,
       onboardingStatus: "completed",
       setupCompletedAt: new Date().toISOString()
     });
@@ -184,7 +196,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
   async function connectGoogle(): Promise<void> {
     if (!googleClientConfigured) {
-      setLocalError("Save a Google Desktop OAuth client ID before connecting.");
+      setLocalError(browserRuntime ? "This site needs a Google Web OAuth client configured before connecting. Continue with your local workspace." : "Save a Google Desktop OAuth client ID before connecting.");
       return;
     }
 
@@ -263,13 +275,23 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   Welcome to Hot Cross Buns
                 </h3>
                 <p className="hcb-copy mt-3 text-pretty text-[var(--text-md)] text-text-muted">
-                  Turn tasks into a realistic day: capture work, preview free time with Smart Schedule, then create Calendar blocks. Setup connects Google and chooses what to sync. You’ll need a Google Cloud Desktop OAuth client; creating one may take a few minutes.
+                  Turn tasks into a realistic day: capture work, preview free time with Smart Schedule, then create Calendar blocks. Your workspace saves in this browser. Choose your task lists and calendars to get started; no Google account is required.
                 </p>
               </div>
             </section>
           ) : null}
 
-          {activeStep === 1 ? (
+          {activeStep === 1 && !oauthRuntimeReady ? (
+            <SetupCard
+              description="Your tasks, notes, calendar, and preferences are saved on this device in this browser profile. Use the local task list and calendar to start planning."
+              icon={Save}
+              title="Your local workspace"
+            >
+              <p className="text-[var(--text-sm)] text-text-muted">Google connection and sync are not available in this browser release. You can use the full local planner now.</p>
+            </SetupCard>
+          ) : null}
+
+          {activeStep === 1 && oauthRuntimeReady ? (
             <SetupCard
               description={
                 googleConnected
@@ -277,13 +299,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   : !oauthRuntimeReady
                     ? "Google OAuth browser handoff is unavailable in this runtime."
                     : googleClientConfigured
-                      ? "Open the browser to authorize Google Tasks and Calendar sync."
-                    : "Save a Desktop OAuth client ID, then connect your Google account."
+                      ? "Connect Google Tasks and Calendar in a consent popup, or continue with your local workspace."
+                    : browserRuntime ? "Google is optional. Continue with your local task list and calendar. This site needs a configured Google Web OAuth client before connecting." : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               icon={Cloud}
-              title="Google account"
+              title="Google account (optional)"
             >
-              {!googleConnected ? (
+              {!googleConnected && !browserRuntime ? (
                 <div className="grid w-full gap-2">
                   <Input
                     aria-label="Google OAuth client ID"
@@ -300,7 +322,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   />
                 </div>
               ) : null}
-              {!googleConnected ? (
+              {!googleConnected && !browserRuntime ? (
                 <Button
                   disabled={googleClientId.trim().length < 10 || googleClientSaving}
                   onClick={() => void saveGoogleClient()}
@@ -335,7 +357,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               <section className="min-w-0">
                 <div className="mb-3 border-b border-border pb-3">
                   <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
-                  <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the task lists HCB should show and sync.</p>
+                  <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the task lists HCB should show.</p>
                 </div>
                 <div className="grid gap-1">
                   {source.taskLists.length === 0 ? (
@@ -361,7 +383,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               <section className="min-w-0">
                 <div className="mb-3 border-b border-border pb-3">
                   <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Calendars</h3>
-                  <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the calendars HCB should show and sync.</p>
+                  <p className="hcb-copy text-[var(--text-xs)] text-text-muted">Choose the calendars HCB should show.</p>
                 </div>
                 <div className="grid gap-1">
                   {source.calendarSources.length === 0 ? (
@@ -387,7 +409,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </div>
           ) : null}
 
-          {activeStep === 3 ? (
+          {activeStep === 3 && (!oauthRuntimeReady || browserRuntime) ? (
+            <SetupCard title="Saved in this browser" icon={Save} description="Changes save automatically in IndexedDB before the planner confirms success. Reloading the page keeps your workspace.">
+              <p className="text-[var(--text-sm)] text-text-muted">Use the same browser profile to return to your workspace. Clearing this site's browser data removes the workspace; private browsing keeps it only for that private session.</p>
+            </SetupCard>
+          ) : null}
+
+          {activeStep === 3 && oauthRuntimeReady && !browserRuntime ? (
             <SetupOption title="Sync mode" icon={RefreshCw}>
               <fieldset className="grid gap-3" aria-label="Onboarding sync mode">
                 {syncOptions.map((option) => (
@@ -415,8 +443,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </SetupOption>
           ) : null}
 
-          {activeStep === 4 ? (
+          {activeStep === 4 && !notificationsAvailable ? (
+            <SetupCard title="Notifications" icon={Bell} description="Background reminders are unavailable in this browser release. Finish setup to start using your tasks, notes, and calendars." />
+          ) : null}
+
+          {activeStep === 4 && notificationsAvailable ? (
             <SetupOption title="Notifications" icon={Bell}>
+              <>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <Checkbox
                   aria-label="Local notifications"
@@ -425,6 +458,8 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 />
                 Local notifications
               </label>
+              {browserRuntime ? <p className="mt-2 text-sm text-text-muted">Your browser will ask for permission when you finish setup. Reminders work while HCB is open; they do not run after you close it.</p> : null}
+              </>
             </SetupOption>
           ) : null}
 

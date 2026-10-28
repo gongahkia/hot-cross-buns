@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   DiagnosticsSummaryResponse,
   NativeUpdaterStatus,
@@ -9,6 +10,7 @@ import { Badge, Button } from "../../../../components/primitives";
 import { SettingsControlRow, SettingsGroup, SettingsSwitch } from "./SettingsPrimitives";
 
 interface AboutSettingsTabProps {
+  browserRuntime?: boolean;
   beginRecoveryAction: (action: SettingsRecoveryActionRequest["action"]) => void;
   diagnostics?: DiagnosticsSummaryResponse;
   nativeUpdaterStatus: NativeUpdaterStatus;
@@ -17,12 +19,14 @@ interface AboutSettingsTabProps {
 }
 
 export function AboutSettingsTab({
+  browserRuntime = false,
   beginRecoveryAction,
   diagnostics,
   nativeUpdaterStatus,
   settings,
   updateSettings
 }: AboutSettingsTabProps): JSX.Element {
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const build = diagnostics?.build;
   const version = build?.version ?? "0.0.0";
   const commit = build?.commit ?? "Not recorded";
@@ -34,17 +38,20 @@ export function AboutSettingsTab({
     `Environment: ${environment}`
   ].join("\n");
 
-  function copyVersionInfo(): void {
-    void navigator.clipboard?.writeText(versionInfo);
+  async function copyVersionInfo(): Promise<void> {
+    const result = await window.hcb?.native.writeClipboardText({ text: versionInfo });
+    setActionMessage(result?.ok ? "Version information copied." : result?.error.message ?? "Clipboard access is unavailable in this browser.");
   }
 
-  function openExternalUrl(url: string): void {
-    void window.hcb?.native.openExternalUrl({ url });
+  async function openExternalUrl(url: string): Promise<void> {
+    const result = await window.hcb?.native.openExternalUrl({ url });
+    if (result && !result.ok) setActionMessage(result.error.message);
   }
 
   return (
     <div className="grid gap-5">
-      <SettingsGroup title="Updates">
+      {actionMessage ? <p role="status" className="text-sm text-text-secondary">{actionMessage}</p> : null}
+      {browserRuntime ? <SettingsGroup title="Updates"><p className="px-3 py-3 text-sm text-text-secondary">This browser app updates from its hosting site when you reload. Your workspace stays in IndexedDB on this origin.</p></SettingsGroup> : <SettingsGroup title="Updates">
         <SettingsSwitch
           checked={settings.lastUpdateCheckAt !== null}
           label="Check GitHub releases automatically"
@@ -100,7 +107,7 @@ export function AboutSettingsTab({
             {nativeUpdaterStatus.checkedAt ?? settings.lastUpdateCheckAt ?? "Never"}
           </span>
         </SettingsControlRow>
-      </SettingsGroup>
+      </SettingsGroup>}
 
       <SettingsGroup title="About">
         <SettingsControlRow icon={Info} label="App">
@@ -112,11 +119,11 @@ export function AboutSettingsTab({
         <SettingsControlRow label="Build">
           <span className="font-mono text-[var(--text-sm)] text-text-muted">{commit}</span>
         </SettingsControlRow>
-        <SettingsControlRow label="Bundle ID">
+        {!browserRuntime ? <SettingsControlRow label="Bundle ID">
           <span className="font-mono text-[var(--text-sm)] text-text-muted">
             com.gongahkia.hotcrossbuns.mac
           </span>
-        </SettingsControlRow>
+        </SettingsControlRow> : <SettingsControlRow label="Site"><span className="font-mono text-sm">{window.location.origin}</span></SettingsControlRow>}
         <SettingsControlRow label="Copy version info">
           <Button onClick={copyVersionInfo} variant="secondary">
             <Copy aria-hidden="true" size={14} />

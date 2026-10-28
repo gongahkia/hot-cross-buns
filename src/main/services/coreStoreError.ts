@@ -1,1 +1,1 @@
-export class CoreStoreError extends Error {}
+export * from "../../shared/core/coreStoreError";

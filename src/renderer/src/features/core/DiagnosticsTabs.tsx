@@ -75,7 +75,7 @@ export function OverviewTab({
         <DiagnosticRow label="Sync" value={summary?.sync?.state ?? source.syncStatus.state} />
         <DiagnosticRow label="Mode" value={source.settings.syncMode} />
         <DiagnosticRow label="Last sync" value={formatDateTime(summary?.sync?.lastCompletedAt)} />
-        <DiagnosticRow label="Keychain" value={credentialStatus?.state ?? "unknown"} />
+        <DiagnosticRow label={source.native?.capabilityReport.platform === "web" ? "Google credentials" : "Keychain"} value={source.native?.capabilityReport.platform === "web" ? "Access tokens in memory only" : credentialStatus?.state ?? "unknown"} />
       </DiagnosticSection>
 
       {summary?.performance ? (
@@ -113,10 +113,10 @@ export function OverviewTab({
           />
       </DiagnosticSection>
 
-      <DiagnosticSection title="Cache">
+      <DiagnosticSection title="Storage">
         <DiagnosticRow
           label="Database"
-          value={summary?.native?.paths?.find((path) => path.role === "data")?.redactedPath ?? "Unavailable"}
+          value={source.native?.capabilityReport.platform === "web" ? "IndexedDB · this browser profile" : summary?.native?.paths?.find((path) => path.role === "data")?.redactedPath ?? "Unavailable"}
           mono
         />
       </DiagnosticSection>

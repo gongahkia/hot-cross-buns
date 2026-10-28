@@ -32,10 +32,11 @@ const googleStatus: GoogleStatusResponse = {
   oauthClientConfigured: true
 };
 
-function renderProfile(overrides: Partial<GoogleStatusResponse> = {}) {
+function renderProfile(overrides: Partial<GoogleStatusResponse> = {}, browserRuntime = false) {
   const reconfigureOptionalAccess = vi.fn(async () => ({ ok: true, message: "Google access was reset." }));
   render(
     <ProfileSettingsTab
+      browserRuntime={browserRuntime}
       beginGoogleOAuth={vi.fn(async () => undefined)}
       calendarSources={[]}
       disconnectGoogle={vi.fn(async () => undefined)}
@@ -89,5 +90,22 @@ describe("ProfileSettingsTab optional Google access", () => {
     await user.click(screen.getByRole("checkbox", { name: "Acknowledge Google reconnection" }));
     expect(screen.getByRole("button", { name: "Reconnect with selected access" })).toBeDisabled();
     expect(reconfigureOptionalAccess).not.toHaveBeenCalled();
+  });
+});
+
+ describe("browser Google profile", () => {
+  it("labels ungranted planner services instead of claiming full connection", () => {
+    renderProfile({}, true);
+    expect(screen.getByText("Tasks access not granted")).toBeVisible();
+    expect(screen.getByText("Calendar access not granted")).toBeVisible();
+    expect(screen.queryByAltText("Google Calendar")).not.toBeInTheDocument();
+    expect(screen.queryByAltText("Google Tasks")).not.toBeInTheDocument();
+  });
+  it("shows Web OAuth configuration without client secret inputs or a fake configured state", () => {
+    renderProfile({ oauthClientConfigured: false, accounts: [], account: null }, true);
+    expect(screen.queryByRole("textbox", { name: "Google OAuth client ID" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Google OAuth client secret")).not.toBeInTheDocument();
+    expect(screen.getByText(/VITE_GOOGLE_CLIENT_ID/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add Google Account" })).toBeDisabled();
   });
 });
