@@ -3,23 +3,27 @@
 
 # `Hot Cross Buns` 🍞
 
-A keyboard-first browser planner for tasks, calendars, and local notes. Your workspace is saved in IndexedDB in your browser profile. Google Tasks and Calendar sync are optional; local use needs no account.
+A keyboard-first [Browser Planner](#architecture) for local tasks, calendars and notes, with optional [Google Calendar](https://calendar.google.com/calendar/) and [Tasks](https://tasks.google.com/tasks/) sync.
 
 ## Stack
 
-* React, TypeScript, Vite, Tailwind CSS, Radix UI, TanStack Query, Zustand, Zod, Lucide and Motion
-* Official SQLite WASM in a dedicated Web Worker, persisted atomically to IndexedDB
-* Vitest, Playwright and Testing Library; native SQLite is development-only regression tooling
+* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
+* Storage: [SQLite WASM](https://sqlite.org/wasm/doc/trunk/index.md), [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
+* Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) *(development only)*
+* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Vite](https://vite.dev/)
+* API: [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks), [Google Drive API](https://developers.google.com/workspace/drive/api), [Gmail API](https://developers.google.com/workspace/gmail/api)
 
 ## Features
 
-* Keyboard navigation, command palette, paginated and virtualized collections
-* Tasks, subtasks, task lists, notes, note lists and tags
-* Calendar day/week/month views, recurrence and scheduled task blocks
-* Full-text search, settings, history and undo/redo
-* Local onboarding with an Inbox, Primary calendar and Notes list
-* Optional Google Tasks/Calendar sync, Drive links/uploads and Gmail capture
-* Reviewed workspace export/import, browser storage controls and offline reloads
+* Keyboard-first navigation
+* Command Palette for quick commands and full-text search
+* Tasks and task lists *(subtasks, tags & scheduled blocks)*
+* Local notes and note lists *(autosave & internal references)*
+* Calendar recurrence and occurrence edits *(day, week & monthly views)*
+* History and undo/redo
+* Paginated and virtualized collections
+* Optional multi-account Google sync *(Tasks, Calendar, Drive links/uploads & Gmail capture)*
+* Local setup without an account, workspace backups and offline reloads
 
 ## GIF
 
@@ -29,9 +33,9 @@ A keyboard-first browser planner for tasks, calendars, and local notes. Your wor
 
 ## Architecture
 
-React → `window.hcb` → dedicated Web Worker → shared SQL domain store → SQLite WASM. IndexedDB holds the complete durable database, including undo and outbox records. Mutations resolve only after the IndexedDB transaction completes. Web Locks and revision checks coordinate tabs.
+React → `window.hcb` → Web Worker → shared SQL domain store → SQLite WASM → IndexedDB.
 
-See [the migration checkpoint](docs/web-migration.md) for capability parity, storage behavior, validation and follow-up work. The historical Electron sources remain for reference and regression tests; they are outside the browser runtime.
+IndexedDB saves the complete workspace, including settings, undo history and pending Google changes. Saves are acknowledged after the storage transaction completes; Web Locks and revision checks coordinate tabs. No application backend or database server is required. See the [migration checkpoint](docs/web-migration.md) for implementation and validation details.
 
 ## Usage
 
