@@ -26,7 +26,18 @@ test("onboarding shows complete resource lists together and explains durable bro
     await dialog.getByRole("button", { name: "Continue" }).click();
     await expect(dialog.getByRole("heading", { name: "Task lists", exact: true })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Calendars", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("checkbox", { name: /^Select task list/ })).toHaveCount(11);
+    // Reopening a Google-only desktop workspace also creates usable local resources.
+    await expect(dialog.getByRole("checkbox", { name: /^Select task list/ })).toHaveCount(12);
+    await expect(dialog.getByRole("checkbox", { name: "Select calendar Primary", exact: true })).toBeVisible();
+    const localResources = await page.evaluate(async () => {
+      const result = await window.hcb!.bootstrap.get({});
+      if (!result.ok) throw new Error(result.error.message);
+      return {
+        lists: result.data.taskLists.items.filter(list => list.accountId === 'local').map(list => list.title),
+        calendars: result.data.calendars.items.filter(calendar => calendar.accountId === 'local').map(calendar => calendar.title),
+      };
+    });
+    expect(localResources).toEqual({ lists: ['Inbox'], calendars: ['Primary'] });
     await expect(dialog.locator("header, img")).toHaveCount(0);
     // the resource list grows naturally; only the page owns vertical scrolling.
     for (const heading of ["Task lists", "Calendars"]) {

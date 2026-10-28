@@ -57,9 +57,17 @@ describe("browser workspace bridge", () => {
     expect(WorkerDouble.instance.postMessage).toHaveBeenCalledWith({
       id: 1, namespace: "bootstrap", action: "get", payload: { mode: "light" }
     });
-    const snapshot = { tasks: [{ id: "real-task" }], settings: { theme: "dark" } };
-    WorkerDouble.instance.reply({ id: 1, result: { ok: true, data: snapshot } });
-    expect(await response).toEqual({ ok: true, data: snapshot });
+    const snapshot = {
+      tasks: { items: [{ id: "real-task" }], page: { limit: 100, totalKnown: 1 } },
+      settings: { theme: "dark" }, googleStatus: { accounts: [] },
+      native: { platform: "web", capabilityReport: { flags: { supportsTray: false } } },
+    };
+    WorkerDouble.instance.reply({ id: 1, result: { ok: true, data: structuredClone(snapshot) } });
+    const result = await response;
+    expect(result).toMatchObject({ ok: true, data: snapshot });
+    expect(result.ok && result.data.native.capabilityReport.flags).toMatchObject({
+      supportsTray: false, supportsNotifications: typeof Notification === "function",
+    });
   });
 
   it("preserves persistence failure envelopes instead of reporting a saved mutation", async () => {
@@ -88,5 +96,9 @@ describe("browser workspace bridge", () => {
     await Promise.resolve();
     WorkerDouble.instance.dispatchEvent(new ErrorEvent("error", { message: "Worker crashed" }));
     expect(await response).toMatchObject({ ok: false, error: { message: "Worker crashed" } });
+    // Recovery can use a running worker after a database initialization error,
+    // but must fail promptly instead of waiting forever on a crashed worker.
+    expect(await window.hcb!.workspace.exportArchive()).toMatchObject({ ok: false, error: { message: "Worker crashed" } });
+    expect(WorkerDouble.instance.postMessage).toHaveBeenCalledTimes(1);
   });
 });

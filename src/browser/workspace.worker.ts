@@ -35,6 +35,7 @@ let persistedChanges = 0;
 let persistedSchema = 0;
 let reopenedChanges = false;
 let failNextPersistence = false;
+let pauseNextPersistence = false;
 let stagedImport: StagedImport | undefined;
 let fatal: string | undefined;
 const metrics = { strategy: 'SQLite snapshot in IndexedDB', revision: 0, bytes: 0, exportMs: 0, persistMs: 0, loadMs: 0, commits: 0 };
@@ -90,6 +91,11 @@ async function save(bytes?: Uint8Array<ArrayBuffer>, notify = true): Promise<voi
   const snapshot: DurableSnapshot = { format: 1, revision: (durable?.revision ?? 0) + 1, bytes: exported, savedAt: new Date().toISOString() };
   const fail = failNextPersistence;
   failNextPersistence = false;
+  if (import.meta.env.MODE === 'test' && pauseNextPersistence) {
+    pauseNextPersistence = false;
+    postMessage({ type: 'test:persistence-paused' });
+    await new Promise<void>(() => { /* Test closes this worker at the save boundary. */ });
+  }
   const beforeCommit = performance.now();
   await commitSnapshot(storage, snapshot, durable?.revision ?? 0, fail);
   metrics.persistMs = performance.now() - beforeCommit;
@@ -234,6 +240,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
   }
   if (fatal) return internalError(fatal);
   if (namespace === '__test' && import.meta.env.MODE === 'test') {
+    if (action === 'pauseNextPersistence') { pauseNextPersistence = true; return ok({ armed: true }); }
     if (action === 'failNextPersistence') { failNextPersistence = true; return ok({ armed: true }); }
     if (action === 'compatibility') return ok(await verifySqliteCompatibility());
   } else if (namespace === '__google' && ['attachSession', 'removeSession'].includes(action)) {

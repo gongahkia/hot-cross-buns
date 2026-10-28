@@ -1498,6 +1498,7 @@ export class CoreStore {
 
   private seed(): void {
     const now = timestamp();
+    const browserLocal = this.platform.platform === "web";
     const localFallbackRetired = Boolean(this.statement("SELECT 1 FROM sync_meta WHERE key=?").get("local-fallback-retired"));
     const connectedGoogle = Boolean(this.statement("SELECT 1 FROM google_accounts WHERE id != ? AND connection_state='connected' LIMIT 1").get(localAccountId));
     const transaction = this.db.transaction(() => {
@@ -1509,14 +1510,14 @@ export class CoreStore {
           .run("notes", "Notes", now, now);
       }
       this.statement("UPDATE notes SET list_id='notes' WHERE list_id IS NULL").run();
-      if (!localFallbackRetired && !connectedGoogle) {
+      if (browserLocal || (!localFallbackRetired && !connectedGoogle)) {
         this.statement(`INSERT OR IGNORE INTO google_accounts(id,google_account_id,email,display_name,connection_state,missing_scopes_json,granted_scopes_json,created_at,updated_at)
           VALUES(?,?,?,?,?,?,?,?,?)`).run(localAccountId, "local", null, "Local workspace", "local", "[]", "[]", now, now);
-        if (!this.statement("SELECT 1 FROM task_lists LIMIT 1").get()) {
-          this.statement("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run("inbox", localAccountId, "Inbox", now, now);
+        if (!this.statement(browserLocal ? "SELECT 1 FROM task_lists WHERE account_id='local' LIMIT 1" : "SELECT 1 FROM task_lists LIMIT 1").get()) {
+          this.statement("INSERT INTO task_lists(id, account_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(this.statement("SELECT 1 FROM task_lists WHERE id='inbox'").get() ? randomUUID() : "inbox", localAccountId, "Inbox", now, now);
         }
-        if (!this.statement("SELECT 1 FROM calendars LIMIT 1").get()) {
-          this.statement("INSERT INTO calendars(id, account_id, title, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run("primary", localAccountId, "Primary", "#4285f4", now, now);
+        if (!this.statement(browserLocal ? "SELECT 1 FROM calendars WHERE account_id='local' LIMIT 1" : "SELECT 1 FROM calendars LIMIT 1").get()) {
+          this.statement("INSERT INTO calendars(id, account_id, title, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(this.statement("SELECT 1 FROM calendars WHERE id='primary'").get() ? randomUUID() : "primary", localAccountId, "Primary", "#4285f4", now, now);
         }
       }
     });

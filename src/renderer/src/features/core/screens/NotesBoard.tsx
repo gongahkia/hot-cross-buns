@@ -60,6 +60,7 @@ export function NotesBoard({
         ) : (
           <div className="grid min-h-[360px] min-w-80 flex-1 place-items-center rounded-hcbLg border border-border bg-bg-primary">
             <EmptyState
+              showIcon={false}
               description="Select at least one note view from the sidebar to show it here."
               title="No visible note views"
             />
@@ -82,12 +83,12 @@ function NoteListColumn({ column, source, single, ...actions }: Omit<Parameters<
     action={<NoteColumnAction count={(collection.total ?? 0) + drafts.length} listId={column.listId} onDeleteNoteList={actions.onDeleteNoteList} onRenameNoteList={actions.onRenameNoteList} title={column.title} />}
     className={cx("flex max-h-full min-h-0 flex-col overflow-hidden rounded-none border-0 bg-bg-primary shadow-none", single ? "w-full" : "w-[min(560px,calc(100vw-2rem))] shrink-0")}
     description="Recently edited" role="listitem" title={column.title}>
-    <button className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent hover:bg-surface-0" onClick={() => actions.onCreateNote(column.listId)} type="button"><Plus aria-hidden size={18} />Add a note</button>
+    <button className="flex min-h-10 w-full items-center gap-3 border-b border-border px-4 text-left text-[var(--text-base)] font-semibold text-accent transition-colors duration-fast ease-hcb hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" data-action-id="note.create" onClick={() => actions.onCreateNote(column.listId)} type="button"><Plus aria-hidden size={18} />Add a note</button>
     <NoteColumnDropTarget column={column} onMoveNote={actions.onMoveNote}>
       <div className="flex h-full min-h-0 flex-col">
         {drafts.map((note) => <NoteBoardRow key={note.id} note={note} {...actions} selected={note.id === actions.selectedNoteId} starred={actions.starredNoteIds.has(note.id)} />)}
         <PagedVirtualList ariaLabel={column.title} collection={collection} estimateRowHeight={72} getKey={(note) => note.id}
-          emptyState={drafts.length ? undefined : <EmptyState description={column.emptyDescription} title={column.emptyTitle} />}
+          emptyState={drafts.length ? undefined : <EmptyState showIcon={false} description={column.emptyDescription} title={column.emptyTitle} />}
           renderRow={(note) => <NoteBoardRow key={note.id} note={note} {...actions} selected={note.id === actions.selectedNoteId} starred={actions.starredNoteIds.has(note.id)} />} />
       </div>
     </NoteColumnDropTarget>

@@ -1,5 +1,7 @@
 # Google Sync Spec
 
+**Browser implementation:** The Tasks/Calendar mapping below is retained in the shared sync engine. Historical desktop OAuth/Keychain assumptions are superseded by [browser GIS setup](../google-browser-setup.md): Web client, verified identity, memory-only access tokens, user-driven reconnection, partial scopes and no backend. Sync operates while the application is running through the same durable worker boundary as local writes. Creation intent/receipts are checkpointed and uncertain writes require review; see [the migration checkpoint](../web-migration.md). Browser optional-scope reconfiguration does not revoke the entire Google grant.
+
 ## Scope
 
 Hot Cross Buns 2 syncs with Google Tasks and Google Calendar. Google remains the synced source of truth for tasks and events. SQLite stores local mirrors, settings, checkpoints, and pending mutations.

@@ -24,6 +24,8 @@ function browserGraph(): Plugin {
 
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
+  // Public deployment configuration lives beside package.json, not the HTML entry.
+  envDir: __dirname,
   base: './',
   plugins: [react(), browserGraph(), offlineShell()],
   resolve: { alias: {

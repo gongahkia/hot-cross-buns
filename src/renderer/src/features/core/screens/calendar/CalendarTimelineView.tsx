@@ -953,7 +953,7 @@ function CalendarTimelineView({
                     .filter((segment) => segment.dayId === day.id)
                     .map((segment) => (
                       <div
-                        className="absolute left-2 right-2 rounded-hcbSm border border-info bg-info/15"
+                        className="absolute left-2 right-2 rounded-hcbSm border border-accent bg-accent/15"
                         data-calendar-drop-preview
                         key={segment.id}
                         style={{ height: segment.height, top: segment.top }}

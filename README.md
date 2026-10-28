@@ -3,7 +3,7 @@
 
 # `Hot Cross Buns` 🍞
 
-A keyboard-first browser planner for tasks, calendars, and local notes. Your workspace is saved in IndexedDB in your browser profile. Google integration is deferred while the browser migration is completed; local use needs no account.
+A keyboard-first browser planner for tasks, calendars, and local notes. Your workspace is saved in IndexedDB in your browser profile. Google Tasks and Calendar sync are optional; local use needs no account.
 
 ## Stack
 
@@ -18,6 +18,8 @@ A keyboard-first browser planner for tasks, calendars, and local notes. Your wor
 * Calendar day/week/month views, recurrence and scheduled task blocks
 * Full-text search, settings, history and undo/redo
 * Local onboarding with an Inbox, Primary calendar and Notes list
+* Optional Google Tasks/Calendar sync, Drive links/uploads and Gmail capture
+* Reviewed workspace export/import, browser storage controls and offline reloads
 
 ## GIF
 
@@ -49,7 +51,7 @@ corepack pnpm preview
 
 Deploy the generated `dist/` directory to a static HTTPS host. Keep the same origin to retain the same browser workspace. The app requires a current browser with WebAssembly, IndexedDB, Web Workers and Web Locks (HTTPS or localhost). The build bundles the SQLite WASM asset; no application server or database server is needed.
 
-Data belongs to the browser profile and origin. Clearing site data removes it; private browsing storage can disappear when the session ends. Browser backup import/export and Google connectivity are follow-up work. Desktop tray, filesystem dialogs and background native notifications are not part of the web runtime.
+Data belongs to the browser profile and origin. Clearing site data removes it; private browsing storage can disappear when the session ends. Export and import full workspace backups from Settings → Data; IndexedDB is not an independent backup. Optional Google uses a Web OAuth client and memory-only tokens. Notifications and sync run while the application is open and may be delayed by browser suspension. Desktop tray and OS updater controls are outside the web runtime.
 
 ## Validation
 
@@ -58,10 +60,13 @@ corepack pnpm test:unit
 corepack pnpm test:db
 corepack pnpm exec playwright install chromium
 corepack pnpm test:ui
-corepack pnpm build && corepack pnpm test:production
+corepack pnpm build && corepack pnpm test:production && corepack pnpm test:offline
+corepack pnpm measure:storage
 ```
 
 Browser tests build a static test bundle and run real Chromium with isolated profiles. The test-only failure/fixture hooks are excluded from the production build. `test:db` executes all SQLite domain tests under Node without Electron ABI skips. For a complete gate, run `corepack pnpm test:validate`.
+
+See [Vercel/static deployment instructions](docs/deployment.md), [Google Web OAuth setup](docs/google-browser-setup.md), [backup and recovery instructions](docs/workspace-backups.md), and [measured performance](docs/performance/browser-workspace.md). Preview and production origins have separate workspaces; transfer data through export/import.
 
 ## Other docs
 

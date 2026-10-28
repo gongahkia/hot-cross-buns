@@ -185,7 +185,7 @@ for (const theme of ["light", "dark"] as const) {
 test("Markdown style choices apply to note content and survive reopening", async () => {
   await planner(async (page) => {
     await navigate(page, "Notes");
-    await page.getByRole("button", { name: "New note", exact: true }).click();
+    await page.getByRole("button", { name: "Add a note", exact: true }).click();
     await page.getByRole("textbox", { name: "Note title", exact: true }).fill("Formatting menu check");
     const body = page.getByRole("textbox", { name: "Note body", exact: true });
     await body.fill("A useful heading");

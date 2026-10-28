@@ -14,3 +14,6 @@ artifacts/perf/
 AGENTS.md
 dist-test/
 dist-benchmark/
+.env.local
+.env.*.local
+.vercel/

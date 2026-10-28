@@ -53,6 +53,29 @@ test('workspace replacement round trips relationships, preferences, FTS and undo
   expect(await invoke(page, 'tasks', 'get', { id: parent.id })).toMatchObject({ status: 'active' });
 });
 
+test('deleted note lists round trip without restoring tombstones or accepting broken live relationships', async ({ page }) => {
+  await ready(page);
+  const kept = await invoke(page, 'notes', 'create', { title: 'Kept document', body: 'Cinnamon' });
+  const removedList = await invoke(page, 'notes', 'createNoteList', { title: 'Removed list' });
+  const removed = await invoke(page, 'notes', 'create', { title: 'Discarded document', listId: removedList.id });
+  await invoke(page, 'notes', 'deleteNoteList', { id: removedList.id });
+  await saveArchive(page);
+  const review = await stage(page);
+  expect(review.summary.notes).toBe(1);
+  await invoke(page, 'workspace', 'confirmImport', { reviewId: review.reviewId, confirmation: 'REPLACE_WORKSPACE' });
+  await page.reload();
+  const notes = await invoke(page, 'notes', 'list');
+  expect(notes.items.map((note: any) => note.id)).toEqual([kept.id]);
+  expect(notes.lists.some((list: any) => list.id === removedList.id)).toBe(false);
+  expect((await page.evaluate(id => window.hcb!.notes.get({ id }), removed.id)).ok).toBe(false);
+  await invoke(page, '__testing', 'seedDatabase', { statements: [{ sql: 'UPDATE notes SET list_id=? WHERE id=?', values: ['missing-list', kept.id] }] });
+  await saveArchive(page);
+  await invoke(page, '__testing', 'seedDatabase', { statements: [{ sql: 'UPDATE notes SET list_id=? WHERE id=?', values: [kept.listId, kept.id] }] });
+  const invalid = await page.evaluate(() => (window.hcb as any).__testing.stageImport((window as any).archiveBytes));
+  expect(invalid).toMatchObject({ ok: false, error: { message: expect.stringContaining('broken task or note relationships') } });
+  expect(await invoke(page, 'notes', 'get', { id: kept.id })).toMatchObject({ listId: kept.listId });
+});
+
 test('invalid imports, future schemas and WAL files never replace the current workspace', async ({ page }) => {
   await ready(page);
   const task = await invoke(page, 'tasks', 'create', { title: 'Preserved sentinel', listId: 'inbox' });
@@ -200,4 +223,27 @@ test('a stale worker does not advance its active revision when a replacement fai
   expect(results.edit.ok).toBe(true);
   await page.reload();
   expect(await invoke(page, 'tasks', 'get', { id: other.id })).toMatchObject({ title: 'Survived stale import failure' });
+});
+
+test('a desktop workspace with retired local fallback gains real local resources when imported', async ({ page }) => {
+  await ready(page);
+  const now = new Date().toISOString();
+  await invoke(page, '__testing', 'seedDatabase', { statements: [
+    { sql: "INSERT INTO sync_meta(key,value) VALUES('local-fallback-retired','true')" },
+    { sql: "DELETE FROM task_lists; DELETE FROM calendars; DELETE FROM google_accounts;" },
+    { sql: "INSERT INTO google_accounts(id,google_account_id,display_name,connection_state,created_at,updated_at) VALUES('desktop','subject','Desktop Google','connected',?,?)", values: [now, now] },
+    { sql: "INSERT INTO task_lists(id,account_id,title,created_at,updated_at) VALUES('desktop-list','desktop','Google list',?,?)", values: [now, now] },
+    { sql: "INSERT INTO calendars(id,account_id,title,created_at,updated_at) VALUES('desktop-calendar','desktop','Google calendar',?,?)", values: [now, now] },
+  ] });
+  await saveArchive(page);
+  const review = await stage(page);
+  await invoke(page, 'workspace', 'confirmImport', { reviewId: review.reviewId, confirmation: 'REPLACE_WORKSPACE' });
+  const lists = await invoke(page, 'tasks', 'listTaskLists');
+  const calendars = await invoke(page, 'calendar', 'listCalendars');
+  expect(lists.items.some((list: any) => list.accountId === 'local')).toBe(true);
+  expect(calendars.items.some((calendar: any) => calendar.accountId === 'local')).toBe(true);
+  const local = lists.items.find((list: any) => list.accountId === 'local');
+  const task = await invoke(page, 'tasks', 'create', { listId: local.id, title: 'Local planning after desktop migration' });
+  await page.reload();
+  expect(await invoke(page, 'tasks', 'get', { id: task.id })).toMatchObject({ title: 'Local planning after desktop migration' });
 });

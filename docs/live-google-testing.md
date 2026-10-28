@@ -1,5 +1,7 @@
 # Live Google smoke testing
 
+**Historical Electron harness:** these commands are not part of the browser application's package scripts or validation path. Browser live consent requires the operator's Web OAuth client, authorized origin and interactive test account; follow [browser setup](google-browser-setup.md). Mocked integration tests do not prove live browser authorization.
+
 `pnpm test:live-google` is deliberately separate from normal local tests. It uses an existing signed-in HCB Electron user-data directory, never reads credentials from environment variables, and has two enforced modes.
 
 Quit every HCB instance using the selected profile before running either mode. Start and sync HCB normally once first so the profile has completed setup and can access the desired Google account.

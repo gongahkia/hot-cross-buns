@@ -460,7 +460,7 @@ test("creates and renames lists, edits tasks, completes them and switches presen
 test("creates a document and autosaves edits when moving between sections", async () => {
   await planner(async (page) => {
     await navigate(page, "Notes");
-    await page.getByRole("button", { name: "New note", exact: true }).click();
+    await page.getByRole("button", { name: "Add a note", exact: true }).click();
     await page.getByRole("textbox", { name: "Note title" }).fill("Design decisions");
     await page.getByRole("textbox", { name: "Note body" }).fill("The calendar stays visible while editing.");
     await page.getByRole("textbox", { name: "Note title" }).focus();
@@ -474,6 +474,9 @@ test("creates a document and autosaves edits when moving between sections", asyn
     await expect(page.getByTestId("tasks-board")).toBeVisible();
     await navigate(page, "Notes");
     await expect(page.getByRole("textbox", { name: "Note body" })).toContainText("Verify all editing flows");
+    // A quick return during the panel's exit can retain the user's source mode.
+    const visualMode = page.getByRole("button", { name: "Visual", exact: true });
+    if (await visualMode.isVisible()) await visualMode.click();
     await page.getByRole("textbox", { name: "Note body" }).getByRole("checkbox").first().check();
     await page.getByRole("textbox", { name: "Note title" }).focus();
     await expect.poll(async () => page.evaluate(async () => { const result = await window.hcb!.notes.list({}); return result.ok && result.data.items.some((note) => note.title === "Design decisions" && note.body.includes("- [x] Verify all editing flows")); })).toBe(true);

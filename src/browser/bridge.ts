@@ -26,12 +26,14 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
     }
   });
   let failure: HcbResult<never> | undefined;
+  let workerUnavailable = false;
   let readyResolve!: () => void;
   const ready = new Promise<void>((resolve) => { readyResolve = resolve; });
   let worker: Worker;
 
-  function fail(message: string): void {
+  function fail(message: string, stopped = false): void {
     failure = ipcError(message);
+    workerUnavailable ||= stopped;
     readyResolve();
     for (const resolve of pending.values()) resolve(failure);
     pending.clear();
@@ -53,18 +55,18 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
       }
     });
     worker.addEventListener("error", (event) => {
-      fail(event.message || "The workspace service stopped. Reload to reopen your saved workspace.");
+      fail(event.message || "The workspace service stopped. Reload to reopen your saved workspace.", true);
     });
     worker.addEventListener("messageerror", () => {
-      fail("The workspace service returned an unreadable message. Reload to retry.");
+      fail("The workspace service returned an unreadable message. Reload to retry.", true);
     });
   } catch (error) {
-    fail(error instanceof Error ? error.message : "This browser could not start the workspace service.");
+    fail(error instanceof Error ? error.message : "This browser could not start the workspace service.", true);
   }
 
   async function request(namespace: string, action: string, payload: Record<string, unknown> = {}): Promise<HcbResult<unknown>> {
     await ready;
-    if (failure && !(namespace === "workspace" && ["exportArchive", "stageImport", "confirmImport"].includes(action))) return failure;
+    if (failure && (workerUnavailable || !(namespace === "workspace" && ["exportArchive", "stageImport", "confirmImport"].includes(action)))) return failure;
     return new Promise((resolve) => {
       const id = ++nextId;
       pending.set(id, resolve);

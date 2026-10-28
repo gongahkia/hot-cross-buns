@@ -28,8 +28,10 @@ export async function stageWorkspaceImport(bytes: Uint8Array, revision: number):
     if (db.pragma('integrity_check', { simple: true }) !== 'ok') throw new Error('The backup failed its SQLite integrity check.');
     candidate = new CoreStore(db, { platform: 'web' });
     if (db.pragma('foreign_key_check').length) throw new Error('The backup contains broken database relationships.');
+    // Deleting a note list intentionally retains soft-deleted note tombstones.
+    // Their former list may be gone; live notes must still reference a real list.
     if (db.raw.selectValue(`SELECT 1 FROM tasks child LEFT JOIN tasks parent ON parent.id=child.parent_id WHERE child.parent_id IS NOT NULL AND (parent.id IS NULL OR parent.list_id!=child.list_id) LIMIT 1`) ||
-        db.raw.selectValue(`SELECT 1 FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id WHERE note.list_id IS NOT NULL AND list.id IS NULL LIMIT 1`)) {
+        db.raw.selectValue(`SELECT 1 FROM notes note LEFT JOIN note_lists list ON list.id=note.list_id WHERE note.deleted_at IS NULL AND note.list_id IS NOT NULL AND list.id IS NULL LIMIT 1`)) {
       throw new Error('The backup contains broken task or note relationships.');
     }
     // Reading the real bootstrap verifies expected application columns and JSON.

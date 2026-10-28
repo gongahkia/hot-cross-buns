@@ -1,6 +1,6 @@
 # Current product contract
 
-This describes the implemented Electron app. Older specifications and the roadmap contain future targets; they do not certify a shipped feature. README.md is intentionally outside this remediation.
+The current product is the React browser application. [The browser capability matrix](../web-migration.md) is authoritative for runtime, storage, Google authorization, backups and native replacements. The detailed planner interaction contract below was established by the Electron application and is preserved by browser tests; desktop-only menu bar, Keychain, filesystem and background-operation descriptions are historical, not shipped browser controls. Older specifications and roadmaps do not certify a shipped feature.
 
 ## Why use HCB alongside Google
 

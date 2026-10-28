@@ -13,6 +13,8 @@ Google is optional. Local tasks, notes, calendars, search, settings, and undo wo
 
 ## Requested access
 
+The repository includes `.env.example`. Vite explicitly loads environment files from the repository root, alongside `package.json`, using its documented [envDir option](https://vite.dev/config/shared-options#envdir). `.env.local` and mode-specific local files are ignored by Git.
+
 | Purpose | Scope |
 | --- | --- |
 | Stable account identity and profile | `openid`, `email`, `profile` |

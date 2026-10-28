@@ -40,9 +40,11 @@ export function NotesView(): JSX.Element {
   } = useNotesController(source);
 
   useEffect(() => {
-    if (restored.current || inspector.current || !selectedNoteId || source.dataState === "loading") return;
+    if (restored.current || source.dataState === "loading") return;
     restored.current = true;
-    void selectNote(selectedNoteId, "edit");
+    // Restore once when entering Notes. A newly saved draft must not reopen
+    // itself when the user explicitly closes its inspector.
+    if (!inspector.current && selectedNoteId) void selectNote(selectedNoteId, "edit");
   }, [selectedNoteId, source.dataState]);
 
   useEffect(() => {
@@ -79,7 +81,6 @@ export function NotesView(): JSX.Element {
     >
       <SectionSidebar><NotesSidebar
         collapsed={effectiveSidebarCollapsed}
-        onCreateNote={() => void createNote(selectedNoteViews[0]?.slice("list:".length))}
         onCreateNoteList={() => void createNoteList()}
         onToggleCollapsed={sharedSidebar ? undefined : () => setSidebarCollapsed((collapsed) => !collapsed)}
         onToggleView={toggleNoteView}
