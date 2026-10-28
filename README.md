@@ -3,23 +3,27 @@
 
 # `Hot Cross Buns` 🍞
 
-A keyboard-first browser planner for tasks, calendars, and local notes. Your workspace is saved in IndexedDB in your browser profile. Google Tasks and Calendar sync are optional; local use needs no account.
+A keyboard-first [Browser Planner](#architecture) for local tasks, calendars and notes, with optional [Google Calendar](https://calendar.google.com/calendar/) and [Tasks](https://tasks.google.com/tasks/) sync.
 
 ## Stack
 
-* React, TypeScript, Vite, Tailwind CSS, Radix UI, TanStack Query, Zustand, Zod, Lucide and Motion
-* Official SQLite WASM in a dedicated Web Worker, persisted atomically to IndexedDB
-* Vitest, Playwright and Testing Library; native SQLite is development-only regression tooling
+* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
+* Storage: [SQLite WASM](https://sqlite.org/wasm/doc/trunk/index.md), [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
+* Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) *(development only)*
+* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Vite](https://vite.dev/)
+* API: [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks), [Google Drive API](https://developers.google.com/workspace/drive/api), [Gmail API](https://developers.google.com/workspace/gmail/api)
 
 ## Features
 
-* Keyboard navigation, command palette, paginated and virtualized collections
-* Tasks, subtasks, task lists, notes, note lists and tags
-* Calendar day/week/month views, recurrence and scheduled task blocks
-* Full-text search, settings, history and undo/redo
-* Local onboarding with an Inbox, Primary calendar and Notes list
-* Optional Google Tasks/Calendar sync, Drive links/uploads and Gmail capture
-* Reviewed workspace export/import, browser storage controls and offline reloads
+* Keyboard-first navigation
+* Command Palette for quick commands and full-text search
+* Tasks and task lists *(subtasks, tags & scheduled blocks)*
+* Local notes and note lists *(autosave & internal references)*
+* Calendar recurrence and occurrence edits *(day, week & monthly views)*
+* History and undo/redo
+* Paginated and virtualized collections
+* Optional multi-account Google sync *(Tasks, Calendar, Drive links/uploads & Gmail capture)*
+* Local setup without an account, workspace backups and offline reloads
 
 ## GIF
 
@@ -29,47 +33,72 @@ A keyboard-first browser planner for tasks, calendars, and local notes. Your wor
 
 ## Architecture
 
-React → `window.hcb` → dedicated Web Worker → shared SQL domain store → SQLite WASM. IndexedDB holds the complete durable database, including undo and outbox records. Mutations resolve only after the IndexedDB transaction completes. Web Locks and revision checks coordinate tabs.
+React → `window.hcb` → Web Worker → shared SQL domain store → SQLite WASM → IndexedDB.
 
-See [the migration checkpoint](docs/web-migration.md) for capability parity, storage behavior, validation and follow-up work. The historical Electron sources remain for reference and regression tests; they are outside the browser runtime.
+IndexedDB saves the complete workspace, including settings, undo history and pending Google changes. Saves are acknowledged after the storage transaction completes; Web Locks and revision checks coordinate tabs. No application backend or database server is required. See the [migration checkpoint](docs/web-migration.md) for implementation and validation details.
 
 ## Usage
 
-Requires Node 22+ and pnpm 9.15.4 for development:
+The below instructions are for building `Hot Cross Buns` locally from source. Requires [Node.js](https://nodejs.org/en) 22+ and [pnpm](https://pnpm.io/) 9.15.4.
 
-```sh
-corepack pnpm install
-corepack pnpm dev
+1. First execute the below commands to clone `Hot Cross Buns`.
+
+```console
+$ git clone https://github.com/gongahkia/hot-cross-buns && cd hot-cross-buns
 ```
 
-Open the localhost URL printed by Vite. Finish setup using the local resources; no Google credentials are required.
+2. Then run the below to run `Hot Cross Buns` on your machine. Open the localhost URL printed by Vite and finish setup with the local Inbox, Primary calendar and Notes list. No Google account is required.
 
-```sh
-corepack pnpm build
-corepack pnpm preview
+```console
+$ corepack enable
+$ corepack pnpm install --frozen-lockfile
+$ corepack pnpm dev
 ```
 
-Deploy the generated `dist/` directory to a static HTTPS host. Keep the same origin to retain the same browser workspace. The app requires a current browser with WebAssembly, IndexedDB, Web Workers and Web Locks (HTTPS or localhost). The build bundles the SQLite WASM asset; no application server or database server is needed.
+3. Optionally run the below to run `Hot Cross Buns`' comprehensive [test suite](./tests). Browser tests use isolated Chromium profiles; database tests run under Node without Electron ABI skips.
 
-Data belongs to the browser profile and origin. Clearing site data removes it; private browsing storage can disappear when the session ends. Export and import full workspace backups from Settings → Data; IndexedDB is not an independent backup. Optional Google uses a Web OAuth client and memory-only tokens. Notifications and sync run while the application is open and may be delayed by browser suspension. Desktop tray and OS updater controls are outside the web runtime.
-
-## Validation
-
-```sh
-corepack pnpm test:unit
-corepack pnpm test:db
-corepack pnpm exec playwright install chromium
-corepack pnpm test:ui
-corepack pnpm build && corepack pnpm test:production && corepack pnpm test:offline
-corepack pnpm measure:storage
+```console
+$ corepack pnpm test:unit
+$ corepack pnpm test:db
+$ corepack pnpm exec playwright install chromium
+$ corepack pnpm test:ui
+$ corepack pnpm build && corepack pnpm test:production && corepack pnpm test:offline
+$ corepack pnpm measure:storage
 ```
 
-Browser tests build a static test bundle and run real Chromium with isolated profiles. The test-only failure/fixture hooks are excluded from the production build. `test:db` executes all SQLite domain tests under Node without Electron ABI skips. For a complete gate, run `corepack pnpm test:validate`.
+4. Run the below to build and preview the production application. Use `corepack pnpm test:validate` for the complete release gate. Test-only fixture and failure hooks are excluded from production builds.
 
-See [Vercel/static deployment instructions](docs/deployment.md), [Google Web OAuth setup](docs/google-browser-setup.md), [backup and recovery instructions](docs/workspace-backups.md), and [measured performance](docs/performance/browser-workspace.md). Preview and production origins have separate workspaces; transfer data through export/import.
+```console
+$ corepack pnpm build
+$ corepack pnpm preview
+```
+
+5. To deploy on [Vercel](docs/deployment.md), import the repository at its root. The checked-in [configuration](vercel.json) supplies the install command, build command and `dist/` output directory. Other static HTTPS hosts can serve the complete `dist/` directory, including its worker and WASM assets.
+6. Optionally open [Google Cloud Console](https://console.cloud.google.com/) and follow the [Google setup instructions](docs/google-browser-setup.md).
+    1. Enable the [Google Calendar API](https://console.cloud.google.com/marketplace/product/google/calendar-json.googleapis.com) and [Google Tasks API](https://console.cloud.google.com/marketplace/product/google/tasks.googleapis.com). Enable Drive and Gmail APIs if using those optional features.
+    2. Configure the OAuth consent screen and add test users while the app is in testing.
+    3. Create an OAuth client with application type **Web application** and register each exact localhost or deployment origin under **Authorized JavaScript origins**.
+    4. Set `VITE_GOOGLE_CLIENT_ID` in a repository-root `.env.local` or the Vercel build environment, using [.env.example](.env.example) as a reference. Restart Vite or rebuild and redeploy after changing it. Never add client secrets or tokens.
+7. Finally, if Google is configured, open **Settings → Accounts → Add Google Account** and complete browser consent. Tokens stay in memory; reconnect after reloading or when authorization expires. Local planning remains available without a connection.
+
+## Support
+
+| Browser | Support |
+| --- | --- |
+| Chromium (Linux) | ✅ Browser suites executed |
+| Other current browsers | 🧪 Require release testing |
+
+Requires WebAssembly, IndexedDB, Web Workers and Web Locks over HTTPS or localhost. Offline reloads work after the first online visit finishes downloading the application. Notifications and Google sync run while the application is open, subject to browser suspension. Historical Electron sources remain for reference and regression tests; desktop tray and OS updater controls are outside the browser runtime.
+
+Data belongs to the browser profile and origin. Localhost, preview and production URLs have separate workspaces. Use **Settings → Data** to [export or import a workspace backup](docs/workspace-backups.md). Clearing site data removes the workspace; private browsing storage can disappear when the session ends. Keep backups even when the browser grants persistent storage.
 
 ## Other docs
 
+* [Browser migration checkpoint](docs/web-migration.md)
+* [Vercel and static deployment](docs/deployment.md)
+* [Google Web OAuth setup](docs/google-browser-setup.md)
+* [Workspace backups and recovery](docs/workspace-backups.md)
+* [Measured browser performance](docs/performance/browser-workspace.md)
 * [Product requirements](docs/product/prd.md)
 * [Google sync specification](docs/specs/google-sync.md)
 * [Local data specification](docs/specs/local-data.md)
