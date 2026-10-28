@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { FirstRunOnboarding } from "./FirstRunOnboarding";
+
+afterEach(cleanup);
 
 function setupSource(): CoreViewModelSource {
   return {
@@ -17,6 +19,41 @@ function setupSource(): CoreViewModelSource {
 }
 
 describe("FirstRunOnboarding", () => {
+  it("finishes with real local resources without a Google account", async () => {
+    const user = userEvent.setup();
+    const source = setupSource();
+    source.taskLists = [{ id: "inbox", title: "Inbox", accountId: "local" }] as typeof source.taskLists;
+    source.calendarSources = [{ id: "primary", title: "Local calendar", accountId: "local", selected: true }] as typeof source.calendarSources;
+    source.googleStatus = { accounts: [], oauthClientConfigured: false, clientId: null, hasClientSecret: false };
+    source.native.capabilityReport.flags.supportsOAuthLoopback = false;
+    render(<FirstRunOnboarding source={source} />);
+    await user.click(screen.getByRole("button", { name: "Get started" }));
+    expect(screen.getByRole("heading", { name: "Your local workspace" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Connect Google" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("checkbox", { name: "Select task list Inbox" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Select calendar Local calendar" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("heading", { name: "Saved in this browser" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Finish setup" }));
+    expect(source.updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      onboardingStatus: "completed", selectedTaskListIds: ["inbox"], selectedCalendarIds: ["primary"]
+    }));
+  });
+
+  it("keeps setup open when durable settings persistence fails", async () => {
+    const user = userEvent.setup();
+    const source = setupSource();
+    source.updateSettings = vi.fn().mockResolvedValue(false);
+    render(<FirstRunOnboarding source={source} />);
+    await user.click(screen.getByRole("button", { name: "Get started" }));
+    for (let step = 0; step < 3; step++) await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Finish setup" }));
+    expect(await screen.findByText("Setup preferences were not saved.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Finish setup" })).toBeEnabled();
+  });
+
   it("requires both resource selections on the combined step and saves the five-step setup", async () => {
     const user = userEvent.setup();
     const source = setupSource();

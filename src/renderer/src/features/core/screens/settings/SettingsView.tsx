@@ -686,6 +686,7 @@ export function SettingsView({
       <SettingsSearchProvider query={settingsQuery}>
         {selectedSettingsTab === "profile" ? (
           <ProfileSettingsTab
+            googleAvailable={source.native.capabilityReport.flags.supportsOAuthLoopback === true}
             beginGoogleOAuth={beginGoogleOAuth}
             calendarSources={source.calendarSources}
             disconnectGoogle={disconnectGoogle}
@@ -706,7 +707,7 @@ export function SettingsView({
         ) : null}
 
         {selectedSettingsTab === "data" ? (
-          <DataSettingsTab settings={settings} pending={source.settingsMutationPending} updateSettings={updateSettings} runAction={beginRecoveryAction} />
+          <DataSettingsTab browserStorage={source.native.capabilityReport.platform === "web"} settings={settings} pending={source.settingsMutationPending} updateSettings={updateSettings} runAction={beginRecoveryAction} />
         ) : null}
 
         {selectedSettingsTab === "general" ? (

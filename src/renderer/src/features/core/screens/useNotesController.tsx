@@ -101,10 +101,10 @@ export function useNotesController(source: CoreViewModelSource): {
   const [noteInspectorMode, setNoteInspectorModeState] = useState<"view" | "edit">("edit");
   const [noteActionError, setNoteActionError] = useState<string | undefined>();
   const [starredNoteIds, setStarredNoteIds] = useState<Set<string>>(
-    () => new Set<string>(source.settings.starredNoteIds ?? readLocalStorageStringArray(starredNotesStorageKey))
+    () => new Set<string>(source.settings.starredNoteIds ?? (window.hcb?.workspace ? [] : readLocalStorageStringArray(starredNotesStorageKey)))
   );
   const [starredNoteAt, setStarredNoteAt] = useState<Record<string, number>>(
-    () => source.settings.starredNoteAt ?? readLocalStorageNumberRecord(starredNotesAtStorageKey)
+    () => source.settings.starredNoteAt ?? (window.hcb?.workspace ? {} : readLocalStorageNumberRecord(starredNotesAtStorageKey))
   );
   const noteAliases = useRef(new Map<string, string>());
   const localDrafts = useRef(new Map<string, NoteViewModel>());
@@ -171,11 +171,11 @@ export function useNotesController(source: CoreViewModelSource): {
   }
 
   useEffect(() => {
-    writeLocalStorageJSON(starredNotesStorageKey, [...starredNoteIds]);
+    if (!window.hcb?.workspace) writeLocalStorageJSON(starredNotesStorageKey, [...starredNoteIds]);
   }, [starredNoteIds]);
 
   useEffect(() => {
-    writeLocalStorageJSON(starredNotesAtStorageKey, starredNoteAt);
+    if (!window.hcb?.workspace) writeLocalStorageJSON(starredNotesAtStorageKey, starredNoteAt);
   }, [starredNoteAt]);
 
   useEffect(() => {

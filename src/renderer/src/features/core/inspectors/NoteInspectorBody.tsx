@@ -84,7 +84,7 @@ export function NoteInspectorSummary({
 
   return (
     <div className="grid gap-5 py-1">
-      <p className="text-[var(--text-xs)] text-text-muted">Stored on this device. Use Settings → Data to back up or export your notes.</p>
+      <p className="text-[var(--text-xs)] text-text-muted">{source.native.capabilityReport.platform === "web" ? "Saved in this browser profile. See Settings → Data for storage details." : "Stored on this device. Use Settings → Data to back up or export your notes."}</p>
       <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-4">
         <span aria-hidden="true" className="mt-2 size-3.5 rounded-hcbSm bg-info" />
         <div className="min-w-0">

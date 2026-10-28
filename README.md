@@ -3,25 +3,21 @@
 
 # `Hot Cross Buns` 🍞
 
-A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://calendar.google.com/calendar/) and [Tasks](https://tasks.google.com/tasks/).
+A keyboard-first browser planner for tasks, calendars, and local notes. Your workspace is saved in IndexedDB in your browser profile. Google integration is deferred while the browser migration is completed; local use needs no account.
 
 ## Stack
 
-* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Electron](https://www.electronjs.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
-* Backend: [Node.js](https://nodejs.org/en), [SQLite](https://www.sqlite.org/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
-* Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/)
-* Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Electron Vite](https://electron-vite.org/), [Vite](https://vite.dev/), [electron-builder](https://www.electron.build/)
-* API: [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks)
+* React, TypeScript, Vite, Tailwind CSS, Radix UI, TanStack Query, Zustand, Zod, Lucide and Motion
+* Official SQLite WASM in a dedicated Web Worker, persisted atomically to IndexedDB
+* Vitest, Playwright and Testing Library; native SQLite is development-only regression tooling
 
 ## Features
 
-* Keyboard-first navigation
-* Comprehensive undo/redo tree
-* Local notes, tags, full-text search
-* Multi-account Google support out-of-the-box
-* Command Palette for quick commands and indexed search
-* Syncs across Google Tasks *(task lists & subtasks)*
-* Syncs across Google Calendar *(agenda, day, week & monthly views)*
+* Keyboard navigation, command palette, paginated and virtualized collections
+* Tasks, subtasks, task lists, notes, note lists and tags
+* Calendar day/week/month views, recurrence and scheduled task blocks
+* Full-text search, settings, history and undo/redo
+* Local onboarding with an Inbox, Primary calendar and Notes list
 
 ## GIF
 
@@ -31,48 +27,41 @@ A keyboard-first [Desktop Planner](#architecture) for [Google Calendar](https://
 
 ## Architecture
 
-![](assets/reference/hot-cross-buns-architecture.png)
+React → `window.hcb` → dedicated Web Worker → shared SQL domain store → SQLite WASM. IndexedDB holds the complete durable database, including undo and outbox records. Mutations resolve only after the IndexedDB transaction completes. Web Locks and revision checks coordinate tabs.
+
+See [the migration checkpoint](docs/web-migration.md) for capability parity, storage behavior, validation and follow-up work. The historical Electron sources remain for reference and regression tests; they are outside the browser runtime.
 
 ## Usage
 
-The below instructions are for building `Hot Cross Buns` locally from source.
+Requires Node 22+ and pnpm 9.15.4 for development:
 
-1. First execute the below commands to clone `Hot Cross Buns`.
-
-```console
-$ git clone https://github.com/gongahkia/hot-cross-buns && cd hot-cross-buns
+```sh
+corepack pnpm install
+corepack pnpm dev
 ```
 
-2. Then run the below to run `Hot Cross Buns` on your machine.
+Open the localhost URL printed by Vite. Finish setup using the local resources; no Google credentials are required.
 
-```console
-$ corepack enable
-$ corepack pnpm install
-$ corepack pnpm dev
+```sh
+corepack pnpm build
+corepack pnpm preview
 ```
 
-3. Optionally run the below to run `Hot Cross Buns`' comprehensive [test suite](./tests).
+Deploy the generated `dist/` directory to a static HTTPS host. Keep the same origin to retain the same browser workspace. The app requires a current browser with WebAssembly, IndexedDB, Web Workers and Web Locks (HTTPS or localhost). The build bundles the SQLite WASM asset; no application server or database server is needed.
 
-```console
-$ corepack pnpm test:unit
-$ corepack pnpm test:db
-$ corepack pnpm test:security
+Data belongs to the browser profile and origin. Clearing site data removes it; private browsing storage can disappear when the session ends. Browser backup import/export and Google connectivity are follow-up work. Desktop tray, filesystem dialogs and background native notifications are not part of the web runtime.
+
+## Validation
+
+```sh
+corepack pnpm test:unit
+corepack pnpm test:db
+corepack pnpm exec playwright install chromium
+corepack pnpm test:ui
+corepack pnpm build && corepack pnpm test:production
 ```
 
-4. Open [Google Cloud Console](https://console.cloud.google.com/) and do the following.
-    1. Create or select a Google Cloud project, then enable the [Google Calendar API](https://console.cloud.google.com/marketplace/product/google/calendar-json.googleapis.com) and [Google Tasks API](https://console.cloud.google.com/marketplace/product/google/tasks.googleapis.com).
-    2. Under **Google Auth platform**, configure the OAuth consent screen as **External**, supply the required app details, and add your Google account as a test user while the app is in testing.
-    3. Under **Clients**, create an OAuth client with application type **Desktop app**. 
-    4. Copy the desktop client ID. The client secret is optional. 
-5. Finally, within `Hot Cross Buns`, open **Settings → Profile**, save the desktop OAuth client ID (and optional client secret), then complete browser consent.
-
-## Support
-
-| Operating system | Support |
-| --- | --- |
-| macOS | ✅ Supported |
-| Linux | ✅ Supported |
-| Windows (WSL2) | 🧪 Experimental |
+Browser tests build a static test bundle and run real Chromium with isolated profiles. The test-only failure/fixture hooks are excluded from the production build. `test:db` executes all SQLite domain tests under Node without Electron ABI skips. For a complete gate, run `corepack pnpm test:validate`.
 
 ## Other docs
 

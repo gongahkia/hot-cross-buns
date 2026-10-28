@@ -41,6 +41,7 @@ import {
 } from "./shellUtils";
 import { useAppliedTheme } from "./theme";
 import { usePaneWorkspace } from "./usePaneWorkspace";
+import { useWorkspaceRefresh } from "./useWorkspaceRefresh";
 
 const DeferredCommandPalette = lazy(() =>
   import("../../components/CommandPalette").then((module) => ({
@@ -152,6 +153,8 @@ export function AppShell(): JSX.Element {
     source.dataState !== "loading" &&
     source.dataState !== "offline" &&
     source.dataState !== "error";
+
+  useWorkspaceRefresh(source.refresh, Boolean(currentInspector) || settingsOpen || quickAddOpen || commandPaletteOpen || onboardingVisible);
 
   const navigateToSection = useCallback((sectionId: SectionId, afterNavigate?: () => void): void => {
     void closeInspector().then((allowed) => {

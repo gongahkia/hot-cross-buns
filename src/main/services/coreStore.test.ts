@@ -25,10 +25,7 @@ afterEach(() => {
   }
 });
 
-// better-sqlite3 is compiled by Electron's postinstall hook. Node/Vitest has a
-// different ABI in this repository, so these run in Electron smoke/CI where
-// the ABI matches instead of failing every Node-only unit invocation.
-describe.skipIf(process.versions.modules !== "130")("CoreStore", () => {
+describe("CoreStore", () => {
   it("projects durable Google queue state onto events and recurring occurrences without labeling local writes as cloud delivery", () => {
     const store = createStore();
     store.dispatch("calendar", "create", { calendarId: "primary", title: "Local", startsAt: "2027-01-12T09:00:00Z", endsAt: "2027-01-12T10:00:00Z" });

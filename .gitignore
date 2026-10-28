@@ -12,3 +12,4 @@ artifacts/perf/
 .DS_Store
 *.log
 AGENTS.md
+dist-test/

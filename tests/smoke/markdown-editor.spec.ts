@@ -1,5 +1,6 @@
+import { browserApp, type BrowserApplication } from "./browserApp";
 import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
-import { _electron as electron, expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -16,7 +17,7 @@ async function sourceValue(page: Page, name: string) {
 
 test("edits and persists rich Markdown consistently in notes, task notes and event descriptions", async () => {
   const profile = mkdtempSync(join(tmpdir(), "hcb-rich-markdown-"));
-  const app = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`], env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
+  const app = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`], env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
   const errors: string[] = [];
   try {
     const page = await app.firstWindow(); page.on("pageerror", (error) => errors.push(error.message));

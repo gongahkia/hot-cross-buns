@@ -24,6 +24,7 @@ type OptionalWorkspaceService = GoogleOptionalWorkspaceService;
 type ReconfigureOptionalAccessResult = { ok: boolean; message: string };
 
 interface ProfileSettingsTabProps {
+  googleAvailable?: boolean;
   beginGoogleOAuth: (requestedServices?: Array<"drive" | "driveUpload" | "gmail">) => Promise<void>;
   calendarSources: CalendarListSummary[];
   disconnectGoogle: (accountId?: string) => Promise<void>;
@@ -43,6 +44,7 @@ interface ProfileSettingsTabProps {
 }
 
 export function ProfileSettingsTab({
+  googleAvailable = true,
   beginGoogleOAuth,
   calendarSources,
   disconnectGoogle,
@@ -90,6 +92,11 @@ export function ProfileSettingsTab({
 
   return (
     <div className="grid gap-5">
+      {!googleAvailable ? (
+        <SettingsGroup title="Local workspace">
+          <p className="text-[var(--text-sm)] text-text-secondary">Your planner saves in this browser. Google connection and sync are unavailable in this release; continue using your local task lists and calendars below.</p>
+        </SettingsGroup>
+      ) : <>
       <SettingsGroup title="Google OAuth client">
         <SettingsControlRow
           description={googleStatus.oauthClientConfigured ? "Google Cloud OAuth client saved." : "Missing"}
@@ -262,6 +269,7 @@ export function ProfileSettingsTab({
           onReconfigure={reconfigureOptionalAccess}
         />
       ) : null}
+      </>}
 
       <SettingsGroup title="Task lists">
         {visibleAccounts.length > 1 ? (

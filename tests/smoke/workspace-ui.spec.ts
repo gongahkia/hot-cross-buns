@@ -97,7 +97,6 @@ test("restores the active app pane and sends webpage links to the default browse
         "pane.split.horizontal": "CmdOrCtrl+D", "pane.split.vertical": "CmdOrCtrl+Shift+D",
         "pane.create": "CmdOrCtrl+Alt+S", "web.tab.create": "CmdOrCtrl+Alt+T"
       } });
-      localStorage.removeItem("hcb.paneWorkspace.v1");
     });
     await page.reload();
     await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-current", "page");
@@ -109,14 +108,12 @@ test("restores the active app pane and sends webpage links to the default browse
     await expect(page.getByTestId("pane-leaf")).toHaveCount(1);
     await page.getByRole("button", { name: "Open note Browser handoff", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Note title" })).toHaveValue("Browser handoff");
-    await app.evaluate(({ shell }) => {
-      const state = globalThis as typeof globalThis & { openedPlannerLinks: string[] };
-      state.openedPlannerLinks = [];
-      shell.openExternal = async (url) => { state.openedPlannerLinks.push(url); };
-    });
     const appUrl = page.url();
+    const opened = page.waitForEvent("popup");
     await page.getByRole("link", { name: "Project reference", exact: true }).click();
-    await expect.poll(() => app.evaluate(() => (globalThis as typeof globalThis & { openedPlannerLinks: string[] }).openedPlannerLinks)).toEqual(["https://example.com/docs"]);
+    const popup = await opened;
+    await expect.poll(() => popup.url()).toBe("https://example.com/docs");
+    await popup.close();
     expect(page.url()).toBe(appUrl);
     await expect(page.locator("webview")).toHaveCount(0);
     await expect(page.getByRole("textbox", { name: "Note title" })).toHaveValue("Browser handoff");
@@ -239,9 +236,8 @@ test("keeps the mini calendar visible and synchronizes dates across sections and
     await page.evaluate(async () => {
       await window.hcb!.settings.update({ theme: "dark" });
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
-      const preferences = JSON.parse(localStorage.getItem("hcb.panePreferences.v1") ?? "{}");
-      preferences.default = { ...preferences.default, "navigation.collapsed": true };
-      localStorage.setItem("hcb.panePreferences.v1", JSON.stringify(preferences));
+      const saved = await window.hcb!.workspace.setPreference({ pane: "default", key: "navigation.collapsed", value: true });
+      if (!saved.ok) throw new Error(saved.error.message);
     });
     await page.reload();
     await expect(mini).toBeVisible();
@@ -285,10 +281,9 @@ test("uses the display timezone for mini-calendar Today across leap day and midn
 test("navigates calendar views, filters sources, edits in context and preserves drafts", async () => {
   await planner(async (page) => {
     // Existing profiles that selected the retired pop-up mode must dock too.
-    await page.evaluate(() => {
-      const preferences = JSON.parse(localStorage.getItem("hcb.panePreferences.v1") ?? "{}");
-      preferences.default = { ...preferences.default, "inspector.docked": false };
-      localStorage.setItem("hcb.panePreferences.v1", JSON.stringify(preferences));
+    await page.evaluate(async () => {
+      const saved = await window.hcb!.workspace.setPreference({ pane: "default", key: "inspector.docked", value: false });
+      if (!saved.ok) throw new Error(saved.error.message);
     });
     await page.reload();
     await expect(page.getByTestId("app-shell")).toBeVisible();
@@ -568,7 +563,7 @@ test("autosaves inspector fields and supports copy, duplicate, delete and both m
     await page.getByRole("button", { name: "Item actions", exact: true }).click();
     await expect(page.getByRole("menuitem")).toHaveText(["Cut", "Copy", "Duplicate", "Delete"]);
     await page.getByRole("menuitem", { name: "Copy", exact: true }).click();
-    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toContain("Architecture review\n\nReview the column assignment algorithm.");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("Architecture review\n\nReview the column assignment algorithm.");
     await page.getByRole("button", { name: "Item actions", exact: true }).click();
     await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
     await expect(title).toHaveValue("Architecture review (copy)");

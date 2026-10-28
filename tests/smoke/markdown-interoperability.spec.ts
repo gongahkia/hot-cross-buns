@@ -1,4 +1,5 @@
-import { _electron as electron, expect, test } from "@playwright/test";
+import { browserApp, type BrowserApplication } from "./browserApp";
+import { expect, test } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,7 +9,7 @@ const modifier = process.platform === "darwin" ? "Meta" : "Control";
 
 test("retains complex clipboard content, cross-mode history and composition input", async () => {
   const profile = mkdtempSync(join(tmpdir(), "hcb-markdown-interop-"));
-  const app = await electron.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`], env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
+  const app = await browserApp.launch({ args: [resolve(__dirname, "../.."), `--user-data-dir=${profile}`], env: { ...process.env, NODE_ENV: "test", HCB_TEST_DATABASE_ROOT: profile } });
   try {
     const page = await app.firstWindow();
     const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
@@ -59,7 +60,7 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     await expect(body.locator("blockquote")).toHaveCount(0);
     await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();
     await body.press("Escape"); await body.fill(""); await body.focus();
-    const cdp = await app.context().newCDPSession(page);
+    const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.imeSetComposition", { text: "日本", selectionStart: 2, selectionEnd: 2 });
     await expect(body).toContainText("日本");
     await cdp.send("Input.insertText", { text: "日本語" });

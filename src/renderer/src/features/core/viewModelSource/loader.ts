@@ -81,7 +81,7 @@ export async function loadCoreData(
   requestedCalendarRange?: { start: string; end: string }
 ): Promise<CoreDataSnapshot> {
   if (!window.hcb) {
-    throw new Error("Preload bridge is unavailable.");
+    throw new Error("The workspace service is unavailable. Reload the page to retry.");
   }
 
   const hcb = window.hcb;

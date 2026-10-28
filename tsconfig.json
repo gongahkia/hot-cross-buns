@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -14,26 +18,43 @@
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
-      "@main/*": ["src/main/*"],
-      "@preload/*": ["src/preload/*"],
-      "@renderer/*": ["src/renderer/src/*"],
-      "@shared/*": ["src/shared/*"]
+      "@main/*": [
+        "src/main/*"
+      ],
+      "@preload/*": [
+        "src/preload/*"
+      ],
+      "@renderer/*": [
+        "src/renderer/src/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ],
+      "@browser/*": [
+        "src/browser/*"
+      ]
     },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["node", "vite/client", "vitest/globals"]
+    "types": [
+      "node",
+      "vite/client",
+      "vitest/globals"
+    ]
   },
   "include": [
-    "electron.vite.config.ts",
     "playwright.config.ts",
     "scripts/**/*.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",
     "vitest.config.ts",
-    "vitest.setup.ts"
+    "vitest.setup.ts",
+    "vite.config.ts"
   ],
-  "exclude": ["src/renderer/src/test/**"]
+  "exclude": [
+    "src/renderer/src/test/**"
+  ]
 }

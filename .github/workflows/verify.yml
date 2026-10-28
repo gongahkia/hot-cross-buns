@@ -27,13 +27,15 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Build and typecheck
         run: pnpm build
       - name: Unit and mocked Google transport tests
         run: pnpm test:unit
-      - name: Electron SQLite tests
+      - name: SQLite domain regression tests
         run: pnpm test:db
-      - name: Electron interaction and persistence tests
+      - name: Browser interaction and IndexedDB persistence tests
         run: pnpm test:ui
       - name: Upload UI evidence
         if: always()
@@ -47,6 +49,5 @@ jobs:
             output/playwright-results.xml
             output/ui-review/
 
-# Live Google tests, performance scale tests, packaging, signing, and
-# notarization intentionally remain release/operator actions. They need a
-# user-owned signed-in profile, controlled hardware, or private credentials.
+# Google integration is tested with mocked transport; live Google support is a follow-up.
+# The dist/ directory is the static web distribution.

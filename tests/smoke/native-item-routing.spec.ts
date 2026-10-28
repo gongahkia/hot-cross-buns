@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test, planner } from "./planner";
 
-test("native item links reveal their exact targets across lazy sections and Today resets the date", async () => {
+test("browser item links reveal their exact targets across lazy sections and Today resets the date", async () => {
   await planner(async (page, app) => {
     const ids = await page.evaluate(async () => {
       const api = window.hcb!;
@@ -12,9 +12,12 @@ test("native item links reveal their exact targets across lazy sections and Toda
       window.dispatchEvent(new Event("hcb:core-data-invalidated"));
       return { event: event.data.id, task: task.data.id, note: note.data.id };
     });
-    const open = (kind: string, id?: string) => app.evaluate(({ BrowserWindow }, route) => {
-      BrowserWindow.getAllWindows()[0].webContents.send("hcb:native-action", { type: "openRoute", route });
-    }, { kind, ...(id ? { id } : {}) });
+    const open = async (kind: string, id?: string) => {
+      if (kind === "today") {
+        await page.getByRole("button", { name: "Close inspector", exact: true }).click();
+        await page.getByRole("button", { name: "Jump to today", exact: true }).click();
+      } else await page.evaluate(({kind, id}) => window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind, id } })), {kind, id});
+    };
     await open("event", ids.event);
     await expect(page.getByRole("textbox", { name: "Event title", exact: true })).toHaveValue("Native March target");
     await expect.poll(async () => {

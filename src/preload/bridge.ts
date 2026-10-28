@@ -101,7 +101,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           {},
           plannerWorkspaceResultSchema
         ),
-      listTasks: async (payload): Promise<HcbResult<PlannerTaskPage>> => {
+      listTasks: async (payload: unknown): Promise<HcbResult<PlannerTaskPage>> => {
         const request = plannerTaskListRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid task list request");
@@ -114,7 +114,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           plannerTaskPageResultSchema
         );
       },
-      saveTask: async (payload): Promise<HcbResult<PlannerTaskMutationResult>> => {
+      saveTask: async (payload: unknown): Promise<HcbResult<PlannerTaskMutationResult>> => {
         const request = plannerSaveTaskRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid task change request");
@@ -127,7 +127,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           plannerTaskMutationResultEnvelopeSchema
         );
       },
-      completeTask: async (payload): Promise<HcbResult<PlannerTaskMutationResult>> => {
+      completeTask: async (payload: unknown): Promise<HcbResult<PlannerTaskMutationResult>> => {
         const request = plannerCompleteTaskRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid task completion request");
@@ -156,7 +156,7 @@ export function createHcbApi(ipc: IpcBridge): HcbApi {
           {},
           settingsGetResultSchema
         ),
-      save: async (payload): Promise<HcbResult<AppSettings>> => {
+      save: async (payload: unknown): Promise<HcbResult<AppSettings>> => {
         const request = settingsSaveRequestSchema.safeParse(payload);
         if (!request.success) {
           return validationResult("Invalid settings update");

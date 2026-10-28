@@ -113,10 +113,10 @@ export function OverviewTab({
           />
       </DiagnosticSection>
 
-      <DiagnosticSection title="Cache">
+      <DiagnosticSection title="Storage">
         <DiagnosticRow
           label="Database"
-          value={summary?.native?.paths?.find((path) => path.role === "data")?.redactedPath ?? "Unavailable"}
+          value={source.native?.capabilityReport.platform === "web" ? "IndexedDB · this browser profile" : summary?.native?.paths?.find((path) => path.role === "data")?.redactedPath ?? "Unavailable"}
           mono
         />
       </DiagnosticSection>

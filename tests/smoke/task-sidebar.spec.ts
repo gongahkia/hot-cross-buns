@@ -38,13 +38,13 @@ test("a previously saved starred view returns to All tasks", async () => {
   await planner(async (page) => {
     await navigate(page, "Tasks");
     await page.getByRole("complementary", { name: "Task board navigation" }).getByRole("button", { name: /^Inbox/ }).click();
-    await page.evaluate(() => {
-      const key = "hcb.panePreferences.v1";
-      const preferences = JSON.parse(localStorage.getItem(key) ?? "{}");
-      const pane = Object.values(preferences).find((value: any) => value["tasks.filter"]) as Record<string, unknown> | undefined;
+    await page.evaluate(async () => {
+      const result = await window.hcb!.workspace.getPreferences();
+      if (!result.ok) throw new Error(result.error.message);
+      const pane = Object.entries(result.data).find(([, value]: any) => value["tasks.filter"])?.[0];
       if (!pane) throw new Error("Expected a persisted task filter");
-      pane["tasks.filter"] = { mode: "starred", listIds: null };
-      localStorage.setItem(key, JSON.stringify(preferences));
+      const saved = await window.hcb!.workspace.setPreference({ pane, key: "tasks.filter", value: { mode: "starred", listIds: null } });
+      if (!saved.ok) throw new Error(saved.error.message);
     });
     await page.reload();
     const sidebar = page.getByRole("complementary", { name: "Task board navigation" });

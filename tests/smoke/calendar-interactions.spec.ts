@@ -291,7 +291,7 @@ test("event context menu supports keyboard dismissal, full-text copy, duplicatio
     await expect(menu).toBeHidden(); await expect(chip).toBeFocused();
     await chip.click({ button: "right" });
     await menu.getByRole("menuitem", { name: "Copy text" }).click();
-    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe(`Context planning\n\n${notes}`);
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(`Context planning\n\n${notes}`);
     await chip.click({ button: "right" });
     await capture(page, "event-context-menu");
     await menu.getByRole("menuitem", { name: "Duplicate event" }).click();

@@ -6,7 +6,11 @@
   "include": [
     "src/main/**/*.ts",
     "src/shared/**/*.ts",
-    "electron.vite.config.ts"
+    "src/browser/**/*.ts",
+    "src/renderer/src/vite-env.d.ts"
   ],
-  "exclude": ["src/renderer/**", "src/main/**/*.test.ts"]
+  "exclude": [
+    "src/main/**/*.test.ts",
+    "src/browser/**/*.test.ts"
+  ]
 }

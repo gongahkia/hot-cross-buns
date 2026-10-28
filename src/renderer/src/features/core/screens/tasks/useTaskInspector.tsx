@@ -107,7 +107,10 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     setDraftState((current) => {
       const resolved =
         typeof next === "function" ? (next as (value: TaskDraft) => TaskDraft)(current) : next;
-      taskDraftRef.current = resolved;
+      // The editor keeps live keystrokes in this ref without rerendering its
+      // parent. A resource refresh can call a no-op state updater; copying its
+      // older baseline back into the ref would silently discard those edits.
+      if (resolved !== current) taskDraftRef.current = resolved;
       return resolved;
     });
   }, []);

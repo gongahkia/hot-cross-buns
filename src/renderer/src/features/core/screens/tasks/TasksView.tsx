@@ -76,10 +76,10 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
   }, [selectedBoardView.mode, setSelectedBoardView]);
   const [schedulingTask, setSchedulingTask] = useState<TaskViewModel | null>(null);
   const [starredTaskIds, setStarredTaskIds] = useState<Set<string>>(
-    () => new Set<string>(source.settings.starredTaskIds ?? readLocalStorageStringArray(starredTasksStorageKey))
+    () => new Set<string>(source.settings.starredTaskIds ?? (window.hcb?.workspace ? [] : readLocalStorageStringArray(starredTasksStorageKey)))
   );
   const [starredTaskAt, setStarredTaskAt] = useState<Record<string, number>>(
-    () => source.settings.starredTaskAt ?? readLocalStorageNumberRecord(starredTasksAtStorageKey)
+    () => source.settings.starredTaskAt ?? (window.hcb?.workspace ? {} : readLocalStorageNumberRecord(starredTasksAtStorageKey))
   );
   const [listSorts, setListSorts] = useState<Record<string, TaskListSort>>(source.settings.taskListSorts ?? {});
   const handledCommandNonce = useRef<number | null>(null);

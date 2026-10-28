@@ -2,34 +2,27 @@
   "name": "hot-cross-buns",
   "version": "5.0.1",
   "private": true,
-  "description": "Keyboard-first desktop planner combining Google Tasks, Calendar, and local notes.",
-  "main": "out/main/index.js",
+  "description": "Keyboard-first browser planner with an IndexedDB workspace.",
   "packageManager": "pnpm@9.15.4",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
-    "postinstall": "electron-builder install-app-deps",
-    "dev": "electron-vite dev",
-    "build": "corepack pnpm typecheck && corepack pnpm typecheck:core && corepack pnpm exec electron-vite build",
+    "dev": "vite",
+    "build": "corepack pnpm typecheck && corepack pnpm typecheck:core && vite build",
     "typecheck": "tsc --noEmit",
     "typecheck:core": "tsc --noEmit -p tsconfig.core.json",
     "test": "corepack pnpm test:unit",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:smoke": "corepack pnpm build && corepack pnpm test:ui",
-    "test:smoke:1k": "HCB_PERF_COUNT=1000 corepack pnpm test:perf",
-    "test:smoke:5k": "HCB_PERF_COUNT=5000 corepack pnpm test:perf",
-    "test:smoke:10k": "HCB_PERF_COUNT=10000 corepack pnpm test:perf",
-    "test:live-google": "corepack pnpm build && corepack pnpm exec playwright test --config playwright.live-google.config.ts",
-    "test:perf": "corepack pnpm build && tsx scripts/perf-smoke.ts",
-    "profile:startup": "corepack pnpm build && tsx scripts/startup-profile.ts",
-    "test:release-gate": "corepack pnpm build && corepack pnpm test:unit && corepack pnpm test:db && corepack pnpm test:ui",
+    "test:release-gate": "corepack pnpm build && corepack pnpm test:production && corepack pnpm test:unit && corepack pnpm test:db && corepack pnpm test:ui",
     "test:db": "node scripts/run-core-store-tests.mjs",
     "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts",
-    "pack:mac:dir": "corepack pnpm build && node scripts/prepare-mac-icon.mjs && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --config electron-builder.config.cjs --mac --dir --publish never",
-    "test:packaged": "corepack pnpm pack:mac:dir && tsx scripts/packaged-smoke.ts",
     "test:ui": "node scripts/run-ui-tests.mjs",
-    "test:validate": "corepack pnpm test:release-gate"
+    "test:validate": "corepack pnpm test:release-gate",
+    "preview": "vite preview",
+    "measure:storage": "node scripts/measure-browser-storage.mjs",
+    "test:production": "node scripts/check-web-build.mjs"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
@@ -53,7 +46,6 @@
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",
     "@tiptap/starter-kit": "3.32.0",
-    "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -68,7 +60,8 @@
     "rrule": "2.8.1",
     "tailwind-merge": "^3.3.0",
     "zod": "^3.24.1",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.2",
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
@@ -84,8 +77,6 @@
     "autoprefixer": "^10.4.20",
     "cross-env": "7.0.3",
     "electron": "^33.2.1",
-    "electron-builder": "^26.8.1",
-    "electron-vite": "^2.3.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
     "shadcn": "^3.0.0",
@@ -93,6 +84,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "better-sqlite3": "^12.10.0"
   }
 }

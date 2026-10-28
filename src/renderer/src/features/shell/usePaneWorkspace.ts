@@ -24,36 +24,71 @@ function readPaneWorkspaceState(): PaneWorkspaceState {
 }
 
 export function usePaneWorkspace(source?: Pick<CoreViewModelSource, "settings" | "dataState" | "updateSettings">) {
-  const [state, setState] = useState<PaneWorkspaceState>(readPaneWorkspaceState);
+  const [state, setState] = useState<PaneWorkspaceState>(() => {
+    if (!source) return readPaneWorkspaceState();
+    const root = createDefaultPaneTree();
+    return { focusedPaneId: root.id, root };
+  });
   const hydrated = useRef(false);
-  const [preferencesReady, setPreferencesReady] = useState(!source);
+  const durableState = useRef(state);
+  const requestedState = useRef(state);
+  const navigationGeneration = useRef(0);
+  const persist = useRef(source?.updateSettings);
+  persist.current = source?.updateSettings;
   useEffect(() => {
     if (!source || hydrated.current || !["ready", "empty"].includes(source.dataState)) return;
     hydrated.current = true;
-    const saved = sanitizeStoredPaneWorkspace(source.settings.paneWorkspace);
-    if (saved) {
-      const updatedAt = Number(source.settings.paneWorkspace?.updatedAt) || 0;
-      setState((current) => updatedAt >= (current.updatedAt ?? 0) ? { ...saved, updatedAt } : current);
+    const raw = source.settings.paneWorkspace;
+    const saved = sanitizeStoredPaneWorkspace(raw);
+    if ((saved || raw == null) && navigationGeneration.current === 0) {
+      const updatedAt = Number(raw?.updatedAt) || 0;
+      const restored = saved ? { ...saved, updatedAt } : durableState.current;
+      durableState.current = restored;
+      requestedState.current = restored;
+      setState(restored);
+      // Persist a new pane's identity and retire legacy split/web layouts once.
+      // The settings queue places this before any subsequent user navigation;
+      // completion never changes the route, and failures use the normal error UI.
+      if (!raw || JSON.stringify({ focusedPaneId: raw.focusedPaneId, root: raw.root }) !== JSON.stringify({ focusedPaneId: restored.focusedPaneId, root: restored.root })) {
+        void source.updateSettings({ paneWorkspace: restored }).catch(() => {
+          window.dispatchEvent(new CustomEvent("hcb:save-feedback", { detail: "Workspace layout could not be saved. Your previous saved workspace has been preserved." }));
+        });
+      }
     }
-    setPreferencesReady(true);
   }, [source?.dataState, source?.settings.paneWorkspace]);
 
-  const savedPreferences = JSON.stringify(source?.settings.paneWorkspace);
-  useEffect(() => {
-    if (!source || !preferencesReady || savedPreferences === JSON.stringify(state)) return;
-    const timer = window.setTimeout(() => { void source.updateSettings({ paneWorkspace: state }); }, 300);
-    return () => window.clearTimeout(timer);
-  }, [preferencesReady, state, savedPreferences, source?.updateSettings]);
-
-  useEffect(() => { writeLocalStorageJSON(paneWorkspaceStorageKey, state); }, [state]);
+  useEffect(() => { if (!source) writeLocalStorageJSON(paneWorkspaceStorageKey, state); }, [state, source]);
 
   const replaceFocusedWithSection = useCallback((sectionId: SectionId): void => {
-    // Keep the current view visible while its next route module loads.
-    startTransition(() => setState((current) => current.root.content.sectionId === sectionId ? current : {
+    const current = requestedState.current;
+    if (current.root.content.sectionId === sectionId) return;
+    const next: PaneWorkspaceState = {
       ...current,
       updatedAt: Date.now(),
       root: { ...current.root, content: { kind: "section", sectionId } }
-    }));
+    };
+    requestedState.current = next;
+    const generation = ++navigationGeneration.current;
+    const save = persist.current;
+    if (!save) {
+      durableState.current = next;
+      startTransition(() => setState(next));
+      return;
+    }
+    // A completed navigation must survive an immediate reload. Settings writes
+    // already use a queue; keep the current route until IndexedDB acknowledges
+    // this one, and let a later click supersede a pending route transition.
+    void save({ paneWorkspace: next }).then((saved) => {
+      if (saved) durableState.current = next;
+      if (generation !== navigationGeneration.current) return;
+      requestedState.current = durableState.current;
+      startTransition(() => setState(durableState.current));
+    }).catch(() => {
+      if (generation !== navigationGeneration.current) return;
+      requestedState.current = durableState.current;
+      startTransition(() => setState(durableState.current));
+      window.dispatchEvent(new CustomEvent("hcb:save-feedback", { detail: "Navigation could not be saved. Your previous workspace is still available; try again." }));
+    });
   }, []);
 
   return useMemo(() => ({
