@@ -68,7 +68,7 @@ interface SmartSchedulePlan {
 
 type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 
-const schemaVersion = 9;
+export const schemaVersion = 9;
 const localAccountId = "local";
 // Indexed lookups for the event and, for scheduled blocks, its task. Keep queue
 // state on the existing event projection so recurring instances share it too.
@@ -545,12 +545,16 @@ export class CoreStore {
   deferSyncMutation(id: string, error: string, retryable: boolean, uncertainCreation = false): void {
     const row = this.statement("SELECT attempts FROM outbox WHERE id=?").get(id) as { attempts?: number } | undefined;
     const attempts = Number(row?.attempts ?? 0) + 1;
-    const delayMs = retryable
+    const exhausted = retryable && attempts >= 8;
+    const canRetry = retryable && !exhausted;
+    const delayMs = canRetry
       ? Math.min(15 * 60_000, 1_000 * (2 ** Math.min(attempts, 8)) + Math.floor(Math.random() * 500))
       : 0;
     this.statement("UPDATE outbox SET payload_json=json_set(payload_json,'$.__hcbUncertainCreation',json(?)),state=?,creation_started=0,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
-      .run(JSON.stringify(uncertainCreation), retryable ? "pending" : "conflict", attempts,
-        new Date(Date.now() + delayMs).toISOString(), sanitizeSyncError(error), timestamp(), id);
+      .run(JSON.stringify(uncertainCreation), canRetry ? "pending" : "conflict", attempts,
+        new Date(Date.now() + delayMs).toISOString(), sanitizeSyncError(exhausted
+          ? `Automatic delivery stopped after ${attempts} failed attempts. Review this change in Diagnostics before retrying. ${error}`
+          : error), timestamp(), id);
   }
 
   resetGoogleSyncTokens(accountId?: string): void {
@@ -571,6 +575,17 @@ export class CoreStore {
     }
     this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
       .run(metaKey, token);
+  }
+
+  /** Remote create identities are durable receipts, not disposable pull tokens. */
+  googleOperationRecord(accountId: string, key: string): JsonRecord | null {
+    const row = this.statement("SELECT value FROM sync_meta WHERE key=?").get(`google-operation:${accountId}:${key}`) as { value: string } | undefined;
+    return row ? safeJson(row.value, null) : null;
+  }
+
+  setGoogleOperationRecord(accountId: string, key: string, value: JsonRecord): void {
+    this.statement("INSERT INTO sync_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(`google-operation:${accountId}:${key}`, JSON.stringify(value));
   }
 
   isSelectedTaskList(id: string): boolean {

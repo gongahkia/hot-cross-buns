@@ -13,3 +13,4 @@ artifacts/perf/
 *.log
 AGENTS.md
 dist-test/
+dist-benchmark/

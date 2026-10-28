@@ -55,3 +55,13 @@ Historically declared but unimplemented bridge methods remain unsupported, not f
 ## Remaining work
 
 Finish the final focused navigation regression validation. Dedicated Google OAuth/sync/Drive/Gmail integration, browser backup import/export, and desktop-only background capabilities remain follow-ups. Consider a small separate revision record and page-delta persistence after the measured full-snapshot costs above. Browser application data does not use OPFS, localStorage or a server database. Legacy Electron source/tests remain development references; Electron packaging/rebuild commands and packaging dependencies were removed from the default workflow.
+
+## Completion pass in progress
+
+The foundation is preserved on the same migration branch. The earlier 84 browser cases passed across full and focused runs; the current follow-up is being revalidated rather than assuming those results cover the new work.
+
+- Extracting the existing Google sync engine into a portable shared service; browser GIS Web OAuth keeps access tokens in memory, uses verified Google identity, and requires explicit reconnection after expiry. Worker serialization and Web Locks also cover async synchronization; remote writes receive durable before/after checkpoints.
+- Adding reviewed full-workspace SQLite export/import. Candidate imports migrate on a separate connection, check integrity and foreign keys, reject future schemas and standalone WAL-mode files, and quarantine imported Google mutation queues. Review tokens are revision-bound and expire after ten minutes.
+- Added atomic revision metadata beside the snapshot to avoid cloning the full database on each read. Full snapshots still serialize every durable SQL mutation; no page-write claim is being made.
+- Adding real browser file/download/clipboard actions, tab-lifetime notifications, initialization recovery controls and production offline assets. Native-only controls are being removed from browser settings.
+- Adding Vercel static deployment configuration, a mixed-workspace benchmark and independent failure-path review. No live Google authorization or authenticated Vercel deployment has yet been verified in this pass.

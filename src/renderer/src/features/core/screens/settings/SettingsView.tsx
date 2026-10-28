@@ -549,14 +549,15 @@ export function SettingsView({
     setRecoveryMessage(result.error.message);
   }
 
-  async function beginGoogleOAuth(requestedServices: GoogleOptionalWorkspaceService[] = []): Promise<void> {
+  async function beginGoogleOAuth(requestedServices: GoogleOptionalWorkspaceService[] = [], accountId?: string): Promise<void> {
     setRecoveryMessage(null);
 
-    const result = await window.hcb?.google.beginOAuth({ requestedServices });
+    const result = await window.hcb?.google.beginOAuth({ requestedServices, accountId });
 
     if (result?.ok) {
-      setRecoveryMessage(result.data.message);
+      setRecoveryMessage(result.data.message ?? "Google authorization finished. Only granted services will sync.");
       source.refreshGoogleStatus();
+      source.refresh();
       for (const delayMs of [2_000, 5_000, 10_000]) {
         window.setTimeout(() => source.refreshGoogleStatus(), delayMs);
       }
@@ -581,8 +582,10 @@ export function SettingsView({
       for (const delayMs of [2_000, 5_000, 10_000]) {
         window.setTimeout(() => source.refreshGoogleStatus(), delayMs);
       }
-      setRecoveryMessage(result.data.message ?? "Google access was reset. Continue in your browser to reconnect.");
-      return { ok: true, message: result.data.message ?? "Google access was reset." };
+      source.refresh();
+      const browserMessage = "Google authorization finished. This session uses only the access you granted.";
+      setRecoveryMessage(result.data.message ?? browserMessage);
+      return { ok: true, message: result.data.message ?? browserMessage };
     }
 
     return { ok: false, message: result && !result.ok ? result.error.message : "Google access could not be reconfigured." };
@@ -686,7 +689,8 @@ export function SettingsView({
       <SettingsSearchProvider query={settingsQuery}>
         {selectedSettingsTab === "profile" ? (
           <ProfileSettingsTab
-            googleAvailable={source.native.capabilityReport.flags.supportsOAuthLoopback === true}
+            googleAvailable={source.native.capabilityReport.platform === "web" || source.native.capabilityReport.flags.supportsOAuthLoopback === true}
+            browserRuntime={source.native.capabilityReport.platform === "web"}
             beginGoogleOAuth={beginGoogleOAuth}
             calendarSources={source.calendarSources}
             disconnectGoogle={disconnectGoogle}
@@ -712,6 +716,7 @@ export function SettingsView({
 
         {selectedSettingsTab === "general" ? (
           <GeneralSettingsTab
+            browserRuntime={source.native.capabilityReport.platform === "web"}
             beginRecoveryAction={beginRecoveryAction}
             customRetentionAmount={customRetentionAmount}
             customRetentionUnit={customRetentionUnit}
@@ -743,11 +748,12 @@ export function SettingsView({
         ) : null}
 
         {selectedSettingsTab === "alerts" ? (
-          <AlertsSettingsTab settings={settings} updateSettings={updateSettings} />
+          <AlertsSettingsTab browserRuntime={source.native.capabilityReport.platform === "web"} notificationsAvailable={source.native.capabilityReport.flags.supportsNotifications === true} settings={settings} updateSettings={updateSettings} />
         ) : null}
 
         {selectedSettingsTab === "about" ? (
           <AboutSettingsTab
+            browserRuntime={source.native.capabilityReport.platform === "web"}
             beginRecoveryAction={beginRecoveryAction}
             diagnostics={diagnostics}
             nativeUpdaterStatus={source.native.updaterStatus}

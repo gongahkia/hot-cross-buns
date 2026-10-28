@@ -46,10 +46,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     connectedGoogleAccount?.displayName ?? connectedGoogleAccount?.email ?? source.googleStatus.account?.displayName ?? source.googleStatus.account?.email ?? "Google account";
   const nativeFlags = source.diagnosticsSummary?.native.flags ?? source.native.capabilityReport.flags;
   const notificationsAvailable = nativeFlags.supportsNotifications === true;
-  const oauthRuntimeReady =
-    nativeFlags.supportsOAuthLoopback ??
+  const browserRuntime = source.native.capabilityReport.platform === "web";
+  const oauthRuntimeReady = browserRuntime ||
+    (nativeFlags.supportsOAuthLoopback ??
     nativeFlags.supportsCredentialStorage ??
-    false;
+    false);
   const googleClientConfigured = source.googleStatus.oauthClientConfigured;
   const googleConnecting = source.googleStatus.authorizationInProgress === true;
   const googleTaskLists = source.taskLists.filter((taskList) => taskList.accountId !== "local");
@@ -168,11 +169,21 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     setSubmitting(true);
     setLocalError(null);
 
+    let enableNotifications = notificationsAvailable && (overrides.notificationsEnabled ?? notificationsEnabled);
+    if (browserRuntime && enableNotifications) {
+      const permission = await window.hcb?.native.requestNotificationPermission();
+      if (!permission?.ok || permission.data.permission !== "granted") {
+        setNotificationsEnabled(false);
+        setSubmitting(false);
+        setLocalError(permission && !permission.ok ? permission.error.message : "Notification permission was not granted. Finish setup again to continue without reminders, or allow notifications in your browser's site settings.");
+        return;
+      }
+    }
     const saved = await source.updateSettings({
       selectedTaskListIds: overrides.selectedTaskListIds ?? selectedTaskListIds,
       selectedCalendarIds: overrides.selectedCalendarIds ?? selectedCalendarIds,
       syncMode: overrides.syncMode ?? syncMode,
-      notificationsEnabled: notificationsAvailable ? overrides.notificationsEnabled ?? notificationsEnabled : false,
+      notificationsEnabled: enableNotifications,
       onboardingStatus: "completed",
       setupCompletedAt: new Date().toISOString()
     });
@@ -185,7 +196,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
   async function connectGoogle(): Promise<void> {
     if (!googleClientConfigured) {
-      setLocalError("Save a Google Desktop OAuth client ID before connecting.");
+      setLocalError(browserRuntime ? "This site needs a Google Web OAuth client configured before connecting. Continue with your local workspace." : "Save a Google Desktop OAuth client ID before connecting.");
       return;
     }
 
@@ -288,13 +299,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   : !oauthRuntimeReady
                     ? "Google OAuth browser handoff is unavailable in this runtime."
                     : googleClientConfigured
-                      ? "Open the browser to authorize Google Tasks and Calendar sync."
-                    : "Save a Desktop OAuth client ID, then connect your Google account."
+                      ? "Connect Google Tasks and Calendar in a consent popup, or continue with your local workspace."
+                    : browserRuntime ? "Google is optional. Continue with your local task list and calendar. This site needs a configured Google Web OAuth client before connecting." : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               icon={Cloud}
-              title="Google account"
+              title="Google account (optional)"
             >
-              {!googleConnected ? (
+              {!googleConnected && !browserRuntime ? (
                 <div className="grid w-full gap-2">
                   <Input
                     aria-label="Google OAuth client ID"
@@ -311,7 +322,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   />
                 </div>
               ) : null}
-              {!googleConnected ? (
+              {!googleConnected && !browserRuntime ? (
                 <Button
                   disabled={googleClientId.trim().length < 10 || googleClientSaving}
                   onClick={() => void saveGoogleClient()}
@@ -398,13 +409,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </div>
           ) : null}
 
-          {activeStep === 3 && !oauthRuntimeReady ? (
+          {activeStep === 3 && (!oauthRuntimeReady || browserRuntime) ? (
             <SetupCard title="Saved in this browser" icon={Save} description="Changes save automatically in IndexedDB before the planner confirms success. Reloading the page keeps your workspace.">
               <p className="text-[var(--text-sm)] text-text-muted">Use the same browser profile to return to your workspace. Clearing this site's browser data removes the workspace; private browsing keeps it only for that private session.</p>
             </SetupCard>
           ) : null}
 
-          {activeStep === 3 && oauthRuntimeReady ? (
+          {activeStep === 3 && oauthRuntimeReady && !browserRuntime ? (
             <SetupOption title="Sync mode" icon={RefreshCw}>
               <fieldset className="grid gap-3" aria-label="Onboarding sync mode">
                 {syncOptions.map((option) => (
@@ -438,6 +449,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
           {activeStep === 4 && notificationsAvailable ? (
             <SetupOption title="Notifications" icon={Bell}>
+              <>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <Checkbox
                   aria-label="Local notifications"
@@ -446,6 +458,8 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                 />
                 Local notifications
               </label>
+              {browserRuntime ? <p className="mt-2 text-sm text-text-muted">Your browser will ask for permission when you finish setup. Reminders work while HCB is open; they do not run after you close it.</p> : null}
+              </>
             </SetupOption>
           ) : null}
 

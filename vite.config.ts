@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
+import { offlineShell } from './scripts/build/offlineShell';
 
 // Fail builds if a future refactor pulls privileged desktop code into either
 // the rendering thread or the worker. Native SQLite remains test tooling only.
@@ -24,7 +25,7 @@ function browserGraph(): Plugin {
 export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
   base: './',
-  plugins: [react(), browserGraph()],
+  plugins: [react(), browserGraph(), offlineShell()],
   resolve: { alias: {
     '@renderer': resolve(__dirname, 'src/renderer/src'),
     '@shared': resolve(__dirname, 'src/shared'),

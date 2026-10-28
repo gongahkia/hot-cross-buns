@@ -8,7 +8,7 @@ async function stopApplication(page: import('@playwright/test').Page) {
 
 async function snapshot(page: import('@playwright/test').Page) {
   return page.evaluate(() => new Promise<{ revision: number; bytes: number[] }>((resolve, reject) => {
-    const open = indexedDB.open('hot-cross-buns-workspace', 1);
+    const open = indexedDB.open('hot-cross-buns-workspace');
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
       const db = open.result;
@@ -43,7 +43,7 @@ test('a corrupt durable SQLite snapshot is preserved and reported instead of sta
   expect((await page.evaluate(() => window.hcb!.bootstrap.get({}))).ok).toBe(true);
   await stopApplication(page);
   await page.evaluate(() => new Promise<void>((resolve, reject) => {
-    const open = indexedDB.open('hot-cross-buns-workspace', 1);
+    const open = indexedDB.open('hot-cross-buns-workspace');
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
       const db = open.result, tx = db.transaction('workspace', 'readwrite');

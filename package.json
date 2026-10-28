@@ -15,14 +15,15 @@
     "test": "corepack pnpm test:unit",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:smoke": "corepack pnpm build && corepack pnpm test:ui",
-    "test:release-gate": "corepack pnpm build && corepack pnpm test:production && corepack pnpm test:unit && corepack pnpm test:db && corepack pnpm test:ui",
+    "test:release-gate": "corepack pnpm build && corepack pnpm test:production && corepack pnpm test:offline && corepack pnpm test:unit && corepack pnpm test:db && corepack pnpm test:ui",
     "test:db": "node scripts/run-core-store-tests.mjs",
     "test:security": "vitest run --config vitest.config.ts src/main/**/*.test.ts src/preload/**/*.test.ts",
     "test:ui": "node scripts/run-ui-tests.mjs",
     "test:validate": "corepack pnpm test:release-gate",
     "preview": "vite preview",
     "measure:storage": "node scripts/measure-browser-storage.mjs",
-    "test:production": "node scripts/check-web-build.mjs"
+    "test:production": "node scripts/check-web-build.mjs",
+    "test:offline": "node scripts/check-offline-build.mjs"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",

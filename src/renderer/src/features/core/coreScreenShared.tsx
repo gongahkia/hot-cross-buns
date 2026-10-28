@@ -1,3 +1,4 @@
+import { BrowserStorageControls } from "./screens/settings/BrowserStorageControls";
 import type { KeyboardEvent, ReactNode } from "react";
 import { cachedDateTimeFormat } from "@shared/zonedTime";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
@@ -391,6 +392,7 @@ export function CacheStatePanel({ title }: { title: string }): JSX.Element | nul
           description={source.errorMessage ?? "The planner data request failed."}
           onRetry={() => source.refresh()}
         />
+        {window.hcb?.workspace?.exportArchive ? <div className="grid gap-4 p-4"><p className="text-sm text-text-secondary">The existing database has been preserved. Export it before attempting a reviewed workspace replacement.</p><BrowserStorageControls /></div> : null}
       </Panel>
     );
   }

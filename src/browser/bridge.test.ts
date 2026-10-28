@@ -16,7 +16,7 @@ class WorkerDouble extends EventTarget {
 
 class BroadcastDouble extends EventTarget {
   static instance: BroadcastDouble;
-  constructor() { super(); BroadcastDouble.instance = this; }
+  constructor(name: string) { super(); if (name === "hot-cross-buns-workspace-changes") BroadcastDouble.instance = this; }
 }
 
 beforeEach(() => { delete window.hcb; vi.stubGlobal("Worker", WorkerDouble); vi.stubGlobal("BroadcastChannel", BroadcastDouble); });

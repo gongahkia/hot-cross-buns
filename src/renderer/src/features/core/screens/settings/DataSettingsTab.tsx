@@ -1,3 +1,4 @@
+import { BrowserStorageControls } from "./BrowserStorageControls";
 import { Archive, Download, FolderOpen, RotateCcw } from "lucide-react";
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
 import { Button, Input } from "../../../../components/primitives";
@@ -14,13 +15,11 @@ export function DataSettingsTab({ settings, pending, updateSettings, runAction, 
     <div className="grid gap-5">
       <SettingsGroup title="Where your data lives">
         <p className="px-3 py-3 text-sm text-text-secondary">{browserStorage
-          ? "Tasks, calendar events, notes, settings, and undo history are saved in this site's IndexedDB storage in your current browser profile. Changes are confirmed only after the browser saves them. Google sync is unavailable in this release."
+          ? "Tasks, calendar events, notes, settings, and undo history are saved in this site's IndexedDB storage in your current browser profile. Changes are confirmed only after the browser saves them. Google sync is optional and runs while this app is open and connected."
           : "Tasks and calendar events sync with Google. Notes, stars, and workspace preferences belong to this device. HCB planning fields such as priority, tags, and duration travel in a marked footer in Google task notes."}</p>
       </SettingsGroup>
       {browserStorage ? (
-        <SettingsGroup title="Keeping your workspace">
-          <p className="px-3 py-3 text-sm text-text-secondary">Return using the same site and browser profile. Clearing this site's browser data removes your workspace; private browsing keeps data only for that private session. Browser backup export and restore are not available in this release.</p>
-        </SettingsGroup>
+        <BrowserStorageControls />
       ) : (
       <SettingsGroup title="Local backups">
         <p className="px-3 py-3 text-sm text-text-secondary">Backups contain local notes, settings, and cached Google data. Google sign-in credentials are excluded. Export a copy to another drive to protect against loss of this device.</p>

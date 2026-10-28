@@ -124,24 +124,19 @@ test("two tabs serialize writes without replacing newer durable snapshots", asyn
   for (const tab of [page, second]) expect((await call(tab, "search", "query", {query: "sentinel"})).items).toHaveLength(2);
 });
 
-test("unavailable Google operations report actionable errors without connecting or interrupting durable local work", async ({page}) => {
+test("unconfigured Google remains optional and reports the Web OAuth configuration honestly", async ({page}) => {
   await ready(page);
   const status = await call(page, "google", "status");
-  expect(status.available).toBe(false);
+  expect(status.available).toBe(true);
+  expect(status.oauthClientConfigured).toBe(false);
   expect(status.accounts).toEqual([]);
-  expect(status.account).toBeNull();
-  for (const [namespace, action, payload] of [
-    ["google", "beginOAuth", {}],
-    ["google", "saveOAuthClient", {clientId: "browser-test.apps.googleusercontent.com"}],
-    ["sync", "runNow", {}]
-  ] as const) {
-    const result = await page.evaluate(({namespace, action, payload}) => (window.hcb as any)[namespace][action](payload), {namespace, action, payload});
-    expect(result.ok).toBe(false);
-    expect(result.error.message).toMatch(/not available.*browser/i);
-    expect(result.error.message).toMatch(/local/i);
-  }
+  const auth = await page.evaluate(() => window.hcb!.google.beginOAuth({}));
+  expect(auth.ok).toBe(false);
+  if (!auth.ok) expect(auth.error.message).toMatch(/VITE_GOOGLE_CLIENT_ID/);
+  const sync = await call(page, "sync", "runNow");
+  expect(sync.message).toMatch(/Connect Google/);
   const task = await call(page, "tasks", "create", {listId: "inbox", title: "Google-free durable work"});
   await reopen(page);
   expect(await call(page, "tasks", "get", {id: task.id})).toMatchObject({title: "Google-free durable work"});
-  expect(await call(page, "google", "status")).toMatchObject({available: false, accounts: [], account: null});
+  expect(await call(page, "google", "status")).toMatchObject({available: true, accounts: [], account: null});
 });

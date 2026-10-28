@@ -25,7 +25,8 @@ type ReconfigureOptionalAccessResult = { ok: boolean; message: string };
 
 interface ProfileSettingsTabProps {
   googleAvailable?: boolean;
-  beginGoogleOAuth: (requestedServices?: Array<"drive" | "driveUpload" | "gmail">) => Promise<void>;
+  browserRuntime?: boolean;
+  beginGoogleOAuth: (requestedServices?: Array<"drive" | "driveUpload" | "gmail">, accountId?: string) => Promise<void>;
   calendarSources: CalendarListSummary[];
   disconnectGoogle: (accountId?: string) => Promise<void>;
   googleClientId: string;
@@ -45,6 +46,7 @@ interface ProfileSettingsTabProps {
 
 export function ProfileSettingsTab({
   googleAvailable = true,
+  browserRuntime = false,
   beginGoogleOAuth,
   calendarSources,
   disconnectGoogle,
@@ -97,7 +99,13 @@ export function ProfileSettingsTab({
           <p className="text-[var(--text-sm)] text-text-secondary">Your planner saves in this browser. Google connection and sync are unavailable in this release; continue using your local task lists and calendars below.</p>
         </SettingsGroup>
       ) : <>
-      <SettingsGroup title="Google OAuth client">
+      {browserRuntime ? <SettingsGroup title="Google connection">
+        <p className="px-3 py-3 text-sm text-text-secondary">{googleStatus.oauthClientConfigured
+          ? "Connect Google Tasks and Calendar using Google's consent popup. This browser keeps access tokens only in memory. Reconnect after reloading or when your session expires. Local planning remains available offline."
+          : "Google sign-in is not configured for this site. The site administrator can set VITE_GOOGLE_CLIENT_ID to a Google Web application OAuth client ID and register this site's origin. No client secret belongs in the browser. Local planning remains fully available."}</p>
+        <p className="px-3 pb-3 text-sm text-text-muted">Google sync runs only while HCB is open. Drive links, Drive uploads, and Gmail read-only access are optional and requested separately.</p>
+        {googleStatus.authorizationError ? <p role="alert" className="px-3 pb-3 text-sm text-danger">{googleStatus.authorizationError}</p> : null}
+      </SettingsGroup> : <SettingsGroup title="Google OAuth client">
         <SettingsControlRow
           description={googleStatus.oauthClientConfigured ? "Google Cloud OAuth client saved." : "Missing"}
           icon={ShieldCheck}
@@ -148,7 +156,7 @@ export function ProfileSettingsTab({
             Clear
           </Button>
         </div>
-      </SettingsGroup>
+      </SettingsGroup>}
 
       <SettingsGroup title="Google accounts">
         {visibleAccounts.length > 0 ? (
@@ -181,9 +189,9 @@ export function ProfileSettingsTab({
                       {candidateDetail}
                     </p>
                     {candidateConnected ? (
-                      <div aria-label="Google Calendar and Google Tasks connected" className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <img alt="Google Calendar" className="size-5 object-contain" src={googleCalendarLogo} />
-                        <img alt="Google Tasks" className="size-5 object-contain" src={googleTasksLogo} />
+                      <div aria-label="Google services granted" className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {!browserRuntime || candidate.grantedScopes?.includes("https://www.googleapis.com/auth/calendar") ? <img alt="Google Calendar" className="size-5 object-contain" src={googleCalendarLogo} /> : <Badge tone="warning">Calendar access not granted</Badge>}
+                        {!browserRuntime || candidate.grantedScopes?.includes("https://www.googleapis.com/auth/tasks") ? <img alt="Google Tasks" className="size-5 object-contain" src={googleTasksLogo} /> : <Badge tone="warning">Tasks access not granted</Badge>}
                         {candidate.grantedScopes?.includes(googleScopes.driveSearch) ? <Badge tone="neutral">Drive links</Badge> : null}
                         {candidate.grantedScopes?.includes(googleScopes.driveUpload) ? <Badge tone="neutral">Drive uploads</Badge> : null}
                         {candidate.grantedScopes?.includes(googleScopes.gmailCapture) ? <Badge tone="neutral">Gmail read-only</Badge> : null}
@@ -195,6 +203,7 @@ export function ProfileSettingsTab({
                   <Badge tone={candidateConnected ? "success" : "warning"}>
                     {candidateConnected ? "Active" : candidate.connectionState}
                   </Badge>
+                  {browserRuntime && (!candidateConnected || (candidate.missingScopes?.length ?? 0) > 0) ? <Button disabled={!googleStatus.oauthClientConfigured || googleStatus.authorizationInProgress} onClick={() => void beginGoogleOAuth([], candidate.accountId)} size="sm" variant="primary">Reconnect</Button> : null}
                   <Button onClick={() => void disconnectGoogle(candidate.accountId)} size="sm" variant="secondary">
                     Disconnect
                   </Button>
@@ -225,7 +234,7 @@ export function ProfileSettingsTab({
         )}
         <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
           <Button
-            disabled={!googleStatus.oauthClientConfigured}
+            disabled={!googleStatus.oauthClientConfigured || googleStatus.authorizationInProgress}
             onClick={() => void beginGoogleOAuth()}
             variant="primary"
           >
@@ -264,6 +273,7 @@ export function ProfileSettingsTab({
 
       {optionalAccessDialogOpen ? (
         <OptionalGoogleAccessDialog
+          browserRuntime={browserRuntime}
           accounts={connectedAccounts}
           onClose={() => setOptionalAccessDialogOpen(false)}
           onReconfigure={reconfigureOptionalAccess}
@@ -328,10 +338,12 @@ export function ProfileSettingsTab({
 }
 
 function OptionalGoogleAccessDialog({
+  browserRuntime = false,
   accounts,
   onClose,
   onReconfigure
 }: {
+  browserRuntime?: boolean;
   accounts: GoogleStatusResponse["accounts"];
   onClose: () => void;
   onReconfigure: (input: { accountId: string; requestedServices: OptionalWorkspaceService[] }) => Promise<ReconfigureOptionalAccessResult>;
@@ -408,12 +420,12 @@ function OptionalGoogleAccessDialog({
             <OptionalAccessChoice checked={gmailCapture} description="Search message metadata and snippets, then capture a message as a Task." label="Gmail capture" onChange={setGmailCapture} />
           </div>
           <div className="rounded-hcbMd border border-border bg-surface-0 px-3 py-2 text-[var(--text-sm)] text-text-secondary">
-            HCB preserves its local cache. Google requires a fresh connection, so the next step opens your default browser. Other HCB installs using this OAuth client may need to reconnect too.
+            {browserRuntime ? "A Google consent popup requests a session with the selected access. Existing cached data stays local. Removing a scope from this session does not revoke previous grants in your Google account; manage those in Google Account permissions." : "HCB preserves its local cache. Google requires a fresh connection, so the next step opens your default browser. Other HCB installs using this OAuth client may need to reconnect too."}
           </div>
           {unresolvedMutationCount > 0 ? <p className="text-[var(--text-sm)] text-warning" role="status">Sync {unresolvedMutationCount} pending Google change{unresolvedMutationCount === 1 ? "" : "s"} before reconfiguring this account.</p> : null}
           <label className="flex min-h-10 cursor-pointer items-start gap-2 rounded-hcbMd px-1 py-1 text-[var(--text-sm)] text-text-secondary">
             <input aria-label="Acknowledge Google reconnection" checked={acknowledged} className="mt-0.5 size-4 accent-[var(--color-accent)]" onChange={(event) => setAcknowledged(event.target.checked)} type="checkbox" />
-            <span>I understand this resets HCB's Google connection for the selected account and opens a browser to reconnect it.</span>
+            <span>{browserRuntime ? "I understand this replaces this browser session for the selected account and opens a Google consent popup." : "I understand this resets HCB's Google connection for the selected account and opens a browser to reconnect it."}</span>
           </label>
           {message ? <p className="text-[var(--text-sm)] text-warning" role="status">{message}</p> : null}
         </div>

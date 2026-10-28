@@ -1,0 +1,1295 @@
+{
+  "timestamp": "2026-10-28T16:43:31.229Z",
+  "browser": "148.0.7778.96",
+  "platform": "linux",
+  "release": "6.18.33.2-microsoft-standard-WSL2",
+  "logicalCpus": 12,
+  "physicalMemoryBytes": 5155463168,
+  "dataset": "Each size is per domain: N tasks + N notes + N events. Fresh isolated contexts. January 2027 calendar range reads all pages of 500 summaries; search returns 50 results. Query timings occur inside the browser without copying full results through the debugging protocol. Same-machine samples are observations, not performance guarantees.",
+  "results": [
+    {
+      "records": {
+        "tasks": 1000,
+        "notes": 1000,
+        "events": 1000,
+        "total": 3000
+      },
+      "seedMs": 143.600954,
+      "startup": {
+        "readyMs": {
+          "samples": [
+            504.75329299999976,
+            439.77136900000005,
+            495.1326869999998
+          ],
+          "median": 495.1326869999998,
+          "p95": 504.75329299999976,
+          "max": 504.75329299999976
+        },
+        "samples": [
+          {
+            "readyMs": 504.75329299999976,
+            "longTasks": [],
+            "navigation": {
+              "name": "http://127.0.0.1:4176/",
+              "entryType": "navigation",
+              "startTime": 0,
+              "duration": 47.299999999813735,
+              "initiatorType": "navigation",
+              "deliveryType": "cache",
+              "nextHopProtocol": "",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "text/html",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 0.20000000018626451,
+              "domainLookupStart": 0.20000000018626451,
+              "domainLookupEnd": 0.20000000018626451,
+              "connectStart": 0.20000000018626451,
+              "secureConnectionStart": 0,
+              "connectEnd": 0.20000000018626451,
+              "requestStart": 1.400000000372529,
+              "responseStart": 4,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 4,
+              "responseEnd": 6,
+              "transferSize": 300,
+              "encodedBodySize": 886,
+              "decodedBodySize": 886,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "unloadEventStart": 9.5,
+              "unloadEventEnd": 9.5,
+              "domInteractive": 20.700000000186265,
+              "domContentLoadedEventStart": 46.60000000055879,
+              "domContentLoadedEventEnd": 46.60000000055879,
+              "domComplete": 47.299999999813735,
+              "loadEventStart": 47.299999999813735,
+              "loadEventEnd": 47.299999999813735,
+              "type": "reload",
+              "redirectCount": 0,
+              "activationStart": 0,
+              "criticalCHRestart": 0,
+              "notRestoredReasons": null,
+              "confidence": {
+                "randomizedTriggerRate": 0.4994798,
+                "value": "high"
+              }
+            }
+          },
+          {
+            "readyMs": 439.77136900000005,
+            "longTasks": [],
+            "navigation": {
+              "name": "http://127.0.0.1:4176/",
+              "entryType": "navigation",
+              "startTime": 0,
+              "duration": 41.90000000037253,
+              "initiatorType": "navigation",
+              "deliveryType": "cache",
+              "nextHopProtocol": "",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "text/html",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 0.30000000074505806,
+              "domainLookupStart": 0.30000000074505806,
+              "domainLookupEnd": 0.30000000074505806,
+              "connectStart": 0.30000000074505806,
+              "secureConnectionStart": 0,
+              "connectEnd": 0.30000000074505806,
+              "requestStart": 1.6000000005587935,
+              "responseStart": 4.400000000372529,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 4.400000000372529,
+              "responseEnd": 6,
+              "transferSize": 300,
+              "encodedBodySize": 886,
+              "decodedBodySize": 886,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "unloadEventStart": 9.600000000558794,
+              "unloadEventEnd": 9.600000000558794,
+              "domInteractive": 18.300000000745058,
+              "domContentLoadedEventStart": 40.30000000074506,
+              "domContentLoadedEventEnd": 40.5,
+              "domComplete": 41.90000000037253,
+              "loadEventStart": 41.90000000037253,
+              "loadEventEnd": 41.90000000037253,
+              "type": "reload",
+              "redirectCount": 0,
+              "activationStart": 0,
+              "criticalCHRestart": 0,
+              "notRestoredReasons": null,
+              "confidence": {
+                "randomizedTriggerRate": 0.4994798,
+                "value": "high"
+              }
+            }
+          },
+          {
+            "readyMs": 495.1326869999998,
+            "longTasks": [],
+            "navigation": {
+              "name": "http://127.0.0.1:4176/",
+              "entryType": "navigation",
+              "startTime": 0,
+              "duration": 32.200000000186265,
+              "initiatorType": "navigation",
+              "deliveryType": "cache",
+              "nextHopProtocol": "",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "text/html",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 0.39999999944120646,
+              "domainLookupStart": 0.39999999944120646,
+              "domainLookupEnd": 0.39999999944120646,
+              "connectStart": 0.39999999944120646,
+              "secureConnectionStart": 0,
+              "connectEnd": 0.39999999944120646,
+              "requestStart": 1.599999999627471,
+              "responseStart": 3.8999999994412065,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 3.8999999994412065,
+              "responseEnd": 5.2000000001862645,
+              "transferSize": 300,
+              "encodedBodySize": 886,
+              "decodedBodySize": 886,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "unloadEventStart": 8.700000000186265,
+              "unloadEventEnd": 8.700000000186265,
+              "domInteractive": 14.5,
+              "domContentLoadedEventStart": 31.59999999962747,
+              "domContentLoadedEventEnd": 31.700000000186265,
+              "domComplete": 32.200000000186265,
+              "loadEventStart": 32.200000000186265,
+              "loadEventEnd": 32.200000000186265,
+              "type": "reload",
+              "redirectCount": 0,
+              "activationStart": 0,
+              "criticalCHRestart": 0,
+              "notRestoredReasons": null,
+              "confidence": {
+                "randomizedTriggerRate": 0.4994798,
+                "value": "high"
+              }
+            }
+          }
+        ]
+      },
+      "search": {
+        "roundTripMs": {
+          "samples": [
+            30.799999999813735,
+            22.09999999962747,
+            11.099999999627471,
+            9.600000000558794,
+            11
+          ],
+          "median": 11.099999999627471,
+          "p95": 30.799999999813735,
+          "max": 30.799999999813735
+        },
+        "samples": [
+          {
+            "roundTripMs": 30.799999999813735,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 22.09999999962747,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 11.099999999627471,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 9.600000000558794,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 11,
+            "returned": 50
+          }
+        ]
+      },
+      "calendar": {
+        "roundTripMs": {
+          "samples": [
+            51.59999999962747,
+            44.200000000186265,
+            44.700000000186265,
+            46.799999999813735,
+            37.5
+          ],
+          "median": 44.700000000186265,
+          "p95": 51.59999999962747,
+          "max": 51.59999999962747
+        },
+        "samples": [
+          {
+            "roundTripMs": 51.59999999962747,
+            "returned": 351,
+            "pages": 1
+          },
+          {
+            "roundTripMs": 44.200000000186265,
+            "returned": 351,
+            "pages": 1
+          },
+          {
+            "roundTripMs": 44.700000000186265,
+            "returned": 351,
+            "pages": 1
+          },
+          {
+            "roundTripMs": 46.799999999813735,
+            "returned": 351,
+            "pages": 1
+          },
+          {
+            "roundTripMs": 37.5,
+            "returned": 351,
+            "pages": 1
+          }
+        ]
+      },
+      "edits": {
+        "roundTripMs": {
+          "samples": [
+            45.35204099999919,
+            28.95546899999954,
+            33.5059169999995,
+            24.389490999999907,
+            21.257143000000724,
+            31.75593899999967,
+            28.902697999999873,
+            36.68348100000003,
+            23.78594499999963,
+            18.649226000000453,
+            24.035499000000527,
+            20.892656999999417,
+            33.344960999999785,
+            20.486895000000004,
+            28.962994000000435
+          ],
+          "median": 28.902697999999873,
+          "p95": 45.35204099999919,
+          "max": 45.35204099999919
+        },
+        "samples": [
+          {
+            "namespace": "tasks",
+            "roundTripMs": 45.35204099999919,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 7,
+              "bytes": 3014656,
+              "exportMs": 5.2999999998137355,
+              "persistMs": 18.799999999813735,
+              "loadMs": 1.099999999627471,
+              "commits": 1,
+              "savedAt": "2026-10-28T16:43:24.615Z",
+              "wasmHeapBytes": 12189696
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 28.95546899999954,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 8,
+              "bytes": 3039232,
+              "exportMs": 6.099999999627471,
+              "persistMs": 12.600000000558794,
+              "loadMs": 1.2000000001862645,
+              "commits": 2,
+              "savedAt": "2026-10-28T16:43:24.668Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 33.5059169999995,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 9,
+              "bytes": 3039232,
+              "exportMs": 3.8999999994412065,
+              "persistMs": 11.600000000558794,
+              "loadMs": 1.2000000001862645,
+              "commits": 3,
+              "savedAt": "2026-10-28T16:43:24.706Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 24.389490999999907,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 10,
+              "bytes": 3039232,
+              "exportMs": 3.5,
+              "persistMs": 10.100000000558794,
+              "loadMs": 1.2999999998137355,
+              "commits": 4,
+              "savedAt": "2026-10-28T16:43:24.812Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 21.257143000000724,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 11,
+              "bytes": 3039232,
+              "exportMs": 3.400000000372529,
+              "persistMs": 8.799999999813735,
+              "loadMs": 1.1000000005587935,
+              "commits": 5,
+              "savedAt": "2026-10-28T16:43:24.843Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 31.75593899999967,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 12,
+              "bytes": 3039232,
+              "exportMs": 3.599999999627471,
+              "persistMs": 11.799999999813735,
+              "loadMs": 1.199999999254942,
+              "commits": 6,
+              "savedAt": "2026-10-28T16:43:24.873Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 28.902697999999873,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 13,
+              "bytes": 3039232,
+              "exportMs": 4,
+              "persistMs": 12.299999999813735,
+              "loadMs": 1.099999999627471,
+              "commits": 7,
+              "savedAt": "2026-10-28T16:43:24.971Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 36.68348100000003,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 14,
+              "bytes": 3039232,
+              "exportMs": 3.900000000372529,
+              "persistMs": 11.5,
+              "loadMs": 1.099999999627471,
+              "commits": 8,
+              "savedAt": "2026-10-28T16:43:25.012Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 23.78594499999963,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 15,
+              "bytes": 3047424,
+              "exportMs": 2.099999999627471,
+              "persistMs": 10.100000000558794,
+              "loadMs": 1.1000000005587935,
+              "commits": 9,
+              "savedAt": "2026-10-28T16:43:25.047Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 18.649226000000453,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 16,
+              "bytes": 3047424,
+              "exportMs": 2.2999999998137355,
+              "persistMs": 7.900000000372529,
+              "loadMs": 1.400000000372529,
+              "commits": 10,
+              "savedAt": "2026-10-28T16:43:25.136Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 24.035499000000527,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 17,
+              "bytes": 3047424,
+              "exportMs": 3.3999999994412065,
+              "persistMs": 12.600000000558794,
+              "loadMs": 0.7999999998137355,
+              "commits": 11,
+              "savedAt": "2026-10-28T16:43:25.162Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 20.892656999999417,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 18,
+              "bytes": 3063808,
+              "exportMs": 2,
+              "persistMs": 7.900000000372529,
+              "loadMs": 1.2999999998137355,
+              "commits": 12,
+              "savedAt": "2026-10-28T16:43:25.189Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 33.344960999999785,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 19,
+              "bytes": 3358720,
+              "exportMs": 2.400000000372529,
+              "persistMs": 9.099999999627471,
+              "loadMs": 1.2000000001862645,
+              "commits": 13,
+              "savedAt": "2026-10-28T16:43:25.285Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 20.486895000000004,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 20,
+              "bytes": 3358720,
+              "exportMs": 2.2999999998137355,
+              "persistMs": 10.399999999441206,
+              "loadMs": 1.1000000005587935,
+              "commits": 14,
+              "savedAt": "2026-10-28T16:43:25.311Z",
+              "wasmHeapBytes": 17629184
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 28.962994000000435,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 21,
+              "bytes": 3358720,
+              "exportMs": 2.8999999994412065,
+              "persistMs": 12.800000000745058,
+              "loadMs": 1.2000000001862645,
+              "commits": 15,
+              "savedAt": "2026-10-28T16:43:25.340Z",
+              "wasmHeapBytes": 17629184
+            }
+          }
+        ]
+      },
+      "storage": {
+        "strategy": "SQLite snapshot in IndexedDB",
+        "revision": 21,
+        "bytes": 3358720,
+        "exportMs": 2.8999999994412065,
+        "persistMs": 12.800000000745058,
+        "loadMs": 1.099999999627471,
+        "commits": 15,
+        "savedAt": "2026-10-28T16:43:25.340Z",
+        "wasmHeapBytes": 17629184
+      },
+      "mainThread": {
+        "longTasksSupported": true,
+        "longTasks": [],
+        "totalLongTaskMs": 0,
+        "frameGapMs": {
+          "samples": [
+            16.599999999999966,
+            16.600000000000023,
+            16.700000000000045,
+            16.699999999999932,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.600000000000023,
+            16.700000000000045,
+            16.699999999999932,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.600000000000023,
+            16.700000000000045,
+            16.699999999999932,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.600000000000136,
+            16.700000000000045,
+            16.799999999999955
+          ],
+          "median": 16.699999999999932,
+          "p95": 16.799999999999955,
+          "max": 16.799999999999955
+        }
+      },
+      "memory": {
+        "rendererHeapBefore": {
+          "usedSize": 19969352,
+          "totalSize": 33652736,
+          "embedderHeapUsedSize": 8162992,
+          "backingStorageSize": 1316897
+        },
+        "rendererHeapAfter": {
+          "usedSize": 23187020,
+          "totalSize": 33652736,
+          "embedderHeapUsedSize": 8258784,
+          "backingStorageSize": 1316897
+        },
+        "wasmHeapBytes": 17629184,
+        "note": "CDP values are renderer-isolate heap/backing storage, not whole browser RSS. WASM heap is worker allocation when reported. No forced GC; these are observed high-water snapshots."
+      }
+    },
+    {
+      "records": {
+        "tasks": 5000,
+        "notes": 5000,
+        "events": 5000,
+        "total": 15000
+      },
+      "seedMs": 377.8416990000005,
+      "startup": {
+        "readyMs": {
+          "samples": [
+            952.8649720000003,
+            893.9566459999996,
+            882.254927
+          ],
+          "median": 893.9566459999996,
+          "p95": 952.8649720000003,
+          "max": 952.8649720000003
+        },
+        "samples": [
+          {
+            "readyMs": 952.8649720000003,
+            "longTasks": [],
+            "navigation": {
+              "name": "http://127.0.0.1:4176/",
+              "entryType": "navigation",
+              "startTime": 0,
+              "duration": 39.5,
+              "initiatorType": "navigation",
+              "deliveryType": "cache",
+              "nextHopProtocol": "",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "text/html",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 0.40000000037252903,
+              "domainLookupStart": 0.40000000037252903,
+              "domainLookupEnd": 0.40000000037252903,
+              "connectStart": 0.40000000037252903,
+              "secureConnectionStart": 0,
+              "connectEnd": 0.40000000037252903,
+              "requestStart": 2,
+              "responseStart": 5,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 5,
+              "responseEnd": 7.1000000005587935,
+              "transferSize": 300,
+              "encodedBodySize": 886,
+              "decodedBodySize": 886,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "unloadEventStart": 13.5,
+              "unloadEventEnd": 13.5,
+              "domInteractive": 22.799999999813735,
+              "domContentLoadedEventStart": 38.90000000037253,
+              "domContentLoadedEventEnd": 39,
+              "domComplete": 39.5,
+              "loadEventStart": 39.5,
+              "loadEventEnd": 39.5,
+              "type": "reload",
+              "redirectCount": 0,
+              "activationStart": 0,
+              "criticalCHRestart": 0,
+              "notRestoredReasons": null,
+              "confidence": {
+                "randomizedTriggerRate": 0.4994798,
+                "value": "high"
+              }
+            }
+          },
+          {
+            "readyMs": 893.9566459999996,
+            "longTasks": [],
+            "navigation": {
+              "name": "http://127.0.0.1:4176/",
+              "entryType": "navigation",
+              "startTime": 0,
+              "duration": 35.09999999962747,
+              "initiatorType": "navigation",
+              "deliveryType": "cache",
+              "nextHopProtocol": "",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "text/html",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 0.2999999998137355,
+              "domainLookupStart": 0.2999999998137355,
+              "domainLookupEnd": 0.2999999998137355,
+              "connectStart": 0.2999999998137355,
+              "secureConnectionStart": 0,
+              "connectEnd": 0.2999999998137355,
+              "requestStart": 1.400000000372529,
+              "responseStart": 3.400000000372529,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 3.400000000372529,
+              "responseEnd": 4.7999999998137355,
+              "transferSize": 300,
+              "encodedBodySize": 886,
+              "decodedBodySize": 886,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "unloadEventStart": 9.099999999627471,
+              "unloadEventEnd": 9.099999999627471,
+              "domInteractive": 16.299999999813735,
+              "domContentLoadedEventStart": 34.40000000037253,
+              "domContentLoadedEventEnd": 34.5,
+              "domComplete": 35.09999999962747,
+              "loadEventStart": 35.09999999962747,
+              "loadEventEnd": 35.09999999962747,
+              "type": "reload",
+              "redirectCount": 0,
+              "activationStart": 0,
+              "criticalCHRestart": 0,
+              "notRestoredReasons": null,
+              "confidence": {
+                "randomizedTriggerRate": 0.4994798,
+                "value": "high"
+              }
+            }
+          },
+          {
+            "readyMs": 882.254927,
+            "longTasks": [],
+            "navigation": {
+              "name": "http://127.0.0.1:4176/",
+              "entryType": "navigation",
+              "startTime": 0,
+              "duration": 34.19999999925494,
+              "initiatorType": "navigation",
+              "deliveryType": "cache",
+              "nextHopProtocol": "",
+              "renderBlockingStatus": "non-blocking",
+              "contentType": "text/html",
+              "contentEncoding": "",
+              "workerStart": 0,
+              "workerRouterEvaluationStart": 0,
+              "workerCacheLookupStart": 0,
+              "workerMatchedSourceType": "",
+              "workerFinalSourceType": "",
+              "redirectStart": 0,
+              "redirectEnd": 0,
+              "fetchStart": 0.19999999925494194,
+              "domainLookupStart": 0.19999999925494194,
+              "domainLookupEnd": 0.19999999925494194,
+              "connectStart": 0.19999999925494194,
+              "secureConnectionStart": 0,
+              "connectEnd": 0.19999999925494194,
+              "requestStart": 1.3999999994412065,
+              "responseStart": 2.8999999994412065,
+              "firstInterimResponseStart": 0,
+              "finalResponseHeadersStart": 2.8999999994412065,
+              "responseEnd": 4.199999999254942,
+              "transferSize": 300,
+              "encodedBodySize": 886,
+              "decodedBodySize": 886,
+              "responseStatus": 200,
+              "serverTiming": [],
+              "unloadEventStart": 6.8999999994412065,
+              "unloadEventEnd": 6.8999999994412065,
+              "domInteractive": 13.699999999254942,
+              "domContentLoadedEventStart": 33.09999999962747,
+              "domContentLoadedEventEnd": 33.09999999962747,
+              "domComplete": 34.09999999962747,
+              "loadEventStart": 34.19999999925494,
+              "loadEventEnd": 34.19999999925494,
+              "type": "reload",
+              "redirectCount": 0,
+              "activationStart": 0,
+              "criticalCHRestart": 0,
+              "notRestoredReasons": null,
+              "confidence": {
+                "randomizedTriggerRate": 0.4994798,
+                "value": "low"
+              }
+            }
+          }
+        ]
+      },
+      "search": {
+        "roundTripMs": {
+          "samples": [
+            54.200000000186265,
+            32.60000000055879,
+            45.40000000037253,
+            29.700000000186265,
+            38.299999999813735
+          ],
+          "median": 38.299999999813735,
+          "p95": 54.200000000186265,
+          "max": 54.200000000186265
+        },
+        "samples": [
+          {
+            "roundTripMs": 54.200000000186265,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 32.60000000055879,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 45.40000000037253,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 29.700000000186265,
+            "returned": 50
+          },
+          {
+            "roundTripMs": 38.299999999813735,
+            "returned": 50
+          }
+        ]
+      },
+      "calendar": {
+        "roundTripMs": {
+          "samples": [
+            193.40000000037253,
+            156.80000000074506,
+            185.5,
+            132.90000000037253,
+            126.09999999962747
+          ],
+          "median": 156.80000000074506,
+          "p95": 193.40000000037253,
+          "max": 193.40000000037253
+        },
+        "samples": [
+          {
+            "roundTripMs": 193.40000000037253,
+            "returned": 1735,
+            "pages": 4
+          },
+          {
+            "roundTripMs": 156.80000000074506,
+            "returned": 1735,
+            "pages": 4
+          },
+          {
+            "roundTripMs": 185.5,
+            "returned": 1735,
+            "pages": 4
+          },
+          {
+            "roundTripMs": 132.90000000037253,
+            "returned": 1735,
+            "pages": 4
+          },
+          {
+            "roundTripMs": 126.09999999962747,
+            "returned": 1735,
+            "pages": 4
+          }
+        ]
+      },
+      "edits": {
+        "roundTripMs": {
+          "samples": [
+            57.97279200000048,
+            60.7603569999992,
+            53.174753999999666,
+            57.21764299999995,
+            49.367371000000276,
+            55.00878199999897,
+            56.97071900000083,
+            49.88293700000031,
+            54.23376499999904,
+            42.04299499999979,
+            35.48925100000088,
+            46.64186399999926,
+            64.97377299999971,
+            43.42342400000052,
+            43.52597599999899
+          ],
+          "median": 53.174753999999666,
+          "p95": 64.97377299999971,
+          "max": 64.97377299999971
+        },
+        "samples": [
+          {
+            "namespace": "tasks",
+            "roundTripMs": 57.97279200000048,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 7,
+              "bytes": 12795904,
+              "exportMs": 12.700000000186265,
+              "persistMs": 29.5,
+              "loadMs": 1.2000000001862645,
+              "commits": 1,
+              "savedAt": "2026-10-28T16:43:29.593Z",
+              "wasmHeapBytes": 47710208
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 60.7603569999992,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 8,
+              "bytes": 12820480,
+              "exportMs": 17.100000000558794,
+              "persistMs": 30.699999999254942,
+              "loadMs": 1.1000000005587935,
+              "commits": 2,
+              "savedAt": "2026-10-28T16:43:29.659Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 53.174753999999666,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 9,
+              "bytes": 12820480,
+              "exportMs": 7.5,
+              "persistMs": 29.199999999254942,
+              "loadMs": 1.2999999998137355,
+              "commits": 3,
+              "savedAt": "2026-10-28T16:43:29.716Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 57.21764299999995,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 10,
+              "bytes": 12828672,
+              "exportMs": 13.5,
+              "persistMs": 31.799999999813735,
+              "loadMs": 1,
+              "commits": 4,
+              "savedAt": "2026-10-28T16:43:29.972Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 49.367371000000276,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 11,
+              "bytes": 12828672,
+              "exportMs": 10.799999999813735,
+              "persistMs": 28,
+              "loadMs": 1.2000000001862645,
+              "commits": 5,
+              "savedAt": "2026-10-28T16:43:30.031Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 55.00878199999897,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 12,
+              "bytes": 12828672,
+              "exportMs": 8.5,
+              "persistMs": 33.10000000055879,
+              "loadMs": 1,
+              "commits": 6,
+              "savedAt": "2026-10-28T16:43:30.085Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 56.97071900000083,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 13,
+              "bytes": 12836864,
+              "exportMs": 15.800000000745058,
+              "persistMs": 28.799999999813735,
+              "loadMs": 1.2000000001862645,
+              "commits": 7,
+              "savedAt": "2026-10-28T16:43:30.387Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 49.88293700000031,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 14,
+              "bytes": 12836864,
+              "exportMs": 11.5,
+              "persistMs": 29.200000000186265,
+              "loadMs": 1,
+              "commits": 8,
+              "savedAt": "2026-10-28T16:43:30.444Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 54.23376499999904,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 15,
+              "bytes": 12836864,
+              "exportMs": 12,
+              "persistMs": 29.59999999962747,
+              "loadMs": 1.099999999627471,
+              "commits": 9,
+              "savedAt": "2026-10-28T16:43:30.501Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 42.04299499999979,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 16,
+              "bytes": 12836864,
+              "exportMs": 8.099999999627471,
+              "persistMs": 24.600000000558794,
+              "loadMs": 0.7999999998137355,
+              "commits": 10,
+              "savedAt": "2026-10-28T16:43:30.723Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 35.48925100000088,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 17,
+              "bytes": 12836864,
+              "exportMs": 7.400000000372529,
+              "persistMs": 21.90000000037253,
+              "loadMs": 0.6000000005587935,
+              "commits": 11,
+              "savedAt": "2026-10-28T16:43:30.766Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 46.64186399999926,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 18,
+              "bytes": 12853248,
+              "exportMs": 8.699999999254942,
+              "persistMs": 29,
+              "loadMs": 1,
+              "commits": 12,
+              "savedAt": "2026-10-28T16:43:30.808Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "tasks",
+            "roundTripMs": 64.97377299999971,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 19,
+              "bytes": 14295040,
+              "exportMs": 9.099999999627471,
+              "persistMs": 24.700000000186265,
+              "loadMs": 0.7999999998137355,
+              "commits": 13,
+              "savedAt": "2026-10-28T16:43:31.053Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "notes",
+            "roundTripMs": 43.42342400000052,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 20,
+              "bytes": 14295040,
+              "exportMs": 8,
+              "persistMs": 29.90000000037253,
+              "loadMs": 0.7999999998137355,
+              "commits": 14,
+              "savedAt": "2026-10-28T16:43:31.098Z",
+              "wasmHeapBytes": 68747264
+            }
+          },
+          {
+            "namespace": "calendar",
+            "roundTripMs": 43.52597599999899,
+            "storage": {
+              "strategy": "SQLite snapshot in IndexedDB",
+              "revision": 21,
+              "bytes": 14295040,
+              "exportMs": 8.299999999813735,
+              "persistMs": 25.200000000186265,
+              "loadMs": 0.599999999627471,
+              "commits": 15,
+              "savedAt": "2026-10-28T16:43:31.149Z",
+              "wasmHeapBytes": 68747264
+            }
+          }
+        ]
+      },
+      "storage": {
+        "strategy": "SQLite snapshot in IndexedDB",
+        "revision": 21,
+        "bytes": 14295040,
+        "exportMs": 8.299999999813735,
+        "persistMs": 25.200000000186265,
+        "loadMs": 0.900000000372529,
+        "commits": 15,
+        "savedAt": "2026-10-28T16:43:31.149Z",
+        "wasmHeapBytes": 68747264
+      },
+      "mainThread": {
+        "longTasksSupported": true,
+        "longTasks": [],
+        "totalLongTaskMs": 0,
+        "frameGapMs": {
+          "samples": [
+            16.800000000000068,
+            16.59999999999991,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.600000000000023,
+            16.699999999999932,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.700000000000045,
+            16.59999999999991,
+            16.600000000000136,
+            16.700000000000045,
+            16.699999999999818,
+            16.600000000000136,
+            16.700000000000045,
+            16.699999999999818,
+            16.700000000000045,
+            16.700000000000045,
+            16.59999999999991,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.700000000000045,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.600000000000136,
+            16.699999999999818,
+            16.600000000000136,
+            16.799999999999955,
+            16.59999999999991,
+            16.700000000000045,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000045,
+            16.600000000000136,
+            16.699999999999818,
+            16.700000000000273,
+            16.699999999999818,
+            16.59999999999991,
+            16.59999999999991,
+            16.700000000000273,
+            16.699999999999818,
+            16.59999999999991,
+            16.800000000000182,
+            16.5,
+            16.800000000000182,
+            16.59999999999991,
+            16.699999999999818,
+            16.700000000000273,
+            16.59999999999991,
+            16.699999999999818,
+            16.700000000000273,
+            16.699999999999818,
+            16.59999999999991,
+            16.59999999999991,
+            16.700000000000273,
+            16.699999999999818,
+            16.59999999999991,
+            16.700000000000273,
+            16.699999999999818,
+            16.700000000000273,
+            16.59999999999991,
+            16.699999999999818,
+            16.59999999999991,
+            16.700000000000273,
+            16.699999999999818,
+            16.59999999999991,
+            16.700000000000273,
+            16.699999999999818,
+            16.700000000000273,
+            16.59999999999991,
+            16.699999999999818,
+            16.700000000000273,
+            16.59999999999991,
+            16.699999999999818,
+            16.700000000000273,
+            16.59999999999991,
+            16.699999999999818,
+            16.700000000000273,
+            16.59999999999991
+          ],
+          "median": 16.699999999999818,
+          "p95": 16.799999999999955,
+          "max": 16.800000000000182
+        }
+      },
+      "memory": {
+        "rendererHeapBefore": {
+          "usedSize": 20677492,
+          "totalSize": 35487744,
+          "embedderHeapUsedSize": 8466176,
+          "backingStorageSize": 1316897
+        },
+        "rendererHeapAfter": {
+          "usedSize": 27287332,
+          "totalSize": 37060608,
+          "embedderHeapUsedSize": 8552240,
+          "backingStorageSize": 1316897
+        },
+        "wasmHeapBytes": 68747264,
+        "note": "CDP values are renderer-isolate heap/backing storage, not whole browser RSS. WASM heap is worker allocation when reported. No forced GC; these are observed high-water snapshots."
+      }
+    }
+  ]
+}
