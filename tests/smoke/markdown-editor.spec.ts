@@ -47,7 +47,9 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await expect(formatToolbar.getByRole("button", { name: "Italic", exact: true })).toBeFocused();
     await body.click();
     await expect(body).toBeFocused();
-    await body.fill("");
+    // Exercise the editor's selection/keymap, not fill()'s synthetic DOM range.
+    await body.press(`${modifier}+a`);
+    await body.press("Backspace");
     await expect(body).toHaveText("");
     await body.pressSequentially("# "); await body.pressSequentially("Markdown heading");
     await expect(body.locator("h1")).toHaveText("Markdown heading");
