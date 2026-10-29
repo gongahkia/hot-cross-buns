@@ -15,7 +15,7 @@ The first increment measures where sync time goes and makes returning to the app
 
 The initial scheduling validation passed 71 focused unit tests and nine browser tests, including four new end-to-end scheduling scenarios. Google responses are mocked; production Google quotas and latency remain unmeasured.
 
-A subsequent real-timer browser test exposed and verified a session-isolation fix: expiry removes only that worker's credential and projects `reauth_required` locally; it no longer marks the shared account unauthenticated for other workers. Explicit disconnect continues to block all tabs. The extended browser suite also verifies offline-to-online delivery and automatic draining of 105 writes across the 100-write batch boundary. All seven scheduling scenarios and both account-gate scenarios pass, as do 142 SQLite/migration/sync integration tests.
+The follow-up code review found a session-isolation defect, verified after fixing it with a real-timer browser test: expiry removes only that worker's credential and projects `reauth_required` locally; it no longer marks the shared account unauthenticated for other workers. Explicit disconnect continues to block all tabs. The extended browser suite also verifies offline-to-online delivery and automatic draining of 105 writes across the 100-write batch boundary. All seven scheduling scenarios and both account-gate scenarios pass, as do 142 SQLite/migration/sync integration tests.
 
 ### Scheduling behavior
 
@@ -45,3 +45,16 @@ The existing Diagnostics summary/export includes these samples when performance 
 - `google.pull.tasks`, `google.pull.calendar`, `google.outbox` and `google.checkpoint.*` show higher-level phases; `google.sync` measures the full cycle. These nested timings must not be added together.
 
 This measures JSON sync traffic; Drive's binary upload transport is outside the HTTP timing labels. Cross-device convergence and renderer application timing still require separate end-to-end instrumentation and live measurements.
+
+## First increment verification — 2026-10-29
+
+Runtime changes were verified at `8d86976`:
+
+- 71 focused unit tests across browser scheduling, lifecycle, auth, bridge, sync and performance instrumentation.
+- `corepack pnpm test:db`: 142 database, migration and sync integration tests.
+- 27 distinct browser cases across targeted runs: seven automatic-sync scenarios, two required-account scenarios, three browser-control checks, and 15 persistence/storage/multitab/preference regressions.
+- `corepack pnpm build`: both TypeScript checks and the production Vite build pass.
+- `corepack pnpm test:production`: production has no test hooks, enforces the Google account requirement, and preserves local recovery data across reloads.
+- `corepack pnpm test:offline`: all four production offline/update scenarios pass.
+
+The production smoke initially assumed account-free onboarding and timed out on the correctly disabled Continue button. Its expectations now cover the mandatory account gate, including a legacy completed workspace; production runtime code was not weakened to satisfy the test. Connected-workspace interactions are covered by the mocked-GIS browser suite. No live Google account or deployment was changed.
