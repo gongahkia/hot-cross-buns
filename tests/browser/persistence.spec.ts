@@ -123,7 +123,7 @@ test("two tabs serialize writes without replacing newer durable snapshots", asyn
   for (const tab of [page, second]) expect((await call(tab, "search", "query", {query: "sentinel"})).items).toHaveLength(2);
 });
 
-test("unconfigured Google remains optional and reports the Web OAuth configuration honestly", async ({page}) => {
+test("unconfigured Google reports the Web OAuth configuration honestly and preserves local data", async ({page}) => {
   await ready(page);
   const status = await call(page, "google", "status");
   expect(status.available).toBe(true);

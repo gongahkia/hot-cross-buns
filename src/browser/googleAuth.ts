@@ -73,7 +73,7 @@ export function createBrowserGoogleAuth(options: AuthOptions) {
 
   // Do not insert an await before requestAccessToken: popup activation belongs to the user's click.
   function authorize(input: AuthorizationInput = {}, replaceOptionalScopes = false): Promise<HcbResult<GoogleStatusResponse>> {
-    if (!clientId) return Promise.resolve(conflictError("Google sign-in is not configured for this site. Set VITE_GOOGLE_CLIENT_ID to a Web application OAuth client ID and authorize this site's origin. Local planning remains available."));
+    if (!clientId) return Promise.resolve(conflictError("Google sign-in is not configured for this site. Set VITE_GOOGLE_CLIENT_ID to a Web application OAuth client ID and authorize this site's origin. Existing saved workspaces remain available offline."));
     const services = input.requestedServices ?? [];
     if (!Array.isArray(services) || services.some((service) => !Object.hasOwn(optionalScopes, service))) {
       return Promise.resolve(validationError("Choose only Drive links, Drive uploads, or Gmail read-only access."));
@@ -104,7 +104,7 @@ export function createBrowserGoogleAuth(options: AuthOptions) {
         if (settled) return;
         if (response.error || !response.access_token) {
           finish(conflictError(response.error === "access_denied"
-            ? "Google access was denied. You can continue locally or reconnect and choose the access you want."
+            ? "Google access was denied. Reconnect and choose the access you want."
             : "Google did not issue an access token. Reconnect to try again."));
           return;
         }

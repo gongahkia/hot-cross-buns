@@ -463,8 +463,15 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             </SetupOption>
           ) : null}
 
+          {activeStep > 1 && !googleConnected ? (
+            <StatusBanner role="alert" className="[&_.truncate]:whitespace-normal" title="Reconnect Google" description="Your Google session ended. Reconnect before finishing setup." tone="warning"
+              action={<Button onClick={() => setActiveStep(1)} variant="secondary">Connect Google</Button>} />
+          ) : null}
+
           {source.settingsMutationError || localError ? (
             <StatusBanner
+              role="alert"
+              className="[&_.truncate]:whitespace-normal"
               description={source.settingsMutationError ?? localError ?? "Setup settings failed."}
               title={source.settingsMutationError ? "Setup not saved" : "Setup needs attention"}
               tone="warning"

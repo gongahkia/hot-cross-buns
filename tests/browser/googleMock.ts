@@ -20,6 +20,7 @@ export async function mockOnboardingGoogle(page: Page): Promise<void> {
 }
 
 export async function configureOnboardingGoogle(page: Page): Promise<void> {
+  await page.waitForFunction(() => Boolean(window.hcb?.__testing));
   await page.evaluate(async () => {
     await window.hcb!.__testing.configureGoogleAuth("test-web.apps.googleusercontent.com");
     window.dispatchEvent(new Event("hcb:core-data-invalidated"));
