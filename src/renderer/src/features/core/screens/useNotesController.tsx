@@ -404,6 +404,9 @@ export function useNotesController(source: CoreViewModelSource): {
 
   async function selectNote(noteId: string, mode: "view" | "edit" = "edit"): Promise<void> {
     const generation = ++selectionGeneration.current;
+    // Re-selecting the open note must not fetch an older saved copy and remount
+    // its editor after the user has already resumed typing.
+    if (currentInspector?.kind === "note" && currentInspector.id === noteId && noteInspectorModeRef.current === mode) return;
     if (!await flushCurrentNote() || generation !== selectionGeneration.current) return;
     const note = await readFullNote(noteId);
     if (!note || generation !== selectionGeneration.current) return;

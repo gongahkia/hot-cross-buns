@@ -37,10 +37,19 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     let body = page.getByRole("textbox", { name: "Note body", exact: true });
     await expect(body.locator("strong")).toHaveText("formatted");
     const formatToolbar = page.getByRole("toolbar", { name: "Note body formatting" });
-    await formatToolbar.getByRole("button", { name: "Bold", exact: true }).focus();
+    const bold = formatToolbar.getByRole("button", { name: "Bold", exact: true });
+    // focus() does not wait for the inspector's entrance or editor mounting.
+    // Establish an actionable control before testing keyboard navigation.
+    await bold.click({ trial: true });
+    await bold.focus();
+    await expect(bold).toBeFocused();
     await page.keyboard.press("ArrowRight");
     await expect(formatToolbar.getByRole("button", { name: "Italic", exact: true })).toBeFocused();
-    await body.fill(""); await body.pressSequentially("# "); await body.pressSequentially("Markdown heading");
+    await body.click();
+    await expect(body).toBeFocused();
+    await body.fill("");
+    await expect(body).toHaveText("");
+    await body.pressSequentially("# "); await body.pressSequentially("Markdown heading");
     await expect(body.locator("h1")).toHaveText("Markdown heading");
     await body.press("Enter"); await body.press(`${modifier}+b`); await body.pressSequentially("Bold text"); await body.press(`${modifier}+b`);
     await expect(body.locator("strong")).toHaveText("Bold text");

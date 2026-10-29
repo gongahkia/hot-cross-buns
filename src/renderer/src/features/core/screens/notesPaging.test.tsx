@@ -21,7 +21,7 @@ function surface() {
 }
 
 async function editOffscreenNote() {
-  await screen.findByRole("button", { name: "Open note Startup data flow" });
+  await screen.findByRole("button", { name: "Open note Startup data flow" }, { timeout: 5000 });
   act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "note-outside-cache" } })));
   await waitFor(() => expect(screen.getByTestId("inspector-shell")).toHaveAttribute("data-inspector-id", "note-outside-cache"));
   await screen.findByRole("textbox", { name: "Note body" }, { timeout: 5000 });
@@ -30,6 +30,37 @@ async function editOffscreenNote() {
 }
 
 describe("Paged note editing", () => {
+  it("keeps the open editor and its draft when the same note is selected again", async () => {
+    const api = surface();
+    const editor = await editOffscreenNote();
+    api.notes.get = vi.fn(async ({ id }) => ok({ id, listId: "list-inbox", title: "Older saved copy", body: "Older saved content" }));
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "note-outside-cache" } }));
+      fireEvent.change(editor, { target: { value: "Typing immediately after selecting the open note" } });
+    });
+    expect(api.notes.get).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Note body" })).toBe(editor);
+    expect(editor).toHaveValue("Typing immediately after selecting the open note");
+  });
+
+  it("cancels a pending selection when the user reselects the current note", async () => {
+    const api = surface();
+    const editor = await editOffscreenNote();
+    let finish!: (result: any) => void;
+    api.notes.get = vi.fn(() => new Promise<any>((resolve) => { finish = resolve; }));
+    act(() => window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "another-note" } })));
+    await waitFor(() => expect(api.notes.get).toHaveBeenCalledOnce());
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("hcb:note-command", { detail: { action: "open-note", noteId: "note-outside-cache" } }));
+      fireEvent.change(editor, { target: { value: "Stay with this draft" } });
+      finish(ok({ id: "another-note", listId: "list-inbox", title: "Another note", body: "Another body" }));
+    });
+    expect(api.notes.get).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("inspector-shell")).toHaveAttribute("data-inspector-id", "note-outside-cache");
+    expect(screen.getByRole("textbox", { name: "Note body" })).toBe(editor);
+    expect(editor).toHaveValue("Stay with this draft");
+  });
+
   it("reads the full offscreen note and leaves a failed save open", async () => {
     const api = surface();
     const fullBody = "Full content beyond the preview. ".repeat(100);

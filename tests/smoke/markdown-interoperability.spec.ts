@@ -26,8 +26,15 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
     await page.getByRole("button", { name: "Open note Interoperability fixture", exact: true }).click();
     const body = page.getByRole("textbox", { name: "Note body", exact: true });
+    // Enter the mounted editor through an actionable pointer target before
+    // exercising source-mode history; fill alone does not wait for stability.
+    await body.click();
+    await expect(body).toBeFocused();
     await body.fill("Before source");
+    await expect(body).toHaveText("Before source");
+    await expect(page.getByRole("button", { name: "Undo text edit", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Source", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Note body", exact: true })).toHaveValue("Before source");
     await page.getByRole("textbox", { name: "Note body", exact: true }).fill("## After source");
     await page.getByRole("button", { name: "Visual", exact: true }).click();
     await expect(body.locator("h2")).toHaveText("After source");
