@@ -84,23 +84,23 @@ test('a second worker reopens and reads without manufacturing a durable revision
   expect(await snapshot(page)).toEqual(before);
 });
 
-test('the revision protocol upgrade closes old writers and preserves a version-one snapshot', async ({ page }) => {
+for (const oldVersion of [1, 2]) test(`the protocol upgrade fences v${oldVersion} writers and preserves their snapshot`, async ({ page }) => {
   await page.goto('/');
   const task = await page.evaluate(async () => {
-    const result = await window.hcb!.tasks.create({ listId: 'inbox', title: 'Version one survives upgrade' });
+    const result = await window.hcb!.tasks.create({ listId: 'inbox', title: 'Saved workspace survives upgrade' });
     if (!result.ok) throw new Error(result.error.message);
     return result.data;
   });
   const workerUrl = page.workers()[0].url();
   await stopApplication(page);
   const before = await snapshot(page);
-  await page.evaluate(async saved => {
+  await page.evaluate(async ({ saved, oldVersion }) => {
     await new Promise<void>((resolve, reject) => {
       const remove = indexedDB.deleteDatabase('hot-cross-buns-workspace');
       remove.onsuccess = () => resolve(); remove.onerror = () => reject(remove.error);
     });
     await new Promise<void>((resolve, reject) => {
-      const open = indexedDB.open('hot-cross-buns-workspace', 1);
+      const open = indexedDB.open('hot-cross-buns-workspace', oldVersion);
       open.onupgradeneeded = () => open.result.createObjectStore('workspace');
       open.onerror = () => reject(open.error);
       open.onsuccess = () => {
@@ -112,7 +112,7 @@ test('the revision protocol upgrade closes old writers and preserves a version-o
         tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
       };
     });
-  }, before);
+  }, { saved: before, oldVersion });
   const read = await page.evaluate(({ url, id }) => new Promise<any>((resolve, reject) => {
     const worker = new Worker(url, { type: 'module' });
     worker.onerror = event => { worker.terminate(); reject(new Error(event.message)); };
@@ -123,18 +123,18 @@ test('the revision protocol upgrade closes old writers and preserves a version-o
     };
   }), { url: workerUrl, id: task.id });
   expect(read.ok).toBe(true);
-  expect(read.data.title).toBe('Version one survives upgrade');
+  expect(read.data.title).toBe('Saved workspace survives upgrade');
   expect(await snapshot(page)).toEqual(before);
-  const fenced = await page.evaluate(async () => {
+  const fenced = await page.evaluate(async oldVersion => {
     let closed = false;
     try { (window as any).oldWriter.transaction('workspace', 'readwrite'); } catch { closed = true; }
     const versionError = await new Promise<string>(resolve => {
-      const old = indexedDB.open('hot-cross-buns-workspace', 1);
+      const old = indexedDB.open('hot-cross-buns-workspace', oldVersion);
       old.onerror = () => resolve(old.error?.name ?? '');
       old.onsuccess = () => { old.result.close(); resolve(''); };
     });
     return { closed, notified: (window as any).oldWriterClosed, versionError };
-  });
+  }, oldVersion);
   expect(fenced).toEqual({ closed: true, notified: true, versionError: 'VersionError' });
 });
 

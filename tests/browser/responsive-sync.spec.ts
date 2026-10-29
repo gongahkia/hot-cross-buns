@@ -251,3 +251,45 @@ test('disconnect finishes during a held write, saves its receipt, and prevents f
   expect(f.state.taskCreates).toBe(3);
   expect([...f.tasks.values()].map(task => task.title).sort()).toEqual(['Already sending', 'Keep queued', 'Saved after disconnect']);
 });
+
+test('the task inspector saves and closes while a Google pull is still stalled', async ({ page, context }) => {
+  const f = await googleFixture(context); await connect(page);
+  const task = await createTask(page, 'Open this task');
+  await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Tasks', exact: true }).click();
+  await page.getByRole('button', { name: 'Open this task', exact: true }).click();
+  const held = gate(), entered = gate();
+  f.state.hold = async route => { if (route.request().method() === 'GET') { entered.release(); await held.promise; } };
+  await startSync(page); await entered.promise;
+  try {
+    await page.getByRole('textbox', { name: 'Task title', exact: true }).fill('Saved through the inspector');
+    await page.getByRole('button', { name: 'Close inspector', exact: true }).click();
+    await expect(page.getByTestId('inspector-shell')).toHaveCount(0, { timeout: 2000 });
+    await expect(page.getByRole('button', { name: 'Saved through the inspector', exact: true })).toBeVisible({ timeout: 2000 });
+    expect(await promptly(page.evaluate(id => window.hcb!.tasks.get({ id }), task.id))).toMatchObject({ ok: true, data: { title: 'Saved through the inspector' } });
+  } finally { f.state.hold = undefined; held.release(); }
+  expect((await finishSync(page)).ok).toBe(true);
+  expect([...f.tasks.values()]).toMatchObject([{ title: 'Saved through the inspector' }]);
+});
+
+test('replacement waits for Google ownership without blocking edits and rejects a stale review', async ({ page, context }) => {
+  const f = await googleFixture(context); await connect(page);
+  const held = gate(), entered = gate();
+  f.state.hold = async route => { if (route.request().method() === 'GET') { entered.release(); await held.promise; } };
+  await startSync(page); await entered.promise;
+  try {
+    await promptly(page.evaluate(async () => {
+      const exported = await window.hcb!.__testing.exportArchive();
+      if (!exported.ok) throw new Error(exported.error.message);
+      const review = await window.hcb!.__testing.stageImport(exported.data.bytes);
+      if (!review.ok) throw new Error(review.error.message);
+      (window as any).importResult = undefined;
+      void window.hcb!.workspace.confirmImport({ reviewId: review.data.reviewId, confirmation: 'REPLACE_WORKSPACE' }).then(result => { (window as any).importResult = result; });
+    }));
+    await promptly(createTask(page, 'Saved while replacement waits'));
+    expect(await page.evaluate(() => (window as any).importResult)).toBeUndefined();
+  } finally { f.state.hold = undefined; held.release(); }
+  expect((await finishSync(page)).ok).toBe(true);
+  await page.waitForFunction(() => (window as any).importResult);
+  expect(await page.evaluate(() => (window as any).importResult)).toMatchObject({ ok: false, error: { message: expect.stringContaining('changed') } });
+  expect([...f.tasks.values()]).toMatchObject([{ title: 'Saved while replacement waits' }]);
+});
