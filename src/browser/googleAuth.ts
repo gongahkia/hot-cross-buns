@@ -1,5 +1,6 @@
 import type { GoogleOptionalWorkspaceService, GoogleStatusResponse } from "../shared/ipc/contracts";
 import { conflictError, ok, validationError, type HcbResult } from "../shared/result";
+import type { createBrowserGoogleClientConfiguration } from "./googleClientConfiguration";
 
 const baseScopes = ["openid", "email", "profile", "https://www.googleapis.com/auth/tasks", "https://www.googleapis.com/auth/calendar"];
 const optionalScopes: Record<GoogleOptionalWorkspaceService, string> = {
@@ -28,6 +29,7 @@ export interface GoogleIdentityServices {
 interface AuthorizationInput { accountId?: string; requestedServices?: GoogleOptionalWorkspaceService[] }
 interface AuthOptions {
   clientId?: string;
+  clientConfiguration?: ReturnType<typeof createBrowserGoogleClientConfiguration>;
   onToken: (session: BrowserGoogleSession, expectedAccountId?: string) => Promise<HcbResult<GoogleStatusResponse>>;
   onDisconnect: (accountId: string, reason: "disconnect" | "expired") => Promise<HcbResult<GoogleStatusResponse>>;
   getIdentityServices?: () => GoogleIdentityServices | undefined;
@@ -37,7 +39,7 @@ interface AuthOptions {
 
 /** GIS popup tokens only: no client secret, refresh token, or persistent credential storage. */
 export function createBrowserGoogleAuth(options: AuthOptions) {
-  const clientId = options.clientId?.trim() || null;
+  const currentClientId = () => options.clientConfiguration ? options.clientConfiguration.read() : options.clientId?.trim() || null;
   const identityServices = options.getIdentityServices ?? (() => (window as Window & {
     google?: { accounts?: { oauth2?: GoogleIdentityServices } }
   }).google?.accounts?.oauth2);
@@ -49,12 +51,13 @@ export function createBrowserGoogleAuth(options: AuthOptions) {
   let loading: Promise<void> | undefined;
 
   function status() {
+    const clientId = currentClientId();
     return { oauthClientConfigured: Boolean(clientId), clientId, hasClientSecret: false,
       authorizationInProgress: pending !== null, authorizationError };
   }
 
   function preload(): Promise<void> {
-    if (!clientId || identityServices()) return Promise.resolve();
+    if (!currentClientId() || identityServices()) return Promise.resolve();
     if (loading) return loading;
     loading = new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
@@ -73,7 +76,8 @@ export function createBrowserGoogleAuth(options: AuthOptions) {
 
   // Do not insert an await before requestAccessToken: popup activation belongs to the user's click.
   function authorize(input: AuthorizationInput = {}, replaceOptionalScopes = false): Promise<HcbResult<GoogleStatusResponse>> {
-    if (!clientId) return Promise.resolve(conflictError("Google sign-in is not configured for this site. Set VITE_GOOGLE_CLIENT_ID to a Web application OAuth client ID and authorize this site's origin. Existing saved workspaces remain available offline."));
+    const clientId = currentClientId();
+    if (!clientId) return Promise.resolve(conflictError("Save a Google Web application client ID in setup or Settings → Accounts before connecting. Authorize this site's origin in Google Cloud."));
     const services = input.requestedServices ?? [];
     if (!Array.isArray(services) || services.some((service) => !Object.hasOwn(optionalScopes, service))) {
       return Promise.resolve(validationError("Choose only Drive links, Drive uploads, or Gmail read-only access."));
@@ -168,6 +172,17 @@ export function createBrowserGoogleAuth(options: AuthOptions) {
 
   return {
     preload, status,
+    saveOAuthClient(input: Record<string, unknown>) {
+      if (pending) return conflictError("Finish or cancel the Google authorization already in progress before changing the client ID.");
+      if (!options.clientConfiguration) return conflictError("Google client configuration is unavailable in this session.");
+      const result = options.clientConfiguration.save(input);
+      if (!result.ok) return result;
+      authorizationError = null;
+      // Saving is independent of network availability; the next Connect click
+      // owns popup activation, and existing sessions keep their expiry timers.
+      void preload().catch(() => undefined);
+      return ok(status());
+    },
     beginOAuth: (input?: AuthorizationInput) => authorize(input),
     reconfigureOptionalAccess: (input: AuthorizationInput & { confirmation?: string }) => {
       if (!input.accountId || input.confirmation !== "RECONFIGURE_OPTIONAL_ACCESS") return Promise.resolve(validationError("Confirm which Google account's optional access should change."));

@@ -2,20 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GoogleStatusResponse } from "../shared/ipc/contracts";
 import { ok } from "../shared/result";
 import { createBrowserGoogleAuth, type GoogleIdentityServices, type GoogleTokenClientConfig } from "./googleAuth";
+import { createBrowserGoogleClientConfiguration } from "./googleClientConfiguration";
 
 const connected: GoogleStatusResponse = { oauthClientConfigured: true, clientId: "web-client", hasClientSecret: false,
   accounts: [{ email: "person@example.test", displayName: "Planner", accountId: "local-uuid", googleAccountId: "verified-sub", connectionState: "connected", grantedScopes: [], missingScopes: [], unresolvedMutationCount: 0 }] };
-function harness() {
+function harness(clientConfiguration?: ReturnType<typeof createBrowserGoogleClientConfiguration>) {
   let callback!: GoogleTokenClientConfig;
   const requestAccessToken = vi.fn();
   const gis: GoogleIdentityServices = { initTokenClient: vi.fn((config) => { callback = config; return { requestAccessToken }; }) };
   const onToken = vi.fn(async () => ok(connected));
   const onDisconnect = vi.fn(async () => ok({ ...connected, accounts: [] }));
   const fetchIdentity = vi.fn(async () => new Response(JSON.stringify({ sub: "verified-sub", email: "person@example.test", name: "Planner" }), { status: 200 }));
-  const auth = createBrowserGoogleAuth({ clientId: "web-client", getIdentityServices: () => gis, fetch: fetchIdentity, onToken, onDisconnect });
+  const auth = createBrowserGoogleAuth({ clientId: "web-client", clientConfiguration, getIdentityServices: () => gis, fetch: fetchIdentity, onToken, onDisconnect });
   return { auth, onToken, onDisconnect, requestAccessToken, fetchIdentity, response: () => callback };
 }
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
 
 describe("browser Google OAuth", () => {
   it("opens the popup synchronously and installs only a verified subject with actual granted scopes", async () => {
@@ -103,6 +104,32 @@ describe("browser Google OAuth", () => {
     const auth = createBrowserGoogleAuth({ onToken: vi.fn(), onDisconnect: vi.fn() });
     const result = await auth.beginOAuth();
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.message).toContain("VITE_GOOGLE_CLIENT_ID");
+    if (!result.ok) expect(result.error.message).toContain("Settings → Accounts");
+  });
+
+  it("saves a public client without opening a popup and uses it on the next user action", async () => {
+    const h = harness(createBrowserGoogleClientConfiguration());
+    const clientId = "1234567890-first.apps.googleusercontent.com";
+    expect(h.auth.saveOAuthClient({ clientId }).ok).toBe(true);
+    expect(h.requestAccessToken).not.toHaveBeenCalled();
+    expect(h.auth.status().clientId).toBe(clientId);
+    const operation = h.auth.beginOAuth();
+    expect(h.response().client_id).toBe(clientId);
+    expect(h.requestAccessToken).toHaveBeenCalledOnce();
+    expect(h.auth.saveOAuthClient({ clientId: "1234567890-next.apps.googleusercontent.com" }).ok).toBe(false);
+    expect(h.auth.status().clientId).toBe(clientId);
+    await h.auth.cancelOAuth(); await operation;
+  });
+
+  it("keeps existing expiry timers when the client is changed for future connections", async () => {
+    vi.useFakeTimers();
+    const h = harness(createBrowserGoogleClientConfiguration("1234567890-first.apps.googleusercontent.com"));
+    const operation = h.auth.beginOAuth();
+    h.response().callback({ access_token: "memory-only-secret", expires_in: 1, scope: "openid" });
+    await operation;
+    expect(h.auth.saveOAuthClient({ clientId: "1234567890-next.apps.googleusercontent.com" }).ok).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.onDisconnect).toHaveBeenCalledWith("local-uuid", "expired");
+    expect(JSON.stringify(localStorage)).not.toContain("memory-only-secret");
   });
 });

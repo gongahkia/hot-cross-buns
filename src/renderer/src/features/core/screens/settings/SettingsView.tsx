@@ -228,6 +228,7 @@ export function SettingsView({
     }).length
   }), [settings.autoTagRules, source.calendarAgendaEvents, source.initialNotes, source.largeTaskWindow]);
   const [googleClientId, setGoogleClientId] = useState(googleStatus.clientId ?? "");
+  const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [systemFontFamilies, setSystemFontFamilies] = useState<string[]>([]);
   const systemFontFamiliesRequested = useRef(false);
@@ -563,19 +564,22 @@ export function SettingsView({
       return;
     }
 
-    const request =
-      googleClientSecret.trim().length > 0
+    setGoogleClientSaving(true);
+    try {
+      const request = googleClientSecret.trim().length > 0
         ? { clientId: googleClientId, clientSecret: googleClientSecret.trim() }
         : { clientId: googleClientId };
-    const result = await window.hcb.google.saveOAuthClient(request);
-
-    if (result.ok) {
-      setRecoveryMessage("Google OAuth client configuration saved.", "success");
-      source.setGoogleStatus(result.data);
-      return;
+      const result = await window.hcb.google.saveOAuthClient(request);
+      if (result.ok) {
+        setRecoveryMessage("Google OAuth client configuration saved.", "success");
+        source.setGoogleStatus(result.data);
+        setGoogleClientSecret("");
+      } else setRecoveryMessage(result.error.message, "warning");
+    } catch {
+      setRecoveryMessage("Google client configuration could not be saved. Try again.", "warning");
+    } finally {
+      setGoogleClientSaving(false);
     }
-
-    setRecoveryMessage(result.error.message, "warning");
   }
 
   async function beginGoogleOAuth(requestedServices: GoogleOptionalWorkspaceService[] = [], accountId?: string): Promise<void> {
@@ -748,7 +752,7 @@ export function SettingsView({
             setGoogleClientId={setGoogleClientId}
             setGoogleClientSecret={setGoogleClientSecret}
             settings={settings}
-            settingsMutationPending={source.settingsMutationPending}
+            settingsMutationPending={source.settingsMutationPending || googleClientSaving}
             taskLists={source.taskLists}
             updateSelectedCalendar={updateSelectedCalendar}
             updateSelectedTaskList={updateSelectedTaskList}

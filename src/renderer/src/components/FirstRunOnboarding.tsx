@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, ExternalLink, Save, X } from "@ren
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
+import { BrowserGoogleClientFields } from "./BrowserGoogleClientFields";
 
 export function FirstRunOnboarding({ source, connectionOnly = false }: { source: CoreViewModelSource; connectionOnly?: boolean }): JSX.Element {
   const initialTaskListIds =
@@ -187,7 +188,7 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
 
   async function connectGoogle(): Promise<void> {
     if (!googleClientConfigured) {
-      setLocalError(browserRuntime ? "Google sign-in is not configured for this site. Contact the site owner to enable it before continuing." : "Save a Google Desktop OAuth client ID before connecting.");
+      setLocalError(browserRuntime ? "Save a Google Web application client ID below before connecting." : "Save a Google Desktop OAuth client ID before connecting.");
       return;
     }
 
@@ -230,22 +231,25 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
     setGoogleMessage(null);
     setLocalError(null);
 
-    const request =
-      googleClientSecret.trim().length > 0
+    try {
+      const request = googleClientSecret.trim().length > 0
         ? { clientId: googleClientId, clientSecret: googleClientSecret.trim() }
         : { clientId: googleClientId };
-    const result = await window.hcb?.google.saveOAuthClient(request);
-
-    if (result?.ok) {
-      source.setGoogleStatus(result.data);
-      setGoogleClientSecret("");
-      setGoogleMessage("Google OAuth client saved. Opening your browser…");
-      await beginGoogleAuthorization();
-    } else {
-      setLocalError(result?.error.message ?? "Google OAuth client could not be saved.");
+      const result = await window.hcb?.google.saveOAuthClient(request);
+      if (result?.ok) {
+        source.setGoogleStatus(result.data);
+        setGoogleClientSecret("");
+        if (browserRuntime) setGoogleMessage("Client ID saved. Choose Connect Google to continue.");
+        else {
+          setGoogleMessage("Google OAuth client saved. Opening your browser…");
+          await beginGoogleAuthorization();
+        }
+      } else setLocalError(result?.error.message ?? "Google OAuth client could not be saved.");
+    } catch {
+      setLocalError("Google OAuth client could not be saved. Try again.");
+    } finally {
+      setGoogleClientSaving(false);
     }
-
-    setGoogleClientSaving(false);
   }
 
   return (
@@ -289,10 +293,15 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
                     ? "Google OAuth browser handoff is unavailable in this runtime."
                     : googleClientConfigured
                       ? "Connect your Google account to continue. Allow access to Tasks and Calendar to sync your planner."
-                    : browserRuntime ? "Google sign-in is not configured for this site. Contact the site owner to enable it before continuing." : "Save a Desktop OAuth client ID, then connect your Google account."
+                    : browserRuntime ? "Google sign-in is not configured. Save a Web application client ID below, then connect your Google account." : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               title="Connect Google"
             >
+              {!googleConnected && browserRuntime ? <details open={!googleClientConfigured} className="rounded-hcbMd border border-border p-3">
+                <summary className="cursor-pointer text-sm font-medium">Google sign-in configuration</summary>
+                <div className="pt-3"><BrowserGoogleClientFields value={googleClientId} onValueChange={setGoogleClientId}
+                  onSave={saveGoogleClient} busy={googleClientSaving || googleConnecting} /></div>
+              </details> : null}
               {!googleConnected && !browserRuntime ? (
                 <div className="grid w-full gap-2">
                   <Input
@@ -321,7 +330,7 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
                 </Button>
               ) : null}
               <Button
-                disabled={googleConnecting || !oauthRuntimeReady || !googleClientConfigured || googleConnected}
+                disabled={googleClientSaving || googleConnecting || !oauthRuntimeReady || !googleClientConfigured || googleConnected || (browserRuntime && googleClientId.trim() !== source.googleStatus.clientId)}
                 onClick={() => void connectGoogle()}
                 variant="primary"
               >

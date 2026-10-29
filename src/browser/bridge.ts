@@ -6,6 +6,7 @@ import { hydratePanePreferences } from "../renderer/src/features/shell/panePrefe
 
 import { createBrowserNotifications } from "./notifications";
 import { createBrowserGoogleAuth } from "./googleAuth";
+import { createBrowserGoogleClientConfiguration, googleClientIdStorageKey } from "./googleClientConfiguration";
 import { browserStorageInfo, downloadFile, pickFile } from "./files";
 import { observeSyncLifecycle } from "./syncLifecycle";
 
@@ -90,8 +91,10 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
     return { ...value, notifications: typeof Notification === "function", notificationsStatus: notifications.status(),
       capabilityReport: { ...value.capabilityReport, flags: { ...value.capabilityReport?.flags, supportsNotifications: typeof Notification === "function" } } };
   }
+  const googleClientConfiguration = createBrowserGoogleClientConfiguration(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const makeGoogleAuth = (clientId?: string): ReturnType<typeof createBrowserGoogleAuth> => createBrowserGoogleAuth({
     clientId,
+    clientConfiguration: clientId === undefined ? googleClientConfiguration : undefined,
     onToken: async (session, expectedAccountId): Promise<HcbResult<GoogleStatusResponse>> => {
       const result = await request("__google", "attachSession", { session, expectedAccountId }) as HcbResult<GoogleStatusResponse>;
       if (result.ok) void request("sync", "runNow", { reason: "user-connection" });
@@ -99,8 +102,13 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
     },
     onDisconnect: (accountId, reason) => request("__google", "removeSession", { accountId, reason }) as Promise<HcbResult<GoogleStatusResponse>>,
   });
-  let googleAuth = makeGoogleAuth(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+  let googleAuth = makeGoogleAuth();
   void googleAuth.preload().catch(() => { /* Profile exposes the actionable load error. */ });
+  window.addEventListener("storage", (event) => {
+    if (event.key !== googleClientIdStorageKey && event.key !== null) return;
+    void googleAuth.preload().catch(() => undefined);
+    window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+  });
 
   const api = createHcbApi({
     invoke: async (channel, payload) => {
@@ -121,7 +129,12 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
             const status = await request("google", "status");
             return status.ok ? ok({ ...status.data as object, ...googleAuth.status() }) : status;
           }
-          if (input.action === "saveOAuthClient") return validationError("Configure VITE_GOOGLE_CLIENT_ID with a Web OAuth client when deploying this site. Browser applications do not use a client secret.");
+          if (input.action === "saveOAuthClient") {
+            const saved = googleAuth.saveOAuthClient(input.payload);
+            if (!saved.ok) return saved;
+            const status = await request("google", "status");
+            return status.ok ? ok({ ...status.data as object, ...googleAuth.status() }) : status;
+          }
           if (input.action === "pickAndUploadDriveFile") {
             const file = await pickFile("");
             if (!file) return ok({ cancelled: true });

@@ -103,9 +103,10 @@ describe("ProfileSettingsTab optional Google access", () => {
   });
   it("shows Web OAuth configuration without client secret inputs or a fake configured state", () => {
     renderProfile({ oauthClientConfigured: false, accounts: [], account: null }, true);
-    expect(screen.queryByRole("textbox", { name: "Google OAuth client ID" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Google OAuth client ID" })).toBeVisible();
     expect(screen.queryByLabelText("Google OAuth client secret")).not.toBeInTheDocument();
-    expect(screen.getByText(/VITE_GOOGLE_CLIENT_ID/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save client ID" })).toBeVisible();
+    expect(screen.getByText(/Saved for this site in this browser profile/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Add Google Account" })).toBeDisabled();
   });
 });
