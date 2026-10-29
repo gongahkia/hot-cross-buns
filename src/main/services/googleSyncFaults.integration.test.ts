@@ -393,3 +393,13 @@ it("keeps later successor edits when a series creation is rejected instead of de
   expect(f.pending()[0].lastErrorMessage).toContain("Later local changes");
   expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(2);
 });
+
+it("retains an older series split for review without reading later edits into its missing snapshots", async () => {
+  const f = recurringFixture(); const successor = f.split();
+  f.sql("UPDATE outbox SET payload_json=json_remove(payload_json,'$.parentSnapshot','$.successorSnapshot') WHERE kind='event.splitSeries'");
+  f.edit({ title: "Preserve later content" }, successor.id);
+  await f.deliver();
+  expect(f.writes()).toHaveLength(0);
+  expect(f.local(successor.id).title).toBe("Preserve later content");
+  expect(f.pending()[0].status).toBe("failed");
+});

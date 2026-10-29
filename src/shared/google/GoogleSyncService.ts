@@ -685,6 +685,9 @@ export class GoogleSyncService {
   }
 
   private async prepareDeliveryBatch(accountId: string, mutation: PendingSyncMutation): Promise<GoogleSyncBatch | null> {
+    if (mutation.kind === "event.splitSeries" && (!mutation.intent || !mutation.payload.parentSnapshot || !mutation.payload.successorSnapshot)) {
+      throw new CoreStoreError("This older series operation has no saved command snapshots. Compare Google before starting a new split.");
+    }
     if (mutation.kind === "event.updateOccurrence") {
       if (!this.store.googleEventForSync(mutation.entityId)) return null;
       const saved = this.store.googleOperationRecord(accountId, `submission:${mutation.id}`);

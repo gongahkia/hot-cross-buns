@@ -774,7 +774,7 @@ describe("Google sync with durable SQLite state", () => {
       checkpoint: async ({ stage }) => {
         if (stage === "before-remote-write" && f.locations.get("moving") === "middle" && fail) {
           fail = false;
-          throw new SyncPersistenceError({ stage: "before-remote-write" });
+          throw new SyncPersistenceError({ stage: "before-remote-write" }, new Error("Injected interrupted receipt"));
         }
       }
     });

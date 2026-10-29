@@ -208,7 +208,8 @@ describe('browser sync durable boundaries', () => {
     await expect((sync.service as any).compensateGoogleSeriesSplit({
       accountId: f.account.accountId,
       collection: 'https://www.googleapis.com/calendar/v3/calendars/calendar/events',
-      originalMaster: { id: 'original', title: 'Series', startsAt: '2027-01-01T09:00:00Z', endsAt: '2027-01-01T10:00:00Z' },
+      originalMaster: { id: 'original', title: 'Series', startsAt: '2027-01-01T09:00:00Z', endsAt: '2027-01-01T10:00:00Z', recurrenceLines: ['RRULE:FREQ=DAILY;COUNT=5'] },
+      parent: { id: 'original', title: 'Series', startsAt: '2027-01-01T09:00:00Z', endsAt: '2027-01-01T10:00:00Z', recurrenceLines: ['RRULE:FREQ=DAILY;COUNT=1'] },
       updatedParent: { id: 'parent', etag: 'parent-etag' },
       createdSuccessor: { id: 'successor', etag: 'successor-etag' },
     })).rejects.toBeInstanceOf(SyncPersistenceError);
