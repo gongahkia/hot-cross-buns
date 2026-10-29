@@ -16,3 +16,10 @@ export function timed<T>(name: string, kind: string, action: () => T): T {
   try { return action(); }
   finally { recordTiming({ name, kind, durationMs: performance.now() - start }); }
 }
+
+/** Measure through completion (including failures), not just promise creation. */
+export async function timedAsync<T>(name: string, kind: string, action: () => Promise<T>): Promise<T> {
+  const start = performance.now();
+  try { return await action(); }
+  finally { recordTiming({ name, kind, durationMs: performance.now() - start }); }
+}

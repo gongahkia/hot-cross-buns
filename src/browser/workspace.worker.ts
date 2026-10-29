@@ -10,6 +10,7 @@ import { BrowserGoogleSync } from './googleSync';
 import { BrowserGoogleSessions } from './googleSyncSessions';
 import { SyncPersistenceError } from '@shared/google/types';
 import { IPC_CHANNELS } from '@shared/ipc';
+import { recordTiming, timedAsync } from '@shared/core/performance';
 
 const googleSessions = new BrowserGoogleSessions();
 let googleSync: BrowserGoogleSync;
@@ -40,6 +41,14 @@ let stagedImport: StagedImport | undefined;
 let fatal: string | undefined;
 const metrics = { strategy: 'SQLite snapshot in IndexedDB', revision: 0, bytes: 0, exportMs: 0, persistMs: 0, loadMs: 0, commits: 0 };
 const changes = new BroadcastChannel('hot-cross-buns-workspace-changes');
+
+async function withWorkspaceLock<T>(action: () => Promise<T>): Promise<T> {
+  const waitingAt = performance.now();
+  return await navigator.locks.request(WORKSPACE_LOCK, { mode: 'exclusive' }, () => {
+    recordTiming({ name: 'workspace.lock.wait', kind: 'worker', durationMs: performance.now() - waitingAt });
+    return action();
+  });
+}
 
 function capabilities() {
   return {
@@ -88,6 +97,7 @@ async function save(bytes?: Uint8Array<ArrayBuffer>, notify = true): Promise<voi
   const start = performance.now();
   const exported = bytes ?? database.export();
   metrics.exportMs = performance.now() - start;
+  recordTiming({ name: 'workspace.snapshot.export', kind: 'storage', durationMs: metrics.exportMs });
   const snapshot: DurableSnapshot = { format: 1, revision: (durable?.revision ?? 0) + 1, bytes: exported, savedAt: new Date().toISOString() };
   const fail = failNextPersistence;
   failNextPersistence = false;
@@ -97,7 +107,7 @@ async function save(bytes?: Uint8Array<ArrayBuffer>, notify = true): Promise<voi
     await new Promise<void>(() => { /* Test closes this worker at the save boundary. */ });
   }
   const beforeCommit = performance.now();
-  await commitSnapshot(storage, snapshot, durable?.revision ?? 0, fail);
+  await timedAsync('workspace.snapshot.persist', 'storage', () => commitSnapshot(storage, snapshot, durable?.revision ?? 0, fail));
   metrics.persistMs = performance.now() - beforeCommit;
   reopenedChanges = false;
   durable = snapshot;
@@ -195,7 +205,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
   if (namespace === 'workspace' && ['exportArchive', 'stageImport', 'confirmImport'].includes(action)) {
     try {
       if (!storage) throw new Error('Browser storage is unavailable. Allow site storage and reload before importing.');
-      return await navigator.locks.request(WORKSPACE_LOCK, { mode: 'exclusive' }, async () => {
+      return await withWorkspaceLock(async () => {
         const current = await readSnapshot(storage);
         if (action === 'exportArchive') {
           if (!current?.bytes) throw new Error('There is no saved workspace to export.');
@@ -260,7 +270,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
     }
   }
   try {
-    return await navigator.locks.request(WORKSPACE_LOCK, { mode: 'exclusive' }, async () => {
+    return await withWorkspaceLock(async () => {
       await refresh();
       if (namespace === 'diagnostics' && action === 'storage') return ok({ ...metrics, savedAt: durable?.savedAt, wasmHeapBytes: database.sqlite.wasm.heap8u().byteLength });
       if (namespace === 'diagnostics' && action === 'reminderSnapshot') return ok({ settings: core.dispatch('settings', 'get'), planning: core.dispatch('native', 'planningData') });
@@ -342,7 +352,9 @@ setInterval(() => {
   requests = requests.then(async () => { await handle({ id: 0, namespace: '__automatic', action: 'sync', payload: {} }); }).catch(() => undefined);
 }, 30_000);
 self.onmessage = ({ data }) => {
+  const queuedAt = performance.now();
   requests = requests.then(async () => {
+    recordTiming({ name: 'workspace.queue.wait', kind: 'worker', durationMs: performance.now() - queuedAt });
     try { postMessage({ id: data.id, result: await handle(data) }); }
     catch (error) { postMessage({ id: data.id, result: internalError(String(error)) }); }
   });
@@ -351,7 +363,7 @@ self.onmessage = ({ data }) => {
 async function start() {
   if (!navigator.locks) throw new Error('This browser requires Web Locks support. Use a current browser on HTTPS or localhost.');
   storage = await openWorkspaceStorage();
-  await navigator.locks.request(WORKSPACE_LOCK, { mode: 'exclusive' }, refresh);
+  await withWorkspaceLock(refresh);
   markStartupTiming('appReadyMs');
   postMessage({ type: 'ready', writerId });
 }

@@ -5,7 +5,7 @@ export { SyncPersistenceError } from "./types";
 import { googleCalendarEventColorIdForApi } from "@shared/ipc/contracts";
 import { googleTaskNotesMaxLength, googleTaskTitleMaxLength, withHcbTaskMetadata } from "../core/hcbTaskMetadata";
 import { googleOriginalStartQueryValue } from "../core/googleRecurrence";
-import { recordTiming } from "../core/performance";
+import { recordTiming, timedAsync } from "../core/performance";
 import { splitHcbTaskMetadata } from "../core/hcbTaskMetadata";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "../core/syncResolution";
 import { resolutionGoogleEvent, resolutionLocalRecord } from "../core/syncResolution";
@@ -87,7 +87,7 @@ export class GoogleSyncService {
   private async checkpoint(stage: SyncCheckpoint['stage']): Promise<void> {
     if (!this.platform.checkpoint) return;
     const checkpoint: SyncCheckpoint = { stage, ...(this.currentMutationId ? { mutationId: this.currentMutationId } : {}) };
-    try { await this.platform.checkpoint(checkpoint); }
+    try { await timedAsync(`google.checkpoint.${stage}`, 'sync', () => this.platform.checkpoint!(checkpoint)); }
     catch (error) { throw error instanceof SyncPersistenceError ? error : new SyncPersistenceError(checkpoint, error); }
   }
 
@@ -461,16 +461,16 @@ export class GoogleSyncService {
           grantedServices += Number(allowed.tasks) + Number(allowed.calendar);
           if (!allowed.tasks && settings.syncTasksEnabled !== false) missingServices.add('Tasks');
           if (!allowed.calendar && settings.syncCalendarEventsEnabled !== false) missingServices.add('Calendar');
-          if (settings.syncTasksEnabled !== false && allowed.tasks) await this.pullGoogleTasks(account.accountId);
-          if (settings.syncCalendarEventsEnabled !== false && allowed.calendar) await this.pullGoogleCalendars(account.accountId);
+          if (settings.syncTasksEnabled !== false && allowed.tasks) await timedAsync('google.pull.tasks', 'sync', () => this.pullGoogleTasks(account.accountId));
+          if (settings.syncCalendarEventsEnabled !== false && allowed.calendar) await timedAsync('google.pull.calendar', 'sync', () => this.pullGoogleCalendars(account.accountId));
           if (!readOnly) {
             const hasPendingWrites = this.store.pendingSyncMutations(100, account.accountId).length > 0;
-            await this.deliverOutbox(account.accountId);
+            await timedAsync('google.outbox', 'sync', () => this.deliverOutbox(account.accountId));
             // Pull once more so remote canonical values, including generated ids
             // and server-normalised recurrence, are reflected after a write batch.
             if (hasPendingWrites) {
-              if (settings.syncTasksEnabled !== false && allowed.tasks) await this.pullGoogleTasks(account.accountId);
-              if (settings.syncCalendarEventsEnabled !== false && allowed.calendar) await this.pullGoogleCalendars(account.accountId);
+              if (settings.syncTasksEnabled !== false && allowed.tasks) await timedAsync('google.pull.tasks', 'sync', () => this.pullGoogleTasks(account.accountId));
+              if (settings.syncCalendarEventsEnabled !== false && allowed.calendar) await timedAsync('google.pull.calendar', 'sync', () => this.pullGoogleCalendars(account.accountId));
             }
           }
         } catch (error: unknown) {
@@ -1121,20 +1121,24 @@ export class GoogleSyncService {
       requestInit.headers = headers;
     }
     if (requestInit.method && !['GET', 'HEAD'].includes(requestInit.method.toUpperCase())) await this.checkpoint('before-remote-write');
-    let response: Response;
-    try {
-      response = await this.oauth.googleFetch(accountId, target, requestInit);
-    } catch (error: unknown) {
-      if (error instanceof CoreStoreError) throw error;
-      throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
-    }
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new GoogleApiError(response.status, googleErrorMessage(response.status, detail));
-    }
-    observeResponse?.(response);
-    if (response.status === 204) return undefined as T;
-    return await response.json() as T;
+    // Fixed labels only: URLs, account ids, bodies and credentials never enter timings.
+    const write = requestInit.method && !['GET', 'HEAD'].includes(requestInit.method.toUpperCase());
+    return timedAsync(write ? 'google.http.write' : 'google.http.read', 'sync', async () => {
+      let response: Response;
+      try {
+        response = await this.oauth.googleFetch(accountId, target, requestInit);
+      } catch (error: unknown) {
+        if (error instanceof CoreStoreError) throw error;
+        throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
+      }
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new GoogleApiError(response.status, googleErrorMessage(response.status, detail));
+      }
+      observeResponse?.(response);
+      if (response.status === 204) return undefined as T;
+      return await response.json() as T;
+    });
   }
 
   private async ensureDriveUploadFolder(accountId: string): Promise<string> {
