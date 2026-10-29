@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { cx } from "../../../../components/primitives";
 
 export const settingsSelectClass =
-  "min-h-10 rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "min-h-10 min-w-0 max-w-full rounded-hcbMd border border-border bg-surface-0 px-2 text-[var(--text-base)] text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 interface SettingsSearchContextValue {
   groupTitleMatches: boolean;
@@ -98,13 +98,11 @@ export function SettingsSearchProvider({
 export function SettingsTabButton({
   active,
   alertCount = 0,
-  icon: Icon,
   label,
   onClick
 }: {
   active: boolean;
   alertCount?: number;
-  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }): JSX.Element {
@@ -120,7 +118,7 @@ export function SettingsTabButton({
       onClick={onClick}
       type="button"
     >
-      <Icon aria-hidden="true" size={16} className="shrink-0" /><span className="truncate">{label}</span>
+      <span className="truncate">{label}</span>
       {alertCount > 0 ? (
         <span
           aria-hidden="true"
@@ -156,7 +154,7 @@ export function SettingsGroup({
   return (
     <SettingsSearchContext.Provider value={{ groupTitleMatches, query: search.query }}>
       <section className="grid gap-1.5">
-        <h2 className="hcb-heading px-1 text-[var(--text-md)] font-semibold text-text-primary">{title}</h2>
+        <h3 className="hcb-heading px-1 text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
         <div className="overflow-hidden rounded-hcbMd border border-border bg-bg-secondary">
           {children}
         </div>
@@ -185,17 +183,17 @@ export function SettingsControlRow({
   }
 
   return (
-    <div className="grid min-h-11 gap-2 border-b border-border px-3 py-2 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+    <div className="settings-control-row grid min-h-11 gap-3 border-b border-border px-4 py-3 last:border-b-0">
       <div className="flex min-w-0 items-start gap-2.5">
         <div className="min-w-0">
-          <div className="truncate text-[var(--text-base)] font-medium text-text-primary">{label}</div>
+          <div className="text-pretty text-[var(--text-base)] font-medium text-text-primary">{label}</div>
           {description ? (
             <p className="hcb-copy mt-0.5 text-[var(--text-sm)] text-text-muted">{description}</p>
           ) : null}
         </div>
       </div>
       {children ? (
-        <div className="flex min-w-0 items-center justify-start sm:justify-end">{children}</div>
+        <div className="settings-control-value flex min-w-0 max-w-full items-center justify-start">{children}</div>
       ) : null}
     </div>
   );
@@ -218,15 +216,21 @@ export function SettingsSwitch({
 }): JSX.Element | null {
   return (
     <SettingsControlRow description={description} icon={icon} label={label}>
-      <label className="flex size-10 items-center justify-center" aria-label={label}>
+      <div className="flex max-w-full flex-wrap items-center gap-3">
         {trailing}
-        <input
-          checked={checked}
-          className="h-5 w-9 accent-[var(--color-accent)]"
-          onChange={(event) => onChange(event.target.checked)}
-          type="checkbox"
-        />
-      </label>
+        <label className="settings-switch relative flex h-10 w-11 shrink-0 cursor-pointer items-center justify-center">
+          <input
+            aria-label={label}
+            checked={checked}
+            className="peer sr-only"
+            onChange={(event) => onChange(event.target.checked)}
+            type="checkbox"
+          />
+          <span aria-hidden="true" className="settings-switch-track relative h-6 w-10 rounded-full bg-surface-2 transition-colors peer-checked:bg-accent peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
+            <span className="settings-switch-thumb absolute left-0.5 top-0.5 size-5 rounded-full bg-text-primary shadow-sm transition-transform" />
+          </span>
+        </label>
+      </div>
     </SettingsControlRow>
   );
 }
@@ -241,7 +245,7 @@ export function SegmentedControl({
   value: string;
 }): JSX.Element {
   return (
-    <div className="inline-flex max-w-full overflow-hidden rounded-hcbMd border border-border bg-surface-0 p-1">
+    <div className="inline-flex max-w-full flex-wrap rounded-hcbMd border border-border bg-surface-0 p-1">
       {options.map((option) => {
         const active = option.value === value;
 

@@ -2,11 +2,8 @@ import { useState } from "react";
 import type { CalendarListSummary, SettingsSnapshot } from "@shared/ipc/contracts";
 import {
   Eye, EyeOff,
-  CalendarDays,
-  ListTodo,
   RefreshCw,
   Settings2,
-  StickyNote
 } from "lucide-react";
 import { CalendarSourceSwatch } from "../core/screens/calendar/CalendarEventChips";
 import { Button, cx } from "../../components/primitives";
@@ -46,19 +43,16 @@ export function AppHeader({
   const primaryNavigation = [
     {
       id: "calendar" as const,
-      icon: CalendarDays,
       label: t("nav.calendar"),
       shortcut: keybindings["navigation.calendar"]
     },
     {
       id: "tasks" as const,
-      icon: ListTodo,
       label: t("nav.tasks"),
       shortcut: keybindings["navigation.tasks"]
     },
     {
       id: "notes" as const,
-      icon: StickyNote,
       label: t("nav.notes"),
       shortcut: keybindings["navigation.notes"]
     }
@@ -102,9 +96,8 @@ export function AppHeader({
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
       <MiniCalendar onSelectDate={onSelectCalendarDate} />
       <nav aria-label="Primary" className="grid gap-1 px-2">
-        {primaryNavigation.map(({ icon: Icon, id, label, shortcut }) => (
+        {primaryNavigation.map(({ id, label, shortcut }) => (
           <Button aria-current={activeSectionId === id ? "page" : undefined} aria-label={label} aria-keyshortcuts={ariaKeyShortcuts(shortcut)} className={cx("min-w-0 justify-start gap-2", "px-3", activeSectionId === id && "bg-surface-0 text-text-primary")} key={id} onClick={() => onNavigateToSection(id)} title={`${label} (${displayAccelerator(shortcut)})`} variant="ghost">
-            <Icon size={17} className="shrink-0" />
             <span>{label}</span>
           </Button>
         ))}

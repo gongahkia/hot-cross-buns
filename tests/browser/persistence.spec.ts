@@ -29,14 +29,13 @@ test("the shipped SQLite WASM passes SQL compatibility in its worker", async ({p
   await test.info().attach("sqlite-compatibility", {body: JSON.stringify(report, null, 2), contentType: "application/json"});
 });
 
-test("local onboarding and task, note, event, settings, lists, subtasks, tags and FTS survive reopening", async ({page}) => {
+test("an existing workspace and its tasks, notes, events, settings, lists, subtasks, tags and FTS survive reopening", async ({page}) => {
   await ready(page);
-  const dialog = page.getByRole("dialog", {name: "Hot Cross Buns", exact: true});
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", {name: "Get started", exact: true}).click();
-  for (let i = 0; i < 3; i++) await dialog.getByRole("button", {name: "Continue", exact: true}).click();
-  await dialog.getByRole("button", {name: "Finish setup", exact: true}).click();
-  await expect(dialog).toBeHidden();
+  // Initial Google onboarding is covered by onboarding-layout; persistence also
+  // applies to existing local workspaces after their Google session expires.
+  await call(page, "settings", "update", {onboardingStatus: "completed"});
+  await page.reload();
+  await expect(page.getByRole("dialog", {name: "Hot Cross Buns", exact: true})).toBeHidden();
   const list = await call(page, "tasks", "createTaskList", {title: "Browser projects"});
   const noteList = await call(page, "notes", "createNoteList", {title: "Browser research"});
   const task = await call(page, "tasks", "create", {listId: list.id, title: "Marmalade durable task", tags: ["browser"]});

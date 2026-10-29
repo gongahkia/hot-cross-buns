@@ -51,7 +51,7 @@ export function AboutSettingsTab({
   return (
     <div className="grid gap-5">
       {actionMessage ? <p role="status" className="text-sm text-text-secondary">{actionMessage}</p> : null}
-      {browserRuntime ? <SettingsGroup title="Updates"><p className="px-3 py-3 text-sm text-text-secondary">This browser app updates from its hosting site when you reload. Your workspace stays in IndexedDB on this origin.</p></SettingsGroup> : <SettingsGroup title="Updates">
+      {browserRuntime ? <SettingsGroup title="Updates"><p className="px-3 py-3 text-sm text-text-secondary">When an update is ready, close all Hot Cross Buns tabs, then reopen the app to use it. Check offline and update readiness in Data. Your saved workspace stays in this browser.</p></SettingsGroup> : <SettingsGroup title="Updates">
         <SettingsSwitch
           checked={settings.lastUpdateCheckAt !== null}
           label="Check GitHub releases automatically"

@@ -139,7 +139,7 @@ export function CalendarAgendaView({
           viewportHeight={680}
         />
       ) : (
-        <EmptyState description="No events match the visible calendar sources." title="No agenda items" />
+        <EmptyState showIcon={false} description="No events match the visible calendar sources." title="No agenda items" />
       )}
     </div>
   );

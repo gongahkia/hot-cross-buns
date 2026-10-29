@@ -122,10 +122,11 @@ export function AlertsSettingsTab({
           trailing={<Badge>{settings.notificationLeadMinutes} min</Badge>}
         /> : <p className="px-3 py-3 text-sm text-text-secondary">Notifications are unavailable in this browser. Your planner remains available without reminders.</p>}
         {notificationMessage ? <p role="alert" className="px-3 text-sm text-danger">{notificationMessage}</p> : null}
-        <SettingsControlRow label="Calendar reminder lead time">
+        {notificationsAvailable ? <SettingsControlRow label="Calendar reminder lead time">
           <input
             aria-label="Calendar reminder lead time"
-            className="w-56 accent-[var(--color-accent)]"
+            disabled={!settings.notificationsEnabled}
+            className="w-56 max-w-full accent-[var(--color-accent)]"
             max={240}
             min={0}
             onChange={(event) => updateSettings({ notificationLeadMinutes: Number(event.target.value) })}
@@ -133,7 +134,7 @@ export function AlertsSettingsTab({
             type="range"
             value={settings.notificationLeadMinutes}
           />
-        </SettingsControlRow>
+        </SettingsControlRow> : null}
       </SettingsGroup>
 
       <SettingsGroup title="Completion sounds">

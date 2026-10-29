@@ -60,6 +60,7 @@ const cropAspects: Array<{ label: string; value: CropAspect }> = [
 ];
 
 interface AppearanceSettingsTabProps {
+  browserRuntime?: boolean;
   activeColorTheme: ColorThemeDefinition;
   availableFontFamilies: string[];
   settings: SettingsSnapshot;
@@ -68,6 +69,7 @@ interface AppearanceSettingsTabProps {
 }
 
 export function AppearanceSettingsTab({
+  browserRuntime = false,
   activeColorTheme,
   availableFontFamilies,
   settings,
@@ -75,7 +77,8 @@ export function AppearanceSettingsTab({
   updateSettings
 }: AppearanceSettingsTabProps): JSX.Element {
   const { t } = useI18n();
-  const toolbarOrder = settings.toolbarActionOrder.filter((id: ToolbarActionId) => toolbarActions.some((action) => action.id === id));
+  const visibleToolbarActions = toolbarActions.filter((action) => action.id === "refresh" || action.id === "settings");
+  const toolbarOrder = settings.toolbarActionOrder.filter((id: ToolbarActionId) => visibleToolbarActions.some((action) => action.id === id));
   const [customBackgroundMessage, setCustomBackgroundMessage] = useState<string | null>(null);
   const [pendingBackground, setPendingBackground] = useState<PendingBackground | null>(null);
   const [cropAspect, setCropAspect] = useState<CropAspect>("16:10");
@@ -148,7 +151,7 @@ export function AppearanceSettingsTab({
 
   function moveToolbarAction(actionId: ToolbarActionId, direction: -1 | 1): void {
     updateSettings({
-      toolbarActionOrder: moveItem(toolbarOrder, actionId, direction)
+      toolbarActionOrder: [...moveItem(toolbarOrder, actionId, direction), ...settings.toolbarActionOrder.filter((id) => !toolbarOrder.includes(id))]
     });
   }
 
@@ -267,11 +270,11 @@ export function AppearanceSettingsTab({
           description="Use a local image as the app backdrop and infer the palette from its pixels."
           label="Custom background"
         >
-          <div className="grid min-w-0 gap-3 sm:min-w-[28rem]">
+          <div className="grid w-full min-w-0 max-w-[28rem] gap-3">
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <label
                 className={cx(
-                  "inline-flex h-8 shrink-0 cursor-pointer items-center justify-center rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] font-medium leading-none text-text-primary transition-colors duration-fast ease-hcb hover:bg-surface-1",
+                  "inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center rounded-hcbMd border border-border bg-surface-0 px-3 text-[var(--text-base)] font-medium leading-none text-text-primary transition-colors duration-fast ease-hcb hover:bg-surface-1",
                   "focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent"
                 )}
               >
@@ -437,7 +440,7 @@ export function AppearanceSettingsTab({
           <div className="flex min-w-0 items-center gap-3">
             <input
               aria-label="Layout scale"
-              className="w-56 accent-[var(--color-accent)]"
+              className="w-56 max-w-full min-w-0 accent-[var(--color-accent)]"
               max={1.5}
               min={0.8}
               onChange={(event) => updateSettings({ uiLayoutScale: Number(event.target.value) })}
@@ -605,7 +608,7 @@ export function AppearanceSettingsTab({
       </SettingsGroup>
 
       <SettingsGroup title="Per-surface fonts">
-        {fontSurfaceOptions.map((surface) => {
+        {fontSurfaceOptions.filter((surface) => !browserRuntime || surface.id !== "menuBar").map((surface) => {
           const override = settings.perSurfaceFontOverrides[surface.id];
 
           return (
@@ -653,7 +656,7 @@ export function AppearanceSettingsTab({
 
       <SettingsGroup title={t("settings.layout")}>
         <SettingsControlRow
-          description="Calendar, Tasks, and Notes are always available in the app header. Their defaults are Cmd 1, Cmd 2, and Cmd 3; change them in Hotkeys."
+          description="Calendar, Tasks, and Notes are always available in the sidebar. Their defaults are Cmd 1, Cmd 2, and Cmd 3; change them in Hotkeys."
           label="Primary navigation"
         />
         <div className="grid gap-1 border-b border-border px-3 py-3 last:border-b-0">
@@ -763,12 +766,12 @@ export function AppearanceSettingsTab({
           label="Show all quick-create fields by default"
           onChange={(checked) => updateSettings({ quickCreateExpandedByDefault: checked })}
         />
-        <SettingsSwitch
+        {!browserRuntime ? <SettingsSwitch
           checked={settings.restoreWindowStateEnabled}
           description="Keeps window restoration enabled across app launches."
           label="Restore previous session"
           onChange={(checked) => updateSettings({ restoreWindowStateEnabled: checked })}
-        />
+        /> : null}
       </SettingsGroup>
     </div>
   );

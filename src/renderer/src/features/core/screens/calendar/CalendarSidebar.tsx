@@ -148,7 +148,7 @@ export function CalendarSourceVisibilityList({
         </div>
       ) : null}
       {calendars.length === 0 ? (
-        <EmptyState
+        <EmptyState showIcon={false}
           description="No calendars are available yet."
           title="No calendars"
         />
@@ -211,7 +211,7 @@ export function CalendarContextPanel({
           ) : null}
           </div>
         ) : (
-          <EmptyState description="No events match the visible calendar sources." title="No context" />
+          <EmptyState showIcon={false} description="No events match the visible calendar sources." title="No context" />
         )}
       </div>
     </Panel>

@@ -1,3 +1,4 @@
+import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import {
@@ -39,9 +40,8 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const refreshedConnectedAccount = useRef<string | null>(null);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
   const selectedCalendars = useMemo(() => new Set(selectedCalendarIds), [selectedCalendarIds]);
-  const accountState = source.diagnosticsSummary?.account.state ?? "signed_out";
   const connectedGoogleAccount = source.googleStatus.accounts.find((account) => account.connectionState === "connected");
-  const googleConnected = Boolean(connectedGoogleAccount) || accountState === "connected";
+  const googleConnected = Boolean(connectedGoogleAccount);
   const googleAccountLabel =
     connectedGoogleAccount?.displayName ?? connectedGoogleAccount?.email ?? source.googleStatus.account?.displayName ?? source.googleStatus.account?.email ?? "Google account";
   const nativeFlags = source.diagnosticsSummary?.native.flags ?? source.native.capabilityReport.flags;
@@ -60,11 +60,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     activeStep === 0
       ? true
       : activeStep === 1
-        ? resourcesReady
+        ? googleConnected && resourcesReady
         : activeStep === 2
           ? selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0
           : true;
-  const canFinish = resourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
+  const canFinish = googleConnected && resourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
 
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
@@ -149,6 +149,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   }
 
   function goForward(): void {
+    if (!canAdvance) return;
     setLocalError(null);
     setActiveStep((current) => Math.min(4, current + 1));
   }
@@ -163,7 +164,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
     >> = {}
   ): Promise<void> {
     if (!canFinish) {
-      setLocalError("Choose at least one task list and calendar to finish setup.");
+      setLocalError(googleConnected ? "Choose at least one task list and calendar to finish setup." : "Connect your Google account to finish setup.");
       return;
     }
     setSubmitting(true);
@@ -196,7 +197,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
   async function connectGoogle(): Promise<void> {
     if (!googleClientConfigured) {
-      setLocalError(browserRuntime ? "This site needs a Google Web OAuth client configured before connecting. Continue with your local workspace." : "Save a Google Desktop OAuth client ID before connecting.");
+      setLocalError(browserRuntime ? "Google sign-in is not configured for this site. Contact the site owner to enable it before continuing." : "Save a Google Desktop OAuth client ID before connecting.");
       return;
     }
 
@@ -258,14 +259,13 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   }
 
   return (
+    <Dialog.Root open>
+    <Dialog.Portal>
     <div
-      aria-labelledby="first-run-title"
-      aria-modal="true"
       className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary/80 p-3 sm:p-6"
-      role="dialog"
     >
-      <div className="hcb-raised flex h-[min(760px,calc(100dvh-48px))] w-[min(1180px,calc(100vw-48px))] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
-        <h2 className="sr-only" id="first-run-title">Hot Cross Buns</h2>
+      <Dialog.Content aria-describedby={undefined} onEscapeKeyDown={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()} className="hcb-raised flex h-[min(760px,calc(100dvh-48px))] w-[min(1180px,calc(100vw-48px))] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
+        <Dialog.Title className="sr-only">Hot Cross Buns</Dialog.Title>
 
         <div ref={contentRef} className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 sm:p-6">
           {activeStep === 0 ? (
@@ -275,7 +275,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   Welcome to Hot Cross Buns
                 </h3>
                 <p className="hcb-copy mt-3 text-pretty text-[var(--text-md)] text-text-muted">
-                  Turn tasks into a realistic day: capture work, preview free time with Smart Schedule, then create Calendar blocks. Your workspace saves in this browser. Choose your task lists and calendars to get started; no Google account is required.
+                  Turn tasks into a realistic day: capture work, preview free time with Smart Schedule, then create Calendar blocks. Your workspace saves in this browser. Connect your Google account, then choose your task lists and calendars to get started.
                 </p>
               </div>
             </section>
@@ -283,11 +283,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
 
           {activeStep === 1 && !oauthRuntimeReady ? (
             <SetupCard
-              description="Your tasks, notes, calendar, and preferences are saved on this device in this browser profile. Use the local task list and calendar to start planning."
+              description="A Google account is required to finish setup."
               icon={Save}
-              title="Your local workspace"
+              title="Google connection unavailable"
             >
-              <p className="text-[var(--text-sm)] text-text-muted">Google connection and sync are not available in this browser release. You can use the full local planner now.</p>
+              <p className="text-[var(--text-sm)] text-text-muted">This version cannot connect to Google. Open a supported version of Hot Cross Buns to continue setup.</p>
             </SetupCard>
           ) : null}
 
@@ -299,11 +299,11 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
                   : !oauthRuntimeReady
                     ? "Google OAuth browser handoff is unavailable in this runtime."
                     : googleClientConfigured
-                      ? "Connect Google Tasks and Calendar in a consent popup, or continue with your local workspace."
-                    : browserRuntime ? "Google is optional. Continue with your local task list and calendar. This site needs a configured Google Web OAuth client before connecting." : "Save a Desktop OAuth client ID, then connect your Google account."
+                      ? "Connect your Google account to continue. Allow access to Tasks and Calendar to sync your planner."
+                    : browserRuntime ? "Google sign-in is not configured for this site. Contact the site owner to enable it before continuing." : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               icon={Cloud}
-              title="Google account (optional)"
+              title="Connect Google"
             >
               {!googleConnected && !browserRuntime ? (
                 <div className="grid w-full gap-2">
@@ -479,7 +479,6 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               Back
             </Button>
           ) : <span />}
-          <p aria-live="polite" className="text-[var(--text-sm)] text-text-muted">Step {activeStep + 1} of 5</p>
           <div className="flex flex-wrap items-center gap-2">
             {activeStep < 4 ? (
               <Button disabled={!canAdvance} onClick={goForward} variant="primary">
@@ -498,8 +497,10 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
             )}
           </div>
         </footer>
-      </div>
+      </Dialog.Content>
     </div>
+    </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -524,7 +525,7 @@ function SetupCard({
           <h3 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
         </div>
       </div>
-      <p className="hcb-copy mt-2 line-clamp-2 text-[var(--text-sm)] text-text-muted">{description}</p>
+      <p className="hcb-copy mt-2 text-pretty text-[var(--text-sm)] text-text-muted">{description}</p>
       {children ? <div className="mt-3 grid gap-2">{children}</div> : null}
     </section>
   );

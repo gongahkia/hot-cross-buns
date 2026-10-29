@@ -19,27 +19,25 @@ function setupSource(): CoreViewModelSource {
 }
 
 describe("FirstRunOnboarding", () => {
-  it("finishes with real local resources without a Google account", async () => {
+  it("requires Google even when local resources exist and the client is unconfigured", async () => {
     const user = userEvent.setup();
     const source = setupSource();
-    source.taskLists = [{ id: "inbox", title: "Inbox", accountId: "local" }] as typeof source.taskLists;
-    source.calendarSources = [{ id: "primary", title: "Local calendar", accountId: "local", selected: true }] as typeof source.calendarSources;
     source.googleStatus = { accounts: [], oauthClientConfigured: false, clientId: null, hasClientSecret: false };
-    source.native.capabilityReport.flags.supportsOAuthLoopback = false;
-    render(<FirstRunOnboarding source={source} />);
+    source.native.capabilityReport.platform = "web";
+    const { rerender } = render(<FirstRunOnboarding source={source} />);
     await user.click(screen.getByRole("button", { name: "Get started" }));
-    expect(screen.getByRole("heading", { name: "Your local workspace" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Connect Google" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("checkbox", { name: "Select task list Inbox" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Select calendar Local calendar" })).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("heading", { name: "Saved in this browser" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(screen.getByRole("button", { name: "Finish setup" }));
-    expect(source.updateSettings).toHaveBeenCalledWith(expect.objectContaining({
-      onboardingStatus: "completed", selectedTaskListIds: ["inbox"], selectedCalendarIds: ["primary"]
-    }));
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Connect Google" })).toBeDisabled();
+    expect(screen.getByText(/Google sign-in is not configured/)).toBeVisible();
+    source.googleStatus = { ...setupSource().googleStatus };
+    rerender(<FirstRunOnboarding source={source} />);
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+    for (let step = 0; step < 3; step++) await user.click(screen.getByRole("button", { name: "Continue" }));
+    // An expired/disconnected session must not complete setup from a later step.
+    source.googleStatus = { ...source.googleStatus, accounts: [] };
+    rerender(<FirstRunOnboarding source={source} />);
+    expect(screen.getByRole("button", { name: "Finish setup" })).toBeDisabled();
+    expect(source.updateSettings).not.toHaveBeenCalled();
   });
 
   it("keeps setup open when durable settings persistence fails", async () => {
@@ -58,10 +56,10 @@ describe("FirstRunOnboarding", () => {
     const user = userEvent.setup();
     const source = setupSource();
     render(<FirstRunOnboarding source={source} />);
-    expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Step [1-5] of 5/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Get started" }));
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Step [1-5] of 5/)).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Task lists" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Calendars" })).toBeInTheDocument();
     const next = screen.getByRole("button", { name: "Continue" });
@@ -73,7 +71,7 @@ describe("FirstRunOnboarding", () => {
     expect(next).toBeDisabled();
     await user.click(screen.getByRole("checkbox", { name: "Select task list Work" }));
     await user.click(next);
-    expect(screen.getByText("Step 4 of 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Step [1-5] of 5/)).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Balanced" })).toBeChecked();
     for (const label of ["Manual", "Balanced", "Near real time"]) {
       expect(screen.getByRole("radio", { name: label })).toHaveAccessibleDescription(/For example/);
@@ -84,7 +82,7 @@ describe("FirstRunOnboarding", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("radio", { name: "Near real time" })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByText("Step 5 of 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Step [1-5] of 5/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Finish setup" }));
     expect(source.updateSettings).toHaveBeenCalledWith(expect.objectContaining({
       onboardingStatus: "completed", selectedTaskListIds: ["work"], selectedCalendarIds: ["calendar"], syncMode: "near-real-time"

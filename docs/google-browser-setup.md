@@ -1,6 +1,6 @@
 # Google setup for the browser application
 
-Google is optional. Local tasks, notes, calendars, search, settings, and undo work without it. A real Google Web application OAuth client is required to test live consent and synchronization; automated tests use a mocked Google Identity Services popup and mocked API responses.
+A Google connection is required to finish initial onboarding. Once setup is complete, cached tasks, notes, calendars, search, settings, and undo remain available offline; reconnect Google when you want to sync. A real Google Web application OAuth client is required to test live consent and synchronization; automated tests use a mocked Google Identity Services popup and mocked API responses.
 
 ## Configure Google Cloud
 
@@ -9,7 +9,7 @@ Google is optional. Local tasks, notes, calendars, search, settings, and undo wo
 3. Create an OAuth client with application type **Web application**. This is different from the old Desktop client.
 4. Register each exact origin under **Authorized JavaScript origins**, including scheme and port. Examples: `http://localhost:5173`, `http://127.0.0.1:5173`, or `https://planner.example.com`. For localhost testing, Google also instructs adding `http://localhost` alongside the origin with its port. Origins have no URL path. A different host, scheme, or port needs its own entry. Production should use HTTPS.
 5. Set `VITE_GOOGLE_CLIENT_ID=<your-client-id>.apps.googleusercontent.com` in the build environment (or an uncommitted `.env.local` for development), then restart Vite or rebuild/redeploy. Vite embeds this public client ID into the browser bundle. **Never put a client secret, service-account key, access token, or refresh token in a `VITE_` variable.** This token-model popup flow does not use a redirect callback endpoint or client secret.
-6. Open Settings → Accounts and choose **Add Google Account**. Allow the popup, select the intended account, and review the consent screen. Cached Google data and unsent changes remain local when disconnected. Reconnect buttons verify that the chosen Google `sub` matches the existing account; changing identity requires adding a separate account.
+6. Choose **Connect Google** during initial setup, or open Settings → Accounts and choose **Add Google Account** for an existing workspace. Allow the popup, select the intended account, and review the consent screen. Cached Google data and unsent changes remain local when disconnected. Reconnect buttons verify that the chosen Google `sub` matches the existing account; changing identity requires adding a separate account.
 
 ## Requested access
 

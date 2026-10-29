@@ -1,32 +1,31 @@
 import { expect } from "@playwright/test";
 import { test, planner, capture } from "./planner";
-import { seedDatabase } from "./database";
+import { mockOnboardingGoogle, configureOnboardingGoogle } from "../browser/googleMock";
 
 test("onboarding shows complete resource lists together and explains durable browser storage", async () => {
-  await planner(async (page, app) => {
+  await planner(async (page) => {
+    await mockOnboardingGoogle(page);
     await page.evaluate(async () => {
       for (const title of ["Climbing", "Dev Roadmap", "End of Month", "Future Plans", "My Tasks", "Quotes", "SMU", "To Do", "Workout", "Travel"]) {
         const result = await window.hcb!.tasks.createTaskList({ title });
         if (!result.ok) throw new Error(result.error.message);
       }
     });
-    const now = new Date().toISOString();
-    await seedDatabase(app, [
-      { sql: "INSERT INTO google_accounts(id,google_account_id,email,display_name,connection_state,created_at,updated_at) VALUES('setup-fixture','setup-fixture','planner@example.com','Planner','connected',?,?)", values: [now, now] },
-      { sql: "UPDATE task_lists SET account_id='setup-fixture'" },
-      { sql: "UPDATE calendars SET account_id='setup-fixture',title='Personal calendar'" }
-    ]);
     await page.evaluate(async () => {
       const result = await window.hcb!.settings.update({ onboardingStatus: "pending" });
       if (!result.ok) throw new Error(result.error.message);
     });
     await page.reload();
+    await configureOnboardingGoogle(page);
     const dialog = page.getByRole("dialog", { name: "Hot Cross Buns", exact: true });
     await dialog.getByRole("button", { name: "Get started" }).click();
+    await expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await dialog.getByRole("button", { name: "Connect Google", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Google connected" })).toBeVisible();
     await dialog.getByRole("button", { name: "Continue" }).click();
     await expect(dialog.getByRole("heading", { name: "Task lists", exact: true })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Calendars", exact: true })).toBeVisible();
-    // Reopening a Google-only desktop workspace also creates usable local resources.
+    // Google connects through the real worker while local resources stay available.
     await expect(dialog.getByRole("checkbox", { name: /^Select task list/ })).toHaveCount(12);
     await expect(dialog.getByRole("checkbox", { name: "Select calendar Primary", exact: true })).toBeVisible();
     const localResources = await page.evaluate(async () => {
@@ -37,7 +36,9 @@ test("onboarding shows complete resource lists together and explains durable bro
         calendars: result.data.calendars.items.filter(calendar => calendar.accountId === 'local').map(calendar => calendar.title),
       };
     });
-    expect(localResources).toEqual({ lists: ['Inbox'], calendars: ['Primary'] });
+    expect(localResources.lists).toHaveLength(11);
+    expect(localResources.lists).toContain('Inbox');
+    expect(localResources.calendars).toEqual(['Primary']);
     await expect(dialog.locator("header, img")).toHaveCount(0);
     // the resource list grows naturally; only the page owns vertical scrolling.
     for (const heading of ["Task lists", "Calendars"]) {
@@ -58,7 +59,7 @@ test("onboarding shows complete resource lists together and explains durable bro
     await expect(dialog.getByRole("radio")).toHaveCount(0);
     await capture(page, "onboarding-browser-storage");
     await dialog.getByRole("button", { name: "Continue" }).click();
-    await expect(dialog).toContainText("Step 5 of 5");
+    await expect(dialog.getByText(/Step [1-5] of 5/)).toHaveCount(0);
     await dialog.getByRole("button", { name: "Finish setup" }).click();
     await expect(dialog).toHaveCount(0);
   });
