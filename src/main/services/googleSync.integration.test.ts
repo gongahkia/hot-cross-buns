@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoreStore, schemaVersion } from "./coreStore";
-import { GoogleSyncService } from "./googleSync";
+import { GoogleSyncService, SyncPersistenceError } from "./googleSync";
+import { GoogleSyncService as SharedGoogleSyncService } from "../../shared/google/GoogleSyncService";
 import Database from "better-sqlite3";
 import { withHcbTaskMetadata } from "./hcbTaskMetadata";
 
@@ -115,6 +116,31 @@ function createCalendarFixture() {
     return store.upsertGoogleEvent(event, calendar.id)!;
   };
   return { ...fixture, calendar, remoteCalendar, remoteEvents, importEvent };
+}
+
+function createMovingTaskFixture() {
+  const f = createFixture();
+  const locations = new Map<string, string>();
+  const transport = f.googleFetch.getMockImplementation()!;
+  f.googleFetch.mockImplementation(async (account, url, init = {}) => {
+    const method = init.method ?? "GET";
+    const match = url.pathname.match(/\/lists\/([^/]+)\/tasks(?:\/([^/]+))?/);
+    if (!match) return transport(account, url, init);
+    const [, listId, taskId] = match;
+    if (!taskId && method === "GET") return Response.json({ items: [...f.remoteTasks.values()].filter((task) => locations.get(task.id) === listId) });
+    if (taskId && locations.get(taskId) !== listId) return new Response(null, { status: 404 });
+    const response = await transport(account, url, init);
+    if (method === "POST" && url.pathname.endsWith("/move") && response.ok) locations.set(taskId!, url.searchParams.get("destinationTasklist") ?? listId);
+    return response;
+  });
+  const list = (id: string) => {
+    const remote = { id, title: id, etag: `${id}-v1` };
+    f.remoteLists.set(id, remote);
+    return f.store.upsertGoogleTaskList(remote, f.accountId);
+  };
+  const task = f.importTask({ id: "moving", title: "Original", notes: "Original notes" });
+  locations.set("moving", f.list.googleId);
+  return { ...f, task, locations, middle: list("middle"), destination: list("destination") };
 }
 
 afterEach(() => {
@@ -719,6 +745,71 @@ describe("Google sync with durable SQLite state", () => {
     const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH");
     expect(writes.map(([, url]) => url.pathname.split("/").at(-1))).toEqual(["ordered-a", "ordered-b", "ordered-a"]);
     expect(writes.map(([, , init]) => JSON.parse(String(init!.body)))).toEqual([{ title: "A title" }, { title: "B title" }, { notes: "A notes" }]);
+  });
+
+  it("preserves intermediate Task moves and sends later content only at its queued position", async () => {
+    const { store, service, task, middle, destination, googleFetch, remoteTasks, locations, accountId } = createMovingTaskFixture();
+    store.dispatch("tasks", "update", { id: task.id, listId: middle.id });
+    store.dispatch("tasks", "update", { id: task.id, title: "Later title" });
+    store.dispatch("tasks", "update", { id: task.id, listId: destination.id });
+    store.dispatch("tasks", "update", { id: task.id, notes: "Last notes" });
+    await service.runNow();
+    const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method && init.method !== "GET");
+    expect(writes.map(([, url, init]) => [init!.method, url.pathname, url.searchParams.get("destinationTasklist"), init!.body && JSON.parse(String(init!.body))])).toEqual([
+      ["POST", "/tasks/v1/lists/remote-list/tasks/moving/move", "middle", undefined],
+      ["PATCH", "/tasks/v1/lists/middle/tasks/moving", null, { title: "Later title" }],
+      ["POST", "/tasks/v1/lists/middle/tasks/moving/move", "destination", undefined],
+      ["PATCH", "/tasks/v1/lists/destination/tasks/moving", null, { notes: "Last notes" }]
+    ]);
+    expect(locations.get("moving")).toBe("destination");
+    expect(remoteTasks.get("moving")).toMatchObject({ title: "Later title", notes: "Last notes" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("resumes a saved move receipt with its narrow PATCH without moving the Task twice", async () => {
+    const f = createMovingTaskFixture();
+    f.store.dispatch("tasks", "update", { id: f.task.id, listId: f.middle.id, title: "Moved title" });
+    let fail = true;
+    const service = new SharedGoogleSyncService(f.store, { onConnectionChange: () => () => undefined, googleFetch: f.googleFetch }, {
+      checkpoint: async ({ stage }) => {
+        if (stage === "before-remote-write" && f.locations.get("moving") === "middle" && fail) {
+          fail = false;
+          throw new SyncPersistenceError({ stage: "before-remote-write" });
+        }
+      }
+    });
+    await expect(service.runNow()).rejects.toThrow("before-remote-write checkpoint");
+    expect(f.locations.get("moving")).toBe("middle");
+    const pending = f.store.pendingSyncMutations(10, f.accountId)[0];
+    expect(f.store.googleOperationRecord(f.accountId, `submission:${pending.id}`)?.batch.move.stage).toBe("moved");
+    await f.service.runNow();
+    const writes = f.googleFetch.mock.calls.filter(([, , init]) => init?.method && init.method !== "GET");
+    expect(writes.map(([, , init]) => init!.method)).toEqual(["POST", "PATCH"]);
+    expect(JSON.parse(String(writes[1][2]!.body))).toEqual({ title: "Moved title" });
+    expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(0);
+  });
+
+  it("keeps an unacknowledged Task move for review instead of moving it again", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const f = createMovingTaskFixture();
+    f.store.dispatch("tasks", "update", { id: f.task.id, listId: f.middle.id });
+    const transport = f.googleFetch.getMockImplementation()!;
+    let lose = true;
+    f.googleFetch.mockImplementation(async (account, url, init) => {
+      const result = await transport(account, url, init);
+      if (lose && init?.method === "POST" && url.pathname.endsWith("/move")) {
+        lose = false;
+        throw new TypeError("Move accepted; response lost");
+      }
+      return result;
+    });
+    await f.service.runNow();
+    vi.setSystemTime(Date.now() + 60_000);
+    await f.service.runNow();
+    expect(f.googleFetch.mock.calls.filter(([, url, init]) => init?.method === "POST" && url.pathname.endsWith("/move"))).toHaveLength(1);
+    expect(f.locations.get("moving")).toBe("middle");
+    expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(1);
+    expect(f.store.pendingSyncMutations(10, f.accountId)).toHaveLength(0);
   });
 
   it("sends a narrow Calendar clear without replacing unchanged guests or reminders", async () => {

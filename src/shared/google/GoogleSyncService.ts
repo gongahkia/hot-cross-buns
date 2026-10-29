@@ -3,6 +3,7 @@ import type { GoogleSyncOAuth, GoogleSyncPlatform, GoogleUploadSource, SyncCheck
 import { SyncPersistenceError } from "./types";
 export { SyncPersistenceError } from "./types";
 import { googleTaskBody, googleEventBody } from "./googleWriteBody";
+import { googleRemoteBaseline, syncValuesEqual } from "./syncMerge";
 import { googleOriginalStartQueryValue } from "../core/googleRecurrence";
 import { recordTiming, timedAsync } from "../core/performance";
 import { splitHcbTaskMetadata } from "../core/hcbTaskMetadata";
@@ -678,6 +679,25 @@ export class GoogleSyncService {
   }
 
   private async deliverGoogleBatch(batch: GoogleSyncBatch, retry = 0): Promise<void> {
+    if (batch.move?.stage === "pending") {
+      const source = batch.kind === "task" ? taskCollectionUrl(batch.move.source) : calendarEventCollectionUrl(batch.move.source);
+      if (batch.move.attempted) {
+        const current = await this.requestJson<JsonRecord>(batch.accountId, `${source}/${encodeURIComponent(batch.snapshot.googleId)}`);
+        const observed = googleRemoteBaseline(batch.kind, current, batch.move.source, batch.baseline?.fields);
+        if (!batch.baseline?.etag || observed.etag !== batch.baseline.etag || !syncValuesEqual(observed.fields, batch.baseline.fields)) {
+          throw new CoreStoreError("The previous move may have reached Google. Compare its current location before retrying.");
+        }
+      }
+      batch = { ...batch, move: { ...batch.move, attempted: true } };
+      this.store.beginGoogleSyncBatch(batch);
+      const moved = await this.requestJson<JsonRecord>(batch.accountId, `${source}/${encodeURIComponent(batch.snapshot.googleId)}/move`, {
+        method: "POST", headers: conditionalHeaders(batch.baseline?.etag), query: batch.kind === "event"
+          ? { destination: batch.move!.destination }
+          : { ...(batch.move!.source !== batch.move!.destination ? { destinationTasklist: batch.move!.destination } : {}),
+              ...(batch.move!.parent ? { parent: batch.move!.parent } : {}), ...(batch.move!.previous ? { previous: batch.move!.previous } : {}) }
+      });
+      batch = this.store.acceptGoogleMoveReceipt(batch, moved);
+    }
     const { accountId, kind, snapshot, body, creating } = batch;
     if (!creating && Object.keys(body).length === 0) {
       this.store.completeGoogleSyncBatch(batch);

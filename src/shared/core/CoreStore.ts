@@ -65,6 +65,14 @@ export interface GoogleSyncBatch {
   target: SyncFields;
   body: JsonRecord;
   creating: boolean;
+  move?: {
+    source: string;
+    destination: string;
+    parent?: string;
+    previous?: string;
+    stage: "pending" | "moved";
+    attempted?: boolean;
+  };
 }
 
 export interface HistoricalSmokeNoteFixture {
@@ -573,9 +581,9 @@ export class CoreStore {
     if (saved?.version === 1) return saved.batch as GoogleSyncBatch;
     const selected = compatibleGoogleBatch(onlyMutationIds ? ready.filter((mutation) => onlyMutationIds.includes(mutation.id)) : ready, mutationId);
     const first = selected[0];
-    if (!first?.intent || !/^(taskList|task|event)\.(create|update)$/.test(first.kind)) return null;
+    if (!first?.intent || !/^(taskList|task|event)\.(create|update|move)$/.test(first.kind)) return null;
     const kind = first.kind.split(".")[0] as GoogleEntityKind;
-    if ((kind === "task" && first.intent.barrier) || (kind === "event" && first.intent.snapshot.conferenceCreateRequested)) return null;
+    if ((kind === "task" && first.intent.snapshot.status === "deleted") || (kind === "event" && first.intent.snapshot.conferenceCreateRequested)) return null;
     const current = this.googleSyncRecord(kind, first.entityId);
     // A deleted local event/list is handled by its existing tombstone path.
     if (!current) return null;
@@ -605,7 +613,54 @@ export class CoreStore {
     const body = baseline ? googlePatchFromSyncFields(kind, baseline.fields, target) : fullBody;
     if (kind === "task") validateGoogleTaskBody(body);
     if (kind === "event" && snapshot.googleRecurringEventId) delete body.recurrence;
-    return { mutationIds: selected.map((mutation) => mutation.id), accountId, kind, entityId: first.entityId, snapshot, baseline, target, body, creating };
+    let move: GoogleSyncBatch["move"];
+    if (kind === "task" && !creating) {
+      const parent = snapshot.parentId ? this.googleTaskForSync(snapshot.parentId)?.googleId : undefined;
+      if (snapshot.parentId && !parent) throw new CoreStoreError("This task's parent has not been created in Google yet.");
+      if (baseline!.collectionId !== snapshot.listGoogleId || (baseline!.structure?.parent ?? null) !== (parent ?? null) || hasOwn(first.payload, "previousTaskId")) {
+        const previous = first.payload.previousTaskId ? this.googleTaskForSync(first.payload.previousTaskId)?.googleId : undefined;
+        if (first.payload.previousTaskId && !previous) throw new CoreStoreError("The previous task has not been created in Google yet.");
+        move = { source: baseline!.collectionId!, destination: snapshot.listGoogleId, parent, previous, stage: "pending" };
+      }
+    }
+    if (kind === "event" && first.kind === "event.move" && !creating) {
+      const source = this.googleCalendarForSync(first.payload.sourceCalendarId)?.googleId;
+      const destination = this.googleCalendarForSync(first.payload.destinationCalendarId)?.googleId;
+      if (!source || !destination) throw new CoreStoreError("The source or destination calendar has not been discovered in Google yet.");
+      move = { source, destination, stage: "pending" };
+    }
+    return { mutationIds: selected.map((mutation) => mutation.id), accountId, kind, entityId: first.entityId, snapshot, baseline, target, body, creating, ...(move ? { move } : {}) };
+  }
+
+  acceptGoogleMoveReceipt(batch: GoogleSyncBatch, remote: JsonRecord): GoogleSyncBatch {
+    if (!batch.move || !batch.baseline) throw new CoreStoreError("The queued move is incomplete.");
+    const observed = googleRemoteBaseline(batch.kind, remote, batch.move.destination, batch.baseline.fields);
+    const merged = mergeSyncFields(batch.baseline.fields, batch.target, observed.fields);
+    const snapshot = localRecordWithGoogleFields(batch.kind, {
+      ...batch.snapshot, googleId: remote.id, googleEtag: remote.etag ?? null,
+      ...(batch.kind === "task" ? { googleListId: batch.move.destination, googleParentId: remote.parent ?? null } : {})
+    }, merged.fields);
+    const body = googlePatchFromSyncFields(batch.kind, observed.fields, merged.fields);
+    if (batch.kind === "task") validateGoogleTaskBody(body);
+    const next: GoogleSyncBatch = { ...batch, snapshot, target: merged.fields, body, baseline: observed, move: { ...batch.move, stage: "moved" } };
+    let newerConflicts: string[] = [];
+    this.db.transaction(() => {
+      const current = this.googleSyncRecord(batch.kind, batch.entityId);
+      if (current) {
+        const local = localGoogleSyncFields(batch.kind, current, batch.baseline!.fields);
+        const updated = mergeSyncFields(batch.baseline!.fields, local, observed.fields);
+        newerConflicts = updated.conflicts;
+        this.rebaseGoogleIntents(batch.accountId, batch.kind, batch.entityId, local, updated.fields);
+        this.applyGoogleSyncFields(batch.kind, batch.entityId, updated.fields);
+      }
+      if (batch.kind === "task") this.bindGoogleTask(batch.entityId, remote, snapshot);
+      else this.bindGoogleEvent(batch.entityId, remote, snapshot, batch.mutationIds[0]);
+      this.beginGoogleSyncBatch(next);
+    })();
+    // The move receipt proves its new location. Content conflicts still need
+    // review before a PATCH; never replay the move just to retry that content.
+    if (merged.conflicts.length || newerConflicts.length || !observed.etag) throw new CoreStoreError("Google changed this item's content during its move. Compare Google before continuing.");
+    return next;
   }
 
   beginGoogleSyncBatch(batch: GoogleSyncBatch): void {
@@ -677,7 +732,7 @@ export class CoreStore {
         const expectedCollection = kind === "task" ? submitted.snapshot.listGoogleId : kind === "event" ? submitted.snapshot.calendarGoogleId : null;
         const sameLocation = observed.remoteId === expectedId && observed.collectionId === expectedCollection;
         const changed = changedSyncFields(submitted.baseline?.fields ?? {}, submitted.target);
-        const accepted = sameLocation && !observed.deleted && (!submitted.baseline || syncValuesEqual(submitted.baseline.structure, observed.structure)) && (submitted.creating && kind === "event" ||
+        const accepted = sameLocation && !observed.deleted && (!submitted.move || submitted.move.stage === "moved") && (!submitted.baseline || syncValuesEqual(submitted.baseline.structure, observed.structure)) && (submitted.creating && kind === "event" ||
           changed.every((field) => syncValuesEqual(submitted.target[field], observed.fields[field])));
         if (accepted) {
           const merged = mergeSyncFields(submitted.target, localFields, observed.fields);
