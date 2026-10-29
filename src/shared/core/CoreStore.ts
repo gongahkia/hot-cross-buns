@@ -583,7 +583,7 @@ export class CoreStore {
     const first = selected[0];
     if (!first?.intent || !/^(taskList|task|event)\.(create|update|move)$/.test(first.kind)) return null;
     const kind = first.kind.split(".")[0] as GoogleEntityKind;
-    if ((kind === "task" && first.intent.snapshot.status === "deleted") || (kind === "event" && first.intent.snapshot.conferenceCreateRequested)) return null;
+    if (kind === "task" && first.intent.snapshot.status === "deleted") return null;
     const current = this.googleSyncRecord(kind, first.entityId);
     // A deleted local event/list is handled by its existing tombstone path.
     if (!current) return null;
@@ -611,6 +611,7 @@ export class CoreStore {
     const fullBody = kind === "task" ? googleTaskBody(snapshot) : kind === "event"
       ? googleEventBody(snapshot, creating ? this.googleEventCreationId(accountId, snapshot.id) : undefined) : { title: snapshot.title };
     const body = baseline ? googlePatchFromSyncFields(kind, baseline.fields, target) : fullBody;
+    if (kind === "event" && fullBody.conferenceData) body.conferenceData = fullBody.conferenceData;
     if (kind === "task") validateGoogleTaskBody(body);
     if (kind === "event" && snapshot.googleRecurringEventId) delete body.recurrence;
     let move: GoogleSyncBatch["move"];
@@ -634,6 +635,7 @@ export class CoreStore {
 
   acceptGoogleMoveReceipt(batch: GoogleSyncBatch, remote: JsonRecord): GoogleSyncBatch {
     if (!batch.move || !batch.baseline) throw new CoreStoreError("The queued move is incomplete.");
+    this.validateGoogleReceipt(remote);
     const observed = googleRemoteBaseline(batch.kind, remote, batch.move.destination, batch.baseline.fields);
     const merged = mergeSyncFields(batch.baseline.fields, batch.target, observed.fields);
     const snapshot = localRecordWithGoogleFields(batch.kind, {
@@ -682,6 +684,7 @@ export class CoreStore {
   }
 
   acceptGoogleSyncBatch(batch: GoogleSyncBatch, remote: JsonRecord): void {
+    this.validateGoogleReceipt(remote, batch.creating ? batch.body.id : batch.baseline?.remoteId);
     this.db.transaction(() => {
       remote = { ...batch.body, ...remote };
       const current = this.googleSyncRecord(batch.kind, batch.entityId);
@@ -700,6 +703,35 @@ export class CoreStore {
       else if (batch.kind === "taskList") this.bindGoogleTaskList(batch.entityId, remote, batch.snapshot);
       else this.bindGoogleEvent(batch.entityId, remote, batch.snapshot, batch.mutationIds[0]);
       this.completeGoogleSyncBatch(batch);
+    })();
+  }
+
+  private validateGoogleReceipt(remote: JsonRecord, expectedId?: string): void {
+    // A transport success is not an acknowledgement without a usable identity
+    // and revision. Keep the frozen submission for a read/recovery after this
+    // failure; non-idempotent creations must remain uncertain.
+    if (!remote || typeof remote.id !== "string" || !remote.id.trim() ||
+      typeof remote.etag !== "string" || !remote.etag.trim() || (expectedId && expectedId !== remote.id)) {
+      throw new Error("Google returned an incomplete or mismatched write receipt. The queued change is retained for recovery.");
+    }
+  }
+
+  recoverGoogleCreationBatch(batch: GoogleSyncBatch, remote: JsonRecord): "merged" | "conflict" {
+    this.validateGoogleReceipt(remote, batch.body.id);
+    if (batch.kind !== "event" || !batch.creating || remote.status === "cancelled") throw new CoreStoreError("This creation needs review against Google's current version.");
+    return this.db.transaction(() => {
+      const current = this.googleEventForSync(batch.entityId);
+      if (!current) {
+        this.bindGoogleEvent(batch.entityId, remote, batch.snapshot, batch.mutationIds[0]);
+        this.completeGoogleSyncBatch(batch);
+        return "merged" as const;
+      }
+      // A duplicate-ID GET can include phone edits made after the accepted
+      // POST. Bind identity only, then use the saved submission as merge base.
+      if (current.calendarId !== batch.snapshot.calendarId) this.bindEventCreationLocation(batch.entityId, batch.snapshot.calendarId, current.calendarId, batch.mutationIds[0]);
+      this.statement("UPDATE events SET google_id=? WHERE id=?").run(remote.id, batch.entityId);
+      const result = this.observeGoogleRemote(batch.accountId, "event", batch.entityId, remote, batch.snapshot.calendarGoogleId);
+      return result === "merged" ? "merged" as const : "conflict" as const;
     })();
   }
 
@@ -732,7 +764,9 @@ export class CoreStore {
         const expectedCollection = kind === "task" ? submitted.snapshot.listGoogleId : kind === "event" ? submitted.snapshot.calendarGoogleId : null;
         const sameLocation = observed.remoteId === expectedId && observed.collectionId === expectedCollection;
         const changed = changedSyncFields(submitted.baseline?.fields ?? {}, submitted.target);
-        const accepted = sameLocation && !observed.deleted && (!submitted.move || submitted.move.stage === "moved") && (!submitted.baseline || syncValuesEqual(submitted.baseline.structure, observed.structure)) && (submitted.creating && kind === "event" ||
+        const conferenceAccepted = !submitted.body.conferenceData?.createRequest ||
+          remote.conferenceData?.createRequest?.requestId === submitted.body.conferenceData.createRequest.requestId;
+        const accepted = sameLocation && !observed.deleted && conferenceAccepted && (!submitted.move || submitted.move.stage === "moved") && (!submitted.baseline || syncValuesEqual(submitted.baseline.structure, observed.structure)) && (submitted.creating && kind === "event" ||
           changed.every((field) => syncValuesEqual(submitted.target[field], observed.fields[field])));
         if (accepted) {
           const merged = mergeSyncFields(submitted.target, localFields, observed.fields);
@@ -888,7 +922,7 @@ export class CoreStore {
     const delayMs = canRetry
       ? Math.min(15 * 60_000, 1_000 * (2 ** Math.min(attempts, 8)) + Math.floor(Math.random() * 500))
       : 0;
-    this.statement("UPDATE outbox SET payload_json=json_set(payload_json,'$.__hcbUncertainCreation',json(?)),state=?,creation_started=0,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=?")
+    this.statement("UPDATE outbox SET payload_json=json_set(payload_json,'$.__hcbUncertainCreation',json(?)),state=?,creation_started=0,attempts=?,next_attempt_at=?,last_error=?,updated_at=? WHERE id=? AND state IN ('pending','conflict')")
       .run(JSON.stringify(uncertainCreation), canRetry ? "pending" : "conflict", attempts,
         new Date(Date.now() + delayMs).toISOString(), sanitizeSyncError(exhausted
           ? `Automatic delivery stopped after ${attempts} failed attempts. Review this change in Diagnostics before retrying. ${error}`
@@ -3679,9 +3713,9 @@ export class CoreStore {
   /** One reviewed unit includes later edits and structural dependants. */
   syncResolutionContext(id: string): SyncResolutionContext {
     const rows = (this.statement(`SELECT id,account_id AS accountId,kind,entity_id AS entityId,payload_json AS payload,
-      attempts,created_at AS createdAt,state,creation_started AS creationStarted FROM outbox
+      attempts,created_at AS createdAt,state,creation_started AS creationStarted,sync_intent_json AS intent FROM outbox
       WHERE state IN ('pending','conflict') ORDER BY rowid`).all() as JsonRecord[])
-      .map((row): JsonRecord => ({ ...row, payload: safeJson(row.payload, {}) }));
+      .map((row): JsonRecord => ({ ...row, payload: safeJson(row.payload, {}), intent: safeJson(row.intent, null) }));
     const mutation = rows.find((row) => row.id === id);
     if (!mutation) throw new CoreStoreError("Pending mutation no longer exists");
     if (rows.some((row) => row.accountId === mutation.accountId && row.creationStarted)) throw new CoreStoreError("Wait for the current Google creation to finish.");
@@ -3789,12 +3823,25 @@ export class CoreStore {
           const match = resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id));
           remote = match?.event; collectionId = match?.calendar.remote.id ?? null;
         }
+        const chain = context.mutations.filter((entry) => entry.entityId === entity.id);
+        const legacy = chain.some((entry) => !entry.intent) && local && chain.every((entry) => [`${entity.kind}.create`, `${entity.kind}.update`].includes(entry.kind));
+        if (legacy && !local.googleId && !remote) {
+          this.replaceReviewedLegacyChain(entity.kind, local, chain, {});
+        }
         if (!remote) continue;
+        if (!remote.etag) throw new CoreStoreError("Google did not return a revision for the reviewed item. Compare again before retrying.");
         this.saveGoogleBaseline(accountId, entity.kind, entity.id, remote, collectionId);
         const table = entity.kind === "task" ? "tasks" : entity.kind === "event" ? "events" : "task_lists";
         this.statement(`UPDATE ${table} SET google_etag=? WHERE id=?`).run(remote.etag ?? null, entity.id);
         for (const mutation of context.mutations.filter((entry) => entry.entityId === entity.id && entry.kind.endsWith(".delete"))) {
           this.statement("UPDATE outbox SET payload_json=json_set(payload_json,'$.googleEtag',?) WHERE id=?").run(remote.etag ?? null, mutation.id);
+        }
+        if (legacy) {
+          // Historical intermediate values cannot be reconstructed. An explicit
+          // Keep local decision approves the latest displayed state. Replace
+          // that reviewed chain at its original position, retaining undo rows.
+          const baseline = this.googleSyncState(accountId, entity.kind, entity.id)!.baseline;
+          this.replaceReviewedLegacyChain(entity.kind, local!, chain, baseline.fields);
         }
       }
       for (const entity of context.entities.filter((entity) => entity.kind === "event")) {
@@ -3822,6 +3869,14 @@ export class CoreStore {
       }
       return result;
     })();
+  }
+
+  private replaceReviewedLegacyChain(kind: GoogleEntityKind, local: JsonRecord, chain: PendingSyncMutation[], base: SyncFields): void {
+    const intent: GoogleSyncIntent = { snapshot: local, changedFields: changedSyncFields(base, localGoogleSyncFields(kind, local)), barrier: true };
+    const ordering = kind === "task" ? [...chain].reverse().find(entry => hasOwn(entry.payload, "previousTaskId")) : undefined;
+    const payload = { ...chain[0].payload, ...(ordering ? { previousTaskId: ordering.payload.previousTaskId } : {}) };
+    this.statement("UPDATE outbox SET payload_json=?,sync_intent_json=? WHERE id=?").run(JSON.stringify(payload), JSON.stringify(intent), chain[0].id);
+    for (const entry of chain.slice(1)) this.statement("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=?").run(timestamp(), entry.id);
   }
 
   /** Apply fetched, complete snapshots and the queue decision in one transaction. */

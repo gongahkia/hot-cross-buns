@@ -636,7 +636,7 @@ export class GoogleSyncService {
         (["taskList.create", "taskList.update"].includes(mutation.kind) && !this.store.googleTaskListForSync(mutation.entityId)?.googleId);
       try {
         this.currentMutationId = mutation.id;
-        const batch = mutation.intent ? this.store.prepareGoogleSyncBatch(accountId, mutation.id) : null;
+        const batch = await this.prepareDeliveryBatch(accountId, mutation);
         // A multi-request series split also needs explicit review if the worker
         // stops partway through it. Native tooling keeps its existing behavior.
         if (nonIdempotentCreate || (this.platform.checkpoint && mutation.kind === 'event.splitSeries')) this.store.beginSyncCreation(mutation.id);
@@ -676,6 +676,31 @@ export class GoogleSyncService {
         this.currentMutationId = undefined;
       }
     }
+  }
+
+  private async prepareDeliveryBatch(accountId: string, mutation: PendingSyncMutation): Promise<GoogleSyncBatch | null> {
+    if (!/^(taskList|task|event)\.(create|update|move)$/.test(mutation.kind)) return null;
+    const kind = mutation.kind.split(".")[0] as "task" | "taskList" | "event";
+    const current = kind === "task" ? this.store.googleTaskForSync(mutation.entityId) : kind === "event"
+      ? this.store.googleEventForSync(mutation.entityId) : this.store.googleTaskListForSync(mutation.entityId);
+    // Existing tombstone handling owns deletion/undo semantics.
+    if (!current || (kind === "task" && current.status === "deleted")) return null;
+    if (!mutation.intent) throw new CoreStoreError("This older queued change has no saved submission. Compare Google before applying the current local version.");
+    const prepared = this.store.prepareGoogleSyncBatch(accountId, mutation.id);
+    if (prepared) return prepared;
+    if (!current.googleId) throw new CoreStoreError("This queued creation is incomplete. Compare Google before continuing.");
+    const collectionId = kind === "task" ? current.googleListId ?? current.listGoogleId : kind === "event"
+      ? this.store.googleSyncState(accountId, kind, mutation.entityId)?.baseline.collectionId ?? current.calendarGoogleId : null;
+    const url = kind === "task" ? taskUrl(collectionId, current.googleId) : kind === "event"
+      ? `${calendarEventCollectionUrl(collectionId)}/${encodeURIComponent(current.googleId)}`
+      : `https://tasks.googleapis.com/tasks/v1/users/@me/lists/${encodeURIComponent(current.googleId)}`;
+    const remote = await this.requestJson<JsonRecord>(accountId, url);
+    if (this.store.observeGoogleRemote(accountId, kind, mutation.entityId, remote, collectionId) !== "merged") {
+      throw new CoreStoreError("The original Google version is unknown or changed. Compare Google before continuing.");
+    }
+    const discovered = this.store.prepareGoogleSyncBatch(accountId, mutation.id);
+    if (!discovered) throw new CoreStoreError("This queued change needs review before it can be sent safely.");
+    return discovered;
   }
 
   private async deliverGoogleBatch(batch: GoogleSyncBatch, retry = 0): Promise<void> {
@@ -738,6 +763,8 @@ export class GoogleSyncService {
       }
       if (!(creating && kind === "event" && error instanceof GoogleApiError && error.status === 409)) throw error;
       remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(body.id)}`);
+      if (this.store.recoverGoogleCreationBatch(batch, remote) !== "merged") throw new CoreStoreError("Google changed the accepted creation. Compare Google to review the newer changes.");
+      return;
     }
     this.store.acceptGoogleSyncBatch(batch, remote);
   }
@@ -1177,6 +1204,13 @@ export class GoogleSyncService {
   }
 
   private async deleteGoogleResource(accountId: string, url: string, etag: unknown): Promise<void> {
+    if (typeof etag !== "string" || !etag.trim()) {
+      // An already absent item is safe to acknowledge. A present one needs a
+      // reviewed revision; never turn missing historical data into a blind delete.
+      try { await this.requestJson<JsonRecord>(accountId, url); }
+      catch (error) { if (error instanceof GoogleApiError && [404, 410].includes(error.status)) return; throw error; }
+      throw new CoreStoreError("The original Google revision for this deletion is unknown. Compare Google before deleting it.");
+    }
     try { await this.requestJson<void>(accountId, url, { method: "DELETE", headers: conditionalHeaders(etag) }); }
     catch (error) {
       // Missing/gone is the requested final state after a lost delete response.
