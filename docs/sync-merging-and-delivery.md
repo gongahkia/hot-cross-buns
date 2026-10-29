@@ -1,79 +1,79 @@
 # Field merging and outgoing write reduction
 
-Work started 2026-10-29. This extends the existing shared sync engine; it does not introduce another backend or authoritative task store. Implementation is in progress. The merge model alone does not enable automatic merging in the running application.
+Implemented 2026-10-29 in the existing shared `CoreStore` and `GoogleSyncService`. The browser still has one SQLite workspace and one sync engine. Final release validation is recorded below; these changes do not introduce a cloud backend or unattended mobile synchronization.
+
+## Behavior
+
+For Google Tasks, task-list titles and Calendar events, a persisted remote baseline is compared with local intent and a fresh Google version. Independent field changes merge automatically. Equal concurrent changes converge without an unnecessary write. Different changes to the same field retain the local content and require the existing Compare Google flow. Quick retry cannot discard a reviewed revision requirement.
+
+Task title, notes, due date, completion, priority, tags, planning and snooze are compared independently where their API representation permits. Planning fields form one group. Calendar start/end/timezone form one group; attendees, attachment lists, recurrence and reminder settings are whole values. Arrays are not merged by index. Concurrent deletions, location/order changes and recurring-series changes stay explicit review boundaries.
+
+A sequence of adjacent, compatible, unsent edits can become one conditional PATCH. Updates can fold into an unsent creation. A net-zero ordinary edit/undo can finish without HTTP. A different entity/account, move, reorder, deletion, recurrence command, attempted write, conflict or legacy command ends the batch. Original undo entries remain independent, and update inverses affect only the edited fields, including when executing older whole-record history.
+
+## Durable data and submission boundaries
+
+Schema **10** adds `google_sync_state` with the last observed remote projection, identity, collection, revision and local dirty fields. `outbox.sync_intent_json` captures each new command's snapshot and changed fields. Migration keeps older queues/history intact and leaves unknown snapshots null; it never invents a remote baseline from optimistic local content.
+
+Before HTTP, the existing operation metadata saves the exact batch IDs, target, baseline, request body and submitted local snapshot. The existing worker checkpoint persists it before releasing the workspace writer. The Google operations lock preserves remote ordering while local edits remain available. Receipts acknowledge only the frozen IDs, bind identities/revisions, merge server normalization where no newer local edit exists, and update the baseline in the same SQL transaction. Browser persistence continues to use IndexedDB protocol v3.
+
+A new edit or undo during HTTP remains queued. Recovery compares newer work with the frozen submission, so an accepted request followed by a lost response cannot swallow that undo. If a local edit and undo cancel out before an independent phone change arrives, the final queued field intent is rebased as well; it cannot later overwrite the merged phone value.
+
+Ordinary write receipts with malformed/mismatched identities or missing revisions leave the submission available for recovery. A failed pre-send persistence checkpoint prevents the HTTP write. A failed receipt transaction rolls back both the baseline and acknowledgement. Retry backoff and the existing eight-attempt limit remain in effect; unresolved work blocks dependent writes within that account.
+
+## Version races, legacy queues and explicit recovery
+
+HTTP 412 triggers a fresh read and a three-way merge. A compatible result retries against the new ETag, retaining the original batch IDs, with at most three PATCH attempts. Overlapping or structural changes require review. A missing historical baseline requires a fresh read that proves the original version, otherwise review; a missing revision never authorizes an unconditional update or deletion. An already absent deletion target may be acknowledged without another DELETE.
+
+Older commands without snapshots require comparison before sending. Choosing Keep local approves the current displayed state: ordinary legacy chains are replaced at their original queue position with that reviewed snapshot while keeping undo history. Older series splits cannot reconstruct their intermediate snapshots and stay available for comparison before a new split. Reviewed retries invalidate obsolete submissions; stale comparisons are rejected if local or Google state changes.
+
+Calendar uses a reserved creation ID. A duplicate-ID response is followed by a read and a merge against the frozen creation, not blindly treated as server normalization. Reserved restoration IDs are recognized in comparison as well as pull recovery. Tasks creation still has no client-chosen ID in this integration: an ambiguous result requires linking/review instead of automatically creating a duplicate.
+
+## Moves, meeting links and recurring events
+
+Moves and reorders use their command snapshots. Content queued between two moves is sent at that position. A move receipt records its actual location/revision before a narrow content PATCH. An acknowledged move resumes its remaining content write; an uncertain move is checked at its source and requires review if the original version cannot be established. Structural operations are never coalesced.
+
+Meeting-link creation is a singleton command with its own request data. Unchanged scalar event fields alone cannot prove that this command reached Google. Later title/content edits remain separate.
+
+Generated occurrence edits retain the original projection and command snapshot. Delivery verifies the parent revision and the instance fields, freezes a narrow conditional PATCH, and retains changed/missing occurrences for review. It never substitutes a new standalone event for a disappeared occurrence. Recovery locates an unbound instance by series/original start without duplicating the local row. Undo restores the edited fields instead of cancelling that occurrence.
+
+Series splits capture both parent and successor snapshots. Parent updates, compensation and exception copies send changed fields. Ambiguous remote results and later dependent local edits stop automatic compensation: a lost reply after an accepted truncation must not be called a successful rollback. Clear rejections retain the existing compensation path. Google does not offer one atomic API request for a whole series split, so interrupted multi-step results remain reviewable.
 
 ## API evidence
 
-Google Calendar supports conditional writes using the last observed ETag. A stale version returns HTTP 412; recovery requires fetching the resource again and deciding whether the local intent can be reapplied. Inserts instead rely on resource ID uniqueness. We retain conditional writes and bounded retries. [Calendar resource versions](https://developers.google.com/workspace/calendar/api/guides/version-resources).
+- [Calendar resource versions](https://developers.google.com/workspace/calendar/api/guides/version-resources): conditional modification uses the previously observed ETag; a stale revision returns 412. Inserts use resource ID uniqueness instead.
+- [Tasks partial updates](https://developers.google.com/workspace/tasks/performance): omitted fields remain unchanged, null clears optional values, and supplied arrays replace the complete array. HCB task notes and planning metadata are merged before serialization into Google's single notes field.
+- [Calendar PATCH](https://developers.google.com/workspace/calendar/api/v3/reference/events/patch): narrow requests preserve omitted fields, but each PATCH still consumes three quota units. Combining requests and eliminating redundant writes reduces request count; smaller payloads alone do not reduce quota per request.
+- [Calendar recurrence](https://developers.google.com/workspace/calendar/api/guides/recurringevents) and [instances](https://developers.google.com/workspace/calendar/api/v3/reference/events/instances): series and instances are distinct resources; instance lookup supports the original start time. HCB's conservative review and recovery choices are application behavior, not a claim of server-side transactional series edits.
 
-Google's partial-update contract leaves omitted fields unchanged. Explicit null removes an optional field; a supplied array replaces that complete array. Consequently, attendees, attachment lists and reminder overrides cannot be independently patched by array index. Task notes and HCB metadata are merged locally and serialized back into the one notes field. [Tasks performance and PATCH semantics](https://developers.google.com/workspace/tasks/performance).
+## Verification
 
-Calendar PATCH consumes three quota units. Narrow patches reduce payload size and avoid overwriting unrelated properties, but do not themselves reduce the quota cost per request. Combining compatible writes and eliminating writes whose desired state is already present reduce request count. [Calendar events.patch](https://developers.google.com/workspace/calendar/api/v3/reference/events/patch).
+The complete unit suite passes **613 tests across 83 files**, including the fault tests. The separate database command passes **240 tests** (also included in the unit total). All **133 distinct browser scenarios** pass across the full run and targeted reruns described below. Coverage:
 
-## Intended invariants
+| Coverage | Evidence |
+| --- | --- |
+| Merge rules and batching boundaries | `src/shared/google/syncMerge.test.ts` and `syncBatch.test.ts` |
+| SQL baselines, command snapshots, migration and undo | `src/main/services/googleSyncState.test.ts` |
+| Real SQLite/service delivery, merging, ordering and reviewed recovery | `src/main/services/googleSync.integration.test.ts` |
+| Injected failures with real SQLite/outbox/undo | `src/main/services/googleSyncFaults.integration.test.ts`: 51 passing scenarios covering lost/unreadable replies, HTTP failures, restart/undo, legacy commands, malformed receipts, failed SQL transactions, failed persistence, deletes, meeting links, occurrence recovery and uncertain series operations |
+| Real workers, SQLite WASM and IndexedDB | Eight passing scenarios in `tests/browser/merge-sync.spec.ts`, covering both Tasks and Calendar across reload, closing a network owner, another tab's undo, conditional-write races, conflicts and stale review |
+| Task editor acknowledgement race | `src/renderer/src/features/core/screens/tasks/useTaskInspector.test.tsx`: a late field edit after creation updates the saved identity instead of creating a duplicate; the test reproduced two creations before the fix |
+| Existing responsive editing/storage boundaries | `tests/browser/responsive-sync.spec.ts`, storage safety, transfer, multi-tab and automatic-sync suites |
 
-- Persist the last observed remote version separately from optimistic local state. Track the fields changed locally against it. Never manufacture a remote baseline from an already-edited local row during migration.
-- Compare base, local and remote values. Independent changes merge; equal concurrent changes converge. Different changes to the same field require the existing explicit comparison/recovery flow.
-- Compare Calendar start/end/timezone together, task planning fields together, and arrays as complete values. Changes to a recurring series, remote deletion or structural location/order remain review boundaries when versions diverge.
-- Freeze each outgoing submission and its selected mutation IDs before releasing the workspace lock. A later edit or undo must not be acknowledged by an earlier response.
-- Combine only adjacent compatible, unsent commands within one account. Never cross a move, delete, reorder, recurring operation, retry or conflict. Preserve individual undo entries and use field-scoped inverses for updates.
-- Persist accepted receipts and their baseline with acknowledgement. Retain enough submission information to distinguish a lost response from a later local undo when recovering.
-- Do not treat a missing baseline or missing ETag as permission to overwrite Google. Reviewed recovery must establish a new baseline before retrying a conflict.
+Validation completed on 2026-10-29:
 
-## Verification status
+- `corepack pnpm test:unit --maxWorkers=1 --minWorkers=1`: 613 tests pass. One worker was used to reduce contention with the browser run.
+- `corepack pnpm test:db`: all 240 tests pass.
+- `corepack pnpm test:ui`: the full run passed 129 of 133 scenarios. After correcting three test fixtures and fixing the task creation race, a fresh-build targeted run passed all four affected scenarios. This is coverage across runs, not a claim that the final full suite was rerun in one invocation.
+- `corepack pnpm build`: both TypeScript checks and the production Vite build pass after the task editor fix. Existing chunk-size/deprecation warnings remain.
+- `corepack pnpm test:production`: passes after the fix; mandatory Google account gate, durable local recovery and absence of production test hooks verified.
+- `corepack pnpm test:offline`: all four production offline/update scenarios pass.
 
-The pure merge model has 20 passing tests covering independent and overlapping changes, convergence, task metadata, explicit clears, date normalization, related time fields, arrays, unmanaged attachments and structural review boundaries.
+The browser fixture corrections respect the inert app shell during onboarding, establish the rich editor caret before indentation, and wait for the command-menu overlay to accept clicks. The task race was a product defect: a field event carrying pre-save editor props could revert a newly saved task to create mode. The controller now retains the acknowledged identity. The full unit suite was rerun after that fix. The first full-browser launch had timed out during competing builds; the subsequent full run started independently.
 
-Schema 10 stores remote baselines and dirty fields in `google_sync_state`, with a separate `sync_intent_json` snapshot on each new outbox command. Pulls and accepted receipts capture their actual remote/submitted version; newer local edits stay dirty. Migration preserves legacy outbox payloads and undo history, leaves their unknown snapshots null, and does not invent a baseline from optimistic content. Task/event body construction is shared between delivery and tracking.
+## Limits
 
-All 151 database/integration cases pass, including nine new restart, migration, account-isolation, ordering and late-receipt cases. The existing 23 service and 13 concurrency cases also pass, as does the core TypeScript check. Automatic merge application, delivery/recovery integration, coalescing, and browser regressions remain to be implemented and verified. No live Google account has been modified.
+These tests inject Google responses; they do not measure production Google latency, quota consumption, or phone-to-Mac convergence. No live account resources or deployment were changed. Finite fault tests cannot establish a universal no-loss guarantee. Browser storage eviction, physical disk loss, removed Google access and errors outside the tested failure model still require backups and recovery.
 
-Update undo entries now retain only affected fields (including related date/reminder/planning groups). Older whole-record entries are scoped when executed, so unrelated remote edits survive both undo and redo. Task reorder history includes the previous sibling needed to restore ordering. Four additional regressions pass alongside all 68 CoreStore and 13 concurrency cases; the core TypeScript check passes.
+If a Google client removes the HCB notes metadata footer, previously known planning values are retained. A deliberate HCB reset sends an explicit defaults footer. Baselines keep the wire notes and whether metadata was retained. A fresh device cannot recover a removed footer without an existing baseline; ordinary Google notes are not a full HCB workspace replica.
 
-## Outgoing delivery increment
-
-Ordinary Task, Task-list and nonrecurring Calendar creates/updates now use their queued snapshots. Adjacent compatible updates combine into one request; updates can fold into an unsent creation. An intervening item, move, reorder, deletion, recurring operation, retry or unknown legacy intent stops the batch. Changed-field patches preserve unrelated Google fields, and an unsent edit followed by undo can finish without HTTP. Individual undo history remains intact.
-
-Before HTTP, the existing operation-metadata store saves the exact selected mutation IDs, baseline, target, request body and local submission snapshot. A late response acknowledges only those IDs. A subsequent edit/undo stays queued, and restarting retains the original submission. Reviewed recovery clears obsolete submissions and establishes the ETag from the reviewed snapshot; it cannot silently replay an old batch over the reviewed decision. Calendar moves also retain their actual intermediate receipt location.
-
-The request-count tests verify one narrow PATCH for adjacent edits, one POST for create-plus-edits, no write for edit-plus-undo, continued delivery after a batch, and ordering across another item's command. They also verify Calendar clears preserve guests/reminders and a newer edit during HTTP remains pending. The existing 68 CoreStore, 13 concurrency and expanded integration tests pass, alongside 18 durable-state and 14 batch-selection tests. A Calendar timezone-cache defect found by narrow-patch testing is fixed: a description edit no longer silently changes an omitted timezone.
-
-Automatic incoming merge application, bounded 412 rebase/retry, ambiguous receipt recovery against a fresh remote observation, legacy-base discovery and the final browser/full-suite audit remain in progress. Structural operations retain their existing delivery/review paths at this stage.
-
-## Incoming merge and conditional retry increment
-
-Pending Task, Task-list and Calendar rows now compare their baseline, local state and incoming remote state. Independent fields merge and equal changes converge; overlapping fields retain both versions for explicit review. A reviewed conflict cannot be bypassed by clearing its ETag through quick retry. A legacy row without a baseline can establish one when its stored ETag proves the incoming resource is that same version; a divergent or missing version requires review.
-
-HTTP 412 triggers a fresh resource read and a bounded conditional retry, with at most three PATCH attempts for that submission. Retries retain the original mutation IDs, so an edit arriving during the fresh read stays queued. Incoming deletes and concurrent structural/recurring changes remain review boundaries. Ordinary updates to an unchanged recurring series can use narrow patches, but are never combined with other commands.
-
-An incoming resource that proves an earlier submission reached Google can acknowledge just that submission. Newer local work is compared with its submitted target, preserving an undo across a lost response and restart. Ambiguous overlapping changes still require review. Successful receipts apply server-normalized fields only where the user has not edited them again, and save the receipt with acknowledgement in one SQL transaction. If an unsent edit/undo cancels itself before an independent phone change arrives, the final queued field intent is rebased too; it cannot replay a stale undo over the merged phone value.
-
-The expanded integration suite has 85 passing cases, including Tasks and Calendar field merging, task notes versus metadata, convergence without writes, bounded 412 retries, edits during the retry read, explicit deletion/series review, server normalization, and cleared metadata. All 22 durable-state and 13 concurrency cases pass; the pure merge model's 20 cases and the core TypeScript check also pass. Full-suite/browser validation and audits of structural delivery, legacy queues, imported submissions, and recovery edge cases remain outstanding. These are mocked Google tests, not live-account validation.
-
-### Task metadata compatibility
-
-The first full-suite run passed 555 tests and exposed one existing behavior that needed preserving: a Google client editing plain notes may omit HCB's metadata footer. Absence continues to retain previously known HCB planning values. Clearing metadata from HCB now sends an explicit defaults footer, which another HCB instance can distinguish from that plain-text edit. Baselines retain the wire notes and mark when metadata was retained, rather than implying that an absent footer still contains those values. A fresh device cannot recover removed metadata without a prior local baseline; this is a limitation of storing HCB-only fields in Google's notes.
-
-The compatibility fix passes 214 focused cases, including the existing metadata-retention regression and new tests for explicit resets and independent phone note edits. The actual encoded PATCH body is checked against Google's notes limit, including the defaults footer. The full suite and browser audit will be repeated after the remaining delivery checks.
-
-### Ordered move delivery
-
-Task moves/reorders and Calendar moves now use the saved command snapshot. A content edit queued between two moves is sent at that position, rather than reading the latest local destination or sending later content early. The move receipt saves its actual remote location and revision before the narrow content PATCH. Resuming an acknowledged move continues that PATCH; an uncertain move is checked at its source and requires review if its original revision cannot be established.
-
-The focused run passes 126 cases: 90 Google/SQLite integration tests, 23 durable-state tests, and 13 browser-worker concurrency unit tests. New cases cover intermediate Task destinations, interruption after the move receipt, and a lost move response. The core TypeScript check passes. These are mocked responses; live move behavior and the remaining legacy/specialized delivery paths still require validation. This increment does not complete the full merge/batching audit.
-
-### Failure injection and legacy delivery
-
-The fault suite (`googleSyncFaults.integration.test.ts`) exercises the real SQLite store, queue, undo and sync engine with an injected Google transport. Its 37 cases cover lost or unreadable replies, accepted requests followed by HTTP 503, rejected offline/rate-limited requests, restart plus undo/redo, unknown baselines, legacy queues, malformed identities/revisions, failed receipt transactions, failed pre-send persistence, unknown deletion revisions, Calendar duplicate-ID recovery, and meeting-link commands. All 150 focused database/state/fault tests and the core TypeScript check pass at this increment.
-
-Unknown baselines now require a fresh read and version proof before delivery. Older commands without snapshots require comparison; choosing Keep local creates a snapshot of the reviewed current state and retains undo history. A missing deletion revision cannot trigger an unconditional DELETE. Incomplete or mismatched receipts retain the submission for recovery. Calendar duplicate-ID recovery uses the frozen creation as a merge base rather than treating a later Google edit as server normalization. Meeting-link requests remain singleton commands and are not acknowledged merely because scalar event fields are unchanged.
-
-This suite does not establish a universal no-loss guarantee. Browser persistence failures, multiple workers, specialized recurring operations and the full release checks remain part of the completion audit; live Google responses have not been exercised.
-
-### Browser and recurrence audit
-
-Eight browser scenarios pass with real workers, SQLite WASM and IndexedDB. Both Tasks and Calendar cover merged phone fields plus batched titles/undo after reload, closing the network owner while another tab undoes, conditional-write races with later local edits, and conflicts that survive reload and reject quick retry/stale review.
-
-Generated occurrence edits now retain their original projection and command snapshot. Delivery verifies the parent revision and instance fields, freezes a narrow conditional PATCH, and keeps removed/changed occurrences for review. It no longer creates a standalone event when the original occurrence disappears. Reviewed recovery can find an unbound instance by its series/original start; a pull of that instance retains the local identity. Undo restores edited fields rather than deleting the occurrence. This follows Google's distinction between series and instances in its [recurrence guide](https://developers.google.com/workspace/calendar/api/guides/recurringevents) and [instance API](https://developers.google.com/workspace/calendar/api/v3/reference/events/instances).
-
-Series splits capture parent/successor snapshots and patch only changed fields. Ambiguous remote results and later dependent local edits prevent automatic compensation. A failed reply after an accepted truncation must not be presented as a successful rollback. Clear rejections still exercise the existing compensation path. The focused run passes 243 tests, including 50 failure-injection cases and the existing store, integration, concurrency and service regressions; core TypeScript passes. Final full-suite and production checks remain pending.
+Google synchronization remains sequential within its owner. Large local SQLite/snapshot operations still take the workspace writer lock. Authentication continuity, Calendar watch notifications, HCB Notes/preferences replication and native mobile background execution remain separate projects. `README.md` is unchanged.

@@ -48,7 +48,7 @@ Workspace export and import review remain local operations. Confirming a replace
 - Delivery rechecks the current outbox before each command, including eligibility, permissions, and refreshed deletion payloads. Retry/cancel decisions are serialized with Google work.
 - A recurring-series split spans several remote mutations. If local commands arrive during one of those waits, it stops for explicit comparison instead of compensating over newer edits. Its partial remote result is treated as uncertain. Ordinary local edits remain available.
 
-Tasks creations with a genuinely lost result still require review; Google Tasks has no client-supplied creation ID here. Independent remote/local field merging remains a later increment. Google operations within one pipeline remain sequential; Gmail metadata requests are also sequential to preserve one SQL continuation.
+Tasks creations with a genuinely lost result still require review; Google Tasks has no client-supplied creation ID here. Independent remote/local field merging is covered by the following increment below. Google operations within one pipeline remain sequential; Gmail metadata requests are also sequential to preserve one SQL continuation.
 
 ### Responsiveness and limits
 
@@ -71,14 +71,16 @@ Runtime verified at `cb03557`, with the final browser tests added in the followi
 
 Google responses were mocked for concurrency testing. No live Google resources or deployment were changed. No quiet-machine percentile benchmark was performed. `README.md` was left unchanged.
 
+## Third increment: field merging and outgoing writes — 2026-10-29
+
+Remote baselines and command snapshots now support automatic merging of independent changes, conditional retries, compatible adjacent batching and narrow patches. Overlaps, deletion/structural ambiguity and recurring changes retain explicit review. Fault injection covers response loss, restart, undo, malformed receipts, failed SQL/persistence checkpoints and uncertain series operations; browser tests cover real workers and durable storage across tabs. See [field merging and outgoing delivery](sync-merging-and-delivery.md) for the implementation, evidence and remaining limits. Validation passes: 613 unit tests, 240 database tests (included in the unit total), 133 distinct browser scenarios across the full run and targeted reruns, both typechecks, the production build/smoke, and all four offline/update scenarios. The linked verification section records the task editor race found during the final sweep and the exact rerun scope.
+
 ## Following increments
 
-1. Persist remote baselines and local field changes; automatically merge independent edits. Preserve explicit review for overlapping edits, deletions and structural changes.
-2. Coalesce compatible unsent edits and send smaller patches without breaking undo, ordering or recurrence dependencies.
-3. Add server sessions and a narrow Google transport adapter, then Calendar watch notifications. The backend requires its own deployment/configuration and does not create a Tasks push API.
-4. Treat full HCB Notes/preferences replication and native mobile background execution as separate product extensions.
+1. Add server sessions and a narrow Google transport adapter, then Calendar watch notifications. The backend requires its own deployment/configuration and does not create a Tasks push API.
+2. Treat full HCB Notes/preferences replication and native mobile background execution as separate product extensions.
 
-The existing browser token model still requires reconnection after reload or token expiry. This first increment does not claim unattended closed-app sync or measured phone-to-Mac latency. Live validation uses disposable Google resources after local regression checks pass.
+The existing browser token model still requires reconnection after reload or token expiry. These increments do not claim unattended closed-app sync or measured phone-to-Mac latency. Live validation remains separate and should use disposable Google resources; the automated checks use mocked Google responses.
 
 ## Reading the measurements
 
