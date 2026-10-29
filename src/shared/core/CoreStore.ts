@@ -7,7 +7,7 @@ import { claimedLocalEventId, deterministicGoogleEventId } from "./googleEventId
 import { calendarCanWrite, calendarWriteRestriction } from "@shared/calendarPermissions";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 import { changedSyncFields, googlePatchFromSyncFields, googleSyncFields, googleRemoteBaseline, mergeGoogleVersions, mergeSyncFields, syncValuesEqual, type GoogleEntityKind, type GoogleSyncBaseline, type SyncFields } from "../google/syncMerge";
-import { googleEventBody, googleTaskBody, localGoogleSyncFields, localRecordWithGoogleFields } from "../google/googleWriteBody";
+import { googleEventBody, googleTaskBody, localGoogleSyncFields, localRecordWithGoogleFields, validateGoogleTaskBody } from "../google/googleWriteBody";
 import { compatibleGoogleBatch } from "../google/syncBatch";
 import { expandGoogleRecurrenceLines, shiftGoogleRecurrenceSchedule, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 import { recordTiming, timed, timingSnapshot } from "./performance";
@@ -603,6 +603,7 @@ export class CoreStore {
     const fullBody = kind === "task" ? googleTaskBody(snapshot) : kind === "event"
       ? googleEventBody(snapshot, creating ? this.googleEventCreationId(accountId, snapshot.id) : undefined) : { title: snapshot.title };
     const body = baseline ? googlePatchFromSyncFields(kind, baseline.fields, target) : fullBody;
+    if (kind === "task") validateGoogleTaskBody(body);
     if (kind === "event" && snapshot.googleRecurringEventId) delete body.recurrence;
     return { mutationIds: selected.map((mutation) => mutation.id), accountId, kind, entityId: first.entityId, snapshot, baseline, target, body, creating };
   }
@@ -627,6 +628,7 @@ export class CoreStore {
 
   acceptGoogleSyncBatch(batch: GoogleSyncBatch, remote: JsonRecord): void {
     this.db.transaction(() => {
+      remote = { ...batch.body, ...remote };
       const current = this.googleSyncRecord(batch.kind, batch.entityId);
       if (current) {
         const body = batch.kind === "task" ? googleTaskBody(batch.snapshot, false) : batch.kind === "event"
@@ -662,8 +664,8 @@ export class CoreStore {
         return "conflict";
       };
       if (pending.some((mutation) => mutation.state === "conflict")) return "conflict" as const;
-      const observed = googleRemoteBaseline(kind, remote, collectionId);
       let base = this.googleSyncState(accountId, kind, entityId)?.baseline;
+      const observed = googleRemoteBaseline(kind, remote, collectionId, base?.fields ?? (kind === "task" ? localGoogleSyncFields(kind, local) : undefined));
       if (!observed.etag) return conflict(["missing remote revision"]);
       // A submission can have reached Google even though its response was lost.
       // Compare newer local work with that target (not the older baseline), so
@@ -775,7 +777,9 @@ export class CoreStore {
 
   private saveGoogleBaseline(accountId: string, kind: GoogleEntityKind, entityId: string, remote: JsonRecord, collectionId: string | null): void {
     requiredText(remote.id, "Google resource id");
-    const baseline = googleRemoteBaseline(kind, remote, collectionId);
+    const previous = this.googleSyncState(accountId, kind, entityId)?.baseline.fields;
+    const local = kind === "task" ? this.googleTaskForSync(entityId) : null;
+    const baseline = googleRemoteBaseline(kind, remote, collectionId, previous ?? (local ? localGoogleSyncFields(kind, local) : undefined));
     this.statement(`INSERT INTO google_sync_state(account_id,kind,entity_id,baseline_json,dirty_fields_json) VALUES(?,?,?,?, '[]')
       ON CONFLICT(account_id,kind,entity_id) DO UPDATE SET baseline_json=excluded.baseline_json`)
       .run(accountId, kind, entityId, JSON.stringify(baseline));
@@ -1212,13 +1216,7 @@ export class CoreStore {
       : null;
     const previous = existing ? this.requireTask(localId) : null;
     const remoteTask = splitHcbTaskMetadata(remote.notes);
-    const previousBaseline = this.googleSyncState(localList.accountId, "task", localId)?.baseline.fields;
-    const remoteFields = googleSyncFields("task", remote);
-    const metadataCleared = previousBaseline && ["priority", "tags", "planning", "snoozeUntil"]
-      .some((field) => !syncValuesEqual(previousBaseline[field], remoteFields[field]));
-    const metadata = remoteTask.metadata ?? (metadataCleared ? {
-      priority: remoteFields.priority, tags: remoteFields.tags, ...remoteFields.planning, snoozeUntil: remoteFields.snoozeUntil
-    } : null);
+    const metadata = remoteTask.metadata;
     const now = timestamp();
     this.statement(`INSERT INTO tasks(id,list_id,title,notes,status,priority,due_at,parent_id,planned_start,planned_end,duration_minutes,
       locked_schedule,snooze_until,tags_json,sort_order,google_id,google_etag,google_parent_id,created_at,updated_at)

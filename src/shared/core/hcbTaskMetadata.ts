@@ -24,9 +24,9 @@ export interface HcbTaskMetadata {
  * hidden or inferred from a title, which prevents accidental parsing of a
  * user's natural-language task.
  */
-export function withHcbTaskMetadata(notes: unknown, source: JsonRecord): string {
+export function withHcbTaskMetadata(notes: unknown, source: JsonRecord, options: { includeDefaults?: boolean } = {}): string {
   const base = splitHcbTaskMetadata(notes).notes;
-  const metadata = taskMetadataForSync(source);
+  const metadata = taskMetadataForSync(source, options.includeDefaults === true);
   if (Object.keys(metadata).length === 0) return base;
   const encoded = btoa(Array.from(new TextEncoder().encode(JSON.stringify(metadata)), (byte) => String.fromCharCode(byte)).join("")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   return `${base}${base ? "\n\n" : ""}${markerPrefix}${encoded}]`;
@@ -46,7 +46,7 @@ export function splitHcbTaskMetadata(value: unknown): { metadata: HcbTaskMetadat
   }
 }
 
-function taskMetadataForSync(source: JsonRecord): HcbTaskMetadata {
+function taskMetadataForSync(source: JsonRecord, includeDefaults = false): HcbTaskMetadata {
   const priority = typeof source.priority === "string" && priorities.has(source.priority) ? source.priority as HcbTaskMetadata["priority"] : "none";
   const tags = parseTags(source.tags);
   const durationMinutes = positiveInteger(source.durationMinutes);
@@ -57,7 +57,7 @@ function taskMetadataForSync(source: JsonRecord): HcbTaskMetadata {
   const metadata: HcbTaskMetadata = {
     priority, tags, plannedStart, plannedEnd, durationMinutes: durationMinutes ?? null, lockedSchedule, snoozeUntil
   };
-  return priority !== "none" || tags.length > 0 || plannedStart || plannedEnd || durationMinutes || lockedSchedule || snoozeUntil
+  return includeDefaults || priority !== "none" || tags.length > 0 || plannedStart || plannedEnd || durationMinutes || lockedSchedule || snoozeUntil
     ? metadata
     : {} as HcbTaskMetadata;
 }

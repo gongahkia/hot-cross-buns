@@ -53,13 +53,16 @@ describe("three-way Google merging", () => {
     });
   });
 
-  it("treats a removed task metadata footer as clearing its values", () => {
+  it("clears metadata only with explicit defaults and retains it when a Google text edit omits the footer", () => {
     const base = googleSyncFields("task", { notes: withHcbTaskMetadata("Notes", { priority: "high", tags: ["work"] }) });
-    const remote = googleSyncFields("task", { notes: "Notes" });
+    const textEdit = googleSyncFields("task", { notes: "Phone notes" }, base);
+    expect(textEdit).toMatchObject({ notes: "Phone notes", priority: "high", tags: ["work"] });
+    const remote = googleSyncFields("task", { notes: withHcbTaskMetadata("Notes", {}, { includeDefaults: true }) }, base);
     expect(changedSyncFields(base, remote)).toEqual(["priority", "tags"]);
     expect(mergeSyncFields(base, { ...base, title: "Local title" }, remote).fields).toMatchObject({
       priority: "none", tags: [], title: "Local title"
     });
+    expect(googlePatchFromSyncFields("task", base, remote)).toEqual({ notes: withHcbTaskMetadata("Notes", {}, { includeDefaults: true }) });
   });
 
   it("compares Task due dates as dates, not timestamp formatting", () => {

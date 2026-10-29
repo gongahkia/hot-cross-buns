@@ -13,14 +13,20 @@ export interface GoogleSyncBaseline {
   deleted: boolean;
   recurring: boolean;
   structure?: SyncFields;
+  taskNotesWire?: string;
+  taskMetadataRetained?: boolean;
 }
 
-export function googleRemoteBaseline(kind: GoogleEntityKind, remote: JsonRecord, collectionId: string | null): GoogleSyncBaseline {
+export function googleRemoteBaseline(kind: GoogleEntityKind, remote: JsonRecord, collectionId: string | null, metadataFallback?: SyncFields): GoogleSyncBaseline {
   return {
-    remoteId: remote.id, collectionId, etag: remote.etag ?? null, fields: googleSyncFields(kind, remote),
+    remoteId: remote.id, collectionId, etag: remote.etag ?? null, fields: googleSyncFields(kind, remote, kind === "task" ? metadataFallback : undefined),
     deleted: remote.deleted === true || remote.status === "cancelled",
     recurring: Boolean(remote.recurringEventId || remote.recurrence?.length),
-    ...(kind === "task" ? { structure: { parent: remote.parent ?? null, position: remote.position ?? null } } : {})
+    ...(kind === "task" ? {
+      structure: { parent: remote.parent ?? null, position: remote.position ?? null },
+      taskNotesWire: typeof remote.notes === "string" ? remote.notes : "",
+      taskMetadataRetained: !splitHcbTaskMetadata(remote.notes).metadata && Boolean(metadataFallback)
+    } : {})
   };
 }
 
@@ -81,12 +87,12 @@ export function googleSyncFields(kind: GoogleEntityKind, body: JsonRecord, fallb
       title: body.title ?? "Untitled task", notes: parsed.notes,
       due: typeof body.due === "string" && body.due ? body.due.slice(0, 10) : null,
       status: body.status === "completed" ? "completed" : "needsAction",
-      priority: metadata?.priority ?? "none", tags: metadata?.tags ?? [],
-      planning: {
+      priority: metadata ? metadata.priority : fallback?.priority ?? "none", tags: metadata ? metadata.tags : fallback?.tags ?? [],
+      planning: metadata ? {
         plannedStart: canonicalInstant(metadata?.plannedStart), plannedEnd: canonicalInstant(metadata?.plannedEnd),
         durationMinutes: metadata?.durationMinutes ?? null, lockedSchedule: Boolean(metadata?.lockedSchedule)
-      },
-      snoozeUntil: canonicalInstant(metadata?.snoozeUntil)
+      } : fallback?.planning ?? { plannedStart: null, plannedEnd: null, durationMinutes: null, lockedSchedule: false },
+      snoozeUntil: metadata ? canonicalInstant(metadata.snoozeUntil) : fallback?.snoozeUntil ?? null
     };
   }
   return {
@@ -138,6 +144,14 @@ export function googleBodyFromSyncFields(kind: GoogleEntityKind, fields: SyncFie
 export function googlePatchFromSyncFields(kind: GoogleEntityKind, base: SyncFields, desired: SyncFields): JsonRecord {
   const before = googleBodyFromSyncFields(kind, base);
   const after = googleBodyFromSyncFields(kind, desired);
+  if (kind === "task" && ["priority", "tags", "planning", "snoozeUntil"].some((field) => !syncValuesEqual(base[field], desired[field])) &&
+    !splitHcbTaskMetadata(after.notes).metadata) {
+    // Absence retains HCB-only values when Google clients edit ordinary text.
+    // An HCB reset must therefore encode explicit defaults instead of absence.
+    after.notes = withHcbTaskMetadata(desired.notes, {
+      priority: desired.priority, tags: desired.tags, ...desired.planning, snoozeUntil: desired.snoozeUntil
+    }, { includeDefaults: true });
+  }
   const keys = changedSyncFields(before, after);
   // Calendar dates are a pair. Sending both also avoids mixed all-day/timed
   // boundaries when a partial update changes the event's representation.

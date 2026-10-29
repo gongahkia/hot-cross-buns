@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CoreStore, schemaVersion } from "./coreStore";
+import { googleTaskNotesMaxLength, withHcbTaskMetadata } from "./hcbTaskMetadata";
 
 const fixtures: Array<{ store: CoreStore; directory: string; path: string }> = [];
 function fixture() {
@@ -104,6 +105,19 @@ describe("durable Google baselines and local intents", () => {
     const { accountId, task } = connected(store);
     store.dispatch("tasks", "update", { id: task.id, notes: "n".repeat(9000) });
     expect(store.pendingSyncMutations(10, accountId)[0].intent?.snapshot.notes).toHaveLength(9000);
+  });
+
+  it("validates the complete explicit reset footer before sending a narrow patch", () => {
+    const { store } = fixture();
+    const { accountId, list } = connected(store);
+    const notes = "n".repeat(googleTaskNotesMaxLength - withHcbTaskMetadata("", { priority: "low" }).length - 2);
+    const encoded = withHcbTaskMetadata(notes, { priority: "low" });
+    expect(encoded).toHaveLength(googleTaskNotesMaxLength);
+    const task = store.upsertGoogleTask({ id: "limit-reset", title: "Task", notes: encoded, etag: "v1" }, list.id)!;
+    store.dispatch("tasks", "update", { id: task.id, priority: "none" });
+    const mutation = store.pendingSyncMutations(10, accountId)[0];
+    expect(() => store.prepareGoogleSyncBatch(accountId, mutation.id)).toThrow("including HCB planning metadata");
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ notes, priority: "none" });
   });
 
   it("tracks event receipts separately from newer edits and recurring commands", () => {

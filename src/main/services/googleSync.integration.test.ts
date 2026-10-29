@@ -937,9 +937,33 @@ describe("Google sync with durable SQLite state", () => {
   it("imports a deliberate removal of previously synced HCB metadata", async () => {
     const { store, service, importTask, remoteTasks } = createFixture();
     const task = importTask({ id: "cleared-metadata", notes: withHcbTaskMetadata("Notes", { priority: "high", tags: ["work"], durationMinutes: 60 }) });
-    Object.assign(remoteTasks.get("cleared-metadata")!, { notes: "Notes", etag: "cleared" });
+    Object.assign(remoteTasks.get("cleared-metadata")!, { notes: withHcbTaskMetadata("Notes", {}, { includeDefaults: true }), etag: "cleared" });
     await service.runNow();
     expect(store.googleTaskForSync(task.id)).toMatchObject({ notes: "Notes", priority: "none", tags: [], durationMinutes: null });
+  });
+
+  it("sends an explicit HCB metadata reset and retains it through later pulls", async () => {
+    const { store, service, importTask, remoteTasks, accountId } = createFixture();
+    const task = importTask({ id: "local-metadata-reset", notes: withHcbTaskMetadata("Notes", { priority: "high", tags: ["work"], durationMinutes: 60 }) });
+    store.dispatch("tasks", "update", { id: task.id, priority: "none", tags: [], durationMinutes: null });
+    await service.runNow();
+    expect(remoteTasks.get("local-metadata-reset")!.notes).toBe(withHcbTaskMetadata("Notes", {}, { includeDefaults: true }));
+    await service.runNow();
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ notes: "Notes", priority: "none", tags: [], durationMinutes: null });
+    expect(store.googleSyncState(accountId, "task", task.id)?.dirtyFields).toEqual([]);
+  });
+
+  it("preserves HCB metadata when a phone edits plain notes without the footer", async () => {
+    const { store, service, importTask, remoteTasks, accountId } = createFixture();
+    const task = importTask({ id: "plain-phone-notes", notes: withHcbTaskMetadata("Notes", { priority: "high", tags: ["work"] }) });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local title" });
+    Object.assign(remoteTasks.get("plain-phone-notes")!, { notes: "Phone notes", etag: "phone" });
+    await service.runNow();
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Local title", notes: "Phone notes", priority: "high", tags: ["work"] });
+    expect(store.googleSyncState(accountId, "task", task.id)?.baseline).toMatchObject({ taskMetadataRetained: true, taskNotesWire: "Phone notes" });
+    store.dispatch("tasks", "update", { id: task.id, notes: "New local notes" });
+    await service.runNow();
+    expect(remoteTasks.get("plain-phone-notes")!.notes).toBe(withHcbTaskMetadata("New local notes", { priority: "high", tags: ["work"] }));
   });
 
   it("preserves a list rename as a conflict and retries only against a reviewed remote version", async () => {

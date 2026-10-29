@@ -8,6 +8,7 @@ type JsonRecord = Record<string, any>;
 /** Projection only: local persistence must remain possible even over API limits. */
 export function localGoogleSyncFields(kind: GoogleEntityKind, record: JsonRecord, fallback?: SyncFields): SyncFields {
   const body = kind === "task" ? googleTaskBody(record, false) : kind === "event" ? googleEventBody(record) : { title: record.title };
+  if (kind === "task") body.notes = withHcbTaskMetadata(record.notes, record, { includeDefaults: true });
   return googleSyncFields(kind, body, fallback);
 }
 
@@ -37,12 +38,7 @@ export function localRecordWithGoogleFields(kind: GoogleEntityKind, record: Json
 export function googleTaskBody(task: JsonRecord, validate = true): JsonRecord {
   const due = googleTaskDue(task.dueAt);
   const notes = withHcbTaskMetadata(task.notes, task);
-  if (validate && String(task.title ?? "").length > googleTaskTitleMaxLength) {
-    throw new CoreStoreError(`Google Tasks titles are limited to ${googleTaskTitleMaxLength} characters.`);
-  }
-  if (validate && notes.length > googleTaskNotesMaxLength) {
-    throw new CoreStoreError(`Google Tasks notes, including HCB planning metadata, are limited to ${googleTaskNotesMaxLength} characters.`);
-  }
+  if (validate) validateGoogleTaskBody({ title: task.title, notes });
   return {
     title: task.title,
     notes,
@@ -53,6 +49,15 @@ export function googleTaskBody(task: JsonRecord, validate = true): JsonRecord {
     ...(due ? { due } : task.googleId ? { due: null } : {}),
     status: task.status === "completed" ? "completed" : "needsAction"
   };
+}
+
+export function validateGoogleTaskBody(body: JsonRecord): void {
+  if (String(body.title ?? "").length > googleTaskTitleMaxLength) {
+    throw new CoreStoreError(`Google Tasks titles are limited to ${googleTaskTitleMaxLength} characters.`);
+  }
+  if (String(body.notes ?? "").length > googleTaskNotesMaxLength) {
+    throw new CoreStoreError(`Google Tasks notes, including HCB planning metadata, are limited to ${googleTaskNotesMaxLength} characters.`);
+  }
 }
 
 function googleTaskDue(value: unknown): string | undefined {
