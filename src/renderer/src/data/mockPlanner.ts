@@ -1,10 +1,5 @@
-import {
-  CalendarDays,
-  ListTodo,
-  Settings,
-  StickyNote
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { CalendarDays, ListTodo, Settings, StickyNote } from "@renderer/components/icons";
+import type { AppIcon } from "@renderer/components/icons";
 
 export type SectionId = "tasks" | "calendar" | "notes" | "settings";
 export type Priority = "none" | "low" | "medium" | "high";
@@ -15,7 +10,7 @@ export interface PlannerSection {
   title: string;
   subtitle: string;
   metric: string;
-  icon: LucideIcon;
+  icon: AppIcon;
 }
 
 export interface MockTask {

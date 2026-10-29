@@ -1,5 +1,5 @@
 import * as Primitive from "@radix-ui/react-select";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown, ChevronUp } from "@renderer/components/icons";
 import { forwardRef, useRef, useImperativeHandle, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { cn } from "@renderer/lib/utils";
 

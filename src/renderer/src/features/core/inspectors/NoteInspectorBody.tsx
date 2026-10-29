@@ -8,7 +8,7 @@ import {
   useRef,
   useState
 } from "react";
-import { AlertTriangle, Pencil, RotateCcw, Search } from "lucide-react";
+
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AutoTagRule } from "@shared/ipc/contracts";
 import { useDirtyState, useInspector } from "../../../components/Inspector";

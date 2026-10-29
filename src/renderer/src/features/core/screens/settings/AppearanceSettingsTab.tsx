@@ -11,7 +11,7 @@ import type {
   ColorThemeDefinition
 } from "@shared/ipc/themeCatalog";
 import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
-import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, RotateCcw } from "@renderer/components/icons";
 import {
   LoadingIndicator,
   defaultLoadingIndicatorPreferences,

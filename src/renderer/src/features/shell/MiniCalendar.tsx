@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronUp, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Undo2 } from "@renderer/components/icons";
 import {
   calendarAddUtcDays, calendarAddUtcMonths, calendarDateFromIsoDate,
   calendarDateTitleFromIso, calendarMonthTitle, calendarWeekdayLabel

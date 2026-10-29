@@ -1,5 +1,5 @@
 import { createContext, isValidElement, useContext, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+
 import { cx } from "../../../../components/primitives";
 
 export const settingsSelectClass =
@@ -166,12 +166,10 @@ export function SettingsGroup({
 export function SettingsControlRow({
   children,
   description,
-  icon: _Icon,
   label
 }: {
   children?: ReactNode;
   description?: string;
-  icon?: LucideIcon;
   label: string;
 }): JSX.Element | null {
   const search = useContext(SettingsSearchContext);
@@ -202,20 +200,18 @@ export function SettingsControlRow({
 export function SettingsSwitch({
   checked,
   description,
-  icon,
   label,
   onChange,
   trailing
 }: {
   checked: boolean;
   description?: string;
-  icon?: LucideIcon;
   label: string;
   onChange: (checked: boolean) => void;
   trailing?: ReactNode;
 }): JSX.Element | null {
   return (
-    <SettingsControlRow description={description} icon={icon} label={label}>
+    <SettingsControlRow description={description} label={label}>
       <div className="flex max-w-full flex-wrap items-center gap-3">
         {trailing}
         <label className="settings-switch relative flex h-10 w-11 shrink-0 cursor-pointer items-center justify-center">
@@ -241,7 +237,7 @@ export function SegmentedControl({
   value
 }: {
   onChange: (value: string) => void;
-  options: Array<{ icon?: LucideIcon; label: string; value: string }>;
+  options: Array<{ label: string; value: string }>;
   value: string;
 }): JSX.Element {
   return (

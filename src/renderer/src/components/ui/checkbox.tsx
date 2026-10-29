@@ -1,5 +1,5 @@
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { Check } from "lucide-react";
+import { Check } from "@renderer/components/icons";
 import type { ComponentProps } from "react";
 import { cn } from "@renderer/lib/utils";
 
@@ -11,7 +11,7 @@ export function Checkbox({ className, ...props }: ComponentProps<typeof Checkbox
       {...props}
     >
       <CheckboxPrimitive.Indicator>
-        <Check aria-hidden="true" size={12} strokeWidth={3} />
+        <Check aria-hidden="true" size={12} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

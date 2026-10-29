@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarDays, Check, FileText, ListChecks, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, FileText, ListChecks, RefreshCw, Trash2, X } from "@renderer/components/icons";
 import { Badge, Button, IconButton, cx } from "../../components/primitives";
 import type { CoreViewModelSource } from "./coreViewModelSource";
 import type { CalendarEventViewModel, NoteViewModel, TaskViewModel } from "./coreViewModels";

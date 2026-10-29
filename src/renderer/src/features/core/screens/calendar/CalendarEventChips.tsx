@@ -3,7 +3,7 @@ import { CalendarSyncBadge } from "./CalendarSyncStatus";
 import { useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, PointerEvent } from "react";
 import type { CalendarEventCompletionScope, SettingsSnapshot } from "@shared/ipc/contracts";
-import { CheckCircle2, Circle, LockKeyhole } from "lucide-react";
+import { CheckCircle2, Circle, LockKeyhole } from "@renderer/components/icons";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { cx } from "../../../../components/primitives";
 import type { CalendarEventViewModel } from "../../coreViewModels";

@@ -1,4 +1,4 @@
-import { AlertCircle, CloudUpload } from "lucide-react";
+import { AlertCircle, CloudUpload } from "@renderer/components/icons";
 import type { SyncStatusResponse } from "@shared/ipc/contracts";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 

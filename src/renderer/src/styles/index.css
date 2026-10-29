@@ -491,6 +491,20 @@ label:has(input:not(:disabled)) {
 .calendar-source-toggle:hover, .calendar-source-toggle:focus-visible { background: var(--color-surface-0); }
 .calendar-source-toggle[aria-pressed="false"] > span { opacity: .45; }
 .calendar-source-eye { margin-left: auto; flex-shrink: 0; color: var(--color-text-muted); }
+.hcb-icon { vertical-align: -0.125em; --fa-animation-duration: 1.4s; }
+.hcb-icon-swap { position: relative; display: inline-flex; flex: none; vertical-align: middle; }
+.hcb-icon-swap-layer { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; }
+.app-select-trigger > .hcb-icon, .inspector-type-trigger > .hcb-icon {
+  rotate: 0deg;
+  transition: rotate 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+.app-select-trigger[data-state="open"] > .hcb-icon, .inspector-type-trigger[data-state="open"] > .hcb-icon { rotate: 180deg; }
+[data-animations="disabled"] .hcb-icon { animation: none !important; }
+[data-animations="disabled"] .hcb-icon-swap-layer { opacity: 1 !important; transform: none !important; filter: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .hcb-icon { animation: none !important; }
+  .hcb-icon-swap-layer { opacity: 1 !important; transform: none !important; filter: none !important; }
+}
 .calendar-source-toggle[aria-pressed="true"]:not(:hover):not(:focus-visible) .calendar-source-eye { opacity: 0; }
 .calendar-month { background: var(--color-bg-primary); container: month / inline-size; }
 .calendar-month-head { position: sticky; top: 0; z-index: 20; min-height: 40px; background: var(--color-bg-primary); border-bottom: 1px solid var(--color-border); text-align: center; color: var(--color-text-muted); font-size: 13px; font-weight: 400; }

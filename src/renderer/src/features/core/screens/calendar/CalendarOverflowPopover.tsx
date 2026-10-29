@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, ListTodo, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, ListTodo, X } from "@renderer/components/icons";
 import type { CalendarEventCompletionScope } from "@shared/ipc/contracts";
 import type { CalendarEventViewModel } from "../../coreViewModels";
 import { cx, IconButton } from "../../../../components/primitives";

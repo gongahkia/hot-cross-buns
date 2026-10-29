@@ -939,6 +939,7 @@ export function AppShell(): JSX.Element {
         onRefresh={() => syncThenRefresh("toolbar")}
         onToggleSettings={toggleSettingsPanel}
         settingsOpen={settingsOpen}
+        syncing={source.syncStatus.state === "syncing"}
         toolbarActionOrder={source.settings.toolbarActionOrder}
       />
 

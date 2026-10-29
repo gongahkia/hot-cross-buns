@@ -1,4 +1,4 @@
-import { Gauge, X } from "lucide-react";
+import { Gauge, X } from "@renderer/components/icons";
 import { IconButton, StatusBanner, cx } from "../../components/primitives";
 import {
   type DiagnosticsTab,
@@ -75,7 +75,7 @@ export function DiagnosticsOverlay({ initialTab = "overview", onClose }: Diagnos
         <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-bg-primary px-3 py-2">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex size-7 shrink-0 items-center justify-center rounded-hcbSm bg-surface-0 text-accent">
-              <Gauge aria-hidden="true" size={14} strokeWidth={2} />
+              <Gauge aria-hidden="true" size={14} />
             </div>
             <div className="min-w-0">
               <h2 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary" id="diagnostics-overlay-title">
@@ -107,7 +107,7 @@ export function DiagnosticsOverlay({ initialTab = "overview", onClose }: Diagnos
                 onClick={() => setTab(entry.id)}
                 type="button"
               >
-                <Icon aria-hidden="true" className="shrink-0" size={14} strokeWidth={2} />
+                <Icon aria-hidden="true" className="shrink-0" size={14} />
                 <span className="truncate">{entry.label}</span>
               </button>
             );

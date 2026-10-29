@@ -7,7 +7,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { PaneIdentity, readPanePreference, writePanePreference } from "../../../shell/panePreferences";
 import type { CSSProperties, DragEvent, PointerEvent, ReactNode } from "react";
 import type { CalendarEventCompletionScope } from "@shared/ipc/contracts";
-import { Minus, Plus } from "lucide-react";
+
 import { IconButton, cx } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import { handleActivationKeyDown } from "../../coreScreenShared";

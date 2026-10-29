@@ -1,16 +1,7 @@
 import { Select, SelectItem } from "@renderer/components/Select";
 import type { SavedTaskView } from "@shared/ipc/contracts";
 import type { Dispatch, SetStateAction } from "react";
-import {
-  CheckCircle2,
-  Filter,
-  ListPlus,
-  Plus,
-  RotateCcw,
-  Save,
-  Trash2,
-  X
-} from "lucide-react";
+import { CheckCircle2, Filter, ListPlus, Plus, RotateCcw, Save, Trash2, X } from "@renderer/components/icons";
 import { Badge, Button, IconButton, Input, Panel, StatusBanner, cx } from "../../../../components/primitives";
 import { EmptyState, ErrorState, LoadingState } from "../../../../components/states";
 import type { useCoreViewModelSource } from "../../coreViewModelSource";

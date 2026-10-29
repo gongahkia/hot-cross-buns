@@ -5,9 +5,10 @@ import type {
   InputHTMLAttributes,
   ReactNode
 } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { AppIcon } from "@renderer/components/icons";
 import { cn } from "@renderer/lib/utils";
 import { Button as ShadcnButton, type ButtonProps } from "./ui/button";
+import { AnimatedIcon } from "./AnimatedIcon";
 
 export function cx(...classes: Array<string | false | null | undefined>): string {
   return cn(classes);
@@ -17,13 +18,15 @@ export type { ButtonProps } from "./ui/button";
 export const Button = ShadcnButton;
 
 export interface IconButtonProps extends Omit<ButtonProps, "children"> {
-  icon: LucideIcon;
+  icon: AppIcon;
+  iconState?: string | boolean;
   label: string;
 }
 
 export function IconButton({
   className,
   icon: Icon,
+  iconState,
   label,
   title,
   ...props
@@ -35,7 +38,8 @@ export function IconButton({
       title={title ?? label}
       {...props}
     >
-      <Icon aria-hidden="true" size={16} strokeWidth={2} />
+      {iconState === undefined ? <Icon aria-hidden="true" size={16} />
+        : <AnimatedIcon icon={Icon} state={iconState} />}
     </Button>
   );
 }
@@ -103,7 +107,7 @@ export function Badge({ className, tone = "neutral", ...props }: BadgeProps): JS
 type StatusTone = "info" | "success" | "warning" | "danger" | "offline";
 
 export interface StatusBannerProps extends HTMLAttributes<HTMLDivElement> {
-  icon?: LucideIcon;
+  icon?: AppIcon;
   title: string;
   description: string;
   tone?: StatusTone;
@@ -138,7 +142,7 @@ export function StatusBanner({
     >
       {Icon ? (
         <div className="flex size-7 shrink-0 items-center justify-center rounded-hcbSm bg-surface-0">
-          <Icon aria-hidden="true" size={15} strokeWidth={2} />
+          <Icon aria-hidden="true" size={15} />
         </div>
       ) : null}
       <div className="min-w-0 flex-1">

@@ -7,7 +7,8 @@ import type {
   TaskListSummary
 } from "@shared/ipc/contracts";
 import { useEffect, useState } from "react";
-import { Check, Eye, EyeOff, Mail, RefreshCw, Save, ShieldCheck, Trash2, Users, X } from "lucide-react";
+import { Check, Eye, EyeOff, Mail, RefreshCw, Save, Trash2, Users, X } from "@renderer/components/icons";
+import { AnimatedIcon } from "@renderer/components/AnimatedIcon";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import googleCalendarLogo from "../../../../assets/google-calendar.png";
@@ -108,7 +109,6 @@ export function ProfileSettingsTab({
       </SettingsGroup> : <SettingsGroup title="Google OAuth client">
         <SettingsControlRow
           description={googleStatus.oauthClientConfigured ? "Google Cloud OAuth client saved." : "Missing"}
-          icon={ShieldCheck}
           label="Google Cloud OAuth client"
         >
           <Badge tone={googleStatus.oauthClientConfigured ? "success" : "warning"}>
@@ -432,7 +432,7 @@ function OptionalGoogleAccessDialog({
         <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-secondary px-4 py-3">
           <Button disabled={submitting} onClick={onClose} variant="ghost">Cancel</Button>
           <Button disabled={!accountId || !acknowledged || submitting || unresolvedMutationCount > 0} onClick={() => void reconfigure()} variant="primary">
-            {submitting ? <RefreshCw aria-hidden="true" className="animate-spin" size={14} /> : <Check aria-hidden="true" size={14} />}
+            <AnimatedIcon icon={submitting ? RefreshCw : Check} state={submitting} spin={submitting} size={14} />
             Reconnect with selected access
           </Button>
         </footer>

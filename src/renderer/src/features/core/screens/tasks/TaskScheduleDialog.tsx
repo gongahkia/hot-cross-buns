@@ -2,7 +2,7 @@ import { Select, SelectItem } from "@renderer/components/Select";
 import { DateTimeField } from "@renderer/components/DateTimeField";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState } from "react";
-import { CalendarClock, X } from "lucide-react";
+import { CalendarClock, X } from "@renderer/components/icons";
 import { Button, IconButton, Input } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import type { TaskViewModel } from "../../coreViewModels";

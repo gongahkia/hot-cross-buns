@@ -2,7 +2,7 @@ import { Select, SelectItem } from "@renderer/components/Select";
 import { DateTimeField } from "@renderer/components/DateTimeField";
 import { useEffect, useMemo, useState } from "react";
 import type { SmartRescheduleResponse } from "@shared/ipc/contracts";
-import { CalendarPlus, Check, Copy, Eye, EyeOff, MapPin, Minus, Sparkles, X } from "lucide-react";
+import { CalendarPlus, Check, Copy, Eye, EyeOff, MapPin, Minus, Sparkles, X } from "@renderer/components/icons";
 import { Badge, Button, IconButton, Input, Panel, cx } from "../../../../components/primitives";
 import { EmptyState, ErrorState } from "../../../../components/states";
 import type { CalendarEventViewModel } from "../../coreViewModels";

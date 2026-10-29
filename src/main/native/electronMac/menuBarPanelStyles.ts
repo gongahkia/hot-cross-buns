@@ -44,7 +44,7 @@ export function menuBarPanelStyles(snapshot: NativeMenuBarSnapshot): string {
     .row-detail { display: block; margin-top: 3px; color: var(--color-text-secondary); font-size: .85rem; line-height: 1.4; }
     .row-open { align-self: center; color: var(--color-text-secondary); opacity: 0; }
     .native-row:hover .row-open, .native-row:focus-visible .row-open { opacity: 1; }
-    .empty-row { grid-template-columns: 18px minmax(0, 1fr); color: var(--color-text-secondary); margin: 4px 0 12px; background: var(--color-bg-secondary); }
+    .empty-row { grid-template-columns: minmax(0, 1fr); color: var(--color-text-secondary); margin: 4px 0 12px; background: var(--color-bg-secondary); }
     .account { display: flex; align-items: center; gap: 10px; padding: 14px 6px 2px; margin-top: 12px; border-top: 1px solid var(--color-border); }
     .account-copy { flex: 1; min-width: 0; }
     .account-name, .account-email { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.5; }

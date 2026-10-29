@@ -13,7 +13,7 @@ import {
   resolveEffectiveThemeMode,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
-import { Copy, Search } from "lucide-react";
+import { Copy, Search } from "@renderer/components/icons";
 import { useInspector } from "../../../../components/Inspector";
 import { Button, Input, Panel, StatusBanner } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";

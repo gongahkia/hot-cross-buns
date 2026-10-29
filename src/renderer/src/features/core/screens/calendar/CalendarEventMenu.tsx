@@ -1,5 +1,5 @@
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { Clock3, Copy, Files, Pencil, Trash2 } from "lucide-react";
+import { Clock3, Copy, Files, Pencil, Trash2 } from "@renderer/components/icons";
 import { useRef, useState, type ReactNode } from "react";
 import { EventMenuContext, type CalendarMenuTarget } from "./calendarEventMenuContext";
 import type { CalendarEventViewModel } from "../../coreViewModels";

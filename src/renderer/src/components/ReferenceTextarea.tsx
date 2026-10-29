@@ -7,7 +7,7 @@ import {
   useState
 } from "react";
 import type { KeyboardEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
-import { FileUp, FolderSearch, Link2, Search, X } from "lucide-react";
+import { FileUp, FolderSearch, Link2, Search, X } from "@renderer/components/icons";
 import type { GoogleStatusResponse } from "@shared/ipc/contracts";
 import { googleScopes, hasGoogleScope } from "../googleCapabilities";
 import { EmojiTextarea } from "./EmojiTextField";

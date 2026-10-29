@@ -1,3 +1,10 @@
+import { faCalendarDays } from "@fortawesome/free-regular-svg-icons/faCalendarDays";
+import { faSquareCheck } from "@fortawesome/free-regular-svg-icons/faSquareCheck";
+import { faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons/faArrowUpRightFromSquare";
+import { faArrowsRotate } from "@fortawesome/free-solid-svg-icons/faArrowsRotate";
+import { faGear } from "@fortawesome/free-solid-svg-icons/faGear";
+import { faArrowRightFromBracket } from "@fortawesome/free-solid-svg-icons/faArrowRightFromBracket";
+import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons/faMagnifyingGlass";
 import type { NativeRoute } from "@shared/ipc/contracts";
 import type { NativeMenuBarItem, NativeMenuBarSnapshot } from "../types";
 import { menuBarPanelStyles } from "./menuBarPanelStyles";
@@ -6,18 +13,13 @@ export function menuBarPanelDataUrl(snapshot: NativeMenuBarSnapshot): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(menuBarPanelHtml(snapshot))}`;
 }
 
-// Static Lucide-style line icons keep this script-free native surface lightweight.
+// Use the same bundled Font Awesome glyphs as the renderer, without a script.
 function icon(name: "calendar" | "task" | "open" | "refresh" | "settings" | "quit" | "search"): string {
-  const paths = {
-    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/>',
-    task: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 12 3 3 5-6"/>',
-    open: '<path d="M7 17 17 7M7 7h10v10"/>',
-    refresh: '<path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.5-2L20 8M4 16l2.4 3A7 7 0 0 0 18 17"/>',
-    settings: '<path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
-    quit: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5M21 12H9"/>',
-    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>'
-  };
-  return `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
+  const definitions = { calendar: faCalendarDays, task: faSquareCheck, open: faArrowUpRightFromSquare,
+    refresh: faArrowsRotate, settings: faGear, quit: faArrowRightFromBracket, search: faMagnifyingGlass };
+  const [width, height, , , data] = definitions[name].icon;
+  const paths = (Array.isArray(data) ? data : [data]).map(path => `<path d="${path}"/>`).join("");
+  return `<svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 ${width} ${height}" fill="currentColor">${paths}</svg>`;
 }
 
 export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
@@ -28,7 +30,7 @@ export function menuBarPanelHtml(snapshot: NativeMenuBarSnapshot): string {
     <title>Hot Cross Buns menu bar panel</title><style>${menuBarPanelStyles(snapshot)}</style></head>
     <body><div class="popover"><main class="panel">
       <header class="panel-header">
-        <div class="brand">${icon("calendar")}<span>Hot Cross Buns</span></div>
+        <div class="brand"><span>Hot Cross Buns</span></div>
         <div class="heading-line"><h1>${heading}</h1></div>
         ${snapshot.subtitle ? `<div class="secondary">${escapeHtml(snapshot.subtitle)}</div>` : ""}
         <span class="sync-label" title="This panel shows the cached planner snapshot. Refresh checks Google for changes.">${escapeHtml(snapshot.syncLabel)}</span>
@@ -70,7 +72,7 @@ function rowsMarkup(items: NativeMenuBarItem[]): string {
     const kind = item.route?.kind;
     const symbol = kind === "task" ? "task" : kind === "search" ? "search" : "calendar";
     const label = item.fullLabel ?? item.label;
-    const body = `<span class="row-icon" data-kind="${symbol === "calendar" ? "event" : symbol}">${icon(symbol)}</span><span class="row-text"><span class="row-title">${escapeHtml(label)}</span>${item.detail ? `<span class="row-detail">${escapeHtml(item.detail)}</span>` : ""}</span>${enabled ? `<span class="row-open">${icon("open")}</span>` : ""}`;
+    const body = `${enabled ? `<span class="row-icon" data-kind="${symbol === "calendar" ? "event" : symbol}">${icon(symbol)}</span>` : ""}<span class="row-text"><span class="row-title">${escapeHtml(label)}</span>${item.detail ? `<span class="row-detail">${escapeHtml(item.detail)}</span>` : ""}</span>${enabled ? `<span class="row-open">${icon("open")}</span>` : ""}`;
     return enabled ? `<a class="native-row" href="${escapeHtml(href)}" title="${escapeHtml(label)}">${body}</a>` : `<div class="native-row empty-row">${body}</div>`;
   }).join("");
 }

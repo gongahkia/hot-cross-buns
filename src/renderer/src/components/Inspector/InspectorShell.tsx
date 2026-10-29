@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import type { InspectorItem } from "./InspectorContext";
-import { ArrowLeft, PanelRight } from "lucide-react";
+import { ArrowLeft, PanelRight } from "@renderer/components/icons";
 import { usePanePreference } from "../../features/shell/panePreferences";
 import { Badge, Button, IconButton, cx } from "../primitives";
 import { useInspector } from "./InspectorContext";

@@ -4,14 +4,7 @@ import type {
   SettingsSnapshot,
   SettingsUpdateRequest
 } from "@shared/ipc/contracts";
-import {
-  FileSearch,
-  Languages,
-  Power,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles
-} from "lucide-react";
+import { FileSearch, RotateCcw } from "@renderer/components/icons";
 import { Button, Input } from "../../../../components/primitives";
 import { languageOptions, useI18n } from "../../../../i18n";
 import {
@@ -81,7 +74,6 @@ export function GeneralSettingsTab({
       <SettingsGroup title={t("settings.language")}>
         <SettingsControlRow
           description={t("language.description")}
-          icon={Languages}
           label={t("settings.appLanguage")}
         >
           <Select
@@ -103,7 +95,6 @@ export function GeneralSettingsTab({
         <SettingsSwitch
           checked={settings.startOnLogin}
           description="Starts the app automatically when you sign in to this Mac."
-          icon={Power}
           label="Open Hot Cross Buns at login"
           onChange={(checked) => updateSettings({ startOnLogin: checked })}
         />
@@ -112,7 +103,6 @@ export function GeneralSettingsTab({
       <SettingsGroup title={t("diagnostics.title")}>
         <SettingsControlRow
           description={t("diagnostics.description")}
-          icon={ShieldCheck}
           label={t("diagnostics.title")}
         >
           <Button onClick={() => void openDiagnosticsDetails()} variant="secondary">
@@ -224,7 +214,6 @@ export function GeneralSettingsTab({
       <SettingsGroup title="Setup">
         <SettingsControlRow
           description="Google is required. Reopen setup to reconnect Google or change its sync preferences."
-          icon={Sparkles}
           label="Setup assistant"
         >
           <Button onClick={() => beginRecoveryAction("resetOnboarding")} variant="secondary">

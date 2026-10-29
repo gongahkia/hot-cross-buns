@@ -1,4 +1,4 @@
-import { ListTodo, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { ListTodo, PanelLeftClose, PanelLeftOpen, Plus } from "@renderer/components/icons";
 import type { NoteListSummary } from "@shared/ipc/contracts";
 import { Button, IconButton, cx } from "../../../components/primitives";
 import type { NoteBoardSelection } from "./notesTypes";

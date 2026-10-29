@@ -1,17 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bell,
-  CheckCircle2,
-  Cloud,
-  ExternalLink,
-  RefreshCw,
-  Save,
-  X
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, ExternalLink, Save, X } from "@renderer/components/icons";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
@@ -284,7 +274,6 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
           {activeStep === 1 && !oauthRuntimeReady ? (
             <SetupCard
               description="A Google account is required to finish setup."
-              icon={Save}
               title="Google connection unavailable"
             >
               <p className="text-[var(--text-sm)] text-text-muted">This version cannot connect to Google. Open a supported version of Hot Cross Buns to continue setup.</p>
@@ -302,7 +291,6 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
                       ? "Connect your Google account to continue. Allow access to Tasks and Calendar to sync your planner."
                     : browserRuntime ? "Google sign-in is not configured for this site. Contact the site owner to enable it before continuing." : "Save a Desktop OAuth client ID, then connect your Google account."
               }
-              icon={Cloud}
               title="Connect Google"
             >
               {!googleConnected && !browserRuntime ? (
@@ -410,13 +398,13 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
           ) : null}
 
           {activeStep === 3 && (!oauthRuntimeReady || browserRuntime) ? (
-            <SetupCard title="Saved in this browser" icon={Save} description="Changes save automatically in IndexedDB before the planner confirms success. Reloading the page keeps your workspace.">
+            <SetupCard title="Saved in this browser" description="Changes save automatically in IndexedDB before the planner confirms success. Reloading the page keeps your workspace.">
               <p className="text-[var(--text-sm)] text-text-muted">Use the same browser profile to return to your workspace. Clearing this site's browser data removes the workspace; private browsing keeps it only for that private session.</p>
             </SetupCard>
           ) : null}
 
           {activeStep === 3 && oauthRuntimeReady && !browserRuntime ? (
-            <SetupOption title="Sync mode" icon={RefreshCw}>
+            <SetupOption title="Sync mode">
               <fieldset className="grid gap-3" aria-label="Onboarding sync mode">
                 {syncOptions.map((option) => (
                   <label key={option.value} className="flex cursor-pointer items-start gap-3 rounded-hcbMd border border-border bg-bg-primary p-4 transition-colors has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5">
@@ -444,11 +432,11 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
           ) : null}
 
           {activeStep === 4 && !notificationsAvailable ? (
-            <SetupCard title="Notifications" icon={Bell} description="Background reminders are unavailable in this browser release. Finish setup to start using your tasks, notes, and calendars." />
+            <SetupCard title="Notifications" description="Background reminders are unavailable in this browser release. Finish setup to start using your tasks, notes, and calendars." />
           ) : null}
 
           {activeStep === 4 && notificationsAvailable ? (
-            <SetupOption title="Notifications" icon={Bell}>
+            <SetupOption title="Notifications">
               <>
               <label className="flex min-h-10 items-center gap-2 text-[var(--text-sm)] text-text-secondary">
                 <Checkbox
@@ -514,20 +502,15 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
 function SetupCard({
   children,
   description,
-  icon: Icon,
   title
 }: {
   children?: ReactNode;
   description: string;
-  icon: typeof Cloud;
   title: string;
 }): JSX.Element {
   return (
     <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary p-3">
       <div className="flex items-center gap-2">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-hcbSm bg-surface-0 text-accent">
-          <Icon aria-hidden="true" size={15} />
-        </div>
         <div className="min-w-0 flex-1">
           <h3 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
         </div>
@@ -540,17 +523,14 @@ function SetupCard({
 
 function SetupOption({
   children,
-  icon: Icon,
   title
 }: {
   children: JSX.Element;
-  icon: typeof Cloud;
   title: string;
 }): JSX.Element {
   return (
     <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary p-3">
       <div className="mb-3 flex items-center gap-2">
-        <Icon aria-hidden="true" className="text-accent" size={15} />
         <h3 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
       </div>
       {children}

@@ -2,27 +2,7 @@ import { Select, SelectItem } from "@renderer/components/Select";
 import { DateTimeField } from "@renderer/components/DateTimeField";
 import { cachedDateTimeFormat } from "@shared/zonedTime";
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
-import {
-  CalendarClock,
-  Clock,
-  Check,
-  CheckCircle2,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  CornerDownRight,
-  ListTodo,
-  ListPlus,
-  MoreVertical,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Paperclip,
-  Plus,
-  Star,
-  Target,
-  Trash2,
-  X
-} from "lucide-react";
+import { CalendarClock, Clock, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, CornerDownRight, ListTodo, ListPlus, MoreVertical, PanelLeftClose, PanelLeftOpen, Paperclip, Plus, Star, StarFilled, Target, Trash2, X } from "@renderer/components/icons";
 import type { TaskListSummary, TaskMoveRequest } from "@shared/ipc/contracts";
 import { FloatingMenu } from "../../../../components/FloatingMenu";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
@@ -1005,8 +985,10 @@ const GoogleTaskRow = memo(function GoogleTaskRow({
           className="task-row-actions relative flex items-start gap-1 opacity-0 transition-opacity duration-fast ease-hcb group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <IconButton
-            className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent [&_svg]:fill-current" : undefined)}
-            icon={Star}
+            className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent" : undefined)}
+            icon={starred ? StarFilled : Star}
+            iconState={starred}
+            aria-pressed={starred}
             label={starred ? `Unstar ${task.title}` : `Star ${task.title}`}
             onClick={() => onToggleStar(task.id)}
             variant="ghost"

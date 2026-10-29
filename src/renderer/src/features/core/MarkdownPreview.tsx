@@ -1,6 +1,6 @@
 import { Children, isValidElement, useEffect, useId, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { X } from "@renderer/components/icons";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";

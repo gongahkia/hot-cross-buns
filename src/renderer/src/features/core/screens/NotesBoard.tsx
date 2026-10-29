@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from "react";
-import { Copy, MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { Copy, MoreVertical, Pencil, Plus, Star, StarFilled, Trash2 } from "@renderer/components/icons";
 import { FloatingMenu } from "../../../components/FloatingMenu";
 import { Badge, IconButton, Panel, cx } from "../../../components/primitives";
 import { EmptyState } from "../../../components/states";
@@ -257,8 +257,10 @@ function NoteBoardRow({
         )}
       >
         <IconButton
-          className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent [&_svg]:fill-current" : undefined)}
-          icon={Star}
+          className={cx("size-9 rounded-full [&_svg]:size-5", starred ? "text-accent" : undefined)}
+          icon={starred ? StarFilled : Star}
+          iconState={starred}
+          aria-pressed={starred}
           label={starred ? `Unstar ${note.title} on this device` : `Star ${note.title} on this device`}
           onClick={() => onToggleStar(note.id)}
           variant="ghost"

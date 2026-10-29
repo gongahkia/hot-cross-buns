@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { KeyboardEvent } from "react";
-import { Search } from "lucide-react";
+import { Search } from "@renderer/components/icons";
 import {
   plannerActionAvailability,
   plannerActions,

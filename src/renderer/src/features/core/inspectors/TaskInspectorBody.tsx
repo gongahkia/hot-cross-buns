@@ -2,8 +2,8 @@ import { Select, SelectItem } from "@renderer/components/Select";
 import { DateTimeField } from "@renderer/components/DateTimeField";
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { CalendarClock, Clock, FileText, Flag, List, ListPlus, Tag } from "@renderer/components/icons";
+import type { AppIcon } from "@renderer/components/icons";
 import { useTaskParentCandidates } from "../../../hooks/useTaskParentCandidates";
 import { useDirtyState } from "../../../components/Inspector";
 import { EmojiInput } from "../../../components/EmojiTextField";
@@ -64,7 +64,7 @@ function TaskDetailLine({
   label
 }: {
   children: ReactNode;
-  icon?: LucideIcon;
+  icon?: AppIcon;
   label?: string;
 }): JSX.Element {
   return (

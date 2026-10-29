@@ -9,7 +9,7 @@ import {
   googleCalendarEventColors,
   type SettingsSnapshot
 } from "@shared/ipc/contracts";
-import { Bell, BriefcaseBusiness, CalendarPlus, Check, ExternalLink, FileText, Gift, ListPlus, MapPin, Paperclip, Phone, Plus, RotateCcw, Search, Tag, Trash2, Users, Video, X, type LucideIcon } from "lucide-react";
+import { Bell, BriefcaseBusiness, Check, ExternalLink, FileText, MapPin, Paperclip, Phone, Plus, RotateCcw, Search, Tag, Trash2, Users, Video, X, type AppIcon } from "@renderer/components/icons";
 import { EmojiInput, EmojiTextarea } from "../../../../components/EmojiTextField";
 import { MarkdownEditor } from "../../../../components/MarkdownEditor";
 import { Badge, Button, Input, cx } from "../../../../components/primitives";
@@ -65,7 +65,7 @@ function DetailLine({
   label
 }: {
   children: ReactNode;
-  icon?: LucideIcon;
+  icon?: AppIcon;
   label?: string;
 }): JSX.Element {
   return (
@@ -442,7 +442,6 @@ function ReminderControls({
     <div className="grid gap-2">
       <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">
-          <Bell aria-hidden="true" size={13} />
           Reminders
         </span>
         <Select
@@ -714,7 +713,7 @@ function DriveAttachmentControl({ accountId, draft, setDraft }: { accountId?: st
   }
   return (
     <div className="grid gap-2 border-t border-border pt-3">
-      <div className="flex items-center gap-2 text-[var(--text-sm)] font-medium text-text-secondary"><Paperclip aria-hidden="true" size={13} />Drive attachments</div>
+      <div className="flex items-center gap-2 text-[var(--text-sm)] font-medium text-text-secondary">Drive attachments</div>
       <div className="flex gap-2"><Input aria-label="Search Drive files" onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} placeholder="Search files you can access" value={query} /><Button aria-label="Search Drive" onClick={() => void search()} size="sm" type="button" variant="secondary"><Search aria-hidden="true" size={14} /></Button></div>
       {items.length ? <div className="grid gap-1 rounded-hcbMd border border-border bg-surface-0 p-1">{items.map((item) => <button className="flex min-w-0 items-center gap-2 rounded-hcbSm px-2 py-1.5 text-left text-[var(--text-sm)] text-text-secondary hover:bg-bg-tertiary hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" key={item.fileUrl} onClick={() => add(item)} type="button"><BriefcaseBusiness aria-hidden="true" size={14} /><span className="min-w-0 flex-1 truncate">{item.title}</span><Plus aria-hidden="true" size={14} /></button>)}</div> : null}
       {draft.attachments.length ? <div className="flex flex-wrap gap-1">{draft.attachments.map((attachment) => <Badge key={attachment.fileUrl} tone="neutral"><span className="max-w-40 truncate">{attachment.title}</span><button aria-label={`Remove ${attachment.title}`} className="ml-1 rounded text-text-muted hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => setDraft({ ...draft, attachments: draft.attachments.filter((item) => item.fileUrl !== attachment.fileUrl) })} type="button"><X aria-hidden="true" size={12} /></button></Badge>)}</div> : null}
@@ -1097,7 +1096,6 @@ export function CalendarEventForm({
           />
           <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
             <span className="inline-flex items-center gap-1">
-              <Bell aria-hidden="true" size={13} />
               Reminder
             </span>
             <Select
@@ -1175,7 +1173,6 @@ export function CalendarEventForm({
         <legend className="px-1 text-[var(--text-sm)] font-medium text-text-secondary">Details</legend>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span className="inline-flex items-center gap-1">
-            <MapPin aria-hidden="true" size={13} />
             Location
           </span>
           <Input
@@ -1188,7 +1185,6 @@ export function CalendarEventForm({
         {selectedCalendar?.accountId !== "local" ? <>
         <label className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
           <span className="inline-flex items-center gap-1">
-            <Users aria-hidden="true" size={13} />
             Guests
           </span>
           <Input
@@ -1465,7 +1461,6 @@ export function CalendarEventForm({
       </InspectorReveal>
       <div className="grid gap-1 text-[var(--text-sm)] text-text-secondary">
         <span className="inline-flex items-center gap-1">
-          <FileText aria-hidden="true" size={13} />
           Description
         </span>
         <MarkdownEditor

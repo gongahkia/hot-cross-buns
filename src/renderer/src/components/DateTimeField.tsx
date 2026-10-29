@@ -1,6 +1,6 @@
 import * as Popover from "@radix-ui/react-popover";
 import { addDays, addMonths, format, startOfMonth, startOfWeek } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock } from "@renderer/components/icons";
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type InputHTMLAttributes } from "react";
 import { cn } from "@renderer/lib/utils";
 import { Select, SelectItem } from "./Select";

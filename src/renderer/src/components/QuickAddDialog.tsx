@@ -2,7 +2,7 @@ import { Select, SelectItem } from "@renderer/components/Select";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEventRecurrence, EventTemplate, TaskTemplate } from "@shared/ipc/contracts";
-import { CalendarPlus, CheckSquare, FileText, Gift, Clock3, X, type LucideIcon } from "lucide-react";
+import { CalendarPlus, CheckSquare, FileText, Gift, Clock3, X, type AppIcon } from "@renderer/components/icons";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import {
   firstHashHint,
@@ -53,7 +53,7 @@ interface QuickAddDialogProps {
   source: CoreViewModelSource;
 }
 
-const modes: Array<{ id: QuickAddMode; label: string; icon: LucideIcon }> = [
+const modes: Array<{ id: QuickAddMode; label: string; icon: AppIcon }> = [
   { id: "event", label: "Event", icon: CalendarPlus },
   { id: "task", label: "Task", icon: CheckSquare },
   { id: "note", label: "Note", icon: FileText },

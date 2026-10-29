@@ -1,10 +1,10 @@
-import { AlertTriangle, FolderSearch, WifiOff } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { AlertTriangle, FolderSearch, WifiOff } from "@renderer/components/icons";
+import type { AppIcon } from "@renderer/components/icons";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { Button } from "./primitives";
 
 interface StateBlockProps {
-  icon?: LucideIcon;
+  icon?: AppIcon;
   title: string;
   description: string;
   role?: "alert" | "status";
@@ -65,7 +65,7 @@ export function LoadingState({
 export function EmptyState({
   description,
   title,
-  showIcon = true
+  showIcon = false
 }: {
   title: string;
   description: string;

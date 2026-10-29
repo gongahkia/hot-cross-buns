@@ -1,5 +1,5 @@
 import { BrowserStorageControls } from "./BrowserStorageControls";
-import { Archive, Download, FolderOpen, RotateCcw } from "lucide-react";
+
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
 import { Button, Input } from "../../../../components/primitives";
 import { SettingsControlRow, SettingsGroup, SettingsSwitch } from "./SettingsPrimitives";
@@ -28,16 +28,16 @@ export function DataSettingsTab({ settings, pending, updateSettings, runAction, 
           <Input aria-label="Keep backups" className="w-24" type="number" min={1} max={365} value={settings.localBackupRetentionCount} onChange={(event) => updateSettings({ localBackupRetentionCount: Math.max(1, Math.min(365, Number(event.currentTarget.value) || 14)) })} />
         </SettingsControlRow>
         <SettingsControlRow label="Last successful backup" description={settings.lastLocalBackupAt ? new Date(settings.lastLocalBackupAt).toLocaleString() : "No backup yet"}>
-          <Button disabled={pending} onClick={() => runAction("backupNow")} variant="secondary"><Archive size={14} />Back up now</Button>
+          <Button disabled={pending} onClick={() => runAction("backupNow")} variant="secondary">Back up now</Button>
         </SettingsControlRow>
         <SettingsControlRow label="Save a copy elsewhere">
-          <Button disabled={pending} onClick={() => runAction("exportBackup")} variant="secondary"><Download size={14} />Export backup</Button>
+          <Button disabled={pending} onClick={() => runAction("exportBackup")} variant="secondary">Export backup</Button>
         </SettingsControlRow>
         <SettingsControlRow label="Saved snapshots">
-          <Button disabled={pending || !settings.lastLocalBackupAt} onClick={() => runAction("openBackupsFolder")} variant="secondary"><FolderOpen size={14} />Open backup folder</Button>
+          <Button disabled={pending || !settings.lastLocalBackupAt} onClick={() => runAction("openBackupsFolder")} variant="secondary">Open backup folder</Button>
         </SettingsControlRow>
         <SettingsControlRow label="Restore local notes" description="Choose a backup to restore its notes and note lists. Matching notes are replaced; other notes remain. Your current data is backed up first. Google data and pending sync changes are preserved.">
-          <Button disabled={pending} onClick={() => runAction("restoreLocalNotes")} variant="secondary"><RotateCcw size={14} />Restore notes…</Button>
+          <Button disabled={pending} onClick={() => runAction("restoreLocalNotes")} variant="secondary">Restore notes…</Button>
         </SettingsControlRow>
       </SettingsGroup>
       )}

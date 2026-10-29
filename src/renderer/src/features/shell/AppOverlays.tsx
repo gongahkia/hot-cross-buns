@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import type { RefObject } from "react";
-import { Bell, Settings2, X } from "lucide-react";
+import { Bell, X } from "@renderer/components/icons";
 import { Badge, Button, IconButton } from "../../components/primitives";
 import { SettingsView } from "../core/CoreScreens";
 import type { AppNotification, AppNotificationTone } from "../core/appNotifications";

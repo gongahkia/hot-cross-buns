@@ -2,7 +2,7 @@ import { DateTimeField } from "@renderer/components/DateTimeField";
 import * as Popover from "@radix-ui/react-popover";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useRef, useState } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, PanelRight } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, PanelRight } from "@renderer/components/icons";
 import { Button, IconButton } from "../../../../components/primitives";
 import { useInspector } from "../../../../components/Inspector";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";

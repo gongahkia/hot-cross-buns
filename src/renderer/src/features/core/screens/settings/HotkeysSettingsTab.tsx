@@ -8,7 +8,7 @@ import {
   type SettingsSnapshot,
   type SettingsUpdateRequest
 } from "@shared/ipc/contracts";
-import { Keyboard, RotateCcw, X } from "lucide-react";
+import { RotateCcw, X } from "@renderer/components/icons";
 import { Button, cx } from "../../../../components/primitives";
 import {
   acceleratorFromKeyboardEvent,
@@ -113,7 +113,6 @@ export function HotkeysSettingsTab({
       <SettingsGroup title="Leader key">
         <SettingsControlRow
           description="Press this first, then a chord below. Duplicate chords are shown as conflicts."
-          icon={Keyboard}
           label="Leader"
         >
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
@@ -142,7 +141,6 @@ export function HotkeysSettingsTab({
           return (
             <SettingsControlRow
               description={conflict ? "This leader chord is assigned to more than one action." : undefined}
-              icon={Keyboard}
               key={`leader:${definition.id}`}
               label={definition.label}
             >
@@ -211,7 +209,6 @@ export function HotkeysSettingsTab({
               return (
                 <SettingsControlRow
                   description={conflict ? "This shortcut is assigned to more than one action." : undefined}
-                  icon={Keyboard}
                   key={definition.id}
                   label={definition.label}
                 >

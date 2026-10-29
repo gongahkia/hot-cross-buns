@@ -8,21 +8,8 @@ import type {
   DiagnosticsSummaryResponse,
   SyncStatusResponse
 } from "@shared/ipc/contracts";
-import {
-  ClipboardCopy,
-  DatabaseZap,
-  FileText,
-  Folder,
-  Gauge,
-  History,
-  LifeBuoy,
-  RefreshCw,
-  RotateCcw,
-  Search,
-  Trash2,
-  X
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ClipboardCopy, DatabaseZap, FileText, Folder, Gauge, History, LifeBuoy, RefreshCw, RotateCcw, Search, Trash2 } from "@renderer/components/icons";
+import type { AppIcon } from "@renderer/components/icons";
 import type { ReactNode } from "react";
 import { Badge, Button, IconButton, Input, cx } from "../../components/primitives";
 import type { CoreViewModelSource } from "./coreViewModelSource";
@@ -36,7 +23,7 @@ import {
 
 export type DiagnosticsTab = "overview" | "sync" | "logs" | "history" | "support";
 
-export const diagnosticsTabs: Array<{ id: DiagnosticsTab; label: string; icon: LucideIcon }> = [
+export const diagnosticsTabs: Array<{ id: DiagnosticsTab; label: string; icon: AppIcon }> = [
   { id: "overview", label: "Overview", icon: Gauge },
   { id: "sync", label: "Sync", icon: RefreshCw },
   { id: "logs", label: "Logs", icon: FileText },

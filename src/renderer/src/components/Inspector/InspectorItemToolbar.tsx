@@ -1,5 +1,5 @@
 import * as Popover from "@radix-ui/react-popover";
-import { Check, ChevronDown, Copy, Files, MoreHorizontal, Scissors, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Files, MoreHorizontal, Scissors, Trash2 } from "@renderer/components/icons";
 import { useState, type KeyboardEvent } from "react";
 
 export type InspectorEntryKind = "event" | "task" | "birthday" | "note";

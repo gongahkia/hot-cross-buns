@@ -5,7 +5,7 @@ import type {
   SettingsRecoveryActionRequest,
   SettingsSnapshot
 } from "@shared/ipc/contracts";
-import { Copy, Download, ExternalLink, Info } from "lucide-react";
+import { Copy, Download, ExternalLink } from "@renderer/components/icons";
 import { Badge, Button } from "../../../../components/primitives";
 import { SettingsControlRow, SettingsGroup, SettingsSwitch } from "./SettingsPrimitives";
 
@@ -61,7 +61,6 @@ export function AboutSettingsTab({
         />
         <SettingsControlRow
           description="Checks release metadata through the native updater status path."
-          icon={Download}
           label="Manual check"
         >
           <Button onClick={() => beginRecoveryAction("checkForUpdates")} variant="secondary">
@@ -110,7 +109,7 @@ export function AboutSettingsTab({
       </SettingsGroup>}
 
       <SettingsGroup title="About">
-        <SettingsControlRow icon={Info} label="App">
+        <SettingsControlRow label="App">
           <span className="text-[var(--text-md)] font-semibold text-text-secondary">Hot Cross Buns</span>
         </SettingsControlRow>
         <SettingsControlRow label="Version">

@@ -1,10 +1,6 @@
 import { useState } from "react";
 import type { CalendarListSummary, SettingsSnapshot } from "@shared/ipc/contracts";
-import {
-  Eye, EyeOff,
-  RefreshCw,
-  Settings2,
-} from "lucide-react";
+import { Eye, EyeOff, RefreshCw, Settings2 } from "@renderer/components/icons";
 import { CalendarSourceSwatch } from "../core/screens/calendar/CalendarEventChips";
 import { Button, cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
@@ -12,6 +8,7 @@ import { useI18n } from "../../i18n";
 import { ariaKeyShortcuts, displayAccelerator } from "../core/hotkeys";
 
 import { MiniCalendar } from "./MiniCalendar";
+import { AnimatedIcon } from "../../components/AnimatedIcon";
 
 type ToolbarActionId = SettingsSnapshot["toolbarActionOrder"][number];
 
@@ -23,6 +20,7 @@ export function AppHeader({
   onRefresh,
   onToggleSettings,
   settingsOpen,
+  syncing = false,
   toolbarActionOrder
 }: {
   onSelectCalendarDate: (date: string) => void;
@@ -36,6 +34,7 @@ export function AppHeader({
   onRefresh: () => void;
   onToggleSettings: () => void;
   settingsOpen: boolean;
+  syncing?: boolean;
   toolbarActionOrder: SettingsSnapshot["toolbarActionOrder"];
 }): JSX.Element {
   const { t } = useI18n();
@@ -62,14 +61,17 @@ export function AppHeader({
       <Button
         aria-keyshortcuts={ariaKeyShortcuts(keybindings["sync.refresh"])}
         aria-label={t("action.refresh")}
+        aria-busy={syncing}
+        disabled={syncing}
         className="min-w-9 px-2"
         data-action-id="sync.refresh"
         key="refresh"
         onClick={onRefresh}
-        title={t("action.refresh")}
+        title={syncing ? "Syncing with Google…" : t("action.refresh")}
         variant="ghost"
       >
-        <RefreshCw aria-hidden="true" size={15} />
+        <RefreshCw aria-hidden="true" size={16} spin={syncing} />
+        <span className="sr-only" role="status">{syncing ? "Syncing with Google…" : ""}</span>
       </Button>
     ),
     settings: (
@@ -109,7 +111,8 @@ export function AppHeader({
           <div className="grid gap-1">{calendars.filter((calendar) => calendar.title.toLowerCase().includes(calendarSearch.toLowerCase())).map((calendar) => <button key={calendar.id} className="calendar-source-toggle" aria-label={`${visibleCalendarIds.has(calendar.id) ? "Hide" : "Show"} ${calendar.title}`} aria-pressed={visibleCalendarIds.has(calendar.id)} onClick={() => onToggleCalendar(calendar.id)}>
             <CalendarSourceSwatch calendarId={calendar.id} color={calendar.backgroundColor} />
             <span className="truncate">{calendar.title}</span>
-            {visibleCalendarIds.has(calendar.id) ? <Eye className="calendar-source-eye" size={16} /> : <EyeOff className="calendar-source-eye" size={16} />}
+            <AnimatedIcon className="calendar-source-eye" icon={visibleCalendarIds.has(calendar.id) ? Eye : EyeOff}
+              state={visibleCalendarIds.has(calendar.id)} />
           </button>)}</div>
           {calendars.length === 0 ? <p className="text-xs text-text-muted">Add a calendar in Settings.</p> : null}
         </div> : null}

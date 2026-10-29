@@ -1,7 +1,7 @@
 import { Select, SelectItem } from "@renderer/components/Select";
 import type { SettingsSnapshot, SettingsUpdateRequest } from "@shared/ipc/contracts";
 import { useState } from "react";
-import { Bell, Download, Play, Volume2 } from "lucide-react";
+import { Download, Play } from "@renderer/components/icons";
 import { Badge, Button, cx } from "../../../../components/primitives";
 import { playCompletionSound } from "../../completionSounds";
 import {
@@ -115,7 +115,6 @@ export function AlertsSettingsTab({
       <SettingsGroup title="Notifications">
         {notificationsAvailable ? <SettingsSwitch
           checked={settings.notificationsEnabled}
-          icon={Bell}
           label="Local reminders"
           description={browserRuntime ? "Reminders work while this app is open. Browsers may delay background tabs; reminders cannot run after the app closes. Task due dates use local midnight." : "While HCB is running, prepare up to 40 reminders for the next 24 hours. Task due dates use local midnight; the lead time below applies to Calendar events."}
           onChange={(checked) => void enableNotifications(checked)}
@@ -141,7 +140,6 @@ export function AlertsSettingsTab({
         <SettingsSwitch
           checked={settings.taskCompletionSoundEnabled}
           description="Played when a task is marked complete from any surface."
-          icon={Volume2}
           label="Task completion"
           onChange={(checked) => updateSettings({ taskCompletionSoundEnabled: checked })}
         />
@@ -155,7 +153,6 @@ export function AlertsSettingsTab({
         <SettingsSwitch
           checked={settings.eventCompletionSoundEnabled}
           description="Played when an event is marked done or dismissed from Calendar."
-          icon={Volume2}
           label="Event completion"
           onChange={(checked) => updateSettings({ eventCompletionSoundEnabled: checked })}
         />

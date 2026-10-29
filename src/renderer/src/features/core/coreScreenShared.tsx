@@ -2,49 +2,7 @@ import { BrowserStorageControls } from "./screens/settings/BrowserStorageControl
 import type { KeyboardEvent, ReactNode } from "react";
 import { cachedDateTimeFormat } from "@shared/zonedTime";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
-import {
-  AlertTriangle,
-  Bell,
-  Brush,
-  CalendarClock,
-  CalendarPlus,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  Clock3,
-  Copy,
-  Eye,
-  EyeOff,
-  FileText,
-  Flag,
-  Gift,
-  Info,
-  Keyboard,
-  Languages,
-  ListPlus,
-  MapPin,
-  Pencil,
-  Filter,
-  Minus,
-  PanelLeft,
-  PanelRight,
-  Plus,
-  Power,
-  RotateCcw,
-  Save,
-  Server,
-  ShieldCheck,
-  SlidersHorizontal,
-  Sparkles,
-  StepBack,
-  StepForward,
-  Search,
-  Settings2,
-  Trash2,
-  Users,
-  X
-} from "lucide-react";
+import { CalendarClock, CheckCircle2, Circle, Flag, Trash2 } from "@renderer/components/icons";
 import { getPlannerAction, type PlannerActionId } from "../../actions/plannerActions";
 import { Badge, IconButton, ListRow, Panel, cx } from "../../components/primitives";
 import { EmptyState, ErrorState, LoadingState, OfflineState } from "../../components/states";

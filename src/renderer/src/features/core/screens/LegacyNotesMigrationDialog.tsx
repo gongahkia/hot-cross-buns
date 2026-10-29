@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, FileText, Import, ListTodo } from "lucide-react";
+import { Check, FileText, Import, ListTodo } from "@renderer/components/icons";
 import type { LegacyPseudoNoteCandidate, LegacyPseudoNotesMigrationPreview } from "@shared/ipc/contracts";
 import { Button, cx } from "../../../components/primitives";
 import { buildNotePreview } from "../notesParsing";

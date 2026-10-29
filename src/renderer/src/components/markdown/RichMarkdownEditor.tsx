@@ -3,8 +3,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { Bold, Italic, Strikethrough, Code, Link2, List, ListOrdered, ListTodo, Quote, Table2, SquareCode, Minus, Undo2, Redo2, Plus, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, Link2, List, ListOrdered, ListTodo, Quote, Table2, SquareCode, Minus, Undo2, Redo2, Plus, X } from "@renderer/components/icons";
+import type { AppIcon } from "@renderer/components/icons";
 import { ReferenceTextarea, type ReferenceInputBindings } from "../ReferenceTextarea";
 import { loadEmojiEntries } from "../EmojiTextField";
 import { cx } from "../primitives";
@@ -15,7 +15,7 @@ import { closeMarkdownHistoryGroup, resetMarkdownHistory } from "./history";
 import { isComposingKey, useSuggestionAccessibility } from "../suggestionAccessibility";
 import "./markdown-editor.css";
 
-type Choice = { label: string; terms: string; icon: LucideIcon; run: (editor: Editor) => void };
+type Choice = { label: string; terms: string; icon: AppIcon; run: (editor: Editor) => void };
 const blocks: Choice[] = [
   { label: "Paragraph", terms: "text normal", icon: List, run: (e) => { e.chain().focus().setParagraph().run(); } },
   ...([1, 2, 3, 4, 5, 6] as const).map((level) => ({ label: `Heading ${level}`, terms: `h${level} title`, icon: List, run: (e: Editor) => { e.chain().focus().toggleHeading({ level }).run(); } })),
@@ -167,9 +167,9 @@ export default function RichMarkdownEditor({ value, onValueChange, accountId, di
   }
   if (!editor) return <div role="status">Loading editor…</div>;
 
-  function tool(name: string, Icon: LucideIcon, run: () => void, active = false, unavailable = false) {
+  function tool(name: string, Icon: AppIcon, run: () => void, active = false, unavailable = false) {
     return <button type="button" className="markdown-tool" aria-label={name} title={name} aria-pressed={active} disabled={disabled || unavailable}
-      onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon size={16} strokeWidth={1.5} aria-hidden="true" /></button>;
+      onMouseDown={(event) => event.preventDefault()} onClick={run}><Icon size={16} aria-hidden="true" /></button>;
   }
   function marks() {
     return <>

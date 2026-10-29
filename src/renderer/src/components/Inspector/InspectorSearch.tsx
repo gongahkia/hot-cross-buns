@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarSearch, Gift, ListTodo, X } from "lucide-react";
+import { CalendarSearch, Gift, ListTodo, X } from "@renderer/components/icons";
 import { useInspector } from "./InspectorContext";
 import { useCoreViewModelSource } from "../../features/core/coreViewModelSource";
 import { useLocalSearch } from "../../features/core/viewModelSource/searchViewModels";

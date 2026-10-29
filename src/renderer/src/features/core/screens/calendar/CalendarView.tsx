@@ -4,7 +4,7 @@ import { useCalendarRangeLoader } from "./useCalendarRangeLoader";
 import { useCalendarNavigation } from "../../../shell/CalendarNavigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEventCompletionScope, CalendarEventDetail } from "@shared/ipc/contracts";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X } from "@renderer/components/icons";
 import { IconButton, StatusBanner } from "../../../../components/primitives";
 import { rendererNow, reportRendererTimingSince } from "../../../../hooks/useRenderTiming";
 import { stableCalendarEventViewModel } from "../../viewModelSource/calendarViewModels";
