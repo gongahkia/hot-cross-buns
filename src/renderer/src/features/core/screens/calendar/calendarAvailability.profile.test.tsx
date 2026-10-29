@@ -1,5 +1,5 @@
 import { CalendarNavigationProvider } from "../../../shell/CalendarNavigation";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ok } from "@shared/ipc/result";
 import { InspectorProvider, InspectorShell } from "../../../../components/Inspector";
@@ -62,9 +62,9 @@ describe("Share Availability title performance boundary", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Share availability" }));
     const title = await screen.findByRole("textbox", { name: "Availability title" });
     await waitFor(() => expect(api.calendar.listEvents).toHaveBeenCalled());
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    // Viewport loads are debounced separately from startup hydration. Wait for
+    // the current range to settle before attributing renders to title typing.
+    await waitFor(() => expect(screen.getByTestId("calendar-view")).toHaveAttribute("aria-busy", "false"));
 
     timelineRenders.day.mockClear();
     fireEvent.change(title, { target: { value: "Fast availability title" } });
