@@ -112,9 +112,15 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
       const element = node?.nodeType === Node.ELEMENT_NODE ? node as Element : node?.parentElement;
       return element?.closest("li")?.textContent;
     })).toBe("Child");
-    await page.keyboard.press("Tab");
+    await expect(body).toBeFocused();
+    // The native caret can move before ProseMirror's selectionchange handler.
+    // Wait for the editor's own selection before testing its list keymap.
+    await expect.poll(() => body.evaluate((element) =>
+      (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.selection.$from.parent.textContent
+    )).toBe("Child");
+    await body.press("Tab");
     await expect(body.locator("ul ul")).toHaveCount(1);
-    await page.keyboard.press("Shift+Tab"); await expect(body.locator("ul ul")).toHaveCount(0);
+    await body.press("Shift+Tab"); await expect(body.locator("ul ul")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Source", exact: true }).click();
     await page.getByRole("textbox", { name: "Note body" }).fill("Large document content. ".repeat(3000));
