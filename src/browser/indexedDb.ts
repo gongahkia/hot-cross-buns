@@ -1,5 +1,6 @@
 export const WORKSPACE_DATABASE = 'hot-cross-buns-workspace';
 export const WORKSPACE_LOCK = 'hot-cross-buns-workspace-writer';
+export const GOOGLE_SYNC_LOCK = 'hot-cross-buns-google-operations';
 export interface DurableSnapshot {
   revision: number;
   bytes: Uint8Array<ArrayBuffer>;
@@ -9,10 +10,9 @@ export interface DurableSnapshot {
 
 export function openWorkspaceStorage(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    // v2 fences older builds which only write the snapshot, not its companion
-    // revision record. Their onversionchange closes the v1 connection, and
-    // reopening v1 is rejected rather than permitting mixed-protocol writers.
-    const request = indexedDB.open(WORKSPACE_DATABASE, 2);
+    // v3 fences workers that treat a live remote creation as an abandoned one
+    // when reopening a snapshot. v2 added the companion revision record.
+    const request = indexedDB.open(WORKSPACE_DATABASE, 3);
     let blocked = false;
     request.onupgradeneeded = () => {
       const db = request.result;

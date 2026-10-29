@@ -11,7 +11,7 @@ export interface GoogleUploadSource {
 }
 
 export interface SyncCheckpoint {
-  stage: 'before-remote-write' | 'mutation-receipt' | 'mutation-error' | 'pull-complete' | 'resolution' | 'sync-status' | 'upload-receipt';
+  stage: 'before-remote-write' | 'mutation-receipt' | 'mutation-error' | 'pull-complete' | 'resolution' | 'sync-status' | 'upload-receipt' | 'network-yield';
   mutationId?: string;
 }
 

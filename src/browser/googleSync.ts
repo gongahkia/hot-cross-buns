@@ -7,7 +7,7 @@ import { beginSyncAttempt, finishSyncAttempt, readSyncSchedule, shouldSyncAutoma
 type RecordValue = Record<string, any>;
 type DispatchResult = { handled: true; value: any } | { handled: false };
 
-/** All methods must be called by the worker's serialized, locked request path. */
+/** Google operations are serialized separately; SQL segments own the workspace lease. */
 export class BrowserGoogleSync {
   readonly service: GoogleSyncService;
   private selectedAccounts: Set<string> | undefined;
@@ -15,15 +15,30 @@ export class BrowserGoogleSync {
     private readonly store: CoreStore,
     readonly sessions: BrowserGoogleSessions,
     private readonly checkpoint: (checkpoint: SyncCheckpoint) => Promise<void>,
+    private readonly outsideWorkspace: <T>(wait: () => Promise<T>) => Promise<T> = wait => wait(),
   ) {
     this.service = new GoogleSyncService(store, {
       onConnectionChange: listener => sessions.onConnectionChange(listener),
-      googleFetch: (accountId, url, init) => {
+      googleFetch: async (accountId, url, init) => {
         const account = store.googleAccount(accountId);
         if (!account || account.connectionState !== 'connected' || !sessions.has(accountId, account.googleAccountId)) {
           throw new CoreStoreError('Reconnect the selected Google account before syncing. Its local data and pending changes are preserved.');
         }
-        return sessions.googleFetch(accountId, url, init);
+        const response = await this.outsideWorkspace(async () => {
+          const response = await sessions.googleFetch(accountId, url, init);
+          // Consume the body while unlocked too. Returning just the headers
+          // would leave slow/stalled JSON downloads holding the writer again.
+          const bytes = response.body ? await response.arrayBuffer() : null;
+          return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
+        });
+        const current = store.googleAccount(accountId);
+        if (!current || current.googleAccountId !== account.googleAccountId) throw new CoreStoreError('The Google account changed during this request. Local changes are preserved.');
+        // Preserve receipts of writes already accepted before a disconnect.
+        // Subsequent requests still check the durable connection state above.
+        if ((!init?.method || ['GET', 'HEAD'].includes(init.method.toUpperCase())) && current.connectionState !== 'connected') {
+          throw new CoreStoreError('Google was disconnected while downloading. Local changes are preserved.');
+        }
+        return response;
       },
     }, {
       checkpoint, automaticConnectionSync: false,
@@ -60,7 +75,7 @@ export class BrowserGoogleSync {
     catch (error) { throw error instanceof SyncPersistenceError ? error : new SyncPersistenceError(checkpoint, error); }
   }
 
-  /** Caller owns the worker queue and workspace lock, including selection/claim. */
+  /** Caller owns Google serialization and a workspace lease for selection/claim. */
   async runAutomatic(reason: AutomaticSyncReason, visible: boolean): Promise<RecordValue> {
     const settings = this.store.dispatch('settings', 'get');
     const now = Date.now();

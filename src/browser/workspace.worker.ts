@@ -3,7 +3,8 @@ import { payloadIsValid, requestSchema } from '@shared/ipc/coreValidation';
 import { conflictError, internalError, ok, validationError } from '@shared/result';
 import { getStartupTimings, markStartupTiming } from '@shared/core/startupTiming';
 import { loadSqlite, WasmDatabase } from './sqliteDatabase';
-import { commitSnapshot, openWorkspaceStorage, readSnapshot, readRevision, WORKSPACE_LOCK, type DurableSnapshot } from './indexedDb';
+import { commitSnapshot, openWorkspaceStorage, readSnapshot, readRevision, WORKSPACE_LOCK, GOOGLE_SYNC_LOCK, type DurableSnapshot } from './indexedDb';
+import { WorkspaceLease } from './workspaceLease';
 import { verifySqliteCompatibility } from './compatibility';
 import { stageWorkspaceImport, type StagedImport } from './workspaceTransfer';
 import { BrowserGoogleSync } from './googleSync';
@@ -42,6 +43,49 @@ let stagedImport: StagedImport | undefined;
 let fatal: string | undefined;
 const metrics = { strategy: 'SQLite snapshot in IndexedDB', revision: 0, bytes: 0, exportMs: 0, persistMs: 0, loadMs: 0, commits: 0 };
 const changes = new BroadcastChannel('hot-cross-buns-workspace-changes');
+let activeGoogleLease: WorkspaceLease | undefined;
+let hasRemoteOwner = false;
+// Every call resolves the current connection after a yielded request reloads
+// another tab's snapshot. Never retain a statement/DB across an HTTP boundary.
+const syncStore = new Proxy({} as CoreStore, {
+  get: (_target, key) => {
+    const value = Reflect.get(core, key);
+    return typeof value === 'function' ? (...args: unknown[]) => Reflect.apply(Reflect.get(core, key), core, args) : value;
+  },
+});
+
+function needsGoogleQueue(request: { namespace: string; action: string; payload?: Record<string, any> }): boolean {
+  const key = `${request.namespace}.${request.action}`;
+  return ['__automatic.sync', 'sync.runNow', 'sync.forceFullResync', 'calendar.freeBusy',
+    'google.searchDriveFiles', 'google.searchGmailMessages', 'google.uploadDriveFile',
+    'diagnostics.previewMutationResolution', 'diagnostics.resolveMutation', 'workspace.confirmImport'].includes(key) ||
+    key === 'settings.recoveryAction' && ['refresh', 'forceFullResync'].includes(request.payload?.action);
+}
+
+async function saveChanges(): Promise<void> {
+  if (reopenedChanges || database.totalChanges !== persistedChanges || database.pragma('schema_version', { simple: true }) !== persistedSchema) await save();
+}
+
+async function outsideWorkspace<T>(wait: () => Promise<T>): Promise<T> {
+  if (!activeGoogleLease) throw new Error('Google work requires a workspace lease.');
+  const boundary = async (action: () => Promise<void>) => {
+    try { await action(); }
+    catch (error) { throw new SyncPersistenceError({ stage: 'network-yield' }, error); }
+  };
+  return activeGoogleLease.outside(wait, () => boundary(saveChanges), () => boundary(() => refresh()));
+}
+
+async function withGoogleOperation<T>(action: () => Promise<T>): Promise<T> {
+  // A single Google pipeline across tabs preserves outbox causality. Closing
+  // its worker releases ownership; the next owner recovers abandoned intents.
+  return navigator.locks.request(GOOGLE_SYNC_LOCK, async () => {
+    const lease = new WorkspaceLease(navigator.locks, WORKSPACE_LOCK);
+    await lease.acquire();
+    activeGoogleLease = lease;
+    try { await refresh(true); return await action(); }
+    finally { activeGoogleLease = undefined; await lease.release(); }
+  });
+}
 
 async function withWorkspaceLock<T>(action: () => Promise<T>): Promise<T> {
   const waitingAt = performance.now();
@@ -70,14 +114,12 @@ async function replaceDatabase(snapshot: DurableSnapshot | undefined): Promise<v
   database = new WasmDatabase(sqlite, snapshot?.bytes);
   const initialChanges = database.totalChanges;
   try {
-    core = new CoreStore(database, { platform: 'web' });
+    core = new CoreStore(database, { platform: 'web', deferSyncRecovery: true });
     reopenedChanges = database.totalChanges !== initialChanges;
-    googleSync = new BrowserGoogleSync(core, googleSessions, async () => {
-      // An unchanged state is already durable. In particular, Drive chunks do
-      // not require re-exporting the same database after their intent is saved.
-      if (reopenedChanges || database.totalChanges !== persistedChanges || database.pragma('schema_version', { simple: true }) !== persistedSchema) await save();
-    });
-    googleSync.service.onStatus(status => postMessage({ type: 'event', channel: IPC_CHANNELS.core.syncStatus, payload: status }));
+    if (!googleSync) {
+      googleSync = new BrowserGoogleSync(syncStore, googleSessions, saveChanges, outsideWorkspace);
+      googleSync.service.onStatus(status => postMessage({ type: 'event', channel: IPC_CHANNELS.core.syncStatus, payload: status }));
+    }
     core.attachNativeBridge({
       capabilities,
       listFontFamilies: () => ({ platform: 'web', families: [] }),
@@ -126,9 +168,12 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-async function refresh(): Promise<void> {
+async function refresh(recoverAbandoned = false): Promise<void> {
+  // A nonblocking ownership probe cannot deadlock with an owner awaiting SQL.
+  hasRemoteOwner = await navigator.locks.request(GOOGLE_SYNC_LOCK, { ifAvailable: true }, lock => !lock);
   const start = performance.now();
   if (core && !fatal && !reopenedChanges && await readRevision(storage) === durable?.revision) {
+    if (recoverAbandoned || !hasRemoteOwner) { core.recoverInterruptedSyncCreations(); await saveChanges(); }
     metrics.loadMs = performance.now() - start;
     return;
   }
@@ -160,12 +205,13 @@ async function refresh(): Promise<void> {
       throw error;
     }
   }
+  if (recoverAbandoned || !hasRemoteOwner) { core.recoverInterruptedSyncCreations(); await saveChanges(); }
   metrics.loadMs = performance.now() - start;
 }
 
 function browserSyncStatus() {
   const status = core.dispatch('sync', 'status');
-  if (status.state === 'syncing' && !core.googleAccounts().some(account => googleSessions.has(account.accountId, account.googleAccountId))) {
+  if (status.state === 'syncing' && !hasRemoteOwner) {
     return { ...status, state: status.pendingMutationCount ? 'pending' : 'idle', stale: true,
       message: 'The previous sync stopped when its tab closed. Reconnect Google to continue; queued changes are preserved.' };
   }
@@ -208,7 +254,10 @@ async function handle(request: { id: number; namespace: string; action: string; 
   if (namespace === 'workspace' && ['exportArchive', 'stageImport', 'confirmImport'].includes(action)) {
     try {
       if (!storage) throw new Error('Browser storage is unavailable. Allow site storage and reload before importing.');
-      return await withWorkspaceLock(async () => {
+      const run = action === 'confirmImport'
+        ? <T>(work: () => Promise<T>) => navigator.locks.request(GOOGLE_SYNC_LOCK, () => withWorkspaceLock(work))
+        : withWorkspaceLock;
+      return await run(async () => {
         const current = await readSnapshot(storage);
         if (action === 'exportArchive') {
           if (!current?.bytes) throw new Error('There is no saved workspace to export.');
@@ -261,7 +310,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
   } else if (namespace === 'google' && action === 'uploadDriveFile' && payload.file instanceof Blob) {
     // File objects are picked on the window, then read/uploaded in this worker.
   } else if (namespace === '__automatic' && action === 'sync') {
-    // Internal timer shares the exact same queue and writer lock.
+    // Internal timer uses the serialized Google pipeline.
   } else if (namespace === 'workspace') {
     if (!['getPreferences', 'setPreference'].includes(action) ||
         (action === 'setPreference' && (![payload.pane, payload.key].every(value => typeof value === 'string' && value.length > 0 && value.length <= 128 && !['__proto__', 'constructor', 'prototype'].includes(value)) || JSON.stringify(payload.value ?? null).length > 100_000))) {
@@ -273,7 +322,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
     }
   }
   try {
-    return await withWorkspaceLock(async () => {
+    return await (needsGoogleQueue(request) ? withGoogleOperation : withWorkspaceLock)(async () => {
       await refresh();
       if (namespace === 'diagnostics' && action === 'storage') return ok({ ...metrics, savedAt: durable?.savedAt, wasmHeapBytes: database.sqlite.wasm.heap8u().byteLength });
       if (namespace === 'diagnostics' && action === 'reminderSnapshot') return ok({ settings: core.dispatch('settings', 'get'), planning: core.dispatch('native', 'planningData') });
@@ -283,8 +332,8 @@ async function handle(request: { id: number; namespace: string; action: string; 
       }
       try {
         // Async Google work must not hold a SQLite savepoint across an await.
-        // The Web Lock and this worker queue remain held; each remote boundary
-        // checkpoints through save() before the service can continue.
+        // The Google lock remains held while each HTTP boundary saves progress,
+        // releases the workspace writer, and refreshes it before continuing.
         if (namespace === 'sync' && action === 'runNow') automaticSyncPaused = false;
         let remote = { handled: false } as { handled: boolean; value?: any };
         if (namespace === '__automatic') remote = { handled: true, value: await googleSync.runAutomatic(payload.reason ?? 'interval', visible) };
@@ -350,6 +399,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
 // Requests in one worker must also be ordered; async message listeners alone
 // would overlap while waiting for the same IndexedDB transaction.
 let requests = Promise.resolve();
+let googleRequests = Promise.resolve();
 let automaticQueued = false;
 let automaticReason: AutomaticSyncReason | undefined;
 const reasonPriority: Record<AutomaticSyncReason, number> = { 'workspace-change': 0, 'local-mutation': 1, interval: 2, foreground: 3, online: 4 };
@@ -358,7 +408,7 @@ function queueAutomaticSync(reason: AutomaticSyncReason) {
   if (automaticQueued) return;
   automaticQueued = true;
   const queuedAt = performance.now();
-  requests = requests.then(async () => {
+  googleRequests = googleRequests.then(async () => {
     const pending = automaticReason;
     automaticReason = undefined;
     recordTiming({ name: 'workspace.queue.wait', kind: 'worker', durationMs: performance.now() - queuedAt });
@@ -382,11 +432,13 @@ self.onmessage = ({ data }) => {
     return;
   }
   const queuedAt = performance.now();
-  requests = requests.then(async () => {
+  const execute = async () => {
     recordTiming({ name: 'workspace.queue.wait', kind: 'worker', durationMs: performance.now() - queuedAt });
     try { postMessage({ id: data.id, result: await handle(data) }); }
     catch (error) { postMessage({ id: data.id, result: internalError(String(error)) }); }
-  });
+  };
+  if (needsGoogleQueue(data)) googleRequests = googleRequests.then(execute);
+  else requests = requests.then(execute);
 };
 
 async function start() {
