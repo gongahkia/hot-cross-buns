@@ -436,7 +436,8 @@ export class GoogleSyncService {
     const requestedAccountId = typeof _input.accountId === "string" ? _input.accountId : undefined;
     const readOnly = _input.readOnly === true;
     const accounts = this.store.googleAccounts().filter((account) =>
-      account.accountId !== "local" && account.connectionState === "connected" && (!requestedAccountId || account.accountId === requestedAccountId)
+      account.accountId !== "local" && account.connectionState === "connected" && (!requestedAccountId || account.accountId === requestedAccountId) &&
+      (this.platform.accountAvailable?.(account.accountId) ?? true)
     );
     if (accounts.length === 0) {
       const status = {
@@ -473,8 +474,10 @@ export class GoogleSyncService {
               if (settings.syncCalendarEventsEnabled !== false && allowed.calendar) await timedAsync('google.pull.calendar', 'sync', () => this.pullGoogleCalendars(account.accountId));
             }
           }
+          await this.platform.accountSyncFinished?.(account.accountId, true);
         } catch (error: unknown) {
           if (error instanceof SyncPersistenceError) throw error;
+          await this.platform.accountSyncFinished?.(account.accountId, false);
           failures.push(error instanceof Error ? error : new Error("Google sync failed."));
         }
       }

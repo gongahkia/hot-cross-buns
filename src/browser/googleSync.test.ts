@@ -5,6 +5,7 @@ import { CoreStore } from '@shared/core/CoreStore';
 import { SyncPersistenceError, type SyncCheckpoint } from '@shared/google/types';
 import { BrowserGoogleSync } from './googleSync';
 import { BrowserGoogleSessions } from './googleSyncSessions';
+import { syncScheduleKey } from './syncSchedule';
 
 const databases: Database.Database[] = [];
 const tasksScope = 'https://www.googleapis.com/auth/tasks';
@@ -42,6 +43,57 @@ function fixture(scopes = [tasksScope, calendarScope, driveScope]) {
   sessions.set(account.accountId, { accessToken: 'memory-only-secret', subject: 'verified-subject', expiresAt: Date.now() + 3_600_000, scopes });
   return { db, store, account, list, fetcher, sessions, writes };
 }
+
+describe('browser automatic sync coordination', () => {
+  it('shares successful scheduling across workers and skips unauthorized accounts', async () => {
+    const f = fixture();
+    const first = new BrowserGoogleSync(f.store, f.sessions, async () => {});
+    await first.runAutomatic('foreground', true);
+    const calls = f.fetcher.mock.calls.length;
+    const other = new BrowserGoogleSync(f.store, f.sessions, async () => {});
+    expect(await other.runAutomatic('foreground', true)).toEqual({ skipped: true });
+    expect(await other.runAutomatic('interval', true)).toEqual({ skipped: true });
+    expect(f.fetcher).toHaveBeenCalledTimes(calls);
+    const missingSession = f.store.upsertGoogleAccount({ googleAccountId: 'another-subject', connectionState: 'connected' });
+    await other.dispatch('sync', 'runNow');
+    expect(f.store.googleOperationRecord(missingSession.accountId, syncScheduleKey)).toBeNull();
+    expect(f.store.googleOperationRecord(f.account.accountId, syncScheduleKey)).toMatchObject({ failures: 0, retryAfter: 0 });
+  });
+
+  it('delivers queued edits from a hidden authorized worker but respects manual mode', async () => {
+    const f = fixture();
+    const sync = new BrowserGoogleSync(f.store, f.sessions, async () => {});
+    expect(await sync.runAutomatic('interval', false)).toEqual({ skipped: true });
+    f.store.dispatch('tasks', 'create', { listId: f.list.id, title: 'Saved in another tab' });
+    f.store.dispatch('settings', 'update', { syncMode: 'manual' });
+    expect(await sync.runAutomatic('workspace-change', false)).toEqual({ skipped: true });
+    expect(f.fetcher).not.toHaveBeenCalled();
+    f.store.dispatch('settings', 'update', { syncMode: 'balanced' });
+    await sync.runAutomatic('workspace-change', false);
+    expect(f.writes).toEqual(['task.create']);
+    expect(await sync.runAutomatic('workspace-change', false)).toEqual({ skipped: true });
+  });
+
+  it('persists failed-pull cooldown across workers and lets an explicit retry recover', async () => {
+    const f = fixture();
+    const sync = new BrowserGoogleSync(f.store, f.sessions, async () => {});
+    f.fetcher.mockResolvedValueOnce(new Response('', { status: 503 }));
+    await expect(sync.runAutomatic('foreground', true)).rejects.toThrow();
+    expect(f.store.googleOperationRecord(f.account.accountId, syncScheduleKey)).toMatchObject({ failures: 1 });
+    const other = new BrowserGoogleSync(f.store, f.sessions, async () => {});
+    expect(await other.runAutomatic('online', true)).toEqual({ skipped: true });
+    expect(f.fetcher).toHaveBeenCalledTimes(1);
+    await other.dispatch('sync', 'runNow');
+    expect(f.store.googleOperationRecord(f.account.accountId, syncScheduleKey)).toMatchObject({ failures: 0, retryAfter: 0 });
+  });
+
+  it('does not make a request if the scheduling claim cannot be made durable', async () => {
+    const f = fixture();
+    const sync = new BrowserGoogleSync(f.store, f.sessions, async () => { throw new Error('Quota'); });
+    await expect(sync.runAutomatic('foreground', true)).rejects.toBeInstanceOf(SyncPersistenceError);
+    expect(f.fetcher).not.toHaveBeenCalled();
+  });
+});
 
 describe('browser sync durable boundaries', () => {
   it('does not send a remote creation before its IndexedDB-equivalent checkpoint succeeds', async () => {

@@ -11,19 +11,20 @@ import { BrowserGoogleSessions } from './googleSyncSessions';
 import { SyncPersistenceError } from '@shared/google/types';
 import { IPC_CHANNELS } from '@shared/ipc';
 import { recordTiming, timedAsync } from '@shared/core/performance';
+import type { AutomaticSyncReason } from './syncSchedule';
 
 const googleSessions = new BrowserGoogleSessions();
 let googleSync: BrowserGoogleSync;
-let lastAutomaticSync = 0;
+let visible = true;
 let automaticSyncPaused = false;
 let mutationSyncTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleLocalSync() {
   const mode = core.dispatch('settings', 'get').syncMode;
-  if (mode === 'manual') return;
   if (mutationSyncTimer) clearTimeout(mutationSyncTimer);
+  if (mode === 'manual') { mutationSyncTimer = undefined; return; }
   mutationSyncTimer = setTimeout(() => {
     mutationSyncTimer = undefined;
-    requests = requests.then(async () => { await handle({ id: 0, namespace: '__automatic', action: 'sync', payload: { reason: 'local-mutation' } }); }).catch(() => undefined);
+    queueAutomaticSync('local-mutation');
   }, mode === 'near-real-time' ? 150 : 500);
 }
 const startedAt = performance.now();
@@ -276,11 +277,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
       if (namespace === 'diagnostics' && action === 'reminderSnapshot') return ok({ settings: core.dispatch('settings', 'get'), planning: core.dispatch('native', 'planningData') });
       if (namespace === 'diagnostics' && action === 'health') return ok({ status: 'ok', version: '5.0.1', environment: import.meta.env.MODE === 'test' ? 'test' : import.meta.env.PROD ? 'production' : 'development', timestamp: new Date().toISOString(), uptimeMs: performance.now() - startedAt, startup: getStartupTimings() });
       if (namespace === '__automatic') {
-        const settings = core.dispatch('settings', 'get');
-        const interval = settings.syncMode === 'near-real-time' ? 30_000 : 5 * 60_000;
-        if (automaticSyncPaused || settings.syncMode === 'manual' || (!payload.reason && Date.now() - lastAutomaticSync < interval) || !navigator.onLine ||
-            !core.googleAccounts().some(account => account.accountId !== 'local' && account.connectionState === 'connected' && googleSessions.has(account.accountId, account.googleAccountId))) return ok({ skipped: true });
-        lastAutomaticSync = Date.now();
+        if (automaticSyncPaused || !navigator.onLine) return ok({ skipped: true });
       }
       try {
         // Async Google work must not hold a SQLite savepoint across an await.
@@ -288,7 +285,7 @@ async function handle(request: { id: number; namespace: string; action: string; 
         // checkpoints through save() before the service can continue.
         if (namespace === 'sync' && action === 'runNow') automaticSyncPaused = false;
         let remote = { handled: false } as { handled: boolean; value?: any };
-        if (namespace === '__automatic') remote = await googleSync.dispatch('sync', 'runNow', { reason: 'browser-interval' });
+        if (namespace === '__automatic') remote = { handled: true, value: await googleSync.runAutomatic(payload.reason ?? 'interval', visible) };
         else if (namespace === 'settings' && action === 'recoveryAction' && ['refresh', 'forceFullResync'].includes(payload.action)) {
           remote = await googleSync.dispatch('sync', payload.action === 'refresh' ? 'runNow' : 'forceFullResync', payload);
         } else remote = await googleSync.dispatch(namespace, action, payload);
@@ -322,6 +319,10 @@ async function handle(request: { id: number; namespace: string; action: string; 
         }
         if (changed && (['tasks', 'calendar', 'undo'].includes(namespace) ||
             namespace === 'google' && ['captureGmailMessage', 'copyAccountData'].includes(action))) scheduleLocalSync();
+        if (changed && namespace === 'settings' && action === 'update') queueAutomaticSync('foreground');
+        // Drain the next bounded batch without waiting for the polling interval.
+        // A deferred/blocked queue is not ready; a failed pull has a shared cooldown.
+        if (remote.handled && ['sync', '__automatic'].includes(namespace) && !value?.skipped && core.pendingSyncMutations(1).length) scheduleLocalSync();
         return ok(browserResult(namespace, action, value));
       } catch (error) {
         // SQL may already have committed when IndexedDB fails. Restore the
@@ -347,11 +348,37 @@ async function handle(request: { id: number; namespace: string; action: string; 
 // Requests in one worker must also be ordered; async message listeners alone
 // would overlap while waiting for the same IndexedDB transaction.
 let requests = Promise.resolve();
+let automaticQueued = false;
+let automaticReason: AutomaticSyncReason | undefined;
+const reasonPriority: Record<AutomaticSyncReason, number> = { 'workspace-change': 0, 'local-mutation': 1, interval: 2, foreground: 3, online: 4 };
+function queueAutomaticSync(reason: AutomaticSyncReason) {
+  if (!automaticReason || reasonPriority[reason] > reasonPriority[automaticReason]) automaticReason = reason;
+  if (automaticQueued) return;
+  automaticQueued = true;
+  const queuedAt = performance.now();
+  requests = requests.then(async () => {
+    const pending = automaticReason;
+    automaticReason = undefined;
+    recordTiming({ name: 'workspace.queue.wait', kind: 'worker', durationMs: performance.now() - queuedAt });
+    await handle({ id: 0, namespace: '__automatic', action: 'sync', payload: { reason: pending } });
+  }).catch(() => undefined).finally(() => {
+    automaticQueued = false;
+    if (automaticReason) queueAutomaticSync(automaticReason);
+  });
+}
+
+changes.addEventListener('message', ({ data }) => {
+  if (typeof data?.writerId === 'string' && data.writerId !== writerId && Number.isSafeInteger(data.revision)) queueAutomaticSync('workspace-change');
+});
 // Browsers may suspend timers; there is deliberately no closed-app sync claim.
-setInterval(() => {
-  requests = requests.then(async () => { await handle({ id: 0, namespace: '__automatic', action: 'sync', payload: {} }); }).catch(() => undefined);
-}, 30_000);
+setInterval(() => queueAutomaticSync('interval'), 30_000);
 self.onmessage = ({ data }) => {
+  // Visibility must take effect even while a network operation owns the queue.
+  if (data?.type === 'sync-lifecycle' && typeof data.visible === 'boolean') {
+    visible = data.visible;
+    if (data.reason === 'foreground' || data.reason === 'online') queueAutomaticSync(data.reason);
+    return;
+  }
   const queuedAt = performance.now();
   requests = requests.then(async () => {
     recordTiming({ name: 'workspace.queue.wait', kind: 'worker', durationMs: performance.now() - queuedAt });

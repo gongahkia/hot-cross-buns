@@ -32,6 +32,8 @@ GIS loads from `https://accounts.google.com/gsi/client`. Its token popup is invo
 
 Reloading, closing the tab, token expiry, or rejected credentials requires user-driven reconnection. There is no unattended background Google sync after all application tabs close. Popup blocking/closure, denial, unavailable scripts/network, expired sessions, and identity mismatch return actionable errors while keeping local data and queued changes. Different browser tabs have separate in-memory Google sessions and share the local IndexedDB workspace through the writer lock.
 
+Automatic synchronization catches up on foreground/resume and network reconnection. Tabs share per-account attempt/cooldown metadata, so multiple authorized tabs do not multiply polling. An authorized tab can deliver changes saved in another tab without a token. Hidden tabs skip idle downloads; manual mode disables automatic work. See [implementation progress](sync-implementation.md) for timings, retry behavior and validation.
+
 Deployments must retain the included GIS CSP allowances for its client script, frames, network requests, and `https://accounts.google.com/gsi/style` stylesheet. See Google’s [CSP and popup configuration](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid). If adding a Cross-Origin-Opener-Policy header, use `same-origin-allow-popups` so consent popups can communicate with the app.
 
 Google credentials and API responses are never stored by the offline application-shell cache. An online first load is needed to download the app; offline local planning remains available once Settings → Data reports offline readiness. OAuth and remote sync require network access.

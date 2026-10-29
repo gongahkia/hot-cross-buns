@@ -7,6 +7,7 @@ import { hydratePanePreferences } from "../renderer/src/features/shell/panePrefe
 import { createBrowserNotifications } from "./notifications";
 import { createBrowserGoogleAuth } from "./googleAuth";
 import { browserStorageInfo, downloadFile, pickFile } from "./files";
+import { observeSyncLifecycle } from "./syncLifecycle";
 
 type Request = { namespace: string; action: string; payload: Record<string, unknown> };
 
@@ -30,10 +31,13 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
   let readyResolve!: () => void;
   const ready = new Promise<void>((resolve) => { readyResolve = resolve; });
   let worker: Worker;
+  let stopSyncLifecycle: (() => void) | undefined;
 
   function fail(message: string, stopped = false): void {
     failure = ipcError(message);
     workerUnavailable ||= stopped;
+    stopSyncLifecycle?.();
+    stopSyncLifecycle = undefined;
     readyResolve();
     for (const resolve of pending.values()) resolve(failure);
     pending.clear();
@@ -238,7 +242,9 @@ export function installBrowserBridge(hydratePreferences = true): Promise<void> {
     else {
       void notifications.refresh();
       setInterval(() => void notifications.refresh(), 60_000);
-      window.addEventListener("online", () => { void request("__automatic", "sync", { reason: "online" }); });
+      stopSyncLifecycle = observeSyncLifecycle(event => {
+        if (!workerUnavailable) worker.postMessage(event);
+      });
     }
   }) : Promise.resolve();
 }

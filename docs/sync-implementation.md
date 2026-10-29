@@ -9,9 +9,19 @@ The first increment measures where sync time goes and makes returning to the app
 | Change | Status | Verification required |
 | --- | --- | --- |
 | Bounded, content-free timings for queue/lock waits, storage, HTTP, pulls and delivery | Implemented | TypeScript and 42 focused performance/sync tests passed |
-| Foreground, resume and online triggers with coalescing | Planned | Real worker/browser integration, burst events, suspended/hidden tabs |
-| Shared per-account scheduling across tabs | Planned | Multiple authorized tabs, pending edits from an unauthorized tab, account isolation, takeover, manual mode |
-| Automatic failure cooldown and hidden polling restraint | Planned | Failed pulls, repeated focus/online events, explicit recovery, expired credentials |
+| Foreground, resume and online triggers with coalescing | Implemented | Real browser workers catch up after focus/page restoration; event bursts produce one pull |
+| Shared per-account scheduling across tabs | Implemented | Two authorized tabs share pull timing; a hidden authorized tab delivers another tab's edits; remaining tab takes over; manual mode preserved |
+| Automatic failure cooldown and hidden polling restraint | Implemented | Failed pulls back off across workers, explicit refresh resets cooldown, hidden tabs skip idle downloads |
+
+The initial scheduling validation passed 71 focused unit tests and nine browser tests, including four new end-to-end scheduling scenarios. Google responses are mocked; production Google quotas and latency remain unmeasured.
+
+### Scheduling behavior
+
+Foreground/online events debounce for 250 ms. Successful recent pulls suppress another foreground pull for ten seconds; interval pulls retain the existing 30-second or five-minute modes. Ready outgoing writes bypass this freshness interval, but obey manual mode, account authorization, mutation backoff and failure cooldown. More than 100 ready mutations drain in successive bounded batches.
+
+Attempts and completion/cooldown metadata live per account in the existing SQLite metadata store. Selection and persistence occur under the existing workspace lock; the next tab sees the claimed attempt before it may start. There is no permanent leader whose closed tab could strand the account, and credentials remain private to each worker. Broadcasts prompt an authorized worker to inspect queued writes; idle broadcasts never trigger a Google download.
+
+Failed account pulls use exponential backoff with jitter, initially 24–36 seconds and capped at 15 minutes. Explicit sync bypasses this cooldown. Clock rollback or malformed/future scheduling metadata resets the timing state without changing tasks or outbox records. These records do not replace the existing mutation retry limits or conflict recovery.
 
 ## Following increments
 

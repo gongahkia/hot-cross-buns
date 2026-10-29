@@ -23,6 +23,10 @@ export interface GoogleSyncPlatform {
   /** Browser connection callbacks are queued by the worker's authoritative writer. */
   automaticConnectionSync?: boolean;
   accountCapabilities?(accountId: string): { tasks: boolean; calendar: boolean };
+  /** A browser worker can only sync accounts for which this tab holds a session. */
+  accountAvailable?(accountId: string): boolean;
+  /** Called after each account, except when durable persistence has failed. */
+  accountSyncFinished?(accountId: string, succeeded: boolean): Promise<void>;
   /** Durable operation identities survive sync-token reset, reconnect, and crashes. */
   operations?: {
     read(accountId: string, key: string): Record<string, any> | null;
