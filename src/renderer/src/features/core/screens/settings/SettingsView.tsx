@@ -13,7 +13,7 @@ import {
   resolveEffectiveThemeMode,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
-import { Bell, Brush, Copy, Info, Keyboard, Search, SlidersHorizontal, Users } from "lucide-react";
+import { Copy, Search } from "lucide-react";
 import { useInspector } from "../../../../components/Inspector";
 import { Button, Input, Panel, StatusBanner } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
@@ -45,10 +45,24 @@ type AutoTagBackgroundNotice = {
   changedKinds?: Array<{ kind: AutoTagTargetKind; changed: number }>;
 };
 
+const settingsTabLabels: Record<SettingsTabId, string> = {
+  profile: "Accounts", general: "General", appearance: "Appearance", hotkeys: "Hotkeys",
+  alerts: "Alerts", data: "Data", about: "About"
+};
+const settingsTabDescriptions: Record<SettingsTabId, string> = {
+  profile: "Manage Google connections and choose the lists and calendars in your planner.",
+  general: "Language, sync, history, and setup preferences.",
+  appearance: "Make the planner comfortable to read and work in.",
+  hotkeys: "Personalise shortcuts and resolve conflicting key combinations.",
+  alerts: "Choose when your planner reminds you and which sounds it plays.",
+  data: "Manage browser storage, offline availability, and workspace backups.",
+  about: "Application version and updates."
+};
+
 const autoTagTargetKinds: AutoTagTargetKind[] = ["task", "event", "note"];
 
 const settingsSearchTextByTab: Record<SettingsTabId, string> = {
-  data: "Data local notes backup export restore storage device Google planning metadata",
+  data: "Data local notes backup export import restore replace archive storage persistent browser offline availability updates device Google planning metadata",
   about: [
     "About",
     "Updates",
@@ -86,7 +100,7 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Shortcut"
   ].join(" "),
   general: [
-    "General",
+    "General Language App language English 简体中文 Bahasa Melayu தமிழ் Diagnostics Performance Keep past events Keep completed tasks Custom",
     "Sync",
     "Retention",
     "Refresh",
@@ -95,7 +109,7 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Run setup again"
   ].join(" "),
   appearance: [
-    "Appearance",
+    "Appearance Colour scheme Disable animations Monospace buffer font Loading indicators Blocks Ring Dots Calendar event colors Per-surface fonts Toolbar actions Calendar view modes Month scroll range Past Future Calendar timeline density Quick-create",
     "Theme",
     "Color theme",
     "Custom background",
@@ -121,14 +135,14 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Calendar day end"
   ].join(" "),
   hotkeys: [
-    "Hotkeys",
+    "Hotkeys Leader key",
     "Shortcuts",
     "Keyboard",
     "Command palette",
     ...hotkeyDefinitions.map((definition) => `${definition.group} ${definition.label} ${definition.id}`)
   ].join(" "),
   profile: [
-    "Profile",
+    "Accounts Profile Google connection Drive links uploads Gmail",
     "Google OAuth client",
     "Google Cloud OAuth client",
     "Desktop OAuth client ID",
@@ -155,7 +169,12 @@ export function SettingsView({
     phrase: string;
   } | null>(null);
   const [confirmationInput, setConfirmationInput] = useState("");
-  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  const [recoveryMessage, updateRecoveryMessage] = useState<string | null>(null);
+  const [recoveryTone, setRecoveryTone] = useState<"info" | "success" | "warning">("info");
+  function setRecoveryMessage(message: string | null, tone: "info" | "success" | "warning" = "info"): void {
+    updateRecoveryMessage(message);
+    setRecoveryTone(tone);
+  }
   const [autoTagBackgroundNotice, setAutoTagBackgroundNotice] = useState<AutoTagBackgroundNotice | null>(null);
   const [selectedSettingsTab, setSelectedSettingsTab] = usePanePreference<SettingsTabId>("settings.category", "general");
   const [settingsQuery, setSettingsQuery] = useState("");
@@ -164,6 +183,7 @@ export function SettingsView({
   const settings = source.settings;
   const diagnostics = source.diagnosticsSummary;
   const googleStatus = source.googleStatus;
+  const browserRuntime = source.native.capabilityReport.platform === "web";
   const effectiveThemeMode = resolveEffectiveThemeMode(settings, currentSystemPrefersDark());
   const activeColorTheme = resolveEffectiveColorTheme(settings, effectiveThemeMode);
   const autoTagBulkCounts = useMemo(() => ({
@@ -218,8 +238,13 @@ export function SettingsView({
   const settingsSearchTexts = useMemo<Record<SettingsTabId, string>>(
     () => ({
       ...settingsSearchTextByTab,
+      ...(browserRuntime ? {
+        about: "About Updates App Version Build Site Copy version info",
+        alerts: "Alerts Notifications Local reminders Calendar reminder lead time Completion sounds Task completion Task sound Event completion Event sound Glass Pop Chime Click Ding Pluck Tick Sparkle Success Soft bell Arcade Wood Coin Rise Pulse",
+        appearance: settingsSearchTextByTab.appearance.replace(/Menu bar font|Menu bar compact mode|Sidebar labels|Default section|Calendar default view|Calendar day start|Calendar day end/g, "")
+      } : {}),
       profile: [
-        settingsSearchTextByTab.profile,
+        browserRuntime ? settingsSearchTextByTab.profile.replace(/Google OAuth client|Google Cloud OAuth client|Desktop OAuth client ID|Client secret optional/g, "") : settingsSearchTextByTab.profile,
         googleStatus.account?.displayName ?? "",
         googleStatus.account?.email ?? "",
         googleStatus.account?.timeZone ?? "",
@@ -227,9 +252,13 @@ export function SettingsView({
         source.calendarSources.map((calendar) => `${calendar.title} ${calendar.timeZone ?? ""}`).join(" ")
       ].join(" ")
     }),
-    [googleStatus.account, source.calendarSources, source.taskLists]
+    [browserRuntime, googleStatus.account, source.calendarSources, source.taskLists]
   );
-  const normalizedSettingsQuery = settingsQuery.trim();
+  const normalizedSettingsQuery = settingsQuery.trim().length >= 2 ? settingsQuery.trim() : "";
+  function selectSettingsTab(tab: SettingsTabId): void {
+    if (normalizedSettingsQuery && !matchingSettingsTabs.includes(tab)) setSettingsQuery("");
+    setSelectedSettingsTab(tab);
+  }
   const matchingSettingsTabs = useMemo<SettingsTabId[]>(() => {
     if (!normalizedSettingsQuery) {
       return [];
@@ -490,9 +519,9 @@ export function SettingsView({
     });
   }
 
-  function copyDiagnosticsPayload(payload: string): void {
-    void navigator.clipboard?.writeText(payload);
-    setRecoveryMessage("Diagnostics summary copied without credentials, raw Google payloads, MCP bearer tokens, or sensitive bodies.");
+  async function copyDiagnosticsPayload(payload: string): Promise<void> {
+    const result = await window.hcb?.native.writeClipboardText({ text: payload });
+    setRecoveryMessage(result?.ok ? "Diagnostics summary copied." : result?.error.message ?? "Clipboard access is unavailable.", result?.ok ? "success" : "warning");
   }
 
   async function openDiagnosticsDetails(): Promise<void> {
@@ -541,12 +570,12 @@ export function SettingsView({
     const result = await window.hcb.google.saveOAuthClient(request);
 
     if (result.ok) {
-      setRecoveryMessage("Google OAuth client configuration saved.");
+      setRecoveryMessage("Google OAuth client configuration saved.", "success");
       source.setGoogleStatus(result.data);
       return;
     }
 
-    setRecoveryMessage(result.error.message);
+    setRecoveryMessage(result.error.message, "warning");
   }
 
   async function beginGoogleOAuth(requestedServices: GoogleOptionalWorkspaceService[] = [], accountId?: string): Promise<void> {
@@ -565,7 +594,7 @@ export function SettingsView({
     }
 
     if (result && !result.ok) {
-      setRecoveryMessage(result.error.message);
+      setRecoveryMessage(result.error.message, "warning");
     }
   }
 
@@ -597,41 +626,57 @@ export function SettingsView({
     const result = await window.hcb?.google.disconnect(accountId ? { accountId } : {});
 
     if (result?.ok) {
-      setRecoveryMessage("Google account disconnected.");
+      setRecoveryMessage("Google account disconnected.", "success");
       source.setGoogleStatus(result.data);
       return;
     }
 
     if (result && !result.ok) {
-      setRecoveryMessage(result.error.message);
+      setRecoveryMessage(result.error.message, "warning");
     }
   }
 
   return (
     <div className="settings-workspace grid h-full min-h-0 grid-cols-[210px_minmax(0,1fr)]">
       <nav aria-label="Settings categories" className="flex min-h-0 flex-col gap-1 overflow-auto border-r border-border bg-bg-secondary p-4">
-        <div className="relative mb-5">
+        <div className="settings-search relative mb-5">
           <Search aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
           <Input aria-label="Search settings" className="w-full min-w-0 pl-8" onChange={(event) => setSettingsQuery(event.currentTarget.value)} placeholder="Search settings" value={settingsQuery} />
         </div>
+        <div className="settings-category-list flex min-h-0 flex-col gap-1">
         <p className="px-2 pb-1 text-xs font-semibold text-text-muted">Workspace</p>
-        <SettingsTabButton active={selectedSettingsTab === "profile"} icon={Users} label="Accounts" onClick={() => setSelectedSettingsTab("profile")} />
+        <SettingsTabButton active={selectedSettingsTab === "profile"} label="Accounts" onClick={() => selectSettingsTab("profile")} />
         <p className="mt-5 px-2 pb-1 text-xs font-semibold text-text-muted">Preferences</p>
-        <SettingsTabButton active={selectedSettingsTab === "general"} icon={SlidersHorizontal} label="General" onClick={() => setSelectedSettingsTab("general")} />
-        <SettingsTabButton active={selectedSettingsTab === "appearance"} icon={Brush} label="Appearance" onClick={() => setSelectedSettingsTab("appearance")} />
-        <SettingsTabButton active={selectedSettingsTab === "hotkeys"} icon={Keyboard} label="Hotkeys" onClick={() => setSelectedSettingsTab("hotkeys")} />
-        <SettingsTabButton active={selectedSettingsTab === "alerts"} icon={Bell} label="Alerts" onClick={() => setSelectedSettingsTab("alerts")} />
+        <SettingsTabButton active={selectedSettingsTab === "general"} label="General" onClick={() => selectSettingsTab("general")} />
+        <SettingsTabButton active={selectedSettingsTab === "appearance"} label="Appearance" onClick={() => selectSettingsTab("appearance")} />
+        <SettingsTabButton active={selectedSettingsTab === "hotkeys"} label="Hotkeys" onClick={() => selectSettingsTab("hotkeys")} />
+        <SettingsTabButton active={selectedSettingsTab === "alerts"} label="Alerts" onClick={() => selectSettingsTab("alerts")} />
         <p className="mt-5 px-2 pb-1 text-xs font-semibold text-text-muted">Maintenance</p>
-        <SettingsTabButton active={selectedSettingsTab === "data"} icon={SlidersHorizontal} label="Data" onClick={() => setSelectedSettingsTab("data")} />
-        <Button className="justify-start" variant="ghost" onClick={() => void openDiagnosticsDetails()}>Diagnostics</Button>
-        <SettingsTabButton active={selectedSettingsTab === "about"} icon={Info} label="About" onClick={() => setSelectedSettingsTab("about")} />
+        <SettingsTabButton active={selectedSettingsTab === "data"} label="Data" onClick={() => selectSettingsTab("data")} />
+        <SettingsTabButton active={selectedSettingsTab === "about"} label="About" onClick={() => selectSettingsTab("about")} />
+        </div>
       </nav>
-      <div className="min-h-0 overflow-auto px-6 py-5" key={selectedSettingsTab}>
+      <div className="settings-content min-h-0 min-w-0 overflow-auto px-6 py-5" key={selectedSettingsTab}>
       <div className="mx-auto grid max-w-4xl gap-4">
-      <h2 className="text-xl font-semibold">{{ profile: "Accounts", general: "General", appearance: "Appearance", hotkeys: "Hotkeys", alerts: "Alerts", data: "Data and recovery", about: "About" }[selectedSettingsTab]}</h2>
-      {normalizedSettingsQuery.length >= 2 ? <div role="status" className="text-sm text-text-muted">{matchingSettingsTabs.length ? `Matches in ${matchingSettingsTabs.length} categories` : "No settings match your search."}<Button className="ml-2" size="sm" variant="ghost" onClick={() => setSettingsQuery("")}>Clear search</Button></div> : null}
+      <div className="pb-2">
+        <h2 className="text-balance text-xl font-semibold">{selectedSettingsTab === "data" ? "Data and recovery" : settingsTabLabels[selectedSettingsTab]}</h2>
+        <p className="mt-1 text-pretty text-sm text-text-muted">{settingsTabDescriptions[selectedSettingsTab]}</p>
+      </div>
+      {normalizedSettingsQuery ? (
+        <div className="grid gap-2">
+          <div role="status" className="text-sm text-text-muted">
+            {matchingSettingsTabs.length ? `Matches in ${matchingSettingsTabs.length} categories` : "No settings match your search."}
+            <Button className="ml-2" size="sm" variant="ghost" onClick={() => setSettingsQuery("")}>Clear search</Button>
+          </div>
+          {matchingSettingsTabs.length > 0 ? <div aria-label="Matching settings categories" className="flex flex-wrap gap-2">
+            {matchingSettingsTabs.map((tab) => <SettingsTabButton key={tab} active={selectedSettingsTab === tab} label={settingsTabLabels[tab]} onClick={() => selectSettingsTab(tab)} />)}
+          </div> : null}
+        </div>
+      ) : null}
       {source.settingsMutationError ? (
         <StatusBanner
+          role="alert"
+          className="[&_.truncate]:whitespace-normal"
           description={source.settingsMutationError}
           title="Settings action not applied"
           tone="warning"
@@ -659,7 +704,7 @@ export function SettingsView({
         />
       ) : null}
       {recoveryMessage ? (
-        <StatusBanner description={recoveryMessage} title="Settings action applied" tone="success" />
+        <StatusBanner role={recoveryTone === "warning" ? "alert" : "status"} className="[&_.truncate]:whitespace-normal" description={recoveryMessage} title={recoveryTone === "warning" ? "Action could not be completed" : recoveryTone === "success" ? "Action completed" : "Settings update"} tone={recoveryTone} />
       ) : null}
       {confirmation ? (
         <Panel title="Confirm destructive action" description={confirmation.action}>
@@ -686,7 +731,7 @@ export function SettingsView({
         </Panel>
       ) : null}
 
-      <SettingsSearchProvider query={settingsQuery}>
+      {!normalizedSettingsQuery || matchingSettingsTabs.length > 0 ? <SettingsSearchProvider query={settingsSearchMatches(settingsTabLabels[selectedSettingsTab], normalizedSettingsQuery) ? "" : normalizedSettingsQuery}>
         {selectedSettingsTab === "profile" ? (
           <ProfileSettingsTab
             googleAvailable={source.native.capabilityReport.platform === "web" || source.native.capabilityReport.flags.supportsOAuthLoopback === true}
@@ -731,6 +776,7 @@ export function SettingsView({
 
         {selectedSettingsTab === "appearance" ? (
           <AppearanceSettingsTab
+            browserRuntime={browserRuntime}
             activeColorTheme={activeColorTheme}
             availableFontFamilies={availableFontFamilies}
             settings={settings}
@@ -741,7 +787,7 @@ export function SettingsView({
 
         {selectedSettingsTab === "hotkeys" ? (
           <HotkeysSettingsTab
-            query={settingsQuery}
+            query={settingsSearchMatches(settingsTabLabels[selectedSettingsTab], normalizedSettingsQuery) ? "" : normalizedSettingsQuery}
             settings={settings}
             updateSettings={updateSettings}
           />
@@ -761,7 +807,7 @@ export function SettingsView({
             updateSettings={updateSettings}
           />
         ) : null}
-      </SettingsSearchProvider>
+      </SettingsSearchProvider> : null}
       </div></div>
     </div>
   );

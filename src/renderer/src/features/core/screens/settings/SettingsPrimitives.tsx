@@ -222,12 +222,12 @@ export function SettingsSwitch({
           <input
             aria-label={label}
             checked={checked}
-            className="peer sr-only"
+            className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer opacity-0"
             onChange={(event) => onChange(event.target.checked)}
             type="checkbox"
           />
           <span aria-hidden="true" className="settings-switch-track relative h-6 w-10 rounded-full bg-surface-2 transition-colors peer-checked:bg-accent peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
-            <span className="settings-switch-thumb absolute left-0.5 top-0.5 size-5 rounded-full bg-text-primary shadow-sm transition-transform" />
+            <span className="settings-switch-thumb absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform" />
           </span>
         </label>
       </div>
