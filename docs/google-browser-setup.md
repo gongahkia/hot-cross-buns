@@ -1,6 +1,6 @@
 # Google setup for the browser application
 
-A Google connection is required to finish initial onboarding. Once setup is complete, cached tasks, notes, calendars, search, settings, and undo remain available offline; reconnect Google when you want to sync. A real Google Web application OAuth client is required to test live consent and synchronization; automated tests use a mocked Google Identity Services popup and mocked API responses.
+A Google account is required to use the planner, including previously completed or skipped local-only workspaces. Once setup is complete, cached tasks, notes, calendars, search, settings, and undo remain available offline; reconnect Google when you want to sync. A real Google Web application OAuth client is required to test live consent and synchronization; automated tests use a mocked Google Identity Services popup and mocked API responses.
 
 ## Configure Google Cloud
 
@@ -43,8 +43,8 @@ Implementation follows Google's current [token-model guide](https://developers.g
 Focused validation:
 
 ```sh
-corepack pnpm exec vitest run src/browser/googleAuth.test.ts src/browser/googleSync.test.ts
-corepack pnpm exec playwright test tests/browser/browser-controls.spec.ts
+corepack pnpm exec vitest run src/browser/googleAuth.test.ts src/browser/googleSync.test.ts src/renderer/src/googleCapabilities.test.ts
+corepack pnpm exec playwright test tests/browser/browser-controls.spec.ts tests/browser/account-required.spec.ts
 ```
 
 The browser test configures a test-only client ID through the test build facade, checks user activation, mocks the official userinfo/API endpoints, verifies real worker synchronization, confirms token exclusion from exported SQL, and reloads to demonstrate that authorization is not persisted. Production builds omit this configuration hook. A deployment's real OAuth origin/consent configuration still needs a live browser pass with that deployment's client and authorized test account; no real account connection has been fabricated by the tests.

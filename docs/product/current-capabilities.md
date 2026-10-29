@@ -6,7 +6,7 @@ The current product is the React browser application. [The browser capability ma
 
 Full review of the five onboarding steps, Calendar agenda/context empty states, primary sidebar navigation, and all seven Settings categories. Implementation uses the existing React, Tailwind, shared theme tokens, Lucide action icons, and Radix dialog components. The current browser product is the review target; retained Electron-only controls are outside the visual verification scope.
 
-Initial setup now requires a connected Google account. The public Web OAuth client must be configured before onboarding can finish; see [Google setup](../google-browser-setup.md). Existing completed workspaces remain usable offline after session expiry. Drive/Gmail grants remain optional. All changes reuse the existing Google, settings, workspace, and diagnostics APIs.
+The planner requires a linked Google account even when older workspaces have already completed or skipped setup. The public Web OAuth client must be configured before onboarding can finish; see [Google setup](../google-browser-setup.md). Existing workspaces with a linked Google account remain usable offline after session expiry. Disconnecting the last linked account restores the connection gate without deleting planner data. Drive/Gmail grants remain optional. All changes reuse the existing Google, settings, workspace, and diagnostics APIs. The account requirement is checked independently of saved onboarding status. Older local-only workspaces open directly at Connect Google; linking an account preserves their existing settings and records. The planner is inert while the connection gate is loading or visible.
 
 | Category | Evidence inspected | Result |
 | --- | --- | --- |
@@ -40,6 +40,8 @@ Verification:
 - Checked every Settings category at 1180px light, 640px dark, and 390px dark; captured and inspected desktop/narrow screenshots. Checked keyboard focus, switch persistence, notification/clipboard refusal, search navigation/no results, Google denial, required setup, and offline reopening of completed workspaces.
 - `node output/ui-review/inspect-settings.cjs`: inspected the two switch transitions at 10% playback speed, confirmed reduced-motion duration of `0.00001s`, and verified the empty Agenda contains zero SVG icons. The script and screenshots are local review artifacts under `output/ui-review/`.
 - `git diff --check` passed. The first browser attempts exposed a build timeout, missing matching Chromium, a switch pointer target, and an overly strict search-test text locator; these were resolved before the passing run. Visual inspection also corrected the narrow category strip before final verification.
+
+Account-gate follow-up: typechecking, 10 focused unit/component checks, 20 targeted account/persistence/import/onboarding browser checks, and all four production offline scenarios passed. Earlier targeted Settings, browser controls, preferences, cross-tab UI, and startup checks also passed with the linked-account fixture. Google consent was simulated; no live authorization or benchmark was run.
 
 Verdict: **Approve for the reviewed interface scope**. Not verified: real Google consent using the deployment's OAuth client, other browser engines, and retained Electron-only surfaces. No new performance benchmark or deployment is claimed.
 
