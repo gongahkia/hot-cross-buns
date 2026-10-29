@@ -315,9 +315,10 @@ export function MonthView({
                     "calendar-month-cell relative z-0 min-h-0 border-r border-border bg-bg-tertiary px-2 py-1.5 text-left transition-colors duration-fast ease-hcb last:border-r-0 hover:bg-surface-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
 
 
-                    (rangeContains(dayKey) || (previewStart && previewEnd && dayKey >= previewStart && dayKey <= previewEnd)) && "bg-info/15 ring-1 ring-inset ring-info"
+                    (rangeContains(dayKey) || (previewStart && previewEnd && dayKey >= previewStart && dayKey <= previewEnd)) && "bg-accent/15 ring-1 ring-inset ring-accent"
                   )}
                   data-calendar-date={dayKey}
+                  data-calendar-range-selected={rangeContains(dayKey) || undefined}
                   data-calendar-drop-preview={Boolean(previewStart && previewEnd && dayKey >= previewStart && dayKey <= previewEnd)}
                   data-calendar-month-today={isCurrentDay || undefined}
                   data-outside-month={day.isOutsideMonth}

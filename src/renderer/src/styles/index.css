@@ -498,6 +498,8 @@ label:has(input:not(:disabled)) {
 .calendar-month[data-week-numbers="true"] .calendar-month-head, .calendar-month[data-week-numbers="true"] .calendar-month-body { margin-left: 30px; }
 .calendar-week-number { position: absolute; left: -30px; top: 0; bottom: -1px; width: 30px; padding-top: 10px; text-align: center; font-size: 10px; color: var(--color-text-muted); border-right: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .calendar-month-cell { background: var(--color-bg-primary); text-align: right; padding: 0 7px; }
+.calendar-month-cell[data-calendar-range-selected="true"],
+.calendar-month-cell[data-calendar-drop-preview="true"] { background: color-mix(in srgb, var(--color-accent) 15%, var(--color-bg-primary)); }
 .calendar-month-cell[data-outside-month="true"] .calendar-month-date { color: var(--color-text-muted); }
 .calendar-month-date { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; border-radius: 7px; font-size: 13px; }
 .calendar-month-cell[data-calendar-month-today] .calendar-month-date { background: var(--color-accent); color: var(--color-accent-foreground); font-weight: 600; }
