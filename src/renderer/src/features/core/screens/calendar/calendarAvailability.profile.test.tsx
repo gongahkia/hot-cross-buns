@@ -67,9 +67,13 @@ describe("Share Availability title performance boundary", () => {
     await waitFor(() => expect(screen.getByTestId("calendar-view")).toHaveAttribute("aria-busy", "false"));
 
     timelineRenders.day.mockClear();
-    fireEvent.change(title, { target: { value: "Fast availability title" } });
-
-    await waitFor(() => expect(title).toHaveValue("Fast availability title"));
-    expect(timelineRenders.day).not.toHaveBeenCalled();
+    // fireEvent flushes React's interaction updates through act. Keep the
+    // measurement synchronous: yielding here also counts independent deferred
+    // status refreshes and view-transition frames as if typing caused them.
+    for (const value of ["Fast", "Fast availability", "Fast availability title"]) {
+      fireEvent.change(title, { target: { value } });
+      expect(title).toHaveValue(value);
+      expect(timelineRenders.day).not.toHaveBeenCalled();
+    }
   });
 });
