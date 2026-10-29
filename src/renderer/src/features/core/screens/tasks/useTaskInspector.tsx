@@ -115,8 +115,13 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     });
   }, []);
   const updateTaskDraftRef = useCallback((nextDraft: TaskDraft) => {
-    taskDraftRef.current = nextDraft;
-    const dirty = !taskDraftsEqual(nextDraft, taskDraftBaselineRef.current);
+    // A field event may arrive before the editor renders the creation receipt.
+    // Identity belongs to the controller: stale create-mode props must never
+    // turn the acknowledged task back into a second creation.
+    const current = taskDraftRef.current;
+    const next = { ...nextDraft, mode: current.mode, id: current.id };
+    taskDraftRef.current = next;
+    const dirty = !taskDraftsEqual(next, taskDraftBaselineRef.current);
     taskInspectorDirtyRef.current = dirty;
     taskInspectorDirtyState.set(dirty);
   }, [taskInspectorDirtyState]);
