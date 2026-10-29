@@ -936,6 +936,11 @@ export class CoreStore {
     this.statement("UPDATE outbox SET creation_started=1,updated_at=? WHERE id=? AND state='pending'").run(timestamp(), id);
   }
 
+  hasLaterGoogleWrites(accountId: string, mutationId: string): boolean {
+    return Boolean(this.statement(`SELECT 1 FROM outbox WHERE account_id=? AND state IN ('pending','conflict')
+      AND rowid>(SELECT rowid FROM outbox WHERE id=?) LIMIT 1`).get(accountId, mutationId));
+  }
+
   deferSyncMutation(id: string, error: string, retryable: boolean, uncertainCreation = false): void {
     const row = this.statement("SELECT attempts FROM outbox WHERE id=?").get(id) as { attempts?: number } | undefined;
     const attempts = Number(row?.attempts ?? 0) + 1;
@@ -2566,7 +2571,9 @@ export class CoreStore {
     })();
     const result = this.requireEvent(occurrence.id);
     if (options.recordUndo !== false) {
-      this.recordUndo("Edit recurring occurrence", { namespace: "calendar", action: "create", payload: eventCreatePayload(result) }, { namespace: "calendar", action: "delete", payload: { id: result.id } });
+      // Reverting an occurrence edit restores its original fields. Deleting
+      // the materialized row would cancel the Google occurrence instead.
+      this.recordUpdateUndo("Edit recurring occurrence", "calendar", { ...originalOccurrence, id: result.id }, result);
     }
     return result;
   }

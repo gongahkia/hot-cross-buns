@@ -987,6 +987,9 @@ export class GoogleSyncService {
       }
     } catch (error: unknown) {
       if (error instanceof SyncPersistenceError || error instanceof ConcurrentSeriesEditError) throw error;
+      if (this.currentMutationId && this.store.hasLaterGoogleWrites(accountId, this.currentMutationId)) {
+        throw new CoreStoreError("Later local changes depend on this recurring-series operation. Both snapshots are retained for comparison instead of rolling back those edits.");
+      }
       if (error instanceof GoogleApiError ? error.status === 0 || error.status === 408 || error.status >= 500 : !(error instanceof CoreStoreError)) {
         // A lost acknowledgement may follow an accepted truncation, creation,
         // or exception write. Compensating only the receipts we saw can erase
@@ -1043,7 +1046,11 @@ export class GoogleSyncService {
       // A network loss can happen after Google's idempotent POST was accepted.
       // The deterministic ID lets us distinguish that from a failed create
       // without ever inserting a duplicate successor.
-      return await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(creationId)}`);
+      const recovered = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(creationId)}`);
+      if (!syncValuesEqual(googleSyncFields("event", body), googleSyncFields("event", recovered))) {
+        throw new Error("The accepted successor has changed since submission and needs review.");
+      }
+      return recovered;
     }
   }
 

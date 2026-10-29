@@ -318,6 +318,22 @@ it("sends a generated occurrence's exact edit before a later edit without rewrit
   expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(0);
 });
 
+it.each(["before delivery", "after delivery", "lost response"])("undo restores occurrence fields without cancelling the occurrence (%s)", async when => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const f = recurringFixture(); const occurrence = f.editOccurrence();
+  if (when === "lost response") f.faults.after = request => { if (request.method === "PATCH") throw new TypeError("accepted reply lost"); };
+  if (when !== "before delivery") await f.deliver();
+  f.store.dispatch("undo", "undo");
+  f.restart(); delete f.faults.after; f.advance();
+  await f.deliver();
+  expect(f.instance.summary).toBe("Original");
+  expect(f.local(occurrence.id).title).toBe("Original");
+  expect(f.writes().every(request => request.method === "PATCH" && request.url.pathname.endsWith("/instance"))).toBe(true);
+  expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(0);
+  f.store.dispatch("undo", "redo"); await f.deliver();
+  expect(f.instance.summary).toBe("Local occurrence");
+});
+
 it.each(["missing", "cancelled", "phone exception", "changed master"])("retains a generated occurrence for review after %s", async fault => {
   const f = recurringFixture(); const occurrence = f.editOccurrence();
   if (fault === "missing") f.remote.delete("instance");
@@ -363,4 +379,17 @@ it.each(["lost response", "server error", "invalid JSON"])("does not claim a ser
   expect(f.pending()[0].lastErrorMessage).toContain("uncertain remote result");
   f.restart(); delete f.faults.after; await f.deliver();
   expect(f.writes()).toHaveLength(1);
+});
+
+it("keeps later successor edits when a series creation is rejected instead of deleting them during compensation", async () => {
+  const f = recurringFixture(); const successor = f.split();
+  f.edit({ title: "Later successor edit" }, successor.id);
+  const before = f.faults.before;
+  f.faults.before = request => request.method === "POST" ? new Response(null, { status: 400 }) : before?.(request);
+  await f.deliver();
+  expect(f.local(successor.id).title).toBe("Later successor edit");
+  expect(f.writes().map(request => request.method)).toEqual(["PATCH", "POST"]);
+  expect(f.pending()[0].status).toBe("failed");
+  expect(f.pending()[0].lastErrorMessage).toContain("Later local changes");
+  expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(2);
 });
