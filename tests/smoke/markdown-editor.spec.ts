@@ -1,5 +1,6 @@
 import { browserApp, type BrowserApplication } from "./browserApp";
 import { chooseCalendarView, newCalendarEvent } from "./calendarActions";
+import { replaceRichText } from "./richTextActions";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,12 +46,7 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await expect(bold).toBeFocused();
     await page.keyboard.press("ArrowRight");
     await expect(formatToolbar.getByRole("button", { name: "Italic", exact: true })).toBeFocused();
-    await body.click();
-    await expect(body).toBeFocused();
-    // Exercise the editor's selection/keymap, not fill()'s synthetic DOM range.
-    await body.press(`${modifier}+a`);
-    await body.press("Backspace");
-    await expect(body).toHaveText("");
+    await replaceRichText(body);
     await body.pressSequentially("# "); await body.pressSequentially("Markdown heading");
     await expect(body.locator("h1")).toHaveText("Markdown heading");
     await body.press("Enter"); await body.press(`${modifier}+b`); await body.pressSequentially("Bold text"); await body.press(`${modifier}+b`);
@@ -66,30 +62,30 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     expect(tableSource).toContain("# Markdown heading"); expect(tableSource).toContain("**Bold text**"); expect(tableSource).toContain("Header");
     await page.screenshot({ path: "output/markdown-editor-formatted-note.png" });
 
-    await body.fill(""); await body.pressSequentially("@Reference");
+    await replaceRichText(body); await body.pressSequentially("@Reference");
     await expect(page.getByRole("option", { name: /Reference fixture/ }).first()).toBeVisible();
     await body.press("ArrowDown"); await body.press("Enter");
     await expect(body.locator("[data-planner-reference]")).toHaveCount(1);
     expect(await sourceValue(page, "Note body")).toContain(`[[hcb:task:${fixture.task}|Reference fixture]]`);
-    await body.fill(""); await body.pressSequentially(":smile");
+    await replaceRichText(body); await body.pressSequentially(":smile");
     await expect(page.getByRole("listbox", { name: "Emoji suggestions" })).toBeVisible();
     await expect(page.getByRole("listbox", { name: "Emoji suggestions" }).getByRole("option").first()).toBeVisible();
     await body.press("Enter");
     expect((await body.innerText()).trim()).not.toContain(":smile");
-    await body.fill(""); await body.pressSequentially("/quote"); await body.press("Escape");
+    await replaceRichText(body); await body.pressSequentially("/quote"); await body.press("Escape");
     await expect(body).toBeVisible(); // Escape dismisses suggestions before closing the inspector.
-    await body.fill("Prefix "); await body.pressSequentially("/divider"); await body.press("Enter");
+    await replaceRichText(body, "Prefix "); await body.pressSequentially("/divider"); await body.press("Enter");
     await expect(body.locator("hr")).toHaveCount(1);
-    await body.fill(""); await body.pressSequentially("/no-matching-command"); await body.press("Enter");
+    await replaceRichText(body); await body.pressSequentially("/no-matching-command"); await body.press("Enter");
     await expect(body).toContainText("/no-matching-command");
-    await body.fill("");
+    await replaceRichText(body);
     await body.evaluate((element) => {
       const data = new DataTransfer(); data.setData("text/plain", "## Pasted heading\n\n**Pasted bold**");
       element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
     });
     await expect(body.locator("h2")).toHaveText("Pasted heading");
     await expect(body.locator("strong")).toHaveText("Pasted bold");
-    await body.fill("");
+    await replaceRichText(body);
     await body.evaluate((element) => {
       const data = new DataTransfer(); data.setData("text/html", '<p>Pasted <em>HTML</em> <a href="javascript:alert(1)">unsafe link</a></p>');
       data.setData("text/plain", "Pasted HTML unsafe link");
@@ -146,12 +142,12 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Tasks/ }).click();
     await page.getByRole("button", { name: "Reference fixture", exact: true }).click();
     const notes = page.getByRole("textbox", { name: "Task notes" });
-    await notes.fill("Undo probe");
+    await replaceRichText(notes, "Undo probe");
     await notes.press(`${modifier}+z`);
     await expect(notes).not.toContainText("Undo probe");
     await notes.press(`${modifier}+Shift+z`);
     await expect(notes).toContainText("Undo probe");
-    await notes.fill(""); await notes.pressSequentially("[] "); await notes.pressSequentially("Action item");
+    await replaceRichText(notes); await notes.pressSequentially("[] "); await notes.pressSequentially("Action item");
     await expect(notes.getByRole("checkbox")).toHaveCount(1);
     await notes.getByRole("checkbox").check();
     expect(await sourceValue(page, "Task notes")).toContain("- [x] Action item");
@@ -164,11 +160,11 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.evaluate((id) => window.dispatchEvent(new CustomEvent("hcb:open-entity", { detail: { kind: "event", id } })), fixture.event);
     const description = page.getByRole("textbox", { name: "Event notes" });
     await expect(description.locator("strong")).toHaveText("HTML");
-    await description.fill(""); await description.press(`${modifier}+k`);
+    await replaceRichText(description); await description.press(`${modifier}+k`);
     await page.getByRole("textbox", { name: "Link URL" }).fill("https://example.com/inserted");
     await page.getByRole("button", { name: "Apply link", exact: true }).click();
     await expect(description.locator("a")).toHaveText("https://example.com/inserted");
-    await description.fill("Linked description"); await description.press(`${modifier}+a`); await description.press(`${modifier}+k`);
+    await replaceRichText(description, "Linked description"); await description.press(`${modifier}+a`); await description.press(`${modifier}+k`);
     await page.getByRole("textbox", { name: "Link URL" }).fill("https://example.com");
     await page.getByRole("textbox", { name: "Link URL" }).press("Enter");
     await expect(description.locator("a")).toHaveAttribute("href", "https://example.com");

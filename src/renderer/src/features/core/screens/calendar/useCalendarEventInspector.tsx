@@ -1,6 +1,6 @@
 import type { CalendarEventAction } from "./CalendarEventMenu";
 import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { openCalendarSyncDetails } from "./CalendarSyncStatus";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { CalendarEventCompletionScope, CalendarEventUpdateRequest } from "@shared/ipc/contracts";
@@ -136,7 +136,9 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     setCreateTaskListIdState(listId);
   }
 
-  useEffect(() => {
+  // Publish the controlled draft before the next input event. A passive effect
+  // can echo an older value into the editor after it has accepted another key.
+  useLayoutEffect(() => {
     if (currentInspector?.kind !== "event" || currentInspector.ownerId !== ownerId.current || !draft) {
       return;
     }

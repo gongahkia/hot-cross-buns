@@ -1,4 +1,5 @@
 import { browserApp, type BrowserApplication } from "./browserApp";
+import { replaceRichText } from "./richTextActions";
 import { expect, test } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,12 +27,7 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /^Notes/ }).click();
     await page.getByRole("button", { name: "Open note Interoperability fixture", exact: true }).click();
     const body = page.getByRole("textbox", { name: "Note body", exact: true });
-    // Enter the mounted editor through an actionable pointer target before
-    // exercising source-mode history; fill alone does not wait for stability.
-    await body.click();
-    await expect(body).toBeFocused();
-    await body.fill("Before source");
-    await expect(body).toHaveText("Before source");
+    await replaceRichText(body, "Before source");
     await expect(page.getByRole("button", { name: "Undo text edit", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Source", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Note body", exact: true })).toHaveValue("Before source");
@@ -45,7 +41,7 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     await page.getByRole("button", { name: "Visual", exact: true }).click();
     await body.focus(); await body.press(`${modifier}+z`); await expect(body).toHaveText("Before source");
 
-    await body.fill("");
+    await replaceRichText(body);
     await page.getByRole("button", { name: "Insert block", exact: true }).click();
     await expect(page.getByRole("listbox", { name: "Insert block", exact: true })).toBeVisible();
     await expect(body).toBeFocused();
@@ -62,11 +58,11 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     expect(fits).toBe(true);
     await body.press("Escape");
     await expect(body).not.toHaveAttribute("aria-activedescendant");
-    await body.fill(""); await body.pressSequentially("/quote");
+    await replaceRichText(body); await body.pressSequentially("/quote");
     await body.evaluate((element) => element.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 229, isComposing: true, bubbles: true, cancelable: true })));
     await expect(body.locator("blockquote")).toHaveCount(0);
     await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();
-    await body.press("Escape"); await body.fill(""); await body.focus();
+    await body.press("Escape"); await replaceRichText(body); await body.focus();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Input.imeSetComposition", { text: "日本", selectionStart: 2, selectionEnd: 2 });
     await expect(body).toContainText("日本");
@@ -74,7 +70,7 @@ test("retains complex clipboard content, cross-mode history and composition inpu
     await expect(body).toHaveText("日本語");
     await cdp.detach();
 
-    await body.fill("");
+    await replaceRichText(body);
     await body.evaluate((element) => {
       const data = new DataTransfer();
       data.setData("text/html", '<meta charset="utf-8"><div class="ak-renderer-document"><table data-layout="default"><tbody><tr><th colspan="2"><p>Merged <strong>heading</strong></p></th></tr><tr><td rowspan="2"><p>First paragraph</p><p>Second paragraph</p><ul><li><p>Nested item</p></li></ul></td><td><p>Right</p></td></tr><tr><td><p>Last</p></td></tr></tbody></table></div>');
