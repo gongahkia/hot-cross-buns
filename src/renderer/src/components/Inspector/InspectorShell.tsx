@@ -174,14 +174,14 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
         /> : null}
         {backToSearch ? <button className="inspector-search-back" onClick={backToSearch}><ArrowLeft size={16} />Search</button> : null}
         {showHeader ? (
-          <header className="inspector-header flex min-h-12 items-center gap-2 px-4 py-2">
+          <header className="inspector-header flex min-h-12 shrink-0 items-center gap-2 px-4 py-2">
             <h2 className={current.toolbar ? "sr-only" : "min-w-0 flex-1 text-sm font-semibold"} id={titleId}>{current.title}</h2>
             {current.toolbar ?? <InspectorDirtyBadge dirty={current.dirty} dirtyState={current.dirtyState} />}
             <IconButton data-testid="inspector-close" icon={PanelRight} label="Close inspector" onClick={requestClose} size="sm" variant="ghost" />
           </header>
         ) : null}
 
-        <div className="inspector-editor min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4" data-testid="inspector-body"
+        <div className="inspector-editor min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-4 pt-1" data-testid="inspector-body"
           onBlurCapture={(event) => {
             if (!current.onSave || !(event.target instanceof HTMLElement)) return;
             if (!event.target.matches('input,textarea,select,[contenteditable="true"]') && !event.target.closest(".markdown-editor")) return;
