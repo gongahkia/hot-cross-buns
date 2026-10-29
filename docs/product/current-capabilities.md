@@ -2,6 +2,47 @@
 
 The current product is the React browser application. [The browser capability matrix](../web-migration.md) is authoritative for runtime, storage, Google authorization, backups and native replacements. The detailed planner interaction contract below was established by the Electron application and is preserved by browser tests; desktop-only menu bar, Keychain, filesystem and background-operation descriptions are historical, not shipped browser controls. Older specifications and roadmaps do not certify a shipped feature.
 
+## Onboarding and Settings interface audit — 29 October 2026
+
+Full review of the five onboarding steps, Calendar agenda/context empty states, primary sidebar navigation, and all seven Settings categories. Implementation uses the existing React, Tailwind, shared theme tokens, Lucide action icons, and Radix dialog components. The current browser product is the review target; retained Electron-only controls are outside the visual verification scope.
+
+Initial setup now requires a connected Google account. The public Web OAuth client must be configured before onboarding can finish; see [Google setup](../google-browser-setup.md). Existing completed workspaces remain usable offline after session expiry. Drive/Gmail grants remain optional. All changes reuse the existing Google, settings, workspace, and diagnostics APIs.
+
+| Category | Evidence inspected | Result |
+| --- | --- | --- |
+| Typography | Onboarding descriptions; category headings; shared control labels and account/resource rows | Removed clipped setup copy and shared row labels; added category descriptions and a proper heading hierarchy. |
+| Surfaces | Settings shell, all category components, shared rows/switches, onboarding dialog | Responsive category navigation and panel-width row layout; badges no longer compete with switches for a fixed 40px box. |
+| Animations | Shared transitions and reduced-motion rules; existing dialogs | No new page animations; switches use colour/position transitions and existing reduced-motion handling. |
+| Icons | Primary navigation, Calendar empty states, Settings category navigation | Removed redundant pictograms; retained functional action icons, Google service marks, and status indicators. |
+| Performance | Settings rendering/search and browser/native feature boundaries | Kept one active category mounted; no new library, network request, or backend service. No performance benchmark claimed. |
+
+| Severity | Location | Before | After | Why |
+| --- | --- | --- | --- | --- |
+| HIGH | `FirstRunOnboarding.tsx` | Local resources allowed bypassing Google; account diagnostics could outlive the live session | Require a connected account for Continue/Finish; show configuration and reconnection states | Match the requested setup contract and make blocked actions understandable. |
+| HIGH | `FirstRunOnboarding.tsx` | A styled modal did not contain keyboard focus | Use the existing Radix modal primitive | Keyboard navigation must stay inside required setup. |
+| MEDIUM | `FirstRunOnboarding.tsx` | Footer step counter and truncated descriptions | Remove the counter; let explanatory copy wrap | Reduce visual noise without hiding necessary setup information. |
+| LOW | `AppHeader.tsx`, `CalendarAgendaView.tsx`, `CalendarSidebar.tsx`, `SettingsPrimitives.tsx` | Redundant navigation and empty-state pictograms | Text navigation and icon-free Calendar empty states | Keep attention on destinations, selections, and content. |
+| HIGH | `SettingsPrimitives.tsx`, `styles/index.css`, `AppearanceSettingsTab.tsx` | Rows followed viewport breakpoints despite a sidebar; fixed minimum widths could clip labels/controls | Rows follow panel width, wrap labels, constrain controls, and stack below the breakpoint | Controls must remain readable and reachable on narrow screens. |
+| MEDIUM | `SettingsPrimitives.tsx` | Switch labels crammed counts and input into one fixed square; group titles repeated the page heading level | Separate trailing content, use a labelled switch with keyboard focus, and nest headings correctly | Improve hit areas, alignment, and document structure. |
+| MEDIUM | `SettingsView.tsx` | Search announced category counts without direct destinations and could trap category navigation | Clickable matching categories, category-name queries, clear empty states, and navigation that clears unrelated filters | Make search results and recovery from no results actionable. |
+| MEDIUM | `AppearanceSettingsTab.tsx`, `SettingsView.tsx` | Browser users could configure a menu-bar font, native window restoration, or order absent toolbar actions | Hide unsupported native settings and expose only rendered toolbar actions; omit obsolete search terms | Preferences must describe observable behaviour. |
+| HIGH | `SettingsView.tsx` | Google errors and unconfirmed clipboard writes could appear as success | Distinguish informational, success, and failure notices; await clipboard result | Feedback must reflect the actual operation outcome. |
+| MEDIUM | `AlertsSettingsTab.tsx`, `AboutSettingsTab.tsx`, `DataSettingsTab.tsx` | Reminder slider remained actionable without reminders; update and Google copy conflicted with runtime behaviour | Disable/hide unavailable reminder controls; explain all-tabs-closed updates and required initial connection | Keep settings consistent with capabilities. |
+| LOW | `SettingsView.tsx` | Category headings offered little context; diagnostics duplicated the General entry | Add brief descriptions and retain diagnostics under General | Reduce navigation clutter while keeping the existing feature reachable. |
+
+Considered but rejected: replacing removed icons with a second Apple-style icon library (text already identifies these destinations); changing Google token persistence to avoid reconnection (outside this UI task and changes the security/storage contract); replacing the existing full-screen Settings surface with a new modal (responsive improvements fit the established workspace and keyboard behaviour).
+
+Verification:
+
+- `corepack pnpm typecheck` passed.
+- `corepack pnpm exec vitest run src/browser/googleAuth.test.ts src/renderer/src/components/FirstRunOnboarding.test.tsx src/renderer/src/features/core/screens/settings/ProfileSettingsTab.test.tsx`: **18 passed**.
+- `corepack pnpm exec playwright test -c output/ui-review/settings.playwright.config.ts tests/smoke/settings-audit.spec.ts tests/smoke/onboarding-layout.spec.ts tests/browser/browser-controls.spec.ts tests/browser/persistence.spec.ts tests/smoke/workspace-ui.spec.ts:498`: **16 passed** against a fresh static test build. The ignored local config extends build startup to 360 seconds and test timeout to 120 seconds on this busy laptop; assertions and fixtures are unchanged. The normal repository config can run the same test selections.
+- Checked every Settings category at 1180px light, 640px dark, and 390px dark; captured and inspected desktop/narrow screenshots. Checked keyboard focus, switch persistence, notification/clipboard refusal, search navigation/no results, Google denial, required setup, and offline reopening of completed workspaces.
+- `node output/ui-review/inspect-settings.cjs`: inspected the two switch transitions at 10% playback speed, confirmed reduced-motion duration of `0.00001s`, and verified the empty Agenda contains zero SVG icons. The script and screenshots are local review artifacts under `output/ui-review/`.
+- `git diff --check` passed. The first browser attempts exposed a build timeout, missing matching Chromium, a switch pointer target, and an overly strict search-test text locator; these were resolved before the passing run. Visual inspection also corrected the narrow category strip before final verification.
+
+Verdict: **Approve for the reviewed interface scope**. Not verified: real Google consent using the deployment's OAuth client, other browser engines, and retained Electron-only surfaces. No new performance benchmark or deployment is claimed.
+
 ## Why use HCB alongside Google
 
 Google Calendar already displays and edits Tasks, supports task start/end times and deadlines, and provides Drive attachment controls. Combined display and manual time blocking are therefore parity features, not a sufficient switching proposition. See [Google Calendar Help](https://support.google.com/calendar/answer/9901136) and [Google Tasks Help](https://support.google.com/tasks/answer/7675838?co=GENIE.Platform%3DDesktop&hl=en), checked 18 October 2026. Google's [Workspace guide](https://support.google.com/a/users/answer/13306853?hl=en) also documents Gmail-to-task capture.
