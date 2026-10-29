@@ -93,10 +93,12 @@ test('foreground return fetches remote changes once across event bursts and auth
   await expect.poll(() => hasTask(other, 'Added on the phone')).toBe(true);
   await page.waitForTimeout(700); // Both lifecycle debounce windows must finish.
   expect(google.pulls - before).toBe(1);
-  const timings = await page.evaluate(async () => {
+  // The operation lock lets either authorized tab lead the pull. Timings are
+  // worker-local, so inspect both workers rather than assuming the first wins.
+  const timings = (await Promise.all([page, other].map(tab => tab.evaluate(async () => {
     const result = await window.hcb!.diagnostics.summary();
     return result.ok ? (result.data as any).performance.timings : [];
-  });
+  })))).flat();
   expect(timings.map((sample: any) => sample.name)).toEqual(expect.arrayContaining(['workspace.queue.wait', 'workspace.lock.wait', 'google.pull.tasks', 'google.http.read', 'workspace.snapshot.persist']));
   expect(JSON.stringify(timings)).not.toMatch(/private-sync-test-token|Added on the phone|sync@example.test/);
 
