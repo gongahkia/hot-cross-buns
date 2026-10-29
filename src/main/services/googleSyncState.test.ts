@@ -199,4 +199,76 @@ describe("durable Google baselines and local intents", () => {
     store.dispatch("undo", "redo");
     expect(store.googleEventForSync(event.id)).toMatchObject({ title: "Local", startsAt: "2026-10-30T01:00:00.000Z" });
   });
+
+  it("prepares one narrow patch from adjacent edits while preserving individual undo history", () => {
+    const { store } = fixture();
+    const { accountId, task } = connected(store);
+    store.dispatch("tasks", "update", { id: task.id, title: "First" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Final" });
+    const queued = store.pendingSyncMutations(10, accountId);
+    const batch = store.prepareGoogleSyncBatch(accountId, queued[0].id)!;
+    expect(batch.body).toEqual({ title: "Final" });
+    expect(batch.mutationIds).toEqual(queued.map((mutation) => mutation.id));
+    store.completeGoogleSyncBatch(batch);
+    expect(store.pendingSyncMutations(10, accountId)).toHaveLength(0);
+    store.dispatch("undo", "undo");
+    expect(store.googleTaskForSync(task.id)?.title).toBe("First");
+    store.dispatch("undo", "undo");
+    expect(store.googleTaskForSync(task.id)?.title).toBe("Remote title");
+  });
+
+  it("keeps a submitted batch frozen after restart and leaves a newer undo pending", () => {
+    const f = fixture();
+    const { accountId, task } = connected(f.store);
+    f.store.dispatch("tasks", "update", { id: task.id, title: "Submitted" });
+    const first = f.store.pendingSyncMutations(10, accountId)[0];
+    const batch = f.store.prepareGoogleSyncBatch(accountId, first.id)!;
+    f.store.beginGoogleSyncBatch(batch);
+    f.store.dispatch("undo", "undo");
+    f.store.close();
+    f.store = new CoreStore(f.path);
+    expect(f.store.prepareGoogleSyncBatch(accountId, first.id)).toEqual(batch);
+    f.store.completeGoogleSyncBatch(batch);
+    expect(f.store.pendingSyncMutations(10, accountId)).toHaveLength(1);
+    expect(f.store.googleTaskForSync(task.id)?.title).toBe("Remote title");
+  });
+
+  it("prepares no HTTP fields when an unsent edit has been undone", () => {
+    const { store } = fixture();
+    const { accountId, task } = connected(store);
+    store.dispatch("tasks", "update", { id: task.id, title: "Temporary" });
+    store.dispatch("undo", "undo");
+    const queued = store.pendingSyncMutations(10, accountId);
+    const batch = store.prepareGoogleSyncBatch(accountId, queued[0].id)!;
+    expect(batch.body).toEqual({});
+    expect(batch.mutationIds).toHaveLength(2);
+  });
+
+  it("does not read a later move into an earlier patch or cross another entity's command", () => {
+    const { store } = fixture();
+    const { accountId, list, task } = connected(store);
+    const second = store.upsertGoogleTask({ id: "second", title: "Second" }, list.id)!;
+    const destination = store.upsertGoogleTaskList({ id: "destination", title: "Destination" }, accountId);
+    store.dispatch("tasks", "update", { id: task.id, title: "First edit" });
+    store.dispatch("tasks", "update", { id: second.id, title: "Other task" });
+    store.dispatch("tasks", "update", { id: task.id, notes: "Later notes" });
+    store.dispatch("tasks", "update", { id: task.id, listId: destination.id });
+    const queued = store.pendingSyncMutations(10, accountId);
+    const batch = store.prepareGoogleSyncBatch(accountId, queued[0].id)!;
+    expect(batch.mutationIds).toHaveLength(1);
+    expect(batch.snapshot).toMatchObject({ listId: list.id, listGoogleId: "list", title: "First edit", notes: "Remote notes" });
+    expect(batch.body).toEqual({ title: "First edit" });
+  });
+
+  it("folds edits into a still-unsent creation using the list's now-bound Google identity", () => {
+    const { store } = fixture();
+    const { accountId, list } = connected(store);
+    const task = store.dispatch("tasks", "create", { listId: list.id, title: "Draft" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Final", dueDate: "2026-11-03" });
+    const queued = store.pendingSyncMutations(10, accountId);
+    const batch = store.prepareGoogleSyncBatch(accountId, queued[0].id)!;
+    expect(batch.creating).toBe(true);
+    expect(batch.mutationIds).toHaveLength(2);
+    expect(batch.body).toEqual({ title: "Final", notes: "", status: "needsAction", due: "2026-11-03T00:00:00.000Z" });
+  });
 });

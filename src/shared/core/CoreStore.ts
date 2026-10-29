@@ -2,12 +2,13 @@ import { currentZonedDay, zonedDayRange, cachedDateTimeFormat } from "@shared/zo
 import type { SqlDatabase, SqlStatement, CoreStorePlatform } from "./database";
 const randomUUID = (): string => globalThis.crypto.randomUUID();
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
-import { resolutionGoogleEvent } from "./syncResolution";
+import { resolutionGoogleEvent, resolutionLocalRecord } from "./syncResolution";
 import { claimedLocalEventId, deterministicGoogleEventId } from "./googleEventIdentity";
 import { calendarCanWrite, calendarWriteRestriction } from "@shared/calendarPermissions";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
-import { changedSyncFields, googleSyncFields, syncValuesEqual, type GoogleEntityKind, type GoogleSyncBaseline } from "../google/syncMerge";
-import { googleEventBody, googleTaskBody, localGoogleSyncFields } from "../google/googleWriteBody";
+import { changedSyncFields, googlePatchFromSyncFields, googleSyncFields, syncValuesEqual, type GoogleEntityKind, type GoogleSyncBaseline, type SyncFields } from "../google/syncMerge";
+import { googleEventBody, googleTaskBody, localGoogleSyncFields, localRecordWithGoogleFields } from "../google/googleWriteBody";
+import { compatibleGoogleBatch } from "../google/syncBatch";
 import { expandGoogleRecurrenceLines, shiftGoogleRecurrenceSchedule, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 import { recordTiming, timed, timingSnapshot } from "./performance";
 import { getStartupTimings, markStartupTiming } from "./startupTiming";
@@ -52,6 +53,18 @@ export interface GoogleSyncIntent {
 export interface GoogleSyncState {
   baseline: GoogleSyncBaseline;
   dirtyFields: string[];
+}
+
+export interface GoogleSyncBatch {
+  mutationIds: string[];
+  accountId: string;
+  kind: GoogleEntityKind;
+  entityId: string;
+  snapshot: JsonRecord;
+  baseline: GoogleSyncBaseline | null;
+  target: SyncFields;
+  body: JsonRecord;
+  creating: boolean;
 }
 
 export interface HistoricalSmokeNoteFixture {
@@ -550,6 +563,57 @@ export class CoreStore {
     const row = this.statement(`SELECT baseline_json AS baseline,dirty_fields_json AS dirtyFields FROM google_sync_state
       WHERE account_id=? AND kind=? AND entity_id=?`).get(accountId, kind, entityId) as JsonRecord | undefined;
     return row ? { baseline: safeJson(row.baseline, null), dirtyFields: safeJson(row.dirtyFields, []) } : null;
+  }
+
+  /** Freeze only this ordered prefix, never edits queued after the HTTP starts. */
+  prepareGoogleSyncBatch(accountId: string, mutationId: string): GoogleSyncBatch | null {
+    const saved = this.googleOperationRecord(accountId, `submission:${mutationId}`);
+    if (saved?.version === 1) return saved.batch as GoogleSyncBatch;
+    const selected = compatibleGoogleBatch(this.pendingSyncMutations(100, accountId), mutationId);
+    const first = selected[0];
+    if (!first?.intent || first.intent.barrier || !/^(taskList|task|event)\.(create|update)$/.test(first.kind)) return null;
+    const kind = first.kind.split(".")[0] as GoogleEntityKind;
+    const current = this.googleSyncRecord(kind, first.entityId);
+    // A deleted local event/list is handled by its existing tombstone path.
+    if (!current) return null;
+    const creating = !current.googleId;
+    const baseline = creating ? null : this.googleSyncState(accountId, kind, first.entityId)?.baseline ?? null;
+    // Unknown legacy bases must use conditional discovery/review, never an
+    // invented base copied from the already-edited row.
+    if (!creating && (!baseline?.etag || baseline.remoteId !== current.googleId || baseline.deleted)) return null;
+    let target = baseline ? { ...baseline.fields } : localGoogleSyncFields(kind, first.intent.snapshot);
+    for (const mutation of selected) {
+      const fields = localGoogleSyncFields(kind, mutation.intent!.snapshot, baseline?.fields);
+      for (const field of mutation.intent!.changedFields) target[field] = fields[field];
+    }
+    const last = selected[selected.length - 1].intent!.snapshot;
+    const snapshot = localRecordWithGoogleFields(kind, {
+      ...last, googleId: current.googleId, googleEtag: baseline?.etag ?? null,
+      ...(kind === "task" ? {
+        listGoogleId: this.googleTaskListForSync(last.listId)?.googleId ?? null,
+        googleListId: baseline?.collectionId ?? current.googleListId,
+        googleParentId: baseline?.structure?.parent ?? null
+      } : {}),
+      ...(kind === "event" ? { calendarGoogleId: this.googleCalendarForSync(last.calendarId)?.googleId ?? null } : {})
+    }, target);
+    // These calls also validate Google field limits before freezing a send.
+    const fullBody = kind === "task" ? googleTaskBody(snapshot) : kind === "event"
+      ? googleEventBody(snapshot, creating ? this.googleEventCreationId(accountId, snapshot.id) : undefined) : { title: snapshot.title };
+    const body = baseline ? googlePatchFromSyncFields(kind, baseline.fields, target) : fullBody;
+    return { mutationIds: selected.map((mutation) => mutation.id), accountId, kind, entityId: first.entityId, snapshot, baseline, target, body, creating };
+  }
+
+  beginGoogleSyncBatch(batch: GoogleSyncBatch): void {
+    // Existing operation metadata is included in the same durable workspace
+    // checkpoint as the outbox. A restart retains the exact submitted version.
+    this.setGoogleOperationRecord(batch.accountId, `submission:${batch.mutationIds[0]}`, { version: 1, batch });
+  }
+
+  completeGoogleSyncBatch(batch: GoogleSyncBatch): void {
+    this.db.transaction(() => {
+      for (const id of batch.mutationIds) this.completeSyncMutation(id);
+      this.statement("DELETE FROM sync_meta WHERE key=?").run(`google-operation:${batch.accountId}:submission:${batch.mutationIds[0]}`);
+    })();
   }
 
   private googleSyncRecord(kind: GoogleEntityKind, entityId: string): JsonRecord | null {
@@ -1190,6 +1254,7 @@ export class CoreStore {
       starts_at=excluded.starts_at,ends_at=excluded.ends_at,all_day=excluded.all_day,color_id=excluded.color_id,location=excluded.location,
       recurrence_json=excluded.recurrence_json,google_recurrence_json=excluded.google_recurrence_json,attendees_json=excluded.attendees_json,reminders_json=excluded.reminders_json,
       reminders_use_default=excluded.reminders_use_default,transparency=excluded.transparency,visibility=excluded.visibility,
+      time_zone=excluded.time_zone,
       google_id=excluded.google_id,google_etag=excluded.google_etag,google_recurring_event_id=excluded.google_recurring_event_id,
       google_original_start_time=excluded.google_original_start_time,conference_json=excluded.conference_json,
       conference_create_requested=excluded.conference_create_requested,attachments_json=excluded.attachments_json,
@@ -2131,10 +2196,9 @@ export class CoreStore {
       ? recurrenceLinesForInput(input)
       : recurrenceLinesFromStored(previous.googleRecurrence, previous.recurrence);
     const nextRecurrence = recurrenceFromGoogle(nextGoogleRecurrence);
-    const nextTimeZone = normalizedCalendarEventTimeZone(
-      input.timeZone ?? previous.timeZone,
-      this.calendarTimeZone(nextCalendarId)
-    );
+    const nextTimeZone = !hasOwn(input, "timeZone") && !hasOwn(input, "recurrenceLines") && !hasOwn(input, "recurrence")
+      ? previousForSync?.timeZone ?? null
+      : normalizedCalendarEventTimeZone(input.timeZone ?? previous.timeZone, this.calendarTimeZone(nextCalendarId));
     const now = timestamp();
     this.db.transaction(() => {
       this.statement(`UPDATE events SET calendar_id=?,title=?,description=?,starts_at=?,ends_at=?,all_day=?,completed=?,color_id=?,location=?,recurrence_json=?,google_recurrence_json=?,
@@ -3447,17 +3511,22 @@ export class CoreStore {
       uncertainCreation: mutations.some((row) => row.payload.__hcbUncertainCreation === true) };
   }
 
-  private retryMutation(input: JsonRecord): JsonRecord {
+  private retryMutation(input: JsonRecord, reviewed = false): JsonRecord {
     const context = this.syncResolutionContext(requiredText(input.id, "Mutation id"));
     if (context.uncertainCreation) throw new CoreStoreError("Google may already have created this item. Compare Google and link the accepted item before keeping local changes.");
+    if (!reviewed && context.mutations.some((mutation) => mutation.payload.__hcbMergeConflict ||
+      this.googleOperationRecord(context.mutation.accountId!, `submission:${mutation.id}`)?.batch?.creating === false)) {
+      throw new CoreStoreError("Compare Google before retrying this write so the reviewed version can be used safely.");
+    }
     this.db.transaction(() => {
       for (const entity of context.entities) {
         const table = entity.kind === "task" ? "tasks" : entity.kind === "event" ? "events" : "task_lists";
         this.statement(`UPDATE ${table} SET google_etag=NULL WHERE id=?`).run(entity.id);
       }
       for (const mutation of context.mutations) {
-        this.statement(`UPDATE outbox SET state='pending',next_attempt_at=?,last_error=NULL,updated_at=?,
-          payload_json=json_remove(payload_json,'$.googleEtag') WHERE id=? AND state IN ('pending','conflict')`)
+        this.statement("DELETE FROM sync_meta WHERE key=?").run(`google-operation:${context.mutation.accountId}:submission:${mutation.id}`);
+        this.statement(`UPDATE outbox SET state='pending',attempts=0,next_attempt_at=?,last_error=NULL,updated_at=?,
+          payload_json=json_remove(payload_json,'$.googleEtag','$.__hcbMergeConflict') WHERE id=? AND state IN ('pending','conflict')`)
           .run(timestamp(), timestamp(), mutation.id);
       }
     })();
@@ -3467,7 +3536,10 @@ export class CoreStore {
   private cancelMutation(input: JsonRecord): JsonRecord {
     const context = this.syncResolutionContext(requiredText(input.id, "Mutation id"));
     this.db.transaction(() => {
-      for (const mutation of context.mutations) this.statement("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=? AND state IN ('pending','conflict')").run(timestamp(), mutation.id);
+      for (const mutation of context.mutations) {
+        this.statement("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=? AND state IN ('pending','conflict')").run(timestamp(), mutation.id);
+        this.statement("DELETE FROM sync_meta WHERE key=?").run(`google-operation:${context.mutation.accountId}:submission:${mutation.id}`);
+      }
       // A pull may already have advanced past the conflicting remote edit.
       // Resetting its checkpoints is part of discarding the optimistic writes.
       if (context.mutation.accountId) this.resetGoogleSyncTokens(context.mutation.accountId);
@@ -3485,7 +3557,29 @@ export class CoreStore {
   retryGoogleResolution(context: SyncResolutionContext, snapshot: GoogleResolutionSnapshot): JsonRecord {
     return this.db.transaction(() => {
       if (this.syncResolutionContext(context.mutation.id).version !== context.version) throw new CoreStoreError("Local changes arrived during recovery. Compare again.");
-      const result = this.retryMutation({ id: context.mutation.id });
+      const result = this.retryMutation({ id: context.mutation.id }, true);
+      const accountId = context.mutation.accountId!;
+      for (const entity of context.entities) {
+        const local = resolutionLocalRecord(context, entity.id);
+        let remote: JsonRecord | undefined, collectionId: string | null = null;
+        if (entity.kind === "taskList") remote = snapshot.lists?.find((list) => list.remote.id === local?.googleId)?.remote;
+        if (entity.kind === "task") {
+          const matches = (snapshot.lists ?? []).flatMap((list) => list.tasks.filter((task) => task.id === local?.googleId).map((task) => ({ task, list })));
+          if (matches.length > 1) throw new CoreStoreError("This task exists in several lists. Compare its location before retrying.");
+          remote = matches[0]?.task; collectionId = matches[0]?.list.remote.id ?? null;
+        }
+        if (entity.kind === "event") {
+          const match = resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id));
+          remote = match?.event; collectionId = match?.calendar.remote.id ?? null;
+        }
+        if (!remote) continue;
+        this.saveGoogleBaseline(accountId, entity.kind, entity.id, remote, collectionId);
+        const table = entity.kind === "task" ? "tasks" : entity.kind === "event" ? "events" : "task_lists";
+        this.statement(`UPDATE ${table} SET google_etag=? WHERE id=?`).run(remote.etag ?? null, entity.id);
+        for (const mutation of context.mutations.filter((entry) => entry.entityId === entity.id && entry.kind.endsWith(".delete"))) {
+          this.statement("UPDATE outbox SET payload_json=json_set(payload_json,'$.googleEtag',?) WHERE id=?").run(remote.etag ?? null, mutation.id);
+        }
+      }
       for (const entity of context.entities.filter((entity) => entity.kind === "event")) {
         const chain = context.mutations.filter((mutation) => mutation.entityId === entity.id);
         if (!chain.some((mutation) => mutation.kind === "event.move")) continue;
@@ -3496,13 +3590,18 @@ export class CoreStore {
         const desired = this.googleEventForSync(entity.id);
         const deleted = chain.find((mutation) => mutation.kind === "event.delete");
         const kind = !desired && deleted ? "event.delete" : desired?.calendarId === actualCalendar.id ? "event.update" : "event.move";
-        const payload = kind === "event.delete" ? { ...deleted!.payload, googleId: target.event.id, calendarGoogleId: target.calendar.remote.id, googleEtag: null }
+        const payload = kind === "event.delete" ? { ...deleted!.payload, googleId: target.event.id, calendarGoogleId: target.calendar.remote.id, googleEtag: target.event.etag ?? null }
           : kind === "event.move" ? { sourceCalendarId: actualCalendar.id, destinationCalendarId: desired!.calendarId } : {};
         // Keep the earliest causal position, applying the latest desired state
         // from Google's actual location. Later stale moves must not replay.
-        this.statement("UPDATE outbox SET kind=?,payload_json=? WHERE id=?").run(kind, JSON.stringify(payload), chain[0].id);
+        const intent: GoogleSyncIntent | null = desired ? {
+          snapshot: { ...desired, googleId: target.event.id, googleEtag: target.event.etag ?? null },
+          changedFields: changedSyncFields(googleSyncFields("event", target.event), localGoogleSyncFields("event", desired)),
+          barrier: kind !== "event.update" || Boolean(desired.recurrenceLines?.length || desired.googleRecurringEventId || desired.conferenceCreateRequested)
+        } : null;
+        this.statement("UPDATE outbox SET kind=?,payload_json=?,sync_intent_json=? WHERE id=?").run(kind, JSON.stringify(payload), intent ? JSON.stringify(intent) : null, chain[0].id);
         for (const mutation of chain.slice(1)) this.statement("UPDATE outbox SET state='cancelled',updated_at=? WHERE id=?").run(timestamp(), mutation.id);
-        if (desired) this.statement("UPDATE events SET google_id=?,google_etag=NULL WHERE id=?").run(target.event.id, entity.id);
+        if (desired) this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(target.event.id, target.event.etag ?? null, entity.id);
       }
       return result;
     })();

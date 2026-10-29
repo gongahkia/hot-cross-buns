@@ -11,6 +11,29 @@ export function localGoogleSyncFields(kind: GoogleEntityKind, record: JsonRecord
   return googleSyncFields(kind, body, fallback);
 }
 
+/** Overlay editable fields while retaining local IDs, ordering and commands. */
+export function localRecordWithGoogleFields(kind: GoogleEntityKind, record: JsonRecord, fields: SyncFields): JsonRecord {
+  if (kind === "taskList") return { ...record, title: fields.title };
+  if (kind === "task") return {
+    ...record, title: fields.title, notes: fields.notes, dueAt: fields.due,
+    status: fields.status === "completed" ? "completed" : "active",
+    priority: fields.priority, tags: fields.tags, ...fields.planning, snoozeUntil: fields.snoozeUntil
+  };
+  const start = fields.time.start, end = fields.time.end;
+  return {
+    ...record, title: fields.summary, description: fields.description, location: fields.location, colorId: fields.colorId,
+    startsAt: start.date ? `${start.date}T00:00:00.000Z` : start.dateTime,
+    endsAt: end.date ? `${end.date}T00:00:00.000Z` : end.dateTime,
+    allDay: Boolean(start.date), timeZone: start.timeZone ?? null,
+    recurrenceLines: fields.recurrence, googleRecurrence: fields.recurrence,
+    attendees: fields.attendees, remindersUseDefault: fields.reminders.useDefault,
+    reminders: fields.reminders.overrides ?? [], transparency: fields.transparency, visibility: fields.visibility,
+    eventType: fields.eventType.type, focusTimeProperties: fields.eventType.focusTimeProperties,
+    outOfOfficeProperties: fields.eventType.outOfOfficeProperties, workingLocationProperties: fields.eventType.workingLocationProperties,
+    attachments: fields.attachments
+  };
+}
+
 export function googleTaskBody(task: JsonRecord, validate = true): JsonRecord {
   const due = googleTaskDue(task.dueAt);
   const notes = withHcbTaskMetadata(task.notes, task);

@@ -1,4 +1,4 @@
-import { CoreStore, CoreStoreError, type PendingSyncMutation } from "../core/CoreStore";
+import { CoreStore, CoreStoreError, type PendingSyncMutation, type GoogleSyncBatch } from "../core/CoreStore";
 import type { GoogleSyncOAuth, GoogleSyncPlatform, GoogleUploadSource, SyncCheckpoint } from "./types";
 import { SyncPersistenceError } from "./types";
 export { SyncPersistenceError } from "./types";
@@ -627,7 +627,7 @@ export class GoogleSyncService {
       // A previous receipt can update a queued delete/move while HTTP is pending.
       // Re-read eligibility too: a local recovery action may cancel this chain.
       const mutation = this.store.pendingSyncMutations(100, accountId).find(item => item.id === queued.id);
-      if (!mutation) break;
+      if (!mutation) continue;
       if ((mutation.kind.startsWith("task") && (settings.syncTasksEnabled === false || !allowed.tasks)) ||
           (mutation.kind.startsWith("event") && (settings.syncCalendarEventsEnabled === false || !allowed.calendar))) continue;
       const nonIdempotentCreate =
@@ -635,11 +635,15 @@ export class GoogleSyncService {
         (["taskList.create", "taskList.update"].includes(mutation.kind) && !this.store.googleTaskListForSync(mutation.entityId)?.googleId);
       try {
         this.currentMutationId = mutation.id;
+        const batch = mutation.intent && !mutation.intent.barrier ? this.store.prepareGoogleSyncBatch(accountId, mutation.id) : null;
         // A multi-request series split also needs explicit review if the worker
         // stops partway through it. Native tooling keeps its existing behavior.
         if (nonIdempotentCreate || (this.platform.checkpoint && mutation.kind === 'event.splitSeries')) this.store.beginSyncCreation(mutation.id);
-        await this.deliverMutation(accountId, mutation);
-        this.store.completeSyncMutation(mutation.id);
+        if (batch) await this.deliverGoogleBatch(batch);
+        else {
+          await this.deliverMutation(accountId, mutation);
+          this.store.completeSyncMutation(mutation.id);
+        }
         await this.checkpoint('mutation-receipt');
       } catch (error: unknown) {
         if (error instanceof SyncPersistenceError) throw error;
@@ -671,6 +675,45 @@ export class GoogleSyncService {
         this.currentMutationId = undefined;
       }
     }
+  }
+
+  private async deliverGoogleBatch(batch: GoogleSyncBatch): Promise<void> {
+    const { accountId, kind, snapshot, body, creating } = batch;
+    if (!creating && Object.keys(body).length === 0) {
+      this.store.completeGoogleSyncBatch(batch);
+      return;
+    }
+    let collection: string;
+    const query: Record<string, string> = {};
+    if (kind === "taskList") collection = "https://tasks.googleapis.com/tasks/v1/users/@me/lists";
+    else if (kind === "task") {
+      if (!snapshot.listGoogleId) throw new CoreStoreError("This task list has not been created in Google yet.");
+      collection = taskCollectionUrl(snapshot.listGoogleId);
+      if (creating && snapshot.parentId) {
+        const parent = await this.remoteParentId(snapshot.parentId);
+        if (!parent) throw new CoreStoreError("This task's parent has not been created in Google yet.");
+        query.parent = parent;
+      }
+    } else {
+      if (!snapshot.calendarGoogleId) throw new CoreStoreError("This calendar has not been discovered in Google yet.");
+      collection = calendarEventCollectionUrl(snapshot.calendarGoogleId);
+      Object.assign(query, calendarEventWriteQuery(snapshot));
+    }
+    this.store.beginGoogleSyncBatch(batch);
+    let remote: JsonRecord;
+    try {
+      remote = await this.requestJson<JsonRecord>(accountId, creating ? collection : `${collection}/${encodeURIComponent(snapshot.googleId)}`, {
+        method: creating ? "POST" : "PATCH", body: json(body), query,
+        ...(creating ? {} : { headers: conditionalHeaders(batch.baseline?.etag) })
+      });
+    } catch (error) {
+      if (!(creating && kind === "event" && error instanceof GoogleApiError && error.status === 409)) throw error;
+      remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(body.id)}`);
+    }
+    if (kind === "task") this.store.bindGoogleTask(batch.entityId, remote, snapshot);
+    else if (kind === "taskList") this.store.bindGoogleTaskList(batch.entityId, remote, snapshot);
+    else this.store.bindGoogleEvent(batch.entityId, remote, snapshot, batch.mutationIds[0]);
+    this.store.completeGoogleSyncBatch(batch);
   }
 
   private async deliverMutation(accountId: string, mutation: PendingSyncMutation): Promise<void> {
@@ -1082,7 +1125,7 @@ export class GoogleSyncService {
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(source.googleId)}/events/${encodeURIComponent(event.googleId)}/move`,
       { method: "POST", query: { destination: destination.googleId }, headers: conditionalHeaders(event.googleEtag) }
     );
-    this.store.bindGoogleEvent(localId, remote, event, this.currentMutationId);
+    this.store.bindGoogleEvent(localId, remote, { ...event, calendarGoogleId: destination.googleId }, this.currentMutationId);
 
     // An edit can be queued after more than one local calendar move. Apply the
     // current event body only at its final destination; an intermediate move
