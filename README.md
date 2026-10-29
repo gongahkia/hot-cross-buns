@@ -22,8 +22,9 @@ A keyboard-first [browser planner](#architecture) with first-class support for [
 * Calendar recurrence and occurrence edits *(day, week & monthly views)*
 * History and undo/redo
 * Paginated and virtualized collections
-* Optional multi-account Google sync *(Tasks, Calendar, Drive links/uploads & Gmail capture)*
-* Local setup without an account, workspace backups and offline reloads
+* Google account required, with multi-account Tasks and Calendar sync
+* Optional Drive links/uploads and Gmail capture
+* Offline use after linking Google, workspace backups and offline reloads
 
 ## GIF
 
@@ -80,6 +81,8 @@ $ corepack pnpm preview
 * [Measured browser performance](docs/performance/browser-workspace.md)
 * [Product requirements](docs/product/prd.md)
 * [Google sync specification](docs/specs/google-sync.md)
+* [How Things Cloud syncs and what HCB can adopt](docs/things-sync-research.md)
+* [Google/local sync implementation progress](docs/sync-implementation.md)
 * [Local data specification](docs/specs/local-data.md)
 * [Native parity](docs/specs/native-parity.md)
 * [Google Workspace integrations](docs/google-workspace-integrations.md)

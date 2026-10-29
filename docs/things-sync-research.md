@@ -2,6 +2,8 @@
 
 Researched 2026-10-29 against HCB `eeaab4c`. This is an architecture assessment and implementation proposal, not a claim that the proposed features have shipped. External claims below use Cultured Code, Apple/WebKit, Swift.org, and Google documentation. Repository findings come from the current browser entry points and shared engine, not the retired Electron runtime.
 
+This document preserves the research baseline. Subsequent changes and verification are tracked in [sync implementation progress](sync-implementation.md).
+
 ## Decision
 
 We can substantially improve Google/local sync while retaining `CoreStore` and `GoogleSyncService`. Fast local edits, prompt outgoing delivery, efficient incoming updates, and automatic merging of independent edits are achievable. We already have much of the durability and recovery foundation.
