@@ -4,7 +4,7 @@ async function mockGoogle(context: BrowserContext) {
   const state = { pulls: 0, writes: 0, fail: false, tasks: [{ id: 'remote-task', title: 'Initial Google task', status: 'needsAction', etag: 'v1' }] };
   await context.addInitScript(() => {
     (window as any).google = { accounts: { oauth2: { initTokenClient: (config: any) => ({
-      requestAccessToken: () => queueMicrotask(() => config.callback({ access_token: 'private-sync-test-token', expires_in: 3600, scope: config.scope }))
+      requestAccessToken: () => queueMicrotask(() => config.callback({ access_token: 'private-sync-test-token', expires_in: (window as any).__googleTokenLifetime ?? 3600, scope: config.scope }))
     }) } } };
   });
   await context.route('https://openidconnect.googleapis.com/v1/userinfo', route => route.fulfill({ json: { sub: 'automatic-sync-subject', email: 'sync@example.test' } }));
@@ -70,6 +70,17 @@ async function hasTask(page: Page, title: string) {
   }, title);
 }
 
+async function createTask(page: Page, title: string) {
+  await page.evaluate(async title => {
+    const lists = await window.hcb!.tasks.listTaskLists();
+    if (!lists.ok) throw new Error(lists.error.message);
+    const list = lists.data.items.find((list: any) => list.title === 'Synced list');
+    if (!list) throw new Error('Missing shared Google list');
+    const result = await window.hcb!.tasks.create({ listId: list.id, title });
+    if (!result.ok) throw new Error(result.error.message);
+  }, title);
+}
+
 test('foreground return fetches remote changes once across event bursts and authorized tabs', async ({ page, context }) => {
   const google = await mockGoogle(context);
   await connect(page);
@@ -103,14 +114,7 @@ test('an authorized background tab delivers an edit made in a tab without a sess
   });
   const other = await context.newPage(); await other.goto('/');
   await other.waitForFunction(() => Boolean(window.hcb?.__testing));
-  await other.evaluate(async () => {
-    const lists = await window.hcb!.tasks.listTaskLists();
-    if (!lists.ok) throw new Error(lists.error.message);
-    const list = lists.data.items.find((list: any) => list.title === 'Synced list');
-    if (!list) throw new Error('Missing shared Google list');
-    const result = await window.hcb!.tasks.create({ listId: list.id, title: 'Queued without a token' });
-    if (!result.ok) throw new Error(result.error.message);
-  });
+  await createTask(other, 'Queued without a token');
   await expect.poll(() => google.writes).toBe(1);
   expect(google.tasks.some(task => task.title === 'Queued without a token')).toBe(true);
   await expect.poll(() => other.evaluate(async () => {
@@ -151,4 +155,65 @@ test('failed foreground pulls enter a cooldown that explicit refresh can clear',
     const result = await window.hcb!.sync.status(); return result.ok && result.data.state;
   })).toBe('idle');
   expect(google.pulls).toBe(before + 2);
+});
+
+test('expiry in one tab preserves another valid session and explicit disconnect fences both', async ({ page, context }) => {
+  const google = await mockGoogle(context);
+  await page.addInitScript(() => { (window as any).__googleTokenLifetime = 20; });
+  await connect(page);
+  const other = await context.newPage(); await connect(other);
+  // Wait for the actual window expiry callback to remove the worker credential,
+  // not just the ten-second pre-expiry guard in its status projection.
+  await expect.poll(() => page.evaluate(async () => {
+    const result = await window.hcb!.google.status();
+    return result.ok && result.data.accounts[0].sessionExpiresAt;
+  }), { timeout: 25_000 }).toBeNull();
+  expect(await page.evaluate(async () => {
+    const result = await window.hcb!.google.status(); return result.ok && result.data.accounts[0].connectionState;
+  })).toBe('reauth_required');
+  expect(await other.evaluate(async () => {
+    const result = await window.hcb!.google.status(); return result.ok && result.data.accounts[0].connectionState;
+  })).toBe('connected');
+  await createTask(other, 'Still authorized after other tab expired');
+  await expect.poll(() => google.writes).toBe(1);
+  await other.evaluate(async () => {
+    const status = await window.hcb!.google.status();
+    if (!status.ok) throw new Error(status.error.message);
+    await window.hcb!.google.disconnect({ accountId: status.data.accounts[0].accountId });
+  });
+  await expect.poll(() => page.evaluate(async () => {
+    const result = await window.hcb!.google.status(); return result.ok && result.data.accounts[0].connectionState;
+  })).toBe('disconnected');
+});
+
+test('offline local changes flush on reconnection without waiting for the interval', async ({ page, context }) => {
+  const google = await mockGoogle(context); await connect(page);
+  await context.setOffline(true);
+  await createTask(page, 'Saved while offline');
+  await page.waitForTimeout(700);
+  expect(google.writes).toBe(0);
+  expect(await hasTask(page, 'Saved while offline')).toBe(true);
+  await context.setOffline(false);
+  await expect.poll(() => google.writes).toBe(1);
+  expect(google.tasks.some(task => task.title === 'Saved while offline')).toBe(true);
+});
+
+test('more than one hundred ready writes drain in bounded batches without another user action', async ({ page, context }) => {
+  const google = await mockGoogle(context); await connect(page);
+  await page.evaluate(async () => {
+    await window.hcb!.settings.update({ syncMode: 'manual' });
+    const lists = await window.hcb!.tasks.listTaskLists();
+    if (!lists.ok) throw new Error(lists.error.message);
+    const list = lists.data.items.find((list: any) => list.title === 'Synced list')!;
+    for (let index = 0; index < 105; index++) {
+      const result = await window.hcb!.tasks.create({ listId: list.id, title: `Queued task ${index}` });
+      if (!result.ok) throw new Error(result.error.message);
+    }
+    await window.hcb!.settings.update({ syncMode: 'balanced' });
+  });
+  await expect.poll(() => google.writes, { timeout: 25_000 }).toBe(105);
+  await expect.poll(() => page.evaluate(async () => {
+    const result = await window.hcb!.sync.status(); return result.ok && result.data.pendingMutationCount;
+  })).toBe(0);
+  expect(new Set(google.tasks.map(task => task.id)).size).toBe(106);
 });

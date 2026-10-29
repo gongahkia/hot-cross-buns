@@ -6,7 +6,7 @@ Started 2026-10-29 from `82046a2`, following the [Things Cloud research and code
 
 The first increment measures where sync time goes and makes returning to the app fetch Google changes promptly. It must preserve manual mode, offline work, per-tab authorization, account isolation, and durable write/recovery boundaries.
 
-| Change | Status | Verification required |
+| Change | Status | Verification |
 | --- | --- | --- |
 | Bounded, content-free timings for queue/lock waits, storage, HTTP, pulls and delivery | Implemented | TypeScript and 42 focused performance/sync tests passed |
 | Foreground, resume and online triggers with coalescing | Implemented | Real browser workers catch up after focus/page restoration; event bursts produce one pull |
@@ -14,6 +14,8 @@ The first increment measures where sync time goes and makes returning to the app
 | Automatic failure cooldown and hidden polling restraint | Implemented | Failed pulls back off across workers, explicit refresh resets cooldown, hidden tabs skip idle downloads |
 
 The initial scheduling validation passed 71 focused unit tests and nine browser tests, including four new end-to-end scheduling scenarios. Google responses are mocked; production Google quotas and latency remain unmeasured.
+
+A subsequent real-timer browser test exposed and verified a session-isolation fix: expiry removes only that worker's credential and projects `reauth_required` locally; it no longer marks the shared account unauthenticated for other workers. Explicit disconnect continues to block all tabs. The extended browser suite also verifies offline-to-online delivery and automatic draining of 105 writes across the 100-write batch boundary. All seven scheduling scenarios and both account-gate scenarios pass, as do 142 SQLite/migration/sync integration tests.
 
 ### Scheduling behavior
 

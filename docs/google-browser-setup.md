@@ -34,6 +34,8 @@ Reloading, closing the tab, token expiry, or rejected credentials requires user-
 
 Automatic synchronization catches up on foreground/resume and network reconnection. Tabs share per-account attempt/cooldown metadata, so multiple authorized tabs do not multiply polling. An authorized tab can deliver changes saved in another tab without a token. Hidden tabs skip idle downloads; manual mode disables automatic work. See [implementation progress](sync-implementation.md) for timings, retry behavior and validation.
 
+Session expiry is scoped to the tab whose token expired: its status becomes `reauth_required`, while another tab's valid session keeps working. Explicit disconnect marks the shared workspace account disconnected and blocks every tab from using retained credentials for that account. It does not revoke the Google grant or erase cached data.
+
 Deployments must retain the included GIS CSP allowances for its client script, frames, network requests, and `https://accounts.google.com/gsi/style` stylesheet. See Google’s [CSP and popup configuration](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid). If adding a Cross-Origin-Opener-Policy header, use `same-origin-allow-popups` so consent popups can communicate with the app.
 
 Google credentials and API responses are never stored by the offline application-shell cache. An online first load is needed to download the app; offline local planning remains available once Settings → Data reports offline readiness. OAuth and remote sync require network access.

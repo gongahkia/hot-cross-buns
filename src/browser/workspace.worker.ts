@@ -196,8 +196,10 @@ function updateGoogleSession(action: string, payload: Record<string, any>) {
   if (!account || account.accountId === 'local') throw new CoreStoreError('Choose an existing Google account.');
   if (payload.reason === 'expired' && (googleSessions.metadata(account.accountId)?.expiresAt ?? 0) > Date.now()) return googleSync.status();
   googleSessions.delete(account.accountId);
-  core.updateGoogleAccountState(account.accountId, payload.reason === 'expired' ? 'reauth_required' : 'disconnected',
-    payload.reason === 'expired' ? 'Your Google session expired. Reconnect; queued changes are preserved.' : 'Disconnected in this tab.');
+  // Expiry belongs to this worker's credential, not the shared account. Other
+  // tabs may still have valid sessions. status() projects reauth_required here.
+  // Explicit disconnect still fences every worker through the durable account.
+  if (payload.reason !== 'expired') core.updateGoogleAccountState(account.accountId, 'disconnected', 'Disconnected from this workspace.');
   return googleSync.status();
 }
 
