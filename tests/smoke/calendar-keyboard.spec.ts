@@ -1,13 +1,11 @@
 import { expect } from "@playwright/test";
 import { test, planner } from "./planner";
-import { chooseCalendarView } from "./calendarActions";
+import { chooseCalendarDate, chooseCalendarView } from "./calendarActions";
 
 test("Month and Week have one grid Tab stop, arrow navigation and keyboard event creation", async () => {
   await planner(async page => {
     await chooseCalendarView(page, "month");
-    await page.getByRole("button", { name: "Choose calendar date" }).click();
-    await page.getByLabel("Go to date", { exact: true }).fill("2027-01-12");
-    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await chooseCalendarDate(page, "2027-01-12");
     const month = page.getByRole("grid", { name: "Calendar month view", exact: true });
     await expect(month.locator('[role="gridcell"][tabindex="0"]')).toHaveCount(1);
     await month.locator('[role="gridcell"][tabindex="0"]').focus();

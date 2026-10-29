@@ -1,4 +1,4 @@
-import { type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 export async function chooseCalendarView(page: Page, view: string, beforeSelect?: () => Promise<void>) {
   await page.getByRole("button", { name: "Calendar view", exact: true }).click();
   if (view === "multiDay") {
@@ -9,6 +9,16 @@ export async function chooseCalendarView(page: Page, view: string, beforeSelect?
     await beforeSelect?.();
     await page.getByRole("menuitemradio", { name: ({ day: "Day", week: "Week", month: "Month", agenda: "Agenda" } as Record<string, string>)[view], exact: true }).click();
   }
+  // Radix restores focus after its exit transition; keyboard navigation must
+  // start after that handoff, or it can steal focus back from the grid.
+  await expect(page.getByRole("button", { name: "Calendar view", exact: true })).toBeFocused();
+}
+export async function chooseCalendarDate(page: Page, day: string) {
+  const trigger = page.getByRole("button", { name: "Choose calendar date" });
+  await trigger.click();
+  await page.getByLabel("Go to date", { exact: true }).fill(day);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(trigger).toBeFocused();
 }
 export async function newCalendarEvent(page: Page) {
   await page.getByRole("button", { name: "Calendar tools", exact: true }).click();

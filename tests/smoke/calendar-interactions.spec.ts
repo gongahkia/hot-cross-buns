@@ -1,13 +1,11 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { test, planner, capture } from "./planner";
-import { chooseCalendarView } from "./calendarActions";
+import { chooseCalendarDate, chooseCalendarView } from "./calendarActions";
 
 test.setTimeout(60_000);
 
 async function date(page: Page, day = "2027-01-12") {
-  await page.getByRole("button", { name: "Choose calendar date" }).click();
-  await page.getByLabel("Go to date", { exact: true }).fill(day);
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await chooseCalendarDate(page, day);
 }
 
 async function seed(page: Page, entries: Array<Record<string, unknown>>) {
@@ -286,7 +284,7 @@ test("event context menu supports keyboard dismissal, full-text copy, duplicatio
     await chooseCalendarView(page, "month"); await date(page);
     const chip = page.locator('.calendar-month .calendar-event-chip').filter({ hasText: "Context planning" });
     const menu = page.getByRole("menu", { name: "Calendar item actions" });
-    await chip.focus(); await page.keyboard.press("Shift+F10");
+    await chip.focus(); await expect(chip).toBeFocused(); await page.keyboard.press("Shift+F10");
     await expect(menu).toBeVisible(); await page.keyboard.press("Escape");
     await expect(menu).toBeHidden(); await expect(chip).toBeFocused();
     await chip.click({ button: "right" });
