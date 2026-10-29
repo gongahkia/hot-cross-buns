@@ -31,16 +31,21 @@ async function mockGoogle(context: BrowserContext) {
 async function connect(page: Page) {
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.hcb?.__testing));
-  await page.evaluate(async () => {
+  const previousCompletion = await page.evaluate(async () => {
     await window.hcb!.settings.update({ onboardingStatus: 'completed', syncMode: 'balanced', syncCalendarEventsEnabled: false, diagnosticsIncludePerformance: true });
     await window.hcb!.__testing.configureGoogleAuth('test-web.apps.googleusercontent.com');
+    const status = await window.hcb!.sync.status();
+    if (!status.ok) throw new Error(status.error.message);
     const result = await window.hcb!.google.beginOAuth();
     if (!result.ok) throw new Error(result.error.message);
+    return status.data.lastCompletedAt;
   });
-  await expect.poll(() => page.evaluate(async () => {
+  // beginOAuth attaches the session before its asynchronous connection pull.
+  // Another tab's prior idle status must not count as that pull completing.
+  await expect.poll(() => page.evaluate(async previous => {
     const result = await window.hcb!.sync.status();
-    return result.ok && result.data.state === 'idle' && Boolean(result.data.lastCompletedAt);
-  })).toBe(true);
+    return result.ok && result.data.state === 'idle' && Boolean(result.data.lastCompletedAt) && result.data.lastCompletedAt !== previous;
+  }, previousCompletion)).toBe(true);
 }
 
 async function makeCatchUpDue(page: Page) {
