@@ -271,4 +271,63 @@ describe("durable Google baselines and local intents", () => {
     expect(batch.mutationIds).toHaveLength(2);
     expect(batch.body).toEqual({ title: "Final", notes: "", status: "needsAction", due: "2026-11-03T00:00:00.000Z" });
   });
+
+  it("merges independent incoming Task fields and advances only the remote baseline", () => {
+    const { store } = fixture();
+    const { accountId, list, task } = connected(store);
+    store.dispatch("tasks", "update", { id: task.id, title: "Local title" });
+    store.upsertGoogleTask({ id: "task", etag: "v2", title: "Remote title", notes: "Phone notes", position: "001" }, list.id);
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Local title", notes: "Phone notes", googleEtag: "v2" });
+    expect(store.googleSyncState(accountId, "task", task.id)).toMatchObject({
+      baseline: { fields: { title: "Remote title", notes: "Phone notes" }, etag: "v2" }, dirtyFields: ["title"]
+    });
+    const first = store.pendingSyncMutations(10, accountId)[0];
+    expect(store.prepareGoogleSyncBatch(accountId, first.id)?.body).toEqual({ title: "Local title" });
+    store.dispatch("undo", "undo");
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Remote title", notes: "Phone notes" });
+  });
+
+  it("keeps overlapping incoming changes for review without advancing the baseline", () => {
+    const { store } = fixture();
+    const { accountId, list, task } = connected(store);
+    store.dispatch("tasks", "update", { id: task.id, title: "Local" });
+    store.upsertGoogleTask({ id: "task", etag: "v2", title: "Phone", notes: "Remote notes", position: "001" }, list.id);
+    expect(store.googleTaskForSync(task.id)?.title).toBe("Local");
+    expect(store.googleSyncState(accountId, "task", task.id)?.baseline.etag).toBe("task-v1");
+    expect(store.pendingSyncMutations(10, accountId)).toHaveLength(0);
+    const conflict = store.dispatch("diagnostics", "pendingMutations").mutations[0];
+    expect(conflict.lastErrorMessage).toContain("title");
+    expect(() => store.dispatch("diagnostics", "retryPendingMutation", { id: conflict.id })).toThrow("Compare Google");
+  });
+
+  it("recovers an accepted lost PATCH while preserving a newer undo across restart", () => {
+    const f = fixture();
+    const { accountId, list, task } = connected(f.store);
+    f.store.dispatch("tasks", "update", { id: task.id, title: "Submitted" });
+    const first = f.store.pendingSyncMutations(10, accountId)[0];
+    const batch = f.store.prepareGoogleSyncBatch(accountId, first.id)!;
+    f.store.beginGoogleSyncBatch(batch);
+    f.store.dispatch("undo", "undo");
+    f.store.close(); f.store = new CoreStore(f.path);
+    f.store.upsertGoogleTask({ id: "task", etag: "accepted", title: "Submitted", notes: "Phone notes", position: "001" }, list.id);
+    expect(f.store.googleTaskForSync(task.id)).toMatchObject({ title: "Remote title", notes: "Phone notes" });
+    const pending = f.store.pendingSyncMutations(10, accountId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).not.toBe(first.id);
+    expect(f.store.googleSyncState(accountId, "task", task.id)).toMatchObject({ baseline: { etag: "accepted", fields: { title: "Submitted" } }, dirtyFields: ["title"] });
+    expect(f.store.prepareGoogleSyncBatch(accountId, pending[0].id)?.body).toEqual({ title: "Remote title" });
+  });
+
+  it("requires review when an uncertain submission and newer undo diverge from Google", () => {
+    const { store } = fixture();
+    const { accountId, list, task } = connected(store);
+    store.dispatch("tasks", "update", { id: task.id, title: "Submitted" });
+    const first = store.pendingSyncMutations(10, accountId)[0];
+    store.beginGoogleSyncBatch(store.prepareGoogleSyncBatch(accountId, first.id)!);
+    store.dispatch("undo", "undo");
+    store.upsertGoogleTask({ id: "task", etag: "changed-again", title: "Phone title", position: "001" }, list.id);
+    expect(store.googleTaskForSync(task.id)?.title).toBe("Remote title");
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(2);
+    expect(store.dispatch("diagnostics", "pendingMutations").mutations[0].lastErrorMessage).toContain("unconfirmed submission");
+  });
 });

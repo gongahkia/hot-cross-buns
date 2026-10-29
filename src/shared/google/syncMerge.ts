@@ -15,6 +15,15 @@ export interface GoogleSyncBaseline {
   structure?: SyncFields;
 }
 
+export function googleRemoteBaseline(kind: GoogleEntityKind, remote: JsonRecord, collectionId: string | null): GoogleSyncBaseline {
+  return {
+    remoteId: remote.id, collectionId, etag: remote.etag ?? null, fields: googleSyncFields(kind, remote),
+    deleted: remote.deleted === true || remote.status === "cancelled",
+    recurring: Boolean(remote.recurringEventId || remote.recurrence?.length),
+    ...(kind === "task" ? { structure: { parent: remote.parent ?? null, position: remote.position ?? null } } : {})
+  };
+}
+
 /** Object key order is not a change; array order remains significant. */
 export function syncValuesEqual(left: unknown, right: unknown): boolean {
   if (left === right) return true;

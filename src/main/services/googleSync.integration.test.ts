@@ -63,6 +63,7 @@ function createFixture() {
     }
     const taskId = target.pathname.split("/").at(-1)!;
     const task = remoteTasks.get(taskId);
+    if (method === "GET" && target.pathname.includes("/tasks/")) return task ? Response.json(task) : new Response(null, { status: 404 });
     if (method === "PATCH" && task) {
       if (new Headers(init.headers).has("if-match") && new Headers(init.headers).get("if-match") !== task.etag) return Response.json({}, { status: 412 });
       // Model Google's PATCH merge: omitted fields survive, explicit null deletes.
@@ -681,6 +682,33 @@ describe("Google sync with durable SQLite state", () => {
     expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
   });
 
+  it("accepts server normalization while keeping a different field edited during HTTP dirty", async () => {
+    const { store, service, importTask, googleFetch, remoteTasks, accountId } = createFixture();
+    const task = importTask({ id: "normalized", title: "Before", notes: "Before notes" });
+    store.dispatch("tasks", "update", { id: task.id, title: " Padded title " });
+    const transport = googleFetch.getMockImplementation()!;
+    let first = true;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH" && first) {
+        first = false;
+        store.dispatch("tasks", "update", { id: task.id, notes: "New notes" });
+        await transport(account, target, init);
+        const remote = remoteTasks.get("normalized")!;
+        remote.title = remote.title.trim();
+        return Response.json(remote);
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Padded title", notes: "New notes" });
+    expect(store.googleSyncState(accountId, "task", task.id)?.dirtyFields).toEqual(["notes"]);
+    googleFetch.mockClear();
+    await service.runNow();
+    const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH");
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(String(writes[0][2]!.body))).toEqual({ notes: "New notes" });
+  });
+
   it("sends three ordered patches when another task separates two edits", async () => {
     const { store, service, importTask, googleFetch } = createFixture();
     const a = importTask({ id: "ordered-a", title: "A" }), b = importTask({ id: "ordered-b", title: "B" });
@@ -717,6 +745,201 @@ describe("Google sync with durable SQLite state", () => {
     expect(remote.attendees).toHaveLength(1);
     expect(remote.reminders.overrides[0].minutes).toBe(15);
     expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("automatically merges a phone note edit with a local Task title and preserves it through undo", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "independent", title: "Before", notes: "Before notes" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local title" });
+    Object.assign(remoteTasks.get("independent")!, { notes: "Phone notes", etag: "phone" });
+    await service.runNow();
+    expect(remoteTasks.get("independent")).toMatchObject({ title: "Local title", notes: "Phone notes" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+    const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH");
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(String(writes[0][2]!.body))).toEqual({ title: "Local title" });
+    expect(new Headers(writes[0][2]!.headers).get("if-match")).toBe("phone");
+    store.dispatch("undo", "undo");
+    await service.runNow();
+    expect(remoteTasks.get("independent")).toMatchObject({ title: "Before", notes: "Phone notes" });
+  });
+
+  it("merges Task notes independently from the metadata encoded in the same Google field", async () => {
+    const { store, service, importTask, remoteTasks, accountId } = createFixture();
+    const task = importTask({ id: "notes-metadata", notes: withHcbTaskMetadata("Before notes", { priority: "low" }) });
+    store.dispatch("tasks", "update", { id: task.id, notes: "Local notes" });
+    Object.assign(remoteTasks.get("notes-metadata")!, { notes: withHcbTaskMetadata("Before notes", { priority: "high" }), etag: "phone" });
+    await service.runNow();
+    expect(remoteTasks.get("notes-metadata")!.notes).toBe(withHcbTaskMetadata("Local notes", { priority: "high" }));
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ notes: "Local notes", priority: "high" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("recognizes equal concurrent edits without sending a redundant PATCH", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "converged", title: "Before" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Same result" });
+    Object.assign(remoteTasks.get("converged")!, { title: "Same result", etag: "phone" });
+    await service.runNow();
+    expect(googleFetch.mock.calls.some(([, , init]) => init?.method === "PATCH")).toBe(false);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("does not replay a stale unsent undo over a newly merged phone change", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "undone-before-phone-pull", title: "Before" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Temporary" });
+    store.dispatch("undo", "undo");
+    Object.assign(remoteTasks.get("undone-before-phone-pull")!, { title: "Phone title", etag: "phone" });
+    await service.runNow();
+    expect(store.googleTaskForSync(task.id)?.title).toBe("Phone title");
+    expect(remoteTasks.get("undone-before-phone-pull")!.title).toBe("Phone title");
+    expect(googleFetch.mock.calls.some(([, , init]) => init?.method === "PATCH")).toBe(false);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("re-fetches after 412, rebases independent fields and keeps the retry limited to its original batch", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "racing", title: "Before", notes: "Before notes" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Submitted" });
+    const transport = googleFetch.getMockImplementation()!;
+    let firstPatch = true, editDuringRead = true;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH" && firstPatch) {
+        firstPatch = false;
+        Object.assign(remoteTasks.get("racing")!, { notes: "Phone notes", etag: "raced" });
+      }
+      if ((!init?.method || init.method === "GET") && target.pathname.endsWith("/tasks/racing") && editDuringRead) {
+        editDuringRead = false;
+        store.dispatch("tasks", "update", { id: task.id, title: "Newer local title" });
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH");
+    expect(writes).toHaveLength(2);
+    expect(JSON.parse(String(writes[1][2]!.body))).toEqual({ title: "Submitted" });
+    expect(new Headers(writes[1][2]!.headers).get("if-match")).toBe("raced");
+    expect(remoteTasks.get("racing")).toMatchObject({ title: "Submitted", notes: "Phone notes" });
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Newer local title", notes: "Phone notes" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+    await service.runNow();
+    expect(remoteTasks.get("racing")).toMatchObject({ title: "Newer local title", notes: "Phone notes" });
+  });
+
+  it("does not retry a 412 when both sides changed the same Task field", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "racing-overlap", title: "Before" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local" });
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH") Object.assign(remoteTasks.get("racing-overlap")!, { title: "Phone", etag: "raced" });
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    expect(googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH")).toHaveLength(1);
+    expect(remoteTasks.get("racing-overlap")!.title).toBe("Phone");
+    expect(store.googleTaskForSync(task.id)?.title).toBe("Local");
+    expect(store.pendingSyncMutations(10, accountId)).toHaveLength(0);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+  });
+
+  it("bounds repeated conditional-write races instead of looping indefinitely", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "hot-resource", title: "Before", notes: "Notes" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local" });
+    const transport = googleFetch.getMockImplementation()!;
+    let revision = 0;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH") Object.assign(remoteTasks.get("hot-resource")!, { notes: `Phone ${++revision}`, etag: `race-${revision}` });
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    expect(googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH")).toHaveLength(3);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+    expect(store.pendingSyncMutations(10, accountId)).toHaveLength(0);
+  });
+
+  it("merges a local Calendar time change with a phone title without re-sending the title", async () => {
+    const { store, service, importEvent, remoteEvents, googleFetch, accountId } = createCalendarFixture();
+    const event = importEvent("calendar-merge");
+    store.dispatch("calendar", "update", { id: event.id, startsAt: "2026-10-23T09:00:00Z", endsAt: "2026-10-23T10:00:00Z" });
+    const remote = remoteEvents.get("calendar-merge")!;
+    Object.assign(remote, { summary: "Phone title", etag: "phone" });
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH") {
+        expect(new Headers(init.headers).get("if-match")).toBe(remote.etag);
+        Object.assign(remote, JSON.parse(String(init.body)), { etag: "merged" });
+        return Response.json(remote);
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH");
+    expect(writes).toHaveLength(1);
+    expect(Object.keys(JSON.parse(String(writes[0][2]!.body))).sort()).toEqual(["end", "start"]);
+    expect(remote).toMatchObject({ summary: "Phone title", start: { dateTime: "2026-10-23T09:00:00.000Z" }, end: { dateTime: "2026-10-23T10:00:00.000Z" } });
+    expect(store.googleEventForSync(event.id)).toMatchObject({ title: "Phone title", startsAt: "2026-10-23T09:00:00.000Z" });
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("keeps concurrent recurring-series changes for review even when the text fields differ", async () => {
+    const { store, service, importEvent, remoteEvents, googleFetch, calendar, accountId } = createCalendarFixture();
+    const event = importEvent("series-review");
+    const remote = remoteEvents.get("series-review")!;
+    remote.recurrence = ["RRULE:FREQ=DAILY;COUNT=3"];
+    store.upsertGoogleEvent(remote, calendar.id);
+    store.dispatch("calendar", "update", { id: event.id, title: "Local series title" });
+    Object.assign(remote, { description: "Phone details", etag: "phone" });
+    await service.runNow();
+    expect(googleFetch.mock.calls.every(([, , init]) => !init?.method || init.method === "GET")).toBe(true);
+    expect(store.googleEventForSync(event.id)?.title).toBe("Local series title");
+    expect(store.pendingSyncMutations(10, accountId)).toHaveLength(0);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(1);
+  });
+
+  it("sends only a changed recurring-series title when its remote version is unchanged", async () => {
+    const { store, service, importEvent, remoteEvents, googleFetch, calendar, accountId } = createCalendarFixture();
+    const event = importEvent("series-title");
+    const remote = remoteEvents.get("series-title")!;
+    remote.recurrence = ["RRULE:FREQ=DAILY;COUNT=3"];
+    store.upsertGoogleEvent(remote, calendar.id);
+    store.dispatch("calendar", "update", { id: event.id, title: "New series title" });
+    const transport = googleFetch.getMockImplementation()!;
+    googleFetch.mockImplementation(async (account, target, init) => {
+      if (init?.method === "PATCH") {
+        Object.assign(remote, JSON.parse(String(init.body)), { etag: "v2" });
+        return Response.json(remote);
+      }
+      return transport(account, target, init);
+    });
+    await service.runNow();
+    const writes = googleFetch.mock.calls.filter(([, , init]) => init?.method === "PATCH");
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(String(writes[0][2]!.body))).toEqual({ summary: "New series title" });
+    expect(remote.recurrence).toEqual(["RRULE:FREQ=DAILY;COUNT=3"]);
+    expect(store.unresolvedSyncMutationCount(accountId)).toBe(0);
+  });
+
+  it("preserves a local edit for review when Google deletes its Task", async () => {
+    const { store, service, importTask, remoteTasks, googleFetch, accountId } = createFixture();
+    const task = importTask({ id: "remote-deletion", title: "Before" });
+    store.dispatch("tasks", "update", { id: task.id, title: "Local work" });
+    Object.assign(remoteTasks.get("remote-deletion")!, { deleted: true, etag: "deleted" });
+    await service.runNow();
+    expect(googleFetch.mock.calls.every(([, , init]) => !init?.method || init.method === "GET")).toBe(true);
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Local work", status: "active" });
+    expect(store.pendingSyncMutations(10, accountId)).toHaveLength(0);
+    expect(store.dispatch("diagnostics", "pendingMutations").mutations[0].lastErrorMessage).toContain("deletion");
+  });
+
+  it("imports a deliberate removal of previously synced HCB metadata", async () => {
+    const { store, service, importTask, remoteTasks } = createFixture();
+    const task = importTask({ id: "cleared-metadata", notes: withHcbTaskMetadata("Notes", { priority: "high", tags: ["work"], durationMinutes: 60 }) });
+    Object.assign(remoteTasks.get("cleared-metadata")!, { notes: "Notes", etag: "cleared" });
+    await service.runNow();
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ notes: "Notes", priority: "none", tags: [], durationMinutes: null });
   });
 
   it("preserves a list rename as a conflict and retries only against a reviewed remote version", async () => {

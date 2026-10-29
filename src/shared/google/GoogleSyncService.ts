@@ -635,7 +635,7 @@ export class GoogleSyncService {
         (["taskList.create", "taskList.update"].includes(mutation.kind) && !this.store.googleTaskListForSync(mutation.entityId)?.googleId);
       try {
         this.currentMutationId = mutation.id;
-        const batch = mutation.intent && !mutation.intent.barrier ? this.store.prepareGoogleSyncBatch(accountId, mutation.id) : null;
+        const batch = mutation.intent ? this.store.prepareGoogleSyncBatch(accountId, mutation.id) : null;
         // A multi-request series split also needs explicit review if the worker
         // stops partway through it. Native tooling keeps its existing behavior.
         if (nonIdempotentCreate || (this.platform.checkpoint && mutation.kind === 'event.splitSeries')) this.store.beginSyncCreation(mutation.id);
@@ -677,7 +677,7 @@ export class GoogleSyncService {
     }
   }
 
-  private async deliverGoogleBatch(batch: GoogleSyncBatch): Promise<void> {
+  private async deliverGoogleBatch(batch: GoogleSyncBatch, retry = 0): Promise<void> {
     const { accountId, kind, snapshot, body, creating } = batch;
     if (!creating && Object.keys(body).length === 0) {
       this.store.completeGoogleSyncBatch(batch);
@@ -707,13 +707,19 @@ export class GoogleSyncService {
         ...(creating ? {} : { headers: conditionalHeaders(batch.baseline?.etag) })
       });
     } catch (error) {
+      if (!creating && error instanceof GoogleApiError && error.status === 412 && retry < 2) {
+        const latest = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(snapshot.googleId)}`);
+        const collectionId = kind === "task" ? snapshot.listGoogleId : kind === "event" ? snapshot.calendarGoogleId : null;
+        const result = this.store.observeGoogleRemote(accountId, kind, batch.entityId, latest, collectionId);
+        if (result !== "merged") throw new CoreStoreError("Google changed this item. Compare Google to review the overlapping or structural changes.");
+        const rebased = this.store.rebaseGoogleSyncBatch(batch);
+        if (rebased) await this.deliverGoogleBatch(rebased, retry + 1);
+        return;
+      }
       if (!(creating && kind === "event" && error instanceof GoogleApiError && error.status === 409)) throw error;
       remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(body.id)}`);
     }
-    if (kind === "task") this.store.bindGoogleTask(batch.entityId, remote, snapshot);
-    else if (kind === "taskList") this.store.bindGoogleTaskList(batch.entityId, remote, snapshot);
-    else this.store.bindGoogleEvent(batch.entityId, remote, snapshot, batch.mutationIds[0]);
-    this.store.completeGoogleSyncBatch(batch);
+    this.store.acceptGoogleSyncBatch(batch, remote);
   }
 
   private async deliverMutation(accountId: string, mutation: PendingSyncMutation): Promise<void> {
