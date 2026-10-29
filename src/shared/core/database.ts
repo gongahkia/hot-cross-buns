@@ -20,6 +20,8 @@ export interface SqlDatabase {
 
 export interface CoreStorePlatform {
   platform?: string;
+  /** Browser workers recover abandoned intents only after checking sync ownership. */
+  deferSyncRecovery?: boolean;
   backupTo?(filePath: string): Promise<void>;
   openSnapshot?(filePath: string): SqlDatabase;
   /** Optional compact fingerprint for temporary Google conflict reviews. */

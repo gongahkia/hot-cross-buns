@@ -216,12 +216,17 @@ export class CoreStore {
     this.db = database;
     this.db.pragma("foreign_keys = ON");
     timed("database.migration", "startup", () => this.db.transaction(() => this.migrate())());
+    if (!platform.deferSyncRecovery) this.recoverInterruptedSyncCreations();
+    this.seed();
+  }
+
+  /** Caller must exclude a live Google writer before recovering its durable intent. */
+  recoverInterruptedSyncCreations(): void {
     // A create may have reached Google before the previous process stopped.
     // Its outcome must be reviewed, rather than replayed with a new remote id.
     this.statement(`UPDATE outbox SET state='conflict',creation_started=0,payload_json=json_set(payload_json,'$.__hcbUncertainCreation',json('true')),last_error=?,updated_at=?
       WHERE state='pending' AND creation_started=1`).run(
         "Hot Cross Buns stopped during a Google creation. Check Google before retrying to avoid duplicates.", timestamp());
-    this.seed();
   }
 
   /**
@@ -618,11 +623,15 @@ export class CoreStore {
     return record ? { ...record, tags: safeJson(record.tags, []), lockedSchedule: Boolean(record.lockedSchedule) } : null;
   }
 
-  bindGoogleTaskList(localId: string, remote: JsonRecord): JsonRecord {
+  bindGoogleTaskList(localId: string, remote: JsonRecord, submitted?: JsonRecord): JsonRecord {
     const googleId = requiredText(remote.id, "Google task-list id");
+    this.bindDeletionReceipt('taskList', localId, remote, submitted);
     const result = this.statement("UPDATE task_lists SET google_id=?,google_etag=?,updated_at=? WHERE id=?")
       .run(googleId, remote.etag ?? null, remote.updated ?? timestamp(), localId);
-    if (result.changes === 0) throw new CoreStoreError("Task list no longer exists");
+    if (result.changes === 0) {
+      if (submitted) return { id: localId, deleted: true };
+      throw new CoreStoreError("Task list no longer exists");
+    }
     return this.googleTaskListForSync(localId)!;
   }
 
@@ -665,45 +674,85 @@ export class CoreStore {
       : null;
   }
 
-  bindGoogleTask(localId: string, remote: JsonRecord): JsonRecord {
+  bindGoogleTask(localId: string, remote: JsonRecord, submitted?: JsonRecord): JsonRecord {
     const list = this.googleTaskForSync(localId);
-    if (!list) throw new CoreStoreError("Task no longer exists");
+    if (!list) {
+      // Deleting a Google list removes its tasks locally; its queued remote
+      // deletion also removes a task whose creation response arrives late.
+      if (submitted && this.hasPendingEntityMutation('taskList', submitted.listId)) return { id: localId, deleted: true };
+      throw new CoreStoreError("Task no longer exists");
+    }
     this.statement(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,google_parent_id=?,sort_order=?,updated_at=? WHERE id=?`)
-      .run(requiredText(remote.id, "Google task id"), remote.etag ?? null, list.listGoogleId ?? null,
-        remote.parent ?? null, remote.position ?? null, remote.updated ?? timestamp(), localId);
+      .run(requiredText(remote.id, "Google task id"), remote.etag ?? null, (submitted ?? list).listGoogleId ?? null,
+        remote.parent ?? null, submitted && list.sortOrder !== submitted.sortOrder ? list.sortOrder : remote.position ?? null,
+        submitted && JSON.stringify(list) !== JSON.stringify(submitted) ? timestamp() : remote.updated ?? timestamp(), localId);
     return this.requireTask(localId);
   }
 
-  bindGoogleEvent(localId: string, remote: JsonRecord): JsonRecord {
+  bindGoogleEvent(localId: string, remote: JsonRecord, submitted?: JsonRecord, mutationId?: string): JsonRecord {
     const event = this.googleEventForSync(localId);
-    if (!event) throw new CoreStoreError("Calendar event no longer exists");
+    this.bindDeletionReceipt('event', localId, remote, submitted);
+    if (!event) {
+      if (submitted) return { id: localId, deleted: true };
+      throw new CoreStoreError("Calendar event no longer exists");
+    }
+    const keep = (field: string, received: any) => submitted && JSON.stringify(event[field]) !== JSON.stringify(submitted[field]) ? event[field] : received;
+    // Moving a still-unbound creation queues ordinary updates. Once its remote
+    // identity arrives, the first following update must move that identity.
+    if (submitted && !submitted.googleId && event.calendarId !== submitted.calendarId && mutationId) {
+      const next = this.statement(`SELECT id FROM outbox WHERE entity_id=? AND kind='event.update' AND state='pending'
+        AND rowid>(SELECT rowid FROM outbox WHERE id=?) ORDER BY rowid LIMIT 1`).get(localId, mutationId) as { id: string } | undefined;
+      if (next) this.statement("UPDATE outbox SET kind='event.move',payload_json=? WHERE id=?")
+        .run(JSON.stringify({ sourceCalendarId: submitted.calendarId, destinationCalendarId: event.calendarId }), next.id);
+    }
     const remoteMetadata = googleEventMetadata(remote);
-    const recurrenceLines = hasOwn(remote, "recurrence")
+    const recurrenceLines = keep('recurrenceLines', hasOwn(remote, "recurrence")
       ? googleRecurrenceLines(remote.recurrence)
-      : recurrenceLinesFromStored(event.googleRecurrence, event.recurrence);
+      : recurrenceLinesFromStored(event.googleRecurrence, event.recurrence));
     const remoteOriginalStart = hasOwn(remote, "originalStartTime")
       ? originalStartTimeFromGoogle(remote.originalStartTime)
       : event.googleOriginalStartTime ?? null;
     const remoteRecurringEventId = typeof remote.recurringEventId === "string"
       ? remote.recurringEventId
       : event.googleRecurringEventId ?? null;
-    this.statement(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=0,
+    this.statement(`UPDATE events SET google_id=?,google_etag=?,google_recurring_event_id=?,google_original_start_time=?,recurrence_json=?,google_recurrence_json=?,conference_json=?,conference_create_requested=?,
       attachments_json=?,event_type=?,focus_time_properties_json=?,out_of_office_properties_json=?,
       working_location_properties_json=?,self_response_status=?,updated_at=? WHERE id=?`)
       .run(
         requiredText(remote.id, "Google event id"), remote.etag ?? null,
         remoteRecurringEventId, remoteOriginalStart,
         JSON.stringify(recurrenceFromGoogle(recurrenceLines)), JSON.stringify(recurrenceLines),
-        remoteMetadata.conference === undefined ? JSON.stringify(event.conference ?? null) : JSON.stringify(remoteMetadata.conference),
-        remoteMetadata.attachments === undefined ? JSON.stringify(event.attachments ?? []) : JSON.stringify(remoteMetadata.attachments),
-        remoteMetadata.eventType ?? event.eventType ?? "default",
-        JSON.stringify(remoteMetadata.focusTimeProperties ?? event.focusTimeProperties ?? null),
-        JSON.stringify(remoteMetadata.outOfOfficeProperties ?? event.outOfOfficeProperties ?? null),
-        JSON.stringify(remoteMetadata.workingLocationProperties ?? event.workingLocationProperties ?? null),
-        remoteMetadata.selfResponseStatus ?? event.selfResponseStatus ?? null,
-        remote.updated ?? timestamp(), localId
+        JSON.stringify(keep('conference', remoteMetadata.conference ?? event.conference ?? null)),
+        Number(keep('conferenceCreateRequested', false)),
+        JSON.stringify(keep('attachments', remoteMetadata.attachments ?? event.attachments ?? [])),
+        keep('eventType', remoteMetadata.eventType ?? event.eventType ?? "default"),
+        JSON.stringify(keep('focusTimeProperties', remoteMetadata.focusTimeProperties ?? event.focusTimeProperties ?? null)),
+        JSON.stringify(keep('outOfOfficeProperties', remoteMetadata.outOfOfficeProperties ?? event.outOfOfficeProperties ?? null)),
+        JSON.stringify(keep('workingLocationProperties', remoteMetadata.workingLocationProperties ?? event.workingLocationProperties ?? null)),
+        keep('selfResponseStatus', remoteMetadata.selfResponseStatus ?? event.selfResponseStatus ?? null),
+        submitted && JSON.stringify(event) !== JSON.stringify(submitted) ? timestamp() : remote.updated ?? timestamp(), localId
       );
     return this.requireEvent(localId);
+  }
+
+  private bindDeletionReceipt(kind: 'taskList' | 'event', id: string, remote: JsonRecord, submitted?: JsonRecord): void {
+    const rows = this.statement("SELECT id,payload_json AS payload FROM outbox WHERE entity_id=? AND kind=? AND state IN ('pending','conflict')")
+      .all(id, `${kind}.delete`) as Array<{ id: string; payload: string }>;
+    for (const row of rows) {
+      const payload = { ...safeJson(row.payload, {}), googleId: requiredText(remote.id, 'Google id'), googleEtag: remote.etag ?? null };
+      if (kind === 'event' && submitted && !submitted.googleId) payload.calendarGoogleId = submitted.calendarGoogleId;
+      this.statement('UPDATE outbox SET payload_json=? WHERE id=?').run(JSON.stringify(payload), row.id);
+    }
+  }
+
+  googleDeletionPending(kind: 'taskList' | 'event', accountId: string, googleId: string, localId?: string): boolean {
+    return Boolean(this.statement(`SELECT 1 FROM outbox WHERE account_id=? AND kind=? AND state IN ('pending','conflict')
+      AND (json_extract(payload_json,'$.googleId')=? OR entity_id=?) LIMIT 1`).get(accountId, `${kind}.delete`, googleId, localId ?? ''));
+  }
+
+  /** Detect local commands during a multi-request structural Google operation. */
+  googleMutationVersion(accountId: string): string {
+    return JSON.stringify(this.statement("SELECT id,kind,payload_json,state FROM outbox WHERE account_id=? AND state IN ('pending','conflict') ORDER BY rowid").all(accountId));
   }
 
   /**
@@ -829,7 +878,7 @@ export class CoreStore {
   upsertGoogleTask(remote: JsonRecord, localListId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google task id");
     const localList = this.googleTaskListForSync(localListId);
-    if (!localList) throw new CoreStoreError("Task list no longer exists");
+    if (!localList) return null; // The list may have been deleted while its page downloaded.
     const existing = this.statement(`SELECT task.id FROM tasks task JOIN task_lists list ON list.id=task.list_id
       WHERE list.account_id=? AND task.google_id=?`).get(localList.accountId, googleId) as { id: string } | undefined;
     const localId = existing?.id ?? randomUUID();
@@ -975,6 +1024,8 @@ export class CoreStore {
 
   upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google event id");
+    const calendar = this.googleCalendarForSync(localCalendarId);
+    if (!calendar || this.googleDeletionPending('event', calendar.accountId, googleId, claimedLocalEventId(remote) ?? undefined)) return null;
     let existing = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
     if (!existing && this.statement(`SELECT 1 FROM events event JOIN outbox mutation ON mutation.entity_id=event.id
       WHERE event.google_id=? AND mutation.kind='event.move' AND mutation.state IN ('pending','conflict')

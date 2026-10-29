@@ -38,6 +38,10 @@ class GoogleApiError extends Error {
   }
 }
 
+class ConcurrentSeriesEditError extends CoreStoreError {
+  constructor() { super('Local changes arrived during a recurring-series split. They are saved. Compare Google in Diagnostics before continuing this split.'); }
+}
+
 /** The remote split was compensated successfully, so retrying it would be wrong. */
 class SplitSeriesRolledBackError extends Error {}
 
@@ -49,6 +53,7 @@ class SplitSeriesRolledBackError extends Error {}
  * in one small boundary.
  */
 export class GoogleSyncService {
+  private splittingAccountId?: string;
   private inFlight: Promise<JsonRecord> | null = null;
   private resolvingMutation = false;
   private readonly statusListeners = new Set<(status: JsonRecord) => void>();
@@ -397,8 +402,9 @@ export class GoogleSyncService {
       "https://gmail.googleapis.com/gmail/v1/users/me/messages", {
         query: { ...(query ? { q: query } : {}), maxResults: "10" }
       });
-    const messages = await Promise.all((page.messages ?? []).slice(0, 10).map(async (message) => {
-      if (!message.id) return null;
+    const messages: JsonRecord[] = [];
+    for (const message of (page.messages ?? []).slice(0, 10)) {
+      if (!message.id) continue;
       const item = await this.requestJson<JsonRecord>(accountId,
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(message.id)}`, {
           query: { format: "metadata", metadataHeaders: "Subject", fields: "id,threadId,snippet,payload(headers)" }
@@ -406,15 +412,15 @@ export class GoogleSyncService {
       const headers = Array.isArray(item.payload?.headers) ? item.payload.headers : [];
       const subject = headers.find((header: JsonRecord) => String(header.name).toLowerCase() === "subject")?.value;
       const from = headers.find((header: JsonRecord) => String(header.name).toLowerCase() === "from")?.value;
-      return {
+      messages.push({
         id: item.id ?? message.id,
         threadId: item.threadId ?? message.threadId ?? null,
         subject: typeof subject === "string" && subject.trim() ? subject.trim() : "Untitled email",
         from: typeof from === "string" ? from : null,
         snippet: typeof item.snippet === "string" ? item.snippet : ""
-      };
-    }));
-    return { items: messages.filter((message) => message !== null) };
+      });
+    }
+    return { items: messages };
   }
 
   captureGmailMessage(input: JsonRecord): JsonRecord {
@@ -510,6 +516,7 @@ export class GoogleSyncService {
   private async pullGoogleTasks(accountId: string): Promise<void> {
     const taskLists = await this.allPages(accountId, "https://tasks.googleapis.com/tasks/v1/users/@me/lists", { maxResults: "100" });
     for (const remoteList of taskLists) {
+      if (this.store.googleDeletionPending('taskList', accountId, remoteList.id)) continue;
       const localList = this.store.upsertGoogleTaskList(remoteList, accountId);
       if (!this.store.isSelectedTaskList(localList.id)) continue;
       const key = `tasks-updated:${remoteList.id}`;
@@ -617,7 +624,11 @@ export class GoogleSyncService {
   private async deliverOutbox(accountId: string): Promise<void> {
     const settings = this.syncSettings();
     const allowed = this.platform.accountCapabilities?.(accountId) ?? { tasks: true, calendar: true };
-    for (const mutation of this.store.pendingSyncMutations(100, accountId)) {
+    for (const queued of this.store.pendingSyncMutations(100, accountId)) {
+      // A previous receipt can update a queued delete/move while HTTP is pending.
+      // Re-read eligibility too: a local recovery action may cancel this chain.
+      const mutation = this.store.pendingSyncMutations(100, accountId).find(item => item.id === queued.id);
+      if (!mutation) break;
       if ((mutation.kind.startsWith("task") && (settings.syncTasksEnabled === false || !allowed.tasks)) ||
           (mutation.kind.startsWith("event") && (settings.syncCalendarEventsEnabled === false || !allowed.calendar))) continue;
       const nonIdempotentCreate =
@@ -647,7 +658,7 @@ export class GoogleSyncService {
         const retryable = !ambiguousTaskCreate && (error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError));
         this.store.deferSyncMutation(mutation.id, ambiguousTaskCreate
           ? "Google may have accepted this creation before its response was lost. Check Google before retrying to avoid duplicates."
-          : safeError(error), retryable, ambiguousTaskCreate);
+          : safeError(error), retryable, ambiguousTaskCreate || error instanceof ConcurrentSeriesEditError);
         await this.checkpoint('mutation-error');
         // Preserve causal order: later writes may depend on this one.
         break;
@@ -681,7 +692,9 @@ export class GoogleSyncService {
         await this.moveEvent(accountId, mutation.entityId, mutation.payload);
         return;
       case "event.splitSeries":
-        await this.splitGoogleSeries(accountId, mutation.payload);
+        this.splittingAccountId = accountId;
+        try { await this.splitGoogleSeries(accountId, mutation.payload); }
+        finally { this.splittingAccountId = undefined; }
         return;
       case "event.delete":
         await this.deleteEvent(accountId, mutation.payload);
@@ -704,7 +717,7 @@ export class GoogleSyncService {
       : await this.requestJson<JsonRecord>(accountId, "https://tasks.googleapis.com/tasks/v1/users/@me/lists", {
           method: "POST", body: json({ title: list.title })
         });
-    this.store.bindGoogleTaskList(localId, remote);
+    this.store.bindGoogleTaskList(localId, remote, list);
   }
 
   private async deleteTaskList(accountId: string, list: JsonRecord): Promise<void> {
@@ -729,7 +742,7 @@ export class GoogleSyncService {
         method: "POST", body: json(body),
         ...(parent ? { query: { parent } } : {})
       });
-      this.store.bindGoogleTask(localId, remote);
+      this.store.bindGoogleTask(localId, remote, task);
       return;
     }
     const changesList = task.googleListId && task.googleListId !== task.listGoogleId;
@@ -744,14 +757,14 @@ export class GoogleSyncService {
           ...(parent ? { parent } : {}), ...(previous ? { previous } : {})
         }
       });
-      this.store.bindGoogleTask(localId, moved);
-      task = this.store.googleTaskForSync(localId);
-      if (!task) throw new CoreStoreError("Task no longer exists");
+      this.store.bindGoogleTask(localId, moved, task);
+      // Keep this command's destination/body. A newer move is a later command.
+      task = { ...task, googleId: moved.id, googleEtag: moved.etag };
     }
     const remote = await this.requestJson<JsonRecord>(accountId, taskUrl(task.listGoogleId, task.googleId), {
       method: "PATCH", body: json(body), headers: conditionalHeaders(task.googleEtag)
     });
-    this.store.bindGoogleTask(localId, remote);
+    this.store.bindGoogleTask(localId, remote, task);
   }
 
   private async remoteParentId(localParentId: string): Promise<string | undefined> {
@@ -782,7 +795,7 @@ export class GoogleSyncService {
         remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${deterministicGoogleEventId(event.id)}`);
       }
     }
-    this.store.bindGoogleEvent(localId, remote);
+    this.store.bindGoogleEvent(localId, remote, event, this.currentMutationId);
   }
 
   /** Materialize a local edit of a generated row as a Google Calendar exception. */
@@ -808,7 +821,7 @@ export class GoogleSyncService {
       const remote = await this.requestJson<JsonRecord>(accountId, collection, {
         method: "POST", body: json(body), query: calendarEventWriteQuery(occurrence)
       });
-      this.store.bindGoogleEvent(localId, remote);
+      this.store.bindGoogleEvent(localId, remote, occurrence, this.currentMutationId);
       return;
     }
     const remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(requiredText(target.id, "Google occurrence id"))}`, {
@@ -817,7 +830,7 @@ export class GoogleSyncService {
       headers: conditionalHeaders(target.etag),
       query: calendarEventWriteQuery(occurrence)
     });
-    this.store.bindGoogleEvent(localId, remote);
+    this.store.bindGoogleEvent(localId, remote, occurrence, this.currentMutationId);
   }
 
   /**
@@ -861,10 +874,10 @@ export class GoogleSyncService {
         headers: conditionalHeaders(remoteMaster.etag ?? parent.googleEtag),
         query: calendarEventWriteQuery(parent)
       });
-      this.store.bindGoogleEvent(parentEventId, updatedParent);
+      this.store.bindGoogleEvent(parentEventId, updatedParent, parent, this.currentMutationId);
 
       createdSuccessor = await this.insertSplitSuccessor(accountId, collection, successor);
-      this.store.bindGoogleEvent(successorEventId, createdSuccessor);
+      this.store.bindGoogleEvent(successorEventId, createdSuccessor, successor, this.currentMutationId);
 
       for (const exception of remoteExceptions) {
         if (!exceptionIsOnOrAfter(exception, splitAt)) continue;
@@ -879,7 +892,7 @@ export class GoogleSyncService {
         });
       }
     } catch (error: unknown) {
-      if (error instanceof SyncPersistenceError) throw error;
+      if (error instanceof SyncPersistenceError || error instanceof ConcurrentSeriesEditError) throw error;
       const compensationError = await this.compensateGoogleSeriesSplit({
         accountId,
         collection,
@@ -1058,7 +1071,7 @@ export class GoogleSyncService {
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(source.googleId)}/events/${encodeURIComponent(event.googleId)}/move`,
       { method: "POST", query: { destination: destination.googleId }, headers: conditionalHeaders(event.googleEtag) }
     );
-    this.store.bindGoogleEvent(localId, remote);
+    this.store.bindGoogleEvent(localId, remote, event, this.currentMutationId);
 
     // An edit can be queued after more than one local calendar move. Apply the
     // current event body only at its final destination; an intermediate move
@@ -1068,7 +1081,7 @@ export class GoogleSyncService {
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(destination.googleId)}/events/${encodeURIComponent(remote.id)}`,
       { method: "PATCH", body: json(googleEventBody(event)), headers: conditionalHeaders(remote.etag), query: calendarEventWriteQuery(event) }
     );
-    this.store.bindGoogleEvent(localId, remote);
+    this.store.bindGoogleEvent(localId, remote, event, this.currentMutationId);
   }
 
   private async deleteEvent(accountId: string, event: JsonRecord): Promise<void> {
@@ -1129,9 +1142,11 @@ export class GoogleSyncService {
     return timedAsync(write ? 'google.http.write' : 'google.http.read', 'sync', async () => {
       let response: Response;
       try {
+        const version = this.splittingAccountId ? this.store.googleMutationVersion(accountId) : undefined;
         response = await this.oauth.googleFetch(accountId, target, requestInit);
+        if (version !== undefined && version !== this.store.googleMutationVersion(accountId)) throw new ConcurrentSeriesEditError();
       } catch (error: unknown) {
-        if (error instanceof CoreStoreError) throw error;
+        if (error instanceof CoreStoreError || error instanceof SyncPersistenceError) throw error;
         throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
       }
       if (!response.ok) {
@@ -1295,7 +1310,7 @@ export class GoogleSyncService {
     try {
       response = await this.oauth.googleFetch(accountId, url, init);
     } catch (error: unknown) {
-      if (error instanceof CoreStoreError) throw error;
+      if (error instanceof CoreStoreError || error instanceof SyncPersistenceError) throw error;
       throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
     }
     if (!acceptedStatuses.has(response.status)) {
