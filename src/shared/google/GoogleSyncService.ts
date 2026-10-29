@@ -10,7 +10,6 @@ import { splitHcbTaskMetadata } from "../core/hcbTaskMetadata";
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "../core/syncResolution";
 import { resolutionGoogleEvent, resolutionLocalRecord } from "../core/syncResolution";
 import type { SyncResolutionPreview } from "@shared/syncResolution";
-import { deterministicGoogleEventId } from "../core/googleEventIdentity";
 
 type JsonRecord = Record<string, any>;
 type WorkspaceService = "driveSearch" | "driveUpload" | "gmail";
@@ -622,9 +621,10 @@ export class GoogleSyncService {
   }
 
   private async deliverOutbox(accountId: string): Promise<void> {
-    const settings = this.syncSettings();
-    const allowed = this.platform.accountCapabilities?.(accountId) ?? { tasks: true, calendar: true };
     for (const queued of this.store.pendingSyncMutations(100, accountId)) {
+      if (this.store.googleAccount(accountId)?.connectionState !== 'connected' || this.platform.accountAvailable?.(accountId) === false) break;
+      const settings = this.syncSettings();
+      const allowed = this.platform.accountCapabilities?.(accountId) ?? { tasks: true, calendar: true };
       // A previous receipt can update a queued delete/move while HTTP is pending.
       // Re-read eligibility too: a local recovery action may cancel this chain.
       const mutation = this.store.pendingSyncMutations(100, accountId).find(item => item.id === queued.id);
@@ -644,6 +644,12 @@ export class GoogleSyncService {
         await this.checkpoint('mutation-receipt');
       } catch (error: unknown) {
         if (error instanceof SyncPersistenceError) throw error;
+        if (error instanceof CoreStoreError && !nonIdempotentCreate && mutation.kind !== 'event.splitSeries' && this.platform.accountAvailable?.(accountId) === false) {
+          // A disconnect between steps of a move must preserve its saved
+          // receipt and leave the remaining command queued for reconnection.
+          await this.checkpoint('mutation-receipt');
+          break;
+        }
         if (error instanceof SplitSeriesRolledBackError) {
           this.store.completeSyncMutation(mutation.id);
           await this.checkpoint('mutation-receipt');
@@ -658,7 +664,7 @@ export class GoogleSyncService {
         const retryable = !ambiguousTaskCreate && (error instanceof GoogleApiError ? error.retryable : !(error instanceof CoreStoreError));
         this.store.deferSyncMutation(mutation.id, ambiguousTaskCreate
           ? "Google may have accepted this creation before its response was lost. Check Google before retrying to avoid duplicates."
-          : safeError(error), retryable, ambiguousTaskCreate || error instanceof ConcurrentSeriesEditError);
+          : safeError(error), retryable, ambiguousTaskCreate || mutation.kind === 'event.splitSeries');
         await this.checkpoint('mutation-error');
         // Preserve causal order: later writes may depend on this one.
         break;
@@ -676,6 +682,9 @@ export class GoogleSyncService {
         return;
       case "taskList.delete":
         await this.deleteTaskList(accountId, mutation.payload);
+        return;
+      case "task.delete":
+        if (mutation.payload.googleId && mutation.payload.googleListId) await this.deleteGoogleResource(accountId, taskUrl(mutation.payload.googleListId, mutation.payload.googleId), mutation.payload.googleEtag);
         return;
       case "task.create":
       case "task.update":
@@ -732,6 +741,7 @@ export class GoogleSyncService {
     if (task.status === "deleted") {
       if (task.googleId) {
         await this.deleteGoogleResource(accountId, taskUrl(task.googleListId ?? task.listGoogleId, task.googleId), task.googleEtag);
+        this.store.completeGoogleTaskDeletion(localId, task.googleId);
       }
       return;
     }
@@ -775,7 +785,8 @@ export class GoogleSyncService {
     const event = this.store.googleEventForSync(localId);
     if (!event) return;
     if (!event.calendarGoogleId) throw new CoreStoreError("This calendar has not been discovered in Google yet.");
-    const body = googleEventBody(event, event.googleId ? undefined : deterministicGoogleEventId(event.id));
+    const creationId = this.store.googleEventCreationId(accountId, event.id);
+    const body = googleEventBody(event, event.googleId ? undefined : creationId);
     // A Google exception is an instance, not a recurrence master. Calendar
     // rejects recurrence data on the instance and the master already owns it.
     if (event.googleRecurringEventId) delete body.recurrence;
@@ -792,7 +803,7 @@ export class GoogleSyncService {
         if (!(error instanceof GoogleApiError) || error.status !== 409) throw error;
         // A previous POST reached Google but HCB stopped before persisting the
         // response. Fetching the deterministic id makes the retry safe.
-        remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${deterministicGoogleEventId(event.id)}`);
+        remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${creationId}`);
       }
     }
     this.store.bindGoogleEvent(localId, remote, event, this.currentMutationId);
@@ -929,7 +940,8 @@ export class GoogleSyncService {
   }
 
   private async insertSplitSuccessor(accountId: string, collection: string, successor: JsonRecord): Promise<JsonRecord> {
-    const body = googleEventBody(successor, deterministicGoogleEventId(successor.id));
+    const creationId = this.store.googleEventCreationId(accountId, successor.id);
+    const body = googleEventBody(successor, creationId);
     try {
       return await this.requestJson<JsonRecord>(accountId, collection, {
         method: "POST",
@@ -941,7 +953,7 @@ export class GoogleSyncService {
       // A network loss can happen after Google's idempotent POST was accepted.
       // The deterministic ID lets us distinguish that from a failed create
       // without ever inserting a duplicate successor.
-      return await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(deterministicGoogleEventId(successor.id))}`);
+      return await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(creationId)}`);
     }
   }
 
@@ -1030,7 +1042,7 @@ export class GoogleSyncService {
           headers: conditionalHeaders(createdSuccessor.etag)
         });
       } catch (error) {
-        if (error instanceof SyncPersistenceError) throw error;
+        if (error instanceof SyncPersistenceError || error instanceof ConcurrentSeriesEditError) throw error;
         errors.push(`delete successor: ${safeError(error)}`);
       }
     }
@@ -1043,7 +1055,7 @@ export class GoogleSyncService {
           query: calendarEventWriteQuery(originalMaster)
         });
       } catch (error) {
-        if (error instanceof SyncPersistenceError) throw error;
+        if (error instanceof SyncPersistenceError || error instanceof ConcurrentSeriesEditError) throw error;
         errors.push(`restore parent: ${safeError(error)}`);
       }
     }
@@ -1086,7 +1098,14 @@ export class GoogleSyncService {
 
   private async deleteEvent(accountId: string, event: JsonRecord): Promise<void> {
     if (!event.googleId || !event.calendarGoogleId) return;
+    const restored = typeof event.id === 'string' ? this.store.googleEventForSync(event.id) : null;
+    if (restored && (!restored.googleId || restored.googleId === event.googleId)) {
+      // Undo arrived before delivery started; keep the existing remote event.
+      this.store.bindGoogleEvent(event.id, { id: event.googleId, etag: event.googleEtag }, restored);
+      return;
+    }
     await this.deleteGoogleResource(accountId, `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarGoogleId)}/events/${encodeURIComponent(event.googleId)}`, event.googleEtag);
+    if (typeof event.id === 'string') this.store.completeGoogleEventDeletion(accountId, event.id, event.googleId);
   }
 
   private async deleteGoogleResource(accountId: string, url: string, etag: unknown): Promise<void> {
@@ -1141,11 +1160,13 @@ export class GoogleSyncService {
     const write = requestInit.method && !['GET', 'HEAD'].includes(requestInit.method.toUpperCase());
     return timedAsync(write ? 'google.http.write' : 'google.http.read', 'sync', async () => {
       let response: Response;
+      const version = this.splittingAccountId ? this.store.googleMutationVersion(accountId) : undefined;
       try {
-        const version = this.splittingAccountId ? this.store.googleMutationVersion(accountId) : undefined;
         response = await this.oauth.googleFetch(accountId, target, requestInit);
         if (version !== undefined && version !== this.store.googleMutationVersion(accountId)) throw new ConcurrentSeriesEditError();
       } catch (error: unknown) {
+        if (error instanceof SyncPersistenceError) throw error;
+        if (version !== undefined && version !== this.store.googleMutationVersion(accountId)) throw new ConcurrentSeriesEditError();
         if (error instanceof CoreStoreError || error instanceof SyncPersistenceError) throw error;
         throw new GoogleApiError(0, error instanceof Error ? error.message : "Google request failed.");
       }

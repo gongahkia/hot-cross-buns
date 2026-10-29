@@ -3,7 +3,7 @@ export function deterministicGoogleEventId(localId: string): string {
   return `hcb${String(localId).replace(/[^a-f0-9]/gi, "").toLowerCase()}`.slice(0, 1024);
 }
 
-export function claimedLocalEventId(remote: Record<string, any>): string | null {
+export function claimedLocalEventId(remote: Record<string, any>, reservedId?: string): string | null {
   const id = remote.extendedProperties?.private?.hcbLocalEventId;
-  return typeof id === "string" && id.length <= 200 && remote.id === deterministicGoogleEventId(id) ? id : null;
+  return typeof id === "string" && id.length <= 200 && remote.id === (reservedId ?? deterministicGoogleEventId(id)) ? id : null;
 }

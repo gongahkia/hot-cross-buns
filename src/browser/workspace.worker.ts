@@ -58,7 +58,8 @@ function needsGoogleQueue(request: { namespace: string; action: string; payload?
   const key = `${request.namespace}.${request.action}`;
   return ['__automatic.sync', 'sync.runNow', 'sync.forceFullResync', 'calendar.freeBusy',
     'google.searchDriveFiles', 'google.searchGmailMessages', 'google.uploadDriveFile',
-    'diagnostics.previewMutationResolution', 'diagnostics.resolveMutation', 'workspace.confirmImport'].includes(key) ||
+    'diagnostics.previewMutationResolution', 'diagnostics.resolveMutation',
+    'diagnostics.retryPendingMutation', 'diagnostics.cancelPendingMutation', 'workspace.confirmImport'].includes(key) ||
     key === 'settings.recoveryAction' && ['refresh', 'forceFullResync'].includes(request.payload?.action);
 }
 

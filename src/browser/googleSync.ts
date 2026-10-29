@@ -29,7 +29,7 @@ export class BrowserGoogleSync {
           // Consume the body while unlocked too. Returning just the headers
           // would leave slow/stalled JSON downloads holding the writer again.
           const bytes = response.body ? await response.arrayBuffer() : null;
-          return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
+          return new Response([204, 205, 304].includes(response.status) ? null : bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
         });
         const current = store.googleAccount(accountId);
         if (!current || current.googleAccountId !== account.googleAccountId) throw new CoreStoreError('The Google account changed during this request. Local changes are preserved.');

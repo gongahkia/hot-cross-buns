@@ -3,7 +3,7 @@ import type { SqlDatabase, SqlStatement, CoreStorePlatform } from "./database";
 const randomUUID = (): string => globalThis.crypto.randomUUID();
 import type { GoogleResolutionSnapshot, SyncResolutionContext } from "./syncResolution";
 import { resolutionGoogleEvent } from "./syncResolution";
-import { claimedLocalEventId } from "./googleEventIdentity";
+import { claimedLocalEventId, deterministicGoogleEventId } from "./googleEventIdentity";
 import { calendarCanWrite, calendarWriteRestriction } from "@shared/calendarPermissions";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
 import { expandGoogleRecurrenceLines, shiftGoogleRecurrenceSchedule, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
@@ -679,7 +679,22 @@ export class CoreStore {
     if (!list) {
       // Deleting a Google list removes its tasks locally; its queued remote
       // deletion also removes a task whose creation response arrives late.
-      if (submitted && this.hasPendingEntityMutation('taskList', submitted.listId)) return { id: localId, deleted: true };
+      if (submitted) {
+        const deletions = this.statement("SELECT id,payload_json AS payload FROM outbox WHERE account_id=? AND kind='taskList.delete' AND state IN ('pending','conflict')")
+          .all(submitted.accountId) as Array<{ id: string; payload: string }>;
+        for (const deletion of deletions) {
+          const payload = safeJson(deletion.payload, {}) as JsonRecord;
+          if (!payload.deletedTasks?.some((task: JsonRecord) => task.id === localId)) continue;
+          const receipt = { ...submitted, googleId: requiredText(remote.id, 'Google task id'), googleEtag: remote.etag ?? null, googleListId: submitted.listGoogleId };
+          payload.deletedTasks = payload.deletedTasks.map((task: JsonRecord) => task.id === localId ? { ...task, ...receipt } : task);
+          this.statement('UPDATE outbox SET payload_json=? WHERE id=?').run(JSON.stringify(payload), deletion.id);
+          // It may have been moved locally to a different list before that
+          // list was deleted. Deleting the destination won't delete its actual
+          // remote resource, so retain an explicit cleanup command as well.
+          if (payload.googleId !== submitted.listGoogleId) this.enqueue('task.delete', localId, receipt, submitted.accountId);
+          return { id: localId, deleted: true };
+        }
+      }
       throw new CoreStoreError("Task no longer exists");
     }
     this.statement(`UPDATE tasks SET google_id=?,google_etag=?,google_list_id=?,google_parent_id=?,sort_order=?,updated_at=? WHERE id=?`)
@@ -700,10 +715,7 @@ export class CoreStore {
     // Moving a still-unbound creation queues ordinary updates. Once its remote
     // identity arrives, the first following update must move that identity.
     if (submitted && !submitted.googleId && event.calendarId !== submitted.calendarId && mutationId) {
-      const next = this.statement(`SELECT id FROM outbox WHERE entity_id=? AND kind='event.update' AND state='pending'
-        AND rowid>(SELECT rowid FROM outbox WHERE id=?) ORDER BY rowid LIMIT 1`).get(localId, mutationId) as { id: string } | undefined;
-      if (next) this.statement("UPDATE outbox SET kind='event.move',payload_json=? WHERE id=?")
-        .run(JSON.stringify({ sourceCalendarId: submitted.calendarId, destinationCalendarId: event.calendarId }), next.id);
+      this.bindEventCreationLocation(localId, submitted.calendarId, event.calendarId, mutationId);
     }
     const remoteMetadata = googleEventMetadata(remote);
     const recurrenceLines = keep('recurrenceLines', hasOwn(remote, "recurrence")
@@ -739,10 +751,18 @@ export class CoreStore {
     const rows = this.statement("SELECT id,payload_json AS payload FROM outbox WHERE entity_id=? AND kind=? AND state IN ('pending','conflict')")
       .all(id, `${kind}.delete`) as Array<{ id: string; payload: string }>;
     for (const row of rows) {
-      const payload = { ...safeJson(row.payload, {}), googleId: requiredText(remote.id, 'Google id'), googleEtag: remote.etag ?? null };
-      if (kind === 'event' && submitted && !submitted.googleId) payload.calendarGoogleId = submitted.calendarGoogleId;
+      const previous = safeJson(row.payload, {});
+      const payload = { ...previous, googleId: requiredText(remote.id, 'Google id'), googleEtag: remote.etag ?? null };
+      if (kind === 'event' && submitted && !submitted.googleId && !previous.googleId) payload.calendarGoogleId = submitted.calendarGoogleId;
       this.statement('UPDATE outbox SET payload_json=? WHERE id=?').run(JSON.stringify(payload), row.id);
     }
+  }
+
+  private bindEventCreationLocation(localId: string, sourceCalendarId: string, destinationCalendarId: string, mutationId: string): void {
+    const next = this.statement(`SELECT id FROM outbox WHERE entity_id=? AND kind='event.update' AND state='pending'
+      AND rowid>(SELECT rowid FROM outbox WHERE id=?) ORDER BY rowid LIMIT 1`).get(localId, mutationId) as { id: string } | undefined;
+    if (next) this.statement("UPDATE outbox SET kind='event.move',payload_json=? WHERE id=?")
+      .run(JSON.stringify({ sourceCalendarId, destinationCalendarId }), next.id);
   }
 
   googleDeletionPending(kind: 'taskList' | 'event', accountId: string, googleId: string, localId?: string): boolean {
@@ -753,6 +773,24 @@ export class CoreStore {
   /** Detect local commands during a multi-request structural Google operation. */
   googleMutationVersion(accountId: string): string {
     return JSON.stringify(this.statement("SELECT id,kind,payload_json,state FROM outbox WHERE account_id=? AND state IN ('pending','conflict') ORDER BY rowid").all(accountId));
+  }
+
+  completeGoogleTaskDeletion(localId: string, remoteId: string): void {
+    // Undo may have restored the task while DELETE was on the wire. Its next
+    // command must recreate it instead of PATCHing the now-deleted identity.
+    this.statement("UPDATE tasks SET google_id=NULL,google_etag=NULL,google_list_id=NULL,google_parent_id=NULL WHERE id=? AND google_id=? AND status!='deleted'")
+      .run(localId, remoteId);
+  }
+
+  googleEventCreationId(accountId: string, localId: string): string {
+    return this.googleOperationRecord(accountId, `event-creation:${localId}`)?.id ?? deterministicGoogleEventId(localId);
+  }
+
+  completeGoogleEventDeletion(accountId: string, localId: string, remoteId: string): void {
+    // Calendar retains deleted IDs. A restored event needs a new durable ID,
+    // shared by every retry of that restoration (including after tab closure).
+    this.setGoogleOperationRecord(accountId, `event-creation:${localId}`, { id: deterministicGoogleEventId(randomUUID()) });
+    this.statement('UPDATE events SET google_id=NULL,google_etag=NULL WHERE id=? AND google_id=?').run(localId, remoteId);
   }
 
   /**
@@ -1025,18 +1063,34 @@ export class CoreStore {
   upsertGoogleEvent(remote: JsonRecord, localCalendarId: string): JsonRecord | null {
     const googleId = requiredText(remote.id, "Google event id");
     const calendar = this.googleCalendarForSync(localCalendarId);
-    if (!calendar || this.googleDeletionPending('event', calendar.accountId, googleId, claimedLocalEventId(remote) ?? undefined)) return null;
+    if (!calendar) return null;
+    const proposedClaim = remote.extendedProperties?.private?.hcbLocalEventId;
+    const reservation = typeof proposedClaim === 'string' && proposedClaim.length <= 200
+      ? this.googleOperationRecord(calendar.accountId, `event-creation:${proposedClaim}`)?.id : undefined;
+    const claimedId = claimedLocalEventId(remote, reservation);
+    if (this.googleDeletionPending('event', calendar.accountId, googleId, claimedId ?? undefined)) {
+      // A closed tab may have lost the creation receipt after the user deleted
+      // its optimistic row. Recover identity onto the tombstone, not a new row.
+      if (claimedId) this.bindDeletionReceipt('event', claimedId, remote, { googleId: null, calendarGoogleId: calendar.googleId });
+      return null;
+    }
     let existing = this.statement("SELECT id FROM events WHERE calendar_id=? AND google_id=?").get(localCalendarId, googleId) as { id: string } | undefined;
     if (!existing && this.statement(`SELECT 1 FROM events event JOIN outbox mutation ON mutation.entity_id=event.id
       WHERE event.google_id=? AND mutation.kind='event.move' AND mutation.state IN ('pending','conflict')
       AND (json_extract(mutation.payload_json,'$.sourceCalendarId')=? OR json_extract(mutation.payload_json,'$.destinationCalendarId')=?) LIMIT 1`)
       .get(googleId, localCalendarId, localCalendarId)) return null;
-    const claimedId = claimedLocalEventId(remote);
     if (!existing && claimedId) {
-      existing = this.statement("SELECT id FROM events WHERE id=? AND calendar_id=? AND google_id IS NULL").get(claimedId, localCalendarId) as { id: string } | undefined;
+      existing = this.statement(`SELECT event.id FROM events event JOIN calendars calendar ON calendar.id=event.calendar_id
+        WHERE event.id=? AND calendar.account_id=? AND event.google_id IS NULL`).get(claimedId, calendar.accountId) as { id: string } | undefined;
       // A lost Calendar creation response can be recovered by its deterministic
       // ID. Bind identity only: queued local content must survive this pull.
-      if (existing) this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(googleId, remote.etag ?? null, existing.id);
+      if (existing) {
+        const event = this.googleEventForSync(existing.id)!;
+        const first = this.statement("SELECT id FROM outbox WHERE entity_id=? AND kind IN ('event.create','event.update') AND state IN ('pending','conflict') ORDER BY rowid LIMIT 1")
+          .get(existing.id) as { id: string } | undefined;
+        if (first && event.calendarId !== localCalendarId) this.bindEventCreationLocation(existing.id, localCalendarId, event.calendarId, first.id);
+        this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(googleId, remote.etag ?? null, existing.id);
+      }
     }
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("event", localId)) return null;

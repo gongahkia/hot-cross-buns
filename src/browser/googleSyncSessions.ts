@@ -71,6 +71,13 @@ export class BrowserGoogleSessions implements GoogleSyncOAuth {
     if (response.status === 401) this.sessions.delete(accountId);
     // Never silently refresh and resend a mutation; reconnect needs a user gesture.
     if (!response.body) { cleanup(); return response; }
+    if (init.method?.toUpperCase() === 'HEAD' || [204, 205, 304].includes(response.status)) {
+      // Some transports expose an empty stream for bodyless statuses. Response
+      // reconstruction must still use null (an empty stream/ArrayBuffer fails).
+      cleanup();
+      void response.body.cancel().catch(() => {});
+      return new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
+    }
     // Keep the deadline through body consumption as well as response headers.
     // Otherwise a stalled JSON body could retain the worker writer lock forever.
     const reader = response.body.getReader();

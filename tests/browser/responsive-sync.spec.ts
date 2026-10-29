@@ -50,7 +50,8 @@ async function googleFixture(context: BrowserContext) {
       expect(route.request().headers()['if-match']).toBe(previous?.etag);
       if (collection === tasks) collection.set(id, { ...previous, deleted: true }); else collection.delete(id);
       state.writes.push(`DELETE ${id}`);
-      return route.fulfill({ status: 204 });
+      await state.hold?.(route);
+      return route.fulfill({ status: 204 }).catch(() => {});
     }
     throw new Error(`Unexpected ${method} ${url}`);
   });
@@ -198,4 +199,55 @@ test('deleting an event during creation sends the accepted identity and newest E
   expect((await finishSync(page)).ok).toBe(true);
   expect(await page.evaluate(() => window.hcb!.sync.runNow({}))).toMatchObject({ ok: true });
   expect(f.state.eventCreates).toBe(1); expect(f.events.size).toBe(0);
+});
+
+for (const kind of ['task', 'event'] as const) {
+  test(`undo during a ${kind} delete recreates the restored item with a fresh remote identity`, async ({ page, context }) => {
+    const f = await googleFixture(context); await connect(page);
+    const item = kind === 'task' ? await createTask(page, 'Restore me') : await page.evaluate(async () => {
+      const calendars = await window.hcb!.calendar.listCalendars();
+      if (!calendars.ok) throw new Error(calendars.error.message);
+      const result = await window.hcb!.calendar.create({ calendarId: calendars.data.items.find((item: any) => item.title === 'Synced calendar')!.id, title: 'Restore me', startsAt: '2026-10-29T08:00:00Z', endsAt: '2026-10-29T09:00:00Z' });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.data;
+    });
+    expect(await page.evaluate(() => window.hcb!.sync.runNow({}))).toMatchObject({ ok: true });
+    expect(await page.evaluate(({ kind, id }) => kind === 'task' ? window.hcb!.tasks.delete({ id }) : window.hcb!.calendar.delete({ id }), { kind, id: item.id })).toMatchObject({ ok: true });
+    const held = gate(), entered = gate();
+    f.state.hold = async route => { if (route.request().method() === 'DELETE') { entered.release(); await held.promise; } };
+    await startSync(page); await entered.promise;
+    try { expect(await promptly(page.evaluate(() => window.hcb!.undo.undo()))).toMatchObject({ ok: true }); }
+    finally { f.state.hold = undefined; held.release(); }
+    expect((await finishSync(page)).ok).toBe(true);
+    expect(await page.evaluate(() => window.hcb!.sync.runNow({}))).toMatchObject({ ok: true });
+    const createdIds = f.state.writes.filter(write => write.startsWith('POST '));
+    const pending = await page.evaluate(() => window.hcb!.diagnostics.pendingMutations({}));
+    expect(createdIds, JSON.stringify(pending)).toHaveLength(2); expect(createdIds[0]).not.toBe(createdIds[1]);
+    const live = [...(kind === 'task' ? f.tasks : f.events).values()].filter(item => !item.deleted);
+    expect(live).toHaveLength(1);
+    expect(live[0][kind === 'task' ? 'title' : 'summary']).toBe('Restore me');
+  });
+}
+
+test('disconnect finishes during a held write, saves its receipt, and prevents further sends', async ({ page, context }) => {
+  const f = await googleFixture(context); await connect(page);
+  await createTask(page, 'Already sending'); await createTask(page, 'Keep queued');
+  const held = gate(), entered = gate();
+  f.state.hold = async route => { if (route.request().method() === 'POST') { entered.release(); await held.promise; } };
+  await startSync(page); await entered.promise;
+  try {
+    const result = await promptly(page.evaluate(async () => {
+      const status = await window.hcb!.google.status();
+      if (!status.ok) throw new Error(status.error.message);
+      return window.hcb!.google.disconnect({ accountId: status.data.accounts[0].accountId });
+    }));
+    expect(result).toMatchObject({ ok: true });
+    expect(await promptly(createTask(page, 'Saved after disconnect'))).toHaveProperty('id');
+  } finally { f.state.hold = undefined; held.release(); }
+  await finishSync(page);
+  expect(f.state.taskCreates).toBe(1);
+  // Reconnect should bind the accepted creation, not submit it again.
+  await connect(page);
+  expect(f.state.taskCreates).toBe(3);
+  expect([...f.tasks.values()].map(task => task.title).sort()).toEqual(['Already sending', 'Keep queued', 'Saved after disconnect']);
 });

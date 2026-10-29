@@ -96,6 +96,24 @@ describe('browser automatic sync coordination', () => {
 });
 
 describe('browser sync durable boundaries', () => {
+  it('keeps the lease released until the complete HTTP response body arrives', async () => {
+    const f = fixture();
+    let stream!: ReadableStreamDefaultController<Uint8Array>, unlocked = false;
+    f.fetcher.mockResolvedValueOnce(new Response(new ReadableStream<Uint8Array>({ start(controller) { stream = controller; } })));
+    const sync = new BrowserGoogleSync(f.store, f.sessions, async () => {}, async wait => {
+      unlocked = true;
+      try { return await wait(); } finally { unlocked = false; }
+    });
+    const pending = sync.service.runNow();
+    await vi.waitFor(() => expect(f.fetcher).toHaveBeenCalledOnce());
+    expect(unlocked).toBe(true);
+    f.store.dispatch('tasks', 'create', { listId: f.list.id, title: 'Edited during the body download' });
+    stream.enqueue(new TextEncoder().encode(JSON.stringify({ items: [{ id: 'remote-list', title: 'Google list' }] }))); stream.close();
+    await pending;
+    expect(unlocked).toBe(false);
+    expect(f.writes).toEqual(['task.create']);
+  });
+
   it('does not send a remote creation before its IndexedDB-equivalent checkpoint succeeds', async () => {
     const f = fixture();
     f.store.dispatch('tasks', 'create', { listId: f.list.id, title: 'Never sent' });
@@ -200,6 +218,16 @@ describe('browser sync durable boundaries', () => {
 });
 
 describe('ephemeral Google sessions', () => {
+  it.each([204, 205, 304])('handles a bodyless %i even if the transport exposes an empty stream', async status => {
+    const f = fixture();
+    const response = new Response('');
+    Object.defineProperty(response, 'status', { value: status });
+    f.fetcher.mockResolvedValueOnce(response);
+    const result = await f.sessions.googleFetch(f.account.accountId, 'https://tasks.googleapis.com/tasks/v1/lists/list/tasks/task', { method: 'DELETE' });
+    expect(result.status).toBe(status);
+    expect(result.body).toBeNull();
+  });
+
   it('expires one account without affecting another or exposing access tokens in metadata', async () => {
     vi.useFakeTimers();
     const fetcher = vi.fn(async () => Response.json({ ok: true }));

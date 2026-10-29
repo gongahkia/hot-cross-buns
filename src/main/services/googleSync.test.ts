@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GoogleSyncService } from "./googleSync";
+import { deterministicGoogleEventId } from "@shared/core/googleEventIdentity";
 import { googleTaskNotesMaxLength } from "./hcbTaskMetadata";
 
 function createService(settings: Record<string, unknown> = {}, pendingWrites: unknown[] = []): {
@@ -95,6 +96,7 @@ describe("GoogleSyncService", () => {
       dispatch: () => ({ syncMode: "balanced", syncCalendarEventsEnabled: false }),
       googleAccounts: () => [{ accountId: "account", connectionState: "connected" }],
       pendingSyncMutations: () => [], setSyncRuntime: vi.fn(),
+      googleDeletionPending: () => false,
       upsertGoogleTaskList: () => ({ id: "local-list" }), isSelectedTaskList: () => true,
       pruneGoogleTaskLists: vi.fn(),
       googleSyncToken: () => previous, setGoogleSyncToken: vi.fn(),
@@ -239,6 +241,7 @@ describe("GoogleSyncService", () => {
       dispatch: () => ({ syncMode: "balanced" }),
       pendingSyncMutations: () => [],
       setSyncRuntime: vi.fn(),
+      googleDeletionPending: () => false,
       upsertGoogleTaskList: vi.fn(() => ({ id: "local-list" })),
       pruneGoogleTaskLists: vi.fn(),
       isSelectedTaskList: vi.fn(() => true),
@@ -291,6 +294,7 @@ describe("GoogleSyncService", () => {
   it("sends the Calendar flags and body required for Meet, Drive attachments, and status events", async () => {
     const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-event", etag: "etag" }));
     const store = {
+      googleEventCreationId: (_accountId: string, localId: string) => deterministicGoogleEventId(localId),
       googleEventForSync: () => ({
         id: "event-local-id",
         calendarGoogleId: "primary",
@@ -340,6 +344,7 @@ describe("GoogleSyncService", () => {
     ];
     const googleFetch = vi.fn(async (_accountId: string, _target: URL, _init?: RequestInit) => Response.json({ id: "remote-event", etag: "etag-2" }));
     const store = {
+      googleEventCreationId: (_accountId: string, localId: string) => deterministicGoogleEventId(localId),
       googleEventForSync: () => ({
         id: "event-local-id",
         googleId: "remote-event",
@@ -404,6 +409,7 @@ describe("GoogleSyncService", () => {
       throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
     });
     const store = {
+      googleEventCreationId: (_accountId: string, localId: string) => deterministicGoogleEventId(localId),
       googleEventForSync: vi.fn((id: string) => id === "master-local" ? parent : id === "occurrence-local" ? occurrence : null),
       bindGoogleEvent: vi.fn()
     };
@@ -421,7 +427,7 @@ describe("GoogleSyncService", () => {
     expect(patch?.init?.method).toBe("PATCH");
     expect(JSON.parse(String(patch?.init?.body))).toMatchObject({ summary: "Moved one session", description: "Keep the note" });
     expect(JSON.parse(String(patch?.init?.body))).not.toHaveProperty("recurrence");
-    expect(store.bindGoogleEvent).toHaveBeenCalledWith("occurrence-local", expect.objectContaining({ id: "instance-remote" }));
+    expect(store.bindGoogleEvent).toHaveBeenCalledWith("occurrence-local", expect.objectContaining({ id: "instance-remote" }), occurrence, undefined);
   });
 
   it("splits a Google series by updating both masters and copying future modified and cancelled exceptions", async () => {
@@ -501,6 +507,7 @@ describe("GoogleSyncService", () => {
       throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
     });
     const store = {
+      googleEventCreationId: (_accountId: string, localId: string) => deterministicGoogleEventId(localId),
       googleEventForSync: vi.fn((id: string) => id === "parent-local" ? parent : id === "successor-local" ? successor : null),
       bindGoogleEvent: vi.fn(),
       replaceGoogleSplitException: vi.fn()
@@ -556,6 +563,7 @@ describe("GoogleSyncService", () => {
       throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
     });
     const store = {
+      googleEventCreationId: (_accountId: string, localId: string) => deterministicGoogleEventId(localId),
       googleEventForSync: vi.fn((id: string) => id === "parent-local" ? parent : id === "successor-local" ? successor : null),
       bindGoogleEvent: vi.fn(),
       restoreGoogleSplitSeries: vi.fn()
@@ -599,6 +607,7 @@ describe("GoogleSyncService", () => {
       throw new Error(`Unexpected request ${init?.method ?? "GET"} ${target}`);
     });
     const store = {
+      googleEventCreationId: (_accountId: string, localId: string) => deterministicGoogleEventId(localId),
       googleEventForSync: vi.fn((id: string) => id === "parent-local" ? parent : id === "successor-local" ? successor : null),
       bindGoogleEvent: vi.fn(),
       replaceGoogleSplitException: vi.fn(),
