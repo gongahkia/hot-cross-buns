@@ -129,7 +129,7 @@ If a write cannot be represented in Google, it must be local-only and clearly la
 
 V1 default conflict behavior:
 
-- Google response wins for synced fields after a successful remote write.
+- Google receipts reconcile remote identity and unchanged synced fields after a successful write; newer local edits remain queued and must not be overwritten by the older response.
 - Pending local mutations keep their optimistic state until applied, failed, or cancelled.
 - If remote state changes before a queued local mutation applies, the mutation service must re-read current mirror state and either apply safely or surface a recoverable conflict.
 
@@ -137,7 +137,9 @@ Do not silently drop user writes.
 
 Queued writes follow SQLite insertion order within each account, including edits created in the same millisecond. A deferred or conflicted write blocks later writes for that account across sync runs and restarts; other accounts can continue syncing. A lost response to a non-idempotent Task or task-list creation requires explicit conflict resolution rather than an automatic second creation. Outstanding conflicts remain visible as an error after a successful read refresh.
 
-Before sending a non-idempotent creation, the queue durably marks it as started. Startup recovers an interrupted creation as a conflict, including a process exit after Google accepted it but before HCB recorded the response. Server failures and unreadable responses also require review when a creation may have been accepted. A definitive rejection such as a rate limit retains normal backoff behavior.
+Before sending a non-idempotent creation, the queue durably marks it as started. Browser workers recover an interrupted creation only after excluding a live Google operation owner; opening another tab during HTTP must not quarantine that live request. A process exit after Google accepted a creation but before HCB recorded the response requires review, as do server failures and unreadable responses when acceptance is uncertain. A definitive rejection such as a rate limit retains normal backoff behavior.
+
+Browser Google operations use a separate queue and ownership lock from local requests. Each HTTP boundary persists progress, releases the workspace writer through response-body consumption, then reacquires and refreshes it before applying results. See [implementation guarantees and measured limits](../sync-implementation.md#second-increment-local-edits-during-http--2026-10-29), including late deletion receipts, undo, import fencing, and recurring-series conflicts.
 
 ## Backoff And Error Handling
 
