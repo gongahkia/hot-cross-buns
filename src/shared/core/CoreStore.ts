@@ -6,6 +6,8 @@ import { resolutionGoogleEvent } from "./syncResolution";
 import { claimedLocalEventId, deterministicGoogleEventId } from "./googleEventIdentity";
 import { calendarCanWrite, calendarWriteRestriction } from "@shared/calendarPermissions";
 import { splitHcbTaskMetadata } from "./hcbTaskMetadata";
+import { changedSyncFields, googleSyncFields, syncValuesEqual, type GoogleEntityKind, type GoogleSyncBaseline } from "../google/syncMerge";
+import { googleEventBody, googleTaskBody, localGoogleSyncFields } from "../google/googleWriteBody";
 import { expandGoogleRecurrenceLines, shiftGoogleRecurrenceSchedule, splitGoogleRecurrenceLines, withGoogleExdate } from "./googleRecurrence";
 import { recordTiming, timed, timingSnapshot } from "./performance";
 import { getStartupTimings, markStartupTiming } from "./startupTiming";
@@ -38,6 +40,18 @@ export interface PendingSyncMutation {
   payload: JsonRecord;
   attempts: number;
   createdAt: string;
+  intent?: GoogleSyncIntent | null;
+}
+
+export interface GoogleSyncIntent {
+  snapshot: JsonRecord;
+  changedFields: string[];
+  barrier: boolean;
+}
+
+export interface GoogleSyncState {
+  baseline: GoogleSyncBaseline;
+  dirtyFields: string[];
 }
 
 export interface HistoricalSmokeNoteFixture {
@@ -68,7 +82,7 @@ interface SmartSchedulePlan {
 
 type SmartScheduleCandidateScope = "dueSoon" | "allOpen";
 
-export const schemaVersion = 9;
+export const schemaVersion = 10;
 const localAccountId = "local";
 // Indexed lookups for the event and, for scheduled blocks, its task. Keep queue
 // state on the existing event projection so recurring instances share it too.
@@ -524,12 +538,59 @@ export class CoreStore {
         WHERE state IN ('pending','conflict') AND (state='conflict' OR creation_started=1 OR next_attempt_at > ?)
         GROUP BY account_id
       ) SELECT mutation.id,mutation.account_id AS accountId,mutation.kind,mutation.entity_id AS entityId,
-      mutation.payload_json AS payload,mutation.attempts,mutation.created_at AS createdAt
+      mutation.payload_json AS payload,mutation.attempts,mutation.created_at AS createdAt,mutation.sync_intent_json AS intent
       FROM outbox mutation LEFT JOIN blocked_accounts blocked ON blocked.account_id IS mutation.account_id
       WHERE mutation.state='pending' AND mutation.creation_started=0 AND mutation.next_attempt_at <= ?${accountFilter}
         AND (blocked.barrier IS NULL OR mutation.rowid < blocked.barrier)
       ORDER BY mutation.rowid LIMIT ?`).all(now, now, ...(accountId ? [accountId] : []), Math.max(1, Math.min(500, limit))) as any[])
-      .map((row) => ({ ...row, payload: safeJson(row.payload, {}) }));
+      .map((row) => ({ ...row, payload: safeJson(row.payload, {}), intent: safeJson(row.intent, null) }));
+  }
+
+  googleSyncState(accountId: string, kind: GoogleEntityKind, entityId: string): GoogleSyncState | null {
+    const row = this.statement(`SELECT baseline_json AS baseline,dirty_fields_json AS dirtyFields FROM google_sync_state
+      WHERE account_id=? AND kind=? AND entity_id=?`).get(accountId, kind, entityId) as JsonRecord | undefined;
+    return row ? { baseline: safeJson(row.baseline, null), dirtyFields: safeJson(row.dirtyFields, []) } : null;
+  }
+
+  private googleSyncRecord(kind: GoogleEntityKind, entityId: string): JsonRecord | null {
+    return kind === "task" ? this.googleTaskForSync(entityId) : kind === "event" ? this.googleEventForSync(entityId) : this.googleTaskListForSync(entityId);
+  }
+
+  private saveGoogleBaseline(accountId: string, kind: GoogleEntityKind, entityId: string, remote: JsonRecord, collectionId: string | null): void {
+    const baseline: GoogleSyncBaseline = {
+      remoteId: requiredText(remote.id, "Google resource id"), collectionId, etag: remote.etag ?? null,
+      fields: googleSyncFields(kind, remote), deleted: remote.deleted === true || remote.status === "cancelled",
+      recurring: Boolean(remote.recurringEventId || remote.recurrence?.length),
+      ...(kind === "task" ? { structure: { parent: remote.parent ?? null, position: remote.position ?? null } } : {})
+    };
+    this.statement(`INSERT INTO google_sync_state(account_id,kind,entity_id,baseline_json,dirty_fields_json) VALUES(?,?,?,?, '[]')
+      ON CONFLICT(account_id,kind,entity_id) DO UPDATE SET baseline_json=excluded.baseline_json`)
+      .run(accountId, kind, entityId, JSON.stringify(baseline));
+    this.refreshGoogleDirtyFields(accountId, kind, entityId);
+  }
+
+  private refreshGoogleDirtyFields(accountId: string, kind: GoogleEntityKind, entityId: string): void {
+    const state = this.googleSyncState(accountId, kind, entityId);
+    if (!state) return;
+    const local = this.googleSyncRecord(kind, entityId);
+    const dirtyFields = local ? changedSyncFields(state.baseline.fields, localGoogleSyncFields(kind, local, state.baseline.fields)) : ["deletion"];
+    if (local?.status === "deleted" && !state.baseline.deleted) dirtyFields.push("deletion");
+    this.statement("UPDATE google_sync_state SET dirty_fields_json=? WHERE account_id=? AND kind=? AND entity_id=?")
+      .run(JSON.stringify([...new Set(dirtyFields)].sort()), accountId, kind, entityId);
+  }
+
+  private saveGoogleReceipt(kind: GoogleEntityKind, localId: string, remote: JsonRecord, submitted?: JsonRecord): void {
+    // A response is evidence about the submitted version, not about any newer
+    // optimistic edits now present in the row. Sparse receipts use that version.
+    if (!submitted?.accountId) return;
+    const body = kind === "task" ? googleTaskBody(submitted, false) : kind === "event" ? googleEventBody(submitted) : { title: submitted.title };
+    const collectionId = kind === "task" ? submitted.listGoogleId : kind === "event" ? submitted.calendarGoogleId : null;
+    this.saveGoogleBaseline(submitted.accountId, kind, localId, {
+      ...body,
+      ...(kind === "task" ? { parent: submitted.googleParentId ?? null, position: submitted.sortOrder ?? null } : {}),
+      ...(kind === "event" && submitted.googleRecurringEventId ? { recurringEventId: submitted.googleRecurringEventId } : {}),
+      ...remote
+    }, collectionId ?? null);
   }
 
   unresolvedSyncMutationCount(accountId: string): number {
@@ -628,6 +689,7 @@ export class CoreStore {
     this.bindDeletionReceipt('taskList', localId, remote, submitted);
     const result = this.statement("UPDATE task_lists SET google_id=?,google_etag=?,updated_at=? WHERE id=?")
       .run(googleId, remote.etag ?? null, remote.updated ?? timestamp(), localId);
+    this.saveGoogleReceipt("taskList", localId, remote, submitted);
     if (result.changes === 0) {
       if (submitted) return { id: localId, deleted: true };
       throw new CoreStoreError("Task list no longer exists");
@@ -677,6 +739,7 @@ export class CoreStore {
   bindGoogleTask(localId: string, remote: JsonRecord, submitted?: JsonRecord): JsonRecord {
     const list = this.googleTaskForSync(localId);
     if (!list) {
+      this.saveGoogleReceipt("task", localId, remote, submitted);
       // Deleting a Google list removes its tasks locally; its queued remote
       // deletion also removes a task whose creation response arrives late.
       if (submitted) {
@@ -701,6 +764,7 @@ export class CoreStore {
       .run(requiredText(remote.id, "Google task id"), remote.etag ?? null, (submitted ?? list).listGoogleId ?? null,
         remote.parent ?? null, submitted && list.sortOrder !== submitted.sortOrder ? list.sortOrder : remote.position ?? null,
         submitted && JSON.stringify(list) !== JSON.stringify(submitted) ? timestamp() : remote.updated ?? timestamp(), localId);
+    this.saveGoogleReceipt("task", localId, remote, submitted);
     return this.requireTask(localId);
   }
 
@@ -708,6 +772,7 @@ export class CoreStore {
     const event = this.googleEventForSync(localId);
     this.bindDeletionReceipt('event', localId, remote, submitted);
     if (!event) {
+      this.saveGoogleReceipt("event", localId, remote, submitted);
       if (submitted) return { id: localId, deleted: true };
       throw new CoreStoreError("Calendar event no longer exists");
     }
@@ -744,6 +809,7 @@ export class CoreStore {
         keep('selfResponseStatus', remoteMetadata.selfResponseStatus ?? event.selfResponseStatus ?? null),
         submitted && JSON.stringify(event) !== JSON.stringify(submitted) ? timestamp() : remote.updated ?? timestamp(), localId
       );
+    this.saveGoogleReceipt("event", localId, remote, submitted);
     return this.requireEvent(localId);
   }
 
@@ -858,6 +924,7 @@ export class CoreStore {
     this.statement(`INSERT INTO task_lists(id,account_id,title,google_id,google_etag,created_at,updated_at) VALUES(?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET title=excluded.title,google_id=excluded.google_id,google_etag=excluded.google_etag,updated_at=excluded.updated_at`)
       .run(id, accountId, title, googleId, remote.etag ?? null, now, remote.updated ?? now);
+    this.saveGoogleBaseline(accountId, "taskList", id, remote, null);
     return this.googleTaskListForSync(id)!;
   }
 
@@ -944,6 +1011,7 @@ export class CoreStore {
         googleId, remote.etag ?? null, remote.parent ?? null, now, remote.updated ?? now);
     this.statement("UPDATE tasks SET google_list_id=? WHERE id=?")
       .run(localList.googleId ?? null, localId);
+    this.saveGoogleBaseline(localList.accountId, "task", localId, remote, localList.googleId ?? null);
     return this.requireTask(localId);
   }
 
@@ -1139,6 +1207,7 @@ export class CoreStore {
         metadata.eventType ?? "default", JSON.stringify(metadata.focusTimeProperties ?? null), JSON.stringify(metadata.outOfOfficeProperties ?? null),
         JSON.stringify(metadata.workingLocationProperties ?? null), metadata.selfResponseStatus ?? null, now, remote.updated ?? now);
     this.statement("DELETE FROM google_event_cancellations WHERE calendar_id=? AND google_id=?").run(localCalendarId, googleId);
+    this.saveGoogleBaseline(calendar.accountId, "event", localId, remote, calendar.googleId ?? null);
     return this.requireEvent(localId);
   }
 
@@ -1448,6 +1517,10 @@ export class CoreStore {
       );
       CREATE INDEX IF NOT EXISTS undo_entries_state_idx ON undo_entries(state, created_at DESC);
       CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS google_sync_state (
+        account_id TEXT NOT NULL,kind TEXT NOT NULL,entity_id TEXT NOT NULL,baseline_json TEXT NOT NULL,
+        dirty_fields_json TEXT NOT NULL DEFAULT '[]',PRIMARY KEY(account_id,kind,entity_id)
+      );
     `);
     this.addColumn("google_accounts", "granted_scopes_json TEXT NOT NULL DEFAULT '[]'");
     this.addColumn("task_lists", "account_id TEXT NOT NULL DEFAULT 'local'");
@@ -1490,6 +1563,7 @@ export class CoreStore {
     this.addColumn("outbox", "account_id TEXT");
     this.addColumn("outbox", "last_error TEXT");
     this.addColumn("outbox", "creation_started INTEGER NOT NULL DEFAULT 0");
+    this.addColumn("outbox", "sync_intent_json TEXT");
     this.db.exec(`
       DROP INDEX IF EXISTS task_lists_google_id_idx; DROP INDEX IF EXISTS tasks_google_id_idx; DROP INDEX IF EXISTS tasks_google_list_id_idx;
       DROP INDEX IF EXISTS calendars_google_id_idx; DROP INDEX IF EXISTS events_google_id_idx;
@@ -1771,7 +1845,7 @@ export class CoreStore {
         JSON.stringify(input.tags ?? previous.tags ?? []), now, previous.id
       );
       if (typeof input.previousTaskId === "string" || input.previousTaskId === null) this.reorderTask(previous.id, nextListId, input.previousTaskId);
-      this.enqueue("task.update", previous.id, input, nextAccountId);
+      this.enqueue("task.update", previous.id, input, nextAccountId, previous);
     })();
     const task = this.requireTask(previous.id);
     this.recordUndo("Update task", { namespace: "tasks", action: "update", payload: taskUpdatePayload(task) }, { namespace: "tasks", action: "update", payload: taskUpdatePayload(previous) });
@@ -1797,10 +1871,11 @@ export class CoreStore {
 
   private renameTaskList(input: JsonRecord): JsonRecord {
     const id = requiredText(input.id, "List id");
+    const previous = this.googleTaskListForSync(id);
     const now = timestamp();
     const result = this.statement("UPDATE task_lists SET title=?, updated_at=? WHERE id=?").run(requiredText(input.title, "List title"), now, id);
     if (result.changes === 0) throw new CoreStoreError("Task list no longer exists");
-    this.enqueue("taskList.update", id, {}, this.accountForTaskList(id));
+    this.enqueue("taskList.update", id, {}, this.accountForTaskList(id), previous ?? undefined);
     return this.taskLists().find((item) => item.id === id) ?? (() => { throw new CoreStoreError("Task list no longer exists"); })();
   }
 
@@ -2084,7 +2159,7 @@ export class CoreStore {
           movedExistingRemoteEvent ? "event.move" : "event.update",
           previous.id,
           movedExistingRemoteEvent ? { sourceCalendarId: previous.calendarId, destinationCalendarId: nextCalendarId } : {},
-          previous.accountId
+          previous.accountId, previousForSync ?? undefined
         );
       }
     })();
@@ -3199,10 +3274,26 @@ export class CoreStore {
     };
   }
 
-  private enqueue(kind: string, entityId: string, payload: JsonRecord, accountId: string | null): void {
+  private enqueue(kind: string, entityId: string, payload: JsonRecord, accountId: string | null, previous?: JsonRecord): void {
     const now = timestamp();
-    this.statement(`INSERT INTO outbox(id,account_id,kind,entity_id,payload_json,state,next_attempt_at,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?)`).run(randomUUID(), accountId, kind, entityId, JSON.stringify(payload), "pending", now, now, now);
+    const entityKind = kind.split(".")[0] as GoogleEntityKind;
+    const snapshot = ["task", "taskList", "event"].includes(entityKind) ? this.googleSyncRecord(entityKind, entityId) : null;
+    let intent: GoogleSyncIntent | null = null;
+    if (snapshot) {
+      const baseline = accountId ? this.googleSyncState(accountId, entityKind, entityId)?.baseline.fields : undefined;
+      const after = localGoogleSyncFields(entityKind, snapshot, baseline);
+      const before = previous ? localGoogleSyncFields(entityKind, previous, baseline) : baseline ?? {};
+      const changedFields = changedSyncFields(before, after);
+      const structuralTask = entityKind === "task" && (snapshot.status === "deleted" || hasOwn(payload, "previousTaskId") ||
+        Boolean(previous && (previous.listId !== snapshot.listId || previous.parentId !== snapshot.parentId)));
+      const structuralEvent = entityKind === "event" && (Boolean(snapshot.recurrenceLines?.length || snapshot.googleRecurringEventId || snapshot.conferenceCreateRequested) ||
+        Boolean(previous && (!syncValuesEqual(previous.recurrenceLines ?? [], snapshot.recurrenceLines ?? []) || previous.calendarId !== snapshot.calendarId)));
+      intent = { snapshot, changedFields, barrier: ![`${entityKind}.create`, `${entityKind}.update`].includes(kind) || structuralTask || structuralEvent ||
+        (!previous && !kind.endsWith(".create")) };
+    }
+    this.statement(`INSERT INTO outbox(id,account_id,kind,entity_id,payload_json,state,next_attempt_at,created_at,updated_at,sync_intent_json)
+      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(randomUUID(), accountId, kind, entityId, JSON.stringify(payload), "pending", now, now, now, intent ? JSON.stringify(intent) : null);
+    if (accountId && ["task", "taskList", "event"].includes(entityKind)) this.refreshGoogleDirtyFields(accountId, entityKind, entityId);
   }
 
   private recordUndo(action: string, forward: JsonRecord, inverse: JsonRecord): void {

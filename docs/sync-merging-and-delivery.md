@@ -22,4 +22,8 @@ Calendar PATCH consumes three quota units. Narrow patches reduce payload size an
 
 ## Verification status
 
-The pure merge model covers independent and overlapping changes, convergence, task metadata, explicit clears, date normalization, related time fields, arrays, unmanaged attachments and structural review boundaries. Store migration, live delivery integration, recovery, coalescing, and browser regressions remain to be implemented and verified. No live Google account has been modified.
+The pure merge model has 20 passing tests covering independent and overlapping changes, convergence, task metadata, explicit clears, date normalization, related time fields, arrays, unmanaged attachments and structural review boundaries.
+
+Schema 10 stores remote baselines and dirty fields in `google_sync_state`, with a separate `sync_intent_json` snapshot on each new outbox command. Pulls and accepted receipts capture their actual remote/submitted version; newer local edits stay dirty. Migration preserves legacy outbox payloads and undo history, leaves their unknown snapshots null, and does not invent a baseline from optimistic content. Task/event body construction is shared between delivery and tracking.
+
+All 151 database/integration cases pass, including nine new restart, migration, account-isolation, ordering and late-receipt cases. The existing 23 service and 13 concurrency cases also pass, as does the core TypeScript check. Automatic merge application, delivery/recovery integration, coalescing, and browser regressions remain to be implemented and verified. No live Google account has been modified.

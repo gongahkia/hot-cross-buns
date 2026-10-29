@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CoreStore } from "./coreStore";
+import { CoreStore, schemaVersion } from "./coreStore";
 import { GoogleSyncService } from "./googleSync";
 import Database from "better-sqlite3";
 import { withHcbTaskMetadata } from "./hcbTaskMetadata";
@@ -506,7 +506,7 @@ describe("Google sync with durable SQLite state", () => {
     expect(upgraded.googleTaskListForSync(list.id)?.googleId).toBe("remote-list");
     expect(upgraded.pendingSyncMutations(100, accountId)).toEqual([expect.objectContaining({ entityId: task.id, kind: "task.create" })]);
     expect(upgraded.didResetDeveloperData).toBe(false);
-    expect(upgraded.dispatch("diagnostics", "summary", {}).database.schemaVersion).toBe(9);
+    expect(upgraded.dispatch("diagnostics", "summary", {}).database.schemaVersion).toBe(schemaVersion);
     expect(upgraded.googleSyncToken(accountId, "events:calendar")).toBeNull();
     expect(upgraded.googleSyncToken(accountId, "tasks-updated:remote-list")).toBe("2026-10-21T10:00:00Z");
     upgraded.setGoogleSyncToken(accountId, "events:calendar", "rebuilt-calendar-token");

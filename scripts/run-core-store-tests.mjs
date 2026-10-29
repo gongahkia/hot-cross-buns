@@ -9,7 +9,7 @@ try {
   console.log(`HCB CoreStore test database root: ${testDatabaseRoot}`);
   const result = spawnSync(
     process.execPath,
-    ["node_modules/vitest/vitest.mjs", "run", "--config", "vitest.config.ts", "src/main/services/coreStore.test.ts", "src/main/services/coreStore.migration.test.ts", "src/main/services/googleSync.integration.test.ts"],
+    ["node_modules/vitest/vitest.mjs", "run", "--config", "vitest.config.ts", "src/main/services/coreStore.test.ts", "src/main/services/coreStore.migration.test.ts", "src/main/services/googleSync.integration.test.ts", "src/main/services/googleSyncState.test.ts"],
     {
       cwd: process.cwd(),
       env: {
