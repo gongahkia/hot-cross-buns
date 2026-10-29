@@ -163,7 +163,7 @@ test("uses the reference command menu with keyboard navigation, motion and narro
       await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-current", "page");
       await openPalette(page);
       await expect(search).toBeFocused();
-      await page.mouse.click(10, 10);
+      await page.locator(".command-palette-overlay").click({ position: { x: 10, y: 10 } });
       await expect(palette).toHaveCount(0);
     }
     await page.setViewportSize({ width: 640, height: 480 });

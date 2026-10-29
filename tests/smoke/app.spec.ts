@@ -77,10 +77,6 @@ test("launches and renders the planner shell", async () => {
     });
 
     await expect(page.getByTestId("app-shell")).toBeVisible();
-    const primaryNavigation = page.getByRole("navigation", { name: "Primary" });
-    await expect(primaryNavigation.getByRole("button", { name: "Calendar" })).toBeVisible();
-    await expect(primaryNavigation.getByRole("button", { name: "Tasks" })).toBeVisible();
-    await expect(primaryNavigation.getByRole("button", { name: "Notes" })).toBeVisible();
     await expect(page.locator("#app-sidebar")).toHaveCount(0);
 
     const onboarding = page.getByRole("dialog", { name: "Hot Cross Buns" });
@@ -88,6 +84,20 @@ test("launches and renders the planner shell", async () => {
     await expect(onboarding.getByRole("heading", { name: "Welcome to Hot Cross Buns" })).toBeVisible();
     await expect(onboarding).toContainText("preview free time with Smart Schedule");
     await expect(onboarding.getByRole("button", { name: "Get started" })).toBeVisible();
+    await expect(page.getByTestId("app-shell")).toHaveAttribute("inert", "");
+    // The launcher seeds a linked test account. Navigation becomes accessible
+    // only after setup completes; it is intentionally inert behind onboarding.
+    const setup = await page.evaluate(async () => {
+      const result = await window.hcb!.settings.update({ onboardingStatus: "completed" });
+      window.dispatchEvent(new Event("hcb:core-data-invalidated"));
+      return result;
+    });
+    expect(setup.ok).toBe(true);
+    await expect(onboarding).toBeHidden();
+    const primaryNavigation = page.getByRole("navigation", { name: "Primary" });
+    await expect(primaryNavigation.getByRole("button", { name: "Calendar" })).toBeVisible();
+    await expect(primaryNavigation.getByRole("button", { name: "Tasks" })).toBeVisible();
+    await expect(primaryNavigation.getByRole("button", { name: "Notes" })).toBeVisible();
   } finally {
     await browserApplication?.close();
     rmSync(profileDir, { recursive: true, force: true });

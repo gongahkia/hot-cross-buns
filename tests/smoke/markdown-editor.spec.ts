@@ -93,7 +93,15 @@ test("edits and persists rich Markdown consistently in notes, task notes and eve
     await page.getByRole("button", { name: "Source", exact: true }).click();
     await page.getByRole("textbox", { name: "Note body" }).fill("- Parent\n- Child");
     await page.getByRole("button", { name: "Visual", exact: true }).click();
-    await body.locator("li").nth(1).click(); await page.keyboard.press("Tab");
+    // Establish the caret inside Child's paragraph before testing indentation;
+    // clicking the full-width list wrapper alone does not verify that position.
+    await body.locator("li").nth(1).locator("p").click({ position: { x: 8, y: 8 } });
+    await expect.poll(() => page.evaluate(() => {
+      const node = window.getSelection()?.anchorNode;
+      const element = node?.nodeType === Node.ELEMENT_NODE ? node as Element : node?.parentElement;
+      return element?.closest("li")?.textContent;
+    })).toBe("Child");
+    await page.keyboard.press("Tab");
     await expect(body.locator("ul ul")).toHaveCount(1);
     await page.keyboard.press("Shift+Tab"); await expect(body.locator("ul ul")).toHaveCount(0);
 
