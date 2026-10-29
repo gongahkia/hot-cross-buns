@@ -86,14 +86,15 @@ try {
   await invoke(page, 'tasks', 'update', {id: task.id, title: 'Edited while fully offline'});
   await invoke(page, 'notes', 'update', {id: note.id, body: 'Kumquat edited offline'});
   await invoke(page, 'calendar', 'update', {id: event.id, title: 'Offline event edited'});
-  // Exercise an initially unvisited lazy screen while offline.
-  await page.getByRole('navigation', {name: 'Primary'}).getByRole('button', {name: 'Notes', exact: true}).click();
-  await page.getByRole('button', {name: 'Open note Offline note sentinel', exact: true}).waitFor();
+  // A legacy local-only workspace must not bypass the account requirement offline.
+  // Linked-account offline UI is covered by tests/browser/account-required.spec.ts.
+  await page.getByRole('dialog', {name: 'Hot Cross Buns', exact: true}).waitFor();
+  assert.equal(await page.getByTestId('app-shell').getAttribute('inert'), '');
   await page.reload();
   assert.equal((await invoke(page, 'tasks', 'get', {id: task.id})).title, 'Edited while fully offline');
   assert.equal((await invoke(page, 'calendar', 'get', {id: event.id})).title, 'Offline event edited');
   assert.ok((await invoke(page, 'search', 'query', {query: 'kumquat'})).items.some(item => item.id === note.id));
-  record({case: 'production offline cold tab, lazy UI, durable task/note/event edits and FTS reopen', passed: true, cachedAssets: inventory.length});
+  record({case: 'production offline cold tab, required account gate, durable task/note/event edits and FTS reopen', passed: true, cachedAssets: inventory.length});
 
   // Failed update installation must not delete the previous usable app or workspace.
   await context.setOffline(false);

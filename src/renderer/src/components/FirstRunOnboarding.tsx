@@ -16,7 +16,7 @@ import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
 
-export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }): JSX.Element {
+export function FirstRunOnboarding({ source, connectionOnly = false }: { source: CoreViewModelSource; connectionOnly?: boolean }): JSX.Element {
   const initialTaskListIds =
     source.settings.selectedTaskListIds.length > 0
       ? source.settings.selectedTaskListIds
@@ -35,7 +35,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
   const [googleClientSecret, setGoogleClientSecret] = useState("");
   const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
+  const [activeStep, setActiveStep] = useState(connectionOnly ? 1 : 0);
   const contentRef = useRef<HTMLDivElement>(null);
   const refreshedConnectedAccount = useRef<string | null>(null);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
@@ -479,7 +479,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
           ) : null}
         </div>
 
-        <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
+        {!connectionOnly ? <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
           {activeStep > 0 ? (
             <Button onClick={goBack} variant="secondary">
               <ArrowLeft aria-hidden="true" size={14} />
@@ -503,7 +503,7 @@ export function FirstRunOnboarding({ source }: { source: CoreViewModelSource }):
               </Button>
             )}
           </div>
-        </footer>
+        </footer> : null}
       </Dialog.Content>
     </div>
     </Dialog.Portal>

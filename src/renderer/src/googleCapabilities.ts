@@ -12,3 +12,10 @@ export function hasGoogleScope(status: GoogleStatusResponse, accountId: string |
     : status.account ?? status.accounts.find((candidate) => candidate.connectionState === "connected");
   return account?.grantedScopes?.includes(scope) ?? false;
 }
+
+/** A cached linked account survives token expiry; local placeholders do not qualify. */
+export function hasLinkedGoogleAccount(status: GoogleStatusResponse): boolean {
+  return status.accounts.some(account => Boolean(account.googleAccountId) &&
+    account.accountId !== "local" && account.googleAccountId !== "local" &&
+    ["connected", "reauth_required", "error"].includes(account.connectionState));
+}

@@ -1,3 +1,4 @@
+import { seedLinkedAccount } from "../browser/linkedAccount";
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
 
 /** Browser-owned profile; reopening the same directory exercises real IndexedDB. */
@@ -17,6 +18,7 @@ export const browserApp = {
     });
     const page = context.pages()[0] ?? await context.newPage();
     await page.goto("http://127.0.0.1:4174");
+    await seedLinkedAccount(page);
     return new BrowserApplication(context, page);
   }
 };

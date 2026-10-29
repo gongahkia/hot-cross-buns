@@ -1,12 +1,16 @@
+import { seedLinkedAccount } from "./linkedAccount";
 import { expect, test, type Page } from '@playwright/test';
 
 async function ready(page: Page) {
   await page.goto('/');
   await page.waitForFunction(() => Boolean(window.hcb));
+  await seedLinkedAccount(page);
   await page.evaluate(async () => {
     const r = await window.hcb!.settings.update({ onboardingStatus: 'completed' });
     if (!r.ok) throw new Error(r.error.message);
   });
+  await page.reload();
+  await expect(page.getByRole('navigation', { name: 'Primary', exact: true })).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Hot Cross Buns', exact: true })).toBeHidden();
 }
 async function invoke(page: Page, ns: string, action: string, payload = {}) {

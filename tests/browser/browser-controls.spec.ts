@@ -1,8 +1,10 @@
+import { seedLinkedAccount } from "./linkedAccount";
 import { expect, test, type Page } from "@playwright/test";
 
 async function openPlanner(page: Page) {
   await page.goto("/");
   await expect(page.getByTestId("app-shell")).toBeVisible();
+  await seedLinkedAccount(page);
   await page.evaluate(async () => {
     const result = await window.hcb!.settings.update({ onboardingStatus: "completed", notificationsEnabled: false });
     if (!result.ok) throw new Error(result.error.message);

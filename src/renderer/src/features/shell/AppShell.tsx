@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
+import { hasLinkedGoogleAccount } from "../../googleCapabilities";
 import { currentZonedDay } from "@shared/zonedTime";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
@@ -149,7 +150,7 @@ export function AppShell(): JSX.Element {
   );
   const googleConnected = source.googleStatus.accounts.some((account) => account.connectionState === "connected");
   const onboardingVisible =
-    source.settings.onboardingStatus === "pending" &&
+    (source.settings.onboardingStatus === "pending" || !hasLinkedGoogleAccount(source.googleStatus)) &&
     source.dataState !== "loading" &&
     source.dataState !== "offline" &&
     source.dataState !== "error";
@@ -918,6 +919,7 @@ export function AppShell(): JSX.Element {
     <div
       className="flex h-dvh min-h-0 overflow-hidden text-text-primary"
       data-testid="app-shell"
+      inert={onboardingVisible || source.dataState === "loading"}
       style={{ background: "var(--app-shell-background)" }}
     >
       <AppHeader
@@ -990,7 +992,7 @@ export function AppShell(): JSX.Element {
 
       {onboardingVisible ? (
         <Suspense fallback={null}>
-          <DeferredFirstRunOnboarding source={source} />
+          <DeferredFirstRunOnboarding key={source.settings.onboardingStatus === "pending" ? "setup" : "connection"} source={source} connectionOnly={source.settings.onboardingStatus !== "pending"} />
         </Suspense>
       ) : null}
       {notificationsOpen ? (

@@ -1,3 +1,4 @@
+import { seedLinkedAccount } from "./linkedAccount";
 import { expect, test, type Page } from "@playwright/test";
 
 async function call(page: Page, namespace: string, action: string, payload: Record<string, unknown> = {}) {
@@ -11,6 +12,7 @@ async function call(page: Page, namespace: string, action: string, payload: Reco
 test("another tab refreshes the task board and preserves an open draft until it closes", async ({ page, context }) => {
   await page.goto("/");
   await expect(page.getByTestId("app-shell")).toBeVisible();
+  await seedLinkedAccount(page);
   await call(page, "settings", "update", { onboardingStatus: "completed", syncMode: "manual" });
   const task = await call(page, "tasks", "create", { listId: "inbox", title: "Shared browser task" });
 

@@ -1,8 +1,10 @@
+import { seedLinkedAccount } from "./linkedAccount";
 import { expect, test } from "@playwright/test";
 
 test("task presentation and workspace layout reload from IndexedDB without localStorage", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("app-shell")).toBeVisible();
+  await seedLinkedAccount(page);
   await page.evaluate(async () => {
     const result = await window.hcb!.settings.update({ onboardingStatus: "completed" });
     if (!result.ok) throw new Error(result.error.message);
@@ -27,6 +29,7 @@ test("task presentation and workspace layout reload from IndexedDB without local
 test("a fresh Calendar-only workspace keeps its pane identity and scroll after reopening", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("app-shell")).toBeVisible();
+  await seedLinkedAccount(page);
   await page.evaluate(async () => {
     const result = await window.hcb!.settings.update({ onboardingStatus: "completed" });
     if (!result.ok) throw new Error(result.error.message);

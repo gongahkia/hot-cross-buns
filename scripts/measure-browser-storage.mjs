@@ -46,6 +46,8 @@ try {
     const numbers = `WITH RECURSIVE numbers(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM numbers WHERE i<${count})`;
     const startSeed = performance.now();
     await call(page, '__testing', 'seedDatabase', {statements: [
+      // Model a previously linked account with no active Google token.
+      {sql: "INSERT INTO google_accounts(id,google_account_id,email,display_name,connection_state,created_at,updated_at) VALUES('bench-account','bench-subject','benchmark@example.test','Benchmark account','reauth_required','2027-01-01T00:00:00Z','2027-01-01T00:00:00Z')"},
       {sql: `${numbers} INSERT INTO tasks(id,list_id,title,notes,status,priority,tags_json,sort_order,created_at,updated_at)
         SELECT 'bench-task-'||i,'inbox','Cinnamon benchmark task '||i,'Planning detail for local workspace benchmark; notes, schedule and follow-up actions.','active','none','[]',printf('%08d',i),'2027-01-01T00:00:00Z','2027-01-01T00:00:00Z' FROM numbers`},
       {sql: `${numbers} INSERT INTO notes(id,title,body,list_id,tags_json,created_at,updated_at)

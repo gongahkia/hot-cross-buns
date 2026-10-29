@@ -1,3 +1,4 @@
+import { seedLinkedAccount } from "./linkedAccount";
 import { expect, test, type Page } from "@playwright/test";
 
 async function ready(page: Page) {
@@ -31,6 +32,7 @@ test("the shipped SQLite WASM passes SQL compatibility in its worker", async ({p
 
 test("an existing workspace and its tasks, notes, events, settings, lists, subtasks, tags and FTS survive reopening", async ({page}) => {
   await ready(page);
+  await seedLinkedAccount(page);
   // Initial Google onboarding is covered by onboarding-layout; persistence also
   // applies to existing local workspaces after their Google session expires.
   await call(page, "settings", "update", {onboardingStatus: "completed"});

@@ -1,3 +1,4 @@
+import { seedLinkedAccount } from "../browser/linkedAccount";
 import { expect, test as base, type Browser, type Page, type TestInfo } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { BrowserApplication } from "./browserApp";
@@ -20,6 +21,7 @@ export async function planner(run: (page: Page, app: BrowserApplication) => Prom
     page.on("pageerror", error => errors.push(error.message));
     await page.goto("http://127.0.0.1:4174");
     await expect(page.getByTestId("app-shell")).toBeVisible();
+    await seedLinkedAccount(page);
     await page.evaluate(async () => {
       const result = await window.hcb!.settings.update({ onboardingStatus: "skipped", syncMode: "manual", defaultTimeZone: "UTC", theme: "light", colorTheme: "hcb-neutral-light" });
       if (!result.ok) throw new Error(result.error.message);
