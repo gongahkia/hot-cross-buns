@@ -896,7 +896,7 @@ describe("CoreStore", () => {
       expect.objectContaining({
         kind: "event.updateOccurrence",
         entityId: edited.id,
-        payload: { parentEventId: master.id, originalStartAt: "2026-03-03T01:00:00.000Z" }
+        payload: expect.objectContaining({ parentEventId: master.id, originalStartAt: "2026-03-03T01:00:00.000Z" })
       })
     ]);
 

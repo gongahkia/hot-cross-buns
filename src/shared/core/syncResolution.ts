@@ -35,7 +35,9 @@ export function resolutionGoogleEvent(context: SyncResolutionContext, id: string
     if (googleId) allowed.add(googleId);
   }
   const candidates = (snapshot.calendars ?? []).filter((item) => allowed.has(item.remote.id)).flatMap((calendar) =>
-    calendar.events.filter((event) => local?.googleId ? event.id === local.googleId : claimedLocalEventId(event) === id).map((event) => ({ calendar, event })));
+    calendar.events.filter((event) => local?.googleId ? event.id === local.googleId : claimedLocalEventId(event, local?.googleCreationId) === id ||
+      Boolean(local?.googleRecurringEventId && event.recurringEventId === local.googleRecurringEventId && local.googleOriginalStartTime &&
+        Date.parse(event.originalStartTime?.dateTime ?? event.originalStartTime?.date) === Date.parse(local.googleOriginalStartTime))).map((event) => ({ calendar, event })));
   const active = candidates.filter((candidate) => candidate.event.status !== "cancelled");
   const original = active.find((candidate) => candidate.calendar.remote.id === origin);
   if (original) return original;

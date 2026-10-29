@@ -716,6 +716,28 @@ export class CoreStore {
     }
   }
 
+  prepareGoogleOccurrenceBatch(accountId: string, mutation: PendingSyncMutation, remote: JsonRecord, expected: SyncFields): GoogleSyncBatch {
+    this.validateGoogleReceipt(remote);
+    const snapshot = mutation.intent?.snapshot;
+    if (!snapshot) throw new CoreStoreError("This older occurrence edit needs comparison before delivery.");
+    const baseline = googleRemoteBaseline("event", remote, snapshot.calendarGoogleId);
+    if (baseline.deleted || changedSyncFields(expected, baseline.fields).length) throw new CoreStoreError("This recurring occurrence changed in Google. Compare Google before applying the local edit.");
+    const fields = localGoogleSyncFields("event", snapshot);
+    const target = { ...baseline.fields };
+    for (const field of mutation.intent!.changedFields) target[field] = fields[field];
+    target.recurrence = [];
+    const bound = localRecordWithGoogleFields("event", { ...snapshot, googleId: remote.id, googleEtag: remote.etag }, target);
+    const body = googlePatchFromSyncFields("event", baseline.fields, target);
+    delete body.recurrence;
+    const batch: GoogleSyncBatch = { mutationIds: [mutation.id], accountId, kind: "event", entityId: mutation.entityId, snapshot: bound, baseline, target, body, creating: false };
+    this.db.transaction(() => {
+      this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(remote.id, remote.etag, mutation.entityId);
+      this.saveGoogleBaseline(accountId, "event", mutation.entityId, remote, snapshot.calendarGoogleId);
+      this.beginGoogleSyncBatch(batch);
+    })();
+    return batch;
+  }
+
   recoverGoogleCreationBatch(batch: GoogleSyncBatch, remote: JsonRecord): "merged" | "conflict" {
     this.validateGoogleReceipt(remote, batch.body.id);
     if (batch.kind !== "event" || !batch.creating || remote.status === "cancelled") throw new CoreStoreError("This creation needs review against Google's current version.");
@@ -1471,6 +1493,14 @@ export class CoreStore {
         if (first && event.calendarId !== localCalendarId) this.bindEventCreationLocation(existing.id, localCalendarId, event.calendarId, first.id);
         this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(googleId, remote.etag ?? null, existing.id);
       }
+    }
+    if (!existing && remote.recurringEventId && remote.originalStartTime) {
+      existing = this.statement(`SELECT id FROM events WHERE calendar_id=? AND google_id IS NULL
+        AND google_recurring_event_id=? AND google_original_start_time=? LIMIT 1`)
+        .get(localCalendarId, remote.recurringEventId, originalStartTimeFromGoogle(remote.originalStartTime)) as { id: string } | undefined;
+      // Bind only identity; a remote exception may have changed since its local
+      // projection. Do not invent a matching original ETag from this new read.
+      if (existing) this.statement("UPDATE events SET google_id=? WHERE id=?").run(googleId, existing.id);
     }
     const localId = existing?.id ?? randomUUID();
     if (this.hasPendingEntityMutation("event", localId)) {
@@ -2498,6 +2528,7 @@ export class CoreStore {
     if (calendarId !== master.calendarId) throw new CoreStoreError("A recurring occurrence cannot be moved to another Google calendar.");
     const startsAt = input.startsAt ?? originalStartAt;
     const sourceDuration = Math.max(1, Date.parse(master.endsAt) - Date.parse(master.startsAt));
+    const originalOccurrence = { ...master, startsAt: originalStartAt, endsAt: new Date(Date.parse(originalStartAt) + sourceDuration).toISOString(), recurrence: null, googleRecurrence: [], recurrenceLines: [] };
     const occurrence = this.createEvent({
       calendarId,
       title: input.title ?? master.title,
@@ -2527,8 +2558,10 @@ export class CoreStore {
       if (options.enqueue !== false) {
         this.enqueue("event.updateOccurrence", occurrence.id, {
           parentEventId: master.id,
-          originalStartAt
-        }, master.accountId);
+          originalStartAt,
+          parentEtag: this.googleEventForSync(master.id)?.googleEtag,
+          originalOccurrence
+        }, master.accountId, originalOccurrence);
       }
     })();
     const result = this.requireEvent(occurrence.id);
@@ -2616,6 +2649,8 @@ export class CoreStore {
           successorEventId: successor.id,
           splitAt,
           originalMaster,
+          parentSnapshot: this.googleEventForSync(series.id),
+          successorSnapshot: this.googleEventForSync(successor.id),
           futureExceptionIds
         }, series.accountId);
       } else {
@@ -3725,7 +3760,7 @@ export class CoreStore {
       if (entities.has(key)) return;
       let local = kind === "task" ? this.googleTaskForSync(entityId) : kind === "taskList" ? this.googleTaskListForSync(entityId) : this.googleEventForSync(entityId);
       if (local?.accountId && local.accountId !== mutation.accountId) throw new CoreStoreError("Resolve related changes within their own Google account.");
-      if (local && kind === "event") local = { ...local, scheduledBlocks: this.scheduledBlocksForEvent(entityId) };
+      if (local && kind === "event") local = { ...local, googleCreationId: this.googleEventCreationId(mutation.accountId, entityId), scheduledBlocks: this.scheduledBlocksForEvent(entityId) };
       entities.set(key, { kind, id: entityId, local });
     };
     const family = String(mutation.kind).split(".")[0];
@@ -3846,6 +3881,16 @@ export class CoreStore {
       }
       for (const entity of context.entities.filter((entity) => entity.kind === "event")) {
         const chain = context.mutations.filter((mutation) => mutation.entityId === entity.id);
+        if (chain.some(mutation => mutation.kind === "event.updateOccurrence")) {
+          const match = resolutionGoogleEvent(context, entity.id, snapshot, id => this.googleCalendarForSync(id));
+          const desired = this.googleEventForSync(entity.id);
+          if (!match || match.event.status === "cancelled" || !desired) throw new CoreStoreError("This occurrence was removed. Preserve local content before restoring Google's version.");
+          const bound = { ...desired, googleId: match.event.id, googleEtag: match.event.etag };
+          this.replaceReviewedLegacyChain("event", bound, chain, googleSyncFields("event", match.event));
+          this.statement("UPDATE outbox SET kind='event.update',payload_json='{}' WHERE id=?").run(chain[0].id);
+          this.statement("UPDATE events SET google_id=?,google_etag=? WHERE id=?").run(match.event.id, match.event.etag, entity.id);
+          continue;
+        }
         if (!chain.some((mutation) => mutation.kind === "event.move")) continue;
         if (chain.some((mutation) => !["event.create", "event.update", "event.move", "event.delete"].includes(mutation.kind))) throw new CoreStoreError("Restore Google's series state before retrying this combined operation.");
         const target = resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id));
@@ -3912,8 +3957,9 @@ export class CoreStore {
         const local = this.upsertGoogleCalendar(calendar.remote, accountId);
         // A cancelled optimistic Calendar move still has the stable local id
         // in its destination. Put it back before importing the source event.
-        for (const entity of context.entities.filter((entity) => entity.kind === "event" && entity.local?.googleId)) {
-          if (resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id))?.calendar.remote.id === calendar.remote.id) this.statement("UPDATE events SET calendar_id=? WHERE id=?").run(local.id, entity.id);
+        for (const entity of context.entities.filter((entity) => entity.kind === "event")) {
+          const match = resolutionGoogleEvent(context, entity.id, snapshot, (id) => this.googleCalendarForSync(id));
+          if (match?.calendar.remote.id === calendar.remote.id) this.statement("UPDATE events SET calendar_id=?,google_id=? WHERE id=?").run(local.id, match.event.id, entity.id);
         }
         this.upsertGoogleEventBatch(calendar.events, local.id);
         this.reconcileGoogleEvents(local.id, new Set(calendar.events.map((event) => event.id)));

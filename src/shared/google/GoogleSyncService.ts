@@ -2,8 +2,8 @@ import { CoreStore, CoreStoreError, type PendingSyncMutation, type GoogleSyncBat
 import type { GoogleSyncOAuth, GoogleSyncPlatform, GoogleUploadSource, SyncCheckpoint } from "./types";
 import { SyncPersistenceError } from "./types";
 export { SyncPersistenceError } from "./types";
-import { googleTaskBody, googleEventBody } from "./googleWriteBody";
-import { googleRemoteBaseline, syncValuesEqual } from "./syncMerge";
+import { googleTaskBody, googleEventBody, localGoogleSyncFields } from "./googleWriteBody";
+import { googleRemoteBaseline, googleSyncFields, googlePatchFromSyncFields, syncValuesEqual } from "./syncMerge";
 import { googleOriginalStartQueryValue } from "../core/googleRecurrence";
 import { recordTiming, timedAsync } from "../core/performance";
 import { splitHcbTaskMetadata } from "../core/hcbTaskMetadata";
@@ -163,6 +163,12 @@ export class GoogleSyncService {
       for (const remote of await this.allPages(accountId, "https://www.googleapis.com/calendar/v3/users/me/calendarList", { maxResults: "250", showDeleted: "true" })) {
         if (remote.deleted) continue;
         const page = await this.allPagesWithSyncToken(accountId, calendarEventCollectionUrl(remote.id), { maxResults: "2500", showDeleted: "true", singleEvents: "false" });
+        for (const entity of context.entities) {
+          const local = entity.local;
+          if (entity.kind !== "event" || local?.googleId || !local?.googleRecurringEventId || !local.googleOriginalStartTime || local.calendarGoogleId !== remote.id) continue;
+          const instance = await this.successorInstanceAt(accountId, calendarEventCollectionUrl(remote.id), { id: local.googleRecurringEventId }, local.googleOriginalStartTime, Boolean(local.allDay));
+          if (instance && !page.items.some(item => item.id === instance.id)) page.items.push(instance);
+        }
         snapshot.calendars.push({ remote, events: page.items, token: page.nextSyncToken });
       }
     }
@@ -679,6 +685,21 @@ export class GoogleSyncService {
   }
 
   private async prepareDeliveryBatch(accountId: string, mutation: PendingSyncMutation): Promise<GoogleSyncBatch | null> {
+    if (mutation.kind === "event.updateOccurrence") {
+      if (!this.store.googleEventForSync(mutation.entityId)) return null;
+      const saved = this.store.googleOperationRecord(accountId, `submission:${mutation.id}`);
+      if (saved?.version === 1) return saved.batch as GoogleSyncBatch;
+      const { parentEventId, originalStartAt, originalOccurrence, parentEtag } = mutation.payload;
+      const parent = this.store.googleEventForSync(parentEventId);
+      if (!parent?.googleId || !mutation.intent || !originalOccurrence || !parentEtag) throw new CoreStoreError("This recurring occurrence has no known original version. Compare Google before continuing.");
+      const collection = calendarEventCollectionUrl(parent.calendarGoogleId);
+      const remoteMaster = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(parent.googleId)}`);
+      if (remoteMaster.etag !== parentEtag || remoteMaster.status === "cancelled") throw new CoreStoreError("The recurring series changed in Google. Compare Google before applying this occurrence edit.");
+      const target = await this.successorInstanceAt(accountId, collection, remoteMaster, originalStartAt, Boolean(originalOccurrence.allDay));
+      if (!target || target.status === "cancelled") throw new CoreStoreError("This recurring occurrence was removed in Google. Its local edit is retained for review.");
+      const expected = { ...googleSyncFields("event", remoteMaster), time: localGoogleSyncFields("event", originalOccurrence).time, recurrence: [] };
+      return this.store.prepareGoogleOccurrenceBatch(accountId, mutation, target, expected);
+    }
     if (!/^(taskList|task|event)\.(create|update|move)$/.test(mutation.kind)) return null;
     const kind = mutation.kind.split(".")[0] as "task" | "taskList" | "event";
     const current = kind === "task" ? this.store.googleTaskForSync(mutation.entityId) : kind === "event"
@@ -790,7 +811,9 @@ export class GoogleSyncService {
         await this.pushEvent(accountId, mutation.entityId);
         return;
       case "event.updateOccurrence":
-        await this.updateGoogleOccurrence(accountId, mutation.entityId, mutation.payload);
+        // A local undo removed the materialized occurrence before delivery.
+        // Active occurrence commands always use their frozen batch above.
+        if (this.store.googleEventForSync(mutation.entityId)) throw new CoreStoreError("This occurrence edit needs comparison before delivery.");
         return;
       case "event.move":
         await this.moveEvent(accountId, mutation.entityId, mutation.payload);
@@ -904,41 +927,6 @@ export class GoogleSyncService {
     this.store.bindGoogleEvent(localId, remote, event, this.currentMutationId);
   }
 
-  /** Materialize a local edit of a generated row as a Google Calendar exception. */
-  private async updateGoogleOccurrence(accountId: string, localId: string, payload: JsonRecord): Promise<void> {
-    const parentEventId = requiredText(payload.parentEventId, "Recurring occurrence parent event id");
-    const originalStartAt = requiredIso(payload.originalStartAt, "Recurring occurrence date");
-    const parent = this.store.googleEventForSync(parentEventId);
-    const occurrence = this.store.googleEventForSync(localId);
-    if (!parent?.googleId || !parent.calendarGoogleId || !occurrence) {
-      throw new CoreStoreError("The local state for this recurring occurrence edit is incomplete.");
-    }
-    if (parent.calendarGoogleId !== occurrence.calendarGoogleId) {
-      throw new CoreStoreError("A recurring occurrence cannot be moved to another Google calendar.");
-    }
-    const collection = calendarEventCollectionUrl(parent.calendarGoogleId);
-    const target = await this.successorInstanceAt(accountId, collection, { id: parent.googleId }, originalStartAt, Boolean(occurrence.allDay));
-    const body = googleEventBody(occurrence);
-    delete body.recurrence;
-    if (!target || target.status === "cancelled") {
-      // This can occur only when the rule was externally changed between the
-      // local projection and the write. Preserve the user edit as a standalone
-      // event rather than issuing a destructive guess against the master.
-      const remote = await this.requestJson<JsonRecord>(accountId, collection, {
-        method: "POST", body: json(body), query: calendarEventWriteQuery(occurrence)
-      });
-      this.store.bindGoogleEvent(localId, remote, occurrence, this.currentMutationId);
-      return;
-    }
-    const remote = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(requiredText(target.id, "Google occurrence id"))}`, {
-      method: "PATCH",
-      body: json(body),
-      headers: conditionalHeaders(target.etag),
-      query: calendarEventWriteQuery(occurrence)
-    });
-    this.store.bindGoogleEvent(localId, remote, occurrence, this.currentMutationId);
-  }
-
   /**
    * Google Calendar has no public "this and following" endpoint. Recreate its
    * semantics with two masters and exception copies, compensating every
@@ -952,8 +940,8 @@ export class GoogleSyncService {
     const originalMaster = payload.originalMaster && typeof payload.originalMaster === "object"
       ? payload.originalMaster as JsonRecord
       : null;
-    const parent = this.store.googleEventForSync(parentEventId);
-    const successor = this.store.googleEventForSync(successorEventId);
+    const parent = payload.parentSnapshot ?? this.store.googleEventForSync(parentEventId);
+    const successor = payload.successorSnapshot ?? this.store.googleEventForSync(successorEventId);
     if (!parent?.googleId || !parent.calendarGoogleId || !successor || !originalMaster) {
       throw new CoreStoreError("The local state for this recurring-series split is incomplete.");
     }
@@ -966,7 +954,7 @@ export class GoogleSyncService {
     // series, this provides the iCalUID needed to fetch every exception,
     // including cancelled instances that are otherwise intentionally sparse.
     const remoteMaster = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(parent.googleId)}`);
-    if (originalMaster.googleEtag && remoteMaster.etag && originalMaster.googleEtag !== remoteMaster.etag) {
+    if (!originalMaster.googleEtag || !remoteMaster.etag || originalMaster.googleEtag !== remoteMaster.etag) {
       throw new CoreStoreError("This recurring series changed in Google before HCB could split it. Refresh it, then try again.");
     }
     const remoteExceptions = await this.seriesExceptions(accountId, collection, remoteMaster);
@@ -976,7 +964,7 @@ export class GoogleSyncService {
     try {
       updatedParent = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(parent.googleId)}`, {
         method: "PATCH",
-        body: json(googleEventBody(parent)),
+        body: json(googlePatchFromSyncFields("event", localGoogleSyncFields("event", originalMaster), localGoogleSyncFields("event", parent))),
         headers: conditionalHeaders(remoteMaster.etag ?? parent.googleEtag),
         query: calendarEventWriteQuery(parent)
       });
@@ -999,10 +987,17 @@ export class GoogleSyncService {
       }
     } catch (error: unknown) {
       if (error instanceof SyncPersistenceError || error instanceof ConcurrentSeriesEditError) throw error;
+      if (error instanceof GoogleApiError ? error.status === 0 || error.status === 408 || error.status >= 500 : !(error instanceof CoreStoreError)) {
+        // A lost acknowledgement may follow an accepted truncation, creation,
+        // or exception write. Compensating only the receipts we saw can erase
+        // the remaining series while claiming that rollback succeeded.
+        throw new CoreStoreError("The recurring-series operation has an uncertain remote result. Local snapshots are retained; compare Google before continuing.");
+      }
       const compensationError = await this.compensateGoogleSeriesSplit({
         accountId,
         collection,
         originalMaster,
+        parent,
         updatedParent,
         createdSuccessor
       });
@@ -1081,12 +1076,15 @@ export class GoogleSyncService {
 
     let copied: JsonRecord;
     if (target && target.status !== "cancelled") {
-      copied = await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(target.id)}`, {
+      if (!target.etag) throw new CoreStoreError("Google did not return a revision for the recurring exception.");
+      const body = Object.fromEntries(Object.entries(googleExceptionBody(exception)).filter(([key, value]) => !syncValuesEqual(target[key], value)));
+      if (body.start || body.end) { body.start = exception.start; body.end = exception.end; }
+      copied = Object.keys(body).length ? await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(target.id)}`, {
         method: "PATCH",
-        body: json(googleExceptionBody(exception)),
+        body: json(body),
         headers: conditionalHeaders(target.etag),
         query: calendarEventWriteQuery(exception)
-      });
+      }) : target;
     } else {
       // A changed rule may legitimately no longer generate this original
       // occurrence. Keep the user's modified exception as a standalone event
@@ -1125,11 +1123,12 @@ export class GoogleSyncService {
     accountId: string;
     collection: string;
     originalMaster: JsonRecord;
+    parent: JsonRecord;
     updatedParent: JsonRecord | null;
     createdSuccessor: JsonRecord | null;
   }): Promise<string | null> {
     const errors: string[] = [];
-    const { accountId, collection, originalMaster, updatedParent, createdSuccessor } = input;
+    const { accountId, collection, originalMaster, parent, updatedParent, createdSuccessor } = input;
     if (createdSuccessor?.id) {
       try {
         await this.requestJson<void>(accountId, `${collection}/${encodeURIComponent(createdSuccessor.id)}`, {
@@ -1145,7 +1144,7 @@ export class GoogleSyncService {
       try {
         await this.requestJson<JsonRecord>(accountId, `${collection}/${encodeURIComponent(updatedParent.id)}`, {
           method: "PATCH",
-          body: json(googleEventBody(originalMaster)),
+          body: json(googlePatchFromSyncFields("event", localGoogleSyncFields("event", parent), localGoogleSyncFields("event", originalMaster))),
           headers: conditionalHeaders(updatedParent.etag),
           query: calendarEventWriteQuery(originalMaster)
         });

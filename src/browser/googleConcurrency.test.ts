@@ -63,7 +63,7 @@ describe('Google receipts after concurrent local commands', () => {
 
   it('delivers a delete queued during PATCH with the receipt’s newest ETag', async () => {
     const f = fixture(), event = f.event();
-    f.store.bindGoogleEvent(event.id, { id: 'remote', etag: 'v1' });
+    f.store.bindGoogleEvent(event.id, { id: 'remote', etag: 'v1' }, f.store.googleEventForSync(event.id)!);
     f.store.completeSyncMutation(f.store.pendingSyncMutations()[0].id);
     f.store.dispatch('calendar', 'update', { id: event.id, title: 'Updated' });
     const calls: string[] = [];

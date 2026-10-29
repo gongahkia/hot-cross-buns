@@ -288,3 +288,79 @@ it("does not mistake unchanged content for an accepted meeting-link command when
   expect(f.remote.get("item")!.conferenceData.createRequest.requestId).toBeTruthy();
   expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(0);
 });
+
+function recurringFixture() {
+  const f = fixture("event");
+  const master = f.remote.get("item")!;
+  Object.assign(master, { recurrence: ["RRULE:FREQ=DAILY;COUNT=5"], iCalUID: "series", start: { dateTime: "2026-10-29T09:00:00Z", timeZone: "UTC" }, end: { dateTime: "2026-10-29T10:00:00Z", timeZone: "UTC" } });
+  f.store.upsertGoogleEvent(master, f.collection.id);
+  const instance: RecordValue = { ...master, id: "instance", etag: "instance-v1", recurrence: undefined, recurringEventId: "item", originalStartTime: { dateTime: "2026-10-30T09:00:00Z" }, start: { dateTime: "2026-10-30T09:00:00Z", timeZone: "UTC" }, end: { dateTime: "2026-10-30T10:00:00Z", timeZone: "UTC" } };
+  f.remote.set(instance.id, instance);
+  f.faults.before = request => {
+    if (request.url.pathname.endsWith("/instances")) return Response.json({ items: f.remote.has(instance.id) ? [instance] : [] });
+    if (request.method === "GET" && request.url.searchParams.has("iCalUID")) return Response.json({ items: [master] });
+  };
+  const edit = (fields: RecordValue = { title: "Local occurrence" }) => f.store.dispatch("calendar", "update", { id: f.item.id, originalStartAt: "2026-10-30T09:00:00Z", scope: "occurrence", ...fields });
+  const split = () => f.store.dispatch("calendar", "update", { id: f.item.id, originalStartAt: "2026-10-30T09:00:00Z", scope: "following", title: "Future series" });
+  return { ...f, get store() { return f.store; }, get service() { return f.service; }, master, instance, editOccurrence: edit, split };
+}
+
+it("sends a generated occurrence's exact edit before a later edit without rewriting its master", async () => {
+  const f = recurringFixture();
+  const occurrence = f.editOccurrence();
+  f.edit({ description: "Later notes" }, occurrence.id);
+  await f.deliver();
+  expect(f.writes().map(request => [request.url.pathname.split("/").at(-1), request.body])).toEqual([
+    ["instance", { summary: "Local occurrence" }], ["instance", { description: "Later notes" }]
+  ]);
+  expect(f.master.recurrence).toEqual(["RRULE:FREQ=DAILY;COUNT=5"]);
+  expect(f.instance).toMatchObject({ summary: "Local occurrence", description: "Later notes" });
+  expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(0);
+});
+
+it.each(["missing", "cancelled", "phone exception", "changed master"])("retains a generated occurrence for review after %s", async fault => {
+  const f = recurringFixture(); const occurrence = f.editOccurrence();
+  if (fault === "missing") f.remote.delete("instance");
+  if (fault === "cancelled") f.instance.status = "cancelled";
+  if (fault === "phone exception") Object.assign(f.instance, { description: "Phone exception", etag: "phone" });
+  if (fault === "changed master") f.master.etag = "changed";
+  await f.deliver();
+  expect(f.writes()).toHaveLength(0);
+  expect(f.local(occurrence.id).title).toBe("Local occurrence");
+  expect(f.pending()[0].status).toBe("failed");
+  if (fault === "phone exception" || fault === "changed master") {
+    const id = f.pending()[0].id;
+    const review = await f.service.previewMutationResolution({ id });
+    await f.service.resolveMutation({ id, reviewId: review.reviewId, strategy: "local" });
+    await f.deliver();
+    expect(f.instance.summary).toBe("Local occurrence");
+    expect(f.store.unresolvedSyncMutationCount(f.accountId)).toBe(0);
+  }
+});
+
+it("does not duplicate a generated local occurrence when a phone exception arrives in a pull", () => {
+  const f = recurringFixture(); const occurrence = f.editOccurrence();
+  Object.assign(f.instance, { description: "Phone edit", etag: "phone" });
+  f.store.upsertGoogleEvent(f.instance, f.collection.id);
+  expect(f.local(occurrence.id)).toMatchObject({ googleId: "instance", title: "Local occurrence" });
+  expect(f.store.dispatch("calendar", "listEvents", { start: "2026-10-30T00:00:00Z", end: "2026-10-31T00:00:00Z" }).items).toHaveLength(1);
+  expect(f.pending()[0].status).toBe("failed");
+});
+
+it.each(["lost response", "server error", "invalid JSON"])("does not claim a series rollback after an accepted truncation with %s", async fault => {
+  const f = recurringFixture();
+  const successor = f.split();
+  f.faults.after = request => {
+    if (request.method !== "PATCH") return;
+    if (fault === "lost response") throw new TypeError("accepted but lost");
+    return fault === "server error" ? new Response(null, { status: 503 }) : new Response("{truncated");
+  };
+  await f.deliver();
+  expect(f.writes()).toHaveLength(1);
+  expect(Object.keys(f.writes()[0].body!)).toEqual(["recurrence"]);
+  expect(f.local(successor.id).title).toBe("Future series");
+  expect(f.pending()[0].status).toBe("failed");
+  expect(f.pending()[0].lastErrorMessage).toContain("uncertain remote result");
+  f.restart(); delete f.faults.after; await f.deliver();
+  expect(f.writes()).toHaveLength(1);
+});
