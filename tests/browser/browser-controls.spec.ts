@@ -21,7 +21,8 @@ async function settings(page: Page, tab: string) {
 test("browser settings expose local recovery and omit unavailable desktop controls", async ({ page }) => {
   await openPlanner(page);
   await settings(page, "Accounts");
-  await expect(page.getByText(/VITE_GOOGLE_CLIENT_ID/)).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Google OAuth client ID" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save client ID", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Google Account", exact: true })).toBeDisabled();
   await expect(page.getByLabel("Google OAuth client secret")).toHaveCount(0);
   await settings(page, "General");

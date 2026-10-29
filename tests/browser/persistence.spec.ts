@@ -133,7 +133,7 @@ test("unconfigured Google reports the Web OAuth configuration honestly and prese
   expect(status.accounts).toEqual([]);
   const auth = await page.evaluate(() => window.hcb!.google.beginOAuth({}));
   expect(auth.ok).toBe(false);
-  if (!auth.ok) expect(auth.error.message).toMatch(/VITE_GOOGLE_CLIENT_ID/);
+  if (!auth.ok) expect(auth.error.message).toMatch(/Settings → Accounts/);
   const sync = await call(page, "sync", "runNow");
   expect(sync.message).toMatch(/Connect Google/);
   const task = await call(page, "tasks", "create", {listId: "inbox", title: "Google-free durable work"});
