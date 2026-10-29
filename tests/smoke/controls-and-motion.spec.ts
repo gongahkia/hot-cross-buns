@@ -52,7 +52,12 @@ test("dropdown keyboard selection and empty System choices persist across reload
     await openSettings(page, "Appearance");
     const theme = page.getByRole("combobox", { name: "Theme", exact: true });
     await theme.focus(); await theme.press("Enter");
-    await page.keyboard.press("End"); await page.keyboard.press("Enter");
+    await expect(page.getByRole("option", { name: "Light", exact: true })).toBeFocused();
+    await page.keyboard.press("End");
+    // Radix moves focus in a queued task. Commit only once keyboard navigation
+    // has reached Dark, rather than racing Enter against the previous option.
+    await expect(page.getByRole("option", { name: "Dark", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await chooseOption(page, theme, "Follow system");
     const font = page.getByRole("combobox", { name: "Font family", exact: true });
