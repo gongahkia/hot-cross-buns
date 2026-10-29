@@ -137,4 +137,66 @@ describe("durable Google baselines and local intents", () => {
     f.store.dispatch("undo", "undo");
     expect(f.store.googleTaskForSync(task.id)?.title).toBe("Remote title");
   });
+
+  it("undoes and redoes only the edited task fields after a remote update", () => {
+    const { store } = fixture();
+    const { accountId, list, task } = connected(store);
+    store.dispatch("tasks", "update", { id: task.id, title: "Local title" });
+    for (const mutation of store.pendingSyncMutations(10, accountId)) store.completeSyncMutation(mutation.id);
+    store.upsertGoogleTask({ id: "task", etag: "v2", title: "Local title", notes: "Phone notes", due: "2026-11-03" }, list.id);
+    store.dispatch("undo", "undo");
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Remote title", notes: "Phone notes", dueAt: "2026-11-03" });
+    store.dispatch("undo", "redo");
+    expect(store.googleTaskForSync(task.id)).toMatchObject({ title: "Local title", notes: "Phone notes", dueAt: "2026-11-03" });
+    expect(store.pendingSyncMutations(10, accountId).map((mutation) => mutation.intent?.changedFields)).toEqual([["title"], ["title"]]);
+  });
+
+  it("scopes legacy whole-record undo entries when executing them", () => {
+    const f = fixture();
+    const { accountId, list, task } = connected(f.store);
+    f.store.dispatch("tasks", "update", { id: task.id, title: "Local title" });
+    for (const mutation of f.store.pendingSyncMutations(10, accountId)) f.store.completeSyncMutation(mutation.id);
+    const db = new Database(f.path);
+    const operation = (title: string) => JSON.stringify({ namespace: "tasks", action: "update", payload: {
+      id: task.id, title, notes: "Remote notes", dueDate: null, priority: "none", listId: list.id, parentId: null
+    } });
+    db.prepare("UPDATE undo_entries SET inverse_json=?,forward_json=?").run(operation("Remote title"), operation("Local title"));
+    db.close();
+    f.store.upsertGoogleTask({ id: "task", etag: "v2", title: "Local title", notes: "Phone notes" }, list.id);
+    f.store.dispatch("undo", "undo");
+    expect(f.store.googleTaskForSync(task.id)).toMatchObject({ title: "Remote title", notes: "Phone notes" });
+    f.store.dispatch("undo", "redo");
+    expect(f.store.googleTaskForSync(task.id)).toMatchObject({ title: "Local title", notes: "Phone notes" });
+  });
+
+  it("undoes a task reorder and preserves its explicit outgoing order commands", () => {
+    const { store } = fixture();
+    const { accountId, list, task: a } = connected(store);
+    const b = store.upsertGoogleTask({ id: "b", title: "B", position: "002" }, list.id)!;
+    const c = store.upsertGoogleTask({ id: "c", title: "C", position: "003" }, list.id)!;
+    store.dispatch("tasks", "update", { id: c.id, previousTaskId: null });
+    const order = () => [a, b, c].map((task) => store.googleTaskForSync(task.id)!).sort((x, y) => x.sortOrder.localeCompare(y.sortOrder)).map((task) => task.id);
+    expect(order()).toEqual([c.id, a.id, b.id]);
+    store.dispatch("undo", "undo");
+    expect(order()).toEqual([a.id, b.id, c.id]);
+    store.dispatch("undo", "redo");
+    expect(order()).toEqual([c.id, a.id, b.id]);
+    expect(store.pendingSyncMutations(10, accountId).map((mutation) => mutation.payload.previousTaskId)).toEqual([null, b.id, null]);
+    expect(store.pendingSyncMutations(10, accountId).every((mutation) => mutation.intent?.barrier)).toBe(true);
+  });
+
+  it("preserves a remote event time change when undoing its local title edit", () => {
+    const { store } = fixture();
+    const { accountId } = connected(store);
+    const calendar = store.upsertGoogleCalendar({ id: "primary", summary: "Calendar", accessRole: "owner" }, accountId);
+    const remote = { id: "event", summary: "Remote", start: { dateTime: "2026-10-29T01:00:00Z", timeZone: "UTC" }, end: { dateTime: "2026-10-29T02:00:00Z", timeZone: "UTC" } };
+    const event = store.upsertGoogleEvent(remote, calendar.id)!;
+    store.dispatch("calendar", "update", { id: event.id, title: "Local" });
+    for (const mutation of store.pendingSyncMutations(10, accountId)) store.completeSyncMutation(mutation.id);
+    store.upsertGoogleEvent({ ...remote, summary: "Local", start: { ...remote.start, dateTime: "2026-10-30T01:00:00Z" }, end: { ...remote.end, dateTime: "2026-10-30T02:00:00Z" } }, calendar.id);
+    store.dispatch("undo", "undo");
+    expect(store.googleEventForSync(event.id)).toMatchObject({ title: "Remote", startsAt: "2026-10-30T01:00:00.000Z", endsAt: "2026-10-30T02:00:00.000Z" });
+    store.dispatch("undo", "redo");
+    expect(store.googleEventForSync(event.id)).toMatchObject({ title: "Local", startsAt: "2026-10-30T01:00:00.000Z" });
+  });
 });

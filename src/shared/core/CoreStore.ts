@@ -1822,6 +1822,9 @@ export class CoreStore {
   private updateTask(input: JsonRecord): JsonRecord {
     if (input.previousTaskId === undefined && input.previousSiblingId !== undefined) input = { ...input, previousTaskId: input.previousSiblingId };
     const previous = this.requireTask(requiredText(input.id, "Task id"));
+    const restoresOrder = hasOwn(input, "previousTaskId") || (hasOwn(input, "listId") && input.listId !== previous.listId) ||
+      (hasOwn(input, "parentId") && input.parentId !== previous.parentId);
+    const previousSiblingId = restoresOrder ? this.previousTaskSibling(previous.id) : undefined;
     const nextListId = input.listId ?? previous.listId;
     const nextAccountId = this.accountForTaskList(nextListId);
     if (nextAccountId !== previous.accountId) throw new CoreStoreError("Tasks cannot be moved between Google accounts.");
@@ -1848,7 +1851,9 @@ export class CoreStore {
       this.enqueue("task.update", previous.id, input, nextAccountId, previous);
     })();
     const task = this.requireTask(previous.id);
-    this.recordUndo("Update task", { namespace: "tasks", action: "update", payload: taskUpdatePayload(task) }, { namespace: "tasks", action: "update", payload: taskUpdatePayload(previous) });
+    this.recordUpdateUndo("Update task", "tasks",
+      { ...taskUpdatePayload(previous), ...(restoresOrder ? { previousTaskId: previousSiblingId } : {}) },
+      { ...taskUpdatePayload(task), ...(restoresOrder ? { previousTaskId: this.previousTaskSibling(task.id) } : {}) });
     return { ...task, previousState: { id: previous.id, listId: previous.listId, parentId: previous.parentId, status: previous.status } };
   }
 
@@ -2165,7 +2170,7 @@ export class CoreStore {
     })();
     const event = this.requireEvent(previous.id);
     if (options.recordUndo !== false) {
-      this.recordUndo("Update event", { namespace: "calendar", action: "update", payload: eventUpdatePayload(event) }, { namespace: "calendar", action: "update", payload: eventUpdatePayload(previous) });
+      this.recordUpdateUndo("Update event", "calendar", eventUpdatePayload(previous), eventUpdatePayload(event));
     }
     return event;
   }
@@ -3296,6 +3301,12 @@ export class CoreStore {
     if (accountId && ["task", "taskList", "event"].includes(entityKind)) this.refreshGoogleDirtyFields(accountId, entityKind, entityId);
   }
 
+  private recordUpdateUndo(action: string, namespace: "tasks" | "calendar", before: JsonRecord, after: JsonRecord): void {
+    const scoped = scopedUpdatePayloads(namespace, before, after);
+    if (Object.keys(scoped.after).length === 1) return;
+    this.recordUndo(action, { namespace, action: "update", payload: scoped.after }, { namespace, action: "update", payload: scoped.before });
+  }
+
   private recordUndo(action: string, forward: JsonRecord, inverse: JsonRecord): void {
     if (this.applyingUndo) return;
     const now = timestamp();
@@ -3321,8 +3332,17 @@ export class CoreStore {
     const entry = this.statement(`SELECT id,action,forward_json AS forwardJson,inverse_json AS inverseJson FROM undo_entries
       WHERE state=? ORDER BY rowid ${direction === "undo" ? "DESC" : "ASC"} LIMIT 1`).get(state) as { id: string; action: string; forwardJson: string; inverseJson: string } | undefined;
     if (!entry) return { action: direction, applied: false, ...this.undoStatus() };
-    const operation = safeJson(direction === "undo" ? entry.inverseJson : entry.forwardJson, null) as JsonRecord | null;
+    let operation = safeJson(direction === "undo" ? entry.inverseJson : entry.forwardJson, null) as JsonRecord | null;
     if (!operation?.namespace || !operation.action || !operation.payload) throw new CoreStoreError("Undo history entry is corrupted.");
+    const inverse = safeJson(entry.inverseJson, null), forward = safeJson(entry.forwardJson, null);
+    if (operation.action === "update" && (operation.namespace === "tasks" || operation.namespace === "calendar") &&
+      inverse?.action === "update" && forward?.action === "update" && inverse.namespace === forward.namespace &&
+      inverse.payload?.id === forward.payload?.id) {
+      // History written by older versions contained whole records. Scope it at
+      // execution too, so a remote field merged since then survives undo/redo.
+      const scoped = scopedUpdatePayloads(operation.namespace, inverse.payload, forward.payload);
+      operation = { ...operation, payload: direction === "undo" ? scoped.before : scoped.after };
+    }
     this.applyingUndo = true;
     try {
       this.db.transaction(() => {
@@ -3627,6 +3647,14 @@ export class CoreStore {
     if (key === null) { normalize(); key = rank(); }
     if (key === null) throw new CoreStoreError("Task order could not be updated.");
     this.statement("UPDATE tasks SET sort_order=? WHERE id=?").run(key, taskId);
+  }
+
+  private previousTaskSibling(taskId: string): string | null {
+    const task = this.requireTask(taskId);
+    const siblings = this.statement(`SELECT id FROM tasks WHERE list_id=? AND parent_id IS ? AND status IN ('active','completed')
+      ORDER BY sort_order IS NULL,sort_order,created_at,id`).all(task.listId, task.parentId ?? null) as Array<{ id: string }>;
+    const index = siblings.findIndex((sibling) => sibling.id === taskId);
+    return index > 0 ? siblings[index - 1].id : null;
   }
 
   private accountForCalendar(calendarId: string): string {
@@ -4210,6 +4238,20 @@ function eventCreatePayload(event: JsonRecord): JsonRecord {
   };
 }
 function eventUpdatePayload(event: JsonRecord): JsonRecord { return eventCreatePayload(event); }
+function scopedUpdatePayloads(namespace: "tasks" | "calendar", before: JsonRecord, after: JsonRecord): { before: JsonRecord; after: JsonRecord } {
+  const keys = new Set(changedSyncFields(before, after).filter((key) => key !== "id"));
+  const groups = namespace === "tasks"
+    ? [["plannedStart", "plannedEnd", "durationMinutes", "lockedSchedule"], ["listId", "parentId"]]
+    : [["startsAt", "endsAt", "allDay", "timeZone"], ["recurrence", "recurrenceLines"],
+      ["reminders", "remindersUseDefault"], ["attendees", "selfResponseStatus"],
+      ["eventType", "focusTimeProperties", "outOfOfficeProperties", "workingLocationProperties"]];
+  for (const group of groups) if (group.some((key) => keys.has(key))) {
+    for (const key of group) if (hasOwn(before, key) && hasOwn(after, key)) keys.add(key);
+  }
+  const pick = (value: JsonRecord): JsonRecord => ({ id: value.id, ...Object.fromEntries([...keys]
+    .filter((key) => hasOwn(value, key)).map((key) => [key, value[key]])) });
+  return { before: pick(before), after: pick(after) };
+}
 function requiredText(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) throw new CoreStoreError(`${label} is required`);
   return value.trim();
