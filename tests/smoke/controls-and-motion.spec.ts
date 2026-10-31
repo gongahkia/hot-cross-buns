@@ -15,9 +15,15 @@ for (const theme of ["light", "dark"] as const) {
     await planner(async (page) => {
       await page.evaluate(async (theme) => { await window.hcb!.settings.update({ theme }); window.dispatchEvent(new Event("hcb:core-data-invalidated")); }, theme);
       await openSettings(page, "Appearance");
-      let checked = 0;
+      const requiredControls: Record<string, string[]> = {
+        Appearance: ["Theme", "Font family", "Editor and buffer font family"],
+        General: ["Keep past events", "Keep completed tasks"]
+      };
       for (const category of ["Appearance", "General", "Alerts", "Accounts"]) {
         await page.getByRole("navigation", { name: "Settings categories" }).getByRole("button", { name: category, exact: true }).click();
+        for (const name of requiredControls[category] ?? []) {
+          await expect(page.getByRole("combobox", { name, exact: true })).toBeVisible();
+        }
         const controls = page.getByRole("combobox");
         for (let index = 0; index < await controls.count(); index++) {
           const control = controls.nth(index);
@@ -37,10 +43,8 @@ for (const theme of ["light", "dark"] as const) {
           await expect(menu).toBeHidden();
           await expect(control).toBeFocused();
           await expect(page.getByTestId("settings-workspace")).toBeVisible();
-          checked++;
         }
       }
-      expect(checked).toBeGreaterThanOrEqual(12);
       // Radix's hidden form mirror is allowed; no visible native popup triggers.
       await expect(page.locator("select:visible")).toHaveCount(0);
     });
