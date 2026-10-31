@@ -20,7 +20,7 @@ export function SyncProgressOverlay() {
   return <Dialog.Root open={busy || Boolean(error)} onOpenChange={open => { if (!open && !busy) setError(undefined); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm" />
-      <Dialog.Content className="fixed left-1/2 top-1/2 z-[81] w-[min(340px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-bg-primary p-6 text-center text-text-primary shadow-2xl outline-none" onInteractOutside={event => event.preventDefault()} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
+      <Dialog.Content className="fixed left-1/2 top-1/2 z-[81] w-[min(340px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-bg-primary p-6 text-center text-text-primary shadow-2xl outline-none" onInteractOutside={event => event.preventDefault()} onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); if (!busy) setError(undefined); }}>
         {busy ? <LoadingIndicator size={140} /> : null}
         <Dialog.Title className="text-lg font-semibold">{busy ? 'Resyncing with Google' : 'Resync needs attention'}</Dialog.Title>
         <Dialog.Description className="mt-2 text-sm text-text-muted" role={error ? 'alert' : 'status'}>{busy ? 'Refreshing your tasks and calendars. This may take a moment.' : error}</Dialog.Description>

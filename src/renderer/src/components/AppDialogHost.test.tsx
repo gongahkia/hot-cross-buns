@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it } from 'vitest';
 import { AppDialogHost } from './AppDialogHost';
@@ -20,9 +20,11 @@ it('Escape cancels and returns focus to the trigger', async () => {
   const trigger = screen.getByRole('button', { name: 'Trigger' }); trigger.focus();
   let choice: Promise<boolean>;
   act(() => { choice = confirmInApp('Delete a list?'); });
-  await userEvent.keyboard('{Escape}');
+  const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+  act(() => { document.dispatchEvent(escape); });
+  expect(escape.defaultPrevented).toBe(true); // Parent dialogs must not also dismiss.
   expect(await choice!).toBe(false);
-  expect(trigger).toHaveFocus();
+  await waitFor(() => expect(trigger).toHaveFocus());
 });
 it('queues notices without overwriting a pending confirmation', async () => {
   render(<AppDialogHost />);

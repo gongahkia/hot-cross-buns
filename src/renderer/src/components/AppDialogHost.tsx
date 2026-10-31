@@ -16,7 +16,7 @@ export function AppDialogHost(): JSX.Element {
         onOpenAutoFocus={event => { event.preventDefault(); actions.current?.querySelector<HTMLButtonElement>(request?.alert ? "[data-dialog-accept]" : "[data-dialog-cancel]")?.focus(); }}
         onCloseAutoFocus={event => { event.preventDefault(); if (request?.trigger?.isConnected) request.trigger.focus(); else (document.querySelector<HTMLElement>('[data-testid="inspector-shell"] [aria-label="Item type"]') ?? document.querySelector<HTMLElement>('[data-testid="settings-workspace"]') ?? document.querySelector<HTMLElement>('[data-testid="app-shell"] button'))?.focus(); }}
         onKeyDown={event => event.stopPropagation()}
-        onEscapeKeyDown={event => event.stopPropagation()}
+        onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); finish(false); }}
         onPointerDownOutside={event => event.preventDefault()}>
         <Dialog.Title className="hcb-brand-heading text-2xl">{request?.title ?? (request?.alert ? 'Something went wrong' : 'Confirm action')}</Dialog.Title>
         <Dialog.Description className="whitespace-pre-wrap text-pretty text-sm leading-relaxed text-text-secondary">{request?.message}</Dialog.Description>

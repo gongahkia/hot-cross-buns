@@ -1,3 +1,4 @@
+import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button, Input } from "./primitives";
 
@@ -29,11 +30,12 @@ export function BrowserGoogleSetupInstructions() {
 
 
 export function GoogleSetupHelp(): JSX.Element {
-  return <Dialog.Root>
+  const [open, setOpen] = useState(false);
+  return <Dialog.Root open={open} onOpenChange={setOpen}>
     <Dialog.Trigger asChild><button type="button" className="text-accent underline underline-offset-2">Connect</button></Dialog.Trigger>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm" />
-      <Dialog.Content className="fixed left-1/2 top-1/2 z-[81] grid max-h-[calc(100dvh-2rem)] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-2xl border border-border bg-bg-primary p-6 text-text-primary shadow-2xl outline-none" onEscapeKeyDown={event => event.stopPropagation()}>
+      <Dialog.Content className="fixed left-1/2 top-1/2 z-[81] grid max-h-[calc(100dvh-2rem)] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-2xl border border-border bg-bg-primary p-6 text-text-primary shadow-2xl outline-none" onEscapeKeyDown={event => { event.preventDefault(); event.stopPropagation(); setOpen(false); }}>
         <Dialog.Title className="hcb-brand-heading text-2xl">Google Cloud setup</Dialog.Title>
         <Dialog.Description className="text-sm text-text-muted">Set up a Web application client to connect your Google account.</Dialog.Description>
         <BrowserGoogleSetupInstructions />
