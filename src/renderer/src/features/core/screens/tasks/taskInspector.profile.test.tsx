@@ -211,7 +211,7 @@ describe("Task inspector draft persistence", () => {
     expect(commits).toEqual([]);
     expect(api.tasks.create).not.toHaveBeenCalled();
     expect(api.tasks.update).not.toHaveBeenCalled();
-    expect(inspectorQueries.getByText("Changes save when you leave a field")).toBeTruthy();
+    expect(inspectorQueries.queryByText("Changes save when you leave a field")).toBeNull();
 
     fireEvent.click(inspectorQueries.getByRole("button", { name: "Close inspector" }));
 

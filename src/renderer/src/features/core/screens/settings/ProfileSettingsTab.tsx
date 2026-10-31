@@ -9,7 +9,7 @@ import type {
 import { useEffect, useState } from "react";
 import { Check, Eye, EyeOff, Mail, RefreshCw, Save, Trash2, Users, X } from "@renderer/components/icons";
 import { AnimatedIcon } from "@renderer/components/AnimatedIcon";
-import { BrowserGoogleClientFields } from "@renderer/components/BrowserGoogleClientFields";
+import { BrowserGoogleClientFields, GoogleSetupHelp } from "@renderer/components/BrowserGoogleClientFields";
 import { Badge, Button, IconButton, Input, cx } from "../../../../components/primitives";
 import { EmptyState } from "../../../../components/states";
 import googleCalendarLogo from "../../../../assets/google-calendar.png";
@@ -102,9 +102,9 @@ export function ProfileSettingsTab({
         </SettingsGroup>
       ) : <>
       {browserRuntime ? <SettingsGroup title="Google connection">
-        <p className="px-3 py-3 text-sm text-text-secondary">{googleStatus.oauthClientConfigured
-          ? "Connect Google Tasks and Calendar using Google's consent popup. This browser keeps access tokens only in memory. Reconnect after reloading or when your session expires. Local planning remains available offline."
-          : "Save a Google Web application client ID below, then connect your Google account."}</p>
+        <p className="px-3 py-3 text-sm text-text-secondary"><GoogleSetupHelp />{googleStatus.oauthClientConfigured
+          ? " Google Tasks and Calendar using Google's consent popup. This browser keeps access tokens only in memory. Reconnect after reloading or when your session expires. Local planning remains available offline."
+          : " your Google account by saving a Web application client ID below, then signing in."}</p>
         <div className="border-t border-border px-3 py-3"><BrowserGoogleClientFields value={googleClientId} onValueChange={setGoogleClientId}
           onSave={saveGoogleOAuthClient} busy={settingsMutationPending || googleStatus.authorizationInProgress} /></div>
         <p className="px-3 pb-3 text-sm text-text-muted">Google sync runs only while HCB is open. Drive links, Drive uploads, and Gmail read-only access are optional and requested separately.</p>

@@ -1,3 +1,4 @@
+import { beginSyncProgress } from "../../shell/syncProgress";
 import { useCallback, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
@@ -94,41 +95,51 @@ export function useSettingsMutations({
       }
 
       setSettingsMutation({ pending: true });
-      const result = await window.hcb.settings.recoveryAction(request);
+      const finishProgress = request.action === "forceFullResync" ? beginSyncProgress() : undefined;
+      let progressError: string | undefined;
+      try {
+        const result = await window.hcb.settings.recoveryAction(request);
 
-      if (result.ok) {
-        const [settingsResult, nativeResult] = await Promise.all([
-          window.hcb.settings.get(),
-          window.hcb.native.capabilities()
-        ]);
-        setLoadState((current) => ({
-          ...current,
-          snapshot: {
-            ...current.snapshot,
-            ...(settingsResult.ok ? { settings: settingsResult.data } : {}),
-            ...(nativeResult.ok ? { native: nativeResult.data } : {})
+        if (result.ok) {
+          const [settingsResult, nativeResult] = await Promise.all([
+            window.hcb.settings.get(),
+            window.hcb.native.capabilities()
+          ]);
+          setLoadState((current) => ({
+            ...current,
+            snapshot: {
+              ...current.snapshot,
+              ...(settingsResult.ok ? { settings: settingsResult.data } : {}),
+              ...(nativeResult.ok ? { native: nativeResult.data } : {})
+            }
+          }));
+          setSettingsMutation({ pending: false });
+          refreshSyncStatus();
+          refreshDiagnosticsSummary();
+          if (
+            request.action === "refresh" ||
+            request.action === "restoreLocalNotes" ||
+            request.action === "clearGoogleCache" ||
+            request.action === "forceFullResync" ||
+            request.action === "resetOnboarding"
+          ) {
+            load();
           }
-        }));
-        setSettingsMutation({ pending: false });
-        refreshSyncStatus();
-        refreshDiagnosticsSummary();
-        if (
-          request.action === "refresh" ||
-          request.action === "restoreLocalNotes" ||
-          request.action === "clearGoogleCache" ||
-          request.action === "forceFullResync" ||
-          request.action === "resetOnboarding"
-        ) {
-          load();
+          return result.data;
         }
-        return result.data;
-      }
 
-      setSettingsMutation({
-        pending: false,
-        error: result.error.message
-      });
-      return null;
+        progressError = result.error.message;
+        setSettingsMutation({
+          pending: false,
+          error: result.error.message
+        });
+        return null;
+      } catch (error) {
+        progressError = error instanceof Error ? error.message : "Resync could not complete.";
+        setSettingsMutation({ pending: false, error: progressError });
+        return null;
+      } finally { finishProgress?.(progressError); }
+
     },
     [load, refreshDiagnosticsSummary, refreshSyncStatus, setLoadState]
   );

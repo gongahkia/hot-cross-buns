@@ -43,7 +43,6 @@ export function NotesSidebar({
           variant="ghost"
         /> : null}
       </div>
-      <p className="mt-3 px-2 text-[var(--text-xs)] text-text-muted">Notes stay on this device. Back up in Settings → Data.</p>
       <div className="mt-6">
         <div className="px-2 text-[var(--text-sm)] font-semibold text-text-primary">Lists</div>
         <div className="mt-2 grid gap-1">

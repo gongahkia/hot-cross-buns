@@ -13,7 +13,7 @@ function LoadingSurface(): JSX.Element {
   return <div className="grid flex-1 place-items-center text-sm text-text-muted" role="status">Loading…</div>;
 }
 
-export function SettingsView(props: { onOpenDiagnostics?: () => void }): JSX.Element {
+export function SettingsView(props: { initialDiagnosticsTab?: import("./DiagnosticsTabs").DiagnosticsTab }): JSX.Element {
   return <Suspense fallback={<LoadingSurface />}><DeferredSettings {...props} /></Suspense>;
 }
 

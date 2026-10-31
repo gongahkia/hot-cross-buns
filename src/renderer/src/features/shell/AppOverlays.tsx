@@ -1,3 +1,4 @@
+import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { RefObject } from "react";
 import { Bell, X } from "@renderer/components/icons";
@@ -124,11 +125,11 @@ export function NotificationsOverlay({
 
 export function SettingsOverlay({
   dialogRef,
-  onOpenDiagnostics,
+  initialDiagnosticsTab,
   onClose
 }: {
   dialogRef: RefObject<HTMLElement | null>;
-  onOpenDiagnostics: () => void;
+  initialDiagnosticsTab?: DiagnosticsTab;
   onClose: () => void;
 }): JSX.Element {
   return (
@@ -145,7 +146,7 @@ export function SettingsOverlay({
           <Dialog.Title asChild><h1 className="text-lg font-semibold" id="settings-overlay-title">Settings</h1></Dialog.Title>
           <Dialog.Close asChild><Button variant="ghost" aria-label="Close settings"><X size={16} />Back to planner</Button></Dialog.Close>
         </header>
-        <div className="min-h-0 flex-1 overflow-hidden"><SettingsView onOpenDiagnostics={onOpenDiagnostics} /></div>
+        <div className="min-h-0 flex-1 overflow-hidden"><SettingsView initialDiagnosticsTab={initialDiagnosticsTab} /></div>
       </section>
       </Dialog.Content>
       </Dialog.Portal>

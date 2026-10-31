@@ -15,7 +15,7 @@ DialogOverlay.displayName = "DialogOverlay";
 export const DialogContent = forwardRef<ElementRef<typeof DialogPrimitive.Content>, ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { showClose?: boolean }>(({ className, children, showClose = true, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content ref={ref} className={cx("onboarding-dialog fixed left-1/2 top-1/2 z-[61] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[440px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-bg-primary shadow-2xl antialiased", className)} {...props}>
+    <DialogPrimitive.Content ref={ref} className={cx("onboarding-dialog fixed left-1/2 top-1/2 z-[61] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[440px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-bg-primary shadow-2xl outline-none antialiased", className)} {...props}>
       {children}
       {showClose ? <DialogPrimitive.Close aria-label="Close" className="absolute right-3 top-3 grid size-10 place-items-center rounded-lg text-text-muted hover:text-text-primary"><X aria-hidden="true" size={16} /></DialogPrimitive.Close> : null}
     </DialogPrimitive.Content>

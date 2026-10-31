@@ -3,9 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Input } from "../../../../components/primitives";
 import { SettingsControlRow, SettingsGroup } from "./SettingsPrimitives";
 
-type OfflineStatus = { state: "preparing" | "ready" | "update-ready" | "unavailable"; message?: string };
-const readOfflineStatus = () => (window as Window & { hcbOffline?: OfflineStatus }).hcbOffline;
-
 type StorageInfo = { usage?: number | null; quota?: number | null; persisted: boolean; available: boolean; granted?: boolean };
 type ImportReview = { reviewId: string; summary: Record<string, number>; warnings: string[] };
 const bytesLabel = (value?: number | null) => value == null ? "Unavailable" : `${(value / 1024 / 1024).toFixed(1)} MB`;
@@ -13,19 +10,12 @@ const bytesLabel = (value?: number | null) => value == null ? "Unavailable" : `$
 export function BrowserStorageControls(): JSX.Element {
   const importTrigger = useRef<HTMLButtonElement | null>(null);
   const confirmationInput = useRef<HTMLInputElement | null>(null);
-  const [offline, setOffline] = useState<OfflineStatus | undefined>(readOfflineStatus);
   const [info, setInfo] = useState<StorageInfo | null>(null);
   const [review, setReview] = useState<ImportReview | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const update = () => setOffline(readOfflineStatus());
-    window.addEventListener("hcb:offline-status", update);
-    return () => window.removeEventListener("hcb:offline-status", update);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -64,10 +54,6 @@ export function BrowserStorageControls(): JSX.Element {
   }
 
   return <>
-    <SettingsGroup title="Offline availability">
-      <p className="px-3 py-3 text-sm text-text-secondary" role="status">{offline?.state === "ready" ? "Ready to open offline in this browser." : offline?.state === "preparing" ? "Downloading application files for offline use. Keep this tab online until ready." : offline?.state === "update-ready" ? "An application update is ready. Close all HCB tabs and reopen to use it." : offline?.message ?? "Offline application files are not available in this session."}</p>
-      <p className="px-3 pb-3 text-sm text-text-muted">The first load requires a network connection. After offline files are ready, local planning works without Google. Updates activate after all HCB tabs close; they do not interrupt open editors. Workspace data stays in IndexedDB.</p>
-    </SettingsGroup>
     <SettingsGroup title="Browser storage">
       <p className="px-3 py-3 text-sm text-text-secondary">This workspace belongs to this site's browser profile. Clearing site data removes it. Private browsing usually removes it when the private session ends. Sync runs while HCB is open and connected.</p>
       <SettingsControlRow label="Storage used" description="Browser estimates include this site's storage, not just the planner database."><span>{bytesLabel(info?.usage)} / {bytesLabel(info?.quota)}</span></SettingsControlRow>

@@ -1,6 +1,7 @@
+import { diagnosticsTabs, type DiagnosticsTab } from "../../DiagnosticsTabs";
 import { supportedFontFamilies } from "../../../shell/fonts";
 import { usePanePreference } from "../../../shell/panePreferences";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type {
   GoogleOptionalWorkspaceService,
   SettingsRecoveryActionRequest,
@@ -14,13 +15,11 @@ import {
   resolveEffectiveThemeMode,
   resolveAppThemeMode
 } from "@shared/ipc/themeCatalog";
-import { Copy, Search } from "@renderer/components/icons";
-import { useInspector } from "../../../../components/Inspector";
+import { Search } from "@renderer/components/icons";
 import { Button, Input, Panel, StatusBanner } from "../../../../components/primitives";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import {
-  currentSystemPrefersDark,
-  sanitizedJson
+  currentSystemPrefersDark
 } from "../../coreScreenShared";
 import { hotkeyDefinitions } from "../../hotkeys";
 import { AppearanceSettingsTab } from "./AppearanceSettingsTab";
@@ -37,7 +36,8 @@ import {
 } from "./SettingsPrimitives";
 import { recoveryPhrase } from "./settingsUtils";
 
-type SettingsTabId = "data" | "profile" | "general" | "appearance" | "hotkeys" | "alerts" | "about";
+const DiagnosticsPanel = lazy(() => import("../../DiagnosticsSettingsPanel").then(module => ({ default: module.DiagnosticsSettingsPanel })));
+type SettingsTabId = "data" | "profile" | "general" | "appearance" | "hotkeys" | "alerts" | "about" | `diagnostics-${DiagnosticsTab}`;
 type AutoTagBackgroundNotice = {
   title: string;
   description: string;
@@ -46,23 +46,34 @@ type AutoTagBackgroundNotice = {
 };
 
 const settingsTabLabels: Record<SettingsTabId, string> = {
+  "diagnostics-overview": "Diagnostics", "diagnostics-sync": "Sync", "diagnostics-logs": "Logs", "diagnostics-history": "History", "diagnostics-support": "Support",
   profile: "Accounts", general: "General", appearance: "Appearance", hotkeys: "Hotkeys",
   alerts: "Alerts", data: "Data", about: "About"
 };
 const settingsTabDescriptions: Record<SettingsTabId, string> = {
+  "diagnostics-overview": "Runtime and workspace health.",
+  "diagnostics-sync": "Google delivery, sync issues, and recovery tools.",
+  "diagnostics-logs": "Inspect and export application logs.",
+  "diagnostics-history": "Review workspace activity and changes.",
+  "diagnostics-support": "Export diagnostics to help troubleshoot issues.",
   profile: "Manage Google connections and choose the lists and calendars in your planner.",
   general: "Language, sync, history, and setup preferences.",
   appearance: "Make the planner comfortable to read and work in.",
   hotkeys: "Personalise shortcuts and resolve conflicting key combinations.",
   alerts: "Choose when your planner reminds you and which sounds it plays.",
-  data: "Manage browser storage, offline availability, and workspace backups.",
+  data: "Manage browser storage and workspace backups.",
   about: "Application version and updates."
 };
 
 const autoTagTargetKinds: AutoTagTargetKind[] = ["task", "event", "note"];
 
 const settingsSearchTextByTab: Record<SettingsTabId, string> = {
-  data: "Data local notes backup export import restore replace archive storage persistent browser offline availability updates device Google planning metadata",
+  "diagnostics-overview": "Diagnostics Overview runtime health",
+  "diagnostics-sync": "Sync Refresh Force full resync Recovery Google queue errors",
+  "diagnostics-logs": "Logs errors debug info export",
+  "diagnostics-history": "History activity changes undo",
+  "diagnostics-support": "Support diagnostics bundle export copy",
+  data: "Data Workspace archives local notes backup export import restore replace archive storage persistent browser device Google planning metadata",
   about: [
     "About",
     "Updates",
@@ -109,23 +120,13 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Run setup again"
   ].join(" "),
   appearance: [
-    "Appearance Colour scheme Disable animations Editor buffer font DM Sans DM Serif Display Inter Calendar event colors Per-surface fonts Toolbar actions Calendar view modes Month scroll range Past Future Calendar timeline density Quick-create",
+    "Appearance Colour scheme Disable animations Editor buffer font DM Sans DM Serif Display Inter Calendar event colors Calendar view modes Month scroll range Past Future Calendar timeline density Quick-create",
     "Theme",
     "Color theme",
-    "Custom background",
-    "Infer theme from background",
-    "Inferred palette",
-    "Color preview",
     "Reduce motion",
     "Layout scale",
     "Text size",
     "UI font",
-    "Per-surface fonts",
-    "Tasks font",
-    "Calendar font",
-    "Notes font",
-    "Menu bar font",
-    "Settings font",
     "Layout",
     "Default section",
     "Sidebar labels",
@@ -158,12 +159,11 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
 };
 
 export function SettingsView({
-  onOpenDiagnostics
+  initialDiagnosticsTab
 }: {
-  onOpenDiagnostics?: () => void;
+  initialDiagnosticsTab?: DiagnosticsTab;
 } = {}): JSX.Element {
   const source = useCoreViewModelSource();
-  const { open: openInspector } = useInspector();
   const [confirmation, setConfirmation] = useState<{
     action: SettingsRecoveryActionRequest["action"];
     phrase: string;
@@ -177,6 +177,12 @@ export function SettingsView({
   }
   const [autoTagBackgroundNotice, setAutoTagBackgroundNotice] = useState<AutoTagBackgroundNotice | null>(null);
   const [selectedSettingsTab, setSelectedSettingsTab] = usePanePreference<SettingsTabId>("settings.category", "general");
+  useEffect(() => {
+    if (initialDiagnosticsTab) {
+      setSelectedSettingsTab(`diagnostics-${initialDiagnosticsTab}`);
+      setSettingsQuery("");
+    }
+  }, [initialDiagnosticsTab, setSelectedSettingsTab]);
   const [settingsQuery, setSettingsQuery] = useState("");
   const [customRetentionAmount, setCustomRetentionAmount] = useState("60");
   const [customRetentionUnit, setCustomRetentionUnit] = useState<"days" | "months" | "years">("days");
@@ -503,41 +509,8 @@ export function SettingsView({
     });
   }
 
-  async function copyDiagnosticsPayload(payload: string): Promise<void> {
-    const result = await window.hcb?.native.writeClipboardText({ text: payload });
-    setRecoveryMessage(result?.ok ? "Diagnostics summary copied." : result?.error.message ?? "Clipboard access is unavailable.", result?.ok ? "success" : "warning");
-  }
-
   async function openDiagnosticsDetails(): Promise<void> {
-    if (onOpenDiagnostics) {
-      onOpenDiagnostics();
-      return;
-    }
-
-    const summaryResult = diagnostics ? null : await window.hcb?.diagnostics.summary();
-    const freshDiagnostics = diagnostics ?? (summaryResult?.ok ? summaryResult.data : null);
-    const payload = sanitizedJson(freshDiagnostics ?? { rows: source.settingsSections[0]?.rows ?? [] });
-
-    openInspector({
-      actions: (
-        <Button onClick={() => copyDiagnosticsPayload(payload)} size="sm" variant="primary">
-          <Copy aria-hidden="true" size={14} />
-          Copy
-        </Button>
-      ),
-      body: (
-        <pre
-          aria-label="Sanitized diagnostics JSON"
-          className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-hcbMd border border-border bg-surface-0 p-3 font-mono text-[var(--text-xs)] text-text-primary"
-        >
-          {payload}
-        </pre>
-      ),
-      id: "diagnostics-summary",
-      kind: "diagnostics",
-      subtitle: "Sanitized JSON",
-      title: "Diagnostics details"
-    });
+    selectSettingsTab("diagnostics-overview");
   }
 
   async function saveGoogleOAuthClient(): Promise<void> {
@@ -640,10 +613,11 @@ export function SettingsView({
         <SettingsTabButton active={selectedSettingsTab === "alerts"} label="Alerts" onClick={() => selectSettingsTab("alerts")} />
         <p className="mt-5 px-2 pb-1 text-xs font-semibold text-text-muted">Maintenance</p>
         <SettingsTabButton active={selectedSettingsTab === "data"} label="Data" onClick={() => selectSettingsTab("data")} />
+        {diagnosticsTabs.map(tab => <SettingsTabButton key={tab.id} active={selectedSettingsTab === `diagnostics-${tab.id}`} label={settingsTabLabels[`diagnostics-${tab.id}`]} onClick={() => selectSettingsTab(`diagnostics-${tab.id}`)} />)}
         <SettingsTabButton active={selectedSettingsTab === "about"} label="About" onClick={() => selectSettingsTab("about")} />
         </div>
       </nav>
-      <div className="settings-content min-h-0 min-w-0 overflow-auto px-6 py-5" key={selectedSettingsTab}>
+      <div className="settings-content screen-transition min-h-0 min-w-0 overflow-auto px-6 py-5" key={selectedSettingsTab}>
       <div className="mx-auto grid max-w-4xl gap-4">
       <div className="pb-2">
         <h2 className="text-balance text-xl font-semibold">{selectedSettingsTab === "data" ? "Data and recovery" : settingsTabLabels[selectedSettingsTab]}</h2>
@@ -719,6 +693,7 @@ export function SettingsView({
       ) : null}
 
       {!normalizedSettingsQuery || matchingSettingsTabs.length > 0 ? <SettingsSearchProvider query={settingsSearchMatches(settingsTabLabels[selectedSettingsTab], normalizedSettingsQuery) ? "" : normalizedSettingsQuery}>
+        {selectedSettingsTab.startsWith("diagnostics-") ? <Suspense fallback={<p role="status">Loading diagnostics…</p>}><DiagnosticsPanel initialTab={selectedSettingsTab.slice(12) as DiagnosticsTab} /></Suspense> : null}
         {selectedSettingsTab === "profile" ? (
           <ProfileSettingsTab
             googleAvailable={source.native.capabilityReport.platform === "web" || source.native.capabilityReport.flags.supportsOAuthLoopback === true}

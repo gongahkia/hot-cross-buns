@@ -6,7 +6,6 @@ import { currentZonedDay } from "@shared/zonedTime";
 import type { PlannerAction } from "../../actions/plannerActions";
 import type { QuickAddSubmitPayload } from "../../components/QuickAddDialog";
 import { LoadingIndicatorProvider } from "../../components/LoadingIndicator";
-import { cx } from "../../components/primitives";
 import type { SectionId } from "../../data/mockPlanner";
 import { getAppNotifications } from "../core/appNotifications";
 import type { ConvertCommandDetail } from "../core/conversionEvents";
@@ -14,7 +13,6 @@ import type { DiagnosticsTab } from "../core/DiagnosticsTabs";
 import type { TaskSurfaceCommand } from "../core/CoreScreens";
 import { useCoreViewModelSource } from "../core/coreViewModelSource";
 import {
-  displayAccelerator,
   duplicateAccelerators,
   eventMatchesAccelerator,
   hotkeyDefinitions
@@ -30,6 +28,7 @@ import { AppHeader } from "./AppHeader";
 import { InspectorSearchHost } from "../../components/Inspector/InspectorSearch";
 import { InspectorShell, useInspector } from "../../components/Inspector";
 import { WorkspaceSidebarContext } from "./WorkspaceSidebar";
+import { SyncProgressOverlay } from "./SyncProgressOverlay";
 import { SaveFeedback } from "./SaveFeedback";
 import { CalendarNavigationProvider } from "./CalendarNavigation";
 import { NotificationsOverlay, SettingsOverlay } from "./AppOverlays";
@@ -60,10 +59,6 @@ const DeferredQuickAddDialog = lazy(() =>
   import("../../components/QuickAddDialog").then((module) => ({
     default: module.QuickAddDialog
   }))
-);
-
-const DeferredDiagnosticsOverlay = lazy(() =>
-  import("../core/DiagnosticsOverlay").then((module) => ({ default: module.DiagnosticsOverlay }))
 );
 
 function quickAddRecurrenceDraft(recurrence: CalendarEventRecurrence | null): Record<string, unknown> {
@@ -106,8 +101,7 @@ export function AppShell(): JSX.Element {
   const [pendingNavigationAction, setPendingNavigationAction] = useState<{ sectionId: SectionId; run: () => void } | null>(null);
   const [taskCommand, setTaskCommand] = useState<TaskSurfaceCommand | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [diagnosticsInitialTab, setDiagnosticsInitialTab] = useState<DiagnosticsTab>("overview");
+  const [diagnosticsInitialTab, setDiagnosticsInitialTab] = useState<DiagnosticsTab | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddFromPalette, setQuickAddFromPalette] = useState(false);
@@ -200,9 +194,9 @@ export function AppShell(): JSX.Element {
   );
 
   const openSettingsPanel = useCallback((): void => {
+    setDiagnosticsInitialTab(undefined);
     setCommandPaletteOpen(false);
     setNotificationsOpen(false);
-    setDiagnosticsOpen(false);
     setSettingsOpen(true);
   }, []);
 
@@ -210,8 +204,7 @@ export function AppShell(): JSX.Element {
     setCommandPaletteOpen(false);
     setDiagnosticsInitialTab(tab);
     setNotificationsOpen(false);
-    setSettingsOpen(false);
-    setDiagnosticsOpen(true);
+    setSettingsOpen(true);
   }, []);
 
   const navigateOrOpenSettings = useCallback(
@@ -231,7 +224,6 @@ export function AppShell(): JSX.Element {
     setCommandPaletteMode("open");
     setCommandPaletteInitialQuery(initialQuery);
     setNotificationsOpen(false);
-    setDiagnosticsOpen(false);
     setSettingsOpen(false);
     setCommandPaletteOpen(true);
   }, []);
@@ -241,7 +233,6 @@ export function AppShell(): JSX.Element {
     setCommandPaletteMode("action");
     setCommandPaletteInitialQuery(initialQuery);
     setNotificationsOpen(false);
-    setDiagnosticsOpen(false);
     setSettingsOpen(false);
     setCommandPaletteOpen(true);
   }, []);
@@ -250,22 +241,18 @@ export function AppShell(): JSX.Element {
     setQuickAddFromPalette(fromPalette);
     setCommandPaletteOpen(false);
     setNotificationsOpen(false);
-    setDiagnosticsOpen(false);
     setSettingsOpen(false);
     setQuickAddOpen(true);
   }, []);
 
   const toggleNotificationsPanel = useCallback((): void => {
     setSettingsOpen(false);
-    setDiagnosticsOpen(false);
     setNotificationsOpen((open) => !open);
   }, []);
 
   const toggleDiagnosticsPanel = useCallback((): void => {
-    setSettingsOpen(false);
-    setNotificationsOpen(false);
-    setDiagnosticsOpen((open) => !open);
-  }, []);
+    openDiagnosticsPanel();
+  }, [openDiagnosticsPanel]);
 
   const toggleSettingsPanel = useCallback((): void => {
     if (settingsOpen) {
@@ -375,6 +362,11 @@ export function AppShell(): JSX.Element {
         return true;
       }
 
+      if (command.id === "sync.forceFullResync") {
+        void source.runRecoveryAction({ action: "forceFullResync", confirmation: { accepted: true, phrase: "FULL RESYNC" } });
+        return true;
+      }
+
       if (command.id === "sync.refresh") {
         syncThenRefresh("command-palette");
         return true;
@@ -419,6 +411,7 @@ export function AppShell(): JSX.Element {
       openDiagnosticsPanel,
       openQuickAdd,
       openSettingsPanel,
+      source.runRecoveryAction,
       source.redo,
       syncThenRefresh,
       source.undo,
@@ -608,7 +601,7 @@ export function AppShell(): JSX.Element {
       }
 
       if (actionId === "sync.forceFullResync") {
-        void window.hcb?.sync.forceFullResync({}).then(() => source.refresh());
+        void source.runRecoveryAction({ action: "forceFullResync", confirmation: { accepted: true, phrase: "FULL RESYNC" } });
         return;
       }
 
@@ -678,6 +671,7 @@ export function AppShell(): JSX.Element {
       toggleDiagnosticsPanel,
       openSettingsPanel,
       syncThenRefresh,
+      source.runRecoveryAction,
       source.redo,
       source.undo,
       toggleNotificationsPanel,
@@ -735,7 +729,6 @@ export function AppShell(): JSX.Element {
     setCommandPaletteOpen(false);
     setQuickAddOpen(false);
     setNotificationsOpen(false);
-    setDiagnosticsOpen(false);
     setSettingsOpen(false);
     scheduleFrame(() => {
       void import("../../components/FirstRunOnboarding");
@@ -758,7 +751,7 @@ export function AppShell(): JSX.Element {
       if (leaderActive) {
         event.preventDefault();
 
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && !event.defaultPrevented) {
           setLeaderActive(false);
           return;
         }
@@ -852,7 +845,7 @@ export function AppShell(): JSX.Element {
     }
 
     function handleKeyDown(event: globalThis.KeyboardEvent): void {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
         setNotificationsOpen(false);
       }
@@ -863,22 +856,6 @@ export function AppShell(): JSX.Element {
   }, [notificationsOpen]);
 
   useEffect(() => {
-    if (!diagnosticsOpen) {
-      return;
-    }
-
-    function handleKeyDown(event: globalThis.KeyboardEvent): void {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setDiagnosticsOpen(false);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [diagnosticsOpen]);
-
-  useEffect(() => {
     if (!settingsOpen) {
       return;
     }
@@ -886,7 +863,7 @@ export function AppShell(): JSX.Element {
     scheduleFrame(() => settingsDialogRef.current?.focus());
 
     function handleKeyDown(event: globalThis.KeyboardEvent): void {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
         setSettingsOpen(false);
       }
@@ -956,6 +933,7 @@ export function AppShell(): JSX.Element {
         <InspectorShell documentMode={currentInspector?.kind === "note" && paneWorkspace.activeSectionId === "notes"} />
       </main>
       <SaveFeedback />
+      <SyncProgressOverlay />
 
       <RenderTimingBoundary id="command-palette">
         <Suspense fallback={null}>
@@ -1004,46 +982,14 @@ export function AppShell(): JSX.Element {
           onDismissAll={dismissAllVisibleNotifications}
         />
       ) : null}
-      {diagnosticsOpen ? (
-        <Suspense fallback={null}>
-          <DeferredDiagnosticsOverlay initialTab={diagnosticsInitialTab} onClose={() => setDiagnosticsOpen(false)} />
-        </Suspense>
-      ) : null}
       {settingsOpen ? (
         <SettingsOverlay
           dialogRef={settingsDialogRef}
-          onOpenDiagnostics={openDiagnosticsPanel}
+          initialDiagnosticsTab={diagnosticsInitialTab}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
-      {leaderActive ? (
-        <div
-          aria-label="Leader key commands"
-          className="fixed bottom-4 left-1/2 z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 rounded-hcbLg border border-border bg-bg-secondary p-3 shadow-2xl"
-          role="dialog"
-        >
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="text-[var(--text-sm)] font-semibold text-text-primary">
-              {displayAccelerator(source.settings.leaderKey)}...
-            </div>
-            <div className="text-[var(--text-xs)] text-text-muted">Esc cancels</div>
-          </div>
-          <div className="grid max-h-64 gap-1 overflow-y-auto sm:grid-cols-2">
-            {leaderEntries.map((entry) => (
-              <div
-                className={cx(
-                  "grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 rounded-hcbMd px-2 py-1.5 text-[var(--text-sm)]",
-                  entry.conflict ? "text-warning" : "text-text-secondary"
-                )}
-                key={entry.id}
-              >
-                <span className="font-mono text-[var(--text-xs)]">{displayAccelerator(entry.accelerator)}</span>
-                <span className="truncate">{entry.label}{entry.conflict ? " conflict" : ""}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+
     </div>
     </WorkspaceSidebarContext.Provider>
     </CalendarNavigationProvider>

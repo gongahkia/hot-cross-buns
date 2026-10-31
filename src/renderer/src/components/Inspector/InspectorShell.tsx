@@ -198,8 +198,8 @@ function InspectorPanel({ current, documentMode }: { current: InspectorItem; doc
         >
           {current.body}
         </div>
-          {current.onSave ? <div className="inspector-save-status" role={current.saveError ? "alert" : "status"}>
-            <span>{current.saveError ?? (current.saving ? "Saving…" : dirty || current.id === "new" || current.id.startsWith("note-draft-") ? "Changes save when you leave a field" : "Saved")}</span>
+          {current.onSave && (current.saveError || current.saving || !(dirty || current.id === "new" || current.id.startsWith("note-draft-"))) ? <div className="inspector-save-status" role={current.saveError ? "alert" : "status"}>
+            <span>{current.saveError ?? (current.saving ? "Saving…" : dirty || current.id === "new" || current.id.startsWith("note-draft-") ? "" : "Saved")}</span>
             {current.saveError ? <><Button onClick={() => void current.onSave?.()} size="sm" variant="ghost">Retry</Button><Button onClick={() => void current.onDiscard?.()} size="sm" variant="ghost">Discard edits</Button></> : null}
           </div> : null}
 

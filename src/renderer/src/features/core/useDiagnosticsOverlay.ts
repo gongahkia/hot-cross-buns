@@ -15,7 +15,7 @@ import { formatDateTime } from "./diagnosticsFormatting";
 type DiagnosticsMessage = { tone: "success" | "warning" | "danger"; text: string };
 const unavailableMessage = "Diagnostics preload bridge is unavailable.";
 
-export function useDiagnosticsOverlay(onClose: () => void, initialTab: DiagnosticsTab = "overview"): {
+export function useDiagnosticsOverlay(onClose: () => void, initialTab: DiagnosticsTab = "overview", embedded = false): {
   cancelMutation: (id: string) => Promise<void>;
   clearLogs: () => Promise<void>;
   copyDiagnosticSummary: () => Promise<void>;
@@ -71,7 +71,7 @@ export function useDiagnosticsOverlay(onClose: () => void, initialTab: Diagnosti
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
-    dialogRef.current?.focus();
+    if (!embedded) dialogRef.current?.focus();
     void refreshAll();
 
     function handleKeyDown(event: KeyboardEvent): void {
@@ -81,9 +81,10 @@ export function useDiagnosticsOverlay(onClose: () => void, initialTab: Diagnosti
       }
     }
 
+    if (embedded) return;
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   useEffect(() => {
     setTab(initialTab);

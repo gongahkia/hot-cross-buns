@@ -13,11 +13,6 @@ export function DataSettingsTab({ settings, pending, updateSettings, runAction, 
 }): JSX.Element {
   return (
     <div className="grid gap-5">
-      <SettingsGroup title="Where your data lives">
-        <p className="px-3 py-3 text-sm text-text-secondary">{browserStorage
-          ? "Tasks, calendar events, notes, settings, and undo history are saved in this site's IndexedDB storage in your current browser profile. Changes are confirmed only after the browser saves them. Google is required for initial setup. Sync runs while this app is open and connected; your saved workspace remains available offline."
-          : "Tasks and calendar events sync with Google. Notes, stars, and workspace preferences belong to this device. HCB planning fields such as priority, tags, and duration travel in a marked footer in Google task notes."}</p>
-      </SettingsGroup>
       {browserStorage ? (
         <BrowserStorageControls />
       ) : (

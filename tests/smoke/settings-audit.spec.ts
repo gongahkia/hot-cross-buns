@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test, planner, capture } from "./planner";
 
-const categories = ["Accounts", "General", "Appearance", "Hotkeys", "Alerts", "Data", "About"];
+const categories = ["Accounts", "General", "Appearance", "Hotkeys", "Alerts", "Data", "Diagnostics", "Sync", "Logs", "History", "Support", "About"];
 
 test("settings categories stay usable at desktop and narrow widths in both themes", async () => {
   test.setTimeout(120_000);
@@ -56,8 +56,8 @@ test("settings search exposes matching categories, empty results, and normal nav
   await planner(async (page) => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     const search = page.getByRole("textbox", { name: "Search settings" });
-    await search.fill("offline");
-    await expect(page.getByRole("heading", { name: "Offline availability", exact: true })).toBeVisible();
+    await search.fill("workspace archives");
+    await expect(page.getByRole("heading", { name: "Workspace archives", exact: true })).toBeVisible();
     await expect(page.getByLabel("Matching settings categories").getByRole("button", { name: "Data", exact: true })).toBeVisible();
     await search.fill("appearance");
     await expect(page.getByRole("combobox", { name: "Theme", exact: true })).toBeVisible();
@@ -104,5 +104,29 @@ test("failed Google connection is reported as a failure in Settings", async () =
     await page.getByRole("button", { name: "Add Google Account", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "Action could not be completed" })).toContainText("Google access was denied");
     await expect(page.getByText("Action completed", { exact: true })).toHaveCount(0);
+  });
+});
+
+test("simplified settings hide removed controls and Connect opens setup help", async () => {
+  await planner(async page => {
+    await expect(page.getByRole("heading", { name: "Hot Cross Buns", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = page.getByTestId("settings-workspace");
+    const categories = settings.getByRole("navigation", { name: "Settings categories" });
+    await categories.getByRole("button", { name: "Appearance", exact: true }).click();
+    for (const name of ["Custom background", "Infer theme from background", "Per-surface fonts", "Primary navigation", "Toolbar actions"]) {
+      await expect(settings.getByText(name, { exact: true })).toHaveCount(0);
+    }
+    await categories.getByRole("button", { name: "Accounts", exact: true }).click();
+    await expect(settings.locator("details").filter({ hasText: "Google Cloud setup" })).toHaveCount(0);
+    const connect = settings.getByRole("button", { name: "Connect", exact: true });
+    await connect.click();
+    const help = page.getByRole("dialog", { name: "Google Cloud setup", exact: true });
+    await expect(help).toBeVisible();
+    await expect(help).toContainText("Authorized JavaScript origins");
+    await page.keyboard.press("Escape");
+    await expect(help).toHaveCount(0);
+    await expect(settings).toBeVisible();
+    await expect(connect).toBeFocused();
   });
 });

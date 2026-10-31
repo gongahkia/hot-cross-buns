@@ -215,7 +215,7 @@ export const plannerActions: PlannerAction[] = [
   {
     id: "sync.forceFullResync",
     label: "Force full resync",
-    description: "Reset checkpoints in the future sync service",
+    description: "Refresh all Google tasks and calendars",
     category: "Sync",
     keywords: ["sync", "reset", "checkpoint"],
     sectionId: "settings"

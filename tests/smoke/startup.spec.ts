@@ -26,9 +26,9 @@ test("opens deferred diagnostics through its keyboard shortcut", async () => {
     await expect(onboarding).toBeHidden();
     await page.getByRole("button", { name: "Settings", exact: true }).focus();
     await page.keyboard.press(process.platform === "darwin" ? "Meta+Alt+d" : "Control+Alt+d");
-    await expect(page.getByRole("dialog", { name: "Diagnostics", exact: true })).toBeVisible();
+    await expect(page.getByTestId("settings-workspace")).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Diagnostics", exact: true })).toBeHidden();
+    await expect(page.getByTestId("settings-workspace")).toBeHidden();
   } finally {
     await app.close();
     rmSync(profile, { recursive: true, force: true });

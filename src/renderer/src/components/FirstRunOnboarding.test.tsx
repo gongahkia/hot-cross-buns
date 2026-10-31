@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
@@ -28,7 +28,7 @@ describe("FirstRunOnboarding", () => {
     await user.click(screen.getByRole("button", { name: "Get started" }));
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Connect Google" })).toBeDisabled();
-    expect(screen.getByText(/Google sign-in is not configured/)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(/Google sign-in is not configured/)).toBeVisible());
     source.googleStatus = { ...setupSource().googleStatus };
     rerender(<FirstRunOnboarding source={source} />);
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
@@ -38,6 +38,30 @@ describe("FirstRunOnboarding", () => {
     rerender(<FirstRunOnboarding source={source} />);
     expect(screen.getByRole("button", { name: "Finish setup" })).toBeDisabled();
     expect(source.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("moves Google configuration through pages without dropdowns and preserves the client ID", async () => {
+    const user = userEvent.setup();
+    const source = setupSource();
+    source.googleStatus = { accounts: [], oauthClientConfigured: false, clientId: null, hasClientSecret: false };
+    source.native.capabilityReport.platform = "web";
+    const { rerender } = render(<FirstRunOnboarding source={source} />);
+    await user.click(screen.getByRole("button", { name: "Get started" }));
+    await user.click(screen.getByRole("button", { name: "Set up Google sign-in" }));
+    expect(screen.getByRole("heading", { name: "Set up Google sign-in" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    const field = screen.getByRole("textbox", { name: "Google OAuth client ID" });
+    await user.type(field, "example.apps.googleusercontent.com");
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(field.closest("[role=dialog]")?.querySelector("details")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("textbox", { name: "Google OAuth client ID" })).toHaveValue("example.apps.googleusercontent.com");
+    source.googleStatus = { ...source.googleStatus, oauthClientConfigured: true, clientId: "example.apps.googleusercontent.com" };
+    rerender(<FirstRunOnboarding source={source} />);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("button", { name: "Connect Google" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
   it("keeps setup open when durable settings persistence fails", async () => {

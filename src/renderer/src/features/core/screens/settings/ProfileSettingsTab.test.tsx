@@ -106,7 +106,8 @@ describe("ProfileSettingsTab optional Google access", () => {
     expect(screen.getByRole("textbox", { name: "Google OAuth client ID" })).toBeVisible();
     expect(screen.queryByLabelText("Google OAuth client secret")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save client ID" })).toBeVisible();
-    expect(screen.getByText(/Saved for this site in this browser profile/)).toBeVisible();
+    expect(screen.queryByText(/Saved for this site in this browser profile/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Connect$/ })).toBeVisible();
     expect(screen.getByRole("button", { name: "Add Google Account" })).toBeDisabled();
   });
 });

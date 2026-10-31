@@ -24,14 +24,14 @@ export function CalendarSyncStatus({ loading, error, onRetry, sync, offline, sta
   const message = loading ? "Loading calendar dates…"
     : error ? "Calendar dates could not be loaded. This view may be incomplete."
     : offline ? `Offline · showing cached calendar${queued ? ` · ${queued} changes waiting` : ""}`
-    : failed ? "Some changes have not reached Google. Review sync details."
+    : failed ? "Some changes have not reached Google."
     : sync.state === "syncing" ? "Syncing with Google…"
     : hasRemote && queued ? `${queued} ${queued === 1 ? "change" : "changes"} saved locally · waiting for Google sync`
     : stale || (hasRemote && !sync.lastCompletedAt) ? "Showing cached calendar · Google sync not yet checked"
     : hasRemote ? `Last Google sync: ${new Date(sync.lastCompletedAt!).toLocaleString()}` : "Saved on this device";
   return <div className="calendar-sync-status">
-    <span role="status" aria-label="Calendar status">{message}</span>
+    <span role="status" aria-label="Calendar status">{hasRemote && sync.lastCompletedAt && message.startsWith("Last Google sync:") ? <>Last Google <button type="button" onClick={openCalendarSyncDetails}>sync</button>: {new Date(sync.lastCompletedAt).toLocaleString()}</> : message}</span>
     {error ? <button type="button" onClick={onRetry}>Retry loading dates</button> : null}
-    {hasRemote || failed ? <button type="button" onClick={openCalendarSyncDetails}>{failed ? "Review sync" : "Sync details"}</button> : null}
+    {!message.startsWith("Last Google sync:") && (hasRemote || failed) ? <button type="button" onClick={openCalendarSyncDetails}>sync</button> : null}
   </div>;
 }

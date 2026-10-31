@@ -7,7 +7,7 @@ import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
 import { LoadingIndicator } from "./LoadingIndicator";
-import { BrowserGoogleClientFields } from "./BrowserGoogleClientFields";
+import { BrowserGoogleClientFields, BrowserGoogleSetupInstructions } from "./BrowserGoogleClientFields";
 
 export function FirstRunOnboarding({ source, connectionOnly = false }: { source: CoreViewModelSource; connectionOnly?: boolean }): JSX.Element {
   const initialTaskListIds =
@@ -30,6 +30,7 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
   const [submitting, setSubmitting] = useState(false);
   const [activeStep, setActiveStep] = useState(connectionOnly ? 1 : 0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [googleSetupPage, setGoogleSetupPage] = useState<"instructions" | "client" | null>(null);
   const prefersReducedMotion = useReducedMotion();
   const motionDisabled = source.settings.disableAnimations || prefersReducedMotion;
   const refreshedConnectedAccount = useRef<string | null>(null);
@@ -62,8 +63,13 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
   const canFinish = googleConnected && resourcesReady && selectedTaskListIds.length > 0 && selectedCalendarIds.length > 0;
 
   useEffect(() => {
-    if (contentRef.current) contentRef.current.scrollTop = 0;
-  }, [activeStep]);
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+      // Next may become disabled after leaving welcome. Keep keyboard focus
+      // inside the dialog rather than on the now-disabled navigation button.
+      contentRef.current.closest<HTMLElement>('[role="dialog"]')?.focus({ preventScroll: true });
+    }
+  }, [activeStep, googleSetupPage]);
 
   useEffect(() => {
     setGoogleClientId(source.googleStatus.clientId ?? "");
@@ -266,16 +272,16 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
 
   return (
     <Dialog open>
-      <DialogContent showClose={false} aria-label="Hot Cross Buns" onEscapeKeyDown={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()}>
+      <DialogContent showClose={false} className="h-[min(640px,calc(100dvh-2rem))]" aria-label="Hot Cross Buns" aria-labelledby={undefined} onEscapeKeyDown={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()}>
         <div className="m-2 mb-0 flex h-40 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-0 sm:h-44">
           <LoadingIndicator size={180} illustration="connection" />
         </div>
-        <div ref={contentRef} className="min-h-0 overflow-x-hidden overflow-y-auto px-6 pb-3 pt-5">
+        <div ref={contentRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 pb-3 pt-5">
           <AnimatePresence initial={false} mode="popLayout">
-            <OnboardingStep key={activeStep} disabled={Boolean(motionDisabled)}>
+            <OnboardingStep key={`${activeStep}-${googleSetupPage ?? "main"}`} disabled={Boolean(motionDisabled)}>
               <DialogHeader className={activeStep === 0 ? "sr-only" : "mb-5"}>
-                <DialogTitle>{stepContent[activeStep].title}</DialogTitle>
-                <DialogDescription>{stepContent[activeStep].description}</DialogDescription>
+                <DialogTitle>{googleSetupPage === "instructions" ? "Set up Google sign-in" : googleSetupPage === "client" ? "Add your client ID" : stepContent[activeStep].title}</DialogTitle>
+                <DialogDescription>{googleSetupPage === "instructions" ? "A one-time setup connects this site to Google." : googleSetupPage === "client" ? "Paste your OAuth client ID to enable Google sign-in." : stepContent[activeStep].description}</DialogDescription>
               </DialogHeader>
           {activeStep === 0 ? (
             <div className="flex min-h-28 items-center justify-center gap-4 py-4">
@@ -284,7 +290,19 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
             </div>
           ) : null}
 
-          {activeStep === 1 && !oauthRuntimeReady ? (
+          {googleSetupPage === "instructions" ? (
+            browserRuntime ? <BrowserGoogleSetupInstructions /> : <p className="text-sm text-text-secondary">Create a Desktop OAuth client in Google Cloud, enable the Tasks and Calendar APIs, and configure the consent screen. Copy your client ID to continue.</p>
+          ) : null}
+          {googleSetupPage === "client" ? (
+            browserRuntime ? <BrowserGoogleClientFields value={googleClientId} onValueChange={setGoogleClientId} onSave={saveGoogleClient} busy={googleClientSaving || googleConnecting} /> : <div className="grid gap-3">
+              <Input aria-label="Google OAuth client ID" placeholder="Desktop OAuth client ID" value={googleClientId} onChange={event => setGoogleClientId(event.currentTarget.value)} />
+              <Input aria-label="Google OAuth client secret" placeholder="Client secret (optional)" type="password" value={googleClientSecret} onChange={event => setGoogleClientSecret(event.currentTarget.value)} />
+              <Button disabled={googleClientId.trim().length < 10 || googleClientSaving} onClick={() => void saveGoogleClient()} variant="secondary"><Save aria-hidden="true" size={14} />Save OAuth Client</Button>
+            </div>
+          ) : null}
+          {googleSetupPage && googleMessage ? <p role="status" className="text-sm text-text-muted">{googleMessage}</p> : null}
+
+          {activeStep === 1 && !googleSetupPage && !oauthRuntimeReady ? (
             <SetupCard
               description="A Google account is required to finish setup."
               title="Google connection unavailable"
@@ -293,7 +311,7 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
             </SetupCard>
           ) : null}
 
-          {activeStep === 1 && oauthRuntimeReady ? (
+          {activeStep === 1 && !googleSetupPage && oauthRuntimeReady ? (
             <SetupCard
               description={
                 googleConnected
@@ -302,42 +320,11 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
                     ? "Google OAuth browser handoff is unavailable in this runtime."
                     : googleClientConfigured
                       ? "Connect your Google account to continue. Allow access to Tasks and Calendar to sync your planner."
-                    : browserRuntime ? "Google sign-in is not configured. Save a Web application client ID below, then connect your Google account." : "Save a Desktop OAuth client ID, then connect your Google account."
+                    : browserRuntime ? "Google sign-in is not configured. Set up your client ID first, then connect your Google account." : "Save a Desktop OAuth client ID, then connect your Google account."
               }
               title="Connect Google"
             >
-              {!googleConnected && browserRuntime ? <details open={!googleClientConfigured} className="rounded-hcbMd border border-border p-3">
-                <summary className="cursor-pointer text-sm font-medium">Google sign-in configuration</summary>
-                <div className="pt-3"><BrowserGoogleClientFields value={googleClientId} onValueChange={setGoogleClientId}
-                  onSave={saveGoogleClient} busy={googleClientSaving || googleConnecting} /></div>
-              </details> : null}
-              {!googleConnected && !browserRuntime ? (
-                <div className="grid w-full gap-2">
-                  <Input
-                    aria-label="Google OAuth client ID"
-                    onChange={(event) => setGoogleClientId(event.currentTarget.value)}
-                    placeholder="Desktop OAuth client ID"
-                    value={googleClientId}
-                  />
-                  <Input
-                    aria-label="Google OAuth client secret"
-                    onChange={(event) => setGoogleClientSecret(event.currentTarget.value)}
-                    placeholder={source.googleStatus.hasClientSecret ? "Stored client secret" : "Client secret (optional)"}
-                    type="password"
-                    value={googleClientSecret}
-                  />
-                </div>
-              ) : null}
-              {!googleConnected && !browserRuntime ? (
-                <Button
-                  disabled={googleClientId.trim().length < 10 || googleClientSaving}
-                  onClick={() => void saveGoogleClient()}
-                  variant="secondary"
-                >
-                  <Save aria-hidden="true" size={14} />
-                  Save OAuth Client
-                </Button>
-              ) : null}
+              {!googleConnected ? <Button variant="secondary" onClick={() => setGoogleSetupPage(googleClientConfigured ? "client" : "instructions")}>{googleClientConfigured ? "Change sign-in configuration" : "Set up Google sign-in"}</Button> : null}
               <Button
                 disabled={googleClientSaving || googleConnecting || !oauthRuntimeReady || !googleClientConfigured || googleConnected || (browserRuntime && googleClientId.trim() !== source.googleStatus.clientId)}
                 onClick={() => void connectGoogle()}
@@ -487,7 +474,16 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
           </AnimatePresence>
         </div>
 
-        {!connectionOnly ? <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-3">
+        {googleSetupPage ? <div className="flex shrink-0 items-center justify-between gap-3 px-6 pb-6 pt-3">
+          <div className="flex gap-1.5" role="img" aria-label={`Google setup progress: ${googleSetupPage === "instructions" ? 1 : 2} of 2`}>
+            {["instructions", "client"].map(page => <span key={page} className={`size-1.5 rounded-full bg-accent transition-opacity duration-200 ${googleSetupPage === page ? "opacity-100" : "opacity-20"}`} />)}
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => { setLocalError(null); setGoogleSetupPage(googleSetupPage === "client" ? "instructions" : null); }}>Back</Button>
+            <Button variant="primary" disabled={googleSetupPage === "client" && (!googleClientConfigured || googleClientSaving || googleClientId.trim() !== source.googleStatus.clientId)} onClick={() => setGoogleSetupPage(googleSetupPage === "instructions" ? "client" : null)}>Continue<ArrowRight aria-hidden="true" size={14} /></Button>
+          </DialogFooter>
+        </div> : null}
+        {!connectionOnly && !googleSetupPage ? <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-3">
           <div className="flex gap-1.5" role="img" aria-label={`Setup progress: ${activeStep + 1} of ${stepContent.length}`}>
             {stepContent.map((step, index) => <span key={step.title} className={`size-1.5 rounded-full bg-accent transition-opacity duration-200 ${index === activeStep ? "opacity-100" : "opacity-20"}`} />)}
           </div>
@@ -526,6 +522,7 @@ const OnboardingStep = forwardRef<HTMLDivElement, { children: ReactNode; disable
   const present = useIsPresent();
   return <motion.div
     ref={ref}
+    data-present={present}
     className="space-y-3"
     inert={!present || undefined}
     aria-hidden={!present || undefined}

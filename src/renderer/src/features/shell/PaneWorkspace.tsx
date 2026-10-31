@@ -17,7 +17,7 @@ export function PaneWorkspace({ root, taskCommand, visibleCalendarIds, onReady }
         data-pane-id={root.id}
         data-testid="pane-leaf"
       >
-        <div className="pane-content h-full min-h-0 overflow-auto p-3">
+        <div key={root.content.sectionId} className="pane-content screen-transition h-full min-h-0 overflow-auto p-3">
           <PaneIdentity.Provider value={root.id}>
             <SectionContent
               activeSectionId={root.content.sectionId}
