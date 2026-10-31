@@ -1,3 +1,4 @@
+import { useModalEscape } from "../../components/useModalEscape";
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
@@ -17,6 +18,7 @@ export function SyncProgressOverlay() {
     return () => window.removeEventListener(syncProgressEvent, update);
   }, []);
   const busy = operations.size > 0;
+  useModalEscape(busy || Boolean(error), () => { if (!busy) setError(undefined); });
   return <Dialog.Root open={busy || Boolean(error)} onOpenChange={open => { if (!open && !busy) setError(undefined); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm" />

@@ -1,3 +1,4 @@
+import { useModalEscape } from "./useModalEscape";
 import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Button } from './primitives';
@@ -9,6 +10,7 @@ export function AppDialogHost(): JSX.Element {
   const actions = useRef<HTMLDivElement>(null);
   useEffect(() => () => cancelAppDialogs(), []);
   const finish = (accepted: boolean) => { if (request) settleAppDialog(request.id, accepted); };
+  useModalEscape(Boolean(request), () => finish(false), 100);
   return <Dialog.Root key={request?.id ?? 'closed'} open={Boolean(request)} onOpenChange={open => { if (!open) finish(false); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" />

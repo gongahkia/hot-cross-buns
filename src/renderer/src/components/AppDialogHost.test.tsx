@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { AppDialogHost } from './AppDialogHost';
 import { alertInApp, cancelAppDialogs, confirmInApp } from './appDialogs';
 
@@ -43,4 +43,17 @@ it('cancels outstanding requests when the application host unmounts', async () =
   act(() => { choice = confirmInApp('Delete this list?'); });
   view.unmount();
   expect(await choice!).toBe(false);
+});
+
+it('handles Escape before an older parent document listener', async () => {
+  render(<AppDialogHost />);
+  const parent = vi.fn();
+  document.addEventListener('keydown', parent, true);
+  try {
+    let choice: Promise<boolean>;
+    act(() => { choice = confirmInApp('Resync?'); });
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); });
+    expect(await choice!).toBe(false);
+    expect(parent).not.toHaveBeenCalled();
+  } finally { document.removeEventListener('keydown', parent, true); }
 });

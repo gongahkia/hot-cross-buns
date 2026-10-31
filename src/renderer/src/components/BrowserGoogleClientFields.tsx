@@ -1,3 +1,4 @@
+import { useModalEscape } from "./useModalEscape";
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button, Input } from "./primitives";
@@ -31,6 +32,7 @@ export function BrowserGoogleSetupInstructions() {
 
 export function GoogleSetupHelp(): JSX.Element {
   const [open, setOpen] = useState(false);
+  useModalEscape(open, () => setOpen(false));
   return <Dialog.Root open={open} onOpenChange={setOpen}>
     <Dialog.Trigger asChild><button type="button" className="text-accent underline underline-offset-2">Connect</button></Dialog.Trigger>
     <Dialog.Portal>
