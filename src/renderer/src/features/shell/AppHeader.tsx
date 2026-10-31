@@ -92,7 +92,7 @@ export function AppHeader({
 
   return (
     <aside aria-label="Workspace navigation" className="workspace-navigation flex min-h-0 w-[248px] shrink-0 flex-col border-r border-border bg-bg-secondary">
-      <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+      <div className="min-h-0 flex-1 overflow-y-auto pt-3 pb-3">
       <MiniCalendar onSelectDate={onSelectCalendarDate} />
       <nav aria-label="Primary" className="grid gap-1 px-2">
         {primaryNavigation.map(({ id, label, shortcut }) => (

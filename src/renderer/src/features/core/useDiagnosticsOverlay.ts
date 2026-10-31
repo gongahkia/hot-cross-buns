@@ -1,3 +1,4 @@
+import { confirmInApp } from "../../components/appDialogs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type {
@@ -203,14 +204,14 @@ export function useDiagnosticsOverlay(onClose: () => void, initialTab: Diagnosti
   ): Promise<void> {
     if (
       action === "forceFullResync" &&
-      !window.confirm("Force a full Google resync by clearing sync checkpoints?")
+      !await confirmInApp("Force a full Google resync by clearing sync checkpoints?", { title: "Force full resync?", confirmLabel: "Resync" })
     ) {
       return;
     }
 
     if (
       action === "clearGoogleCache" &&
-      !window.confirm("Clear cached Google task and calendar data from this Mac?")
+      !await confirmInApp("Clear cached Google task and calendar data from this device?", { title: "Clear cached Google data?", confirmLabel: "Clear cache", destructive: true })
     ) {
       return;
     }
@@ -271,7 +272,7 @@ export function useDiagnosticsOverlay(onClose: () => void, initialTab: Diagnosti
   }
 
   async function cancelMutation(id: string): Promise<void> {
-    if (!window.confirm("Cancel this pending Google write?")) {
+    if (!await confirmInApp("Cancel this pending Google write?", { title: "Cancel pending change?", confirmLabel: "Cancel change", destructive: true })) {
       return;
     }
 
@@ -287,7 +288,7 @@ export function useDiagnosticsOverlay(onClose: () => void, initialTab: Diagnosti
   }
 
   async function clearLogs(): Promise<void> {
-    if (!window.confirm("Clear all local diagnostics logs?")) {
+    if (!await confirmInApp("Clear all local diagnostics logs?", { title: "Clear diagnostics logs?", confirmLabel: "Clear logs", destructive: true })) {
       return;
     }
 

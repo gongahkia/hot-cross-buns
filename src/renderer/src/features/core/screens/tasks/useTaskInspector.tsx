@@ -344,9 +344,9 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
     openTaskInspector(newTaskDraft(source, nextDraft), "edit");
   }
 
-  function convertTaskDraft(sourceDraft: TaskDraft, target: "event" | "birthday" | "note"): void {
+  async function convertTaskDraft(sourceDraft: TaskDraft, target: "event" | "birthday" | "note"): Promise<void> {
     if (target === "event" || target === "birthday") {
-      const cleanup = sourceDraft.id ? conversionCleanup("task", sourceDraft.id, target) : undefined;
+      const cleanup = sourceDraft.id ? await conversionCleanup("task", sourceDraft.id, target) : undefined;
       if (cleanup === null) return;
       dispatchConvertCommand({
         cleanup,
@@ -356,7 +356,7 @@ export function useTaskInspector(source: CoreViewModelSource): TaskInspectorCont
       return;
     }
 
-    const cleanup = sourceDraft.id ? conversionCleanup("task", sourceDraft.id, "note") : undefined;
+    const cleanup = sourceDraft.id ? await conversionCleanup("task", sourceDraft.id, "note") : undefined;
     if (cleanup === null) return;
     dispatchConvertCommand({
       cleanup,

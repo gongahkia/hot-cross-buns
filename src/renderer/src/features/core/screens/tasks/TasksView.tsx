@@ -1,3 +1,4 @@
+import { confirmInApp } from "../../../../components/appDialogs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import { usePanePreference } from "../../../shell/panePreferences";
@@ -169,11 +170,11 @@ export function TasksView({ command }: { command?: TaskSurfaceCommand | null }):
     void source.renameTaskList({ id: taskList.id, title });
   }
 
-  function confirmDeleteTaskList(taskListId: string): void {
+  async function confirmDeleteTaskList(taskListId: string): Promise<void> {
     const taskList = source.taskLists.find((list) => list.id === taskListId);
     const title = taskList?.title ?? "this list";
 
-    if (!window.confirm(`Delete ${title}? This also deletes tasks in the list.`)) {
+    if (!await confirmInApp(`Delete ${title}? This also deletes tasks in the list.`, { title: "Delete task list?", confirmLabel: "Delete list", destructive: true })) {
       return;
     }
 

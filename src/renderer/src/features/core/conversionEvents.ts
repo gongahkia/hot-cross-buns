@@ -1,3 +1,4 @@
+import { confirmInApp } from "../../components/appDialogs";
 import type { TaskDraft } from "./inspectors/TaskInspectorBody";
 import type { CalendarEventDraft } from "./screens/calendar/types";
 
@@ -25,14 +26,14 @@ export interface ConvertCommandDetail {
   eventDraft?: Partial<CalendarEventDraft>;
 }
 
-export function conversionCleanup(
+export async function conversionCleanup(
   kind: ConvertItemKind,
   id: string,
   target: ConvertItemKind | "birthday",
   recurring = false
-): ConvertSourceCleanup | null {
-  const replace = window.confirm(
-    `Convert this ${recurring ? "recurring event series" : kind} to a ${target}? The new item keeps its title and notes. The original ${recurring ? "series" : kind} will be removed only after the replacement saves successfully.`
+): Promise<ConvertSourceCleanup | null> {
+  const replace = await confirmInApp(
+    `Convert this ${recurring ? "recurring event series" : kind} to a ${target}? The new item keeps its title and notes. The original ${recurring ? "series" : kind} will be removed only after the replacement saves successfully.`, { title: "Convert item?", confirmLabel: "Convert" }
   );
 
   return replace ? { id, kind } : null;

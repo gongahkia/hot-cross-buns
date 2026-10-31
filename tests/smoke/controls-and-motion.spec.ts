@@ -47,7 +47,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("dropdown keyboard selection and empty System choices persist across reload", async () => {
+test("dropdown keyboard selection and bundled font choices persist across reload", async () => {
   await planner(async (page) => {
     await openSettings(page, "Appearance");
     const theme = page.getByRole("combobox", { name: "Theme", exact: true });
@@ -61,13 +61,16 @@ test("dropdown keyboard selection and empty System choices persist across reload
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await chooseOption(page, theme, "Follow system");
     const font = page.getByRole("combobox", { name: "Font family", exact: true });
-    await chooseOption(page, font, "System");
+    await expect(font).toHaveText("DM Sans");
+    await chooseOption(page, font, "Inter");
     await page.getByRole("navigation", { name: "Settings categories" }).getByRole("button", { name: "General", exact: true }).click();
     await chooseOption(page, page.getByRole("combobox", { name: "Sync mode" }), "Balanced");
     await expect.poll(async () => page.evaluate(async () => { const result = await window.hcb!.settings.get(); return result.ok && result.data.syncMode; })).toBe("balanced");
     await page.reload();
     await openSettings(page, "General");
     await expect(page.getByRole("combobox", { name: "Sync mode" })).toHaveText("Balanced");
+    await page.getByRole("navigation", { name: "Settings categories" }).getByRole("button", { name: "Appearance", exact: true }).click();
+    await expect(page.getByRole("combobox", { name: "Font family", exact: true })).toHaveText("Inter");
   });
 });
 

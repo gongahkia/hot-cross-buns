@@ -1,3 +1,4 @@
+import { confirmInApp } from "../../../components/appDialogs";
 import { InspectorItemToolbar, copyInspectorText } from "../../../components/Inspector/InspectorItemToolbar";
 import { usePanePreference } from "../../shell/panePreferences";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -506,12 +507,12 @@ export function useNotesController(source: CoreViewModelSource): {
     }
   }
 
-  function convertNote(note: NoteViewModel, target: "event" | "birthday" | "task"): void {
+  async function convertNote(note: NoteViewModel, target: "event" | "birthday" | "task"): Promise<void> {
     const live = noteInspectorBodyRef.current?.getDraft();
     const title = live?.title ?? note.title;
     const body = live?.body ?? note.body;
     const tags = live?.tags ?? note.tags ?? [];
-    const cleanup = note.id.startsWith("note-draft-") ? undefined : conversionCleanup("note", note.id, target);
+    const cleanup = note.id.startsWith("note-draft-") ? undefined : await conversionCleanup("note", note.id, target);
     if (cleanup === null) return;
     if (target === "event" || target === "birthday") {
       dispatchConvertCommand({ cleanup, target: "event", eventDraft: { title, notes: body, tags, ...(target === "birthday" ? { hcbKind: "birthday" } : {}) } });
@@ -602,7 +603,7 @@ export function useNotesController(source: CoreViewModelSource): {
 
   async function deleteNoteList(listId: string, title: string): Promise<void> {
     const count = noteLists.find((list) => list.id === listId)?.noteCount ?? 0;
-    if (!window.confirm(`Delete ${title} and ${count} note${count === 1 ? "" : "s"}? This cannot be undone.`)) {
+    if (!await confirmInApp(`Delete ${title} and ${count} note${count === 1 ? "" : "s"}? This cannot be undone.`, { title: "Delete note list?", confirmLabel: "Delete list", destructive: true })) {
       return;
     }
 

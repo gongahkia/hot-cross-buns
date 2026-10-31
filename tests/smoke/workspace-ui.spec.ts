@@ -596,9 +596,7 @@ test("autosaves inspector fields and supports copy, duplicate, delete and both m
 
 test("confirms replacement and preserves content across task, note, birthday and event conversions", async () => {
   await planner(async (page) => {
-    const confirmations: string[] = [];
     let acceptConversion = false;
-    page.on("dialog", async (dialog) => { confirmations.push(dialog.message()); if (acceptConversion) await dialog.accept(); else await dialog.dismiss(); });
     await navigate(page, "Tasks");
     await page.getByRole("button", { name: "New task", exact: true }).click();
     await page.getByRole("textbox", { name: "Task title" }).fill("Conversion keeps my writing");
@@ -610,9 +608,11 @@ test("confirms replacement and preserves content across task, note, birthday and
     const changeType = async (kind: string) => {
       await page.getByRole("button", { name: "Item type", exact: true }).click();
       await page.getByRole("menuitemradio", { name: kind, exact: true }).click();
+      const confirmation = page.getByRole("alertdialog");
+      await expect(confirmation).toBeVisible();
+      await confirmation.getByRole("button", { name: acceptConversion ? /^(Convert|Continue)$/ : "Cancel", exact: true }).click();
     };
     await changeType("Note");
-    await expect.poll(() => confirmations.length).toBe(1);
     await expect(panel).toHaveAttribute("data-inspector-kind", "task");
     expect(await page.evaluate(async (id) => (await window.hcb!.tasks.get({ id })).ok, taskId)).toBe(true);
     acceptConversion = true;
@@ -645,7 +645,7 @@ test("confirms replacement and preserves content across task, note, birthday and
     await expect(panel).toHaveAttribute("data-inspector-kind", "task");
     await expect(page.getByRole("textbox", { name: "Task notes" })).toContainText("Keep this description through every type.");
     await expect.poll(async () => page.evaluate(async (id) => (await window.hcb!.calendar.get({ id })).ok, birthdayId)).toBe(false);
-    expect(confirmations.length).toBe(5);
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
   });
 });
 

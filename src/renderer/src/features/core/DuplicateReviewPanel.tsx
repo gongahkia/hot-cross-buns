@@ -1,3 +1,4 @@
+import { confirmInApp, alertInApp } from "../../components/appDialogs";
 import { AlertTriangle, CalendarDays, Check, FileText, ListChecks, RefreshCw, Trash2, X } from "@renderer/components/icons";
 import { Badge, Button, IconButton, cx } from "../../components/primitives";
 import type { CoreViewModelSource } from "./coreViewModelSource";
@@ -46,7 +47,7 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
   }
 
   async function deleteItem(item: DuplicateItem): Promise<void> {
-    if (!window.confirm(`Delete "${item.title}"?`)) {
+    if (!await confirmInApp(`Delete "${item.title}"?`, { title: "Delete duplicate?", confirmLabel: "Delete", destructive: true })) {
       return;
     }
 
@@ -60,7 +61,7 @@ export function DuplicateReviewPanel({ onOpenTask, source }: DuplicateReviewPane
       : await window.hcb?.notes.delete({ id: item.id });
 
     if (!result?.ok) {
-      window.alert(result?.error.message ?? "Delete failed.");
+      void alertInApp(result?.error.message ?? "Delete failed.");
       return;
     }
 

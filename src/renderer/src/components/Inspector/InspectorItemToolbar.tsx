@@ -1,3 +1,4 @@
+import { alertInApp } from "../appDialogs";
 import * as Popover from "@radix-ui/react-popover";
 import { Check, ChevronDown, Copy, Files, MoreHorizontal, Scissors, Trash2 } from "@renderer/components/icons";
 import { useState, type KeyboardEvent } from "react";
@@ -55,7 +56,7 @@ export async function copyInspectorText(title: string, body = ""): Promise<boole
     if (!result?.ok) throw new Error("Clipboard is unavailable.");
     return true;
   } catch {
-    window.alert("Could not copy this item. It has not been removed.");
+    void alertInApp("Could not copy this item. It has not been removed.");
     return false;
   }
 }

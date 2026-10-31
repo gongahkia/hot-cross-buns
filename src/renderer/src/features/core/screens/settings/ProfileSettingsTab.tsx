@@ -1,3 +1,4 @@
+import { confirmInApp } from "../../../../components/appDialogs";
 import { Select, SelectItem } from "@renderer/components/Select";
 import type {
   CalendarListSummary,
@@ -559,7 +560,7 @@ function CrossAccountCopy({
   }
 
   async function copy(): Promise<void> {
-    if (!window.confirm("Copy the shown Tasks and Calendar events into the destination account? The source will not be changed.")) return;
+    if (!await confirmInApp("Copy the shown Tasks and Calendar events into the destination account? The source will not be changed.")) return;
     const result = await window.hcb?.google.copyAccountData({ sourceAccountId, destinationAccountId, destinationCalendarId, confirmation: "COPY" });
     if (!result?.ok) {
       setMessage(result?.error.message ?? "Cross-account copy failed.");

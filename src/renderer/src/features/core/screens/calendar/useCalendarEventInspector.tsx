@@ -1,3 +1,4 @@
+import { confirmInApp } from "../../../../components/appDialogs";
 import type { CalendarEventAction } from "./CalendarEventMenu";
 import { InspectorItemToolbar, copyInspectorText, type InspectorEntryKind } from "../../../../components/Inspector/InspectorItemToolbar";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -197,7 +198,7 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
         const live = calendarDraftRef.current;
         if (!live) return;
         if (target === "task" || target === "note") { convertEventDraft(live, target); return; }
-        if (live.mode === "edit" && !window.confirm(target === "birthday" ? "Change this event into an all-day birthday that repeats every year? Its title and notes will be kept." : "Change this birthday into an event? Its title, notes and yearly schedule will be kept.")) return;
+        if (live.mode === "edit" && !await confirmInApp(target === "birthday" ? "Change this event into an all-day birthday that repeats every year? Its title and notes will be kept." : "Change this birthday into an event? Its title, notes and yearly schedule will be kept.")) return;
         setCreateMode(target);
         if (live.mode === "edit") await saveDraft();
       }}
@@ -387,8 +388,8 @@ export function useCalendarEventInspector(source: CoreViewModelSource): {
     openEventInspector(nextDraft, "edit");
   }
 
-  function convertEventDraft(sourceDraft: CalendarEventDraft, target: "task" | "note"): void {
-    const cleanup = sourceDraft.id ? conversionCleanup("event", sourceDraft.id, target, recurringDraft(sourceDraft)) : undefined;
+  async function convertEventDraft(sourceDraft: CalendarEventDraft, target: "task" | "note"): Promise<void> {
+    const cleanup = sourceDraft.id ? await conversionCleanup("event", sourceDraft.id, target, recurringDraft(sourceDraft)) : undefined;
     if (cleanup === null) return;
 
     if (target === "task") {

@@ -1,3 +1,4 @@
+import { AppDialogHost } from "../../components/AppDialogHost";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MotionConfig } from "motion/react";
 import type { CalendarEventRecurrence, NativeAction, SettingsSnapshot } from "@shared/ipc/contracts";
@@ -934,6 +935,7 @@ export function AppShell(): JSX.Element {
       </main>
       <SaveFeedback />
       <SyncProgressOverlay />
+      <AppDialogHost />
 
       <RenderTimingBoundary id="command-palette">
         <Suspense fallback={null}>

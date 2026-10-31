@@ -55,3 +55,44 @@ test('full resync from the palette shows the bakery modal, reports failure and c
     await expect(page.getByRole('dialog', { name: 'Resyncing with Google', exact: true })).toHaveCount(0);
   });
 });
+
+test('settings confirmations stay inside HCB and Cancel prevents the operation', async () => {
+  await planner(async page => {
+    const browserDialogs: string[] = [];
+    page.on('dialog', async dialog => { browserDialogs.push(dialog.message()); await dialog.dismiss(); });
+    await page.evaluate(() => {
+      const state = window as any;
+      state.recoveryCalls = 0;
+      window.hcb!.settings.recoveryAction = (async () => { state.recoveryCalls++; return new Promise(resolve => { state.finishResync = resolve; }); }) as any;
+      window.dispatchEvent(new CustomEvent('hcb:open-diagnostics', { detail: { tab: 'sync' } }));
+    });
+    const settings = page.getByTestId('settings-workspace');
+    const resync = settings.getByRole('button', { name: 'Force full resync', exact: true });
+    await resync.click();
+    const confirm = page.getByRole('alertdialog', { name: 'Force full resync?' });
+    await expect(confirm).toBeVisible();
+    await expect(confirm.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+    expect(await page.evaluate(() => (window as any).recoveryCalls)).toBe(0);
+    await confirm.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(resync).toBeFocused();
+    await expect(settings).toBeVisible();
+    await resync.click();
+    await page.keyboard.press('Escape');
+    await expect(confirm).toHaveCount(0);
+    await expect(settings).toBeVisible();
+    await resync.click();
+    await confirm.getByRole('button', { name: 'Resync', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Resyncing with Google', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => (window as any).recoveryCalls)).toBe(1);
+    await page.evaluate(() => (window as any).finishResync({ ok: true, data: { message: 'Resynced' } }));
+    await expect(page.getByRole('dialog', { name: 'Resyncing with Google', exact: true })).toHaveCount(0);
+    await settings.getByRole('button', { name: 'Clear cached Google data', exact: true }).click();
+    await expect(page.getByRole('alertdialog', { name: 'Clear cached Google data?' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await settings.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Logs', exact: true }).click();
+    await settings.getByRole('button', { name: 'Clear logs', exact: true }).click();
+    await expect(page.getByRole('alertdialog', { name: 'Clear diagnostics logs?' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    expect(browserDialogs).toEqual([]);
+  });
+});
