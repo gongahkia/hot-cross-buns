@@ -5,34 +5,12 @@ import {
   resolveEffectiveThemeMode,
   semanticThemeVariables
 } from "@shared/ipc/themeCatalog";
+import { appFontStack } from "./fonts";
 import { resolveAppLanguage } from "../../i18n";
-
-const systemFontStack = "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, Roboto, \"Helvetica Neue\", Arial, sans-serif";
-const monoFontStack = "\"SF Mono\", \"Cascadia Code\", \"Fira Code\", \"JetBrains Mono\", ui-monospace, monospace";
 
 function systemPrefersDark(): boolean {
   return typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-function cssFontFamily(fontName: string | null): string {
-  const trimmed = fontName?.trim();
-
-  if (!trimmed) {
-    return systemFontStack;
-  }
-
-  return `"${trimmed.replace(/[\\"]/g, "\\$&")}", ${systemFontStack}`;
-}
-
-function cssMonoFontFamily(fontName: string | null): string {
-  const trimmed = fontName?.trim();
-
-  if (!trimmed) {
-    return monoFontStack;
-  }
-
-  return cssFontFamily(trimmed);
 }
 
 function textSizeVariables(baseSize: number): Record<string, string> {
@@ -56,7 +34,7 @@ function surfaceTextSize(settings: SettingsSnapshot, surface: keyof SettingsSnap
 }
 
 function surfaceFontFamily(settings: SettingsSnapshot, surface: keyof SettingsSnapshot["perSurfaceFontOverrides"]): string {
-  return cssFontFamily(settings.perSurfaceFontOverrides[surface]?.uiFontName ?? settings.uiFontName);
+  return appFontStack(settings.perSurfaceFontOverrides[surface]?.uiFontName ?? settings.uiFontName);
 }
 
 export function useAppliedTheme(settings: SettingsSnapshot): void {
@@ -90,8 +68,8 @@ export function useAppliedTheme(settings: SettingsSnapshot): void {
     delete root.dataset.performanceMode;
     root.dataset.animations = settings.disableAnimations ? "disabled" : "enabled";
     root.lang = resolveAppLanguage(settings.appLanguage);
-    root.style.setProperty("--font-family", cssFontFamily(settings.uiFontName));
-    root.style.setProperty("--font-family-mono", cssMonoFontFamily(settings.uiMonoFontName));
+    root.style.setProperty("--font-family", appFontStack(settings.uiFontName));
+    root.style.setProperty("--font-family-mono", appFontStack(settings.uiMonoFontName));
     root.style.setProperty("--font-family-sidebar", surfaceFontFamily(settings, "sidebar"));
     root.style.setProperty("--text-sidebar", surfaceTextSize(settings, "sidebar"));
     root.style.setProperty("--font-family-menu-bar", surfaceFontFamily(settings, "menuBar"));

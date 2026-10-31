@@ -24,10 +24,8 @@
   --priority-high: #f15550;
   --color-selection-background: #f15550;
   --color-selection-foreground: #191919;
-  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-family-mono: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", ui-monospace,
-    monospace;
+  --font-family: 'DM Sans', sans-serif;
+  --font-family-mono: 'DM Sans', sans-serif;
   --text-xs: 11px;
   --text-sm: 12px;
   --text-base: 13px;
@@ -763,3 +761,10 @@ body[data-calendar-dragging] { user-select: none; }
   .settings-workspace .settings-search { margin-bottom: 8px; }
   .settings-content { padding: 20px 16px; }
 }
+
+/* Gentle, local onboarding motion; page navigation remains immediately usable. */
+.onboarding-croissant { display: inline-block; transform-origin: 50% 70%; animation: croissant-wiggle 3.5s ease-in-out infinite; }
+.onboarding-speech::before { content: ''; position: absolute; left: -6px; top: 45%; width: 10px; height: 10px; background: var(--color-surface-0); border-left: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); transform: rotate(45deg); }
+@keyframes croissant-wiggle { 0%, 65%, 100% { transform: rotate(0); } 72% { transform: rotate(-9deg); } 80% { transform: rotate(8deg); } 88% { transform: rotate(-4deg); } }
+.onboarding-croissant[data-still], :root[data-animations="disabled"] .onboarding-croissant { animation: none; }
+@media (prefers-reduced-motion: reduce) { .onboarding-croissant { animation: none; } }

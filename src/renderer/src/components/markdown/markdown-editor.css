@@ -22,7 +22,7 @@
 .markdown-content li:is([data-type="taskItem"], [data-checked]) > label { cursor: pointer; flex: 0 0 auto; }
 .markdown-content input[type="checkbox"] { accent-color: var(--color-accent); }
 .markdown-content blockquote { border-left: 3px solid var(--color-accent); padding-left: 12px; margin: .75em 0; color: var(--color-text-secondary); }
-.markdown-content code, .markdown-source { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown-content code, .markdown-source { font-family: var(--font-family-mono); }
 .markdown-content :not(pre) > code { background: var(--color-bg-tertiary); border-radius: 3px; padding: .1em .25em; }
 .markdown-content pre { background: var(--color-bg-tertiary); border-radius: 6px; padding: 12px; overflow: auto; white-space: pre; margin: .75em 0; }
 .markdown-content a { color: var(--color-accent); text-decoration: underline; }

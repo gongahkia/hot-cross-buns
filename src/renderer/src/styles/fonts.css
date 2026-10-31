@@ -1,0 +1,22 @@
+/* Bundled fonts; no external font requests. Fontsource packages include OFL licenses. */
+@font-face {
+  font-family: 'DM Sans'; font-style: normal; font-weight: 100 1000; font-display: swap;
+  src: url('@fontsource-variable/dm-sans/files/dm-sans-latin-standard-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'DM Sans'; font-style: italic; font-weight: 100 1000; font-display: swap;
+  src: url('@fontsource-variable/dm-sans/files/dm-sans-latin-standard-italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'DM Serif Display'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('@fontsource/dm-serif-display/files/dm-serif-display-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter'; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url('@fontsource-variable/inter/files/inter-latin-standard-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter'; font-style: italic; font-weight: 100 900; font-display: swap;
+  src: url('@fontsource-variable/inter/files/inter-latin-standard-italic.woff2') format('woff2');
+}
+.hcb-brand-heading { font-family: 'DM Serif Display', serif; font-weight: 400; }

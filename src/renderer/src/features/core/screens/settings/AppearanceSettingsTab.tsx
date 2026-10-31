@@ -1,3 +1,4 @@
+import { resolveFontName } from "../../../shell/fonts";
 import { Select, SelectItem } from "@renderer/components/Select";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -12,16 +13,6 @@ import type {
 } from "@shared/ipc/themeCatalog";
 import { customBackgroundThemeId } from "@shared/ipc/themeCatalog";
 import { ArrowDown, ArrowUp, RotateCcw } from "@renderer/components/icons";
-import {
-  LoadingIndicator,
-  defaultLoadingIndicatorPreferences,
-  loadingIndicatorLabel,
-  loadingIndicatorSurfaces,
-  loadingIndicatorVariants,
-  resolveLoadingIndicatorPreferences,
-  type LoadingIndicatorSurface,
-  type LoadingIndicatorVariant
-} from "../../../../components/LoadingIndicator";
 import { Button, Input, cx } from "../../../../components/primitives";
 import { useI18n } from "../../../../i18n";
 import { customBackgroundFromFile } from "./backgroundTheme";
@@ -88,7 +79,6 @@ export function AppearanceSettingsTab({
   const inferredThemeActive = activeColorTheme.id === customBackgroundThemeId;
   const customBackgroundPreviewUrl = customBackgroundPreview(settings);
   const cropAspectValue = useMemo(() => cropAspectNumber(cropAspect), [cropAspect]);
-  const loadingIndicators = resolveLoadingIndicatorPreferences(settings.loadingIndicators);
 
   useEffect(() => {
     return () => {
@@ -140,14 +130,7 @@ export function AppearanceSettingsTab({
     updateSettings({ perSurfaceFontOverrides: next });
   }
 
-  function updateLoadingIndicator(surface: LoadingIndicatorSurface, value: LoadingIndicatorVariant): void {
-    updateSettings({
-      loadingIndicators: {
-        ...loadingIndicators,
-        [surface]: value
-      }
-    });
-  }
+
 
   function moveToolbarAction(actionId: ToolbarActionId, direction: -1 | 1): void {
     updateSettings({
@@ -473,7 +456,7 @@ export function AppearanceSettingsTab({
             </Button>
           </div>
         </SettingsControlRow>
-        <SettingsControlRow label="UI font">
+        <SettingsControlRow label="UI font" description="DM Sans is the default. Welcome headings use DM Serif Display; Inter is available as an alternative.">
           <Select
             aria-label="Font family"
             className={settingsSelectClass}
@@ -482,9 +465,8 @@ export function AppearanceSettingsTab({
                 uiFontName: value.trim() ? value : null
               })
             }
-            value={settings.uiFontName ?? ""}
+            value={resolveFontName(settings.uiFontName)}
           >
-            <SelectItem value="">System</SelectItem>
             {availableFontFamilies.map((fontName) => (
               <SelectItem key={fontName} value={fontName}>
                 {fontName}
@@ -494,72 +476,24 @@ export function AppearanceSettingsTab({
         </SettingsControlRow>
         <SettingsControlRow
           description="Used for notes and structured-text buffers, code, diagnostics, and keyboard shortcuts."
-          label="Monospace and buffer font"
+          label="Editor and buffer font"
         >
           <Select
-            aria-label="Monospace and buffer font family"
+            aria-label="Editor and buffer font family"
             className={settingsSelectClass}
             onValueChange={(value) =>
               updateSettings({
                 uiMonoFontName: value.trim() ? value : null
               })
             }
-            value={settings.uiMonoFontName ?? ""}
+            value={resolveFontName(settings.uiMonoFontName)}
           >
-            <SelectItem value="">System monospace</SelectItem>
             {availableFontFamilies.map((fontName) => (
               <SelectItem key={fontName} value={fontName}>
                 {fontName}
               </SelectItem>
             ))}
           </Select>
-        </SettingsControlRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="Loading indicators">
-        {loadingIndicatorSurfaces.map((surface) => (
-          <SettingsControlRow
-            description={surface.description}
-            key={surface.id}
-            label={surface.label}
-          >
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">
-              <span
-                aria-label={`${loadingIndicatorLabel(loadingIndicators[surface.id])} preview`}
-                className="grid size-10 place-items-center rounded-hcbMd border border-border bg-surface-0 text-accent"
-                role="img"
-              >
-                <LoadingIndicator size={18} surface={surface.id} />
-              </span>
-              <Select
-                aria-label={`${surface.label} loading indicator`}
-                className={settingsSelectClass}
-                onValueChange={(value) =>
-                  updateLoadingIndicator(surface.id, value as LoadingIndicatorVariant)
-                }
-                value={loadingIndicators[surface.id]}
-              >
-                {loadingIndicatorVariants.map((variant) => (
-                  <SelectItem key={variant} value={variant}>{loadingIndicatorLabel(variant)}</SelectItem>
-                ))}
-              </Select>
-            </div>
-          </SettingsControlRow>
-        ))}
-        <SettingsControlRow
-          description="Restore Blocks for every loading surface. Blocks is the default for new and legacy preferences."
-          label="Restore loading defaults"
-        >
-          <Button
-            disabled={loadingIndicatorSurfaces.every(
-              (surface) => loadingIndicators[surface.id] === defaultLoadingIndicatorPreferences[surface.id]
-            )}
-            onClick={() => updateSettings({ loadingIndicators: defaultLoadingIndicatorPreferences })}
-            variant="ghost"
-          >
-            <RotateCcw aria-hidden="true" size={14} />
-            Use Blocks
-          </Button>
         </SettingsControlRow>
       </SettingsGroup>
 
@@ -622,7 +556,7 @@ export function AppearanceSettingsTab({
                       uiFontName: value.trim() ? value : null
                     })
                   }
-                  value={override?.uiFontName ?? ""}
+                  value={override?.uiFontName ? resolveFontName(override.uiFontName) : ""}
                 >
                   <SelectItem value="">(inherit)</SelectItem>
                   {availableFontFamilies.map((fontName) => (

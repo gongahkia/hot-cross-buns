@@ -1,3 +1,4 @@
+import { supportedFontFamilies } from "../../../shell/fonts";
 import { usePanePreference } from "../../../shell/panePreferences";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -19,7 +20,6 @@ import { Button, Input, Panel, StatusBanner } from "../../../../components/primi
 import { useCoreViewModelSource } from "../../coreViewModelSource";
 import {
   currentSystemPrefersDark,
-  fontFamilyOptions,
   sanitizedJson
 } from "../../coreScreenShared";
 import { hotkeyDefinitions } from "../../hotkeys";
@@ -109,7 +109,7 @@ const settingsSearchTextByTab: Record<SettingsTabId, string> = {
     "Run setup again"
   ].join(" "),
   appearance: [
-    "Appearance Colour scheme Disable animations Monospace buffer font Loading indicators Blocks Ring Dots Calendar event colors Per-surface fonts Toolbar actions Calendar view modes Month scroll range Past Future Calendar timeline density Quick-create",
+    "Appearance Colour scheme Disable animations Editor buffer font DM Sans DM Serif Display Inter Calendar event colors Per-surface fonts Toolbar actions Calendar view modes Month scroll range Past Future Calendar timeline density Quick-create",
     "Theme",
     "Color theme",
     "Custom background",
@@ -230,12 +230,7 @@ export function SettingsView({
   const [googleClientId, setGoogleClientId] = useState(googleStatus.clientId ?? "");
   const [googleClientSaving, setGoogleClientSaving] = useState(false);
   const [googleClientSecret, setGoogleClientSecret] = useState("");
-  const [systemFontFamilies, setSystemFontFamilies] = useState<string[]>([]);
-  const systemFontFamiliesRequested = useRef(false);
-  const availableFontFamilies = useMemo(
-    () => fontFamilyOptions(systemFontFamilies, settings.uiFontName, settings.uiMonoFontName),
-    [settings.uiFontName, settings.uiMonoFontName, systemFontFamilies]
-  );
+  const availableFontFamilies = [...supportedFontFamilies];
   const settingsSearchTexts = useMemo<Record<SettingsTabId, string>>(
     () => ({
       ...settingsSearchTextByTab,
@@ -294,18 +289,6 @@ export function SettingsView({
     }
   }, [matchingSettingsTabs, normalizedSettingsQuery, selectedSettingsTab]);
 
-  useEffect(() => {
-    if (selectedSettingsTab !== "appearance" || systemFontFamiliesRequested.current || !window.hcb) {
-      return;
-    }
-
-    systemFontFamiliesRequested.current = true;
-    void window.hcb.native.listFontFamilies().then((result) => {
-      if (result.ok) {
-        setSystemFontFamilies(result.data.families);
-      }
-    });
-  }, [selectedSettingsTab]);
 
   useEffect(() => {
     const previousSignature = autoTagRulesSignatureRef.current;

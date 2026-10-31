@@ -204,7 +204,7 @@ function MermaidDiagram({
         data-mermaid-diagram="true"
         role="status"
       >
-        <LoadingIndicator className="text-accent" size={20} surface="preview" />
+        <LoadingIndicator className="text-accent" size={80} surface="preview" />
         <span>Rendering diagram...</span>
       </div>
     );

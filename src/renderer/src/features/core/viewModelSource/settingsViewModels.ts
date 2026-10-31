@@ -1,3 +1,4 @@
+import { resolveFontName } from "../../shell/fonts";
 import type { NativeCapabilitiesResponse } from "@shared/ipc/contracts";
 import type { SettingsSectionViewModel } from "../coreViewModels";
 import { syncLabel } from "./dateFormat";
@@ -80,12 +81,12 @@ export function settingsSections(snapshot: CoreDataSnapshot): SettingsSectionVie
         {
           id: "font",
           label: "Font",
-          value: snapshot.settings.uiFontName ?? "System"
+          value: resolveFontName(snapshot.settings.uiFontName)
         },
         {
           id: "mono-font",
-          label: "Monospace font",
-          value: snapshot.settings.uiMonoFontName ?? "System monospace"
+          label: "Editor font",
+          value: resolveFontName(snapshot.settings.uiMonoFontName)
         },
         {
           id: "text-size",

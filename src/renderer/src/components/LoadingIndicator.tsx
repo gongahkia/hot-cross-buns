@@ -1,5 +1,4 @@
-import { createContext, useContext, useMemo, type ComponentType, type ReactNode } from "react";
-import { SPINNERS } from "loading-dev";
+import { createContext, useContext, useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import { cx } from "./primitives";
 
 export const loadingIndicatorVariants = [
@@ -74,14 +73,6 @@ const LoadingIndicatorContext = createContext<LoadingIndicatorContextValue>({
 
 const variantSet = new Set<string>(loadingIndicatorVariants);
 
-interface LoadingDevSpinnerProps {
-  className?: string;
-  color?: string;
-  duration?: number;
-  playState?: "paused" | "running";
-  size?: number;
-}
-
 function isLoadingIndicatorVariant(value: unknown): value is LoadingIndicatorVariant {
   return typeof value === "string" && variantSet.has(value);
 }
@@ -122,23 +113,33 @@ export function useLoadingIndicatorPreferences(): LoadingIndicatorContextValue {
 export function LoadingIndicator({
   className,
   size = 20,
-  surface = "general"
+  surface = "general",
+  illustration
 }: {
   className?: string;
   size?: number;
   surface?: LoadingIndicatorSurface;
+  illustration?: "initial" | "welcome" | "finish" | "sources" | "connection" | "empty";
 }): JSX.Element {
-  const { animationsDisabled, preferences } = useLoadingIndicatorPreferences();
-  const variant = preferences[surface];
-  const Spinner = (SPINNERS[variant] ?? SPINNERS.blocks) as ComponentType<LoadingDevSpinnerProps>;
-
-  return (
-    <Spinner
-      className={cx("shrink-0", className)}
-      playState={animationsDisabled ? "paused" : "running"}
-      size={size}
-    />
-  );
+  const { animationsDisabled } = useLoadingIndicatorPreferences();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(false);
+    let cancelled = false;
+    let cleanup = () => {};
+    void import("./bakeryLoader").then(({ mountBakeryLoader }) => {
+      if (!cancelled && canvasRef.current) {
+        const dispose = mountBakeryLoader(canvasRef.current, illustration ?? surface, animationsDisabled);
+        if (dispose) { cleanup = dispose; setReady(true); }
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; cleanup(); };
+  }, [surface, illustration, animationsDisabled]);
+  return <span aria-hidden="true" className={cx("relative inline-grid shrink-0 place-items-center", className)} style={{ width: size, height: size }}>
+    {!ready && <span className="rounded-full border-2 border-current opacity-40" style={{ width: size * .6, height: size * .6 }} />}
+    <canvas ref={canvasRef} className="absolute inset-0" width={size * 2} height={size * 2} style={{ width: size, height: size }} />
+  </span>;
 }
 
 export function loadingIndicatorLabel(variant: LoadingIndicatorVariant): string {

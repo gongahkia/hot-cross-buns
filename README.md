@@ -88,3 +88,9 @@ $ corepack pnpm preview
 * [Google Workspace integrations](docs/google-workspace-integrations.md)
 * [Privacy and threat model](docs/security/privacy-and-threat-model.md)
 * [QA plan](docs/testing/qa-plan.md)
+
+## Bakery models
+
+Reusable procedural models live in `src/renderer/bakery/models.js`. The application uses them in onboarding and planner loading states, with reduced motion and a fallback for browsers without WebGL. `createBakeryModel(id)` returns a Three.js group for reuse elsewhere in the app.
+
+Typography uses bundled DM Sans by default, with DM Serif Display for welcome headings and Inter available in Appearance settings. These are the supported font choices; legacy custom-font preferences resolve to DM Sans. Font files are served locally, with licenses in `src/renderer/public/font-licenses`.

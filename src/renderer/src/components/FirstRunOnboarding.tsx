@@ -1,10 +1,12 @@
-import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/onboarding-dialog";
+import { useEffect, useMemo, useRef, useState, forwardRef, type ReactNode } from "react";
 import type { SettingsSnapshot } from "@shared/ipc/contracts";
 import { ArrowLeft, ArrowRight, CheckCircle2, ExternalLink, Save, X } from "@renderer/components/icons";
 import type { CoreViewModelSource } from "../features/core/coreViewModelSource";
 import { Badge, Button, Input, StatusBanner } from "./primitives";
 import { Checkbox } from "./ui/checkbox";
+import { LoadingIndicator } from "./LoadingIndicator";
 import { BrowserGoogleClientFields } from "./BrowserGoogleClientFields";
 
 export function FirstRunOnboarding({ source, connectionOnly = false }: { source: CoreViewModelSource; connectionOnly?: boolean }): JSX.Element {
@@ -28,6 +30,8 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
   const [submitting, setSubmitting] = useState(false);
   const [activeStep, setActiveStep] = useState(connectionOnly ? 1 : 0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
+  const motionDisabled = source.settings.disableAnimations || prefersReducedMotion;
   const refreshedConnectedAccount = useRef<string | null>(null);
   const selectedTaskLists = useMemo(() => new Set(selectedTaskListIds), [selectedTaskListIds]);
   const selectedCalendars = useMemo(() => new Set(selectedCalendarIds), [selectedCalendarIds]);
@@ -252,27 +256,32 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
     }
   }
 
-  return (
-    <Dialog.Root open>
-    <Dialog.Portal>
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary/80 p-3 sm:p-6"
-    >
-      <Dialog.Content aria-describedby={undefined} onEscapeKeyDown={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()} className="hcb-raised flex h-[min(760px,calc(100dvh-48px))] w-[min(1180px,calc(100vw-48px))] flex-col overflow-hidden rounded-hcbLg border border-border bg-bg-primary">
-        <Dialog.Title className="sr-only">Hot Cross Buns</Dialog.Title>
+  const stepContent = [
+    { title: "Your day, freshly planned.", description: "Bring tasks and calendars together, then make room for what matters." },
+    { title: "Connect Google", description: "Link your account to bring your tasks and calendars into Hot Cross Buns." },
+    { title: "Choose your ingredients", description: "Pick the task lists and calendars you want in your planner." },
+    { title: browserRuntime ? "A workspace that stays with you" : "Choose your sync rhythm", description: browserRuntime ? "Your changes save in this browser, ready for your next visit." : "Decide how often your planner checks for changes." },
+    { title: "Freshly set up", description: "Choose your reminder preferences, then start planning your day." }
+  ];
 
-        <div ref={contentRef} className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-4 sm:p-6">
+  return (
+    <Dialog open>
+      <DialogContent showClose={false} aria-label="Hot Cross Buns" onEscapeKeyDown={(event) => event.preventDefault()} onInteractOutside={(event) => event.preventDefault()}>
+        <div className="m-2 mb-0 flex h-40 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-0 sm:h-44">
+          <LoadingIndicator size={180} illustration="connection" />
+        </div>
+        <div ref={contentRef} className="min-h-0 overflow-x-hidden overflow-y-auto px-6 pb-3 pt-5">
+          <AnimatePresence initial={false} mode="popLayout">
+            <OnboardingStep key={activeStep} disabled={Boolean(motionDisabled)}>
+              <DialogHeader className={activeStep === 0 ? "sr-only" : "mb-5"}>
+                <DialogTitle>{stepContent[activeStep].title}</DialogTitle>
+                <DialogDescription>{stepContent[activeStep].description}</DialogDescription>
+              </DialogHeader>
           {activeStep === 0 ? (
-            <section className="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-5 py-12 text-center sm:py-20">
-              <div>
-                <h3 className="hcb-heading text-balance text-[var(--text-2xl)] font-bold text-text-primary">
-                  Welcome to Hot Cross Buns
-                </h3>
-                <p className="hcb-copy mt-3 text-pretty text-[var(--text-md)] text-text-muted">
-                  Turn tasks into a realistic day: capture work, preview free time with Smart Schedule, then create Calendar blocks. Your workspace saves in this browser. Connect your Google account, then choose your task lists and calendars to get started.
-                </p>
-              </div>
-            </section>
+            <div className="flex min-h-28 items-center justify-center gap-4 py-4">
+              <span className="onboarding-croissant text-6xl" role="img" aria-label="Croissant" data-still={motionDisabled || undefined}>🥐</span>
+              <p className="onboarding-speech relative max-w-44 rounded-2xl border border-border bg-surface-0 px-4 py-3 text-sm font-medium text-text-primary">Welcome to Hot Cross Buns</p>
+            </div>
           ) : null}
 
           {activeStep === 1 && !oauthRuntimeReady ? (
@@ -350,7 +359,7 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
           ) : null}
 
           {activeStep === 2 ? (
-            <div className="grid items-start gap-8 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <div className="grid items-start gap-5">
               <section className="min-w-0">
                 <div className="mb-3 border-b border-border pb-3">
                   <h3 className="hcb-heading text-[var(--text-md)] font-semibold text-text-primary">Task lists</h3>
@@ -407,7 +416,7 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
           ) : null}
 
           {activeStep === 3 && (!oauthRuntimeReady || browserRuntime) ? (
-            <SetupCard title="Saved in this browser" description="Changes save automatically in IndexedDB before the planner confirms success. Reloading the page keeps your workspace.">
+            <SetupCard title="Saved in this browser" description="Your tasks, notes, and calendars stay here when you reload.">
               <p className="text-[var(--text-sm)] text-text-muted">Use the same browser profile to return to your workspace. Clearing this site's browser data removes the workspace; private browsing keeps it only for that private session.</p>
             </SetupCard>
           ) : null}
@@ -474,15 +483,21 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
               tone="warning"
             />
           ) : null}
+            </OnboardingStep>
+          </AnimatePresence>
         </div>
 
-        {!connectionOnly ? <footer className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 sm:px-5">
+        {!connectionOnly ? <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-3">
+          <div className="flex gap-1.5" role="img" aria-label={`Setup progress: ${activeStep + 1} of ${stepContent.length}`}>
+            {stepContent.map((step, index) => <span key={step.title} className={`size-1.5 rounded-full bg-accent transition-opacity duration-200 ${index === activeStep ? "opacity-100" : "opacity-20"}`} />)}
+          </div>
+          <DialogFooter>
           {activeStep > 0 ? (
             <Button onClick={goBack} variant="secondary">
               <ArrowLeft aria-hidden="true" size={14} />
               Back
             </Button>
-          ) : <span />}
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {activeStep < 4 ? (
               <Button disabled={!canAdvance} onClick={goForward} variant="primary">
@@ -500,13 +515,27 @@ export function FirstRunOnboarding({ source, connectionOnly = false }: { source:
               </Button>
             )}
           </div>
-        </footer> : null}
-      </Dialog.Content>
-    </div>
-    </Dialog.Portal>
-    </Dialog.Root>
+          </DialogFooter>
+        </div> : null}
+      </DialogContent>
+    </Dialog>
   );
 }
+
+const OnboardingStep = forwardRef<HTMLDivElement, { children: ReactNode; disabled: boolean }>(({ children, disabled }, ref) => {
+  const present = useIsPresent();
+  return <motion.div
+    ref={ref}
+    className="space-y-3"
+    inert={!present || undefined}
+    aria-hidden={!present || undefined}
+    initial={disabled ? false : { opacity: 0, x: 12 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -8 }}
+    transition={{ duration: disabled ? 0 : .2, ease: "easeOut" }}
+  >{children}</motion.div>;
+});
+OnboardingStep.displayName = "OnboardingStep";
 
 function SetupCard({
   children,
@@ -518,10 +547,10 @@ function SetupCard({
   title: string;
 }): JSX.Element {
   return (
-    <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary p-3">
+    <section className="min-w-0">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
+          <h3 className={`hcb-heading text-[var(--text-md)] font-semibold text-text-primary ${title === "Connect Google" ? "sr-only" : ""}`}>{title}</h3>
         </div>
       </div>
       <p className="hcb-copy mt-2 text-pretty text-[var(--text-sm)] text-text-muted">{description}</p>
@@ -538,9 +567,9 @@ function SetupOption({
   title: string;
 }): JSX.Element {
   return (
-    <section className="min-w-0 rounded-hcbMd border border-border bg-bg-secondary p-3">
+    <section className="min-w-0">
       <div className="mb-3 flex items-center gap-2">
-        <h3 className="hcb-heading truncate text-[var(--text-md)] font-semibold text-text-primary">{title}</h3>
+        <h3 className={`hcb-heading text-[var(--text-md)] font-semibold text-text-primary ${title === "Connect Google" ? "sr-only" : ""}`}>{title}</h3>
       </div>
       {children}
     </section>

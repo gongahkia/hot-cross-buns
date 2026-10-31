@@ -10,6 +10,8 @@ interface StateBlockProps {
   role?: "alert" | "status";
   actionLabel?: string;
   loading?: boolean;
+  initial?: boolean;
+  empty?: boolean;
   onAction?: () => void;
 }
 
@@ -18,6 +20,8 @@ function StateBlock({
   description,
   icon: Icon,
   loading = false,
+  initial = false,
+  empty = false,
   onAction,
   role,
   title
@@ -29,9 +33,7 @@ function StateBlock({
       aria-live={role === "status" ? "polite" : undefined}
     >
       <div className="max-w-sm">
-        {loading || Icon ? <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent">
-          {loading ? <LoadingIndicator size={20} /> : Icon ? <Icon aria-hidden="true" size={20} /> : null}
-        </div> : null}
+        {empty ? <LoadingIndicator size={100} illustration="empty" /> : loading ? <LoadingIndicator size={112} illustration={initial ? "initial" : undefined} /> : Icon ? <div className="mx-auto flex size-10 items-center justify-center rounded-hcbMd border border-border bg-surface-0 text-accent"><Icon aria-hidden="true" size={20} /></div> : null}
         <h3 className={`${loading || Icon ? "mt-3 " : ""}text-[var(--text-md)] font-semibold text-text-primary`}>{title}</h3>
         <p className="mt-1 text-[var(--text-sm)] text-text-muted">{description}</p>
         {actionLabel && onAction ? (
@@ -56,6 +58,7 @@ export function LoadingState({
       description={description}
       icon={FolderSearch}
       loading
+      initial={title !== "Refreshing"}
       role="status"
       title={title}
     />
@@ -65,13 +68,13 @@ export function LoadingState({
 export function EmptyState({
   description,
   title,
-  showIcon = false
+  showIcon = true
 }: {
   title: string;
   description: string;
   showIcon?: boolean;
 }): JSX.Element {
-  return <StateBlock description={description} icon={showIcon ? FolderSearch : undefined} title={title} />;
+  return <StateBlock description={description} empty={showIcon} title={title} />;
 }
 
 export function OfflineState({
