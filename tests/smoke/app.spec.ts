@@ -81,8 +81,8 @@ test("launches and renders the planner shell", async () => {
 
     const onboarding = page.getByRole("dialog", { name: "Hot Cross Buns" });
     await expect(onboarding).toBeVisible();
-    await expect(onboarding.getByRole("heading", { name: "Welcome to Hot Cross Buns" })).toBeVisible();
-    await expect(onboarding).toContainText("preview free time with Smart Schedule");
+    await expect(onboarding.getByRole("img", { name: "Croissant", exact: true })).toBeVisible();
+    await expect(onboarding.getByText("Welcome to Hot Cross Buns", { exact: true })).toBeVisible();
     await expect(onboarding.getByRole("button", { name: "Get started" })).toBeVisible();
     await expect(page.getByTestId("app-shell")).toHaveAttribute("inert", "");
     // The launcher seeds a linked test account. Navigation becomes accessible

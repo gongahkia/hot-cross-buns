@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test, planner, capture } from "./planner";
 import { mockOnboardingGoogle, configureOnboardingGoogle } from "../browser/googleMock";
 
-test("onboarding shows complete resource lists together and explains durable browser storage", async () => {
+test("fixed onboarding keeps resource lists scrollable and explains browser storage", async () => {
   await planner(async (page) => {
     await mockOnboardingGoogle(page);
     await page.evaluate(async () => {
@@ -27,6 +27,7 @@ test("onboarding shows complete resource lists together and explains durable bro
     await expect(dialog.getByRole("heading", { name: "Calendars", exact: true })).toBeVisible();
     // Google connects through the real worker while local resources stay available.
     await expect(dialog.getByRole("checkbox", { name: /^Select task list/ })).toHaveCount(12);
+    await dialog.getByRole("checkbox", { name: "Select calendar Primary", exact: true }).scrollIntoViewIfNeeded();
     await expect(dialog.getByRole("checkbox", { name: "Select calendar Primary", exact: true })).toBeVisible();
     const localResources = await page.evaluate(async () => {
       const result = await window.hcb!.bootstrap.get({});
@@ -39,8 +40,10 @@ test("onboarding shows complete resource lists together and explains durable bro
     expect(localResources.lists).toHaveLength(11);
     expect(localResources.lists).toContain('Inbox');
     expect(localResources.calendars).toEqual(['Primary']);
-    await expect(dialog.locator("header, img")).toHaveCount(0);
-    // the resource list grows naturally; only the page owns vertical scrolling.
+    const size = (await dialog.boundingBox())!;
+    expect(size.width).toBe(440);
+    expect(size.height).toBe(640);
+    // Individual lists stay natural; the card body owns scrolling and the footer stays visible.
     for (const heading of ["Task lists", "Calendars"]) {
       const section = dialog.locator("section").filter({ has: page.getByRole("heading", { name: heading, exact: true }) });
       expect(await section.evaluate((element) => [...element.querySelectorAll("div")].filter((node) => ["auto", "scroll"].includes(getComputedStyle(node).overflowY)).length)).toBe(0);
@@ -54,7 +57,7 @@ test("onboarding shows complete resource lists together and explains durable bro
     await dialog.getByRole("button", { name: "Continue" }).click();
     await page.setViewportSize({ width: 1180, height: 760 });
     await expect(dialog.getByRole("heading", { name: "Saved in this browser", exact: true })).toBeVisible();
-    await expect(dialog).toContainText("Changes save automatically");
+    await expect(dialog).toContainText("Your tasks, notes, and calendars stay here when you reload.");
     await expect(dialog).toContainText("Clearing this site's browser data removes the workspace");
     await expect(dialog.getByRole("radio")).toHaveCount(0);
     await capture(page, "onboarding-browser-storage");
