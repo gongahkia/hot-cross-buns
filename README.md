@@ -29,12 +29,8 @@ A keyboard-first [browser planner](#architecture) with first-class support for [
 ## GIF
 
 <div align="center">
-  <video width="85%" src="https://github.com/user-attachments/assets/5ecca4da-dd8a-47f9-a648-306b5d39ee7b" controls muted playsinline preload="metadata"></video>
+  <video width="85%" src="https://github.com/user-attachments/assets/c568f1f3-7854-426e-9723-7b888a83702e" controls muted playsinline preload="metadata"></video>
 </div>
-
-## Architecture
-
-...
 
 ## Usage
 
