@@ -8,6 +8,7 @@ A keyboard-first [browser planner](#architecture) with first-class support for [
 ## Stack
 
 * Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/), [TanStack Query](https://tanstack.com/query), [Zustand](https://zustand.docs.pmnd.rs/), [Zod](https://zod.dev/), [Lucide](https://lucide.dev/), [Motion](https://motion.dev/)
+* 3D Models: [Three.js](https://threejs.org/)
 * Storage: [SQLite WASM](https://sqlite.org/wasm/doc/trunk/index.md), [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
 * Tests: [Vitest](https://vitest.dev/), [Playwright](https://playwright.dev/), [Testing Library](https://testing-library.com/), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
 * Package: [Corepack](https://www.npmjs.com/package/corepack), [pnpm](https://pnpm.io/), [Vite](https://vite.dev/)
