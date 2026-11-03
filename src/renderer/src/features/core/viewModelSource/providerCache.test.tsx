@@ -19,11 +19,31 @@ function setup(watchRange?: { start: string; end: string }) {
     useCalendarRangeLoader(watchRange ?? { start: "2099-05-01T00:00:00.000Z", end: "2099-06-01T00:00:00.000Z" }, Boolean(watchRange) && source.dataState !== "loading", source.calendarDataRevision, source.ensureCalendarRange);
     return null;
   }
-  render(<CoreDataProvider><Capture /></CoreDataProvider>);
-  return { api, getSource: () => source, status: (value: any) => listener?.(value) };
+  const { unmount } = render(<CoreDataProvider><Capture /></CoreDataProvider>);
+  return { api, unmount, getSource: () => source, status: (value: any) => listener?.(value) };
 }
 
 describe("workspace cache consistency", () => {
+  it.each(["resolve", "reject"] as const)("ignores a schedule suggestion that %ss after unmount", async (outcome) => {
+    const fixture = setup();
+    type SuggestionResult = Awaited<ReturnType<typeof fixture.api.calendar.scheduleSuggest>>;
+    let resolve!: (value: SuggestionResult) => void;
+    let reject!: (error: Error) => void;
+    fixture.api.calendar.scheduleSuggest = vi.fn(() => new Promise<SuggestionResult>((onResolve, onReject) => {
+      resolve = onResolve;
+      reject = onReject;
+    }));
+    await waitFor(() => expect(fixture.api.calendar.scheduleSuggest).toHaveBeenCalledOnce());
+    fixture.unmount();
+    const recordTiming = vi.fn(async () => ok({ recorded: true }));
+    fixture.api.diagnostics.recordTiming = recordTiming;
+    await act(async () => {
+      if (outcome === "resolve") resolve(ok({ slots: [], unscheduled: [], overloadMinutes: 0 }));
+      else reject(new Error("Workspace closed"));
+    });
+    expect(recordTiming).not.toHaveBeenCalled();
+  });
+
   it("reloads an unchanged visible range after refresh replaces the bootstrap snapshot", async () => {
     const range = { start: "2099-05-01T00:00:00.000Z", end: "2099-06-01T00:00:00.000Z" };
     const fixture = setup(range);

@@ -705,6 +705,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
     const settings = loadState.snapshot.settings;
     const scheduleDate = dateOnlyFromLocalDate(new Date());
     const startedAt = performance.now();
+    let cancelled = false;
 
     void window.hcb.calendar
       .scheduleSuggest({
@@ -716,6 +717,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
         }
       })
       .then((result) => {
+        if (cancelled) return;
         if (!result?.ok) {
           recordRendererTiming({
             kind: "startup",
@@ -750,6 +752,7 @@ function usePreloadCoreSource(): CoreViewModelSource {
         }));
       })
       .catch(() => {
+        if (cancelled) return;
         recordRendererTiming({
           kind: "startup",
           name: "startup.schedule-suggest.deferred",
@@ -759,6 +762,8 @@ function usePreloadCoreSource(): CoreViewModelSource {
           }
         });
       });
+
+    return () => { cancelled = true; };
   }, [
     loadState.snapshot.settings,
     loadState.state

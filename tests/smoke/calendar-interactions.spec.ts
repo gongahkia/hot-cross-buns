@@ -30,9 +30,9 @@ async function record(page: Page, id: string) {
 }
 
 async function drag(page: Page, from: Locator, to: Locator, release = true) {
-  // A settled viewport refresh can replace a segment during Playwright's scroll check.
+  // Hover waits for hit testing after scroll restoration and viewport refreshes.
   // Retry preparation only; never repeat the gesture or its write.
-  await expect(async () => { await from.scrollIntoViewIfNeeded(); await expect(from).toBeVisible(); }).toPass({ timeout: 5000 });
+  await expect(async () => { await from.hover(); await expect(from).toBeVisible(); }).toPass({ timeout: 5000 });
   const a = await from.boundingBox(), b = await to.boundingBox();
   expect(a).not.toBeNull(); expect(b).not.toBeNull();
   await page.mouse.move(a!.x + a!.width / 2, a!.y + a!.height / 2);
@@ -144,9 +144,9 @@ async function timelinePoint(page: Page, day: string, minutes: number) {
 }
 
 async function dragToTime(page: Page, from: Locator, day: string, minutes: number) {
-  // A settled viewport refresh can replace a segment during Playwright's scroll check.
+  // Hover waits for hit testing after scroll restoration and viewport refreshes.
   // Retry preparation only; never repeat the gesture or its write.
-  await expect(async () => { await from.scrollIntoViewIfNeeded(); await expect(from).toBeVisible(); }).toPass({ timeout: 5000 });
+  await expect(async () => { await from.hover(); await expect(from).toBeVisible(); }).toPass({ timeout: 5000 });
   const a = (await from.boundingBox())!, b = await timelinePoint(page, day, minutes);
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 8 }); await page.mouse.up();

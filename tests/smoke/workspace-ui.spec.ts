@@ -789,11 +789,12 @@ test("creates a time range with the pointer, moves and resizes an event, and ret
     await chooseCalendarView(page, "day");
     const grid = page.getByRole("grid", { name: "Calendar day view", exact: true });
     const slot = grid.getByRole("gridcell", { name: /10 AM$/ });
-    await slot.scrollIntoViewIfNeeded();
+    // Wait for scroll restoration and the view transition to leave this point
+    // hittable before measuring coordinates for the pointer gesture.
+    await slot.hover({ position: { x: 80, y: 4 } });
     const bounds = (await slot.boundingBox())!;
-    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 4);
     await page.mouse.down();
-    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 48, { steps: 6 });
+    await page.mouse.move(bounds.x + 80, bounds.y + 48, { steps: 6 });
     await page.mouse.up();
     const title = page.getByRole("textbox", { name: "Event title", exact: true });
     await expect(title).toBeVisible();
