@@ -8,6 +8,8 @@ import { mapScratchpadSelection } from '../scratchpad';
 import { convertScratchpadSelection, loadScratchpadState, saveScratchpadText, subscribeStore, type ScratchpadState, type ScratchpadUndo, type TodoState } from '../todoStore';
 import { validDate } from '../todoText';
 import { Modal } from './Modal';
+import { SaveRecovery } from './SaveRecovery';
+import { WriteQueue, WriteDiscardedError } from '../writeQueue';
 
 const Wrap = styled.section`display:flex;flex-direction:column;height:100%;min-height:0;`;
 const Editor = styled.textarea`display:block;width:100%;flex:1;min-height:220px;padding:4px 2px;resize:none;border:0;border-radius:0;background:transparent;color:var(--ink);caret-color:var(--ink);font:inherit;font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;&:focus{outline:none;}&:read-only{opacity:.8;}`;
@@ -36,9 +38,12 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   const [newList, setNewList] = useState('');
   const [copyMode, setCopyMode] = useState<'cut' | 'copy'>('cut');
   const [message, setMessage] = useState('');
+  const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const editor = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const current = useRef<ScratchpadState>({ text: '', revision: 0 });
+  const writeQueue = useRef<WriteQueue<void> | null>(null);
+  if (!writeQueue.current) writeQueue.current = new WriteQueue(error => setSaveFailure('Could not save: ' + String(error)));
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
   const releaseLock = useRef<(() => void) | null>(null);
@@ -46,6 +51,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   const mounted = useRef(true);
 
   const refresh = async () => {
+    if (writeQueue.current!.failed) return;
     const latest = await loadScratchpadState();
     current.current = latest;
     setDraft(latest.text);
@@ -110,12 +116,11 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     setSelection(null);
     setContextMenu(null);
     pendingSaves.current++;
-    queue.current = queue.current.then(async () => {
+    queue.current = writeQueue.current!.enqueue(async () => {
       const next = await saveScratchpadText(current.current.revision, text);
       current.current = next;
-    }).catch(async error => {
-      setMessage(String(error));
-      await refresh();
+    }).catch(error => {
+      if (!(error instanceof WriteDiscardedError)) setMessage(String(error));
     }).finally(() => { pendingSaves.current--; });
   };
   const rememberSelection = () => {
@@ -200,5 +205,11 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
       <Row><Muted>{mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length} {(mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length === 1) ? 'item' : 'items'} will be created.</Muted></Row>
       <DialogActions><Button onClick={() => setDestination(null)}>Cancel</Button><Button $primary onClick={() => void convert()}>Create item</Button></DialogActions>
     </Modal>
+    <SaveRecovery error={saveFailure} text={draft} kind="scratchpad" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={async () => {
+      const latest = await loadScratchpadState();
+      writeQueue.current!.discard();
+      current.current = latest; setDraft(latest.text); setSelection(null);
+      setSaveFailure(null); setMessage('Unsaved scratchpad edits discarded.');
+    }}/>
   </Wrap>;
 }

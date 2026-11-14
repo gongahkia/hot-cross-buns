@@ -119,3 +119,7 @@ Dates and lists, item lines, optional metadata, and detail lines are the source 
 **Download TODO.txt** opens a read-only preview of the complete serialized journal. The default file is UTF-8 `TODO.txt` with LF line endings. Filename and CRLF choices do not change meaning; visual wrapping changes only the preview. Edit a downloaded file in a text editor and import it to apply text changes. An unfinished draft left by an older browser editor remains available as a separate download.
 
 Parsing and serialization are in [`src/todoText.ts`](src/todoText.ts). Scheduled occurrence projection is in [`src/seriesView.ts`](src/seriesView.ts); repeat calculations are in [`src/recurrence.ts`](src/recurrence.ts) and [`src/scheduledRecurrence.ts`](src/scheduledRecurrence.ts). The Google snapshot converter is described in [GOOGLE_SNAPSHOT.md](GOOGLE_SNAPSHOT.md).
+
+## Failed saves
+
+A failed journal or scratchpad save pauses its pending writes and keeps the unsaved text in the current tab. Use **Retry saving**, **Copy unsaved text**, or **Download unsaved text** in the recovery dialog. Retrying uses the normal cross-window conflict checks; an overlapping edit is not overwritten. **Discard unsaved edits** asks for confirmation before returning to the saved version. Recovery downloads do not change the journal baseline. Keep the tab open until saving succeeds or you have copied or downloaded the draft.

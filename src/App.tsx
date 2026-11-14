@@ -15,6 +15,9 @@ import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
 import { ScratchpadView } from './components/ScratchpadView';
+import { SaveRecovery } from './components/SaveRecovery';
+import { WriteQueue, WriteDiscardedError } from './writeQueue';
+import { downloadTextFile } from './files';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
 import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, getPastUnfinishedScope, setPastUnfinishedScope, type DateFormat, type HolidayMode, type PastUnfinishedScope } from './preferences';
 import { earlierUnfinishedDays } from './earlierUnfinished';
@@ -94,14 +97,6 @@ const readSavedRange = (): DateSpan | null => {
     const saved = JSON.parse(localStorage.getItem(SAVED_RANGE_KEY) ?? 'null') as DateSpan | null;
     return saved && validDate(saved.from) && validDate(saved.to) && saved.from <= saved.to ? saved : null;
   } catch { return null; }
-};
-const downloadTextFile = (text: string, fileName: string) => {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 const tagsIn = (text: string) => [...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]+)/gu)].map(match => match[1].toLowerCase());
 const dateLabel = (date: string, today: string) => date === today ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long' });
@@ -330,6 +325,7 @@ export default function App() {
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
   const [message, setMessage] = useState('');
+  const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<UndoNotice | null>(null);
   const [busy, setBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
@@ -337,6 +333,8 @@ export default function App() {
   const searchButton = useRef<HTMLButtonElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
+  const writeQueue = useRef<WriteQueue<TodoState | null> | null>(null);
+  if (!writeQueue.current) writeQueue.current = new WriteQueue(error => setSaveFailure('Could not save: ' + String(error)));
   const journalQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingJournal = useRef(0);
   const journalGeneration = useRef(0);
@@ -441,10 +439,24 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [scratchUndo]);
   const toastNotice = useMemo(() => scratchUndo ? { kind: 'scratchpad-conversion' as const, text: 'Scratchpad text' } : feedbackNotice, [scratchUndo, feedbackNotice]);
+  const reportSaveError = (error: unknown, prefix = 'Could not save: ') => {
+    if (!(error instanceof WriteDiscardedError)) setMessage(prefix + String(error));
+  };
+  const discardUnsavedJournal = async () => {
+    const latest = await loadTodoState();
+    journalGeneration.current++;
+    writeQueue.current!.discard();
+    current.current = latest;
+    setState(latest);
+    undoStack.current = []; redoStack.current = [];
+    setFeedbackNotice(null); setScratchUndo(null); setReview(null);
+    setSaveFailure(null);
+    setMessage('Unsaved journal edits discarded.');
+  };
   const enqueueJournal = (work: () => Promise<TodoState | null>) => {
     const generation = ++journalGeneration.current;
     pendingJournal.current++;
-    const task = journalQueue.current.then(work);
+    const task = writeQueue.current!.enqueue(work);
     journalQueue.current = task.then(() => undefined, () => undefined);
     void task.finally(async () => {
       pendingJournal.current--;
@@ -513,7 +525,7 @@ export default function App() {
         activeHistoryTransition.current = null;
       };
       void transition.finished.then(clearNames, clearNames);
-      void persistSnapshot(stamped,before).catch(error => setMessage(`Could not save: ${String(error)}`));
+      void persistSnapshot(stamped,before).catch(reportSaveError);
     } else if (!reduceMotion) {
       const beforeRows = visibleHistoryRows();
       const changed = changedHistoryIds(current.current.document, documentData);
@@ -521,8 +533,8 @@ export default function App() {
       current.current = stamped;
       flushSync(() => setState(stamped));
       animateHistoryFallback(beforeRows, changed);
-      void persistSnapshot(stamped,before).catch(error => setMessage(`Could not save: ${String(error)}`));
-    } else void commitState(next).catch(error => setMessage(`Could not save: ${String(error)}`));
+      void persistSnapshot(stamped,before).catch(reportSaveError);
+    } else void commitState(next).catch(reportSaveError);
   };
   const commitDocumentState = async (next: TodoState) => {
     if (serializeTodoText(current.current.document) !== serializeTodoText(next.document)) {
@@ -551,7 +563,7 @@ export default function App() {
     previousDocument.current = before;
     current.current = stamped;
     setState(stamped);
-    void persistEdit(before,document,change).catch(error => setMessage(`Could not save: ${String(error)}`));
+    void persistEdit(before,document,change).catch(reportSaveError);
     setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
   };
   const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
@@ -901,7 +913,7 @@ export default function App() {
     setReview(null);
     setMessage('TODO.txt imported.');
   };
-  const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text()); } catch (error) { setMessage(String(error)); } finally { setBusy(false); } };
+  const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text()); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
   const download = async (fileName: string, lineEnding: LineEnding) => {
     const output = serializeTodoText(current.current.document);
     const fileText = lineEnding === 'crlf' ? output.replace(/\n/g, '\r\n') : output;
@@ -924,9 +936,9 @@ export default function App() {
       validateDocument(merged);
       await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal) });
       setReview(null); setMessage('TODO.txt imported.');
-    } catch (error) { setMessage(String(error)); } finally { setBusy(false); }
+    } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); }
   };
-  const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { setMessage(String(error)); } };
+  const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); } };
   const doctorAction = (finding: DoctorFinding, action: DoctorAction, value?: string) => {
     if (review?.kind !== 'doctor') return;
     const updated = applyDoctorAction(rawEdit, finding, action, value);
@@ -1157,7 +1169,7 @@ export default function App() {
         setPopoutChooser(null);
       }}>Open window</Button></PopoutActions>
     </Modal>
-    <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => setMessage(`Could not download: ${String(error)}`)); }}/>
+    <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
     <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
       timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
       weekStart={weekStart} onWeekStartChange={value => {
@@ -1180,5 +1192,6 @@ export default function App() {
       onClose={() => setReview(null)} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
       onReparse={() => void reparse()} onApply={() => void applyReview()} onDoctorAction={doctorAction}/>
+    <SaveRecovery error={saveFailure} text={saveFailure ? serializeTodoText(current.current.document) : ''} kind="journal" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={discardUnsavedJournal}/>
   </Page>;
 }
