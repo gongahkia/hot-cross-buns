@@ -273,20 +273,20 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
 
   const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const source = await page.getByRole('button', { name: 'Drag to reorder Beta' }).boundingBox();
-    const destination = await page.getByRole('button', { name: 'Drag to reorder Alpha' }).boundingBox();
-    expect(source && destination).toBeTruthy();
-    await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + destination!.height / 2, { steps: 15 });
-    await page.waitForTimeout(220);
-    const settled = await page.getByRole('button', { name: 'Drag to reorder Alpha' }).boundingBox();
-    expect(settled).toBeTruthy();
-    await page.mouse.move(settled!.x + settled!.width / 2, settled!.y + settled!.height / 2, { steps: 5 });
-    await page.mouse.up();
-    if (await todaySection.getByRole('group').first().getAttribute('aria-label') === 'Beta') break;
-  }
+  const sourceGrip = page.getByRole('button', { name: 'Drag to reorder Beta' });
+  const targetGrip = page.getByRole('button', { name: 'Drag to reorder Alpha' });
+  // boundingBox also returns offscreen coordinates after expanding the detail.
+  await sourceGrip.scrollIntoViewIfNeeded();
+  await targetGrip.scrollIntoViewIfNeeded();
+  await expect(sourceGrip).toBeInViewport();
+  await expect(targetGrip).toBeInViewport();
+  const source = await sourceGrip.boundingBox();
+  const destination = await targetGrip.boundingBox();
+  expect(source && destination).toBeTruthy();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(destination!.x + destination!.width / 2, destination!.y + destination!.height / 2, { steps: 15 });
+  await page.mouse.up();
   await expect(todaySection.getByRole('group').first()).toHaveAttribute('aria-label', 'Beta');
   await expect.poll(async () => (await storedJournal(page))?.days.find(day => day.date === today)?.items[0]?.text, { timeout: 10000 }).toBe('Beta');
   await page.reload();

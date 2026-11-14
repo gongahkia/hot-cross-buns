@@ -29,7 +29,7 @@ The browser keeps its working copy in IndexedDB under this browser profile and o
 
 ## Usage
 
-The below instructions are for building `Hot Cross Buns` locally from source. Use Node.js 22.18 or newer and npm. Python 3 is needed for the optional Google snapshot tools and their tests.
+The below instructions are for building `Hot Cross Buns` locally from source. Use Node.js 22.18 or newer and npm. Python 3 is needed for the optional Google snapshot tools and their tests. [CI](./.github/workflows/ci.yml) checks Node.js 22.18 and 24 with Python 3.13.
 
 1. First execute the below commands to clone `Hot Cross Buns`.
 
@@ -47,11 +47,11 @@ $ npm run dev
 3. Optionally run the below to run `Hot Cross Buns`' [test suite](./tests).
 
 ```console
-$ npm run test:unit
 $ npx playwright install chromium
-$ npm run test:e2e
-$ python3 -m unittest discover -s tests -p 'test_google_*.py'
+$ npm run verify
 ```
+
+`verify` runs unit tests, Python snapshot tests, the production build, Chromium browser tests and the dependency audit. Use `test:unit`, `test:python` or `test:e2e` to run a narrower check. The browser tests use a fixed Singapore time zone and two workers.
 
 4. Run the below to build and preview the production application.
 
