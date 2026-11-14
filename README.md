@@ -16,7 +16,7 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 * Scratchpad with selected-text capture into dated or undated items
 * Time blocks and all-day or multi-day spans
 * Scheduled and after-completion recurrence *(individual, following & all-item edits)*
-* Drag to reorder items and details or move items between dates
+* Drag to reorder items and details or move items between dates *(quick Today/Tomorrow choices)*
 * Promote details to items and move items under a parent
 * Text search and hashtag filters
 * Undo/redo and completion confirmations

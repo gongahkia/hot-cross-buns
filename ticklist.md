@@ -12,6 +12,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Explicit TODO.txt import, doctor, conflict review and download preview.
 - [x] Separate, read-only Google Calendar and Tasks snapshot tools.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
+- [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
 
 ## Next validation
 

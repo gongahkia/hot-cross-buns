@@ -6,10 +6,11 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { ArrowLeft, CalendarDays, ChevronDown, Clock3, CornerDownRight, GripVertical, MoreHorizontal, Plus, Repeat2, Trash2 } from 'lucide-react';
-import { Field, IconButton } from '../styles';
+import { Button, Field, IconButton } from '../styles';
+import { shiftDate } from '../dayWindow';
 import { describeRecurrence, formatRecurrence } from '../recurrence';
 import { parseTimeBlock } from '../timeBlock';
-import { formatSpan, newId, type TodoDetail, type TodoItem } from '../todoText';
+import { formatSpan, newId, todayString, type TodoDetail, type TodoItem } from '../todoText';
 import type { ViewItem } from '../seriesView';
 import { CalendarPanel } from './CalendarPanel';
 import { ScheduleEditor } from './ScheduleEditor';
@@ -48,7 +49,7 @@ const DetailGrip = styled.button`width: 20px; min-width: 20px; min-height: 32px;
 const DetailCheck = styled.button<{ $done:boolean }>`width:28px; min-width:28px; min-height:32px; display:grid; place-items:center; padding:0; border:0; border-radius:5px; background:transparent; color:${({$done})=>$done?'var(--link)':'var(--checkbox)'}; &:hover{background:var(--soft);} @media(pointer:coarse){width:44px;min-width:44px;min-height:44px;}`;
 const ActionWrap = styled.div`position: static; display:flex; align-items:flex-start; flex: none; @media(max-width:540px){display:contents;}`;
 const MoreButton = styled(IconButton)`width: 40px; height: 40px; @media(pointer:coarse){width:44px;height:44px;} @media(max-width:540px){grid-column:4;grid-row:1;}`;
-const ActionMenu = styled.div`position: fixed; z-index: 30; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0003;`;
+const ActionMenu = styled.div`position: fixed; z-index: 50; width: 176px; padding: 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 10px 30px #0003;`;
 const Action = styled.button`width: 100%; min-height: 40px; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; &:hover:not(:disabled), &[aria-expanded='true'] { background: var(--soft); } &:disabled { color: var(--muted); cursor: default; opacity: .55; } @media(pointer:coarse){min-height:44px;}`;
 const ParentSearch = styled(Field)`width: 100%; min-height: 40px; margin: 3px 0 5px; font-size: 13px; @media(pointer:coarse){min-height:44px; font-size:16px;}`;
 const ParentList = styled.div`max-height: min(280px, calc(100dvh - 150px)); overflow-y: auto; overscroll-behavior: contain;`;
@@ -56,6 +57,7 @@ const ParentOption = styled(Action)`display: block; overflow: hidden; white-spac
 const ParentHint = styled.p`padding: 8px 9px; color: var(--muted); font-size: 12px;`;
 const MoveFlyout = styled.div`position: absolute; left: calc(100% + 8px); top: 0; @media(max-width: 540px), (max-width: 900px) and (max-height: 500px){position:fixed; left:50%; right:auto; top:max(8px, env(safe-area-inset-top)); transform:translateX(-50%); width:min(360px, calc(100vw - 16px)); max-height:calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))); overflow:auto; overscroll-behavior:contain;}`;
 const MoveFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted);`;
+const QuickMoves = styled.div`display:flex;gap:6px;margin-bottom:10px;&>button{flex:1;}`;
 const MoveConfirm = styled.button`min-height: 36px; padding: 6px 12px; border: 0; border-radius: 6px; background: var(--primary); color: var(--primary-ink); font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const AddForm = styled.form<{ $inline: boolean }>`margin: 10px 0 0 64px; width: calc(100% - 64px); ${({$inline}) => $inline && 'margin-top: 0;'} @media(pointer:coarse){margin-left:84px;width:calc(100% - 84px);}`;
 const AddInput = styled(Field)`min-height: 44px; border-color: transparent; background: transparent; padding: 9px 2px; font-size: 15px; line-height: 1.4; &::placeholder { color: var(--muted); opacity: 1; font-size:13px; } &:hover { color: var(--ink); } ${quietLineFocus} @media(pointer:coarse){font-size:16px;}`;
@@ -103,6 +105,8 @@ export function AddItem({ onAdd, autoFocus = false, onCancel, inline = false, la
 }
 
 export function JournalItem({ item, parentItems, previousItem, date, onChange, onEdit, onDelete, onMove, onMakeDetail, onMakeUndated, undatedListNames, onStartNext }: { item: ViewItem; parentItems: TodoItem[]; previousItem?:TodoItem; date: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onEdit: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onDelete: () => void; onMove: (date: string) => void; onMakeDetail: (parentId: string) => void; onMakeUndated: (list: string) => void; undatedListNames: string[]; onStartNext: () => void }) {
+  const today = todayString();
+  const tomorrow = shiftDate(today, 1);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const [text, setText] = useState(parseTimeBlock(item.text)?.title ?? item.text);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -204,7 +208,13 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
         <Action aria-label={`Make ${item.text} undated`} onClick={() => setUndatedOpen(value => !value)}><CalendarDays size={15}/> make undated</Action>
         {undatedOpen && (undatedListNames.length ? undatedListNames : ['Inbox']).map(name => <Action key={name} aria-label={`Move ${item.text} to undated list ${name}`} onClick={() => closeMenu(() => onMakeUndated(name))}>{name}</Action>)}
         <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(onDelete)}><Trash2 size={15}/> delete</Action>
-        {moveOpen && <MoveFlyout><CalendarPanel label={`Choose destination for ${item.text}`} value={moveDate} onSelect={setMoveDate}><MoveFooter><span>{moveDate}</span><MoveConfirm type="button" onClick={() => closeMenu(() => onMove(moveDate))}>Move here</MoveConfirm></MoveFooter></CalendarPanel></MoveFlyout>}
+        {moveOpen && <MoveFlyout>
+          <QuickMoves role="group" aria-label="Quick move dates">
+            <Button type="button" disabled={date === today} aria-label={`Move ${item.text} to today`} onClick={() => closeMenu(() => onMove(today))}>Today</Button>
+            <Button type="button" disabled={date === tomorrow} aria-label={`Move ${item.text} to tomorrow`} onClick={() => closeMenu(() => onMove(tomorrow))}>Tomorrow</Button>
+          </QuickMoves>
+          <CalendarPanel label={`Choose destination for ${item.text}`} value={moveDate} onSelect={setMoveDate}><MoveFooter><span>{moveDate}</span><MoveConfirm type="button" onClick={() => closeMenu(() => onMove(moveDate))}>Move here</MoveConfirm></MoveFooter></CalendarPanel>
+        </MoveFlyout>}
         </>}
       </ActionMenu>}
     </ActionWrap>
