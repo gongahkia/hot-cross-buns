@@ -43,7 +43,7 @@ const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding:
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
 const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
 const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
-const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; } @media(pointer:coarse){font-size:16px;}`;
+const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; background:transparent; font-size: 13px; &::-webkit-search-cancel-button { display: none; } @media(pointer:coarse){font-size:16px;}`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
 const SearchFilters = styled.div`display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:-10px 0 18px;font-size:12px;color:var(--muted);&>span:last-child{margin-left:auto;}`;
 const StatusFilter = styled.button`min-height:40px;padding:6px 12px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;&[aria-pressed='true'],&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;

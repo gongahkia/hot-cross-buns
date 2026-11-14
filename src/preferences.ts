@@ -103,6 +103,6 @@ function applyTheme(value: Theme) {
   const root = document.documentElement;
   root.dataset.theme = value;
   root.style.colorScheme = value === 'night' ? 'dark' : 'light';
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', value === 'night' ? '#011627' : '#f2f1ed');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', value === 'night' ? '#141414' : '#f2f1ed');
 }
 

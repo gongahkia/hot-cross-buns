@@ -1132,7 +1132,7 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await dialog.getByRole('button', { name: 'Dark mode' }).click();
   await dialog.getByLabel('Date headings').selectOption('iso-dots');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#011627');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#141414');
   await expect(dialog.getByRole('button', { name: 'Dark mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('body')).toHaveCSS('font-family', /Inter/);
   const today = dateOffset(0);

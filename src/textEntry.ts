@@ -1,0 +1,1 @@
+export const textEntrySelector = `textarea, input:not([type]), input:is([type='text'], [type='search'], [type='email'], [type='url'], [type='tel'], [type='password'], [type='number'], [type='date'], [type='time'], [type='datetime-local'], [type='month'], [type='week'])`;

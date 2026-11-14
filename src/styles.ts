@@ -1,4 +1,5 @@
 import styled, { createGlobalStyle, css } from 'styled-components';
+import { textEntrySelector } from './textEntry';
 
 export const GlobalStyle = createGlobalStyle`
   @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/mono/jetbrainsmono.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
@@ -17,22 +18,29 @@ export const GlobalStyle = createGlobalStyle`
   }
   :root[data-theme='night'] {
     color-scheme: dark;
-    --paper: #011627; --ink: #c0c7d1; --muted: #a3b0bf; --line: #294559; --soft: #193447;
-    --surface: #0a2133; --field: #102a3f; --date-bg: #173449; --tag-bg: #26394a; --tag-ink: #c0c7d1; --tag-selected: #75d1c4;
-    --selection: #315366; --focus: #75d1c4; --link: #75d1c4; --checkbox: #8ca0b0;
-    --primary: #75d1c4; --primary-hover: #9ddece; --primary-ink: #011627;
-    --danger: #efaa9c; --backdrop: #000b16aa;
+    --paper: #141414; --ink: #e8e8e8; --muted: #a8a8a8; --line: #373737; --soft: #2a2a2a;
+    --surface: #1c1c1c; --field: #242424; --date-bg: #303030; --tag-bg: #262626; --tag-ink: #c7c7c7; --tag-selected: #e0e0e0;
+    --selection: #4a4a4a; --focus: #9c9c9c; --link: #d0d0d0; --checkbox: #a0a0a0;
+    --primary: #dedede; --primary-hover: #f5f5f5; --primary-ink: #181818;
+    --danger: #f0aaa0; --backdrop: #00000099;
   }
   * { box-sizing: border-box; }
   html { background: var(--paper); -webkit-font-smoothing: antialiased; }
   body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(--app-font); font-size: 18px; font-weight: var(--app-font-weight); line-height: 1.4; transition: background-color 160ms ease-out, color 160ms ease-out; }
   body:has(dialog[open]) { overflow: hidden; }
   button, input, textarea, select { font: inherit; color: inherit; }
+  input { accent-color: var(--link); }
   button { -webkit-tap-highlight-color: transparent; }
   button:not(:disabled), summary { cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: .5; }
   :focus:not(:focus-visible) { outline: none; }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  :root :is(${textEntrySelector}) { border: 0; border-radius: 0; caret-color: var(--ink); }
+  :root :is(${textEntrySelector}):focus { outline: none; box-shadow: inset 0 -1px 0 var(--focus); }
+  :root :is(${textEntrySelector}):focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--focus); }
+  @media (forced-colors: active) {
+    :root :is(${textEntrySelector}):focus { border-bottom: 2px solid Highlight; }
+  }
   .skip-link { position: fixed; z-index: 100; top: 8px; left: 8px; padding: 8px 12px; border-radius: 6px; background: var(--surface); color: var(--ink); transform: translateY(-150%); }
   .skip-link:focus { transform: translateY(0); }
   ::selection { background: var(--selection); }
@@ -66,7 +74,7 @@ export const Button = styled.button<{ $primary?: boolean }>`
 `;
 export const Muted = styled.p`font-size: 13px; color: var(--muted);`;
 export const Field = styled.input`
-  width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 7px;
+  width: 100%; min-height: 44px; border: 0; border-radius: 0;
   padding: 8px 11px; background: var(--field); font-size: 14px; min-width: 0;
   @media(pointer:coarse) { font-size: 16px; }
 `;
