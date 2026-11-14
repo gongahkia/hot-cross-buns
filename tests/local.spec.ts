@@ -867,7 +867,7 @@ test('splits a count-limited series when editing this and following items', asyn
   await next.getByRole('textbox', { name: 'Edit Check in' }).press('Tab');
   await page.getByRole('dialog', { name: 'Choose recurring edit scope' }).getByRole('button', { name: 'This and following items' }).click();
   await expect(next.getByRole('group', { name: 'Changed check in' })).toBeVisible();
-  await page.getByRole('button', { name: 'Next range' }).click();
+  await page.getByRole('button', { name: 'Next day' }).click();
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${after}"]`) }).getByRole('group', { name: 'Changed check in' })).toBeVisible();
   const promise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download TODO.txt' }).click();
