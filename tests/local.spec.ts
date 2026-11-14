@@ -39,6 +39,13 @@ async function showThirtyOneDays(page: Page) {
   await expect(page.locator('section')).toHaveCount(31);
 }
 
+async function showJournalDay(page: Page, date: string) {
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  const range = page.getByRole('button', { name: 'Select date range' });
+  if (await range.getAttribute('aria-pressed') === 'true') await range.click();
+  await selectJournalCalendarDate(page, date);
+}
+
 test('edits a dated journal and exports a portable TODO.txt', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Review paper #work');
@@ -331,6 +338,9 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await page.setViewportSize({ width: 1280, height: 1600 });
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`) });
+  await page.getByRole('button', { name: 'Choose date' }).click();
+  await selectJournalCalendarDate(page, today);
+  await selectJournalCalendarDate(page, tomorrow);
   await page.getByRole('button', { name: 'Complete Transfer me' }).click();
   await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
   await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
@@ -491,6 +501,7 @@ test('an externally completed recurring item advances once when TODO.txt is impo
   const importFile = page.getByLabel('Import a TODO.txt file');
   await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
   await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  await showJournalDay(page, tomorrow);
   const nextDay = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
   await expect(nextDay.getByRole('group', { name: 'Check filter' }).getByRole('button', { name: 'Complete detail inspect it' })).toBeVisible();
   await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
@@ -850,6 +861,7 @@ test('splits a count-limited series when editing this and following items', asyn
   const raw = `${today}\n\nCheck in\n  @repeat: every 1 day; from ${today}; series check-in; ends after 3\n`;
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
+  await showJournalDay(page, tomorrow);
   const next = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
   await next.getByRole('textbox', { name: 'Edit Check in' }).fill('Changed check in');
   await next.getByRole('textbox', { name: 'Edit Check in' }).press('Tab');
@@ -1443,6 +1455,7 @@ test('creates siblings with Enter and promotes or demotes through row menus', as
   await page.getByRole('textbox', { name: 'New item after current item' }).fill('Saved on blur');
   await page.locator(`time[datetime="${today}"]`).click();
   await expect(page.getByRole('group', { name: 'Saved on blur' })).toBeVisible();
+  await expect.poll(async () => (await storedJournal(page))?.days.some(day => day.items.some(item => item.text === 'Saved on blur'))).toBe(true);
   await page.reload();
   await expect(page.getByRole('group', { name: 'Next sibling' })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Saved on blur' })).toBeVisible();

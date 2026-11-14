@@ -51,6 +51,18 @@ test('renaming preserves the old journal, scratchpad, preferences and draft acro
   await add.fill('Added after rename');
   await add.press('Enter');
   await expect(page.getByRole('group', { name: 'Added after rename', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open('hot-cross-buns-v1');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const entry = db.transaction('state').objectStore('state').get('current');
+      entry.onsuccess = () => {
+        db.close();
+        resolve(entry.result.document.days.some((day: { items: Array<{ text: string }> }) => day.items.some(item => item.text === 'Added after rename')));
+      };
+    };
+  }))).toBe(true);
   await page.reload();
   await expect(page.getByRole('group', { name: 'Added after rename', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Original journal', exact: true })).toHaveCount(1);
@@ -136,8 +148,8 @@ test('retires the old cached planner without deleting other caches or saved stor
     await expect(page).toHaveTitle('Previous planner');
     retire = true;
     await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration())!.update(); });
-    await page.waitForFunction(async () => !(await navigator.serviceWorker.getRegistration()));
-    expect(await page.evaluate(() => caches.keys())).toEqual(['another-app-cache']);
+    await page.waitForFunction(async () => navigator.serviceWorker.controller?.state === 'activated' && !(await navigator.serviceWorker.getRegistration()));
+    await expect.poll(() => page.evaluate(() => caches.keys())).toEqual(['another-app-cache']);
     expect(await page.evaluate(() => localStorage.getItem('saved-workspace-sentinel'))).toBe('keep');
     await page.reload();
     await expect(page).toHaveTitle('Hot Cross Buns');
