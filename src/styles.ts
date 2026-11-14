@@ -3,10 +3,10 @@ import styled, { createGlobalStyle, css } from 'styled-components';
 export const GlobalStyle = createGlobalStyle`
   @font-face { font-family: 'JetBrains Mono'; src: url('/fonts/mono/jetbrainsmono.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
   @property --circle-progress { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
-  @font-face { font-family: 'Sohne'; src: url('/fonts/sohne-variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
-  @font-face { font-family: 'Sohne'; src: url('/fonts/sohne-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+  @font-face { font-family: 'Inter'; src: url('/fonts/inter-latin-variable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+  @font-face { font-family: 'Inter'; src: url('/fonts/inter-latin-italic-variable.woff2') format('woff2'); font-weight: 100 900; font-style: italic; font-display: swap; }
   :root {
-    --app-font: 'Sohne', 'Helvetica Neue', Arial, sans-serif; --app-font-weight: 300;
+    --app-font: 'Inter', 'Helvetica Neue', Arial, sans-serif; --app-font-weight: 300;
     --raw-font: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
     color-scheme: light;
     --paper: #f2f1ed; --ink: #242422; --muted: #626762; --line: #d4d2cb; --soft: #e8e6df;
