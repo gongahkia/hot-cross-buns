@@ -1,6 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
+const pageErrors = new WeakMap<Page, string[]>();
+test.beforeEach(({ page }) => {
+  const errors: string[] = [];
+  pageErrors.set(page, errors);
+  page.on('pageerror', error => errors.push(error.message));
+});
+test.afterEach(({ page }) => {
+  expect(pageErrors.get(page)).toEqual([]);
+});
+
 async function stored(page: Page, store = 'state') {
   return page.evaluate(store => new Promise<{ document?: { days: Array<{ items: Array<{ text: string }> }> }; text?: string }>((resolve, reject) => {
     const request = indexedDB.open('hot-cross-buns-v1');
@@ -168,4 +178,26 @@ test('discarding an unsaved scratchpad returns to its durable contents', async (
   await expect(recovery).toBeHidden();
   await expect(editor).toHaveValue('Keep saved scratchpad');
   expect((await stored(page, 'scratchpad'))?.text).toBe('Keep saved scratchpad');
+});
+
+test('an aborted two-store capture keeps the scratchpad and journal unchanged', async ({ page }) => {
+  await initialJournal(page);
+  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
+  await editor.fill('Keep this capture');
+  await expect.poll(async () => (await stored(page, 'scratchpad')).text).toBe('Keep this capture');
+  await editor.evaluate(element => {
+    const field = element as HTMLTextAreaElement;
+    field.focus(); field.setSelectionRange(0, field.value.length);
+    field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Shift' }));
+  });
+  await editor.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Move to dated', exact: true }).click();
+  await failWrites(page);
+  await page.getByRole('button', { name: 'Create item', exact: true }).click();
+  await expect(page.getByText(/AbortError/)).toBeVisible();
+  expect(await titles(page)).toEqual(['Original saved text']);
+  expect((await stored(page, 'scratchpad')).text).toBe('Keep this capture');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(editor).toHaveValue('Keep this capture');
 });

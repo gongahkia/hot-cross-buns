@@ -30,8 +30,16 @@ function transact<T>(stores: string[], work: (tx: IDBTransaction, done: (value: 
     let error: unknown = null;
     tx.oncomplete = () => { db.close(); if (error) reject(error); else resolve(result); };
     tx.onabort = () => { db.close(); reject(error ?? tx.error ?? new Error('Storage transaction aborted.')); };
-    try { work(tx, value => { result = value; }, cause => { error = cause; tx.abort(); }); }
-    catch (cause) { error = cause; tx.abort(); }
+    const fail = (cause: unknown) => {
+      error ??= cause;
+      try { tx.abort(); }
+      catch (abortError) {
+        // a browser-initiated abort rejects pending requests before onabort fires.
+        if (!(abortError instanceof DOMException && abortError.name === 'InvalidStateError')) throw abortError;
+      }
+    };
+    try { work(tx, value => { result = value; }, fail); }
+    catch (cause) { fail(cause); }
   }));
 }
 
