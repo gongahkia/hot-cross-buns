@@ -1,11 +1,69 @@
-# Hot Cross Buns
+# `Hot Cross Buns` 🍞
 
-Hot Cross Buns is a calm, plain-text journal for dated and undated items. The human-readable `TODO.txt` format is its portable source of truth for items, completion, details, spans, time blocks, and recurrence. The browser keeps a working copy in IndexedDB. Use **Import TODO.txt** to bring in a file and **Download TODO.txt** to write a portable snapshot. Import reviews format problems and conflicting changes before applying them.
+A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and undated items, with a portable [TODO.txt format](./TODO_FORMAT.md).
 
-The **Scratchpad** is a local plain-text capture area. Select text and right-click to copy it or move it to a date or an undated list; Settings control whether selected lines become a title with details, separate items, or one joined title, and whether to remove or keep source text. Scratchpad text is intentionally excluded from TODO.txt. Use the window button to open the scratchpad, a selected date range, or selected undated lists in browser popouts. Popouts share the journal; one window at a time edits the scratchpad.
+## Stack
 
-See [TODO_FORMAT.md](TODO_FORMAT.md) for the syntax and recurrence behavior, and [TODO_DOCTOR.md](TODO_DOCTOR.md) for the import doctor’s repair and review rules.
+* Frontend: [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [styled-components](https://styled-components.com/), [dnd kit](https://dndkit.com/), [React DayPicker](https://daypicker.dev/), [Lucide](https://lucide.dev/)
+* Storage: [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API), UTF-8 plain text, browser preferences in localStorage
+* Tests: [Node.js test runner](https://nodejs.org/api/test.html), [Playwright](https://playwright.dev/), [Python unittest](https://docs.python.org/3/library/unittest.html)
+* Package: [Node.js](https://nodejs.org/), [npm](https://www.npmjs.com/), [Vite](https://vite.dev/)
+* Optional imports: [Google Calendar API](https://developers.google.com/calendar/api), [Google Tasks API](https://developers.google.com/tasks), [Python](https://www.python.org/)
 
-For a one-time, read-only pull of Google Calendar and Google Tasks into local JSON and a separate offline conversion to Hot Cross Buns `TODO.txt`, see [GOOGLE_SNAPSHOT.md](GOOGLE_SNAPSHOT.md).
+## Features
 
-An agent working on Hot Cross Buns should read the format document before changing parsing, serialization, recurrence, imports, exports, or item editing.
+* Dated journal and undated lists *(details, completion & hashtags)*
+* Scratchpad with selected-text capture into dated or undated items
+* Time blocks and all-day or multi-day spans
+* Scheduled and after-completion recurrence *(individual, following & all-item edits)*
+* Drag to reorder items and details or move items between dates
+* Promote details to items and move items under a parent
+* Text search and hashtag filters
+* Undo/redo and completion confirmations
+* TODO.txt import doctor, conflict review and download preview
+* Browser popouts sharing the local journal and scratchpad
+* Light/dark themes, date formats, time zones and optional public holidays
+* One-time, read-only Google Calendar and Tasks import through separate scripts
+
+The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. Edits do not automatically update a file on disk or sync between devices. Scratchpad text and appearance settings are excluded from TODO.txt; move scratchpad text into journal items to include it in an export.
+
+## Usage
+
+The below instructions are for building `Hot Cross Buns` locally from source. Use Node.js 22.18 or newer and npm. Python 3 is needed for the optional Google snapshot tools and their tests.
+
+1. First execute the below commands to clone `Hot Cross Buns`.
+
+```console
+$ git clone https://github.com/gongahkia/hot-cross-buns && cd hot-cross-buns
+```
+
+2. Then run the below to run `Hot Cross Buns` on your machine.
+
+```console
+$ npm ci
+$ npm run dev
+```
+
+3. Optionally run the below to run `Hot Cross Buns`' [test suite](./tests).
+
+```console
+$ npm run test:unit
+$ npx playwright install chromium
+$ npm run test:e2e
+$ python3 -m unittest discover -s tests -p 'test_google_*.py'
+```
+
+4. Run the below to build and preview the production application.
+
+```console
+$ npm run build
+$ npm run preview
+```
+
+Vite writes the static application to `dist/`. The included [Vercel configuration](./vercel.json) builds that directory with npm. The journal runs directly in the browser; Google authorization is only needed when using the optional snapshot pull script.
+
+## Other docs
+
+* [TODO.txt format and recurrence](./TODO_FORMAT.md)
+* [Import doctor and repair rules](./TODO_DOCTOR.md)
+* [One-time Google snapshot and conversion](./GOOGLE_SNAPSHOT.md)
