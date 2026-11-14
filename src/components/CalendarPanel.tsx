@@ -26,6 +26,7 @@ const Surface = styled.div`
   .rdp-range_middle .rdp-day_button { background: transparent; color: var(--ink); }
   .rdp-day_button:hover:not(:disabled) { background: var(--soft); }
   .rdp-selected:not(.rdp-range_middle) .rdp-day_button:hover { background: var(--link); }
+  .rdp-day.status-unavailable .rdp-day_button { text-decoration: underline dotted; }
   .rdp-day.has-unfinished .rdp-day_button { position: relative; }
   .rdp-day.has-unfinished .rdp-day_button::after { content: ''; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--link); }
   .rdp-day.has-unfinished.rdp-selected:not(.rdp-range_middle) .rdp-day_button::after { background: var(--paper); }
@@ -51,12 +52,14 @@ export function dateToString(date: Date) {
 
 export function CalendarPanel({ value, onSelect, children, header, label, minDate, unfinishedDates, range, onRangeSelect }: {
   value: string; onSelect?: (value: string) => void; children?: ReactNode; header?: ReactNode; label: string; minDate?: string;
-  unfinishedDates?: { has: (date: string) => boolean }; range?: DateRange; onRangeSelect?: (range: DateRange | undefined) => void;
+  unfinishedDates?: { has: (date: string) => boolean | undefined; reset?: () => void }; range?: DateRange; onRangeSelect?: (range: DateRange | undefined) => void;
 }) {
+  unfinishedDates?.reset?.();
   const selected = dateFromString(value);
   const year = selected.getFullYear();
   const common = {
     defaultMonth: selected,
+    onMonthChange: () => unfinishedDates?.reset?.(),
     captionLayout: 'dropdown' as const,
     startMonth: new Date(Math.min(1900, year - 100), 0),
     endMonth: new Date(Math.max(2100, year + 100), 11),
@@ -64,9 +67,9 @@ export function CalendarPanel({ value, onSelect, children, header, label, minDat
     weekStartsOn: getWeekStart(),
     showOutsideDays: true,
     fixedWeeks: true,
-    modifiers: unfinishedDates ? { unfinished: (date: Date) => unfinishedDates.has(dateToString(date)) } : undefined,
-    modifiersClassNames: { unfinished: 'has-unfinished' },
-    labels: unfinishedDates ? { labelDayButton: (date: Date, modifiers: Parameters<typeof labelDayButton>[1]) => `${labelDayButton(date, modifiers)}${modifiers.unfinished ? ', unfinished items' : ''}` } : undefined,
+    modifiers: unfinishedDates ? { unfinished: (date: Date) => unfinishedDates.has(dateToString(date)) === true, unavailable: (date: Date) => unfinishedDates.has(dateToString(date)) === undefined } : undefined,
+    modifiersClassNames: { unfinished: 'has-unfinished', unavailable: 'status-unavailable' },
+    labels: unfinishedDates ? { labelDayButton: (date: Date, modifiers: Parameters<typeof labelDayButton>[1]) => `${labelDayButton(date, modifiers)}${modifiers.unavailable ? ', unfinished status unavailable' : modifiers.unfinished ? ', unfinished items' : ''}` } : undefined,
     disabled: minDate ? { before: dateFromString(minDate) } : undefined,
   };
   return <Surface role="group" aria-label={label}>

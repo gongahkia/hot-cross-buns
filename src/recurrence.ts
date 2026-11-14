@@ -81,8 +81,8 @@ const toDate = (date: Date) => date.toISOString().slice(0, 10);
 const addDays = (date: string, days: number) => { const next = fromDate(date); next.setUTCDate(next.getUTCDate() + days); return toDate(next); };
 const daysInMonth = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-export function nextRecurrenceDate(rule: RecurrenceRule, afterDate: string): string | null {
-  if (rule.kind === 'scheduled') return nextScheduledDate(rule, afterDate);
+export function nextRecurrenceDate(rule: RecurrenceRule, afterDate: string, work?: () => void): string | null {
+  if (rule.kind === 'scheduled') return nextScheduledDate(rule, afterDate, work);
   if (rule.endsOn && afterDate >= rule.endsOn) return null;
   const withinEnd = (date: string) => !rule.endsOn || date <= rule.endsOn ? date : null;
   if (rule.kind === 'daily') return withinEnd(addDays(afterDate, 1));

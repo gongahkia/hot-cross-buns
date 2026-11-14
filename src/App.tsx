@@ -18,6 +18,8 @@ import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
 import { WriteQueue, WriteDiscardedError } from './writeQueue';
 import { downloadTextFile } from './files';
+import { assertImportSize, assertImportText } from './importLimits';
+import { createProjectionBudget, readProjection } from './projectionBudget';
 import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from './dayWindow';
 import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, getPastUnfinishedScope, setPastUnfinishedScope, type DateFormat, type HolidayMode, type PastUnfinishedScope } from './preferences';
 import { earlierUnfinishedDays } from './earlierUnfinished';
@@ -537,6 +539,7 @@ export default function App() {
     } else void commitState(next).catch(reportSaveError);
   };
   const commitDocumentState = async (next: TodoState) => {
+    validateVisibleProjection(next.document);
     if (serializeTodoText(current.current.document) !== serializeTodoText(next.document)) {
       undoStack.current.push(current.current.document);
       if (undoStack.current.length > 100) undoStack.current.shift();
@@ -551,7 +554,7 @@ export default function App() {
     change(document);
     document.days = document.days.filter(day => day.items.length || day.keepEmpty);
     advanceRecurrences(before, document, todayString());
-    try { validateDocument(document); } catch (error) { setMessage(String(error)); return; }
+    try { validateDocument(document); validateVisibleProjection(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeTodoText(before) === serializeTodoText(document)) return;
     setScratchUndo(null);
     const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -895,7 +898,13 @@ export default function App() {
     setSelectedDate(target);
     if (!keepRange) setViewMode('day');
   };
+  const validateVisibleProjection = (document: TodoDocument) => {
+    const budget = createProjectionBudget();
+    for (const date of viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]) projectItemsForDate(document, date, budget);
+    if (pastUnfinishedScope === 'all') earlierUnfinishedDays(document, todayString());
+  };
   const imported = async (raw: string, original = raw) => {
+    assertImportText(raw);
     const diagnosis = doctorTodoText(raw);
     if (diagnosis.findings.length) {
       setRawEdit(diagnosis.candidate);
@@ -913,7 +922,7 @@ export default function App() {
     setReview(null);
     setMessage('TODO.txt imported.');
   };
-  const importFile = async (file: File) => { setBusy(true); try { await imported(await file.text()); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
+  const importFile = async (file: File) => { setBusy(true); try { assertImportSize(file.size); await imported(await file.text()); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
   const download = async (fileName: string, lineEnding: LineEnding) => {
     const output = serializeTodoText(current.current.document);
     const fileText = lineEnding === 'crlf' ? output.replace(/\n/g, '\r\n') : output;
@@ -941,15 +950,17 @@ export default function App() {
   const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); } };
   const doctorAction = (finding: DoctorFinding, action: DoctorAction, value?: string) => {
     if (review?.kind !== 'doctor') return;
-    const updated = applyDoctorAction(rawEdit, finding, action, value);
-    const diagnosis = doctorTodoText(updated);
-    setRawEdit(diagnosis.candidate);
-    setReview({ kind: 'doctor', original: review.original, checked: diagnosis.candidate, findings: diagnosis.findings });
+    try {
+      assertImportText(rawEdit);
+      const updated = applyDoctorAction(rawEdit, finding, action, value);
+      const diagnosis = doctorTodoText(updated);
+      setRawEdit(diagnosis.candidate);
+      setReview({ kind: 'doctor', original: review.original, checked: diagnosis.candidate, findings: diagnosis.findings });
+    } catch (error) { reportSaveError(error, ''); }
   };
   const documentData = state?.document ?? emptyDocument();
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
-  const draggingItem = draggingId ? [...documentData.days.flatMap(day => day.items), ...datesInRange(activeRange).flatMap(date => projectItemsForDate(documentData,date))].find(item => item.id === draggingId) : null;
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
   const rangeActive = viewMode === 'range';
   const moveDateView = (direction: -1 | 1) => {
@@ -980,20 +991,36 @@ export default function App() {
     }
   };
   const allTags = useMemo(() => [...new Set([...documentData.days.flatMap(day => day.items), ...(documentData.undated ?? []).flatMap(list => list.items)].flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn)))].sort(), [documentData]);
-  const unfinishedDates = useMemo(() => ({ has: (date: string) => projectItemsForDate(documentData,date).some(item => !item.completed) }), [documentData]);
+  const unfinishedDates = useMemo(() => {
+    const cache = new Map<string, boolean | undefined>();
+    let budget = createProjectionBudget();
+    return { reset: () => { cache.clear(); budget = createProjectionBudget(); }, has: (date: string) => {
+      if (!cache.has(date)) {
+        if (cache.size >= 128) { cache.clear(); budget = createProjectionBudget(); }
+        const projected = readProjection(() => projectItemsForDate(documentData, date, budget).some(item => !item.completed), undefined);
+        cache.set(date, projected.value);
+      }
+      return cache.get(date);
+    } };
+  }, [documentData]);
   const baseDates = useMemo(() => rangeActive ? datesInRange(activeRange) : [selectedDate], [rangeActive, activeRange, selectedDate]);
   const earlierViewKey = `${viewMode}:${activeRange.from}:${activeRange.to}:${selectedDate}`;
-  const globalEarlierDays = useMemo(() => pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData,today) : [], [pastUnfinishedScope, state?.document, today]);
+  const earlierProjection = useMemo(() => readProjection(() => pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData, today) : [], []), [pastUnfinishedScope, state?.document, today]);
+  const globalEarlierDays = earlierProjection.value;
   const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey && !query && !tag;
-  const visibleDays = useMemo(() => {
+  const visibleProjection = useMemo(() => readProjection(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
     const dates = query || tag
       ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
       : expandedEarlier
         ? [...new Set([...globalEarlierDays.map(day => day.date).filter(date => !baseDates.includes(date)), ...baseDates])].sort()
         : baseDates;
-    return dates.map(date => ({ date, items: projectItemsForDate(documentData,date) }));
-  }, [documentData, selectedDate, query, tag, expandedEarlier, globalEarlierDays, baseDates]);
+    const budget = createProjectionBudget();
+    return dates.map(date => ({ date, items: projectItemsForDate(documentData, date, budget) }));
+  }, []), [documentData, selectedDate, query, tag, expandedEarlier, globalEarlierDays, baseDates]);
+  const visibleDays = visibleProjection.value;
+  const draggingItem = draggingId ? visibleDays.flatMap(day => day.items).find(item => item.id === draggingId) : null;
+  const projectionError = visibleProjection.error ?? earlierProjection.error;
   const filteredDays = useMemo(() => {
     const needle = query.toLowerCase();
     return visibleDays.map(day => {
@@ -1071,6 +1098,7 @@ export default function App() {
       setLegacyRawDraft(null);
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
+    {projectionError && <Notice role="alert">{projectionError}</Notice>}
     {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
     <UndoFeedback notice={toastNotice} onDismiss={() => { setScratchUndo(null); setFeedbackNotice(null); }} onUndo={() => {
       if (scratchUndo) {
@@ -1131,7 +1159,7 @@ export default function App() {
       onDate={dateUndated}
       onDelete={(list,id) => removeUndated(list,id)}/>
     : <>
-    {(query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
+    {!projectionError && (query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
       onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}

@@ -147,7 +147,7 @@ function candidateInMonth(pattern: Extract<ScheduledPattern, { unit: 'months' | 
   return day && day <= daysInMonth(year, month) ? iso(year, month, day) : null;
 }
 
-export function nextScheduledDate(rule: ScheduledRule, afterDate: string): string | null {
+export function nextScheduledDate(rule: ScheduledRule, afterDate: string, work?: () => void): string | null {
   if (rule.end?.kind === 'after' && rule.occurrence >= rule.end.count) return null;
   if (rule.end?.kind === 'on' && afterDate >= rule.end.date) return null;
   const { pattern, from, every } = rule;
@@ -161,7 +161,9 @@ export function nextScheduledDate(rule: ScheduledRule, afterDate: string): strin
     const elapsed = Math.max(0, Math.floor(daysBetween(firstWeek, currentWeek) / 7));
     const start = Math.floor(elapsed / every) * every;
     for (let week = start; week <= start + every * 2; week += every) {
+      work?.();
       for (const day of pattern.days) {
+        work?.();
         const option = addDays(firstWeek, week * 7 + ((weekdayIndex(day) - weekdayIndex(rule.weekStarts ?? 'mon') + 7) % 7));
         if (option > afterDate && option >= from) { candidate = option; break; }
       }
@@ -171,6 +173,7 @@ export function nextScheduledDate(rule: ScheduledRule, afterDate: string): strin
     const first = monthIndex(from);
     const elapsed = Math.max(0, Math.floor((monthIndex(afterDate) - first) / every));
     for (let step = elapsed; step < elapsed + 4800; step++) {
+      work?.();
       const { year, month } = monthParts(first + step * every);
       if (year > 9999) break;
       const option = candidateInMonth(pattern, year, month);
@@ -180,6 +183,7 @@ export function nextScheduledDate(rule: ScheduledRule, afterDate: string): strin
     const firstYear = Number(from.slice(0, 4));
     const elapsed = Math.max(0, Math.floor((Number(afterDate.slice(0, 4)) - firstYear) / every));
     for (let step = elapsed; step < elapsed + 400; step++) {
+      work?.();
       const year = firstYear + step * every;
       if (year > 9999) break;
       const option = candidateInMonth(pattern, year, pattern.on.month);

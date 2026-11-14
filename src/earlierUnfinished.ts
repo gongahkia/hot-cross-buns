@@ -1,14 +1,16 @@
+import { createProjectionBudget, type ProjectionBudget } from './projectionBudget.ts';
 import { shiftDate } from './dayWindow.ts';
 import { nextRecurrenceDate } from './recurrence.ts';
 import { projectItemsForDate, spanEnd } from './seriesView.ts';
 import type { TodoDocument } from './todoText.ts';
 
 /** Candidate dates include stored items, span continuations, and virtual scheduled occurrences. */
-export function earlierUnfinishedDays(document: TodoDocument, today: string): { date: string; count: number }[] {
+export function earlierUnfinishedDays(document: TodoDocument, today: string, budget: ProjectionBudget = createProjectionBudget()): { date: string; count: number }[] {
   const candidates = new Set<string>();
   const addOccurrence = (start: string, end: string) => {
     let date = start;
     while (date < today && date <= end) {
+      budget.work();
       candidates.add(date);
       const next = shiftDate(date, 1);
       if (next <= date) break;
@@ -16,6 +18,7 @@ export function earlierUnfinishedDays(document: TodoDocument, today: string): { 
     }
   };
   for (const day of document.days) for (const item of day.items) {
+    budget.work();
     if (day.date >= today) continue;
     const end = spanEnd(item, day.date);
     addOccurrence(day.date, end);
@@ -25,7 +28,8 @@ export function earlierUnfinishedDays(document: TodoDocument, today: string): { 
     let previous = day.date;
     let occurrence = rule.kind === 'scheduled' ? rule.occurrence : 1;
     while (previous < today) {
-      const next = nextRecurrenceDate(rule.kind === 'scheduled' ? { ...rule, occurrence } : rule, previous);
+      budget.work();
+      const next = nextRecurrenceDate(rule.kind === 'scheduled' ? { ...rule, occurrence } : rule, previous, budget.work);
       if (!next || next <= previous || next >= today) break;
       addOccurrence(next, shiftDate(next, duration));
       previous = next;
@@ -33,6 +37,6 @@ export function earlierUnfinishedDays(document: TodoDocument, today: string): { 
     }
   }
   return [...candidates].sort().map(date => ({
-    date, count: projectItemsForDate(document, date).filter(item => !item.completed).length,
+    date, count: projectItemsForDate(document, date, budget).filter(item => !item.completed).length,
   })).filter(day => day.count > 0);
 }

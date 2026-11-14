@@ -123,3 +123,11 @@ Parsing and serialization are in [`src/todoText.ts`](src/todoText.ts). Scheduled
 ## Failed saves
 
 A failed journal or scratchpad save pauses its pending writes and keeps the unsaved text in the current tab. Use **Retry saving**, **Copy unsaved text**, or **Download unsaved text** in the recovery dialog. Retrying uses the normal cross-window conflict checks; an overlapping edit is not overwritten. **Discard unsaved edits** asks for confirmation before returning to the saved version. Recovery downloads do not change the journal baseline. Keep the tab open until saving succeeds or you have copied or downloaded the draft.
+
+## Browser resource limits
+
+Imports are limited to **5 MiB of UTF-8 text** and **100,000 logical lines**. LF, CRLF and CR are accepted; a terminal newline is not an extra line. Oversized files and over-budget imports leave the current journal unchanged. The import doctor uses the same limits when checking edited text.
+
+A displayed date range has a shared limit of **5,000 item/detail rows** and **100,000 projection work steps**, including recurrence searches and skipped dates. Reviewing all earlier unfinished dates has its own shared budget. These are browser resource limits, not changes to TODO.txt syntax. The app reports an excessive view instead of showing a partial result. Calendar markers whose projection exceeds a limit say **unfinished status unavailable**.
+
+An older saved journal that exceeds a view budget remains available for complete TODO.txt export. Choose fewer dates, use the visible-range unfinished review, or edit an exported copy and import it through the normal review. A recovery export never drops repeat rules or expands them into stored copies.
