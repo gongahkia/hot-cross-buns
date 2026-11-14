@@ -38,7 +38,8 @@ export function UndoFeedback({ notice, onUndo, onDismiss }: { notice: Notice | n
 
   useEffect(() => {
     if (phase !== 'leaving' || !displayed) return;
-    const timeout = window.setTimeout(() => setDisplayed(null), 160);
+    // a queued exit belongs to this notice, even if a newer one has appeared.
+    const timeout = window.setTimeout(() => setDisplayed(current => current === displayed ? null : current), 160);
     return () => window.clearTimeout(timeout);
   }, [phase, displayed]);
 
