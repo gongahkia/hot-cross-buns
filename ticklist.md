@@ -1,6 +1,6 @@
 # Hot Cross Buns follow-ups
 
-Keep the product focused on a plain-text journal with lightweight task tracking. The [README](./README.md) describes the current app; [TODO_FORMAT.md](./TODO_FORMAT.md) defines its portable data.
+Keep the product focused on a plain-text journal with lightweight task tracking. The [README](./README.md) describes the current app; [TODO_FORMAT.md](./docs/TODO_FORMAT.md) defines its portable data.
 
 ## Delivered foundation
 

@@ -1,6 +1,6 @@
 # `Hot Cross Buns` 🍞
 
-A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and undated items, with a portable [TODO.txt format](./TODO_FORMAT.md).
+A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and undated items, with a portable [TODO.txt format](./docs/TODO_FORMAT.md).
 
 ## Stack
 
@@ -64,6 +64,6 @@ Vite writes the static application to `dist/`. The included [Vercel configuratio
 
 ## Other docs
 
-* [TODO.txt format and recurrence](./TODO_FORMAT.md)
-* [Import doctor and repair rules](./TODO_DOCTOR.md)
-* [One-time Google snapshot and conversion](./GOOGLE_SNAPSHOT.md)
+* [TODO.txt format and recurrence](./docs/TODO_FORMAT.md)
+* [Import doctor and repair rules](./docs/TODO_DOCTOR.md)
+* [One-time Google snapshot and conversion](./docs/GOOGLE_SNAPSHOT.md)
