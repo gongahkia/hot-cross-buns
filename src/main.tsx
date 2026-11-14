@@ -4,6 +4,7 @@ import '@daypicker/react/style.css';
 import App from './App';
 import { GlobalStyle } from './styles';
 import { installTouchHaptics } from './haptics';
+import { installCaretMotion } from './textEntry';
 import { applyStoredAppearance } from './preferences';
 import { migrateLegacyStorage } from './legacyStorage';
 
@@ -12,6 +13,8 @@ async function start() {
   applyStoredAppearance();
 
   installTouchHaptics();
+  const removeCaretMotion = installCaretMotion();
+  if (import.meta.hot) import.meta.hot.dispose(removeCaretMotion);
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode><GlobalStyle /><App /></React.StrictMode>,

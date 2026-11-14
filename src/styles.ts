@@ -38,6 +38,24 @@ export const GlobalStyle = createGlobalStyle`
   :root :is(${textEntrySelector}) { border: 0; border-radius: 0; caret-color: var(--ink); }
   :root :is(${textEntrySelector}):focus { outline: none; box-shadow: inset 0 -1px 0 var(--focus); }
   :root :is(${textEntrySelector}):focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--focus); }
+  @keyframes hcb-caret-pulse {
+    0%, 35%, 100% { caret-color: var(--ink); }
+    68% { caret-color: transparent; }
+  }
+  @supports (caret-animation: manual) {
+    @media (prefers-reduced-motion: no-preference) {
+      :root :is(${textEntrySelector}):not([readonly]):not(:disabled):focus {
+        caret-animation: manual;
+        animation: hcb-caret-pulse 1350ms ease-in-out infinite;
+      }
+      :root :is(${textEntrySelector}):not([readonly]):not(:disabled)[data-caret-typing='true']:focus {
+        animation: none; caret-color: var(--ink);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      :root :is(${textEntrySelector}):focus { animation: none !important; caret-animation: manual; caret-color: var(--ink); }
+    }
+  }
   @media (forced-colors: active) {
     :root :is(${textEntrySelector}):focus { border-bottom: 2px solid Highlight; }
   }

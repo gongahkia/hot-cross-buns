@@ -14,6 +14,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
 - [x] All/Open/Done search filters combined with text and hashtags across dated entries.
+- [x] Neutral dark mode, borderless text fields and native caret motion with reduced-motion support. Browsers without custom caret-animation support retain their standard caret.
 
 ## Next validation
 
