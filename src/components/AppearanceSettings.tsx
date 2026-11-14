@@ -33,7 +33,7 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
   const [scratchpadMoveMode, setMoveModeState] = useState(getScratchpadMoveMode);
   const [holidayYear, setHolidayYear] = useState(() => Number(todayString().slice(0, 4)));
   const chooseTheme = (next: Theme) => { setTheme(next); setThemeState(next); };
-  return <Modal open={open} onClose={onClose} title="Shio Pan settings" compact>
+  return <Modal open={open} onClose={onClose} title="Hot Cross Buns settings" compact>
     <ThemeField><legend>Appearance</legend><ThemeChoices role="group" aria-label="Appearance"><ThemeButton type="button" $selected={theme === 'day'} aria-pressed={theme === 'day'} aria-label="Light mode" onClick={() => chooseTheme('day')}><Sun aria-hidden="true"/>Light</ThemeButton><ThemeButton type="button" $selected={theme === 'night'} aria-pressed={theme === 'night'} aria-label="Dark mode" onClick={() => chooseTheme('night')}><Moon aria-hidden="true"/>Dark</ThemeButton></ThemeChoices></ThemeField>
     <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
     <SectionTitle>Scratchpad</SectionTitle>
@@ -48,11 +48,11 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
     <Hint>Choose which earlier items appear in the count above the dated journal.</Hint>
     <SectionTitle>Public holidays</SectionTitle>
     <CheckField><input type="checkbox" checked={holidaysEnabled} onChange={event => { onHolidaysEnabledChange(event.target.checked); if (event.target.checked && holidayMode === 'saved') onImportHolidays(holidayCountry, holidayYear); }}/>Use public holidays</CheckField>
-    <FontField>How to use holidays<FontSelect value={holidayMode} onChange={event => { const next = event.target.value as HolidayMode; onHolidayModeChange(next); if (holidaysEnabled && next === 'saved') onImportHolidays(holidayCountry, holidayYear); }}><option value="saved">Add as Shio Pan items</option><option value="view">Show on dates only</option></FontSelect></FontField>
+    <FontField>How to use holidays<FontSelect value={holidayMode} onChange={event => { const next = event.target.value as HolidayMode; onHolidayModeChange(next); if (holidaysEnabled && next === 'saved') onImportHolidays(holidayCountry, holidayYear); }}><option value="saved">Add as Hot Cross Buns items</option><option value="view">Show on dates only</option></FontSelect></FontField>
     <FontField>Holiday country<FontSelect value={holidayCountry} onChange={event => onHolidayCountryChange(event.target.value)}>{holidayCountries.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</FontSelect></FontField>
     {holidayMode === 'saved' ? <><FontField>Year to add<YearInput type="number" min={1900} max={2100} value={holidayYear} onChange={event => setHolidayYear(Number(event.target.value))}/></FontField>
       {holidaysEnabled && <ImportButton type="button" disabled={!Number.isInteger(holidayYear) || holidayYear < 1900 || holidayYear > 2100} onClick={() => onImportHolidays(holidayCountry, holidayYear)}>Add {holidayYear} holidays</ImportButton>}
-      <Hint>Added holidays become ordinary all-day Shio Pan items in TODO.txt. Turning this setting off keeps them. Importing the same unchanged holiday twice will not duplicate it.</Hint></>
+      <Hint>Added holidays become ordinary all-day Hot Cross Buns items in TODO.txt. Turning this setting off keeps them. Importing the same unchanged holiday twice will not duplicate it.</Hint></>
       : <Hint>Holidays appear beside their dates while this is on. This view stays current and adds nothing to TODO.txt. Outside Singapore, only countrywide holidays are shown.</Hint>}
     {holidayStatus && <Hint role="status">{holidayStatus}</Hint>}
     <Actions><Button onClick={onClose}>close</Button></Actions>

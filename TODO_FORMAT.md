@@ -1,6 +1,6 @@
-# Shio Pan TODO.txt format
+# Hot Cross Buns TODO.txt format
 
-`TODO.txt` is Shio Pan's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
+`TODO.txt` is Hot Cross Buns's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
 
 The scratchpad is separate local browser data. It is not included in TODO.txt; move selected text into dated or undated items to make it portable.
 
@@ -26,7 +26,7 @@ Each item is one nonempty logical line. Long lines can wrap visually without a n
 
 ### Details
 
-Dated details start with `- [ ] ` or `- [x] ` below their item, with no indentation. They can also follow metadata. Completing a parent completes its details; reopening the parent reopens them. Completing the last detail completes its parent. Legacy `- detail` lines are accepted and inherit the parent's state. A location, guest name, meeting link, or description is ordinary detail text; Shio Pan does not assign them separate types.
+Dated details start with `- [ ] ` or `- [x] ` below their item, with no indentation. They can also follow metadata. Completing a parent completes its details; reopening the parent reopens them. Completing the last detail completes its parent. Legacy `- detail` lines are accepted and inherit the parent's state. A location, guest name, meeting link, or description is ordinary detail text; Hot Cross Buns does not assign them separate types.
 
 ### Time blocks and spans
 
@@ -47,7 +47,7 @@ Night shift
   @span: 22:00 to 2026-10-16 06:00
 ```
 
-The `through` date is inclusive. A timed span ends on a later date. Shio Pan displays an item on every covered day but stores it once, under its starting date. A span and a same-day time prefix cannot appear on the same item. A dated item with neither is simply dated; `@span: all-day` makes all-day occupancy explicit.
+The `through` date is inclusive. A timed span ends on a later date. Hot Cross Buns displays an item on every covered day but stores it once, under its starting date. A span and a same-day time prefix cannot appear on the same item. A dated item with neither is simply dated; `@span: all-day` makes all-day occupancy explicit.
 
 Public holidays saved from Settings use ordinary all-day items. This is a one-time import for the chosen country and year; turning off the holiday setting does not remove saved items. The alternative date-only holiday view does not write to TODO.txt. Settings such as country, time zone, and week start are browser preferences rather than item fields.
 

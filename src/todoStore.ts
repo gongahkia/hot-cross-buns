@@ -6,10 +6,10 @@ export type ScratchpadDestination = { kind: 'dated'; date: string } | { kind: 'u
 export type ScratchpadUndo = { before: TodoState; scratchBefore: ScratchpadState; journalRevision: number; scratchRevision: number };
 export const emptyState = (): TodoState => ({ document: emptyDocument(), baseline: null, revision: 0 });
 const emptyScratchpad = (): ScratchpadState => ({ text: '', revision: 0 });
-const DB_NAME = 'shio-pan-v1';
+const DB_NAME = 'hot-cross-buns-v1';
 const STATE_STORE = 'state';
 const SCRATCH_STORE = 'scratchpad';
-const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('shio-pan-data-v1');
+const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('hot-cross-buns-data-v1');
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

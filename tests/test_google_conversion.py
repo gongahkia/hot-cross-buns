@@ -22,7 +22,7 @@ def sample_snapshot():
         "description": "Agenda\nDecisions", "reminders": {"overrides": [{"method": "popup", "minutes": 30}]},
     }
     return {
-        "format": "shio-pan-google-raw-v1",
+        "format": "hot-cross-buns-google-raw-v1",
         "calendarList": collection([{"id": "primary", "timeZone": "Asia/Singapore"}]),
         "taskLists": collection([{"id": "a", "title": "Inbox"}]),
         "tasksByList": [{"taskListId": "a", "tasks": collection([
@@ -49,6 +49,12 @@ def sample_snapshot():
 
 
 class GoogleConversionTests(unittest.TestCase):
+    def test_legacy_snapshot_format_keeps_identical_output(self):
+        snapshot = sample_snapshot()
+        expected = convert(snapshot, AS_OF, False)
+        snapshot["format"] = "shio-pan-google-raw-v1"
+        self.assertEqual(convert(snapshot, AS_OF, False), expected)
+
     def test_upcoming_only_preserves_sparse_exceptions_and_undated_lists(self):
         output, counts = convert(sample_snapshot(), AS_OF, False)
         self.assertEqual(counts["undated_tasks"], 1)
@@ -100,7 +106,7 @@ class GoogleConversionTests(unittest.TestCase):
         self.assertIn("09:00-09:30 Rescheduled review", output)
         self.assertEqual(counts["moved_standalone"], 1)
 
-    def test_equal_google_list_names_remain_separate_shio-pan_lists(self):
+    def test_equal_google_list_names_remain_separate_hot_cross_buns_lists(self):
         snapshot = sample_snapshot()
         snapshot["taskLists"]["pages"][0]["items"].append({"id": "b", "title": "Inbox"})
         snapshot["tasksByList"].append({"taskListId": "b", "tasks": collection([

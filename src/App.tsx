@@ -87,8 +87,8 @@ const readPopoutScope = (): PopoutScope | null => {
   if (params.get('popout') === 'undated') return { kind: 'undated', lists: params.getAll('list') };
   return null;
 };
-const LEGACY_RAW_DRAFT_KEY = 'shio-pan-raw-draft-v1';
-const SAVED_RANGE_KEY = 'shio-pan-journal-range-v1';
+const LEGACY_RAW_DRAFT_KEY = 'hot-cross-buns-raw-draft-v1';
+const SAVED_RANGE_KEY = 'hot-cross-buns-journal-range-v1';
 const readSavedRange = (): DateSpan | null => {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVED_RANGE_KEY) ?? 'null') as DateSpan | null;
@@ -204,7 +204,7 @@ const visibleHistoryRows = () => {
 };
 const tagVisibleHistoryRows = (tagged: Set<HTMLElement>) => {
   for (const [id, { element }] of visibleHistoryRows()) {
-    element.style.viewTransitionName = `shio-pan-item-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    element.style.viewTransitionName = `hot-cross-buns-item-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
     tagged.add(element);
   }
 };
@@ -954,7 +954,7 @@ export default function App() {
     if (scope.kind === 'undated') scope.lists.forEach(name => params.append('list',name));
     const url = `${window.location.pathname}?${params}`;
     const opened = window.open(url, '_blank', 'popup=yes,width=600,height=780');
-    if (!opened) setMessage('The browser blocked the popout. Allow popups for Shio Pan and try again.');
+    if (!opened) setMessage('The browser blocked the popout. Allow popups for Hot Cross Buns and try again.');
   };
   const openPopoutChooser = () => {
     if (activeTab === 'scratchpad') { openPopout({ kind: 'scratchpad' }); return; }
@@ -1024,7 +1024,7 @@ export default function App() {
   if (!state) return <Page $dated><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
   return <Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
-    <VisuallyHidden as="h1">Shio Pan journal and scratchpad</VisuallyHidden>
+    <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header $revealed={!!popout || searchOpen || dateOpen}>
     <Toolbar>
       <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
@@ -1047,7 +1047,7 @@ export default function App() {
       {!popout && activeTab !== 'scratchpad' && <><Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
       <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon></>}
       {!popout && <Icon title="Open view in browser window" aria-label="Open view in browser window" onClick={openPopoutChooser}><PanelsTopLeft size={17}/></Icon>}
-      <Icon title="Shio Pan settings" aria-label="Shio Pan settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
+      <Icon title="Hot Cross Buns settings" aria-label="Hot Cross Buns settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>

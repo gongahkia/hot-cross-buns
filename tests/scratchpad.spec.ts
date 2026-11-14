@@ -69,8 +69,8 @@ test('moves selected plain text into a dated item and undo restores both sides',
 
 test('settings can copy one selected line into an undated list', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await settings.getByLabel('Selected lines become').selectOption('items');
   await settings.getByLabel('After creating an item').selectOption('ask');
   await settings.getByRole('button', { name: 'close' }).click();
@@ -99,7 +99,7 @@ test('dated popout edits synchronize with the main window', async ({ page }) => 
   await chooser.getByRole('button', { name: 'Open window' }).click();
   const popup = await popupEvent;
   await popup.waitForLoadState();
-  await expect(popup.getByText('Shio Pan · Dated')).toHaveCount(0);
+  await expect(popup.getByText('Hot Cross Buns · Dated')).toHaveCount(0);
   const add = popup.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Written in popout');
   await add.press('Enter');
@@ -134,7 +134,7 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
   await editor.fill('Private capture that has not moved');
   await expect.poll(() => page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('shio-pan-v1');
+      const request = indexedDB.open('hot-cross-buns-v1');
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -157,7 +157,7 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
   await page.getByRole('button', { name: 'cancel' }).click();
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2020-01-01\n\nImported item\n') });
   const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
-  await review.getByRole('radio', { name: 'keep Shio Pan' }).check();
+  await review.getByRole('radio', { name: 'keep Hot Cross Buns' }).check();
   await review.getByRole('button', { name: 'apply import' }).click();
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toHaveValue('Private capture that has not moved');
@@ -165,9 +165,9 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
 
 test('one-title mapping joins selected lines into one portable item', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Selected lines become').selectOption('single');
-  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Selected lines become').selectOption('single');
+  await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   await page.getByRole('textbox', { name: 'Scratchpad text' }).fill('First line\nSecond line');
   await openSelectionMenu(page, 0, 22);
@@ -193,7 +193,7 @@ test('undated popout shows only chosen lists and edits synchronize', async ({ pa
   await chooser.getByRole('button', { name: 'Open window' }).click();
   const popup = await popupEvent;
   await popup.waitForLoadState();
-  await expect(popup.getByText('Shio Pan · Undated')).toHaveCount(0);
+  await expect(popup.getByText('Hot Cross Buns · Undated')).toHaveCount(0);
   await expect(popup.getByRole('textbox', { name: 'Edit Idea one' })).toBeVisible();
   await expect(popup.getByRole('textbox', { name: 'Edit Inbox one' })).toHaveCount(0);
   const edit = popup.getByRole('textbox', { name: 'Edit Idea one' });

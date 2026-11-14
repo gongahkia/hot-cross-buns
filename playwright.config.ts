@@ -1,8 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
-const port = Number(process.env.SHIO_PAN_TEST_PORT ?? 4173);
-const browserPath = process.env.SHIO_PAN_TEST_BROWSER_PATH;
-const useChrome = process.env.SHIO_PAN_TEST_CHROME;
+const port = Number(process.env.HOT_CROSS_BUNS_TEST_PORT ?? 4173);
+const browserPath = process.env.HOT_CROSS_BUNS_TEST_BROWSER_PATH;
+const useChrome = process.env.HOT_CROSS_BUNS_TEST_CHROME;
 
 export default defineConfig({
   testDir: './tests',

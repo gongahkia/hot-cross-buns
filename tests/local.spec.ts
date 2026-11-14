@@ -14,7 +14,7 @@ async function confirmTodoDownload(page: Page) {
 
 async function storedJournal(page: Page): Promise<{ days: Array<{ date: string; keepEmpty?: boolean; items: Array<{ text: string }> }> } | null> {
   return page.evaluate(() => new Promise<{ days: Array<{ date: string; keepEmpty?: boolean; items: Array<{ text: string }> }> } | null>(resolve => {
-    const request = indexedDB.open('shio-pan-v1');
+    const request = indexedDB.open('hot-cross-buns-v1');
     request.onerror = () => resolve(null);
     request.onsuccess = () => {
       const db = request.result;
@@ -991,7 +991,7 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Meta+f');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
   await page.getByLabel('Date headings').selectOption('iso');
   await page.getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
@@ -1030,19 +1030,19 @@ test('hides completed work by default and toggles search without browser find', 
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
 });
 
-test('uses Shio Pan branding and storage', async ({ page }) => {
+test('uses Hot Cross Buns branding and storage', async ({ page }) => {
   const today = dateOffset(0);
-  await page.addInitScript(() => { localStorage.setItem('shio-pan-theme', 'night'); localStorage.setItem('shio-pan-date-format', 'iso'); });
+  await page.addInitScript(() => { localStorage.setItem('hot-cross-buns-theme', 'night'); localStorage.setItem('hot-cross-buns-date-format', 'iso'); });
   await page.goto('/');
   const add = page.getByRole('textbox', { name: 'New daily item' });
-  await add.fill('Stored under Shio Pan');
+  await add.fill('Stored under Hot Cross Buns');
   await add.press('Enter');
-  await expect(page.getByRole('group', { name: 'Stored under Shio Pan' })).toBeVisible();
-  await expect(page).toHaveTitle('Shio Pan');
+  await expect(page.getByRole('group', { name: 'Stored under Hot Cross Buns' })).toBeVisible();
+  await expect(page).toHaveTitle('Hot Cross Buns');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   await expect.poll(() => page.evaluate(async () => {
-    const request = indexedDB.open('shio-pan-v1', 1);
+    const request = indexedDB.open('hot-cross-buns-v1', 1);
     const db = await new Promise<IDBDatabase>(resolve => { request.onsuccess = () => resolve(request.result); });
     const result = await new Promise<{ revision:number } | undefined>(resolve => {
       const tx = db.transaction('state', 'readonly');
@@ -1068,7 +1068,7 @@ test('keeps controls usable and within the viewport across mobile and desktop wi
     await page.getByRole('button', { name: 'Choose date' }).click();
     await expect(page.locator('.rdp-root')).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controlsFit = await page.evaluate(() => ['Open search', 'Choose date', 'Import TODO.txt', 'Shio Pan settings'].every(label => {
+    const controlsFit = await page.evaluate(() => ['Open search', 'Choose date', 'Import TODO.txt', 'Hot Cross Buns settings'].every(label => {
       const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
       if (!button) return true;
       const box = button.getBoundingClientRect();
@@ -1103,10 +1103,10 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   const header = page.locator('header');
   await page.mouse.move(0, 500);
   await expect(header).toHaveCSS('opacity', '0');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).hover();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).hover();
   await expect(header).toHaveCSS('opacity', '1');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Shio Pan settings' });
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(dialog.getByRole('heading', { name: /settings/i })).toHaveCount(0);
   await expect(dialog.getByLabel('Color scheme')).toHaveCount(0);
   await expect(dialog.getByRole('group', { name: 'Appearance' }).getByRole('button')).toHaveCount(2);
@@ -1128,12 +1128,12 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await dialog.getByRole('button', { name: 'close' }).click();
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'Light mode' }).click();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'Light mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f2f1ed');
-  await page.evaluate(() => localStorage.setItem('shio-pan-theme', 'cat-mocha'));
-  await page.evaluate(() => localStorage.setItem('shio-pan-font', 'georgia'));
+  await page.evaluate(() => localStorage.setItem('hot-cross-buns-theme', 'cat-mocha'));
+  await page.evaluate(() => localStorage.setItem('hot-cross-buns-font', 'georgia'));
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
   await expect(page.locator('body')).toHaveCSS('font-family', /Sohne/);
@@ -1150,8 +1150,8 @@ test('uses the calendar to switch between the default week, one day, and a selec
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
   await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', sunday);
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Days shown')).toHaveCount(0);
   await settings.getByRole('button', { name: 'close' }).click();
   await expect(settings).toBeHidden();
@@ -1225,8 +1225,8 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   expect(await viewport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await earlier.click();
   await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Earlier unfinished items')).toHaveValue('visible');
   await settings.getByLabel('Earlier unfinished items').selectOption('all');
   await settings.getByRole('button', { name: 'close' }).click();
@@ -1239,8 +1239,8 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   await allEarlier.click();
   await expect(viewport.locator('[data-journal-date]')).toHaveCount(3);
   await page.reload();
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Earlier unfinished items')).toHaveValue('all');
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Earlier unfinished items')).toHaveValue('all');
 });
 
 test('new item typing matches the saved item text size', async ({ page }) => {
@@ -1262,8 +1262,8 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   const today = dateOffset(0);
   await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  const settings = page.getByRole('dialog', { name: 'Shio Pan settings' });
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Time zone')).toHaveValue('Asia/Singapore');
   await expect(settings.getByLabel('Week starts on')).toHaveValue('1');
   await expect(settings.getByLabel('Holiday country')).toHaveValue('SG');
@@ -1282,7 +1282,7 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).not.toContainText('Test Holiday');
   await page.getByRole('dialog', { name: 'Download TODO.txt' }).press('Escape');
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
   await settings.getByLabel('How to use holidays').selectOption('saved');
   await expect(settings.getByRole('status')).toContainText('1 holiday added');
   await settings.getByLabel('Use public holidays').uncheck();
@@ -1293,14 +1293,14 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('@span: all-day');
   await page.reload();
   await expect(page.getByText('Test Holiday')).toBeVisible();
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  await expect(page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Week starts on')).toHaveValue('0');
-  await expect(page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Use public holidays')).not.toBeChecked();
-  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Week starts on')).toHaveValue('0');
+  await expect(page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Use public holidays')).not.toBeChecked();
+  await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
   await page.getByRole('button', { name: 'Next range' }).click();
-  await page.getByRole('button', { name: 'Shio Pan settings' }).click();
-  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByLabel('Week starts on').selectOption('1');
-  await page.getByRole('dialog', { name: 'Shio Pan settings' }).getByRole('button', { name: 'close' }).click();
+  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Week starts on').selectOption('1');
+  await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
   const alignedDate = await page.locator('section').first().locator('time').getAttribute('datetime');
   expect(new Date(`${alignedDate}T12:00:00`).getDay()).toBe(1);
   await expect(page.locator('section')).toHaveCount(7);
@@ -1517,7 +1517,7 @@ test('plays history transitions and skips them when reduced motion is requested'
     const replay = (window as Window & { __replays?: ViewTransition[] }).__replays!.at(-1)!;
     await replay.ready;
     const row = document.querySelector<HTMLElement>('[data-transition-id]')!;
-    const name = `shio-pan-item-${row.dataset.transitionId!.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    const name = `hot-cross-buns-item-${row.dataset.transitionId!.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
     return parseFloat(getComputedStyle(document.documentElement, `::view-transition-group(${name})`).animationDuration);
   });
   expect(duration).toBeGreaterThan(0.1);
@@ -1670,7 +1670,7 @@ test('a large TODO.txt preview remains usable on a phone', async ({ page }) => {
 
 test('an unfinished draft from the removed editor can still be downloaded', async ({ page }) => {
   const draft = '2026-02-30\nUnfinished edit\n';
-  await page.addInitScript(value => sessionStorage.setItem('shio-pan-raw-draft-v1', value), draft);
+  await page.addInitScript(value => sessionStorage.setItem('hot-cross-buns-raw-draft-v1', value), draft);
   await page.goto('/');
   await expect(page.getByText('An unfinished TODO.txt draft from the old editor is available.')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');

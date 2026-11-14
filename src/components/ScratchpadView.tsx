@@ -54,7 +54,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     if (!navigator.locks) { setMessage('This browser cannot coordinate scratchpad editing across windows.'); return; }
     if (takeover) lockChannel.current?.postMessage({ type: 'takeover' });
     setWaiting(true);
-    void navigator.locks.request('shio-pan-scratchpad-editor', { ifAvailable: !takeover }, async lock => {
+    void navigator.locks.request('hot-cross-buns-scratchpad-editor', { ifAvailable: !takeover }, async lock => {
       if (!mounted.current) return;
       if (!lock) { setWaiting(false); return; }
       await refresh();
@@ -69,7 +69,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
   useEffect(() => {
     mounted.current = true;
     void refresh().then(() => setLoaded(true)).catch(error => setMessage(String(error)));
-    lockChannel.current = new BroadcastChannel('shio-pan-scratchpad-lock');
+    lockChannel.current = new BroadcastChannel('hot-cross-buns-scratchpad-lock');
     lockChannel.current.onmessage = event => {
       if (event.data?.type === 'takeover' && releaseLock.current) releaseLock.current();
     };
