@@ -13,6 +13,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Separate, read-only Google Calendar and Tasks snapshot tools.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
+- [x] All/Open/Done search filters combined with text and hashtags across dated entries.
 
 ## Next validation
 
@@ -20,7 +21,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [ ] Check persistence, import/download and failed-save recovery on actual Safari, Firefox and mobile browsers. Chromium automation and phone viewport tests do not establish compatibility with those browsers or devices.
 - [ ] Review keyboard and screen-reader navigation across journal rows, details, dialogs and popouts.
 - [ ] Measure real journal sizes and the new resource-limit notices before changing limits or adding a file-size indicator.
-- [ ] Use observed search and capture problems to decide whether fuzzy matching, more filters, a command palette or natural-language entry earns the added complexity. These are candidates, not committed features.
+- [ ] Validate quick deferral and status search during dogfooding. Use observed problems to decide whether fuzzy matching, a command palette or natural-language entry earns the added complexity. These are candidates, not committed features.
 
 ## Retired directions
 

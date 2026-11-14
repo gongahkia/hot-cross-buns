@@ -45,6 +45,8 @@ const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 
 const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
 const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; font-size: 13px; &::-webkit-search-cancel-button { display: none; } @media(pointer:coarse){font-size:16px;}`;
 const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
+const SearchFilters = styled.div`display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:-10px 0 18px;font-size:12px;color:var(--muted);&>span:last-child{margin-left:auto;}`;
+const StatusFilter = styled.button`min-height:40px;padding:6px 12px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;&[aria-pressed='true'],&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;
 const TagRail = styled.nav<{ $bounded:boolean }>`display: flex; gap: 6px; flex-wrap: wrap; max-height:${({$bounded})=>$bounded?'min(120px,24dvh)':'none'}; overflow-y:${({$bounded})=>$bounded?'auto':'visible'}; margin-bottom: 24px;`;
 const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const dayEnter = keyframes`from { opacity:.45; transform:translateY(5px); } to { opacity:1; transform:translateY(0); }`;
@@ -311,11 +313,14 @@ export default function App() {
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [completionFilter, setCompletionFilter] = useState<'all' | 'open' | 'done'>('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [legacyRawDraft, setLegacyRawDraft] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
+  const statusFilter = activeTab === 'dated' && searchOpen ? completionFilter : 'all';
+  const filterActive = Boolean(query || tag || activeTab === 'dated' && searchOpen);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [popoutChooser, setPopoutChooser] = useState<'dated' | 'undated' | null>(null);
   const [popoutFrom, setPopoutFrom] = useState(todayString);
@@ -1007,33 +1012,34 @@ export default function App() {
   const earlierViewKey = `${viewMode}:${activeRange.from}:${activeRange.to}:${selectedDate}`;
   const earlierProjection = useMemo(() => readProjection(() => pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData, today) : [], []), [pastUnfinishedScope, state?.document, today]);
   const globalEarlierDays = earlierProjection.value;
-  const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey && !query && !tag;
+  const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey && !filterActive;
   const visibleProjection = useMemo(() => readProjection(() => {
     const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
-    const dates = query || tag
+    const dates = filterActive
       ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
       : expandedEarlier
         ? [...new Set([...globalEarlierDays.map(day => day.date).filter(date => !baseDates.includes(date)), ...baseDates])].sort()
         : baseDates;
     const budget = createProjectionBudget();
     return dates.map(date => ({ date, items: projectItemsForDate(documentData, date, budget) }));
-  }, []), [documentData, selectedDate, query, tag, expandedEarlier, globalEarlierDays, baseDates]);
+  }, []), [documentData, selectedDate, filterActive, expandedEarlier, globalEarlierDays, baseDates]);
   const visibleDays = visibleProjection.value;
   const draggingItem = draggingId ? visibleDays.flatMap(day => day.items).find(item => item.id === draggingId) : null;
   const projectionError = visibleProjection.error ?? earlierProjection.error;
   const filteredDays = useMemo(() => {
     const needle = query.toLowerCase();
     return visibleDays.map(day => {
-      if (!needle && !tag) return { ...day, completed: day.items.filter(item => item.completed), upcoming: day.items.filter(item => !item.completed) };
+      if (!filterActive) return { ...day, completed: day.items.filter(item => item.completed), upcoming: day.items.filter(item => !item.completed) };
       const completed: TodoItem[] = [];
       const upcoming: TodoItem[] = [];
       for (const item of day.items) {
+        if (statusFilter === 'open' && item.completed || statusFilter === 'done' && !item.completed) continue;
         const content = `${item.text} ${item.details.map(detail => detail.text).join(' ')}`.toLowerCase();
         if ((!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag))) (item.completed ? completed : upcoming).push(item);
       }
       return { ...day, completed, upcoming };
     });
-  }, [visibleDays, query, tag]);
+  }, [visibleDays, query, tag, statusFilter, filterActive]);
   const visibleEarlier = filteredDays.filter(day => day.date < today && baseDates.includes(day.date) && day.upcoming.length);
   const earlierCount = pastUnfinishedScope === 'all'
     ? globalEarlierDays.reduce((total, day) => total + day.count, 0)
@@ -1049,24 +1055,25 @@ export default function App() {
   };
   useLayoutEffect(() => {
     if (!state || !journalViewport.current) return;
-    const key = `${activeTab}:${earlierViewKey}:${query}:${tag ?? ''}:${expandedEarlier}`;
+    const key = `${activeTab}:${earlierViewKey}:${query}:${tag ?? ''}:${statusFilter}:${filterActive}:${expandedEarlier}`;
     if (positionedView.current === key) return;
     positionedView.current = key;
     const viewport = journalViewport.current;
     viewport.style.paddingBottom = activeTab === 'dated' ? '24px' : '0px';
     viewport.scrollTop = 0;
-    if (activeTab !== 'dated' || query || tag) return;
+    if (activeTab !== 'dated' || filterActive) return;
     if (expandedEarlier && globalEarlierDays.length) scrollToJournalDate(globalEarlierDays[0].date);
     else if (baseDates.includes(today)) scrollToJournalDate(today);
-  }, [state !== null, activeTab, earlierViewKey, query, tag, expandedEarlier, today, baseDates, globalEarlierDays]);
-  const hasResults = filteredDays.some(day => day.completed.length + day.upcoming.length > 0);
+  }, [state !== null, activeTab, earlierViewKey, query, tag, statusFilter, filterActive, expandedEarlier, today, baseDates, globalEarlierDays]);
+  const searchResultCount = filteredDays.reduce((count, day) => count + day.completed.length + day.upcoming.length, 0);
+  const hasResults = searchResultCount > 0;
   if (!state) return <Page $dated><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
   return <Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header $revealed={!!popout || searchOpen || dateOpen}>
     <Toolbar>
-      <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); searchButton.current?.focus(); } }}/>
+      <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); searchButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
       {!searchOpen && activeTab === 'dated' && <>
       <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
@@ -1082,15 +1089,19 @@ export default function App() {
       </>}
     </Toolbar>
     <Tools>
-      {activeTab !== 'scratchpad' && <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>}
+      {activeTab !== 'scratchpad' && <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>}
       {!popout && activeTab !== 'scratchpad' && <><Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
       <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon></>}
       {!popout && <Icon title="Open view in browser window" aria-label="Open view in browser window" onClick={openPopoutChooser}><PanelsTopLeft size={17}/></Icon>}
       <Icon title="Hot Cross Buns settings" aria-label="Hot Cross Buns settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
     </Tools>
     </Header>
+    {searchOpen && activeTab === 'dated' && <SearchFilters role="group" aria-label="Search completion">
+      {(['all', 'open', 'done'] as const).map(value => <StatusFilter key={value} type="button" aria-label={value === 'all' ? 'All statuses' : value === 'open' ? 'Open items' : 'Done items'} aria-pressed={completionFilter === value} onClick={() => setCompletionFilter(value)}>{value === 'all' ? 'All' : value === 'open' ? 'Open' : 'Done'}</StatusFilter>)}
+      <span aria-live="polite">{searchResultCount} {searchResultCount === 1 ? 'item' : 'items'}</span>
+    </SearchFilters>}
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setSearchOpen(false); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
+    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setSearchOpen(false); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
     {activeTab !== 'scratchpad' && !!allTags.length && <TagRail $bounded={activeTab === 'dated'} aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
@@ -1110,7 +1121,7 @@ export default function App() {
       if (feedbackNotice && serializeTodoText(current.current.document) === serializeTodoText(feedbackNotice.document)) undo();
       else setFeedbackNotice(null);
     }}/>
-    {activeTab === 'dated' && !query && !tag && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
+    {activeTab === 'dated' && !filterActive && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
       if (pastUnfinishedScope === 'all') {
         if (expandedEarlier) setExpandedEarlierKey(null);
         else setExpandedEarlierKey(earlierViewKey);
@@ -1159,7 +1170,7 @@ export default function App() {
       onDate={dateUndated}
       onDelete={(list,id) => removeUndated(list,id)}/>
     : <>
-    {!projectionError && (query || tag) && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
+    {!projectionError && filterActive && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
       onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}
@@ -1167,11 +1178,11 @@ export default function App() {
       onDragEnd={event => { dropItem(event); setDraggingId(null); setDragOverDate(null); }}>
     {filteredDays.map(day => {
       const { completed, upcoming } = day;
-      if ((query || tag) && !completed.length && !upcoming.length) return null;
+      if (filterActive && !completed.length && !upcoming.length) return null;
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} data-journal-date={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[day.date] ?? [] : []}/>
-        {day.items.length === 0 && !query && !tag ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
-        <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={!!(query||tag)} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
+        {day.items.length === 0 && !filterActive ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
+        <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={filterActive} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
       </DaySection>;
     })}

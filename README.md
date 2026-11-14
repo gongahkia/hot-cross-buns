@@ -18,7 +18,7 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 * Scheduled and after-completion recurrence *(individual, following & all-item edits)*
 * Drag to reorder items and details or move items between dates *(quick Today/Tomorrow choices)*
 * Promote details to items and move items under a parent
-* Text search and hashtag filters
+* Search across dated entries by title, detail, hashtag and completion status
 * Undo/redo and completion confirmations
 * TODO.txt import doctor, conflict review and download preview
 * Browser popouts sharing the local journal and scratchpad
