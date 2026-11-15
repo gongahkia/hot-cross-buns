@@ -34,7 +34,7 @@ export function createMovingCaret() {
     if (!active || active !== document.activeElement || !active.isConnected || active.readOnly || active.disabled) { clear(); return; }
     let next: CaretPosition | null;
     try { next = measure.measure(active); } catch { hide(); return; }
-    if (!next) { hide(); return; }
+    if (!next) { hide(); if (now < until) schedule(); return; }
     if (!caret.matches(':popover-open')) {
       try { caret.showPopover(); } catch { hide(); return; }
     }

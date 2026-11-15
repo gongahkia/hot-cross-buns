@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -65,7 +66,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Reopen Review paper #work' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Tags' }).getByText('#work')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const download = await downloadPromise;
   const text = await readFile(await download.path(), 'utf8');
@@ -153,8 +154,9 @@ test('offers explicit import and download even when direct file access is availa
     (window as Window & { showOpenFilePicker?: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => [];
   });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Import TODO.txt' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Download TODO.txt' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open command palette', exact: true }).click();
+  await expect(page.getByRole('option', { name: 'Import TODO.txt', exact: true })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Download TODO.txt', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open TODO.txt' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save connected TODO.txt' })).toHaveCount(0);
 });
@@ -189,7 +191,7 @@ test('doctor asks for recurrence completion date and identity before rebuilding 
   await review.getByRole('button', { name: 'apply import' }).click();
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Water plants' })).toBeVisible();
   const promise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await promise).path(), 'utf8');
   expect(raw).toContain(`  @completed: ${yesterday}`);
@@ -217,7 +219,7 @@ test('imports and exports an empty date heading without turning it into an item'
   await expect.poll(async () => (await storedJournal(page))?.days.some(entry => entry.date === day && entry.keepEmpty), { timeout: 10000 }).toBe(true);
   await page.reload();
   const promise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   expect(await readFile(await (await promise).path(), 'utf8')).toBe(`${day}\n`);
 });
@@ -247,7 +249,7 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await more.press('Escape');
   await expect(page.getByRole('button', { name: `Add detail to ${original}` })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Open search' }).click();
+  await runCommand(page, 'Open search');
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('no such line');
   await expect(page.getByText('No lines match this search')).toBeVisible();
 });
@@ -443,7 +445,7 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   await expect(parent.getByRole('button', { name: 'Reopen Progress task' })).toBeVisible();
   await expect(text).toHaveCSS('text-decoration-line', 'line-through');
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(exported).toContain('- [x] first step\n- [x] second step');
@@ -482,7 +484,7 @@ test('edits a time block and recurrence, creates one next item, and keeps both i
   await expect(future.getByRole('button', { name: 'Complete 09:00-09:30 Water plants #home' })).toBeVisible();
   await expect(future.getByText('every 3 days after completion')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain(`${today}\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
@@ -536,7 +538,7 @@ test('custom anchored recurrence projects its count and stores only completed ex
   await expect(third).toBeVisible();
   await third.getByRole('button', { name: 'Complete Check in' }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain('; from ' + today + '; series ');
@@ -564,7 +566,7 @@ test('an edited TODO.txt completion advances a custom series only once', async (
   await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
   await expect(successor).toHaveCount(1);
   const promise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await promise).path(), 'utf8');
   expect(raw.match(/@repeat: every 2 weeks/g)).toHaveLength(1);
@@ -607,7 +609,7 @@ test('custom monthly ordinal and end date survive the repeat editor and TODO.txt
   await expect(editor.getByRole('button', { name: /^Repeat ends on:/ })).toContainText(endDate.slice(0, 4));
   await editor.getByRole('button', { name: 'cancel' }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain('every 1 month on last fri; from ' + today);
@@ -631,7 +633,7 @@ test('date-based repeat presets serialize their selected calendar pattern', asyn
   };
   const download = async () => {
     const promise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+    await runCommand(page, 'Download TODO.txt');
     await confirmTodoDownload(page);
     return readFile(await (await promise).path(), 'utf8');
   };
@@ -682,6 +684,8 @@ test('reorders undated items and details, and deletes a list with undo', async (
     await page.mouse.down();
     await page.mouse.move(to!.x + to!.width / 2, to!.y + 5, { steps: 15 });
     await page.mouse.up();
+    // dnd-kit retains its click-suppression listener for 50ms after a drop.
+    await page.waitForTimeout(60);
   };
   await drag('Drag to reorder detail second detail', 'Drag to reorder detail first detail');
   await drag('Drag to reorder Beta', 'Drag to reorder Alpha');
@@ -689,10 +693,7 @@ test('reorders undated items and details, and deletes a list with undo', async (
   await expect.poll(order).toEqual(['Beta', 'Alpha']);
   const download = async () => {
     const promise = page.waitForEvent('download');
-    const button = page.getByRole('button', { name: 'Download TODO.txt' });
-    await button.hover();
-    await expect(page.locator('header')).toHaveCSS('opacity', '1');
-    await button.click();
+    await runCommand(page, 'Download TODO.txt');
     await confirmTodoDownload(page);
     return readFile(await (await promise).path(), 'utf8');
   };
@@ -781,7 +782,7 @@ test('Enter on an undated item opens a focused sibling draft and preserves list 
   await expect(ideas.getByRole('textbox', { name: 'Edit Discard me' })).toHaveCount(0);
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain('LIST: Ideas\nAlpha revised\n- first detail\nBetween\nBeta');
 });
@@ -817,11 +818,8 @@ test('makes undated items details and promotes details back to items', async ({ 
   await page.keyboard.press('Control+Shift+z');
   await expect(ideas.getByRole('textbox', { name: 'Edit alpha note' })).toBeVisible();
 
-  const button = page.getByRole('button', { name: 'Download TODO.txt' });
-  await button.hover();
-  await expect(page.locator('header')).toHaveCSS('opacity', '1');
   const downloadPromise = page.waitForEvent('download');
-  await button.click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(exported).toContain('LIST: Ideas\nBeta\n- beta note\n- Alpha\n- Gamma\nalpha note');
@@ -870,7 +868,7 @@ test('splits a count-limited series when editing this and following items', asyn
   await page.getByRole('button', { name: 'Next day' }).click();
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${after}"]`) }).getByRole('group', { name: 'Changed check in' })).toBeVisible();
   const promise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await promise).path(), 'utf8');
   expect(exported.match(/@repeat:/g)).toHaveLength(2);
@@ -890,7 +888,7 @@ test('moving a spanning item keeps its full duration', async ({ page }) => {
   await page.locator(`.rdp-day[data-day="${tomorrow}"] button`).click();
   await page.getByRole('button', { name: 'Move here' }).click();
   const promise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await promise).path(), 'utf8');
   expect(exported).toContain(`${tomorrow}\n\nTrip\n  @span: all-day through ${newEnd}`);
@@ -912,7 +910,7 @@ test('moving all recurring items shifts skips and moved exceptions with the rule
   await page.getByRole('button', { name: 'Move here' }).click();
   await page.getByRole('dialog', { name: 'Choose recurring edit scope' }).getByRole('button', { name: 'All items' }).click();
   const promise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const output = await readFile(await (await promise).path(), 'utf8');
   expect(output).toContain(`${next}\n\nStandup\n  @repeat: daily; series standup\n  @skip: ${newSkip}`);
@@ -992,25 +990,23 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   const today = dateOffset(0);
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(new Date(`${today}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }));
   const previous = await page.getByRole('button', { name: 'Previous range' }).boundingBox();
-  const importButton = await page.getByRole('button', { name: 'Import TODO.txt' }).boundingBox();
-  const search = await page.getByRole('button', { name: 'Open search' }).boundingBox();
-  expect(Math.abs(previous!.y - importButton!.y)).toBeLessThan(2);
-  expect(Math.abs(previous!.y - search!.y)).toBeLessThan(2);
-  expect(search!.x + search!.width).toBeLessThanOrEqual(importButton!.x);
+  const commands = await page.getByRole('button', { name: 'Open command palette', exact: true }).boundingBox();
+  expect(Math.abs(previous!.y - commands!.y)).toBeLessThan(2);
+  expect(previous!.x + previous!.width).toBeLessThanOrEqual(commands!.x);
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Control+f');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Meta+f');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await page.getByLabel('Date headings').selectOption('iso');
   await page.getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   await page.reload();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain(`${today}\n\nFind this task\n`);
 });
@@ -1031,13 +1027,13 @@ test('hides completed work by default and toggles search without browser find', 
   await expect(page.getByRole('button', { name: 'Reopen detail finished detail' }).locator('svg')).toHaveCount(0);
   await page.getByRole('button', { name: `Collapse done items for ${today}` }).click();
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Open search' }).click();
+  await runCommand(page, 'Open search');
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('Finished task');
   await expect(page.getByRole('group', { name: 'Finished task' })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('nothing matches');
   await expect(page.getByText('No lines match this search')).toBeVisible();
-  await page.getByRole('button', { name: 'Close search' }).click();
+  await runCommand(page, 'Close search');
   await expect(page.getByRole('group', { name: 'Open task' })).toBeVisible();
   await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
 });
@@ -1071,16 +1067,16 @@ test('keeps controls usable and within the viewport across mobile and desktop wi
     await page.setViewportSize({ width, height: 700 });
     await page.goto('/');
     await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
-    await page.getByRole('button', { name: 'Open search' }).click();
+    await runCommand(page, 'Open search');
     await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
     const searchField = await page.getByRole('searchbox', { name: 'Search journal' }).boundingBox();
-    const searchIcon = await page.getByRole('button', { name: 'Close search' }).boundingBox();
+    const searchIcon = await page.getByRole('button', { name: 'Open command palette', exact: true }).boundingBox();
     expect(searchField!.x).toBeLessThan(searchIcon!.x);
-    await page.getByRole('button', { name: 'Close search' }).click();
+    await runCommand(page, 'Close search');
     await page.getByRole('button', { name: 'Choose date' }).click();
     await expect(page.locator('.rdp-root')).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const controlsFit = await page.evaluate(() => ['Open search', 'Choose date', 'Import TODO.txt', 'Hot Cross Buns settings'].every(label => {
+    const controlsFit = await page.evaluate(() => ['Open command palette', 'Choose date'].every(label => {
       const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
       if (!button) return true;
       const box = button.getBoundingClientRect();
@@ -1109,15 +1105,14 @@ test('animates completion and honours reduced motion', async ({ page }) => {
   expect(parseFloat(duration)).toBeLessThan(0.01);
 });
 
-test('reveals the toolbar and persists expanded appearance choices', async ({ page }) => {
+test('keeps commands discoverable and persists expanded appearance choices', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
   const header = page.locator('header');
   await page.mouse.move(0, 500);
-  await expect(header).toHaveCSS('opacity', '0');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).hover();
   await expect(header).toHaveCSS('opacity', '1');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await expect(page.getByRole('button', { name: 'Open command palette', exact: true })).toBeVisible();
+  await runCommand(page, 'Hot Cross Buns settings');
   const dialog = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(dialog.getByRole('heading', { name: /settings/i })).toHaveCount(0);
   await expect(dialog.getByLabel('Color scheme')).toHaveCount(0);
@@ -1140,7 +1135,7 @@ test('reveals the toolbar and persists expanded appearance choices', async ({ pa
   await dialog.getByRole('button', { name: 'close' }).click();
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'Light mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f2f1ed');
@@ -1162,7 +1157,7 @@ test('uses the calendar to switch between the default week, one day, and a selec
   await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
   await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', sunday);
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Days shown')).toHaveCount(0);
   await settings.getByRole('button', { name: 'close' }).click();
@@ -1237,7 +1232,7 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   expect(await viewport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await earlier.click();
   await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Earlier unfinished items')).toHaveValue('visible');
   await settings.getByLabel('Earlier unfinished items').selectOption('all');
@@ -1251,7 +1246,7 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   await allEarlier.click();
   await expect(viewport.locator('[data-journal-date]')).toHaveCount(3);
   await page.reload();
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await expect(page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Earlier unfinished items')).toHaveValue('all');
 });
 
@@ -1274,7 +1269,7 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   const today = dateOffset(0);
   await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Time zone')).toHaveValue('Asia/Singapore');
   await expect(settings.getByLabel('Week starts on')).toHaveValue('1');
@@ -1291,26 +1286,26 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await page.getByRole('button', { name: 'Choose date' }).click();
   await expect(page.getByLabel('Choose journal date').locator('.rdp-weekday').first()).toContainText('Su');
   await page.getByRole('button', { name: 'Choose date' }).click();
-  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).not.toContainText('Test Holiday');
   await page.getByRole('dialog', { name: 'Download TODO.txt' }).press('Escape');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await settings.getByLabel('How to use holidays').selectOption('saved');
   await expect(settings.getByRole('status')).toContainText('1 holiday added');
   await settings.getByLabel('Use public holidays').uncheck();
   await settings.getByRole('button', { name: 'close' }).click();
   await expect(page.getByText('Test Holiday')).toBeVisible();
-  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('Test Holiday');
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('@span: all-day');
   await page.reload();
   await expect(page.getByText('Test Holiday')).toBeVisible();
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await expect(page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Week starts on')).toHaveValue('0');
   await expect(page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Use public holidays')).not.toBeChecked();
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
   await page.getByRole('button', { name: 'Next range' }).click();
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Week starts on').selectOption('1');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
   const alignedDate = await page.locator('section').first().locator('time').getAttribute('datetime');
@@ -1411,13 +1406,12 @@ test('reveals item actions on hover and reorders details within their item', asy
   await page.mouse.down();
   await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, { steps: 14 });
   await page.mouse.up();
+  // dnd-kit retains its click-suppression listener for 50ms after a drop.
+  await page.waitForTimeout(60);
   const detailOrder = () => parent.getByRole('textbox', { name: /^Edit detail / }).evaluateAll(elements => elements.map(element => (element as HTMLTextAreaElement).value));
   await expect.poll(detailOrder).toEqual(['second detail', 'first detail']);
-  const downloadButton = page.getByRole('button', { name: 'Download TODO.txt' });
-  await downloadButton.hover();
-  await expect(page.locator('header')).toHaveCSS('opacity', '1');
   const downloadPromise = page.waitForEvent('download');
-  await downloadButton.click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   await expect(page.getByRole('status').getByText('TODO.txt downloaded.')).toBeVisible({ timeout: 3000 });
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
@@ -1480,7 +1474,7 @@ test('make detail can choose a later item on the same date and preserves the cho
   await expect(page.getByRole('group', { name: 'First' })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Third' }).getByRole('textbox', { name: 'Edit detail First' })).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).first().click();
+  await runCommand(page, 'Download TODO.txt');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(exported).toContain('Third\n- [ ] First');
@@ -1593,7 +1587,7 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   await page.keyboard.press('Control+z');
   await expect(page.getByRole('button', { name: `Complete ${lines[1199]}` })).toBeVisible();
   const unfilteredEditMs = Date.now() - unfilteredEditStart;
-  await page.getByRole('button', { name: 'Open search' }).click();
+  await runCommand(page, 'Open search');
   const searchStart = Date.now();
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('unique-needle');
   await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible();
@@ -1619,7 +1613,7 @@ test('TODO.txt preview shows the complete portable file before download', async 
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
   await expect(page.getByRole('button', { name: 'Show raw TODO.txt' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
   const preview = dialog.getByLabel('TODO.txt preview');
   await expect(preview).toContainText('09:00-09:30 Plan #work');
@@ -1641,7 +1635,7 @@ test('preview options preserve TODO.txt meaning and reset after closing', async 
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
   const preview = dialog.getByLabel('TODO.txt preview');
   const canonical = await preview.textContent();
@@ -1656,7 +1650,7 @@ test('preview options preserve TODO.txt meaning and reset after closing', async 
   const text = await readFile(await download.path(), 'utf8');
   expect(text).toContain('\r\n');
   expect(text.replace(/\r\n/g, '\n')).toBe(canonical);
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(dialog.getByLabel('File name')).toHaveValue('TODO.txt');
   await expect(dialog.getByLabel('Line endings')).toHaveValue('lf');
   await expect(dialog.getByRole('checkbox', { name: 'Wrap long lines in preview' })).toBeChecked();
@@ -1671,7 +1665,7 @@ test('a large TODO.txt preview remains usable on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
   await expect(dialog.getByLabel('TODO.txt preview')).toContainText('Task 1199');
   const box = await dialog.boundingBox();

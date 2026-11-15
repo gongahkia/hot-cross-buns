@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 
 async function setup(page: Page) {
@@ -6,7 +7,7 @@ async function setup(page: Page) {
   const raw = `2000-01-01\nArchive done #work\n\nOld open #work\n- [ ] Needle in a detail\n\n${today}\nToday done #home\n\nToday open #home\n\nUNDATED\n\nLIST: Inbox\nRead later #work\n`;
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
   await expect(page.getByRole('status').filter({ hasText: 'TODO.txt imported.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Open search');
 }
 
 test('completion search covers older dates and combines text, detail and hashtag filters', async ({ page }) => {
@@ -34,11 +35,11 @@ test('closing search resets the status and leaves normal completion visibility i
   await page.getByRole('searchbox', { name: 'Search journal' }).press('Escape');
   await expect(page.getByRole('group', { name: 'Search completion', exact: true })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Today done #home', exact: true })).toBeHidden();
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Open search');
   await expect(page.getByRole('button', { name: 'All statuses', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Done items', exact: true }).click();
-  await page.getByRole('button', { name: 'Close search', exact: true }).click();
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Close search');
+  await runCommand(page, 'Open search');
   await expect(page.getByRole('button', { name: 'All statuses', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -70,7 +71,7 @@ test('filtered completion can be undone and export keeps entries outside the fil
   await expect(page.getByRole('group', { name: 'Old open #work', exact: true })).toHaveCount(0);
   await page.keyboard.press('Control+z');
   await expect(page.getByRole('group', { name: 'Old open #work', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Download TODO.txt', exact: true }).click();
+  await runCommand(page, 'Download TODO.txt');
   const preview = page.getByLabel('TODO.txt preview');
   for (const text of ['Archive done #work', 'Today done #home', 'Old open #work', 'Read later #work']) {
     await expect(preview).toContainText(text);

@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test } from '@playwright/test';
 
 async function selectText(page: import('@playwright/test').Page, start: number, end: number) {
@@ -58,7 +59,7 @@ test('moves selected plain text into a dated item and undo restores both sides',
   await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Meeting idea' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Edit detail Ask Pat' })).toBeVisible();
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(page.getByLabel('TODO.txt preview')).not.toContainText('Keep this');
   await page.getByRole('button', { name: 'cancel' }).click();
   await page.getByRole('button', { name: 'Undo scratchpad conversion' }).click();
@@ -69,7 +70,7 @@ test('moves selected plain text into a dated item and undo restores both sides',
 
 test('settings can copy one selected line into an undated list', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await settings.getByLabel('Selected lines become').selectOption('items');
   await settings.getByLabel('After creating an item').selectOption('ask');
@@ -91,7 +92,7 @@ test('settings can copy one selected line into an undated list', async ({ page }
 
 test('dated popout edits synchronize with the main window', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open view in browser window' }).click();
+  await runCommand(page, 'Open view in browser window');
   const chooser = page.getByRole('dialog', { name: 'Open dated window' });
   await chooser.getByLabel('Popout start date').fill('2026-10-17');
   await chooser.getByLabel('Popout end date').fill('2026-10-17');
@@ -104,7 +105,7 @@ test('dated popout edits synchronize with the main window', async ({ page }) => 
   await add.fill('Written in popout');
   await add.press('Enter');
   await expect(popup.getByRole('group', { name: 'Written in popout' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open search' }).click();
+  await runCommand(page, 'Open search');
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('Written in popout');
   await expect(page.getByRole('group', { name: 'Written in popout' })).toBeVisible();
   await popup.close();
@@ -115,7 +116,7 @@ test('scratchpad popout takes over editing and updates the main view', async ({ 
   await page.getByRole('button', { name: 'Scratchpad' }).click();
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toBeEditable();
   const popupEvent = page.waitForEvent('popup');
-  await page.getByRole('button', { name: 'Open view in browser window' }).click();
+  await runCommand(page, 'Open view in browser window');
   const popup = await popupEvent;
   await popup.waitForLoadState();
   await expect(popup.getByRole('textbox', { name: 'Scratchpad text' })).toHaveAttribute('readonly');
@@ -152,7 +153,7 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Portable journal line');
   await add.press('Enter');
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(page.getByLabel('TODO.txt preview')).not.toContainText('Private capture');
   await page.getByRole('button', { name: 'cancel' }).click();
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2020-01-01\n\nImported item\n') });
@@ -165,7 +166,7 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
 
 test('one-title mapping joins selected lines into one portable item', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings' }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Selected lines become').selectOption('single');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
@@ -175,7 +176,7 @@ test('one-title mapping joins selected lines into one portable item', async ({ p
   await page.getByRole('dialog', { name: 'Move text to an undated list' }).getByRole('button', { name: 'Create item' }).click();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Edit First line Second line' })).toBeVisible();
-  await page.getByRole('button', { name: 'Download TODO.txt' }).click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(page.getByLabel('TODO.txt preview')).toContainText('First line Second line');
 });
 
@@ -186,7 +187,7 @@ test('undated popout shows only chosen lists and edits synchronize', async ({ pa
     buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nIdea one\n\nLIST: Inbox\nInbox one\n'),
   });
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
-  await page.getByRole('button', { name: 'Open view in browser window' }).click();
+  await runCommand(page, 'Open view in browser window');
   const chooser = page.getByRole('dialog', { name: 'Open undated window' });
   await chooser.getByLabel('Inbox').uncheck();
   const popupEvent = page.waitForEvent('popup');
@@ -209,7 +210,7 @@ test('independent additions from two windows both survive', async ({ page }) => 
   await mainAdd.fill('Main window item');
   await mainAdd.press('Enter');
   await expect(page.getByRole('group', { name: 'Main window item' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open view in browser window' }).click();
+  await runCommand(page, 'Open view in browser window');
   const popupEvent = page.waitForEvent('popup');
   await page.getByRole('dialog', { name: 'Open dated window' }).getByRole('button', { name: 'Open window' }).click();
   const popup = await popupEvent;

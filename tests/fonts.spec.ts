@@ -18,7 +18,7 @@ test('local normal and italic interface fonts load on desktop and phone', async 
   expect(typography.normal).toEqual(['loaded']);
   expect(typography.italic).toEqual(['loaded']);
   await page.setViewportSize({ width: 375, height: 812 });
-  await expect(page.getByRole('button', { name: 'Hot Cross Buns settings', exact: true })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Open command palette', exact: true })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(failures).toEqual([]);
 });

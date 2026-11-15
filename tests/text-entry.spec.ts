@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test } from '@playwright/test';
 import { textEntrySelector } from '../src/textEntry';
 
@@ -15,7 +16,7 @@ function contrast(a: string, b: string) {
 
 test('dark mode uses neutral surfaces, readable text and matching browser chrome', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings', exact: true }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
   await settings.getByRole('button', { name: 'Dark mode', exact: true }).click();
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(20, 20, 20)');
@@ -44,13 +45,13 @@ test('dark mode uses neutral surfaces, readable text and matching browser chrome
 
 test('text fields are borderless with an underline for keyboard focus', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Open search');
   const search = page.getByRole('searchbox', { name: 'Search journal' });
   await expect(search).toBeFocused();
   await expect(search).toHaveCSS('border-top-width', '0px');
   await expect(search).toHaveCSS('outline-style', 'none');
   await expect(search).toHaveCSS('box-shadow', /inset/);
-  await page.getByRole('button', { name: 'Hot Cross Buns settings', exact: true }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const borders = await page.locator(textEntrySelector).evaluateAll(elements => elements.map(element => ({
     label: element.getAttribute('aria-label'),
     width: getComputedStyle(element).borderTopWidth,

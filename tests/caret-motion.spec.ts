@@ -1,8 +1,9 @@
+import { runCommand } from './commands';
 import { expect, test } from '@playwright/test';
 
 test('carets stay solid during typing, pulse when idle and keep native selection', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Open search');
   const input = page.getByRole('searchbox', { name: 'Search journal' });
   await input.fill('Native selection');
   await expect(input).toHaveAttribute('data-caret-typing', 'true');

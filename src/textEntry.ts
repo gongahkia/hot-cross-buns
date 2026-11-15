@@ -53,6 +53,9 @@ export function installCaretMotion(): () => void {
   const motionChange = () => { if (motion.matches || forcedColors.matches) reset(); else hold(document.activeElement, false); };
   const selection = () => sync(true);
   const layout = () => sync(false, true);
+  const transitionEnd = (event: Event) => {
+    if (event.target instanceof Element && active && event.target.contains(active)) layout();
+  };
   const pointerDown = (event: PointerEvent) => {
     selecting = true; touchSelection = event.pointerType === 'touch'; moving.clear();
   };
@@ -67,6 +70,8 @@ export function installCaretMotion(): () => void {
   document.addEventListener('pointerup', pointerUp, true);
   document.addEventListener('pointercancel', pointerUp, true);
   document.addEventListener('scroll', layout, true);
+  document.addEventListener('transitionend', transitionEnd, true);
+  document.addEventListener('animationend', transitionEnd, true);
   window.addEventListener('resize', layout);
   window.addEventListener('blur', reset);
   visualViewport?.addEventListener('resize', layout);
@@ -86,6 +91,8 @@ export function installCaretMotion(): () => void {
     document.removeEventListener('pointerup', pointerUp, true);
     document.removeEventListener('pointercancel', pointerUp, true);
     document.removeEventListener('scroll', layout, true);
+    document.removeEventListener('transitionend', transitionEnd, true);
+    document.removeEventListener('animationend', transitionEnd, true);
     window.removeEventListener('resize', layout);
     window.removeEventListener('blur', reset);
     visualViewport?.removeEventListener('resize', layout);

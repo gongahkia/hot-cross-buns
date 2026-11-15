@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 
 async function documentIn(page: Page) {
@@ -28,7 +29,7 @@ async function openMove(page: Page, title: string, date = '2026-11-16') {
 
 test('quick today brings an older item forward and undo restores its original date', async ({ page }) => {
   await importJournal(page, '2026-11-10\n\nReview notes\n- [ ] Keep the context\n');
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Open search');
   await page.getByRole('searchbox', { name: 'Search journal' }).fill('Review notes');
   await openMove(page, 'Review notes', '2026-11-10');
   await page.getByRole('button', { name: 'Move Review notes to today', exact: true }).click();
@@ -46,7 +47,7 @@ test('quick tomorrow keeps the full span and details across reload and export', 
   await expect.poll(async () => (await documentIn(page)).days[0].date).toBe('2026-11-17');
   expect((await documentIn(page)).days[0].items[0].span?.through).toBe('2026-11-19');
   await page.reload();
-  await page.getByRole('button', { name: 'Download TODO.txt', exact: true }).click();
+  await runCommand(page, 'Download TODO.txt');
   await expect(page.getByLabel('TODO.txt preview')).toContainText('2026-11-17\n\nTrip\n  @span: all-day through 2026-11-19\n- [ ] Pack bag');
 });
 

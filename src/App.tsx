@@ -4,8 +4,8 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Download, FileInput, PanelsTopLeft, Search, Settings2, X } from 'lucide-react';
-import { Button, Field, IconButton, Muted, VisuallyHidden } from './styles';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Command, Download, FileInput, PanelsTopLeft, Search, Settings2, X } from 'lucide-react';
+import { Button, Field, IconButton, Muted, VisuallyHidden, press } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { UndoFeedback, type UndoNoticeKind } from './components/UndoFeedback';
 import { FileReview, type FileReviewState } from './components/FileReview';
@@ -14,6 +14,7 @@ import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
+import { CommandPalette, commandKey, type PaletteCommand } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
 import { WriteQueue, WriteDiscardedError } from './writeQueue';
@@ -34,10 +35,10 @@ import { newSeriesId, type RecurrenceRule } from './recurrence';
 import { emptyState, loadTodoState, mutateTodoState, subscribeStore, undoScratchpadConversion, type ScratchpadUndo, type TodoState } from './todoStore';
 
 const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
-const Header = styled.header<{ $revealed: boolean }>`position: relative; z-index: 40; display: flex; align-items: center; gap: 16px; min-height: 44px; margin-bottom: 20px; opacity: ${({$revealed})=>$revealed?1:0}; transition: opacity 150ms ease-out; &:hover, &:focus-within { opacity: 1; } @media(hover:none){opacity:1;} @media(max-width: 760px){flex-wrap:wrap; justify-content:flex-end;}`;
-const Tools = styled.div`display: flex; align-items: center; gap: 2px; @media(max-width:390px){gap:0; > button {width:40px;}}`;
+const Header = styled.header`position:relative;z-index:40;display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:20px;`;
+const PaletteTrigger = styled.button`${press};display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:13px;flex-shrink:0;&:hover{background:var(--soft);color:var(--ink);}kbd{font:inherit;font-size:11px;padding:2px 4px;border-radius:4px;background:var(--soft);}@media(max-width:600px){width:44px;padding:0;span,kbd{display:none;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
-const Toolbar = styled.div`display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; @media(max-width: 760px){order:2;flex-basis:100%;} @media(max-width: 600px){display: grid; grid-template-columns: 44px minmax(0,1fr) 44px 44px; gap: 6px;}`;
+const Toolbar = styled.div`display:flex;align-items:center;gap:8px;flex:1;min-width:0;@media(max-width:600px){gap:4px;}`;
 const DateControl = styled.div<{ $range:boolean }>`position: relative; display: flex; align-items: center; width: ${({$range})=>$range?'255px':'155px'}; min-width: 0; min-height: 44px; @media(max-width:600px){width:100%;}`;
 const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; &:hover { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; } .compact{display:none;} @media(max-width:600px){.full{display:none;} .compact{display:inline;}}`;
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
@@ -322,6 +323,7 @@ export default function App() {
   const statusFilter = activeTab === 'dated' && searchOpen ? completionFilter : 'all';
   const filterActive = Boolean(query || tag || activeTab === 'dated' && searchOpen);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [popoutChooser, setPopoutChooser] = useState<'dated' | 'undated' | null>(null);
   const [popoutFrom, setPopoutFrom] = useState(todayString);
   const [popoutTo, setPopoutTo] = useState(todayString);
@@ -337,7 +339,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const importInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
-  const searchButton = useRef<HTMLButtonElement>(null);
+  const paletteButton = useRef<HTMLButtonElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
   const writeQueue = useRef<WriteQueue<TodoState | null> | null>(null);
@@ -578,7 +580,18 @@ export default function App() {
   const redo = () => { const next = redoStack.current.pop(); if (!next) return; setFeedbackNotice(null); undoStack.current.push(current.current.document); replayState(next); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
+      if ((event.metaKey || event.ctrlKey) && ['k', 'f', 'z'].includes(event.key.toLowerCase())) {
+        // a new shortcut finishes an outgoing dialog's animation before focus is handed off.
+        for (const dialog of document.querySelectorAll<HTMLDialogElement>('dialog[open][data-state="closed"]')) dialog.close();
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        if (document.querySelector('dialog[open]:not([data-command-palette])')) { event.preventDefault(); return; }
+        event.preventDefault(); setDateOpen(false); setPaletteOpen(value => !value); return;
+      }
+      if (document.querySelector('dialog[open]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        if (activeTab === 'scratchpad') return;
         event.preventDefault();
         setDateOpen(false);
         setSearchOpen(true);
@@ -1067,13 +1080,25 @@ export default function App() {
   }, [state !== null, activeTab, earlierViewKey, query, tag, statusFilter, filterActive, expandedEarlier, today, baseDates, globalEarlierDays]);
   const searchResultCount = filteredDays.reduce((count, day) => count + day.completed.length + day.upcoming.length, 0);
   const hasResults = searchResultCount > 0;
+  const commands: PaletteCommand[] = [];
+  if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: searchOpen ? 'Close search' : 'Search journal', keywords: 'find filter entries', icon: Search, run: () => {
+    setDateOpen(false);
+    if (searchOpen) { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); paletteButton.current?.focus(); }
+    else { setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); }
+  } });
+  if (!popout && activeTab !== 'scratchpad') commands.push(
+    { id: 'import', label: 'Import TODO.txt', keywords: 'load upload file', icon: FileInput, run: () => importInput.current?.click() },
+    { id: 'download', label: 'Download TODO.txt', keywords: 'export save file', icon: Download, run: () => setExportOpen(true) },
+  );
+  if (!popout) commands.push({ id: 'window', label: 'Open view in browser window', keywords: 'popout new window', icon: PanelsTopLeft, run: openPopoutChooser });
+  commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
   if (!state) return <Page $dated><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
   return <Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
-    <Header $revealed={!!popout || searchOpen || dateOpen}>
+    <Header>
     <Toolbar>
-      <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); searchButton.current?.focus(); } }}/>
+      <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); paletteButton.current?.focus(); } }}/>
         {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
       {!searchOpen && activeTab === 'dated' && <>
       <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
@@ -1088,14 +1113,9 @@ export default function App() {
       <Icon aria-label={rangeActive?'Next range':'Next day'} onClick={() => moveDateView(1)}><ChevronRight size={17}/></Icon>
       </>}
     </Toolbar>
-    <Tools>
-      {activeTab !== 'scratchpad' && <Icon ref={searchButton} aria-label={searchOpen?'Close search':'Open search'} aria-expanded={searchOpen} aria-controls="journal-search-panel" onClick={() => { if (searchOpen) { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); } else { setDateOpen(false); setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); } }}>{searchOpen?<X size={17}/>:<Search size={17}/>}</Icon>}
-      {!popout && activeTab !== 'scratchpad' && <><Icon title="Import TODO.txt" aria-label="Import TODO.txt" onClick={() => importInput.current?.click()}><FileInput size={17}/></Icon>
-      <Icon title="Download TODO.txt" aria-label="Download TODO.txt" onClick={() => setExportOpen(true)}><Download size={17}/></Icon></>}
-      {!popout && <Icon title="Open view in browser window" aria-label="Open view in browser window" onClick={openPopoutChooser}><PanelsTopLeft size={17}/></Icon>}
-      <Icon title="Hot Cross Buns settings" aria-label="Hot Cross Buns settings" onClick={() => { setDateOpen(false); setSettingsOpen(true); }}><Settings2 size={17}/></Icon>
-    </Tools>
+    <PaletteTrigger ref={paletteButton} type="button" aria-label="Open command palette" aria-haspopup="dialog" aria-expanded={paletteOpen} aria-keyshortcuts="Meta+K Control+K" title="Commands (⌘K / Ctrl+K)" onClick={() => { setDateOpen(false); setPaletteOpen(true); }}><Command size={17} aria-hidden="true"/><span>Commands</span><kbd>{commandKey} K</kbd></PaletteTrigger>
     </Header>
+    <CommandPalette open={paletteOpen} commands={commands} onOpenChange={setPaletteOpen}/>
     {searchOpen && activeTab === 'dated' && <SearchFilters role="group" aria-label="Search completion">
       {(['all', 'open', 'done'] as const).map(value => <StatusFilter key={value} type="button" aria-label={value === 'all' ? 'All statuses' : value === 'open' ? 'Open items' : 'Done items'} aria-pressed={completionFilter === value} onClick={() => setCompletionFilter(value)}>{value === 'all' ? 'All' : value === 'open' ? 'Open' : 'Done'}</StatusFilter>)}
       <span aria-live="polite">{searchResultCount} {searchResultCount === 1 ? 'item' : 'items'}</span>

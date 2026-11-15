@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { MAX_IMPORT_BYTES, MAX_IMPORT_LINES } from '../src/importLimits';
@@ -73,7 +74,7 @@ test('an older over-budget journal remains exportable and can be repaired throug
   await page.getByRole('button', { name: 'Choose date', exact: true }).click();
   await expect(page.getByRole('button', { name: /unfinished status unavailable/ }).first()).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Download TODO.txt', exact: true }).click();
+  await runCommand(page, 'Download TODO.txt');
   const preview = page.getByRole('dialog', { name: 'Download TODO.txt', exact: true });
   await expect(preview.getByLabel('TODO.txt preview')).toContainText('@span: all-day through 2100-01-01');
   const pending = page.waitForEvent('download');
@@ -92,12 +93,12 @@ test('an older over-budget journal remains exportable and can be repaired throug
 test('an expensive all-history review can return to the visible range without losing data', async ({ page }) => {
   await seedLargeProjection(page, false);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings', exact: true }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
   await settings.getByLabel('Earlier unfinished items').selectOption('all');
   await settings.getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('This view contains too many items');
-  await page.getByRole('button', { name: 'Hot Cross Buns settings', exact: true }).click();
+  await runCommand(page, 'Hot Cross Buns settings');
   await settings.getByLabel('Earlier unfinished items').selectOption('visible');
   await settings.getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);

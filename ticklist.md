@@ -16,6 +16,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] All/Open/Done search filters combined with text and hashtags across dated entries.
 - [x] Neutral dark mode and borderless text fields.
 - [x] Smooth caret movement while typing and navigating, with an idle pulse and reduced-motion support.
+- [x] Command palette for the five existing topbar actions (⌘K / Ctrl+K), using the compact browser palette and scale/fade motion from commit `8f2c2b2`.
 
 Caret movement covers ordinary text inputs and textareas. Selections, IME composition, touch selection handles, passwords, segmented controls, bidirectional text and editors above 32,768 UTF-16 code units use the native caret. Reduced motion, forced colors and browsers without the Popover API also keep the native caret.
 
@@ -25,7 +26,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 - [ ] Check persistence, import/download and failed-save recovery on actual Safari, Firefox and mobile browsers. Chromium automation and phone viewport tests do not establish compatibility with those browsers or devices.
 - [ ] Review keyboard and screen-reader navigation across journal rows, details, dialogs and popouts.
 - [ ] Measure real journal sizes and the new resource-limit notices before changing limits or adding a file-size indicator.
-- [ ] Validate quick deferral and status search during dogfooding. Use observed problems to decide whether fuzzy matching, a command palette or natural-language entry earns the added complexity. These are candidates, not committed features.
+- [ ] Validate quick deferral, status search and the command palette during dogfooding. Use observed problems to decide whether fuzzy matching or natural-language entry earns the added complexity. These are candidates, not committed features.
 
 ## Retired directions
 

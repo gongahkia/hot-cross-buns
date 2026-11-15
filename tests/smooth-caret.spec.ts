@@ -1,3 +1,4 @@
+import { runCommand } from './commands';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const caret = (page: Page) => page.locator('[data-moving-caret]');
@@ -15,7 +16,7 @@ async function target(page: Page) {
 }
 async function search(page: Page, value = 'Caret') {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open search', exact: true }).click();
+  await runCommand(page, 'Open search');
   const input = page.getByRole('searchbox', { name: 'Search journal' });
   await input.fill(value);
   await expect(input).toHaveAttribute('data-smooth-caret', 'true');
