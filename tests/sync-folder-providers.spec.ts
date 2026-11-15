@@ -180,6 +180,23 @@ test('a zero-byte projection is reviewed rather than silently clearing a nonempt
   expect((await records(page)).some(record => record.origin === 'external' && record.text === '')).toBe(true);
 });
 
+test('a projection arriving before its authored history is retained and its later branch is explicitly acknowledged', async ({ page }) => {
+  await setup(page); const original = (await records(page))[0], text = initial.replace('Original', 'Text arrived first');
+  const authored = await createRevision('file:TODO.txt', crypto.randomUUID(), [original.id], text);
+  await deliver(page, { 'TODO.txt': text });
+  await expect.poll(async () => (await records(page)).some(record => record.origin === 'external' && record.text === text)).toBe(true);
+  await expect.poll(async () => serializeTodoText((await syncState(page, 'current')).document)).toBe(text); await saved(page);
+  const observed = (await records(page)).find(record => record.origin === 'external' && record.text === text)!;
+  const path = '.hot-cross-buns/' + await sha256('TODO.txt') + '/' + authored.id + '.json';
+  await deliver(page, { [path]: revisionText(authored) });
+  await approve(page);
+  const all = await records(page);
+  expect(all.some(record => record.id === authored.id && record.digest === authored.digest)).toBe(true);
+  expect(all.some(record => record.id === observed.id)).toBe(true);
+  expect(all.some(record => record.parents.includes(authored.id) && record.parents.includes(observed.id) && record.text === text)).toBe(true);
+  expect(serializeTodoText((await syncState(page, 'current')).document)).toBe(text);
+});
+
 test('provider setup stays inside existing folder settings and makes no provider API requests', async ({ page }) => {
   const contacted: string[] = [];
   page.on('request', request => { if (/nextcloud|dropbox|onedrive|microsoftonline/.test(new URL(request.url()).hostname)) contacted.push(request.url()); });
