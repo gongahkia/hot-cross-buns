@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fileSyncLock, readLinkedText, saveLinkedText, supportsLinkedFiles, type FileLink, type FileSyncStatus, type LinkedFileHandle } from './linkedFile';
-import { loadFileLink, loadTodoState, storeFileLink } from './todoStore';
+import { loadFileLink, loadDriveLink, loadTodoState, storeFileLink } from './todoStore';
 import { serializeTodoText, type TodoDocument } from './todoText';
 
 export function useLinkedFile(journalDocument: TodoDocument | null, canSave: () => boolean) {
@@ -54,6 +54,7 @@ export function useLinkedFile(journalDocument: TodoDocument | null, canSave: () 
   }, [ready]);
   const establish = async (handle: LinkedFileHandle, raw: string, baselineDocument: TodoDocument, expectedId: string | null = null) => {
     await navigator.locks.request(fileSyncLock, async () => {
+      if (await loadDriveLink()) throw new Error('Unlink Google Drive before linking a local file.');
       const previous = await loadFileLink();
       if ((previous?.id ?? null) !== expectedId) throw new Error('The file link changed in another window. Open Settings and try again.');
       const link: FileLink = { id: previous?.id ?? crypto.randomUUID(), handle, baselineText: raw, baselineDocument, lastSavedAt: previous?.lastSavedAt ?? null, needsReview: false };

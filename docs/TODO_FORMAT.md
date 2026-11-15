@@ -1,6 +1,6 @@
 # Hot Cross Buns TODO.txt format
 
-`TODO.txt` is Hot Cross Buns's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. A [linked file](FILE_SYNC.md) can also receive automatic journal saves while a tab is open and visible, with external changes paused for review. The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
+`TODO.txt` is Hot Cross Buns's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. A [local linked file](FILE_SYNC.md) or [Google Drive file](GOOGLE_DRIVE.md) can also receive automatic journal saves while a tab is open and visible, with external changes paused for review. The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
 
 The scratchpad is separate local browser data. It is not included in TODO.txt; move selected text into dated or undated items to make it portable.
 

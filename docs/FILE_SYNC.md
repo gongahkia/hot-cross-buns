@@ -1,6 +1,6 @@
 # File sync
 
-Hot Cross Buns can save its journal directly to a linked UTF-8 `TODO.txt` file. Put that file in a [Syncthing](https://syncthing.net/) folder to carry it between devices. The app uses local file access; Syncthing runs separately. There is no Google Drive connector or account-based sync.
+Hot Cross Buns can save its journal directly to a linked UTF-8 `TODO.txt` file. Put that file in a [Syncthing](https://syncthing.net/) folder to carry it between devices. The app uses local file access; Syncthing runs separately. Optional [Google Drive saving](GOOGLE_DRIVE.md) is a separate alternative. Only one local or Drive file can be linked at a time; unlink the current target before switching.
 
 ## Link a file
 
@@ -25,7 +25,7 @@ Linked-file saves include the whole journal, including undated lists, details an
 
 Enable [file versioning](https://docs.syncthing.net/users/versioning.html) on each device if you want previous received versions retained. Syncthing versioning archives changes received from other devices; it does not archive every local browser save. Keep separate backups as needed.
 
-A different free file-transfer tool can carry the same TODO.txt file. Hot Cross Buns has no provider-specific integration for it; its transfer, conflict and version-retention behavior must be checked separately. Syncthing is the documented sync option for now.
+A different free file-transfer tool can carry the same TODO.txt file. Hot Cross Buns has no provider-specific integration for it; its transfer, conflict and version-retention behavior must be checked separately. Syncthing is the documented free file-transfer option.
 
 ## External edits and conflicts
 

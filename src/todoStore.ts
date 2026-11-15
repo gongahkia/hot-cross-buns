@@ -193,3 +193,21 @@ export async function storeFileLink(link: import('./linkedFile').FileLink | null
     done();
   });
 }
+
+export async function loadDriveLink(): Promise<import('./googleDrive').DriveLink | null> {
+  const db = await openDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).get('google-drive-link');
+      request.onsuccess = () => resolve(request.result ?? null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally { db.close(); }
+}
+export async function storeDriveLink(link: import('./googleDrive').DriveLink | null): Promise<void> {
+  await transact<void>([STATE_STORE], (tx, done) => {
+    const store = tx.objectStore(STATE_STORE);
+    if (link) store.put(link, 'google-drive-link'); else store.delete('google-drive-link');
+    done();
+  });
+}

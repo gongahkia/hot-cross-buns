@@ -14,8 +14,12 @@ import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
+import { StatusToast, type StatusNotice } from './components/StatusToast';
 import { FileSyncSettings, fileSyncMessage } from './components/FileSyncSettings';
 import { useLinkedFile } from './useLinkedFile';
+import { useGoogleDrive } from './useGoogleDrive';
+import { GoogleDriveSettings } from './components/GoogleDriveSettings';
+import type { DriveSnapshot } from './googleDrive';
 import { pickLinkedFile, readLinkedText, type LinkedFileHandle } from './linkedFile';
 import { CommandPalette, commandKey, type PaletteCommand, type PaletteResult } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
@@ -323,7 +327,10 @@ export default function App() {
   const [review, setReview] = useState<FileReviewState | null>(null);
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
-  const [message, setMessage] = useState('');
+  const [notification, setNotification] = useState<StatusNotice | null>(null);
+  const noticeId = useRef(0);
+  const setMessage = (text: string) => setNotification(text ? { id: ++noticeId.current, text } : null);
+  const dismissNotification = (id: number) => setNotification(current => current?.id === id ? null : current);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<UndoNotice | null>(null);
   const [busy, setBusy] = useState(false);
@@ -337,8 +344,9 @@ export default function App() {
   const pendingJournal = useRef(0);
   const journalGeneration = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
-  const pendingLink = useRef<{ handle: LinkedFileHandle; raw: string; id?: string; baselineDocument?: TodoDocument; reviewLocalText?: string } | null>(null);
+  const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; raw: string; id?: string; baselineDocument?: TodoDocument; reviewLocalText?: string } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; baselineDocument?: TodoDocument; reviewLocalText?: string } | null>(null);
   const fileSync = useLinkedFile(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure);
+  const driveSync = useGoogleDrive(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage);
   const today = todayString();
   const shownHolidayYears = (viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]).map(date => Number(date.slice(0, 4)));
   const holidayYearsKey = [...new Set(shownHolidayYears)].join(',');
@@ -921,7 +929,8 @@ export default function App() {
   const finishFileLink = async (baseline: TodoDocument) => {
     const pending = pendingLink.current;
     if (!pending) return;
-    await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null);
+    if (pending.kind === 'drive') await driveSync.establish(pending.snapshot, baseline, pending.id ?? null);
+    else await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null);
     pendingLink.current = null;
   };
   const linkFile = async (create: boolean) => {
@@ -933,7 +942,7 @@ export default function App() {
         if (raw) throw new Error('This file already contains text. Use Link existing TODO.txt to review it.');
         await fileSync.establish(handle, raw, emptyDocument());
       } else {
-        pendingLink.current = { handle, raw };
+        pendingLink.current = { kind: 'local', handle, raw };
         setSettingsOpen(false);
         await imported(raw);
       }
@@ -945,10 +954,21 @@ export default function App() {
   const reviewLinkedFile = async () => {
     setBusy(true); setFileActionError('');
     try {
-      pendingLink.current = await fileSync.review();
+      pendingLink.current = { kind: 'local', ...await fileSync.review() };
       setSettingsOpen(false);
       await imported(pendingLink.current.raw);
     } catch (error) { pendingLink.current = null; setFileActionError(String(error)); reportSaveError(error, 'Could not review linked file: '); }
+    finally { setBusy(false); }
+  };
+  const openDriveFile = async (id?: string, reviewExisting = false) => {
+    setBusy(true); setFileActionError('');
+    try {
+      document.querySelector<HTMLDialogElement>('dialog[open]')?.close(); setSettingsOpen(false);
+      const selected = reviewExisting ? await driveSync.read() : id ? await driveSync.read(id) : await driveSync.pick();
+      if (!selected) { setSettingsOpen(true); return; }
+      pendingLink.current = { kind: 'drive', ...selected, raw: selected.snapshot.text };
+      await imported(selected.snapshot.text);
+    } catch (error) { pendingLink.current = null; setMessage('Could not open Google Drive file: ' + String(error)); }
     finally { setBusy(false); }
   };
   const imported = async (raw: string, original = raw) => {
@@ -1154,7 +1174,7 @@ export default function App() {
   );
   if (!popout) commands.push({ id: 'window', label: 'Open view in browser window', keywords: 'popout new window', icon: PanelsTopLeft, run: openPopoutChooser });
   commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
-  if (!state) return <Page $dated><Muted role="status">{message || 'Opening journal…'}</Muted></Page>;
+  if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
   return <Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
@@ -1190,7 +1210,7 @@ export default function App() {
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
     {projectionError && <Notice role="alert">{projectionError}</Notice>}
-    {message && <Notice role="status">{message} <Dismiss aria-label="Dismiss message" onClick={() => setMessage('')}>×</Dismiss></Notice>}
+    <StatusToast notice={notification} onDismiss={dismissNotification} aboveUndo={!!toastNotice}/>
     <UndoFeedback notice={toastNotice} onDismiss={() => { setScratchUndo(null); setFeedbackNotice(null); }} onUndo={() => {
       if (scratchUndo) {
         const pending = scratchUndo;
@@ -1287,7 +1307,10 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
-    <AppearanceSettings fileSync={<FileSyncSettings status={fileSync.status} error={fileActionError} busy={busy} onLink={create => { void linkFile(create); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>} open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
+    <AppearanceSettings fileSync={<><FileSyncSettings status={fileSync.status} error={fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
+      <GoogleDriveSettings config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}
+        onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect}/>
+      </>} open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
       timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
       weekStart={weekStart} onWeekStartChange={value => {
         setWeekStart(value); setWeekStartState(value);

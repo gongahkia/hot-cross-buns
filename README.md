@@ -22,13 +22,14 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 * Undo/redo and completion confirmations
 * TODO.txt import doctor, conflict review and download preview
 * Direct TODO.txt saving in a Syncthing folder *(or another free file sync workflow)*
+* Optional Google Drive file saving with your own Web OAuth client and file picker
 * Browser popouts sharing the local journal and scratchpad
 * Light/dark themes, date formats, time zones and optional public holidays
 * Smooth caret movement while typing and navigating *(respects reduced motion)*
 * Command palette for search, import, download, browser windows and settings *(⌘K / Ctrl+K; ⌘F / Ctrl+F for search)*
 * One-time, read-only Google Calendar and Tasks import through separate scripts
 
-The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. To save edits directly to a file, use **Settings → File sync** in a supported browser and link TODO.txt in a Syncthing folder. Syncthing transfers the file between devices; external changes pause saves for review. Without a linked file, import and download remain manual. See [file sync](./docs/FILE_SYNC.md) for setup and limitations. Scratchpad text and appearance settings are excluded from TODO.txt; move scratchpad text into journal items to include it in an export.
+The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. To save edits directly to a file, use **Settings → File sync** in a supported browser and link TODO.txt in a Syncthing folder. Syncthing transfers the file between devices; external changes pause saves for review. Alternatively, use **Settings → Google Drive** to link a text file in your Google account; see [Google Drive setup](./docs/GOOGLE_DRIVE.md). One sync target can be linked at a time. Without a linked file, import and download remain manual. See [file sync](./docs/FILE_SYNC.md) for setup and limitations. Scratchpad text and appearance settings are excluded from TODO.txt; move scratchpad text into journal items to include it in an export.
 
 Open **Commands** to type a command or search the current journal view. The palette contains tag and completion filters; selecting an entry takes you to it. Escape closes the palette and clears its filters. Journal results show up to 50 entries at a time with the total count; refine the query to narrow them.
 
@@ -65,11 +66,12 @@ $ npm run build
 $ npm run preview
 ```
 
-Vite writes the static application to `dist/`. The included [Vercel configuration](./vercel.json) builds that directory with npm. The journal runs directly in the browser; Google authorization is only needed when using the optional snapshot pull script.
+Vite writes the static application to `dist/`. The included [Vercel configuration](./vercel.json) builds that directory with npm. The journal runs directly in the browser; Google authorization is needed only for optional Google Drive saving or the separate snapshot pull script.
 
 ## Other docs
 
 * [Syncthing and linked TODO.txt files](./docs/FILE_SYNC.md)
+* [Google Drive setup and saving](./docs/GOOGLE_DRIVE.md)
 * [TODO.txt format and recurrence](./docs/TODO_FORMAT.md)
 * [Import doctor and repair rules](./docs/TODO_DOCTOR.md)
 * [One-time Google snapshot and conversion](./docs/GOOGLE_SNAPSHOT.md)
