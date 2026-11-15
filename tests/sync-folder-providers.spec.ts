@@ -126,12 +126,21 @@ for (const profile of [
     await expect(region).toContainText(profile.conflict);
     const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
     expect(await settings.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-    const chooser = page.waitForEvent('filechooser'); await region.getByRole('button', { name: 'Import a conflict copy', exact: true }).click();
-    await (await chooser).setFiles({ name: profile.conflict, mimeType: 'text/plain', buffer: Buffer.from(copy) });
-    const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
-    await expect(review).toContainText('Local work'); await expect(review).toContainText('Recovered work');
-    await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
-    await expect(review).toBeHidden(); await saved(page);
+    const release = await holdSyncDelivery(page);
+    try {
+      const chooser = page.waitForEvent('filechooser'); await region.getByRole('button', { name: 'Import a conflict copy', exact: true }).click();
+      await (await chooser).setFiles({ name: profile.conflict, mimeType: 'text/plain', buffer: Buffer.from(copy) });
+      const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+      await expect(review).toContainText('Local work'); await expect(review).toContainText('Recovered work');
+      await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
+      await expect(review).toBeHidden();
+      const document = serializeTodoText((await syncState(page, 'current')).document);
+      expect(document).toContain('Local work'); expect(document).toContain('Recovered work');
+      const pendingFile = await page.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt')).getFile()).text());
+      expect(pendingFile).toContain('Local work'); expect(pendingFile).not.toContain('Recovered work');
+    } finally { await release(); }
+    await expect.poll(async () => (await records(page)).some(record => record.text.includes('Local work') && record.text.includes('Recovered work'))).toBe(true);
+    await expect.poll(async () => (await tree(page))['TODO.txt']).toContain('Recovered work'); await saved(page);
     const files = await tree(page); expect(files[profile.conflict]).toBe(copy);
     expect(files['TODO.txt']).toContain('Recovered work'); expect(files['TODO.txt']).toContain('Local work');
   });
