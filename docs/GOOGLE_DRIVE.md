@@ -1,6 +1,6 @@
 # Google Drive
 
-Google Drive is an optional alternative to a local [Syncthing-linked file](FILE_SYNC.md). Hot Cross Buns saves a normal UTF-8 `TODO.txt` in your Google account. The journal also keeps its working copy in IndexedDB. No Google account is required to use the journal, import files or download copies.
+Google Drive is an optional alternative to a [local sync folder](FILE_SYNC.md). Hot Cross Buns saves a normal UTF-8 `TODO.txt` in your Google account. The journal also keeps its working copy in IndexedDB. No Google account is required to use the journal, import files or download copies.
 
 New Drive links also publish [immutable revision snapshots](REVISION_SYNC.md) as `HCB-…json` files in My Drive before updating `TODO.txt`. Keep these companion files: they retain concurrent app-authored versions that the text projection alone may no longer show. Older links can choose **Enable Drive revision history**. Additional files use the existing `drive.file` scope; they are not a hosted database or Drive's built-in file revisions. Use the **same Web OAuth client ID and account on all devices** so the same app can access its private properties and files.
 
@@ -43,6 +43,8 @@ While a tab is open and visible, persisted journal edits trigger a save check af
 Google Drive saves include the entire journal, including undated lists, details and recurrence, in canonical TODO.txt with LF line endings. Scratchpad text and appearance preferences stay in the browser. The same **5 MiB / 100,000-line** limits apply as for imports. Google Docs documents and folders cannot be linked as TODO.txt files.
 
 In revision mode, a valid linear update can merge automatically; concurrent revision heads require **Review Google Drive file**. Approval acknowledges only the selected branch and creates a new merge revision before updating the projection. Observed external text is captured as a revision before replacement. Missing ancestors, corrupted bodies and incomplete history listings pause saving. History follows all pages and uses identity/checksum validation; filenames and timestamps do not decide the current journal. Settings shows the observed count and size. At **1,000 revisions / 64 MiB**, export and archive the complete history before starting another target; history is not pruned automatically. See [protocol, migration and retention](REVISION_SYNC.md).
+
+The shared parser treats empty or syntactically incomplete revision bodies as transfer failures with bounded retries. It never integrates them while waiting. Checksum failures, unsupported envelopes and identity collisions still require attention. Drive authentication, scopes and transport identity reservation are unchanged by the additional desktop-folder workflows.
 
 Legacy single-file links retain the [existing field merge](SYNC.md#single-file-merging-and-shared-editing-safeguards), without shared history. Both modes preserve draft and undo checks, explicit doctor approval, atomic review commits and comparison downloads. Cancel and reopen a stale journal/link review. A revision review can acknowledge an older immutable branch while leaving a later branch for another review.
 

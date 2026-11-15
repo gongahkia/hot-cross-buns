@@ -1,6 +1,6 @@
 # File sync
 
-Hot Cross Buns can save its journal to a UTF-8 `TODO.txt` file in a [Syncthing](https://syncthing.net/) folder. **Link sync folder** enables [immutable revision history](REVISION_SYNC.md): the app keeps companion snapshots before updating the text file. The app uses local file access; Syncthing runs separately. Optional [Google Drive saving](GOOGLE_DRIVE.md) is an alternative. Only one local or Drive target can be linked at a time; unlink it before switching.
+Hot Cross Buns can save its journal to a UTF-8 `TODO.txt` file in a [Syncthing](https://syncthing.net/), [Nextcloud or Dropbox desktop folder](SYNC_FOLDERS.md). **Link sync folder** enables [immutable revision history](REVISION_SYNC.md): the app keeps companion snapshots before updating the text file. The app uses local file access; the desktop client runs separately. Nextcloud/Dropbox setup, offline availability, ignored files, validation boundaries and the read-only `sync:check` command are covered in [the folder guide](SYNC_FOLDERS.md). Optional [Google Drive saving](GOOGLE_DRIVE.md) is an alternative. Only one local or Drive target can be linked at a time; unlink it before switching.
 
 ## Link a file
 
@@ -29,7 +29,7 @@ Linked-file saves include the whole journal, including undated lists, details an
 
 Enable [file versioning](https://docs.syncthing.net/users/versioning.html) on each device if you want previous received versions retained. Syncthing versioning archives changes received from other devices; it does not archive every local browser save. Keep separate backups as needed.
 
-A different free file-transfer tool can carry the same TODO.txt file. Hot Cross Buns has no provider-specific integration for it; its transfer, conflict and version-retention behavior must be checked separately. Syncthing is the documented free file-transfer option.
+A different file-transfer tool can carry the same dedicated folder. Its transfer, conflict and version-retention behavior must be checked separately. Nextcloud and Dropbox use this same folder transport, with setup guidance and simulated transfer fault tests; they are not direct API integrations or device-validated providers. Include both the text and complete history, rather than syncing only TODO.txt.
 
 ## External edits and conflicts
 
@@ -45,6 +45,8 @@ Syncthing may create a `*.sync-conflict-*.txt` copy when devices change the same
 
 ## Paused or failed saves
 
-Permission loss shows **Resume file saving**. Disk errors, missing files and over-budget text pause file writes with an error. After resolving the problem, choose **Resume file saving**; an external change still requires review. Unlink and link again if Syncthing replaced the file in a way that invalidated its browser handle.
+Permission loss shows **Resume file saving**. Temporary missing, unreadable or locked files retry with bounded durable backoff; after eight consecutive failures they pause for manual resume. Quota and other permanent disk errors pause immediately. Over-budget text also stops writes. After resolving the problem, choose **Resume file saving** if needed; an external change still requires review. Folder links resolve the exact filename inside the granted directory and retain a newly confirmed handle. The app does not recreate a missing linked projection. If the selected directory moved or access remains invalid, explicitly relink the actual directory while preserving its complete history.
+
+Recognizable Nextcloud, Dropbox and Syncthing conflict-copy names produce a contextual sync notice and **Import a conflict copy** in Settings. Import uses the existing doctor and conflict review; no copy is merged or deleted automatically. The notice describes files still present, including copies you may already have reviewed. Archive them outside the live folder after checking the merged journal. The name heuristic does not identify every localized or arbitrary filename; inspect the client too. Both root and history enumeration stop after 2,000 visited entries, including ignored temporary entries.
 
 Linking and file saves use the same **5 MiB / 100,000-line** limits as imports. An existing browser journal that exceeds those limits can still be downloaded in full. File saving does not replace the browser's [failed-save recovery](TODO_FORMAT.md#failed-saves).

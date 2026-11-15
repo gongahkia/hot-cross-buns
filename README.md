@@ -21,11 +21,12 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 * Palette search by title, detail and hashtag *(All/Open/Done for dated entries)*
 * Undo/redo and completion confirmations
 * TODO.txt import doctor, conflict review and download preview
-* Direct TODO.txt saving in a Syncthing folder *(or another free file sync workflow)*
+* Protected TODO.txt saving in Nextcloud, Dropbox and Syncthing desktop folders
 * Optional Google Drive file saving with your own Web OAuth client and file picker
 * Durable sync submissions, automatic catch-up, independent-change merging and recoverable conflict review
 * Immutable revision history for linked sync folders and new Drive links *(concurrent branches stay available for review)*
 * Hidden history and recovery command *(preview, download or restore a saved version)*
+* Contextual provider conflict-copy import and a read-only folder verification command
 * Browser popouts sharing the local journal and scratchpad
 * Light/dark themes, date formats, time zones and optional public holidays
 * Smooth caret movement while typing and navigating *(respects reduced motion)*
@@ -35,6 +36,8 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. For protected file syncing, use **Settings → File sync → Link sync folder** and transfer both TODO.txt and its `.hot-cross-buns` history through Syncthing. Alternatively, use **Settings → Google Drive**; new links keep companion revision files in My Drive. Both publish immutable snapshots before updating the text projection, with concurrent branches kept for review. Existing individual-file links can upgrade explicitly. One target can be linked at a time. See [revision history and its limits](./docs/REVISION_SYNC.md), [file setup](./docs/FILE_SYNC.md) and [Drive setup](./docs/GOOGLE_DRIVE.md). Single-file mode retains a remaining overwrite window; arbitrary external edits overwritten before observation cannot be recovered. Without a linked target, import and download remain manual. Scratchpad text and appearance settings stay in the browser; move scratchpad text into journal items to make it portable.
 
 Open **Commands** to type a command or search the current journal view. The palette contains tag and completion filters; selecting an entry takes you to it. Escape closes the palette and clears its filters. Journal results show up to 50 entries at a time with the total count; refine the query to narrow them.
+
+Nextcloud and Dropbox use the same **Link sync folder** workflow as Syncthing. Keep the complete directory available offline. These use the desktop client's folder, without new provider API connections. The app confirms local saving; check the client for cloud upload and device delivery. Actual provider/device delivery remains unverified; browser fault tests simulate transfer. See [provider setup, verification and recovery](./docs/SYNC_FOLDERS.md), including the read-only `npm run sync:check` command.
 
 Type **history**, **recovery** or **versions** in Commands to open saved versions for a protected sync target. This command stays out of the default list. Preview or download a version, review an incoming branch, or confirm a restoration that adds a new revision without removing later history. See [history and recovery](./docs/REVISION_SYNC.md#history-and-recovery).
 
@@ -76,6 +79,7 @@ Vite writes the static application to `dist/`. The included [Vercel configuratio
 ## Other docs
 
 * [Syncthing and linked TODO.txt files](./docs/FILE_SYNC.md)
+* [Nextcloud and Dropbox folders, verification and recovery](./docs/SYNC_FOLDERS.md)
 * [Google Drive setup and saving](./docs/GOOGLE_DRIVE.md)
 * [Sync behavior, recovery and architecture](./docs/SYNC.md)
 * [Immutable revision protocol, migration and retention](./docs/REVISION_SYNC.md)

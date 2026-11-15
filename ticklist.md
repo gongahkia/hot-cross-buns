@@ -16,6 +16,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Shared durable sync coordination: frozen submissions, verified receipts, automatic catch-up, conservative merges, cross-tab ownership, draft/undo protection and bounded recovery copies. See [sync behavior and limits](./docs/SYNC.md).
 - [x] Immutable revision history for sync folders and new Drive links, with stable retry identities, verified ancestry, explicit concurrent-branch review, bounded scans and safe storage upgrades. See [revision protocol and retention](./docs/REVISION_SYNC.md).
 - [x] History and recovery through a query-only palette command: ancestry-ordered versions, bounded comparison previews, complete raw downloads, incoming-branch review and confirmed restoration as a new revision. No extra toolbar or sidebar controls.
+- [x] Nextcloud and Dropbox desktop-folder workflows on the shared revision transport: bounded transient retries, exact-name handle resolution, interrupted history transfer, contextual conflict-copy import and a read-only folder inventory check. Automated transfer scenarios are distinct from real provider/device validation; see [setup and verification](./docs/SYNC_FOLDERS.md).
 - [x] Corner toast notifications for transient messages, with dismissal and paused timers during interaction.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
@@ -28,6 +29,9 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 ## Next validation
 
+- [ ] Validate Nextcloud and Dropbox with actual desktop clients/accounts and two physical devices, including hidden-history exclusions, offline availability, replacement handles, conflict copies, interrupted transfer and matching folder receipts. This implementation uses automated fault models only, as requested; native pickers, provider acknowledgements and device delivery remain unverified.
+- [ ] Evaluate OneDrive as the alternative managed provider after the selected Dropbox workflow is dogfooded. A direct Nextcloud WebDAV, Dropbox or Graph adapter needs its own browser/authentication and transport contract; no such API integration is advertised here.
+- [ ] Investigate the existing intermittent Chromium mobile-rotation weekday visibility failure if it recurs; preserve assertions and report retries explicitly.
 - [ ] Validate Google sign-in, Picker, key restrictions, token expiry and remote conflicts with an actual configured Google Cloud project. Browser automation substitutes these services; tokens stay in memory and reconnecting is required after reload.
 - [ ] Run the [sync fault scenarios](./docs/SYNC.md#verification) with real devices and services, especially interrupted saves, stale device copies and simultaneous edits. Automated fault injection covers the app protocol; provider transport and device delivery need separate observation.
 - [ ] Validate revision discovery using the same Google OAuth client/account across actual devices; verify private-file access, delayed listings, reserved-ID retry and complete-folder Syncthing transfer. Upgrade all participating writers; single-file compatibility mode keeps its overwrite limitation.
@@ -45,7 +49,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 - A full calendar application or parity with the Google Calendar and Tasks suites.
 - Automatic deletion of old journal content.
-- A hosted journal database or continuous Google Calendar/Tasks account sync. Sync remains based on portable TODO.txt files; Syncthing is the documented free transfer option and Google Drive is optional.
+- A hosted journal database or continuous Google Calendar/Tasks account sync. Sync remains based on portable TODO.txt files, with Syncthing, Nextcloud and Dropbox desktop-folder workflows and optional Google Drive saving.
 - Electron, a desktop menubar app or an installable PWA as part of this browser restoration.
 
 Keep the one-time Shio Pan storage migration, old Google snapshot format alias and old service-worker retirement code while existing users may still need them. Removing those compatibility paths requires a separate migration decision.
