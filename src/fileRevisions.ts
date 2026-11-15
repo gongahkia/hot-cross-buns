@@ -3,9 +3,9 @@ import { MAX_HISTORY_BYTES, MAX_REVISIONS, MAX_REVISION_BYTES, parseRevision, re
 
 export function fileRevisions(link: FileLink, device: () => Promise<string>): RevisionTransport {
   const journal = 'file:' + link.handle.name;
-  const directory = async () => {
-    const root = await link.historyDirectory!.getDirectoryHandle('.hot-cross-buns', { create: true });
-    return root.getDirectoryHandle(await sha256(link.handle.name), { create: true }) as Promise<LinkedDirectoryHandle>;
+  const directory = async (create = false) => {
+    const root = await link.historyDirectory!.getDirectoryHandle('.hot-cross-buns', { create });
+    return root.getDirectoryHandle(await sha256(link.handle.name), { create }) as Promise<LinkedDirectoryHandle>;
   };
   return { journal, device,
     list: async () => {
@@ -20,7 +20,7 @@ export function fileRevisions(link: FileLink, device: () => Promise<string>): Re
     },
     put: async record => {
       const raw = revisionText(record); await parseRevision(raw, journal);
-      const folder = await directory(), handle = await folder.getFileHandle(record.id + '.json', { create: true });
+      const folder = await directory(true), handle = await folder.getFileHandle(record.id + '.json', { create: true });
       const existing = await (await handle.getFile()).text();
       if (existing) {
         if ((await parseRevision(existing, journal)).digest !== record.digest) throw new Error('A different revision already uses this filename. Keep both copies for recovery.');

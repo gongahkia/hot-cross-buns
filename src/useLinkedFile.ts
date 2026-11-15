@@ -1,5 +1,6 @@
 import { fileSyncLock, pickSyncFolder, readLinkedText, saveLinkedText, supportsLinkedFiles, type FileLink, type LinkedFileHandle, type LinkedDirectoryHandle } from './linkedFile';
-import { loadFileLink, loadDriveLink, storeFileLink, readSyncBundle, commitReviewedLink, loadSyncDevice, type ReviewedJournal, type TodoState } from './todoStore';
+import { loadFileLink, loadDriveLink, storeFileLink, readSyncBundle, changeSyncBundle, commitReviewedLink, loadSyncDevice, type ReviewedJournal, type TodoState } from './todoStore';
+import { loadRevisionHistory, restoreRevision, reviewHistoryBranch, type HistorySnapshot } from './revisionHistory';
 import { useJournalSync } from './useJournalSync';
 import { fileRevisions } from './fileRevisions';
 import { revisionGraph } from './revisionProtocol';
@@ -67,5 +68,17 @@ export function useLinkedFile(journal: TodoDocument | null, canSave: () => boole
     await sync.poll(true);
   };
   const unlink = async () => { await navigator.locks.request(fileSyncLock, () => storeFileLink(null)); await sync.refresh(); };
-  return { status: sync.status, recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.historyDirectory, establish, review, verifyReview, enableHistory, resume, unlink };
+  const history = async () => {
+    const bundle = await readSyncBundle<FileLink>('file');
+    if (!bundle?.link.historyDirectory) return null;
+    if (await bundle.link.historyDirectory.queryPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow folder access in Settings before opening history.');
+    return loadRevisionHistory('file', bundle, fileRevisions(bundle.link, loadSyncDevice), () => readSyncBundle<FileLink>('file'));
+  };
+  const historyAction = async (before: HistorySnapshot, id: string, restore: boolean) => {
+    const fresh = await history(); if (!fresh) throw new Error('Revision history was unlinked.');
+    const store = { change: (work: Parameters<typeof changeSyncBundle<FileLink>>[1], integrate?: boolean) => changeSyncBundle('file', work, integrate) };
+    if (restore) { const result = await restoreRevision(before, id, fresh, store, document => validate?.(document)); await sync.refresh(); return result; }
+    await reviewHistoryBranch(before, id, fresh, store); await sync.refresh(); return null;
+  };
+  return { status: sync.status, recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.historyDirectory, history, historyAction, establish, review, verifyReview, enableHistory, resume, unlink };
 }

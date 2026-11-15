@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Command, Download, FileInput, PanelsTopLeft, Search, Settings2 } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Command, Download, FileInput, History, PanelsTopLeft, Search, Settings2 } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden, press } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { UndoFeedback, type UndoNoticeKind } from './components/UndoFeedback';
@@ -12,6 +12,8 @@ import { FileReview, type FileReviewState } from './components/FileReview';
 import { AddItem, JournalItem, useJournalFieldResize } from './components/DailyItem';
 import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
+import { HistoryRecovery } from './components/HistoryRecovery';
+import type { HistorySnapshot } from './revisionHistory';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
 import { StatusToast, type StatusNotice } from './components/StatusToast';
@@ -310,6 +312,7 @@ export default function App() {
   const pendingSearchTarget = useRef<PaletteResult | null>(null);
   const [completionFilter, setCompletionFilter] = useState<'all' | 'open' | 'done'>('all');
   const [exportOpen, setExportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [legacyRawDraft, setLegacyRawDraft] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
@@ -346,8 +349,8 @@ export default function App() {
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const mergeReviewText = useRef<string | null>(null);
   const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; historyDirectory?: LinkedDirectoryHandle; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | null>(null);
-  const fileSync = useLinkedFile(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
-  const driveSync = useGoogleDrive(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
+  const fileSync = useLinkedFile(state?.document ?? null, () => !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
+  const driveSync = useGoogleDrive(state?.document ?? null, () => !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
   const preserveSyncHistory = (next: TodoDocument) => {
     const before = current.current.document;
     undoStack.current = rebaseSyncHistory(undoStack.current, before, next, todayString());
@@ -1177,6 +1180,34 @@ export default function App() {
     frame = requestAnimationFrame(focus);
     return () => cancelAnimationFrame(frame);
   }, [searchTarget, paletteOpen, selectedDate, journalDays]);
+  const loadHistory = async () => { await journalQueue.current; return await fileSync.history() ?? await driveSync.history(); };
+  const historyAction = async (snapshot: HistorySnapshot, id: string, restore: boolean) => {
+    if (pendingJournal.current || saveFailure) throw new Error('Finish saving the browser journal before using history.');
+    const before = current.current;
+    pendingJournal.current++; journalGeneration.current++;
+    try {
+      const saved = await (snapshot.provider === 'file' ? fileSync : driveSync).historyAction(snapshot, id, restore);
+      if (restore && saved) {
+        undoStack.current.push(before.document); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = [];
+        const next = { ...before, document: saved.document, revision: saved.revision };
+        setScratchUndo(null); setFeedbackNotice(null); current.current = next; setState(next);
+        setMessage('Version restored in this browser. File saving will follow.');
+      }
+      setHistoryOpen(false);
+    } finally {
+      pendingJournal.current--;
+      const generation = journalGeneration.current;
+      const latest = await loadTodoState().catch(error => { setMessage(`Could not refresh journal: ${String(error)}`); return null; });
+      if (latest && !pendingJournal.current && generation === journalGeneration.current && latest.revision > current.current.revision) {
+        preserveSyncHistory(latest.document); current.current = latest; setState(latest);
+      }
+    }
+    if (!restore) {
+      // release modal focus before handing the branch to the existing import review.
+      document.querySelector('[data-history-recovery]')?.closest('dialog')?.close();
+      if (snapshot.provider === 'file') await reviewLinkedFile(); else await openDriveFile(undefined, true);
+    }
+  };
   const commands: PaletteCommand[] = [];
   if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: 'Search journal', keywords: 'find filter entries', icon: Search, run: () => openJournalSearch(true) });
   if (!popout && activeTab !== 'scratchpad') commands.push(
@@ -1184,6 +1215,7 @@ export default function App() {
     { id: 'download', label: 'Download TODO.txt', keywords: 'export save file', icon: Download, run: () => setExportOpen(true) },
   );
   if (!popout) commands.push({ id: 'window', label: 'Open view in browser window', keywords: 'popout new window', icon: PanelsTopLeft, run: openPopoutChooser });
+  if (!popout) commands.push({ id: 'history', label: 'History and recovery', keywords: 'versions restore backup', hidden: true, icon: History, run: () => { setDateOpen(false); setHistoryOpen(true); } });
   commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
   return <Page $dated={activeTab !== 'undated'}>
@@ -1319,6 +1351,7 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
+    <HistoryRecovery open={historyOpen} currentText={historyOpen ? serializeTodoText(state.document) : ''} onClose={() => setHistoryOpen(false)} onSettings={() => { setHistoryOpen(false); setSettingsOpen(true); }} onLoad={loadHistory} onRestore={(snapshot, id) => historyAction(snapshot, id, true)} onReview={(snapshot, id) => historyAction(snapshot, id, false)}/>
     <AppearanceSettings fileSync={<><FileSyncSettings status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onFolder={() => { void linkFile(false, true); }} protectedHistory={fileSync.protected} historyStats={fileSync.revisions?.stats} onEnableHistory={() => { void fileSync.enableHistory().catch(error => setFileActionError(String(error))); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
       <GoogleDriveSettings protectedHistory={driveSync.protected} historyStats={driveSync.revisions?.stats} onEnableHistory={() => { void driveSync.enableHistory().catch(error => setMessage(String(error))); }} config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}
         onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect} creationPending={!!driveSync.creation} onDismissCreation={() => { void driveSync.dismissCreation().catch(error => setMessage(String(error))); }} onDownloadCreation={() => { if (driveSync.creation) downloadTextFile(driveSync.creation.text, 'TODO-submitted-creation.txt'); }}/>

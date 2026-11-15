@@ -5,7 +5,8 @@ import { Modal } from './Modal';
 
 export const commandKey = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 export type PaletteCommand = {
-  id: 'search' | 'import' | 'download' | 'window' | 'settings';
+  id: 'search' | 'import' | 'download' | 'window' | 'settings' | 'history';
+  hidden?: boolean;
   label: string; keywords: string; icon: LucideIcon; run: () => void;
 };
 export type PaletteResult = {
@@ -38,7 +39,7 @@ export function CommandPalette({ open, commands, onOpenChange, query, onQueryCha
   const listId = useId();
   const searching = !!scope && (mode === 'journal' || !!query.trim() || !!tag || completion !== 'all');
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const filtered = mode === 'commands' ? commands.filter(command => words.every(word => (command.label + ' ' + command.keywords).toLowerCase().includes(word))) : [];
+  const filtered = mode === 'commands' ? commands.filter(command => (!command.hidden || words.length > 0) && words.every(word => (command.label + ' ' + command.keywords).toLowerCase().includes(word))) : [];
   const shownResults = searching && !searchError ? results.slice(0, 50) : [];
   const count = filtered.length + shownResults.length;
   const index = Math.min(highlighted, count - 1);

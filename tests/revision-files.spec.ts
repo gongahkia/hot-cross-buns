@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createRevision, parseRevision, revisionText, sha256, type Revision } from '../src/revisionProtocol';
-import { runCommand } from './commands';
+import { openCommands, openHistory, runCommand } from './commands';
 import { holdSyncDelivery, syncState } from './sync-helpers';
 
 const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n';
@@ -139,4 +139,116 @@ test('an empty revision file waits for transfer and resumes when its complete en
   await expect.poll(async () => (await syncState(page, 'file-sync-ledger')).status.kind).toBe('retrying');
   expect(await disk(page)).toBe(initial); await put(page, incoming);
   await expect(page.getByRole('textbox', { name: 'Edit Transferred', exact: true })).toBeVisible();
+});
+
+test('history stays behind palette queries and explains browser-only journals without adding chrome', async ({ page }) => {
+  await page.goto('/'); const palette = await openCommands(page);
+  await expect(palette.getByRole('option')).toHaveCount(5);
+  await expect(palette.getByRole('option', { name: 'History and recovery', exact: true })).toHaveCount(0);
+  for (const query of ['recovery', 'versions', 'restore']) {
+    await palette.getByRole('combobox').fill(query);
+    await expect(palette.getByRole('option', { name: 'History and recovery', exact: true })).toBeVisible();
+  }
+  const view = await openHistory(page);
+  await expect(view).toContainText('Browser-only journals');
+  await expect(view.getByRole('button', { name: 'Restore version', exact: true })).toHaveCount(0);
+  await view.press('Escape'); await expect(view).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Open command palette', exact: true })).toBeFocused();
+});
+
+test('history preview and download are read-only; a confirmed restoration retains later versions and undo', async ({ page }) => {
+  await setup(page); const root = (await history(page))[0];
+  const field = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await field.fill('Latest version'); await field.press('Tab');
+  await expect.poll(() => disk(page)).toContain('Latest version');
+  await expect.poll(async () => (await syncState(page, 'file-sync-ledger')).status.kind).toBe('saved');
+  const before = await syncState(page, 'current'), linkBefore = await syncState(page, 'linked-file');
+  const view = await openHistory(page, 'versions'); await view.getByLabel('Saved version').selectOption(root.id);
+  await expect(view.getByLabel('Current journal comparison')).toContainText('Latest version');
+  await expect(view.getByLabel('Selected version comparison')).toContainText('Original');
+  const download = page.waitForEvent('download'); await view.getByRole('button', { name: 'Download version', exact: true }).click();
+  const stream = await (await download).createReadStream(); const chunks = []; for await (const chunk of stream!) chunks.push(chunk);
+  expect(Buffer.concat(chunks).toString()).toBe(initial);
+  expect(await syncState(page, 'current')).toEqual(before); expect(await syncState(page, 'linked-file')).toEqual(linkBefore);
+  await view.getByRole('button', { name: 'Restore version', exact: true }).click();
+  await view.getByRole('button', { name: 'Cancel restoration', exact: true }).click(); expect(await disk(page)).toContain('Latest version');
+  await view.getByRole('button', { name: 'Restore version', exact: true }).click();
+  await view.getByRole('button', { name: 'Restore as new version', exact: true }).click(); await expect(view).toBeHidden();
+  await expect.poll(() => disk(page)).toBe(initial);
+  const all = await history(page); expect(all).toHaveLength(3);
+  const latest = all.find(record => record.text.includes('Latest version'))!;
+  expect(all.some(record => record.id !== root.id && record.text === initial && record.parents.includes(latest.id))).toBe(true);
+  await page.getByRole('button', { name: 'Undated', exact: true }).focus(); await page.keyboard.press('Control+z');
+  await expect.poll(() => disk(page)).toContain('Latest version');
+});
+
+test('history notices a journal edit in another window and rejects the stale restoration', async ({ page, context }) => {
+  await setup(page); const root = (await history(page))[0];
+  const field = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await field.fill('Current'); await field.press('Tab');
+  await expect.poll(() => disk(page)).toContain('Current');
+  const other = await context.newPage(); await other.goto('/?popout=undated&list=Inbox');
+  const view = await openHistory(page); await view.getByLabel('Saved version').selectOption(root.id);
+  await other.bringToFront(); const edit = other.getByRole('textbox', { name: 'Edit Current', exact: true }); await edit.fill('From another window'); await edit.press('Tab');
+  await expect.poll(async () => (await syncState(other, 'current')).document.undated[0].items[0].text).toBe('From another window');
+  await page.bringToFront(); await expect(view).toContainText('The journal changed.');
+  await expect(view.getByRole('button', { name: 'Restore version', exact: true })).toBeDisabled();
+  await view.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit From another window', exact: true })).toBeVisible(); await other.close();
+});
+
+test('a failed recovery transaction keeps the journal and every immutable version', async ({ page }) => {
+  await setup(page); const root = (await history(page))[0];
+  const field = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await field.fill('Keep this version'); await field.press('Tab');
+  await expect.poll(() => disk(page)).toContain('Keep this version');
+  const view = await openHistory(page); await view.getByLabel('Saved version').selectOption(root.id);
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) { if (key === 'file-sync-ledger' && value.revisions?.pending?.record.text.includes('Original')) throw new DOMException('Recovery storage is full', 'QuotaExceededError'); return put.call(this, value, key); };
+  });
+  await view.getByRole('button', { name: 'Restore version', exact: true }).click(); await view.getByRole('button', { name: 'Restore as new version', exact: true }).click();
+  await expect(view.getByRole('alert')).toContainText('Recovery storage is full');
+  expect((await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Keep this version');
+  expect(await disk(page)).toContain('Keep this version'); expect(await history(page)).toHaveLength(2);
+});
+
+test('history cannot replace a journal while another window holds an unfinished draft', async ({ page, context }) => {
+  await setup(page); const root = (await history(page))[0];
+  const field = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await field.fill('Current'); await field.press('Tab');
+  await expect.poll(() => disk(page)).toContain('Current');
+  const other = await context.newPage(); await other.goto('/?popout=undated&list=Inbox');
+  const draft = other.getByRole('textbox', { name: 'Edit Current', exact: true }); await draft.fill('Unfinished draft');
+  const view = await openHistory(page); await view.getByLabel('Saved version').selectOption(root.id);
+  await view.getByRole('button', { name: 'Restore version', exact: true }).click(); await view.getByRole('button', { name: 'Restore as new version', exact: true }).click();
+  await expect(view.getByRole('alert')).toContainText('Finish editing journal fields');
+  await expect(draft).toHaveValue('Unfinished draft');
+  expect((await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Current');
+  expect(await history(page)).toHaveLength(2); await other.close();
+});
+
+test('an incoming branch opens the existing review from history on a narrow screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await page.emulateMedia({ reducedMotion: 'reduce' });
+  await setup(page); const root = (await history(page))[0];
+  const field = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await field.fill('Local branch'); await field.press('Tab');
+  await expect.poll(() => disk(page)).toContain('Local branch');
+  const view = await openHistory(page);
+  const branch = await createRevision('file:TODO.txt', crypto.randomUUID(), [root.id], initial.replace('Original', 'Recovered branch'));
+  await put(page, branch); await view.getByRole('button', { name: 'Refresh history', exact: true }).click();
+  await view.getByLabel('Saved version').selectOption(branch.id);
+  await expect(view.getByRole('button', { name: 'Restore version', exact: true })).toBeDisabled();
+  expect(await view.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await view.getByRole('button', { name: 'Review this branch', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  await expect(view).toBeHidden(); await expect(review).toContainText('Recovered branch'); await expect(review).toContainText('Local branch');
+  await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
+  await expect.poll(() => disk(page)).toContain('Recovered branch');
+});
+
+test('corrupt history is reported in recovery instead of exposing a restore action', async ({ page }) => {
+  await setup(page); const root = (await history(page))[0]; const view = await openHistory(page);
+  await page.evaluate(async ({ name, id }) => {
+    const folder = await (await (await navigator.storage.getDirectory()).getDirectoryHandle('.hot-cross-buns')).getDirectoryHandle(name);
+    const handle = await folder.getFileHandle(id + '.json'), writer = await handle.createWritable(); await writer.write('{}'); await writer.close();
+  }, { name: historyName, id: root.id });
+  await view.getByRole('button', { name: 'Refresh history', exact: true }).click(); await expect(view.getByRole('alert')).toBeVisible();
+  await expect(view.getByRole('button', { name: 'Restore version', exact: true })).toHaveCount(0);
+  expect(await disk(page)).toBe(initial);
 });

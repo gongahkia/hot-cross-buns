@@ -15,6 +15,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Optional Google Drive saving through a Web OAuth client, per-file access and the existing import/conflict review.
 - [x] Shared durable sync coordination: frozen submissions, verified receipts, automatic catch-up, conservative merges, cross-tab ownership, draft/undo protection and bounded recovery copies. See [sync behavior and limits](./docs/SYNC.md).
 - [x] Immutable revision history for sync folders and new Drive links, with stable retry identities, verified ancestry, explicit concurrent-branch review, bounded scans and safe storage upgrades. See [revision protocol and retention](./docs/REVISION_SYNC.md).
+- [x] History and recovery through a query-only palette command: ancestry-ordered versions, bounded comparison previews, complete raw downloads, incoming-branch review and confirmed restoration as a new revision. No extra toolbar or sidebar controls.
 - [x] Corner toast notifications for transient messages, with dismissal and paused timers during interaction.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.

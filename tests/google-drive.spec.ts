@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { runCommand } from './commands';
+import { openHistory, runCommand } from './commands';
 import { holdSyncDelivery, syncState } from './sync-helpers';
 import { createRevision, revisionText } from '../src/revisionProtocol';
 
@@ -458,4 +458,32 @@ test('a concurrent Drive revision survives a lost projection and resolves throug
   expect(remote.text).toContain('Local protected branch');
   expect([...remote.revisionFiles.values()].some(file => { const value = JSON.parse(file.raw); return value.parents.length === 2 && value.text.includes('Local protected branch') && value.text.includes('Foreign protected branch'); })).toBe(true);
   expect(remote.revisionFiles.get('foreign-file')!.raw).toBe(raw);
+});
+
+test('Drive history restores as a new revision and survives a lost publication reply and reload', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  const root = JSON.parse([...remote.revisionFiles.values()][0].raw);
+  await editOriginal(page, 'Later Drive version'); await expect.poll(() => remote.text).toContain('Later Drive version');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).status.kind).toBe('saved');
+  const view = await openHistory(page); await view.getByLabel('Saved version').selectOption(root.id);
+  remote.dropRevisionReply = true;
+  await view.getByRole('button', { name: 'Restore version', exact: true }).click(); await view.getByRole('button', { name: 'Restore as new version', exact: true }).click();
+  await expect(view).toBeHidden(); await expect.poll(() => remote.dropRevisionReply).toBe(false);
+  const pending = (await syncState(page, 'drive-sync-ledger')).revisions.pending;
+  expect(pending.record.text).toBe(initial); expect(remote.revisionCheckpoint).toBe(true);
+  await page.reload(); await runCommand(page, 'Settings'); await connect(page);
+  await expect.poll(() => remote.text).toBe(initial);
+  expect(remote.revisionFiles.size).toBe(3); expect(remote.revisionCreates).toBe(3);
+  expect(remote.revisionFiles.has(pending.transportId)).toBe(true);
+  expect([...remote.revisionFiles.values()].some(file => JSON.parse(file.raw).text.includes('Later Drive version'))).toBe(true);
+});
+
+test('Drive history after reload requires the linked account rather than showing cached versions', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  const versions = [...remote.revisionFiles.values()]; await page.reload();
+  const view = await openHistory(page);
+  await expect(view.getByRole('alert')).toContainText('Reconnect the linked Google account');
+  await expect(view.getByRole('combobox', { name: 'Saved version', exact: true })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Sync settings', exact: true })).toBeVisible();
+  expect([...remote.revisionFiles.values()]).toEqual(versions);
 });

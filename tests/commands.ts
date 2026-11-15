@@ -21,3 +21,10 @@ export async function selectSearchResult(page: Page, title: string) {
   await palette.getByRole('option').filter({ has: page.locator('strong', { hasText: title }) }).first().click();
   await palette.waitFor({ state: 'hidden' });
 }
+
+export async function openHistory(page: Page, query = 'history') {
+  const palette = await openCommands(page);
+  await palette.getByRole('combobox').fill(query);
+  await palette.getByRole('option', { name: 'History and recovery', exact: true }).click();
+  return page.getByRole('dialog', { name: 'History and recovery', exact: true });
+}

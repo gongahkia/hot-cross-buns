@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { authorizeGoogle, pickGoogleFile, preloadGoogle, validateGoogleConfig, type GoogleConfig } from './googleAuth';
 import { createDriveApi, GoogleDriveError, type DriveFile, type DriveLink, type DriveSnapshot, type GoogleSession } from './googleDrive';
 import { fileSyncLock } from './linkedFile';
-import { loadDriveLink, loadFileLink, loadTodoState, storeDriveLink, readSyncBundle, loadSyncCreation, storeSyncCreation, subscribeStore, commitReviewedLink, loadSyncDevice, type ReviewedJournal, type SyncCreation } from './todoStore';
+import { loadDriveLink, loadFileLink, loadTodoState, storeDriveLink, readSyncBundle, changeSyncBundle, loadSyncCreation, storeSyncCreation, subscribeStore, commitReviewedLink, loadSyncDevice, type ReviewedJournal, type SyncCreation } from './todoStore';
+import { loadRevisionHistory, restoreRevision, reviewHistoryBranch, type HistorySnapshot } from './revisionHistory';
 import { revisionGraph, type Revision } from './revisionProtocol';
 import { useJournalSync } from './useJournalSync';
 import type { SyncAdapter, SyncStatus } from './journalSync';
@@ -177,5 +178,17 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
   const unlink = async () => { await navigator.locks.request(fileSyncLock, () => storeDriveLink(null)); record.current = null; revisionCache.current.clear(); await sync.refresh(); };
   const disconnect = () => { activeSession.current = null; setSession(null); setFiles([]); void sync.poll(); };
   const retrySdk = async () => { setError(''); try { await preloadGoogle(); setSdkReady(true); } catch (error) { setError(String(error)); throw error; } };
-  return { config, configure, sdkReady, retrySdk, session, status: sync.status, linked: !!sync.record, recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.revisionProtocol, enableHistory, files, busy: busy || !creationLoaded, error, creation, dismissCreation, connect, establish, create, read, pick, resume, unlink, disconnect };
+  const history = async () => {
+    const bundle = await readSyncBundle<DriveLink>('drive');
+    if (!bundle?.link.revisionProtocol) return null;
+    if (activeSession.current?.accountId !== bundle.link.accountId) throw new Error('Reconnect the linked Google account in Settings before opening history.');
+    return authenticated(() => loadRevisionHistory('drive', bundle, api().revisions(bundle.link.fileId, loadSyncDevice), () => readSyncBundle<DriveLink>('drive')));
+  };
+  const historyAction = async (before: HistorySnapshot, id: string, restore: boolean) => {
+    const fresh = await history(); if (!fresh) throw new Error('Revision history was unlinked.');
+    const store = { change: (work: Parameters<typeof changeSyncBundle<DriveLink>>[1], integrate?: boolean) => changeSyncBundle('drive', work, integrate) };
+    if (restore) { const result = await restoreRevision(before, id, fresh, store, document => validate?.(document)); await sync.refresh(); return result; }
+    await reviewHistoryBranch(before, id, fresh, store); await sync.refresh(); return null;
+  };
+  return { config, configure, sdkReady, retrySdk, session, status: sync.status, linked: !!sync.record, recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.revisionProtocol, history, historyAction, enableHistory, files, busy: busy || !creationLoaded, error, creation, dismissCreation, connect, establish, create, read, pick, resume, unlink, disconnect };
 }
