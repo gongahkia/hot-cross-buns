@@ -43,6 +43,39 @@ test('a verified immutable revision precedes the first projection write', async 
   app.state.beforeWrite = () => assert.ok([...server.records.values()].some(record => record.text === raw('Saved')));
   await app.cycle(); assert.equal(server.text, raw('Saved')); assert.equal(app.state.bundle.ledger.status.kind, 'saved');
 });
+test('a restoration queued without a transport ID reserves once and reuses that identity after a lost reply', async () => {
+  const server = remote(), app = device(server); await app.cycle();
+  const root = [...server.records.values()][0]; app.edit('Later version'); await app.cycle();
+  const frontier = app.state.bundle.ledger.revisions.frontier;
+  const restored = await createRevision('test', root.device, frontier, root.text);
+  app.state.bundle.document = doc(root.text);
+  app.state.bundle.ledger.revisions.pending = { record: restored };
+  const reservations = app.state.reservations;
+  app.state.afterPut = () => { throw new TypeError('Lost restoration receipt'); };
+  await app.cycle();
+  const pending = structuredClone(app.state.bundle.ledger.revisions.pending);
+  assert.equal(pending.record.id, restored.id); assert.ok(pending.transportId);
+  assert.equal(app.state.reservations, reservations + 1);
+  app.state.afterPut = null; await app.cycle(true);
+  assert.equal(app.state.reservations, reservations + 1);
+  assert.equal(server.records.size, 3); assert.equal(server.text, root.text);
+  assert.equal(app.state.bundle.ledger.revisions.pending, undefined);
+  assert.ok([...server.records.values()].some(record => record.text === raw('Later version')));
+});
+test('failed identity reservation retains the restored document and frozen identity alongside later local edits', async () => {
+  const server = remote(), app = device(server); await app.cycle();
+  const root = [...server.records.values()][0]; app.edit('Later version'); await app.cycle();
+  const restored = await createRevision('test', root.device, app.state.bundle.ledger.revisions.frontier, root.text);
+  app.state.bundle.document = doc(root.text); app.state.bundle.ledger.revisions.pending = { record: restored };
+  const reserve = app.adapter.revisions.reserve;
+  app.adapter.revisions.reserve = async () => { throw new TypeError('Offline before reservation'); };
+  await app.cycle(); assert.equal(app.state.bundle.ledger.revisions.pending.record.id, restored.id);
+  assert.equal(serializeTodoText(app.state.bundle.document), root.text); assert.equal(server.records.size, 2);
+  app.edit('Newer edit after restoration'); app.adapter.revisions.reserve = reserve;
+  await app.cycle(true); await app.cycle(true);
+  assert.ok(server.records.has(restored.id)); assert.equal(server.text, raw('Newer edit after restoration'));
+  assert.equal(server.records.size, 4);
+});
 test('both app revisions survive the exact last-check/commit race', async () => {
   const server = remote(), first = device(server); await first.cycle();
   const second = device(server, first.state.bundle), root = [...server.records.keys()][0];

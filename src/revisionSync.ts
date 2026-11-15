@@ -13,8 +13,14 @@ export async function synchronizeRevisions<L extends SyncLink, S extends { text:
   }, integrate);
   const state = (bundle: SyncBundle<L>, kind: SyncStatus['kind'], detail?: string): SyncBundle<L> => ({ ...bundle, ledger: { ...bundle.ledger, status: { kind, detail, name: adapter.name(bundle.link), lastSavedAt: bundle.link.lastSavedAt, lastCheckedAt: now(), retryAt: bundle.ledger.retryAt } } });
   const publish = async (bundle: SyncBundle<L>): Promise<SyncBundle<L> | null> => {
-    const pending = bundle.ledger.revisions!.pending;
+    let pending = bundle.ledger.revisions!.pending;
     if (!pending) return bundle;
+    if (!pending.transportId && transport.reserve) {
+      const id = pending.record.id, transportId = await transport.reserve();
+      const prepared = await change(current => current.ledger.revisions?.pending?.record.id === id ? { ...current, ledger: { ...current.ledger, revisions: { ...current.ledger.revisions, pending: { ...current.ledger.revisions.pending, transportId } } } } : null);
+      if (!prepared) return null;
+      pending = prepared.ledger.revisions!.pending!;
+    }
     await transport.put(pending.record, pending.transportId);
     return await change(latest => {
       const revisions = latest.ledger.revisions!;
