@@ -25,7 +25,8 @@ export function StatusToast({ notice, onDismiss, aboveUndo = false, persistent =
   const [focused, setFocused] = useState(false);
   const element = useRef<HTMLDivElement>(null);
   const dismiss = useRef(onDismiss); dismiss.current = onDismiss;
-  const popover = 'showPopover' in HTMLElement.prototype;
+  // only dialog notifications need the top layer to escape the sheet's transform.
+  const popover = host !== document.body && 'showPopover' in HTMLElement.prototype;
   useEffect(() => {
     if (!notice) { setPhase('leaving'); setHovered(false); setFocused(false); return; }
     setDisplayed(notice); setPhase('entering');

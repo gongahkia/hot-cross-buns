@@ -101,3 +101,21 @@ test('browsers without Popover retain a fixed, dismissible notification', async 
   await toast.getByRole('button', { name: 'Dismiss message', exact: true }).click();
   await expect(toast).toBeHidden();
 });
+
+
+test.describe('touch notifications', () => {
+  test.use({ isMobile: true, hasTouch: true });
+
+  test('a visible toast follows phone rotation without holding the journal in its mobile layout', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await blockedPopout(page);
+    const toast = page.getByRole('status', { name: 'Notification', exact: true });
+    await expect(toast).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open command palette', exact: true })).toHaveCSS('width', '44px');
+    await page.setViewportSize({ width: 768, height: 700 });
+    await expect(page.getByRole('button', { name: 'Open command palette', exact: true }).locator('span')).toBeVisible();
+    await expect(toast).toBeInViewport({ ratio: 1 });
+    await toast.getByRole('button', { name: 'Dismiss message', exact: true }).click();
+    await expect(toast).toBeHidden();
+  });
+});
