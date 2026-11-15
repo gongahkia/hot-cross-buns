@@ -44,6 +44,13 @@ test('a frozen journal is durable before dispatch and is verified after writing'
   assert.equal(state.bundle.ledger.checkpoint, undefined); assert.equal(state.bundle.ledger.status.kind, 'saved');
   assert.equal(state.bundle.link.baselineText, state.remote);
 });
+test('a coordinator without revision support refuses protected targets even on manual resume', async () => {
+  for (const field of ['historyDirectory', 'revisionProtocol']) {
+    const { state, cycle, title } = fixture(); title('Keep locally'); state.bundle.link[field] = true;
+    await cycle(true); assert.equal(state.reads, 0); assert.equal(state.writes.length, 0);
+    assert.equal(state.bundle.ledger.status.kind, 'error'); assert.match(state.bundle.ledger.status.detail, /cannot write a revision-enabled target/);
+  }
+});
 test('checkpoint failure stops dispatch and retains the saved browser journal', async () => {
   const { state, cycle, title } = fixture(); title('Saved locally'); state.failCheckpoint = true;
   await cycle(); assert.equal(state.writes.length, 0);

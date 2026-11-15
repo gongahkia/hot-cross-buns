@@ -56,6 +56,14 @@ test('a change during a staged write is checked again before close', async () =>
   assert.equal(state.raw, 'remote edit'); assert.equal(state.closes, 0); assert.equal(state.aborts, 1);
 });
 
+test('legacy reproduction: a write after the last check is overwritten by close', async () => {
+  const { state, link } = fixture();
+  state.afterRead = count => { if (count === 3) state.raw = 'unobserved device edit'; };
+  assert.equal(await saveLinkedText(link, 'local edit'), 'saved');
+  assert.equal(state.raw, 'local edit');
+  assert.equal(state.reads, 3);
+});
+
 test('permission loss does not read or write the file', async () => {
   const { state, link } = fixture(); state.permission = 'prompt';
   assert.equal(await saveLinkedText(link, 'local edit'), 'permission');

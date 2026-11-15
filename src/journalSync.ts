@@ -104,6 +104,7 @@ export async function synchronizeJournal<L extends SyncLink, S extends { text: s
   try {
     let bundle = await change(current => current); if (!bundle) return null;
     expected = { id: bundle.link.id, generation: bundle.ledger.generation };
+    if ('historyDirectory' in bundle.link && bundle.link.historyDirectory || 'revisionProtocol' in bundle.link && bundle.link.revisionProtocol) return await change(current => state(current, 'error', 'This coordinator cannot write a revision-enabled target. Update Hot Cross Buns, or unlink it and export the browser journal.'));
     if (bundle.link.needsReview) return await change(current => state(current, 'changed'));
     if (options.force) bundle = (await change(current => ({ ...current, ledger: { ...current.ledger, failures: 0, retryAt: 0, status: { kind: 'saving' } } })))!;
     if (!bundle) return null;

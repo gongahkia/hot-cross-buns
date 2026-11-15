@@ -16,7 +16,7 @@ function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const request = indexedDB.open(DB_NAME, 2);
+    const request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = () => {
       for (const name of [STATE_STORE, SCRATCH_STORE]) if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
     };

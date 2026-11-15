@@ -329,17 +329,17 @@ test('incoming detail changes preserve local undo and recoverable comparison cop
   await page.keyboard.press('Control+Shift+z'); await expect.poll(() => disk(page)).toContain('Local title\n- Phone detail');
 });
 
-test('the sync protocol upgrade retains v1 data and file handles while fencing old writers', async ({ page }) => {
+for (const storageVersion of [1, 2]) test(`the sync protocol upgrade retains v${storageVersion} data and file handles while fencing old writers`, async ({ page }) => {
   let seeded = false;
   await page.route('**/assets/index-*.js', async route => {
     if (!seeded) {
       seeded = true;
-      await page.evaluate(async initial => {
+      await page.evaluate(async ({ initial, storageVersion }) => {
         const handle = await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true });
         const writer = await handle.createWritable(); await writer.write(initial); await writer.close();
         const document = { days: [], undated: [{ name: 'Inbox', items: [{ id: 'legacy-item', text: 'Original', completed: false, details: [{ text: 'Keep detail', completed: false }] }] }] };
         await new Promise<void>((resolve, reject) => {
-          const open = indexedDB.open('hot-cross-buns-v1', 1);
+          const open = indexedDB.open('hot-cross-buns-v1', storageVersion);
           open.onupgradeneeded = () => { open.result.createObjectStore('state'); open.result.createObjectStore('scratchpad'); };
           open.onsuccess = () => {
             const db = open.result, tx = db.transaction('state', 'readwrite'), store = tx.objectStore('state');
@@ -348,18 +348,18 @@ test('the sync protocol upgrade retains v1 data and file handles while fencing o
             tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error);
           }; open.onerror = () => reject(open.error);
         });
-      }, initial);
+      }, { initial, storageVersion });
     }
     await route.continue();
   });
   await setup(page); await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Edit Original', exact: true })).toBeVisible();
   expect((await syncState(page, 'current')).document.undated[0].items[0].id).toBe('legacy-item');
-  const version = await page.evaluate(() => new Promise((resolve, reject) => {
-    const old = indexedDB.open('hot-cross-buns-v1', 1);
+  const version = await page.evaluate(storageVersion => new Promise((resolve, reject) => {
+    const old = indexedDB.open('hot-cross-buns-v1', storageVersion);
     old.onsuccess = () => { old.result.close(); reject(new Error('Old writer was admitted')); };
     old.onerror = () => resolve(old.error?.name);
-  }));
+  }), storageVersion);
   expect(version).toBe('VersionError');
   const title = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await title.fill('After upgrade'); await title.press('Tab');
   await expect.poll(() => disk(page)).toContain('After upgrade\n- Keep detail');
