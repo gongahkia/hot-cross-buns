@@ -42,6 +42,23 @@ export const GlobalStyle = createGlobalStyle`
     0%, 35%, 100% { caret-color: var(--ink); }
     68% { caret-color: transparent; }
   }
+  @keyframes hcb-moving-caret-pulse {
+    0%, 35%, 100% { opacity: 1; }
+    68% { opacity: 0; }
+  }
+  [data-moving-caret] {
+    position: fixed; inset: auto; left: 0; top: 0; margin: 0; padding: 0; border: 0;
+    width: 2px; border-radius: 1px; background: var(--ink); pointer-events: none;
+    overflow: clip; z-index: 2147483647;
+    animation: hcb-moving-caret-pulse 1350ms ease-in-out infinite;
+  }
+  [data-moving-caret]::backdrop { background: transparent; pointer-events: none; }
+  [data-moving-caret][data-caret-typing] { animation: none; opacity: 1; }
+  :root :is(${textEntrySelector})[data-smooth-caret='true'] { caret-color: transparent !important; }
+  @media (prefers-reduced-motion: reduce), (forced-colors: active) {
+    [data-moving-caret] { display: none !important; }
+    :root :is(${textEntrySelector})[data-smooth-caret='true'] { caret-color: var(--ink) !important; }
+  }
   @supports (caret-animation: manual) {
     @media (prefers-reduced-motion: no-preference) {
       :root :is(${textEntrySelector}):not([readonly]):not(:disabled):focus {
@@ -57,7 +74,7 @@ export const GlobalStyle = createGlobalStyle`
     }
   }
   @media (forced-colors: active) {
-    :root :is(${textEntrySelector}):focus { border-bottom: 2px solid Highlight; }
+    :root :is(${textEntrySelector}):focus { border-bottom: 2px solid Highlight; caret-color: CanvasText !important; }
   }
   .skip-link { position: fixed; z-index: 100; top: 8px; left: 8px; padding: 8px 12px; border-radius: 6px; background: var(--surface); color: var(--ink); transform: translateY(-150%); }
   .skip-link:focus { transform: translateY(0); }
