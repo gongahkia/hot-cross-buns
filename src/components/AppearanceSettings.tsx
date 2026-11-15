@@ -12,7 +12,9 @@ const FontField = styled.label`display: grid; gap: 6px; margin-top: 14px; font-s
 const FontSelect = styled.select`width: 100%; min-height: 44px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; padding: 0 8px; @media(pointer:coarse){font-size:16px;}`;
 const YearInput = styled.input`width: 100%; min-height: 44px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; padding: 0 8px; color:var(--ink); @media(pointer:coarse){font-size:16px;}`;
 const Actions = styled.div`display: flex; justify-content: flex-end; margin-top: 20px;`;
-const SectionTitle = styled.h2`font-size:14px; margin:24px 0 8px; padding-top:15px; border-top:1px solid var(--line);`;
+const SettingsSection = styled.section`margin-top:24px;padding-top:20px;border-top:1px solid var(--line);&:first-of-type{margin-top:0;padding-top:0;border-top:0;}`;
+const SectionTitle = styled.h2`font-size:15px;font-weight:500;margin:0 0 8px;`;
+const SubsectionTitle = styled.h3`font-size:13px;font-weight:500;margin:20px 0 8px;`;
 const CheckField = styled.label`display:flex; align-items:center; gap:10px; min-height:44px; font-size:13px; input{width:18px;height:18px;accent-color:var(--link);}`;
 const Hint = styled.p`margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.45;`;
 const ImportButton = styled(Button)`margin-top:12px;min-height:44px;`;
@@ -21,8 +23,8 @@ const ThemeChoices = styled.div`display:inline-flex;gap:4px;padding:3px;border:1
 const ThemeButton = styled.button<{ $selected: boolean }>`display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;min-width:94px;padding:0 12px;border:0;border-radius:6px;background:${({ $selected }) => $selected ? 'var(--surface)' : 'transparent'};color:var(--ink);font:inherit;font-size:13px;cursor:pointer;box-shadow:${({ $selected }) => $selected ? '0 1px 3px #00000022' : 'none'};transition:background 140ms ease,box-shadow 140ms ease;&:hover{background:var(--surface);}&:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}svg{width:17px;height:17px;stroke-width:1.8;}`;
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, pastUnfinishedScope, onPastUnfinishedScopeChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus, fileSync }: {
-  fileSync: ReactNode; open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void;
+export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, pastUnfinishedScope, onPastUnfinishedScopeChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus, syncSettings }: {
+  syncSettings: ReactNode; open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void;
   timeZone: string; onTimeZoneChange: (value: string) => void; weekStart: WeekStart; onWeekStartChange: (value: WeekStart) => void;
   pastUnfinishedScope: PastUnfinishedScope; onPastUnfinishedScopeChange: (value: PastUnfinishedScope) => void;
   holidaysEnabled: boolean; onHolidaysEnabledChange: (value: boolean) => void; holidayMode: HolidayMode; onHolidayModeChange: (value: HolidayMode) => void;
@@ -34,28 +36,35 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
   const [holidayYear, setHolidayYear] = useState(() => Number(todayString().slice(0, 4)));
   const chooseTheme = (next: Theme) => { setTheme(next); setThemeState(next); };
   return <Modal open={open} onClose={onClose} title="Hot Cross Buns settings" compact>
-    <ThemeField><legend>Appearance</legend><ThemeChoices role="group" aria-label="Appearance"><ThemeButton type="button" $selected={theme === 'day'} aria-pressed={theme === 'day'} aria-label="Light mode" onClick={() => chooseTheme('day')}><Sun aria-hidden="true"/>Light</ThemeButton><ThemeButton type="button" $selected={theme === 'night'} aria-pressed={theme === 'night'} aria-label="Dark mode" onClick={() => chooseTheme('night')}><Moon aria-hidden="true"/>Dark</ThemeButton></ThemeChoices></ThemeField>
-    <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
-    {fileSync}
-    <SectionTitle>Scratchpad</SectionTitle>
-    <FontField>Selected lines become<FontSelect value={scratchpadMapping} onChange={event => { const value = event.target.value as ScratchpadMapping; setScratchpadMapping(value); setMappingState(value); }}><option value="details">First line as title, rest as details</option><option value="items">One item per nonempty line</option><option value="single">One title joining all lines</option></FontSelect></FontField>
-    <FontField>After creating an item<FontSelect value={scratchpadMoveMode} onChange={event => { const value = event.target.value as ScratchpadMoveMode; setScratchpadMoveMode(value); setMoveModeState(value); }}><option value="cut">Remove selected scratchpad text</option><option value="ask">Ask whether to remove or keep it</option></FontSelect></FontField>
-    <Hint>Scratchpad text is stored only in this browser. Move text into dated or undated items to include it in TODO.txt.</Hint>
-    <SectionTitle>Calendar</SectionTitle>
-    <FontField>Time zone<FontSelect value={timeZone} onChange={event => onTimeZoneChange(event.target.value)}>{Intl.supportedValuesOf('timeZone').map(zone => <option key={zone} value={zone}>{zone.replaceAll('_', ' ')}</option>)}</FontSelect></FontField>
-    <Hint>This sets which date counts as today. Item times remain the wall times written in TODO.txt.</Hint>
-    <FontField>Week starts on<FontSelect value={weekStart} onChange={event => onWeekStartChange(Number(event.target.value) as WeekStart)}>{weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}</FontSelect></FontField>
-    <FontField>Earlier unfinished items<FontSelect value={pastUnfinishedScope} onChange={event => onPastUnfinishedScopeChange(event.target.value as PastUnfinishedScope)}><option value="visible">Current visible range</option><option value="all">Every earlier date</option></FontSelect></FontField>
-    <Hint>Choose which earlier items appear in the count above the dated journal.</Hint>
-    <SectionTitle>Public holidays</SectionTitle>
-    <CheckField><input type="checkbox" checked={holidaysEnabled} onChange={event => { onHolidaysEnabledChange(event.target.checked); if (event.target.checked && holidayMode === 'saved') onImportHolidays(holidayCountry, holidayYear); }}/>Use public holidays</CheckField>
-    <FontField>How to use holidays<FontSelect value={holidayMode} onChange={event => { const next = event.target.value as HolidayMode; onHolidayModeChange(next); if (holidaysEnabled && next === 'saved') onImportHolidays(holidayCountry, holidayYear); }}><option value="saved">Add as Hot Cross Buns items</option><option value="view">Show on dates only</option></FontSelect></FontField>
-    <FontField>Holiday country<FontSelect value={holidayCountry} onChange={event => onHolidayCountryChange(event.target.value)}>{holidayCountries.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</FontSelect></FontField>
-    {holidayMode === 'saved' ? <><FontField>Year to add<YearInput type="number" min={1900} max={2100} value={holidayYear} onChange={event => setHolidayYear(Number(event.target.value))}/></FontField>
-      {holidaysEnabled && <ImportButton type="button" disabled={!Number.isInteger(holidayYear) || holidayYear < 1900 || holidayYear > 2100} onClick={() => onImportHolidays(holidayCountry, holidayYear)}>Add {holidayYear} holidays</ImportButton>}
-      <Hint>Added holidays become ordinary all-day Hot Cross Buns items in TODO.txt. Turning this setting off keeps them. Importing the same unchanged holiday twice will not duplicate it.</Hint></>
-      : <Hint>Holidays appear beside their dates while this is on. This view stays current and adds nothing to TODO.txt. Outside Singapore, only countrywide holidays are shown.</Hint>}
-    {holidayStatus && <Hint role="status">{holidayStatus}</Hint>}
+    <SettingsSection aria-label="Appearance preferences"><SectionTitle>Appearance</SectionTitle>
+      <ThemeField><legend>Theme</legend><ThemeChoices role="group" aria-label="Appearance"><ThemeButton type="button" $selected={theme === 'day'} aria-pressed={theme === 'day'} aria-label="Light mode" onClick={() => chooseTheme('day')}><Sun aria-hidden="true"/>Light</ThemeButton><ThemeButton type="button" $selected={theme === 'night'} aria-pressed={theme === 'night'} aria-label="Dark mode" onClick={() => chooseTheme('night')}><Moon aria-hidden="true"/>Dark</ThemeButton></ThemeChoices></ThemeField>
+      <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
+    </SettingsSection>
+    <SettingsSection aria-label="Journal preferences"><SectionTitle>Journal</SectionTitle>
+      <FontField>Time zone<FontSelect value={timeZone} onChange={event => onTimeZoneChange(event.target.value)}>{Intl.supportedValuesOf('timeZone').map(zone => <option key={zone} value={zone}>{zone.replaceAll('_', ' ')}</option>)}</FontSelect></FontField>
+      <Hint>This sets which date counts as today. Item times remain the wall times written in TODO.txt.</Hint>
+      <FontField>Week starts on<FontSelect value={weekStart} onChange={event => onWeekStartChange(Number(event.target.value) as WeekStart)}>{weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}</FontSelect></FontField>
+      <FontField>Earlier unfinished items<FontSelect value={pastUnfinishedScope} onChange={event => onPastUnfinishedScopeChange(event.target.value as PastUnfinishedScope)}><option value="visible">Current visible range</option><option value="all">Every earlier date</option></FontSelect></FontField>
+      <Hint>Choose which earlier items appear in the count above the dated journal.</Hint>
+      <section aria-label="Public holidays"><SubsectionTitle>Public holidays</SubsectionTitle>
+        <CheckField><input type="checkbox" checked={holidaysEnabled} onChange={event => { onHolidaysEnabledChange(event.target.checked); if (event.target.checked && holidayMode === 'saved') onImportHolidays(holidayCountry, holidayYear); }}/>Use public holidays</CheckField>
+        <FontField>How to use holidays<FontSelect value={holidayMode} onChange={event => { const next = event.target.value as HolidayMode; onHolidayModeChange(next); if (holidaysEnabled && next === 'saved') onImportHolidays(holidayCountry, holidayYear); }}><option value="saved">Add as Hot Cross Buns items</option><option value="view">Show on dates only</option></FontSelect></FontField>
+        <FontField>Holiday country<FontSelect value={holidayCountry} onChange={event => onHolidayCountryChange(event.target.value)}>{holidayCountries.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</FontSelect></FontField>
+        {holidayMode === 'saved' ? <><FontField>Year to add<YearInput type="number" min={1900} max={2100} value={holidayYear} onChange={event => setHolidayYear(Number(event.target.value))}/></FontField>
+          {holidaysEnabled && <ImportButton type="button" disabled={!Number.isInteger(holidayYear) || holidayYear < 1900 || holidayYear > 2100} onClick={() => onImportHolidays(holidayCountry, holidayYear)}>Add {holidayYear} holidays</ImportButton>}
+          <Hint>Added holidays become ordinary all-day Hot Cross Buns items in TODO.txt. Turning this setting off keeps them. Importing the same unchanged holiday twice will not duplicate it.</Hint></>
+          : <Hint>Holidays appear beside their dates while this is on. This view stays current and adds nothing to TODO.txt. Outside Singapore, only countrywide holidays are shown.</Hint>}
+        {holidayStatus && <Hint role="status">{holidayStatus}</Hint>}
+      </section>
+    </SettingsSection>
+    <SettingsSection aria-label="Scratchpad preferences"><SectionTitle>Scratchpad</SectionTitle>
+      <FontField>Selected lines become<FontSelect value={scratchpadMapping} onChange={event => { const value = event.target.value as ScratchpadMapping; setScratchpadMapping(value); setMappingState(value); }}><option value="details">First line as title, rest as details</option><option value="items">One item per nonempty line</option><option value="single">One title joining all lines</option></FontSelect></FontField>
+      <FontField>After creating an item<FontSelect value={scratchpadMoveMode} onChange={event => { const value = event.target.value as ScratchpadMoveMode; setScratchpadMoveMode(value); setMoveModeState(value); }}><option value="cut">Remove selected scratchpad text</option><option value="ask">Ask whether to remove or keep it</option></FontSelect></FontField>
+      <Hint>Scratchpad text is stored only in this browser. Move text into dated or undated items to include it in TODO.txt.</Hint>
+    </SettingsSection>
+    <SettingsSection aria-label="Sync and recovery"><SectionTitle>Sync and recovery</SectionTitle>
+      {syncSettings}
+    </SettingsSection>
     <Actions><Button onClick={onClose}>close</Button></Actions>
   </Modal>;
 }

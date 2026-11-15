@@ -4,7 +4,7 @@ import type { SyncStatus } from '../journalSync';
 import { supportsLinkedFiles, supportsSyncFolders } from '../linkedFile';
 import { RevisionHistoryInfo } from './JournalSyncStatus';
 
-const Section = styled.section`margin-top:24px;padding-top:15px;border-top:1px solid var(--line);h2,h3{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:400;margin:0 0 8px;}h3 a{display:flex;align-items:center;}h3 img{width:24px;height:24px;object-fit:contain;flex:none;}p,li{margin:7px 0;color:var(--muted);font-size:12px;line-height:1.5;}section ul,ol{margin:8px 0;padding-left:18px;font-size:12px;color:var(--muted);overflow-wrap:anywhere;}details{margin-top:12px;}summary{min-height:44px;padding:12px 0;font-size:12px;cursor:pointer;}`;
+const Section = styled.section`margin-top:24px;padding-top:15px;border-top:1px solid var(--line);h3,h4{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:400;margin:0 0 8px;}h4 a{display:flex;align-items:center;}h4 img{width:24px;height:24px;object-fit:contain;flex:none;}p,li{margin:7px 0;color:var(--muted);font-size:12px;line-height:1.5;}section ul,ol{margin:8px 0;padding-left:18px;font-size:12px;color:var(--muted);overflow-wrap:anywhere;}details{margin-top:12px;}summary{min-height:44px;padding:12px 0;font-size:12px;cursor:pointer;}`;
 const Provider = styled.section`margin-top:24px;padding-top:15px;border-top:1px solid var(--line);`;
 const Actions = styled.div`display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;button{min-height:44px;}`;
 const providers = [
@@ -38,7 +38,7 @@ export function FileSyncSettings({ status, error, busy, onLink, onReview, onResu
   conflictCopies?: string[]; onImportConflict?: () => void;
 }) {
   const foldersSupported = supportsSyncFolders(), linked = status.kind !== 'unlinked';
-  return <Section aria-label="File sync"><h2>Local sync folders</h2>
+  return <Section aria-label="File sync"><h3>Local sync folders</h3>
     <p>Choose one folder for this journal. Hot Cross Buns writes TODO.txt and its revision history while this tab is open and visible.</p>
     {error && <p role="alert">{error}</p>}
     {supportsLinkedFiles() ? <>
@@ -55,11 +55,11 @@ export function FileSyncSettings({ status, error, busy, onLink, onReview, onResu
       <p>A local save does not confirm cloud upload or delivery to another device. Check your sync client before switching devices. Scratchpad and appearance settings stay in this browser. Unlinking keeps both copies.</p>
     </> : <p>This browser cannot link local files. Use Commands → Import TODO.txt and Download TODO.txt with your synced folder.</p>}
     {providers.map(provider => <Provider key={provider.name} aria-label={provider.name}>
-      <h3 aria-label={provider.name}><a href={provider.site} target="_blank" rel="noreferrer" aria-label={`${provider.name} website`}><img src={`/providers/${provider.icon}`} alt={provider.name}/></a>{provider.name}</h3>
+      <h4 aria-label={provider.name}><a href={provider.site} target="_blank" rel="noreferrer" aria-label={`${provider.name} website`}><img src={`/providers/${provider.icon}`} alt={provider.name}/></a>{provider.name}</h4>
       <p>{provider.description}</p>
       <details><summary>{provider.name} setup</summary><ol>{provider.setup.map(step => <li key={step}>{step}</li>)}</ol><p><a href={provider.guide} target="_blank" rel="noreferrer">{provider.name} setup and recovery guide</a></p></details>
       {foldersSupported ? <Actions><Button type="button" disabled={busy || linked} onClick={onFolder}>{provider.button}</Button></Actions> : <p>Folder linking is unavailable in this browser. Use import and download with your synced folder.</p>}
     </Provider>)}
-    {supportsLinkedFiles() && !linked && <Provider aria-label="Individual-file options"><h3>Individual-file options</h3><p>Single-file mode saves TODO.txt without shared revision history. Link a provider folder above to retain concurrent app-authored versions.</p><Actions><Button disabled={busy} onClick={() => onLink(false)}>Link existing TODO.txt</Button><Button disabled={busy} onClick={() => onLink(true)}>Create linked TODO.txt</Button></Actions></Provider>}
+    {supportsLinkedFiles() && !linked && <Provider aria-label="Individual-file options"><h4>Individual-file options</h4><p>Single-file mode saves TODO.txt without shared revision history. Link a provider folder above to retain concurrent app-authored versions.</p><Actions><Button disabled={busy} onClick={() => onLink(false)}>Link existing TODO.txt</Button><Button disabled={busy} onClick={() => onLink(true)}>Create linked TODO.txt</Button></Actions></Provider>}
   </Section>;
 }

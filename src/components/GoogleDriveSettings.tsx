@@ -6,7 +6,7 @@ import type { DriveFile } from '../googleDrive';
 import type { DriveStatus } from '../useGoogleDrive';
 import { RevisionHistoryInfo } from './JournalSyncStatus';
 
-const Section = styled.section`margin-top:24px;padding-top:15px;border-top:1px solid var(--line);h2{display:flex;align-items:center;gap:9px;font-size:14px;margin:0 0 8px;}img{width:24px;height:24px;flex:none;}p{margin:7px 0;color:var(--muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere;}label{display:grid;gap:5px;margin-top:10px;font-size:12px;}input{width:100%;min-height:44px;}details{margin-top:10px;font-size:12px;}summary{padding:8px 0;cursor:pointer;}`;
+const Section = styled.section`margin-top:24px;padding-top:15px;border-top:1px solid var(--line);h3{display:flex;align-items:center;gap:9px;font-size:14px;margin:0 0 8px;}img{width:24px;height:24px;flex:none;}p{margin:7px 0;color:var(--muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere;}label{display:grid;gap:5px;margin-top:10px;font-size:12px;}input{width:100%;min-height:44px;}details{margin-top:10px;font-size:12px;}summary{padding:8px 0;cursor:pointer;}`;
 const Actions = styled.div`display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;button{min-height:44px;}`;
 const Files = styled.div`display:grid;gap:5px;max-height:200px;overflow:auto;margin-top:8px;button{text-align:left;overflow-wrap:anywhere;}`;
 export function GoogleDriveSettings({ config, onConfigure, sdkReady, onRetrySdk, connected, email, status, linked, files, busy, error, localLinked, onConnect, onCreate, onPick, onOpen, onReview, onResume, onUnlink, onDisconnect, creationPending, onDismissCreation, onDownloadCreation, protectedHistory, historyStats, onEnableHistory }: {
@@ -29,7 +29,7 @@ export function GoogleDriveSettings({ config, onConfigure, sdkReady, onRetrySdk,
     : status.kind === 'saving' ? `Saving ${status.name} to Google Drive…`
     : status.kind === 'saved' ? `${status.name} is up to date.${status.lastSavedAt ? ' Last written at ' + new Date(status.lastSavedAt).toLocaleTimeString() + '.' : ''}`
     : connected ? `Connected${email ? ' as ' + email : ''}. Create a journal or open an existing text file.` : 'Save TODO.txt directly to your Google Drive account.';
-  return <Section aria-label="Google Drive"><h2><img src="/providers/google-drive.png" alt=""/>Google Drive</h2>
+  return <Section aria-label="Google Drive"><h3><img src="/providers/google-drive.png" alt=""/>Google Drive</h3>
     <p>{message}</p>
     <p>Optional Google sign-in with your own Web OAuth client. Only files created or opened through this app are requested.</p>
     <p>New links keep immutable HCB-…json revision files in My Drive alongside the journal workflow. Keep those files to retain offline and concurrent changes. Use the same Web OAuth client ID on every device. Existing single-file links can enable history below.</p>
