@@ -5,15 +5,16 @@ import { createRevision, revisionText, sha256, type Revision } from '../src/revi
 import { serializeTodoText } from '../src/todoText';
 
 const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n';
-async function setup(page: Page) {
+async function setup(page: Page, provider?: string) {
   await page.addInitScript(() => {
     Object.assign(window, { showDirectoryPicker: () => navigator.storage.getDirectory() });
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
   });
   await page.goto('/');
   await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
-  await runCommand(page, 'Settings'); await page.getByRole('button', { name: 'Link sync folder', exact: true }).click();
+  await runCommand(page, 'Settings'); await page.getByRole('button', { name: provider ? `Link ${provider} folder` : 'Link sync folder', exact: true }).click();
   await expect.poll(async () => (await syncState(page, 'file-sync-ledger'))?.status.kind).toBe('saved');
+  for (const label of ['Link sync folder', 'Link Nextcloud folder', 'Link Dropbox folder']) await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
   await settings.getByRole('button', { name: 'close', exact: true }).click(); await expect(settings).toBeHidden();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
@@ -78,14 +79,14 @@ test('a temporary missing file during folder replacement catches up without manu
 });
 
 for (const profile of [
-  { name: 'Nextcloud folder fault model', conflict: 'TODO (conflicted copy 2026-11-15 120000).txt' },
-  { name: 'Dropbox folder fault model', conflict: "TODO (Kai's conflicted copy 2026-11-15).txt" },
+  { name: 'Nextcloud folder fault model', provider: 'Nextcloud', conflict: 'TODO (conflicted copy 2026-11-15 120000).txt' },
+  { name: 'Dropbox folder fault model', provider: 'Dropbox', conflict: "TODO (Kai's conflicted copy 2026-11-15).txt" },
 ]) {
   test(`${profile.name}: isolated offline journals retain both concurrent versions and converge after review`, async ({ page, browser }) => {
     test.setTimeout(75_000);
     const context = await browser.newContext({ timezoneId: 'Asia/Singapore' }), other = await context.newPage();
     try {
-      await setup(page); await setup(other);
+      await setup(page, profile.provider); await setup(other, profile.provider);
       expect((await syncState(page, 'linked-file')).id).not.toBe((await syncState(other, 'linked-file')).id);
       await transfer(other, page, false); await approve(page); await transfer(page, other); await saved(other);
       const common = (await syncState(page, 'file-sync-ledger')).revisions.frontier;
@@ -119,7 +120,7 @@ for (const profile of [
   });
 
   test(`${profile.name}: conflict copies are contextual and import through the existing review without deletion`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 }); await setup(page); await edit(page, 'Original', 'Local work');
+    await page.setViewportSize({ width: 390, height: 844 }); await setup(page, profile.provider); await edit(page, 'Original', 'Local work');
     const copy = initial.replace('Original', 'Recovered work'); await deliver(page, { [profile.conflict]: copy });
     await expect(page.getByRole('status', { name: 'Journal sync', exact: true })).toContainText('provider conflict copy');
     await runCommand(page, 'Settings'); const region = page.getByRole('region', { name: 'Sync folder conflict copies', exact: true });
@@ -200,11 +201,19 @@ test('a projection arriving before its authored history is retained and its late
 test('provider setup stays inside existing folder settings and makes no provider API requests', async ({ page }) => {
   const contacted: string[] = [];
   page.on('request', request => { if (/nextcloud|dropbox|onedrive|microsoftonline/.test(new URL(request.url()).hostname)) contacted.push(request.url()); });
-  await page.goto('/'); await runCommand(page, 'Settings');
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/'); await runCommand(page, 'Settings');
   const region = page.getByRole('region', { name: 'File sync', exact: true });
-  await expect(region).toContainText('Nextcloud, Dropbox or Syncthing');
-  await region.getByText('Nextcloud, Dropbox and Syncthing setup', { exact: true }).click();
-  await expect(region).toContainText('Do not exclude history');
-  await expect(region.getByRole('link', { name: 'Setup, verification and recovery guide', exact: true })).toHaveAttribute('href', /SYNC_FOLDERS.md$/);
+  for (const provider of ['Syncthing', 'Nextcloud', 'Dropbox']) {
+    const section = region.getByRole('region', { name: provider, exact: true });
+    await expect(section.getByRole('heading', { name: provider, exact: true })).toBeVisible();
+    await expect(section.getByRole('img', { name: provider, exact: true })).toHaveJSProperty('complete', true);
+    expect(await section.getByRole('img', { name: provider, exact: true }).evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    await section.getByText(`${provider} setup`, { exact: true }).click();
+    await expect(section).toContainText('.hot-cross-buns');
+    await expect(section.getByRole('link', { name: `${provider} setup and recovery guide`, exact: true })).toHaveAttribute('href', /docs\/(FILE_SYNC|SYNC_FOLDERS)\.md/);
+  }
+  await expect(region.getByRole('region', { name: 'Nextcloud', exact: true })).toContainText('server address');
+  await expect(region.getByRole('region', { name: 'Dropbox', exact: true })).toContainText('selective sync');
+  expect(await region.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await expect(region.getByRole('textbox')).toHaveCount(0); expect(contacted).toEqual([]);
 });

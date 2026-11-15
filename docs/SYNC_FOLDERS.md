@@ -1,6 +1,6 @@
 # Nextcloud and Dropbox sync folders
 
-Hot Cross Buns supports Nextcloud and Dropbox through their **desktop sync folders**, using the same protected file transport as Syncthing. Link one dedicated, locally available journal folder. The browser writes `TODO.txt` and immutable companion revisions; the desktop client handles authentication, cloud upload and device transfer. There is no new Nextcloud, WebDAV, Dropbox or OneDrive API connection in this release.
+Hot Cross Buns supports Nextcloud and Dropbox through their **desktop sync folders**, using the same protected file transport as Syncthing. Each provider has a separate settings section with its logo, setup details and folder picker. Link one dedicated, locally available journal folder. The browser writes `TODO.txt` and immutable companion revisions; the desktop client handles authentication, cloud upload and device transfer. Enter Nextcloud server/account details or Dropbox sign-in in the corresponding desktop client, rather than in Hot Cross Buns. There is no new Nextcloud, WebDAV, Dropbox or OneDrive API connection in this release.
 
 Automated tests exercise the app with real browser-local file handles and simulated transfer faults. **Actual Nextcloud/Dropbox accounts, desktop clients, native OS pickers and physical-device delivery have not been validated.** Treat the setup below as the supported app workflow with that validation boundary, rather than evidence that your client configuration transfers every file.
 
@@ -9,7 +9,7 @@ Automated tests exercise the app with real browser-local file handles and simula
 1. Install and sign in to the [Nextcloud desktop client](https://docs.nextcloud.com/server/stable/user_manual/en/desktop/usage.html). Use your own server or hosting provider. Nextcloud software is open source; server infrastructure or hosted accounts may cost money.
 2. Create a dedicated `HotCrossBuns` directory inside a synchronized location. Include it in the folders selected for synchronization. A shared team folder must give every editing device write access.
 3. Keep the **whole directory available offline**, including its hidden `.hot-cross-buns` contents. Check ignored-file patterns and any ignore-hidden-files option. On [macOS File Provider](https://docs.nextcloud.com/server/stable/user_manual/en/desktop/macosfileprovider.html), Finder can evict local files; keep the journal directory downloaded. A placeholder is not a usable local backup.
-4. Open **Commands → Settings → File sync → Link sync folder** and select that dedicated directory. Existing text goes through normal import/doctor review. An empty target receives the saved browser journal.
+4. Open **Commands → Settings → Nextcloud → Link Nextcloud folder** and select that dedicated directory. Existing text goes through normal import/doctor review. An empty target receives the saved browser journal.
 5. Wait for the app to finish writing locally, then check the Nextcloud client's transfer status. Verify both `TODO.txt` and `.hot-cross-buns` on the second device before linking there. The verification procedure below provides a repeatable content check.
 6. On the second device, finish downloading the entire directory and link it through the same action. Its initial branch may need explicit review even when the text matches. Keep the app open and visible while it catches up.
 
@@ -19,7 +19,7 @@ Nextcloud's [conflict documentation](https://docs.nextcloud.com/server/stable/us
 
 1. Install and sign in to the [Dropbox desktop application](https://help.dropbox.com/sync/access-files-offline) on each editing computer.
 2. Create a dedicated `HotCrossBuns` folder in Dropbox. Include it in [selective sync](https://help.dropbox.com/sync/selective-sync-overview) on **every computer**; that choice is per computer. Mark the whole folder **Make available offline**. Keep `.hot-cross-buns` included and downloaded, rather than just the visible text file.
-3. Link that local directory using **Link sync folder**. Use the same import and initial-branch review process as Nextcloud.
+3. Open **Commands → Settings → Dropbox → Link Dropbox folder** and select that local directory. Use the same import and initial-branch review process as Nextcloud.
 4. Wait for local saving and then independently check [Dropbox's sync status](https://help.dropbox.com/sync/check-sync-status). Before switching devices, wait for transfer to finish and verify the receiving directory.
 5. Keep both versions of any [Dropbox conflicted copy](https://help.dropbox.com/organize/conflicted-copy), such as `TODO (Kai's conflicted copy 2026-11-15).txt`. Use the contextual import action to review its contents. The app does not delete conflict copies after import; archive them yourself after checking the merged journal.
 
