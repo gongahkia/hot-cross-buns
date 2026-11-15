@@ -1,6 +1,6 @@
 # TODO.txt import doctor
 
-The doctor runs before an import changes Hot Cross Buns's IndexedDB working copy. It shows the imported file and a separate editable working copy. It never rewrites the file you selected. Only **Apply import** changes the browser journal. If both the browser journal and file changed the same item, a separate merge review follows the format review.
+The doctor runs before an import changes Hot Cross Buns's IndexedDB working copy. It shows the imported file and a separate editable working copy. Ordinary imports do not rewrite the selected file. When linking a file or reviewing a linked file, applying the import resumes automatic file saves, including approved repairs; cancelling leaves the file untouched. See [file sync](FILE_SYNC.md). Only **Apply import** changes the browser journal. If both the browser journal and file changed the same item, a separate merge review follows the format review.
 
 The doctor proposes narrow repairs when the intended structure is recognizable. Every proposal is shown with its original and replacement text. You can edit the working copy, then choose **Check file** to run the doctor again. You can cancel without applying anything.
 

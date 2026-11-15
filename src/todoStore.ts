@@ -174,3 +174,22 @@ export async function undoScratchpadConversion(undo: ScratchpadUndo): Promise<{ 
   announce('journal'); announce('scratchpad');
   return result;
 }
+
+// a separate key preserves the linked file's baseline when manual imports or downloads change theirs.
+export async function loadFileLink(): Promise<import('./linkedFile').FileLink | null> {
+  const db = await openDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).get('linked-file');
+      request.onsuccess = () => resolve(request.result ?? null);
+      request.onerror = () => reject(request.error);
+    });
+  } finally { db.close(); }
+}
+export async function storeFileLink(link: import('./linkedFile').FileLink | null): Promise<void> {
+  await transact<void>([STATE_STORE], (tx, done) => {
+    const store = tx.objectStore(STATE_STORE);
+    if (link) store.put(link, 'linked-file'); else store.delete('linked-file');
+    done();
+  });
+}

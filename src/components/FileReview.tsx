@@ -28,8 +28,8 @@ const SmallButton = styled(Button)`min-height: 40px; padding: 6px 9px;`;
 
 const itemLabel = (item: TodoItem | null) => item ? `${item.completed ? 'done' : 'upcoming'}  ${item.text}${item.details.map(detail => `\n  - [${detail.completed ? 'x' : ' '}] ${detail.text}`).join('')}` : '(deleted / absent)';
 
-export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit, onChoice, onReparse, onApply, onDoctorAction }: {
-  review: FileReviewState | null; rawEdit: string; choices: Record<string, MergeChoice>; busy: boolean;
+export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit, onChoice, onReparse, onApply, onDoctorAction, linked = false, error }: {
+  error?: string; linked?: boolean; review: FileReviewState | null; rawEdit: string; choices: Record<string, MergeChoice>; busy: boolean;
   onClose: () => void; onRawEdit: (value: string) => void; onChoice: (key: string, choice: MergeChoice) => void;
   onReparse: () => void; onApply: () => void; onDoctorAction: (finding: DoctorFinding, action: DoctorAction, value?: string) => void;
 }) {
@@ -40,8 +40,9 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
   const blocking = doctor?.findings.some(finding => finding.level === 'review') ?? false;
   return <Modal open={!!review} onClose={onClose} title="Review TODO.txt import" wide>
     <Title>{doctor ? 'Check TODO.txt import' : 'Review TODO.txt import'}</Title>
+    {error && <InlineError role="alert">{error}</InlineError>}
     {doctor ? <>
-      <Note>The original file remains unchanged. Review the proposed repairs and edit the working text before applying it to Hot Cross Buns.</Note>
+      <Note>{linked ? 'Applying this import resumes saving to the linked file, including any repairs. Until then, the file stays unchanged.' : 'The original file remains unchanged. Review the proposed repairs and edit the working text before applying it to Hot Cross Buns.'}</Note>
       {unchecked && <InlineError>Text changed. Check the file again before importing.</InlineError>}
       {blocking && <InlineError>{doctor.findings.filter(finding => finding.level === 'review').length} issue{doctor.findings.filter(finding => finding.level === 'review').length === 1 ? '' : 's'} need a decision.</InlineError>}
       <div aria-label="TODO.txt doctor findings">{doctor.findings.map((finding, index) => {
@@ -58,6 +59,7 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
       <Actions><Button onClick={onClose}>cancel</Button><Button onClick={onReparse}>check file</Button><Button $primary disabled={busy || unchecked || blocking} onClick={onApply}>apply import</Button></Actions>
     </> : <>
       <Note>{merge?.proposal.conflicts.length ?? 0} item{merge?.proposal.conflicts.length === 1 ? '' : 's'} need a decision. Clear changes will merge automatically.</Note>
+      {linked && <Note>Applying this review resumes saving the merged journal to the linked file.</Note>}
       {merge?.proposal.conflicts.map(row => <ReviewRow key={row.key}>
         <Note>{row.date}{row.reorderConflict ? ' · order changed on both sides' : ''}</Note>
         <Panes>

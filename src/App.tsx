@@ -14,6 +14,9 @@ import { JournalDatePicker } from './components/JournalDatePicker';
 import { ExportPreview, type LineEnding } from './components/ExportPreview';
 import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
+import { FileSyncSettings, fileSyncMessage } from './components/FileSyncSettings';
+import { useLinkedFile } from './useLinkedFile';
+import { pickLinkedFile, readLinkedText, type LinkedFileHandle } from './linkedFile';
 import { CommandPalette, commandKey, type PaletteCommand } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
@@ -337,6 +340,7 @@ export default function App() {
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<UndoNotice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fileActionError, setFileActionError] = useState('');
   const importInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const paletteButton = useRef<HTMLButtonElement>(null);
@@ -348,6 +352,8 @@ export default function App() {
   const pendingJournal = useRef(0);
   const journalGeneration = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
+  const pendingLink = useRef<{ handle: LinkedFileHandle; raw: string; id?: string; baselineDocument?: TodoDocument; reviewLocalText?: string } | null>(null);
+  const fileSync = useLinkedFile(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure);
   const today = todayString();
   const shownHolidayYears = (viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]).map(date => Number(date.slice(0, 4)));
   const holidayYearsKey = [...new Set(shownHolidayYears)].join(',');
@@ -921,6 +927,39 @@ export default function App() {
     for (const date of viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]) projectItemsForDate(document, date, budget);
     if (pastUnfinishedScope === 'all') earlierUnfinishedDays(document, todayString());
   };
+  const finishFileLink = async (baseline: TodoDocument) => {
+    const pending = pendingLink.current;
+    if (!pending) return;
+    await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null);
+    pendingLink.current = null;
+  };
+  const linkFile = async (create: boolean) => {
+    setBusy(true); setFileActionError('');
+    try {
+      const handle = await pickLinkedFile(create);
+      const raw = await readLinkedText(handle);
+      if (create) {
+        if (raw) throw new Error('This file already contains text. Use Link existing TODO.txt to review it.');
+        await fileSync.establish(handle, raw, emptyDocument());
+      } else {
+        pendingLink.current = { handle, raw };
+        setSettingsOpen(false);
+        await imported(raw);
+      }
+    } catch (error) {
+      pendingLink.current = null;
+      if (!(error instanceof DOMException && error.name === 'AbortError')) { setFileActionError(String(error)); reportSaveError(error, 'Could not link file: '); }
+    } finally { setBusy(false); }
+  };
+  const reviewLinkedFile = async () => {
+    setBusy(true); setFileActionError('');
+    try {
+      pendingLink.current = await fileSync.review();
+      setSettingsOpen(false);
+      await imported(pendingLink.current.raw);
+    } catch (error) { pendingLink.current = null; setFileActionError(String(error)); reportSaveError(error, 'Could not review linked file: '); }
+    finally { setBusy(false); }
+  };
   const imported = async (raw: string, original = raw) => {
     assertImportText(raw);
     const diagnosis = doctorTodoText(raw);
@@ -931,12 +970,16 @@ export default function App() {
     }
     const parsed = parseTodoText(raw);
     if (parsed.issues.length) throw new Error('The TODO.txt doctor found a format issue after review.');
-    const proposal = proposeMerge(current.current.document, parsed.document, current.current.baseline);
-    if (proposal.conflicts.length) { setChoices({}); setReview({ kind: 'merge', raw, proposal }); return; }
+    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.baselineDocument ?? current.current.baseline);
+    if (proposal.conflicts.length) {
+      if (pendingLink.current) pendingLink.current.reviewLocalText = serializeTodoText(current.current.document);
+      setChoices({}); setReview({ kind: 'merge', raw, proposal }); return;
+    }
     const merged = resolveMerge(proposal, {});
-    advanceRecurrences(current.current.document, merged, todayString(), true, current.current.baseline);
+    advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
     validateDocument(merged);
     await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal) });
+    await finishFileLink(fileBaseline(proposal));
     setReview(null);
     setMessage('TODO.txt imported.');
   };
@@ -958,12 +1001,14 @@ export default function App() {
         await imported(rawEdit, review.original);
         return;
       }
+      if (pendingLink.current?.reviewLocalText !== undefined && pendingLink.current.reviewLocalText !== serializeTodoText(current.current.document)) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
       const merged = resolveMerge(review.proposal, choices);
-      advanceRecurrences(current.current.document, merged, todayString(), true, current.current.baseline);
+      advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
       validateDocument(merged);
       await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal) });
+      await finishFileLink(fileBaseline(review.proposal));
       setReview(null); setMessage('TODO.txt imported.');
-    } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); }
+    } catch (error) { if (pendingLink.current) setFileActionError(String(error)); reportSaveError(error, ''); } finally { setBusy(false); }
   };
   const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); } };
   const doctorAction = (finding: DoctorFinding, action: DoctorAction, value?: string) => {
@@ -1120,6 +1165,10 @@ export default function App() {
       {(['all', 'open', 'done'] as const).map(value => <StatusFilter key={value} type="button" aria-label={value === 'all' ? 'All statuses' : value === 'open' ? 'Open items' : 'Done items'} aria-pressed={completionFilter === value} onClick={() => setCompletionFilter(value)}>{value === 'all' ? 'All' : value === 'open' ? 'Open' : 'Done'}</StatusFilter>)}
       <span aria-live="polite">{searchResultCount} {searchResultCount === 1 ? 'item' : 'items'}</span>
     </SearchFilters>}
+    {!popout && ['changed', 'permission', 'error'].includes(fileSync.status.kind) && <Notice role="status" aria-label="File sync">
+      {fileSyncMessage(fileSync.status)}
+      <Button disabled={busy} onClick={() => { if (fileSync.status.kind === 'changed') void reviewLinkedFile(); else void fileSync.resume().catch(error => reportSaveError(error)); }}>{fileSync.status.kind === 'changed' ? 'Review linked file' : 'Resume file saving'}</Button>
+    </Notice>}
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setSearchOpen(false); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
@@ -1229,7 +1278,7 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
-    <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
+    <AppearanceSettings fileSync={<FileSyncSettings status={fileSync.status} error={fileActionError} busy={busy} onLink={create => { void linkFile(create); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>} open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
       timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
       weekStart={weekStart} onWeekStartChange={value => {
         setWeekStart(value); setWeekStartState(value);
@@ -1247,8 +1296,8 @@ export default function App() {
         edit(document => { added = addSavedHolidays(document, holidays, todayString(), newId); });
         setHolidayStatus(`${added} ${added === 1 ? 'holiday' : 'holidays'} added from ${source}${holidays.length > added ? `; ${holidays.length - added} already present` : ''}.`);
       }).catch(error => { if (!controller.signal.aborted) setHolidayStatus(`Could not add holidays: ${String(error)}`); }).finally(() => { if (holidayImport.current === controller) holidayImport.current = null; }); }}/>
-    <FileReview review={review} rawEdit={rawEdit} choices={choices} busy={busy}
-      onClose={() => setReview(null)} onRawEdit={setRawEdit}
+    <FileReview error={pendingLink.current ? fileActionError : undefined} linked={!!pendingLink.current} review={review} rawEdit={rawEdit} choices={choices} busy={busy}
+      onClose={() => { pendingLink.current = null; setReview(null); }} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
       onReparse={() => void reparse()} onApply={() => void applyReview()} onDoctorAction={doctorAction}/>
     <SaveRecovery error={saveFailure} text={saveFailure ? serializeTodoText(current.current.document) : ''} kind="journal" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={discardUnsavedJournal}/>

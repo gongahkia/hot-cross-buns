@@ -37,7 +37,7 @@ async function showThirtyOneDays(page: Page) {
   await page.getByRole('button', { name: 'Choose date' }).click();
   await selectJournalCalendarDate(page, dateOffset(0));
   await selectJournalCalendarDate(page, dateOffset(30));
-  await expect(page.locator('section')).toHaveCount(31);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(31);
 }
 
 async function showJournalDay(page: Page, date: string) {
@@ -1153,9 +1153,9 @@ test('uses the calendar to switch between the default week, one day, and a selec
   const monday = dateOffset(-((date.getDay() + 6) % 7));
   const sunday = dateOffset(6 - ((date.getDay() + 6) % 7));
   await page.goto('/');
-  await expect(page.locator('section')).toHaveCount(7);
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', monday);
-  await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', sunday);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(7);
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', monday);
+  await expect(page.locator('[data-journal-date]').last().locator('time')).toHaveAttribute('datetime', sunday);
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
   await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
@@ -1172,25 +1172,25 @@ test('uses the calendar to switch between the default week, one day, and a selec
   await expect(page.getByText('Choose a day, or show its week.')).toHaveCount(0);
   await rangeToggle.click();
   await expect(rangeToggle).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('section')).toHaveCount(1);
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(1);
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', today);
   await selectJournalCalendarDate(page, dateOffset(1));
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(1));
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', dateOffset(1));
   await page.getByRole('button', { name: 'Choose date' }).click();
   await page.getByRole('button', { name: 'Select date range' }).click();
-  await expect(page.locator('section')).toHaveCount(7);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(7);
   await selectJournalCalendarDate(page, today);
   await selectJournalCalendarDate(page, dateOffset(2));
   await expect(page.getByLabel('Choose journal date')).toHaveCount(0);
-  await expect(page.locator('section')).toHaveCount(3);
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
-  await expect(page.locator('section').last().locator('time')).toHaveAttribute('datetime', dateOffset(2));
+  await expect(page.locator('[data-journal-date]')).toHaveCount(3);
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', today);
+  await expect(page.locator('[data-journal-date]').last().locator('time')).toHaveAttribute('datetime', dateOffset(2));
   await expect(page.getByRole('button', { name: `Viewing ${today} to ${dateOffset(2)}; go to today` })).toBeVisible();
   await page.getByRole('button', { name: 'Next range' }).click();
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
   await page.reload();
-  await expect(page.locator('section')).toHaveCount(3);
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
+  await expect(page.locator('[data-journal-date]')).toHaveCount(3);
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', dateOffset(3));
   await page.setViewportSize({ width: 320, height: 700 });
   await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Choose date' }).click();
@@ -1198,10 +1198,10 @@ test('uses the calendar to switch between the default week, one day, and a selec
   expect(popup.x).toBeGreaterThanOrEqual(0);
   expect(popup.x + popup.width).toBeLessThanOrEqual(320);
   await page.getByRole('button', { name: 'Select date range' }).click();
-  await expect(page.locator('section')).toHaveCount(1);
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', today);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(1);
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', today);
   await page.reload();
-  await expect(page.locator('section')).toHaveCount(7);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(7);
   await expect(page.getByRole('button', { name: `Viewing ${monday} to ${sunday}; go to today` })).toBeVisible();
 });
 
@@ -1279,7 +1279,7 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await settings.getByLabel('How to use holidays').selectOption('view');
   await settings.getByLabel('Use public holidays').check();
   await settings.getByRole('button', { name: 'close' }).click();
-  await expect(page.locator('section').first().locator('time')).toHaveAttribute('datetime', dateOffset(-new Date(`${today}T12:00:00`).getDay()));
+  await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', dateOffset(-new Date(`${today}T12:00:00`).getDay()));
   await expect(page.locator('h2').filter({ hasText: 'Test Holiday' })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 700 });
   await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
@@ -1291,7 +1291,7 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await page.getByRole('dialog', { name: 'Download TODO.txt' }).press('Escape');
   await runCommand(page, 'Hot Cross Buns settings');
   await settings.getByLabel('How to use holidays').selectOption('saved');
-  await expect(settings.getByRole('status')).toContainText('1 holiday added');
+  await expect(settings.getByRole('status').filter({ hasText: '1 holiday added' })).toContainText('1 holiday added');
   await settings.getByLabel('Use public holidays').uncheck();
   await settings.getByRole('button', { name: 'close' }).click();
   await expect(page.getByText('Test Holiday')).toBeVisible();
@@ -1308,9 +1308,9 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await runCommand(page, 'Hot Cross Buns settings');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Week starts on').selectOption('1');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
-  const alignedDate = await page.locator('section').first().locator('time').getAttribute('datetime');
+  const alignedDate = await page.locator('[data-journal-date]').first().locator('time').getAttribute('datetime');
   expect(new Date(`${alignedDate}T12:00:00`).getDay()).toBe(1);
-  await expect(page.locator('section')).toHaveCount(7);
+  await expect(page.locator('[data-journal-date]')).toHaveCount(7);
 });
 
 test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {

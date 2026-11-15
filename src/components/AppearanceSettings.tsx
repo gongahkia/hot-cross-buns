@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { Moon, Sun } from 'lucide-react';
 import { Button } from '../styles';
@@ -21,8 +21,8 @@ const ThemeChoices = styled.div`display:inline-flex;gap:4px;padding:3px;border:1
 const ThemeButton = styled.button<{ $selected: boolean }>`display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;min-width:94px;padding:0 12px;border:0;border-radius:6px;background:${({ $selected }) => $selected ? 'var(--surface)' : 'transparent'};color:var(--ink);font:inherit;font-size:13px;cursor:pointer;box-shadow:${({ $selected }) => $selected ? '0 1px 3px #00000022' : 'none'};transition:background 140ms ease,box-shadow 140ms ease;&:hover{background:var(--surface);}&:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}svg{width:17px;height:17px;stroke-width:1.8;}`;
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, pastUnfinishedScope, onPastUnfinishedScopeChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus }: {
-  open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void;
+export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChange, timeZone, onTimeZoneChange, weekStart, onWeekStartChange, pastUnfinishedScope, onPastUnfinishedScopeChange, holidaysEnabled, onHolidaysEnabledChange, holidayMode, onHolidayModeChange, holidayCountry, onHolidayCountryChange, onImportHolidays, holidayStatus, fileSync }: {
+  fileSync: ReactNode; open: boolean; onClose: () => void; dateFormat: DateFormat; onDateFormatChange: (value: DateFormat) => void;
   timeZone: string; onTimeZoneChange: (value: string) => void; weekStart: WeekStart; onWeekStartChange: (value: WeekStart) => void;
   pastUnfinishedScope: PastUnfinishedScope; onPastUnfinishedScopeChange: (value: PastUnfinishedScope) => void;
   holidaysEnabled: boolean; onHolidaysEnabledChange: (value: boolean) => void; holidayMode: HolidayMode; onHolidayModeChange: (value: HolidayMode) => void;
@@ -36,6 +36,7 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
   return <Modal open={open} onClose={onClose} title="Hot Cross Buns settings" compact>
     <ThemeField><legend>Appearance</legend><ThemeChoices role="group" aria-label="Appearance"><ThemeButton type="button" $selected={theme === 'day'} aria-pressed={theme === 'day'} aria-label="Light mode" onClick={() => chooseTheme('day')}><Sun aria-hidden="true"/>Light</ThemeButton><ThemeButton type="button" $selected={theme === 'night'} aria-pressed={theme === 'night'} aria-label="Dark mode" onClick={() => chooseTheme('night')}><Moon aria-hidden="true"/>Dark</ThemeButton></ThemeChoices></ThemeField>
     <FontField>Date headings<FontSelect value={dateFormat} onChange={event => onDateFormatChange(event.target.value as DateFormat)}>{dateFormatOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</FontSelect></FontField>
+    {fileSync}
     <SectionTitle>Scratchpad</SectionTitle>
     <FontField>Selected lines become<FontSelect value={scratchpadMapping} onChange={event => { const value = event.target.value as ScratchpadMapping; setScratchpadMapping(value); setMappingState(value); }}><option value="details">First line as title, rest as details</option><option value="items">One item per nonempty line</option><option value="single">One title joining all lines</option></FontSelect></FontField>
     <FontField>After creating an item<FontSelect value={scratchpadMoveMode} onChange={event => { const value = event.target.value as ScratchpadMoveMode; setScratchpadMoveMode(value); setMoveModeState(value); }}><option value="cut">Remove selected scratchpad text</option><option value="ask">Ask whether to remove or keep it</option></FontSelect></FontField>

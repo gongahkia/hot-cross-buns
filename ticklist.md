@@ -11,6 +11,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Responsive browser layouts, themes, appearance preferences and shared browser popouts.
 - [x] Explicit TODO.txt import, doctor, conflict review and download preview.
 - [x] Separate, read-only Google Calendar and Tasks snapshot tools.
+- [x] Direct saving to a linked TODO.txt file, with a Syncthing workflow, external-change review and file-write recovery.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
 - [x] All/Open/Done search filters combined with text and hashtags across dated entries.
@@ -22,6 +23,8 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 ## Next validation
 
+- [ ] Dogfood linked-file saves with real Syncthing devices, browser permission renewal, concurrent edits and conflict copies. Headless tests use real browser file handles with a substituted OS picker; they do not exercise Syncthing transport or native picker dialogs.
+
 - [ ] Dogfood capture, complete, defer, find and export for two weeks. Record where text loses context or the workflow needs extra steps.
 - [ ] Check persistence, import/download and failed-save recovery on actual Safari, Firefox and mobile browsers. Chromium automation and phone viewport tests do not establish compatibility with those browsers or devices.
 - [ ] Review keyboard and screen-reader navigation across journal rows, details, dialogs and popouts.
@@ -32,7 +35,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 - A full calendar application or parity with the Google Calendar and Tasks suites.
 - Automatic deletion of old journal content.
-- A hosted database, Google Drive sync or continuous Google account sync.
+- A hosted database, Google Drive sync or continuous Google account sync. Sync support stays file-based, with Syncthing as the documented free option; add other free workflows only when needed.
 - Electron, a desktop menubar app or an installable PWA as part of this browser restoration.
 
 Keep the one-time Shio Pan storage migration, old Google snapshot format alias and old service-worker retirement code while existing users may still need them. Removing those compatibility paths requires a separate migration decision.
