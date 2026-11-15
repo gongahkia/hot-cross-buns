@@ -87,5 +87,19 @@ test('touch editors use readable text and weekday headings do not repeat on mobi
   await expect(heading.locator(':scope > span').first()).toBeHidden();
   await expect(page.getByRole('textbox', { name: 'Edit Review on phone' })).toHaveCSS('font-size', '16px');
   await page.setViewportSize({ width: 768, height: 700 });
-  await expect(heading.locator(':scope > span').first()).toBeVisible();
+  try {
+    await expect(heading.locator(':scope > span').first()).toBeVisible();
+  } catch (error) {
+    console.error('Mobile rotation diagnostics:', await page.evaluate(date => {
+      const element = document.querySelector(`time[datetime="${date}"]`)?.nextElementSibling;
+      return {
+        innerWidth, screenWidth: screen.width, visualWidth: visualViewport?.width,
+        mobileQuery: matchMedia('(max-width:600px)').matches,
+        display: element && getComputedStyle(element).display,
+        visibility: element && getComputedStyle(element).visibility,
+        rect: element?.getBoundingClientRect().toJSON(),
+      };
+    }, date));
+    throw error;
+  }
 });
