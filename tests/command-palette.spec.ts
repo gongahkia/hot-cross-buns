@@ -8,25 +8,27 @@ test('the single launcher exposes only the five current toolbar commands', async
   for (const name of ['Open search', 'Import TODO.txt', 'Download TODO.txt', 'Open view in browser window', 'Hot Cross Buns settings']) {
     await expect(header.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
+  await expect(header.locator('input')).toHaveCount(0);
+  await expect(page.locator('#journal-search, #journal-search-panel')).toHaveCount(0);
   await expect(header.getByRole('button', { name: 'Choose date', exact: true })).toBeVisible();
   const palette = await openCommands(page);
   expect(await palette.getByRole('option').allTextContents()).toEqual([
     expect.stringContaining('Search journal'), 'Import TODO.txt', 'Download TODO.txt', 'Open view in browser window', 'Settings',
   ]);
-  await expect(palette.getByRole('combobox', { name: 'Filter commands', exact: true })).toBeFocused();
+  await expect(palette.getByRole('combobox', { name: 'Search commands and journal', exact: true })).toBeFocused();
   await expect(palette.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
 });
 
 test('filtering supports aliases, empty results and a fresh query on reopen', async ({ page }) => {
   await page.goto('/');
   const palette = await openCommands(page);
-  const input = palette.getByRole('combobox', { name: 'Filter commands', exact: true });
+  const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await input.fill('  EXPORT  ');
   await expect(palette.getByRole('option')).toHaveCount(1);
   await expect(palette.getByRole('option')).toHaveText('Download TODO.txt');
   await input.fill('Google Calendar');
   await expect(palette.getByRole('option')).toHaveCount(0);
-  await expect(palette.getByRole('status')).toHaveText('No matching commands.');
+  await expect(palette.getByRole('status')).toHaveText('No matching entries or commands.');
   await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/);
   await input.press('Enter');
   await expect(palette).toBeVisible();
@@ -45,7 +47,7 @@ test('Ctrl K, arrows, Home, End and Enter hand off to settings with focus', asyn
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
-  const input = palette.getByRole('combobox', { name: 'Filter commands', exact: true });
+  const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await expect(input).toBeFocused();
   await input.press('ArrowDown');
   await expect(palette.getByRole('option', { name: 'Import TODO.txt', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -71,7 +73,7 @@ test('Ctrl K, arrows, Home, End and Enter hand off to settings with focus', asyn
 test('search receives focus, retains its filters and still supports Ctrl F', async ({ page }) => {
   await page.goto('/');
   await runCommand(page, 'Open search');
-  const input = page.getByRole('searchbox', { name: 'Search journal', exact: true });
+  const input = page.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await expect(input).toBeFocused();
   await input.fill('A search');
   await page.getByRole('button', { name: 'Open items', exact: true }).click();
@@ -121,7 +123,7 @@ test('palette text editing and composition do not trigger journal undo or comman
   await add.fill('Keep the journal'); await add.press('Enter');
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
-  const input = palette.getByRole('combobox', { name: 'Filter commands', exact: true });
+  const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await input.pressSequentially('download');
   await input.press('Control+z');
   await expect(input).not.toHaveValue('download');
@@ -129,7 +131,8 @@ test('palette text editing and composition do not trigger journal undo or comman
   await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true });
   await expect(palette).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Download TODO.txt', exact: true })).toBeHidden();
-  await expect(page.getByRole('group', { name: 'Keep the journal', exact: true })).toBeVisible();
+  await input.fill('Keep the journal');
+  await expect(palette.getByRole('option').filter({ has: page.getByText('Keep the journal', { exact: true }) })).toHaveCount(1);
   await input.press('Escape');
   await expect(palette).toHaveAttribute('data-state', 'closed');
   await page.keyboard.press('Control+z');
@@ -141,7 +144,7 @@ test('rapid close and reopen cancels the previous exit and keeps focus inside', 
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
-  const input = palette.getByRole('combobox', { name: 'Filter commands', exact: true });
+  const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await input.fill('export');
   await input.press('Escape');
   await page.keyboard.press('Control+k');
@@ -178,7 +181,7 @@ test('the historical scale and fade animate and the smooth caret resumes after e
   const samples = await page.evaluate(() => Reflect.get(window, 'paletteScales')) as Array<{ scale: number; duration: number }>;
   expect(samples[0].duration).toBe(200);
   expect(samples[0].scale).toBeGreaterThan(.95); expect(samples[0].scale).toBeLessThan(1);
-  await expect(palette.getByRole('combobox', { name: 'Filter commands', exact: true })).toHaveAttribute('data-smooth-caret', 'true');
+  await expect(palette.getByRole('combobox', { name: 'Search commands and journal', exact: true })).toHaveAttribute('data-smooth-caret', 'true');
   await palette.press('Escape');
   await expect(palette).toBeHidden();
   await expect.poll(() => page.evaluate(() => (Reflect.get(window, 'paletteScales') as unknown[]).length)).toBe(2);
@@ -190,7 +193,7 @@ test('the palette fits phone screens and shortened visual viewports', async ({ p
   const palette = await openCommands(page);
   await expect(palette.getByRole('option').last()).toBeInViewport();
   await page.setViewportSize({ width: 667, height: 260 });
-  const input = palette.getByRole('combobox', { name: 'Filter commands', exact: true });
+  const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await expect(input).toBeInViewport();
   await expect(palette.getByRole('button', { name: 'Close command palette', exact: true })).toBeInViewport();
   await input.fill('settings'); await input.press('Enter');

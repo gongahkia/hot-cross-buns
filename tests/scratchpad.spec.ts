@@ -1,4 +1,4 @@
-import { runCommand } from './commands';
+import { runCommand, selectSearchResult } from './commands';
 import { expect, test } from '@playwright/test';
 
 async function selectText(page: import('@playwright/test').Page, start: number, end: number) {
@@ -106,7 +106,8 @@ test('dated popout edits synchronize with the main window', async ({ page }) => 
   await add.press('Enter');
   await expect(popup.getByRole('group', { name: 'Written in popout' })).toBeVisible();
   await runCommand(page, 'Open search');
-  await page.getByRole('searchbox', { name: 'Search journal' }).fill('Written in popout');
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('Written in popout');
+  await selectSearchResult(page, 'Written in popout');
   await expect(page.getByRole('group', { name: 'Written in popout' })).toBeVisible();
   await popup.close();
 });

@@ -11,8 +11,12 @@ async function setup(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
 }
-async function disk(page: Page): Promise<string> {
-  return page.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true })).getFile()).text());
+async function disk(page: Page, synchronized = true): Promise<string> {
+  return page.evaluate(async synchronized => {
+    const read = async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true })).getFile()).text();
+    // a File snapshot can become unreadable when an app save replaces it midway through a test read.
+    return synchronized ? navigator.locks.request('hot-cross-buns-linked-file', read) : read();
+  }, synchronized);
 }
 async function externalEdit(page: Page, text: string) {
   await page.evaluate(async text => {
@@ -179,7 +183,7 @@ test('a shared write lock serializes saves from two browser windows', async ({ p
   await expect(second.getByRole('textbox', { name: 'Edit First window', exact: true })).toBeVisible();
   await second.getByRole('textbox', { name: 'Edit detail Keep detail', exact: true }).fill('Second window detail');
   await second.getByRole('textbox', { name: 'Edit detail Keep detail', exact: true }).press('Tab');
-  expect(await disk(page)).toContain('Original');
+  expect(await disk(page, false)).toContain('Original');
   await page.evaluate(() => Reflect.get(window, 'releaseFileLock')());
   await expect.poll(() => disk(page)).toContain('First window\n- Second window detail');
   await expect(page.getByRole('status', { name: 'File sync', exact: true })).toHaveCount(0);

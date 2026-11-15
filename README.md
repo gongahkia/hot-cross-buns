@@ -18,17 +18,19 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 * Scheduled and after-completion recurrence *(individual, following & all-item edits)*
 * Drag to reorder items and details or move items between dates *(quick Today/Tomorrow choices)*
 * Promote details to items and move items under a parent
-* Search across dated entries by title, detail, hashtag and completion status
+* Palette search by title, detail and hashtag *(All/Open/Done for dated entries)*
 * Undo/redo and completion confirmations
 * TODO.txt import doctor, conflict review and download preview
 * Direct TODO.txt saving in a Syncthing folder *(or another free file sync workflow)*
 * Browser popouts sharing the local journal and scratchpad
 * Light/dark themes, date formats, time zones and optional public holidays
 * Smooth caret movement while typing and navigating *(respects reduced motion)*
-* Command palette for search, import, download, browser windows and settings *(⌘K / Ctrl+K)*
+* Command palette for search, import, download, browser windows and settings *(⌘K / Ctrl+K; ⌘F / Ctrl+F for search)*
 * One-time, read-only Google Calendar and Tasks import through separate scripts
 
 The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. To save edits directly to a file, use **Settings → File sync** in a supported browser and link TODO.txt in a Syncthing folder. Syncthing transfers the file between devices; external changes pause saves for review. Without a linked file, import and download remain manual. See [file sync](./docs/FILE_SYNC.md) for setup and limitations. Scratchpad text and appearance settings are excluded from TODO.txt; move scratchpad text into journal items to include it in an export.
+
+Open **Commands** to type a command or search the current journal view. The palette contains tag and completion filters; selecting an entry takes you to it. Escape closes the palette and clears its filters. Journal results show up to 50 entries at a time with the total count; refine the query to narrow them.
 
 ## Usage
 

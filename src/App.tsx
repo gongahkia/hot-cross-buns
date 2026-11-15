@@ -4,7 +4,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import styled, { keyframes } from 'styled-components';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Command, Download, FileInput, PanelsTopLeft, Search, Settings2, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Command, Download, FileInput, PanelsTopLeft, Search, Settings2 } from 'lucide-react';
 import { Button, Field, IconButton, Muted, VisuallyHidden, press } from './styles';
 import { AppearanceSettings } from './components/AppearanceSettings';
 import { UndoFeedback, type UndoNoticeKind } from './components/UndoFeedback';
@@ -17,7 +17,7 @@ import { Modal } from './components/Modal';
 import { FileSyncSettings, fileSyncMessage } from './components/FileSyncSettings';
 import { useLinkedFile } from './useLinkedFile';
 import { pickLinkedFile, readLinkedText, type LinkedFileHandle } from './linkedFile';
-import { CommandPalette, commandKey, type PaletteCommand } from './components/CommandPalette';
+import { CommandPalette, commandKey, type PaletteCommand, type PaletteResult } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
 import { WriteQueue, WriteDiscardedError } from './writeQueue';
@@ -46,13 +46,6 @@ const DateControl = styled.div<{ $range:boolean }>`position: relative; display: 
 const DateText = styled.button`flex: 1; min-width: 0; min-height: 44px; padding: 8px 0 8px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font-size: 13px; text-align: left; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; &:hover { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; } .compact{display:none;} @media(max-width:600px){.full{display:none;} .compact{display:inline;}}`;
 const DateCalendar = styled(IconButton)`width: 44px; height: 44px; color: var(--ink);`;
 const DatePopover = styled.div`position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; @media(max-width: 390px){left: -50px;}`;
-const SearchBox = styled.div`position:relative; flex:1; min-width:0; @media(max-width:600px){grid-column:1 / -1;}`;
-const SearchField = styled(Field)`min-height: 44px; width: 100%; padding-right: 44px; background:transparent; font-size: 13px; &::-webkit-search-cancel-button { display: none; } @media(pointer:coarse){font-size:16px;}`;
-const ClearSearch = styled(IconButton)`position: absolute; right: 0; top: 0; width: 44px; height: 44px;`;
-const SearchFilters = styled.div`display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:-10px 0 18px;font-size:12px;color:var(--muted);&>span:last-child{margin-left:auto;}`;
-const StatusFilter = styled.button`min-height:40px;padding:6px 12px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:13px;&[aria-pressed='true'],&:hover{background:var(--soft);color:var(--ink);}@media(pointer:coarse){min-height:44px;}`;
-const TagRail = styled.nav<{ $bounded:boolean }>`display: flex; gap: 6px; flex-wrap: wrap; max-height:${({$bounded})=>$bounded?'min(120px,24dvh)':'none'}; overflow-y:${({$bounded})=>$bounded?'auto':'visible'}; margin-bottom: 24px;`;
-const TagPill = styled.button<{ $active: boolean }>`min-height: 36px; border: 1px solid ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--line)'}; color: ${({ $active }) => $active ? 'var(--tag-selected)' : 'var(--tag-ink)'}; background: var(--tag-bg); padding: 5px 10px; border-radius: 999px; font-size: 12px; @media(pointer:coarse){min-height:44px;}`;
 const dayEnter = keyframes`from { opacity:.45; transform:translateY(5px); } to { opacity:1; transform:translateY(0); }`;
 const DaySection = styled.section<{ $selected:boolean }>`margin: 0 0 38px; scroll-margin-top: 20px; animation:${({$selected})=>$selected?dayEnter:'none'} 180ms ease-out;`;
 const DayTitle = styled.h2<{ $over?: boolean; $holiday?: boolean }>`display: flex; align-items: center; flex-wrap:${({$holiday})=>$holiday?'wrap':'nowrap'}; gap: 10px; min-width: 0; font-size: 15px; margin-bottom: 10px; border-radius: 9px; background: ${({ $over }) => $over ? 'var(--soft)' : 'transparent'}; box-shadow: ${({ $over }) => $over ? '0 0 0 2px var(--focus)' : 'none'};`;
@@ -67,7 +60,6 @@ const DoneCount = styled.span`font-size:11px; letter-spacing:0; font-variant-num
 const CompletedClip = styled.div<{ $open:boolean }>`display:grid; grid-template-rows:${({$open})=>$open?'1fr':'0fr'}; opacity:${({$open})=>$open?1:0}; transition:grid-template-rows 190ms ease-out, opacity 150ms ease-out; > div {min-height:0; overflow:hidden;}`;
 const Divider = styled.div`height: 1px; margin: 15px 0 13px 64px; background: var(--line);`;
 const Note = styled.p`font-size: 12px; color: var(--muted);`;
-const EmptyResults = styled.div`padding: 18px 0 28px; color: var(--muted); font-size: 14px;`;
 const Notice = styled(Note)`display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px;`;
 const Dismiss = styled.button`width: 32px; height: 32px; flex:none; border: 0; border-radius: 5px; background: transparent; color: inherit; &:hover {background: var(--soft);} @media(pointer:coarse){width:44px;height:44px;}`;
 const DayUnfinished = styled.span`display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--link); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; .short-label{display:none;} @media(max-width:600px){ .long-label{display:none;} .short-label{display:inline;} }`;
@@ -246,8 +238,8 @@ function DateHeading({ date, today, format, highlighted, unfinished, holidays }:
   </DayTitle>;
 }
 
-function DayItems({ date, items, selected, filterActive, completed, upcoming, previousItem, onChange, onEdit, onDelete, onMove, onMakeDetail, onAddAfter, onMakeUndated, undatedListNames }: {
-  date: string; items: TodoItem[]; selected: boolean; filterActive:boolean; completed: TodoItem[]; upcoming: TodoItem[];
+function DayItems({ date, items, selected, revealItemId, completed, upcoming, previousItem, onChange, onEdit, onDelete, onMove, onMakeDetail, onAddAfter, onMakeUndated, undatedListNames }: {
+  date: string; items: TodoItem[]; selected: boolean; revealItemId?: string; completed: TodoItem[]; upcoming: TodoItem[];
   previousItem:(id:string)=>TodoItem|undefined;
   onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
   onEdit: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
@@ -259,17 +251,9 @@ function DayItems({ date, items, selected, filterActive, completed, upcoming, pr
   undatedListNames: string[];
 }) {
   const [draftAfterId, setDraftAfterId] = useState<string | null>(null);
-  const [doneExpanded, setDoneExpanded] = useState(filterActive);
-  const filterWasActive = useRef(filterActive);
-  const expandedBeforeFilter = useRef(false);
+  const [doneExpanded, setDoneExpanded] = useState(!!revealItemId && completed.some(item => item.id === revealItemId));
   const doneVisible = doneExpanded;
-  useEffect(() => {
-    if (filterActive && !filterWasActive.current) {
-      expandedBeforeFilter.current = doneExpanded;
-      setDoneExpanded(true);
-    } else if (!filterActive && filterWasActive.current) setDoneExpanded(expandedBeforeFilter.current);
-    filterWasActive.current = filterActive;
-  }, [filterActive]);
+  useEffect(() => { if (revealItemId && completed.some(item => item.id === revealItemId)) setDoneExpanded(true); }, [revealItemId]);
   return <>
     {(completed.length > 0 || selected) && <DoneToggle type="button" aria-expanded={doneVisible} aria-controls={`done-${date}`} aria-label={`${doneVisible?'Collapse':'Expand'} done items for ${date}`} onClick={() => setDoneExpanded(value => !value)}><ChevronDown size={14} style={{transform:doneVisible?'rotate(0deg)':'rotate(-90deg)',transition:'transform 180ms ease-out'}}/><span>done</span><DoneCount aria-hidden="true">{completed.length}</DoneCount></DoneToggle>}
     <CompletedClip id={`done-${date}`} $open={doneVisible} aria-hidden={!doneVisible} inert={!doneVisible}><div><SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
@@ -316,15 +300,18 @@ export default function App() {
   const [dateOpen, setDateOpen] = useState(false);
   const dateControlRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [paletteMode, setPaletteMode] = useState<'commands' | 'journal'>('commands');
+  const [paletteFocus, setPaletteFocus] = useState(0);
+  const [searchTarget, setSearchTarget] = useState<PaletteResult | null>(null);
+  const pendingSearchTarget = useRef<PaletteResult | null>(null);
   const [completionFilter, setCompletionFilter] = useState<'all' | 'open' | 'done'>('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [legacyRawDraft, setLegacyRawDraft] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
-  const statusFilter = activeTab === 'dated' && searchOpen ? completionFilter : 'all';
-  const filterActive = Boolean(query || tag || activeTab === 'dated' && searchOpen);
+  const paletteSearching = activeTab !== 'scratchpad' && (paletteMode === 'journal' || !!query.trim() || !!tag || completionFilter !== 'all');
+  const statusFilter = activeTab === 'dated' && paletteSearching ? completionFilter : 'all';
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [popoutChooser, setPopoutChooser] = useState<'dated' | 'undated' | null>(null);
@@ -342,8 +329,6 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [fileActionError, setFileActionError] = useState('');
   const importInput = useRef<HTMLInputElement>(null);
-  const searchInput = useRef<HTMLInputElement>(null);
-  const paletteButton = useRef<HTMLButtonElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
   const writeQueue = useRef<WriteQueue<TodoState | null> | null>(null);
@@ -593,17 +578,13 @@ export default function App() {
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         if (document.querySelector('dialog[open]:not([data-command-palette])')) { event.preventDefault(); return; }
-        event.preventDefault(); setDateOpen(false); setPaletteOpen(value => !value); return;
+        event.preventDefault(); if (document.querySelector('dialog[open][data-command-palette]')) changePaletteOpen(false); else openCommands(); return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        if (activeTab === 'scratchpad' || document.querySelector('dialog[open]:not([data-command-palette])')) return;
+        event.preventDefault(); openJournalSearch(); return;
       }
       if (document.querySelector('dialog[open]')) return;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-        if (activeTab === 'scratchpad') return;
-        event.preventDefault();
-        setDateOpen(false);
-        setSearchOpen(true);
-        requestAnimationFrame(() => { searchInput.current?.focus(); searchInput.current?.select(); });
-        return;
-      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         if (exportOpen) return;
         event.preventDefault();
@@ -615,6 +596,16 @@ export default function App() {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   });
+  const changePaletteOpen = (open: boolean) => {
+    setPaletteOpen(open);
+    if (!open) { setQuery(''); setTag(null); setCompletionFilter('all'); setPaletteMode('commands'); }
+    else setSearchTarget(null);
+  };
+  const openCommands = () => { setQuery(''); setTag(null); setCompletionFilter('all'); setPaletteMode('commands'); setDateOpen(false); changePaletteOpen(true); };
+  const openJournalSearch = (clear = false) => {
+    if (clear) setQuery('');
+    setPaletteMode('journal'); setPaletteFocus(value => value + 1); setDateOpen(false); changePaletteOpen(true);
+  };
   const mutateItem = (date: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => edit(document => {
     const view = projectItemsForDate(document, date).find(item => item.id === id);
     if (!view) return;
@@ -1070,35 +1061,25 @@ export default function App() {
   const earlierViewKey = `${viewMode}:${activeRange.from}:${activeRange.to}:${selectedDate}`;
   const earlierProjection = useMemo(() => readProjection(() => pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData, today) : [], []), [pastUnfinishedScope, state?.document, today]);
   const globalEarlierDays = earlierProjection.value;
-  const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey && !filterActive;
+  const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey;
   const visibleProjection = useMemo(() => readProjection(() => {
-    const daysByDate = new Map(documentData.days.map(day => [day.date, day] as const));
-    const dates = filterActive
-      ? [selectedDate, ...[...daysByDate.keys()].filter(date => date !== selectedDate).sort((a,b) => b.localeCompare(a))]
-      : expandedEarlier
-        ? [...new Set([...globalEarlierDays.map(day => day.date).filter(date => !baseDates.includes(date)), ...baseDates])].sort()
-        : baseDates;
+    const dates = expandedEarlier
+      ? [...new Set([...globalEarlierDays.map(day => day.date).filter(date => !baseDates.includes(date)), ...baseDates])].sort()
+      : baseDates;
     const budget = createProjectionBudget();
     return dates.map(date => ({ date, items: projectItemsForDate(documentData, date, budget) }));
-  }, []), [documentData, selectedDate, filterActive, expandedEarlier, globalEarlierDays, baseDates]);
+  }, []), [documentData, expandedEarlier, globalEarlierDays, baseDates]);
   const visibleDays = visibleProjection.value;
   const draggingItem = draggingId ? visibleDays.flatMap(day => day.items).find(item => item.id === draggingId) : null;
   const projectionError = visibleProjection.error ?? earlierProjection.error;
-  const filteredDays = useMemo(() => {
-    const needle = query.toLowerCase();
-    return visibleDays.map(day => {
-      if (!filterActive) return { ...day, completed: day.items.filter(item => item.completed), upcoming: day.items.filter(item => !item.completed) };
-      const completed: TodoItem[] = [];
-      const upcoming: TodoItem[] = [];
-      for (const item of day.items) {
-        if (statusFilter === 'open' && item.completed || statusFilter === 'done' && !item.completed) continue;
-        const content = `${item.text} ${item.details.map(detail => detail.text).join(' ')}`.toLowerCase();
-        if ((!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag))) (item.completed ? completed : upcoming).push(item);
-      }
-      return { ...day, completed, upcoming };
-    });
-  }, [visibleDays, query, tag, statusFilter, filterActive]);
-  const visibleEarlier = filteredDays.filter(day => day.date < today && baseDates.includes(day.date) && day.upcoming.length);
+  const journalDays = useMemo(() => visibleDays.map(day => ({ ...day, completed: day.items.filter(item => item.completed), upcoming: day.items.filter(item => !item.completed) })), [visibleDays]);
+  const searchProjection = useMemo(() => readProjection(() => {
+    if (!paletteOpen || !paletteSearching || activeTab !== 'dated') return [];
+    const dates = [selectedDate, ...documentData.days.map(day => day.date).filter(date => date !== selectedDate).sort((a, b) => b.localeCompare(a))];
+    const budget = createProjectionBudget();
+    return dates.map(date => ({ date, items: projectItemsForDate(documentData, date, budget) }));
+  }, []), [paletteOpen, paletteSearching, activeTab, documentData, selectedDate]);
+  const visibleEarlier = journalDays.filter(day => day.date < today && baseDates.includes(day.date) && day.upcoming.length);
   const earlierCount = pastUnfinishedScope === 'all'
     ? globalEarlierDays.reduce((total, day) => total + day.count, 0)
     : visibleEarlier.reduce((total, day) => total + day.upcoming.length, 0);
@@ -1113,24 +1094,60 @@ export default function App() {
   };
   useLayoutEffect(() => {
     if (!state || !journalViewport.current) return;
-    const key = `${activeTab}:${earlierViewKey}:${query}:${tag ?? ''}:${statusFilter}:${filterActive}:${expandedEarlier}`;
+    const key = `${activeTab}:${earlierViewKey}:${expandedEarlier}`;
     if (positionedView.current === key) return;
     positionedView.current = key;
     const viewport = journalViewport.current;
     viewport.style.paddingBottom = activeTab === 'dated' ? '24px' : '0px';
     viewport.scrollTop = 0;
-    if (activeTab !== 'dated' || filterActive) return;
+    if (activeTab !== 'dated') return;
     if (expandedEarlier && globalEarlierDays.length) scrollToJournalDate(globalEarlierDays[0].date);
     else if (baseDates.includes(today)) scrollToJournalDate(today);
-  }, [state !== null, activeTab, earlierViewKey, query, tag, statusFilter, filterActive, expandedEarlier, today, baseDates, globalEarlierDays]);
-  const searchResultCount = filteredDays.reduce((count, day) => count + day.completed.length + day.upcoming.length, 0);
-  const hasResults = searchResultCount > 0;
+  }, [state !== null, activeTab, earlierViewKey, expandedEarlier, today, baseDates, globalEarlierDays]);
+  const paletteResults = useMemo<PaletteResult[]>(() => {
+    if (!paletteOpen || !paletteSearching) return [];
+    const needle = query.trim().toLowerCase();
+    const result = (item: TodoItem, location: string, kind: 'dated' | 'undated'): PaletteResult => ({
+      id: `${kind}:${location}:${item.id}`, itemId: item.id, kind, location, label: item.text, completed: item.completed,
+      context: kind === 'dated' ? `${location} · ${item.completed ? 'Done' : 'Open'}` : location,
+      detail: needle ? item.details.find(detail => detail.text.toLowerCase().includes(needle))?.text : undefined,
+    });
+    if (activeTab === 'dated') return searchProjection.value.flatMap(day => day.items.filter(item => {
+      if (statusFilter === 'open' && item.completed || statusFilter === 'done' && !item.completed) return false;
+      const content = [item.text, ...item.details.map(detail => detail.text)].join(' ').toLowerCase();
+      return (!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag));
+    }).map(item => result(item, day.date, 'dated')));
+    return (documentData.undated ?? []).filter(list => popout?.kind !== 'undated' || popout.lists.includes(list.name)).flatMap(list => list.items.filter(item => {
+      const content = [item.text, ...item.details.map(detail => detail.text)].join(' ').toLowerCase();
+      return (!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag));
+    }).map(item => result(item, list.name, 'undated')));
+  }, [paletteOpen, paletteSearching, query, activeTab, searchProjection, statusFilter, documentData, popout, tag]);
+  const selectSearchResult = (result: PaletteResult) => {
+    setTag(null); setSearchTarget(result); pendingSearchTarget.current = result;
+    if (result.kind === 'dated') { setSelectedDate(result.location); setViewMode('day'); setExpandedEarlierKey(null); }
+  };
+  useLayoutEffect(() => {
+    if (!pendingSearchTarget.current || paletteOpen) return;
+    let frame = 0, attempts = 0;
+    const focus = () => {
+      const target = pendingSearchTarget.current;
+      if (!target) return;
+      const row = [...(journalViewport.current?.querySelectorAll<HTMLElement>('[data-search-item-id]') ?? [])].find(row => row.dataset.searchItemId === target.itemId);
+      const field = row?.querySelector<HTMLTextAreaElement>('textarea');
+      let animating = false;
+      for (let ancestor = row; ancestor && ancestor !== journalViewport.current; ancestor = ancestor.parentElement ?? undefined) {
+        if (ancestor.getAnimations().some(animation => animation.playState === 'running' || animation.pending)) { animating = true; break; }
+      }
+      if (field && !field.closest('[inert]') && !animating) {
+        row!.scrollIntoView({ block: 'center' }); field.focus({ preventScroll: true }); pendingSearchTarget.current = null;
+      } else if (++attempts < 30) frame = requestAnimationFrame(focus);
+      else { pendingSearchTarget.current = null; setMessage('This search result is no longer available. Search again.'); }
+    };
+    frame = requestAnimationFrame(focus);
+    return () => cancelAnimationFrame(frame);
+  }, [searchTarget, paletteOpen, selectedDate, journalDays]);
   const commands: PaletteCommand[] = [];
-  if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: searchOpen ? 'Close search' : 'Search journal', keywords: 'find filter entries', icon: Search, run: () => {
-    setDateOpen(false);
-    if (searchOpen) { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); paletteButton.current?.focus(); }
-    else { setSearchOpen(true); requestAnimationFrame(() => searchInput.current?.focus()); }
-  } });
+  if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: 'Search journal', keywords: 'find filter entries', icon: Search, run: () => openJournalSearch(true) });
   if (!popout && activeTab !== 'scratchpad') commands.push(
     { id: 'import', label: 'Import TODO.txt', keywords: 'load upload file', icon: FileInput, run: () => importInput.current?.click() },
     { id: 'download', label: 'Download TODO.txt', keywords: 'export save file', icon: Download, run: () => setExportOpen(true) },
@@ -1143,9 +1160,7 @@ export default function App() {
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header>
     <Toolbar>
-      <SearchBox id="journal-search-panel" hidden={!searchOpen}>{searchOpen && <><SearchField ref={searchInput} id="journal-search" type="search" aria-label="Search journal" placeholder="Search the text file" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Escape') { setSearchOpen(false); setQuery(''); setCompletionFilter('all'); paletteButton.current?.focus(); } }}/>
-        {query && <ClearSearch aria-label="Clear search" onClick={() => setQuery('')}><X size={15}/></ClearSearch>}</>}</SearchBox>
-      {!searchOpen && activeTab === 'dated' && <>
+      {activeTab === 'dated' && <>
       <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef} $range={rangeActive}>
         <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today, weekStart)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
@@ -1158,21 +1173,17 @@ export default function App() {
       <Icon aria-label={rangeActive?'Next range':'Next day'} onClick={() => moveDateView(1)}><ChevronRight size={17}/></Icon>
       </>}
     </Toolbar>
-    <PaletteTrigger ref={paletteButton} type="button" aria-label="Open command palette" aria-haspopup="dialog" aria-expanded={paletteOpen} aria-keyshortcuts="Meta+K Control+K" title="Commands (⌘K / Ctrl+K)" onClick={() => { setDateOpen(false); setPaletteOpen(true); }}><Command size={17} aria-hidden="true"/><span>Commands</span><kbd>{commandKey} K</kbd></PaletteTrigger>
+    <PaletteTrigger type="button" aria-label="Open command palette" aria-haspopup="dialog" aria-expanded={paletteOpen} aria-keyshortcuts="Meta+K Control+K" title="Commands (⌘K / Ctrl+K)" onClick={openCommands}><Command size={17} aria-hidden="true"/><span>Commands</span><kbd>{commandKey} K</kbd></PaletteTrigger>
     </Header>
-    <CommandPalette open={paletteOpen} commands={commands} onOpenChange={setPaletteOpen}/>
-    {searchOpen && activeTab === 'dated' && <SearchFilters role="group" aria-label="Search completion">
-      {(['all', 'open', 'done'] as const).map(value => <StatusFilter key={value} type="button" aria-label={value === 'all' ? 'All statuses' : value === 'open' ? 'Open items' : 'Done items'} aria-pressed={completionFilter === value} onClick={() => setCompletionFilter(value)}>{value === 'all' ? 'All' : value === 'open' ? 'Open' : 'Done'}</StatusFilter>)}
-      <span aria-live="polite">{searchResultCount} {searchResultCount === 1 ? 'item' : 'items'}</span>
-    </SearchFilters>}
+    <CommandPalette open={paletteOpen} commands={commands} onOpenChange={changePaletteOpen} query={query} onQueryChange={setQuery} mode={paletteMode} onCommands={openCommands} focusRequest={paletteFocus}
+      scope={activeTab === 'scratchpad' ? null : activeTab} completion={completionFilter} onCompletionChange={setCompletionFilter} tags={allTags} tag={tag} onTagChange={setTag} results={paletteResults} searchError={searchProjection.error} onSelectResult={selectSearchResult}/>
     {!popout && ['changed', 'permission', 'error'].includes(fileSync.status.kind) && <Notice role="status" aria-label="File sync">
       {fileSyncMessage(fileSync.status)}
       <Button disabled={busy} onClick={() => { if (fileSync.status.kind === 'changed') void reviewLinkedFile(); else void fileSync.resume().catch(error => reportSaveError(error)); }}>{fileSync.status.kind === 'changed' ? 'Review linked file' : 'Resume file saving'}</Button>
     </Notice>}
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setSearchOpen(false); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
+    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
-    {activeTab !== 'scratchpad' && !!allTags.length && <TagRail $bounded={activeTab === 'dated'} aria-label="Tags"><TagPill $active={!tag} onClick={() => setTag(null)}>all</TagPill>{allTags.map(name => <TagPill key={name} $active={tag === name} onClick={() => setTag(tag === name ? null : name)}>#{name}</TagPill>)}</TagRail>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
       setLegacyRawDraft(null);
@@ -1190,7 +1201,7 @@ export default function App() {
       if (feedbackNotice && serializeTodoText(current.current.document) === serializeTodoText(feedbackNotice.document)) undo();
       else setFeedbackNotice(null);
     }}/>
-    {activeTab === 'dated' && !filterActive && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
+    {activeTab === 'dated' && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
       if (pastUnfinishedScope === 'all') {
         if (expandedEarlier) setExpandedEarlierKey(null);
         else setExpandedEarlierKey(earlierViewKey);
@@ -1205,7 +1216,7 @@ export default function App() {
       setFeedbackNotice(null);
       setScratchUndo(undo);
     }}/>
-    : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined} query={query} tag={tag}
+    : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
       onAdd={addUndated}
@@ -1239,19 +1250,17 @@ export default function App() {
       onDate={dateUndated}
       onDelete={(list,id) => removeUndated(list,id)}/>
     : <>
-    {!projectionError && filterActive && !hasResults && <EmptyResults role="status">No lines match this search</EmptyResults>}
     <DndContext sensors={dragSensors} collisionDetection={taskCollisionDetection}
       onDragStart={({ active }) => { setDraggingId(String(active.id)); setDragOverDate(null); }}
       onDragOver={({ over }) => setDragOverDate(dateForDrop(over ? String(over.id) : undefined))}
       onDragCancel={() => { setDraggingId(null); setDragOverDate(null); }}
       onDragEnd={event => { dropItem(event); setDraggingId(null); setDragOverDate(null); }}>
-    {filteredDays.map(day => {
+    {journalDays.map(day => {
       const { completed, upcoming } = day;
-      if (filterActive && !completed.length && !upcoming.length) return null;
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} data-journal-date={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[day.date] ?? [] : []}/>
-        {day.items.length === 0 && !filterActive ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
-        <DayItems date={day.date} items={day.items} selected={day.date === selectedDate} filterActive={filterActive} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
+        {day.items.length === 0 ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
+        <DayItems revealItemId={searchTarget?.kind === 'dated' && searchTarget.location === day.date ? searchTarget.itemId : undefined} date={day.date} items={day.items} selected={day.date === selectedDate} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
       </DaySection>;
     })}

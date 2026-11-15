@@ -17,7 +17,7 @@ async function target(page: Page) {
 async function search(page: Page, value = 'Caret') {
   await page.goto('/');
   await runCommand(page, 'Open search');
-  const input = page.getByRole('searchbox', { name: 'Search journal' });
+  const input = page.getByRole('combobox', { name: 'Search commands and journal' });
   await input.fill(value);
   await expect(input).toHaveAttribute('data-smooth-caret', 'true');
   return input;
@@ -74,7 +74,7 @@ test('typing produces a real position transition with a snappy settle', async ({
 test('arrow navigation stays aligned with proportional text and native selection', async ({ page }) => {
   const input = await search(page, 'Proportional text');
   await input.press('Home');
-  await expect.poll(async () => (await target(page)).x).toBeLessThan(400);
+  await visiblePosition(page, input);
   expect(await input.evaluate(element => (element as HTMLInputElement).selectionStart)).toBe(0);
   const expected = await input.evaluate(element => {
     const field = element as HTMLInputElement;
@@ -207,6 +207,7 @@ test('reduced motion and forced colors immediately restore the native caret', as
 
 test('passwords and segmented inputs use native editing without mirrored carets', async ({ page }) => {
   await search(page);
+  await runCommand(page, 'Close search');
   await page.evaluate(() => {
     for (const type of ['password', 'number', 'date']) {
       const input = document.createElement('input'); input.type = type;

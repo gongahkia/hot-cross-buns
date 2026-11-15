@@ -1,4 +1,4 @@
-import { runCommand } from './commands';
+import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -64,6 +64,7 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await page.reload();
   await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen Review paper #work' })).toBeVisible();
+  await runCommand(page, 'Open search');
   await expect(page.getByRole('navigation', { name: 'Tags' }).getByText('#work')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await runCommand(page, 'Download TODO.txt');
@@ -250,8 +251,8 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await expect(page.getByRole('button', { name: `Add detail to ${original}` })).toHaveCount(0);
 
   await runCommand(page, 'Open search');
-  await page.getByRole('searchbox', { name: 'Search journal' }).fill('no such line');
-  await expect(page.getByText('No lines match this search')).toBeVisible();
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('no such line');
+  await expect(page.getByText('No matching entries or commands.')).toBeVisible();
 });
 
 test('persists a journal edit across reload', async ({ page }) => {
@@ -995,10 +996,10 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   expect(previous!.x + previous!.width).toBeLessThanOrEqual(commands!.x);
   await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
   await page.keyboard.press('Control+f');
-  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-  await page.getByRole('textbox', { name: 'Edit Find this task' }).focus();
+  await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toBeFocused();
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('Find this task');
   await page.keyboard.press('Meta+f');
-  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
+  await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toBeFocused();
   await runCommand(page, 'Hot Cross Buns settings');
   await page.getByLabel('Date headings').selectOption('iso');
   await page.getByRole('button', { name: 'close', exact: true }).click();
@@ -1026,16 +1027,16 @@ test('hides completed work by default and toggles search without browser find', 
   await expect(page.getByRole('button', { name: 'Reopen Finished task' }).locator('svg')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reopen detail finished detail' }).locator('svg')).toHaveCount(0);
   await page.getByRole('button', { name: `Collapse done items for ${today}` }).click();
-  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toHaveCount(0);
   await runCommand(page, 'Open search');
-  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-  await page.getByRole('searchbox', { name: 'Search journal' }).fill('Finished task');
-  await expect(page.getByRole('group', { name: 'Finished task' })).toBeVisible();
-  await page.getByRole('searchbox', { name: 'Search journal' }).fill('nothing matches');
-  await expect(page.getByText('No lines match this search')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toBeFocused();
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('Finished task');
+  await expect(page.getByRole('option').filter({ has: page.getByText('Finished task', { exact: true }) })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('nothing matches');
+  await expect(page.getByText('No matching entries or commands.')).toBeVisible();
   await runCommand(page, 'Close search');
   await expect(page.getByRole('group', { name: 'Open task' })).toBeVisible();
-  await expect(page.getByRole('searchbox', { name: 'Search journal' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toHaveCount(0);
 });
 
 test('uses Hot Cross Buns branding and storage', async ({ page }) => {
@@ -1068,10 +1069,12 @@ test('keeps controls usable and within the viewport across mobile and desktop wi
     await page.goto('/');
     await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
     await runCommand(page, 'Open search');
-    await expect(page.getByRole('searchbox', { name: 'Search journal' })).toBeFocused();
-    const searchField = await page.getByRole('searchbox', { name: 'Search journal' }).boundingBox();
+    await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toBeFocused();
+    const searchField = await page.getByRole('combobox', { name: 'Search commands and journal' }).boundingBox();
     const searchIcon = await page.getByRole('button', { name: 'Open command palette', exact: true }).boundingBox();
-    expect(searchField!.x).toBeLessThan(searchIcon!.x);
+    expect(searchField!.x).toBeGreaterThanOrEqual(0);
+    expect(searchField!.x + searchField!.width).toBeLessThanOrEqual(width);
+    expect(searchIcon!.x + searchIcon!.width).toBeLessThanOrEqual(width);
     await runCommand(page, 'Close search');
     await page.getByRole('button', { name: 'Choose date' }).click();
     await expect(page.locator('.rdp-root')).toBeVisible();
@@ -1589,13 +1592,14 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   const unfilteredEditMs = Date.now() - unfilteredEditStart;
   await runCommand(page, 'Open search');
   const searchStart = Date.now();
-  await page.getByRole('searchbox', { name: 'Search journal' }).fill('unique-needle');
-  await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible();
-  await expect(page.getByRole('group', { name: lines[0] })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('unique-needle');
+  await expect(page.getByRole('option').filter({ has: page.getByText(lines[1199], { exact: true }) })).toBeVisible();
+  await expect(page.getByRole('option').filter({ has: page.getByText(lines[0], { exact: true }) })).toHaveCount(0);
   const searchMs = Date.now() - searchStart;
+  await selectSearchResult(page, lines[1199]);
   const editStart = Date.now();
   await page.getByRole('button', { name: `Complete ${lines[1199]}` }).click();
-  await expect(page.getByRole('button', { name: `Reopen ${lines[1199]}` })).toBeVisible();
+  await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toContainText('1');
   await page.keyboard.press('Control+z');
   await expect(page.getByRole('button', { name: `Complete ${lines[1199]}` })).toBeVisible();
   const editMs = Date.now() - editStart;

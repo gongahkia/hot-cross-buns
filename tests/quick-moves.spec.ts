@@ -1,4 +1,4 @@
-import { runCommand } from './commands';
+import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 
 async function documentIn(page: Page) {
@@ -30,7 +30,8 @@ async function openMove(page: Page, title: string, date = '2026-11-16') {
 test('quick today brings an older item forward and undo restores its original date', async ({ page }) => {
   await importJournal(page, '2026-11-10\n\nReview notes\n- [ ] Keep the context\n');
   await runCommand(page, 'Open search');
-  await page.getByRole('searchbox', { name: 'Search journal' }).fill('Review notes');
+  await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('Review notes');
+  await selectSearchResult(page, 'Review notes');
   await openMove(page, 'Review notes', '2026-11-10');
   await page.getByRole('button', { name: 'Move Review notes to today', exact: true }).click();
   await expect.poll(async () => (await documentIn(page)).days[0].date).toBe('2026-11-16');

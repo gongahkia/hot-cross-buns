@@ -14,10 +14,10 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Direct saving to a linked TODO.txt file, with a Syncthing workflow, external-change review and file-write recovery.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
-- [x] All/Open/Done search filters combined with text and hashtags across dated entries.
+- [x] All/Open/Done search filters combined with text and hashtags across dated entries, inside the command palette.
 - [x] Neutral dark mode and borderless text fields.
 - [x] Smooth caret movement while typing and navigating, with an idle pulse and reduced-motion support.
-- [x] Command palette for the five existing topbar actions (⌘K / Ctrl+K), using the compact browser palette and scale/fade motion from commit `8f2c2b2`.
+- [x] Command palette for the five existing topbar actions (⌘K / Ctrl+K), using the compact browser palette and scale/fade motion from commit `8f2c2b2`. Journal results, tags and completion filters live in the palette; choosing a result reveals and focuses its entry.
 
 Caret movement covers ordinary text inputs and textareas. Selections, IME composition, touch selection handles, passwords, segmented controls, bidirectional text and editors above 32,768 UTF-16 code units use the native caret. Reduced motion, forced colors and browsers without the Popover API also keep the native caret.
 
