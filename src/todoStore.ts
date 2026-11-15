@@ -1,4 +1,5 @@
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
+import { reviewedRevision } from './revisionSync';
 import { emptyDocument, normalizeDocument, serializeTodoText, validateDocument, type TodoDocument } from './todoText';
 
 export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; revision: number };
@@ -304,7 +305,15 @@ export async function storeSyncCreation(expectedId: string | null, next: SyncCre
   announce('sync'); return result;
 }
 
-export type ReviewedJournal = { document: TodoDocument; baseline: TodoDocument; expectedText: string; generation?: string };
+export async function loadSyncDevice(): Promise<string> {
+  return transact<string>([STATE_STORE], (tx, done, fail) => {
+    const store = tx.objectStore(STATE_STORE), request = store.get('sync-device-id');
+    request.onerror = () => fail(request.error);
+    request.onsuccess = () => { try { const id = request.result ?? crypto.randomUUID(); if (!request.result) store.put(id, 'sync-device-id'); done(id); } catch (error) { fail(error); } };
+  });
+}
+
+export type ReviewedJournal = { document: TodoDocument; baseline: TodoDocument; expectedText: string; generation?: string; revisionId?: string };
 /** The reviewed journal, target and baseline either commit together or all remain unchanged. */
 export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvider, link: L, expectedId: string | null, review: ReviewedJournal): Promise<TodoState> {
   const result = await transact<TodoState>([STATE_STORE], (tx, done, fail) => {
@@ -319,7 +328,12 @@ export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvi
         if (serializeTodoText(latest.document) !== review.expectedText) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
         validateDocument(review.document);
         const next = { ...latest, document: review.document, baseline: review.baseline, revision: latest.revision + 1 };
-        store.put(next, 'current'); store.put(link, linkKey(provider)); store.put(newSyncLedger(link.id, ledger.result), provider + '-sync-ledger');
+        const nextLedger = newSyncLedger(link.id, ledger.result);
+        if (review.revisionId) {
+          if (!nextLedger.revisions) throw new Error('The journal revision link changed. Review it again.');
+          nextLedger.revisions = reviewedRevision(nextLedger.revisions, review.revisionId);
+        }
+        store.put(next, 'current'); store.put(link, linkKey(provider)); store.put(nextLedger, provider + '-sync-ledger');
         if (provider === 'drive') store.delete('sync-file-creation');
         done(next);
       } catch (error) { fail(error); }

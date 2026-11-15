@@ -24,13 +24,14 @@ A [plain-text browser journal](https://hot-cross-buns.vercel.app) for dated and 
 * Direct TODO.txt saving in a Syncthing folder *(or another free file sync workflow)*
 * Optional Google Drive file saving with your own Web OAuth client and file picker
 * Durable sync submissions, automatic catch-up, independent-change merging and recoverable conflict review
+* Immutable revision history for linked sync folders and new Drive links *(concurrent branches stay available for review)*
 * Browser popouts sharing the local journal and scratchpad
 * Light/dark themes, date formats, time zones and optional public holidays
 * Smooth caret movement while typing and navigating *(respects reduced motion)*
 * Command palette for search, import, download, browser windows and settings *(⌘K / Ctrl+K; ⌘F / Ctrl+F for search)*
 * One-time, read-only Google Calendar and Tasks import through separate scripts
 
-The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. To save edits directly to a file, use **Settings → File sync** in a supported browser and link TODO.txt in a Syncthing folder. Syncthing transfers the file between devices. Alternatively, use **Settings → Google Drive** to link a text file in your Google account; see [Google Drive setup](./docs/GOOGLE_DRIVE.md). One sync target can be linked at a time. Independent file edits merge automatically; overlapping or ambiguous changes pause for review. The app distinguishes browser saves from file delivery and recovers uncertain saves by checking the file before trying again. See [sync behavior and recovery](./docs/SYNC.md) and [file sync](./docs/FILE_SYNC.md) for boundaries and setup. Without a linked file, import and download remain manual. Scratchpad text and appearance settings are excluded from TODO.txt; move scratchpad text into journal items to include it in an export.
+The browser keeps its working copy in IndexedDB under this browser profile and origin. **Import TODO.txt** reads a file; **Download TODO.txt** exports the journal. For protected file syncing, use **Settings → File sync → Link sync folder** and transfer both TODO.txt and its `.hot-cross-buns` history through Syncthing. Alternatively, use **Settings → Google Drive**; new links keep companion revision files in My Drive. Both publish immutable snapshots before updating the text projection, with concurrent branches kept for review. Existing individual-file links can upgrade explicitly. One target can be linked at a time. See [revision history and its limits](./docs/REVISION_SYNC.md), [file setup](./docs/FILE_SYNC.md) and [Drive setup](./docs/GOOGLE_DRIVE.md). Single-file mode retains a remaining overwrite window; arbitrary external edits overwritten before observation cannot be recovered. Without a linked target, import and download remain manual. Scratchpad text and appearance settings stay in the browser; move scratchpad text into journal items to make it portable.
 
 Open **Commands** to type a command or search the current journal view. The palette contains tag and completion filters; selecting an entry takes you to it. Escape closes the palette and clears its filters. Journal results show up to 50 entries at a time with the total count; refine the query to narrow them.
 
@@ -74,6 +75,7 @@ Vite writes the static application to `dist/`. The included [Vercel configuratio
 * [Syncthing and linked TODO.txt files](./docs/FILE_SYNC.md)
 * [Google Drive setup and saving](./docs/GOOGLE_DRIVE.md)
 * [Sync behavior, recovery and architecture](./docs/SYNC.md)
+* [Immutable revision protocol, migration and retention](./docs/REVISION_SYNC.md)
 * [TODO.txt format and recurrence](./docs/TODO_FORMAT.md)
 * [Import doctor and repair rules](./docs/TODO_DOCTOR.md)
 * [One-time Google snapshot and conversion](./docs/GOOGLE_SNAPSHOT.md)

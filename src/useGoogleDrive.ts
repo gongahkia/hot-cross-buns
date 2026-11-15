@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { authorizeGoogle, pickGoogleFile, preloadGoogle, validateGoogleConfig, type GoogleConfig } from './googleAuth';
 import { createDriveApi, GoogleDriveError, type DriveFile, type DriveLink, type DriveSnapshot, type GoogleSession } from './googleDrive';
 import { fileSyncLock } from './linkedFile';
-import { loadDriveLink, loadFileLink, loadTodoState, storeDriveLink, readSyncBundle, loadSyncCreation, storeSyncCreation, subscribeStore, commitReviewedLink, type ReviewedJournal, type SyncCreation } from './todoStore';
+import { loadDriveLink, loadFileLink, loadTodoState, storeDriveLink, readSyncBundle, loadSyncCreation, storeSyncCreation, subscribeStore, commitReviewedLink, loadSyncDevice, type ReviewedJournal, type SyncCreation } from './todoStore';
+import { revisionGraph, type Revision } from './revisionProtocol';
 import { useJournalSync } from './useJournalSync';
 import type { SyncAdapter, SyncStatus } from './journalSync';
 import { serializeTodoText, type TodoDocument } from './todoText';
@@ -34,11 +35,12 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
   const notify = useRef(onNotice); notify.current = onNotice;
   const activeSession = useRef(session); activeSession.current = session;
   const operating = useRef(false);
+  const revisionCache = useRef(new Map<string, { version: string; record: Revision }>());
   const api = () => {
     const current = activeSession.current;
     if (!current || current.expiresAt <= Date.now() + 30_000) throw new GoogleDriveError('Reconnect Google Drive to continue.', 401);
     if (record.current && record.current.accountId !== current.accountId) throw new GoogleDriveError('Reconnect using the Google account linked to this journal.', 401);
-    return createDriveApi(current);
+    return createDriveApi(current, globalThis.fetch, revisionCache.current);
   };
   const authenticated = async <T,>(work: () => Promise<T>): Promise<T> => {
     try { return await work(); }
@@ -60,7 +62,12 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
     classify: error => error instanceof GoogleDriveError ? error.status === 401 ? 'reauth' : error.status === 412 ? 'changed' : [408, 429, 500, 502, 503, 504].includes(error.status) ? 'retrying' : 'error' : error instanceof TypeError || error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name) ? 'retrying' : 'error',
     network: true,
   };
-  const sync = useJournalSync('drive', journal, () => canSave() && !operating.current, adapter, 15_000, true, validate);
+  const sync = useJournalSync<DriveLink, DriveSnapshot>('drive', journal, () => canSave() && !operating.current, adapter, 15_000, true, validate, link => link.revisionProtocol === 1 ? { ...adapter, revisions: {
+    journal: 'drive:' + link.fileId, device: loadSyncDevice,
+    reserve: () => authenticated(() => api().revisions(link.fileId, loadSyncDevice).reserve!()),
+    list: () => authenticated(() => api().revisions(link.fileId, loadSyncDevice).list()),
+    put: (record, id) => authenticated(() => api().revisions(link.fileId, loadSyncDevice).put(record, id)),
+  } } : adapter);
   record.current = sync.record;
   const previousStatus = useRef('unlinked');
   useEffect(() => {
@@ -100,8 +107,9 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
     if (!connected) throw new Error('Reconnect Google Drive before linking a file.');
     if (await loadFileLink()) throw new Error('Unlink the local file before linking Google Drive.');
     const previous = await loadDriveLink();
+    if (previous?.fileId !== snapshot.file.id) revisionCache.current.clear();
     if ((previous?.id ?? null) !== expectedId) throw new Error('The Google Drive link changed in another window. Review it again.');
-    const link: DriveLink = { id: previous?.id ?? crypto.randomUUID(), fileId: snapshot.file.id, fileName: snapshot.file.name, accountId: connected.accountId, email: connected.email, baselineText: snapshot.text, baselineDocument, version: snapshot.file.version, needsReview: false, lastSavedAt: created ? Date.now() : previous?.lastSavedAt ?? null };
+    const link: DriveLink = { id: previous?.id ?? crypto.randomUUID(), fileId: snapshot.file.id, fileName: snapshot.file.name, accountId: connected.accountId, email: connected.email, baselineText: review?.revisionId ? previous!.baselineText : snapshot.text, baselineDocument, version: snapshot.file.version, needsReview: false, lastSavedAt: created ? Date.now() : previous?.lastSavedAt ?? null, revisionProtocol: previous?.revisionProtocol ?? 1 };
     if (review) return commitReviewedLink('drive', link, expectedId, review);
     await storeDriveLink(link); record.current = link; return null;
   };
@@ -143,16 +151,31 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
     if (current) await navigator.locks.request(fileSyncLock, () => storeSyncCreation(current.id, null));
     creationRef.current = null; setCreation(null); setError('');
   };
-  const read = async (id?: string) => {
+  const read = async (id?: string, revisionId?: string) => {
     const link = await loadDriveLink();
     if (!id && !link) throw new Error('The Google Drive file has been unlinked.');
-    const bundle = id ? null : await readSyncBundle<DriveLink>('drive');
-    return { snapshot: await api().read(id ?? link!.fileId), ...(id ? {} : { id: link!.id, generation: bundle?.ledger.generation, baselineDocument: (bundle?.ledger.checkpoint?.uncertain ? bundle.ledger.checkpoint.document : link!.baselineDocument) }) };
+    const bundle = !id || revisionId ? await readSyncBundle<DriveLink>('drive') : null;
+    const revision = revisionId ? bundle?.ledger.revisions?.review?.id === revisionId ? bundle.ledger.revisions.review : undefined : !id ? bundle?.ledger.revisions?.review : undefined;
+    if (revisionId && !revision) throw new Error('The journal revision changed. Review it again.');
+    if (revision && link) {
+      const records = await authenticated(() => api().revisions(link.fileId, loadSyncDevice).list());
+      const graph = await revisionGraph(records, 'drive:' + link.fileId);
+      if (graph.byId.get(revision.id)?.digest !== revision.digest) throw new Error('The reviewed revision is missing or changed. Try after the history transfer finishes.');
+    }
+    const snapshot = await api().read(id ?? link!.fileId);
+    return { snapshot: revision ? { ...snapshot, text: revision.text, revisionId: revision.id } : snapshot, revisionId: revision?.id, ...(id && !revisionId ? {} : { id: link!.id, generation: bundle?.ledger.generation, baselineDocument: (bundle?.ledger.checkpoint?.uncertain ? bundle.ledger.checkpoint.document : link!.baselineDocument) }) };
+  };
+  const enableHistory = async () => {
+    await navigator.locks.request('hot-cross-buns-sync-delivery', () => navigator.locks.request(fileSyncLock, async () => {
+      const link = await loadDriveLink(); if (!link) throw new Error('The Drive file was unlinked.');
+      await storeDriveLink({ ...link, revisionProtocol: 1 });
+    }));
+    await sync.refresh(); void sync.poll(true);
   };
   const pick = async () => { const connected = activeSession.current; if (!connected) throw new Error('Connect Google Drive first.'); const id = await pickGoogleFile(config, connected); return id ? read(id) : null; };
   const resume = async () => { setError(''); await sync.poll(true); };
-  const unlink = async () => { await navigator.locks.request(fileSyncLock, () => storeDriveLink(null)); record.current = null; await sync.refresh(); };
+  const unlink = async () => { await navigator.locks.request(fileSyncLock, () => storeDriveLink(null)); record.current = null; revisionCache.current.clear(); await sync.refresh(); };
   const disconnect = () => { activeSession.current = null; setSession(null); setFiles([]); void sync.poll(); };
   const retrySdk = async () => { setError(''); try { await preloadGoogle(); setSdkReady(true); } catch (error) { setError(String(error)); throw error; } };
-  return { config, configure, sdkReady, retrySdk, session, status: sync.status, linked: !!sync.record, recovery: sync.ledger?.recovery, files, busy: busy || !creationLoaded, error, creation, dismissCreation, connect, establish, create, read, pick, resume, unlink, disconnect };
+  return { config, configure, sdkReady, retrySdk, session, status: sync.status, linked: !!sync.record, recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.revisionProtocol, enableHistory, files, busy: busy || !creationLoaded, error, creation, dismissCreation, connect, establish, create, read, pick, resume, unlink, disconnect };
 }

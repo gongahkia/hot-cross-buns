@@ -3,11 +3,11 @@ import { synchronizeJournal, type SyncAdapter, type SyncBundle, type SyncLink, t
 import { changeSyncBundle, readSyncBundle, subscribeStore } from './todoStore';
 import { serializeTodoText, todayString, type TodoDocument } from './todoText';
 
-export function useJournalSync<L extends SyncLink, S extends { text: string }>(provider: SyncProvider, document: TodoDocument | null, canSave: () => boolean, adapter: SyncAdapter<L, S>, interval: number, enabled = true, validate?: (document: TodoDocument) => void) {
+export function useJournalSync<L extends SyncLink, S extends { text: string }>(provider: SyncProvider, document: TodoDocument | null, canSave: () => boolean, adapter: SyncAdapter<L, S>, interval: number, enabled = true, validate?: (document: TodoDocument) => void, selectAdapter?: (link: L) => SyncAdapter<L, S>) {
   const [bundle, setBundle] = useState<SyncBundle<L> | null>(null);
   const [failure, setFailure] = useState('');
   const [blocked, setBlocked] = useState<'reauth' | 'permission' | null>(null);
-  const inputs = useRef({ canSave, adapter, enabled, validate }); inputs.current = { canSave, adapter, enabled, validate };
+  const inputs = useRef({ canSave, adapter, enabled, validate, selectAdapter }); inputs.current = { canSave, adapter, enabled, validate, selectAdapter };
   const active = useRef(false), running = useRef(false), paused = useRef(false), requested = useRef(false);
   const wakeTimer = useRef(0);
   const generation = useRef<string | null>(null);
@@ -34,8 +34,10 @@ export function useJournalSync<L extends SyncLink, S extends { text: string }>(p
       if (!force && (selected.link.needsReview || selected.ledger.status.kind === 'error')) return;
       const deliver = async (lock: Lock | null) => {
         if (!lock) return;
-        const result = await synchronizeJournal({ store: { change: (work, integrate) => changeSyncBundle(provider, work, integrate) }, adapter: inputs.current.adapter,
-          canSave: () => inputs.current.enabled && inputs.current.canSave(), today: todayString, online: () => navigator.onLine !== false, validate: document => inputs.current.validate?.(document), force });
+        const target = await readSyncBundle<L>(provider); if (!target) return;
+        const currentAdapter = inputs.current.selectAdapter?.(target.link) ?? inputs.current.adapter;
+        const result = await synchronizeJournal({ store: { change: (work, integrate) => changeSyncBundle(provider, work, integrate) }, adapter: currentAdapter,
+          target: { id: target.link.id, generation: target.ledger.generation }, canSave: () => inputs.current.enabled && inputs.current.canSave(), today: todayString, online: () => navigator.onLine !== false, validate: document => inputs.current.validate?.(document), force });
         if (active.current) { setFailure(''); if (result) setBlocked(await inputs.current.adapter.ready(result.link)); }
         if (result?.ledger.status.kind === 'saving' && !result.ledger.checkpoint && inputs.current.canSave()) window.setTimeout(() => { if (active.current) void execute.current(); }, 0);
       };

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
 import { holdSyncDelivery, syncState } from './sync-helpers';
+import { createRevision, revisionText } from '../src/revisionProtocol';
 
 const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n';
 const scope = 'https://www.googleapis.com/auth/drive.file';
@@ -17,7 +18,8 @@ async function savedLink(page: Page): Promise<Record<string, unknown> | null> {
   }));
 }
 async function setup(page: Page, existing = false) {
-  const remote = { text: initial, version: 1, exists: existing, writes: 0, creates: 0, failSave: 0, account: 'account-1', tokenCalls: 0, requests: 0, holdSave: false, saveEntered: false, releaseSave: () => {}, dropSaveReply: false, dropCreateReply: false, creationCheckpoint: false, expireOwner: false, otherRequests: 0, holdCreate: false, creationEntered: false, releaseCreate: () => {} };
+  const revisionFiles = new Map<string, { id: string; name: string; mimeType: string; appProperties: Record<string, string>; version: string; size: string; raw: string }>();
+  const remote = { text: initial, version: 1, exists: existing, writes: 0, creates: 0, failSave: 0, account: 'account-1', tokenCalls: 0, requests: 0, holdSave: false, saveEntered: false, releaseSave: () => {}, dropSaveReply: false, dropCreateReply: false, creationCheckpoint: false, expireOwner: false, otherRequests: 0, holdCreate: false, creationEntered: false, releaseCreate: () => {}, revisionFiles, reserved: 0, revisionCheckpoint: false, dropRevisionReply: false, revisionCreates: 0 };
   await page.context().addInitScript(({ scope }) => {
     const mock = { activeClick: false, scope: '', picker: {} as Record<string, string | boolean>, pickerCancel: false, deny: false, block: false };
     Reflect.set(window, 'mockGoogle', mock);
@@ -56,6 +58,24 @@ async function setup(page: Page, existing = false) {
     expect(request.headers().authorization).toBe('Bearer test-only-access-token');
     expect(url.searchParams.has('access_token')).toBe(false);
     const metadata = () => ({ id: 'file-1', name: 'TODO.txt', mimeType: 'text/plain', version: String(remote.version), size: String(Buffer.byteLength(remote.text)), capabilities: { canEdit: true } });
+    if (url.pathname.endsWith('/generateIds')) { await route.fulfill({ json: { ids: ['revision-file-' + ++remote.reserved] } }); return; }
+    if (request.method() === 'POST' && request.postData()?.includes('"hcbRevision"')) {
+      const parts = request.postData()!.split('Content-Type: application/json; charset=UTF-8\r\n\r\n');
+      const metadata = JSON.parse(parts[1].split('\r\n--hcb-')[0]), raw = parts[2].split('\r\n--hcb-')[0];
+      const pending = (await syncState(request.frame().page(), 'drive-sync-ledger'))?.revisions?.pending;
+      remote.revisionCheckpoint = pending?.record.id === metadata.appProperties.hcbRevision && pending?.transportId === metadata.id;
+      if (revisionFiles.has(metadata.id)) { await route.fulfill({ status: 409, body: '{}' }); return; }
+      revisionFiles.set(metadata.id, { ...metadata, raw, version: '1', size: String(Buffer.byteLength(raw)) }); remote.revisionCreates++;
+      if (remote.dropRevisionReply) { remote.dropRevisionReply = false; await route.abort('failed'); return; }
+      await route.fulfill({ json: { id: metadata.id } }); return;
+    }
+    if (request.method() === 'GET' && url.pathname.endsWith('/files') && url.searchParams.get('q')?.includes('hcbJournal')) {
+      await route.fulfill({ json: { files: [...revisionFiles.values()].map(({ raw: _raw, ...file }) => file) } }); return;
+    }
+    const revision = revisionFiles.get(url.pathname.split('/').at(-1)!);
+    if (revision && request.method() === 'GET') {
+      await route.fulfill(url.searchParams.get('alt') === 'media' ? { contentType: 'application/json', body: revision.raw } : { json: revision }); return;
+    }
     if (request.method() === 'POST') {
       remote.creationCheckpoint = !!await syncState(route.request().frame().page(), 'sync-file-creation');
       remote.creates++; remote.exists = true;
@@ -102,6 +122,7 @@ async function importInitial(page: Page) {
 async function createLinked(page: Page) {
   await connect(page); await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
   await expect.poll(() => savedLink(page)).not.toBeNull();
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger'))?.status.kind).toBe('saved');
 }
 async function editOriginal(page: Page, text: string) {
   await closeSettings(page); await page.getByRole('button', { name: 'Undated', exact: true }).click();
@@ -404,4 +425,37 @@ test('an expired token stays scoped to its tab while another authorized window c
   await expect.poll(() => remote.text).toContain('Delivered by another window');
   await expect(region(other).getByRole('button', { name: 'Sign out of this tab', exact: true })).toBeVisible();
   await runCommand(page, 'Settings'); await expect(region(page).getByRole('button', { name: 'Connect Google Drive', exact: true })).toBeVisible();
+});
+
+test('a lost revision-creation reply reuses its reserved file identity after reload', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  remote.dropRevisionReply = true; await editOriginal(page, 'Immutable pending edit');
+  await expect.poll(() => remote.dropRevisionReply).toBe(false);
+  const pending = (await syncState(page, 'drive-sync-ledger')).revisions.pending;
+  expect(pending.record.text).toContain('Immutable pending edit'); expect(remote.revisionCheckpoint).toBe(true);
+  await page.reload(); await runCommand(page, 'Settings'); await connect(page);
+  await expect.poll(() => remote.text).toContain('Immutable pending edit');
+  expect(remote.revisionFiles.size).toBe(2); expect(remote.revisionCreates).toBe(2);
+  expect(remote.revisionFiles.has(pending.transportId)).toBe(true);
+  expect((await syncState(page, 'drive-sync-ledger')).revisions.pending).toBeUndefined();
+});
+
+test('a concurrent Drive revision survives a lost projection and resolves through explicit review', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  const root = JSON.parse([...remote.revisionFiles.values()][0].raw);
+  await editOriginal(page, 'Local protected branch'); await expect.poll(() => remote.text).toContain('Local protected branch');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).status.kind).toBe('saved');
+  const release = await holdSyncDelivery(page);
+  const record = await createRevision('drive:file-1', crypto.randomUUID(), [root.id], initial.replace('Original', 'Foreign protected branch'));
+  const raw = revisionText(record);
+  remote.revisionFiles.set('foreign-file', { id: 'foreign-file', name: 'HCB-foreign.json', mimeType: 'application/json', appProperties: { hcbJournal: 'file-1', hcbRevision: record.id, hcbDigest: record.digest }, raw, version: '1', size: String(Buffer.byteLength(raw)) });
+  await runCommand(page, 'Settings'); await region(page).getByRole('button', { name: 'Check Google Drive now', exact: true }).click(); await release();
+  await region(page).getByRole('button', { name: 'Review Google Drive file', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  await expect(review).toContainText('Local protected branch'); await expect(review).toContainText('Foreign protected branch');
+  await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
+  await expect(review).toBeHidden(); await expect.poll(() => remote.text).toContain('Foreign protected branch');
+  expect(remote.text).toContain('Local protected branch');
+  expect([...remote.revisionFiles.values()].some(file => { const value = JSON.parse(file.raw); return value.parents.length === 2 && value.text.includes('Local protected branch') && value.text.includes('Foreign protected branch'); })).toBe(true);
+  expect(remote.revisionFiles.get('foreign-file')!.raw).toBe(raw);
 });

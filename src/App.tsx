@@ -23,7 +23,7 @@ import { useLinkedFile } from './useLinkedFile';
 import { useGoogleDrive } from './useGoogleDrive';
 import { GoogleDriveSettings } from './components/GoogleDriveSettings';
 import type { DriveSnapshot } from './googleDrive';
-import { pickLinkedFile, readLinkedText, type LinkedFileHandle } from './linkedFile';
+import { pickLinkedFile, pickSyncFolder, readLinkedText, type LinkedFileHandle, type LinkedDirectoryHandle } from './linkedFile';
 import { CommandPalette, commandKey, type PaletteCommand, type PaletteResult } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
@@ -345,7 +345,7 @@ export default function App() {
   const journalGeneration = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const mergeReviewText = useRef<string | null>(null);
-  const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; raw: string; id?: string; generation?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; baselineDocument?: TodoDocument; } | null>(null);
+  const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; historyDirectory?: LinkedDirectoryHandle; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | null>(null);
   const fileSync = useLinkedFile(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
   const driveSync = useGoogleDrive(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
   const preserveSyncHistory = (next: TodoDocument) => {
@@ -933,28 +933,29 @@ export default function App() {
     const before = current.current;
     const expectedText = serializeTodoText(before.document);
     if (pending.kind === 'drive') {
-      const latest = await driveSync.read(pending.snapshot.file.id);
+      const latest = await driveSync.read(pending.snapshot.file.id, pending.revisionId);
       if (latest.snapshot.text !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
       pending.snapshot = latest.snapshot;
-    } else if (await readLinkedText(pending.handle) !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
-    const review = { document, baseline, expectedText, generation: pending.generation };
+    } else if ((pending.revisionId ? await fileSync.verifyReview(pending.revisionId) : await readLinkedText(pending.handle)) !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
+    const review = { document, baseline, expectedText, generation: pending.generation, revisionId: pending.revisionId };
     const saved = pending.kind === 'drive'
       ? await driveSync.establish(pending.snapshot, baseline, pending.id ?? null, review)
-      : await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null, review);
+      : await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null, review, pending.historyDirectory);
     if (!saved) throw new Error('The reviewed journal was not saved. Try reviewing it again.');
     if (serializeTodoText(document) !== expectedText) { undoStack.current.push(before.document); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = []; }
     setScratchUndo(null); current.current = saved; setState(saved); pendingLink.current = null;
   };
-  const linkFile = async (create: boolean) => {
+  const linkFile = async (create: boolean, folder = false) => {
     setBusy(true); setFileActionError('');
     try {
-      const handle = await pickLinkedFile(create);
+      const historyDirectory = folder ? await pickSyncFolder() : undefined;
+      const handle = historyDirectory ? await historyDirectory.getFileHandle('TODO.txt', { create: true }) as LinkedFileHandle : await pickLinkedFile(create);
       const raw = await readLinkedText(handle);
-      if (create) {
+      if (create || historyDirectory && !raw) {
         if (raw) throw new Error('This file already contains text. Use Link existing TODO.txt to review it.');
-        await fileSync.establish(handle, raw, emptyDocument());
+        await fileSync.establish(handle, raw, emptyDocument(), null, undefined, historyDirectory);
       } else {
-        pendingLink.current = { kind: 'local', handle, raw };
+        pendingLink.current = { kind: 'local', handle, historyDirectory, raw };
         setSettingsOpen(false);
         await imported(raw);
       }
@@ -993,7 +994,7 @@ export default function App() {
     }
     const parsed = parseTodoText(raw);
     if (parsed.issues.length) throw new Error('The TODO.txt doctor found a format issue after review.');
-    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.baselineDocument ?? current.current.baseline, { reviewAdditions: !!pendingLink.current?.id });
+    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.revisionId ? null : pendingLink.current?.baselineDocument ?? current.current.baseline, { reviewAdditions: !!pendingLink.current?.id });
     if (proposal.conflicts.length) {
       mergeReviewText.current = serializeTodoText(current.current.document);
       setChoices({}); setReview({ kind: 'merge', raw, proposal }); return;
@@ -1318,8 +1319,8 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
-    <AppearanceSettings fileSync={<><FileSyncSettings status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
-      <GoogleDriveSettings config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}
+    <AppearanceSettings fileSync={<><FileSyncSettings status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onFolder={() => { void linkFile(false, true); }} protectedHistory={fileSync.protected} historyStats={fileSync.revisions?.stats} onEnableHistory={() => { void fileSync.enableHistory().catch(error => setFileActionError(String(error))); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
+      <GoogleDriveSettings protectedHistory={driveSync.protected} historyStats={driveSync.revisions?.stats} onEnableHistory={() => { void driveSync.enableHistory().catch(error => setMessage(String(error))); }} config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}
         onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect} creationPending={!!driveSync.creation} onDismissCreation={() => { void driveSync.dismissCreation().catch(error => setMessage(String(error))); }} onDownloadCreation={() => { if (driveSync.creation) downloadTextFile(driveSync.creation.text, 'TODO-submitted-creation.txt'); }}/>
       <SyncRecoveryFiles recovery={fileSync.recovery ?? driveSync.recovery} onDownload={downloadTextFile}/>
       </>} open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}

@@ -1,16 +1,20 @@
 # File sync
 
-Hot Cross Buns can save its journal directly to a linked UTF-8 `TODO.txt` file. Put that file in a [Syncthing](https://syncthing.net/) folder to carry it between devices. The app uses local file access; Syncthing runs separately. Optional [Google Drive saving](GOOGLE_DRIVE.md) is a separate alternative. Only one local or Drive file can be linked at a time; unlink the current target before switching.
+Hot Cross Buns can save its journal to a UTF-8 `TODO.txt` file in a [Syncthing](https://syncthing.net/) folder. **Link sync folder** enables [immutable revision history](REVISION_SYNC.md): the app keeps companion snapshots before updating the text file. The app uses local file access; Syncthing runs separately. Optional [Google Drive saving](GOOGLE_DRIVE.md) is an alternative. Only one local or Drive target can be linked at a time; unlink it before switching.
 
 ## Link a file
 
 Open **Commands → Settings → File sync**.
 
+- **Link sync folder** grants access to a folder containing `TODO.txt` and its `.hot-cross-buns` history directory. An existing journal passes through doctor/import review; an empty journal receives the saved browser contents. Sync the entire folder on every device.
+- **Enable folder revision history** upgrades an existing individual-file link. Select its actual containing folder; choosing another folder leaves the existing link unchanged. Existing custom filenames are retained.
 - **Link existing TODO.txt** opens a file and imports it through the normal doctor and merge review. Cancel a review to leave the file unlinked. Applying the import links the file and allows automatic saves, including any approved repairs.
 - **Create linked TODO.txt** selects a new, empty file and saves the current journal there. It refuses to replace a file that already contains text; use **Link existing TODO.txt** to review that file instead.
 - **Unlink file** stops file saving. It keeps the file and browser journal.
 
 The file handle is remembered in this browser profile and origin. A browser restart or a permission change may require **Resume file saving** to grant access again. Direct file access requires a secure context and the file-picker and Web Locks APIs, normally available in desktop Chromium browsers. The app checks these capabilities. Other browsers retain **Import TODO.txt** and **Download TODO.txt**.
+
+The individual-file options use legacy single-file mode, with no shared revision history and a remaining overwrite window. Settings labels this explicitly. Folder history requires the directory-picker API. Folder permission is remembered alongside the file handle; it is not permission to other folders.
 
 The browser still saves its working copy in IndexedDB. While a tab is open and visible, the app checks the linked file about every 1.5 seconds; persisted journal edits also schedule a check after about 750 ms. Closing the browser or leaving every tab in the background stops new checks; this is not a background service. Finish editing and wait for **Saving** to change to **up to date** before switching devices; **Last written at** shows the most recent confirmed file write. That status describes the linked file, not delivery to other devices.
 
@@ -19,8 +23,8 @@ Linked-file saves include the whole journal, including undated lists, details an
 ## Set up Syncthing
 
 1. Install Syncthing on the devices you use. Follow its [getting-started guide](https://docs.syncthing.net/intro/getting-started.html) to pair them and share a folder, such as `~/Sync/HotCrossBuns/`.
-2. Use [Send & Receive](https://docs.syncthing.net/users/foldertypes.html#send-receive-folder) for devices on which you edit the journal. Link the folder's `TODO.txt` in Hot Cross Buns on the first device.
-3. Wait for Syncthing to finish transferring that file. On the next device, choose **Link existing TODO.txt** and select its local copy of the same journal.
+2. Use [Send & Receive](https://docs.syncthing.net/users/foldertypes.html#send-receive-folder) for devices on which you edit the journal. Choose **Link sync folder** in Hot Cross Buns on the first device. Include `.hot-cross-buns` in the synced folder; do not ignore it.
+3. Wait for Syncthing to transfer the text and history. On the next device, choose **Link sync folder** and select its local copy. Review any branch notice from linking that browser's own journal with the existing history.
 4. Before switching devices, finish editing, check the file-save time, and let Syncthing finish. On the next device, review any file-change notice before continuing.
 
 Enable [file versioning](https://docs.syncthing.net/users/versioning.html) on each device if you want previous received versions retained. Syncthing versioning archives changes received from other devices; it does not archive every local browser save. Keep separate backups as needed.
@@ -29,7 +33,9 @@ A different free file-transfer tool can carry the same TODO.txt file. Hot Cross 
 
 ## External edits and conflicts
 
-The app compares the browser journal and file with their last shared baseline. Independent changes merge automatically: for example, a browser title edit and a file detail edit can both survive. An active journal field or mutation review defers incoming integration across app windows until editing finishes. Completion, details and recurrence are treated together; overlapping edits, ambiguous item identity and incompatible reorders need **Review linked file**. Malformed text goes through the doctor with explicit repair approval. Known older file contents require review rather than silently undoing newer work.
+Protected folder links retain app-authored revisions independently of the latest `TODO.txt`. Valid linear changes can apply automatically; concurrent branches require **Review linked file**. Observed external editor contents are captured before replacement. An external edit overwritten before the app observes it remains outside this protection. Missing or corrupted history pauses saving. Settings shows the observed revision count and size; at **1,000 revisions / 64 MiB**, export and archive all history before starting a new target. Nothing is pruned automatically. See [protocol and retention](REVISION_SYNC.md).
+
+Single-file mode compares the browser journal and file with their last shared baseline. Independent changes can merge automatically; overlapping changes and ambiguous identity require review. Both modes defer incoming integration during active journal editing or mutation reviews, retain recurrence validation, and require explicit doctor repair approval.
 
 The review pause is shared by app windows and survives reload. The linked file's baseline is separate from manual imports and downloads. Cancelling keeps saving paused. If the journal, file or link changes during review, cancel and reopen it; approval checks these again and commits the journal and link together. Applying a valid review resumes saving. Settings offers the browser and file copies from the latest sync comparison as separate downloads; downloading either does not change the baseline. These are limited recovery copies, not a version archive.
 

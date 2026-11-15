@@ -4,6 +4,8 @@
 
 The scratchpad is separate local browser data. It is not included in TODO.txt; move selected text into dated or undated items to make it portable.
 
+Protected sync folders and new Drive links keep [immutable revisions](REVISION_SYNC.md) alongside the text workflow. They add no syntax to TODO.txt. Preserve companion history when transferring the complete synced journal: unresolved app branches can contain content absent from the latest text projection.
+
 ## Dated items
 
 A dated section starts with a valid `YYYY-MM-DD` heading. Completed items come first, followed by one blank line, then upcoming items. If all items are upcoming, put the blank line immediately after the heading. If all are done, put it after the last item. An empty date heading is meaningful and survives round trips. Import asks whether items are done or upcoming when a populated section lacks a divider.

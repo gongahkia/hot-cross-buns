@@ -8,15 +8,28 @@ export type LinkedFileHandle = FileSystemFileHandle & {
 export type FileLink = {
   id: string; handle: LinkedFileHandle; baselineText: string; baselineDocument: TodoDocument;
   lastSavedAt: number | null; needsReview: boolean;
+  historyDirectory?: LinkedDirectoryHandle;
+};
+export type LinkedDirectoryHandle = FileSystemDirectoryHandle & {
+  queryPermission: (options: { mode: 'readwrite' }) => Promise<PermissionState>;
+  requestPermission: (options: { mode: 'readwrite' }) => Promise<PermissionState>;
+  values: () => AsyncIterableIterator<FileSystemFileHandle | FileSystemDirectoryHandle>;
 };
 export type FileSyncStatus = { kind: 'unlinked' | 'saving' | 'saved' | 'permission' | 'changed' | 'error'; name?: string; detail?: string; lastSavedAt?: number | null };
 type FilePickers = {
   showOpenFilePicker?: (options: object) => Promise<LinkedFileHandle[]>;
   showSaveFilePicker?: (options: object) => Promise<LinkedFileHandle>;
+  showDirectoryPicker?: (options: object) => Promise<LinkedDirectoryHandle>;
 };
 const pickers = () => window as Window & FilePickers;
 export const supportsLinkedFiles = () => window.isSecureContext && !!pickers().showOpenFilePicker && !!pickers().showSaveFilePicker && !!navigator.locks;
 export const fileSyncLock = 'hot-cross-buns-linked-file';
+export const supportsSyncFolders = () => supportsLinkedFiles() && !!pickers().showDirectoryPicker;
+export async function pickSyncFolder(): Promise<LinkedDirectoryHandle> {
+  const directory = await pickers().showDirectoryPicker!({ mode: 'readwrite', id: 'hot-cross-buns-journal' });
+  if (await directory.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow access to the journal folder and its history files.');
+  return directory;
+}
 const pickerTypes = [{ description: 'Hot Cross Buns journal', accept: { 'text/plain': ['.txt'] } }];
 
 export async function pickLinkedFile(create: boolean): Promise<LinkedFileHandle> {

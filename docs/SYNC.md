@@ -1,6 +1,6 @@
 # Sync behavior and recovery
 
-Hot Cross Buns coordinates a browser journal with one plain-text file, either a [local file carried by Syncthing](FILE_SYNC.md) or an optional [Google Drive file](GOOGLE_DRIVE.md). Both use the same app protocol. The file transport and Google authorization APIs are unchanged; this layer decides when to read, merge, send, acknowledge, retry or ask for review.
+Hot Cross Buns coordinates a browser journal with one plain-text target, either a [local file carried by Syncthing](FILE_SYNC.md) or an optional [Google Drive file](GOOGLE_DRIVE.md). Protected folder links and new Drive links publish [immutable revisions](REVISION_SYNC.md) before updating the text file. Google authorization and the providers themselves are unchanged; our adapters add history-file capabilities. This page describes shared scheduling/recovery and the legacy single-file coordinator, which remains available with an explicit limitation notice.
 
 ## What the status means
 
@@ -13,7 +13,7 @@ Hot Cross Buns coordinates a browser journal with one plain-text file, either a 
 
 Visible tabs check local files about every 1.5 seconds and Drive metadata about every 15 seconds. Saved journal changes also schedule a check after about 750 ms. Returning to the tab or going online schedules catch-up. Background tabs do not start automatic checks, although a request already in progress may finish. Closed browsers cannot sync. Finish editing and wait for file delivery before switching devices, then let the transfer tool finish.
 
-## Delivery protocol
+## Single-file delivery protocol
 
 1. Load the saved journal, target, confirmed baseline and delivery ledger together. One browser Web Lock owns delivery across same-origin tabs; closing the owner releases that lock. There is no time-based leader lease.
 2. Read the file before writing. Compare browser and file changes with their common baseline. Malformed input, unsafe projection sizes, ambiguous identity or overlapping edits require review. Independent changes can merge automatically.
@@ -26,7 +26,9 @@ Conditional-write races re-read and reconcile up to three times per cycle, then 
 
 Google file creation has its own durable ticket, separate from ordinary saves. An uncertain creation is never automatically repeated. The user can reconnect to the same account and choose the created file, download the submitted snapshot, or explicitly allow another creation after inspecting Drive. This is necessary because the API does not provide an app-owned idempotency key for this flow.
 
-## Merging and review
+## Single-file merging and shared editing safeguards
+
+The following field-level merge policy describes single-file mode. Protected history automatically integrates validated linear descendants; concurrent revision branches require explicit review. See [revision merging](REVISION_SYNC.md#publication-and-discovery). Both modes retain the same draft, undo, recurrence and atomic-review safeguards.
 
 TODO.txt remains human-readable and carries no new private item IDs or sync metadata. File identity is inferred from the confirmed baseline using existing import alignment. Ambiguous matches require a person to choose. Local same-origin edits use their trusted stored IDs, including distinct items with identical text.
 
@@ -42,13 +44,13 @@ Settings retains one browser/file comparison pair while that target remains link
 
 Journal, link, confirmed baseline and checkpoint transitions use short IndexedDB transactions. The database retains its existing name, `hot-cross-buns-v1`, with internal schema version 3. Upgrading preserves the journal, scratchpad and stored file handles, while older version-1 and version-2 writers cannot reopen it. If an older tab blocks the upgrade, finish or export its unsaved draft, close it and reload. The old Shio Pan migration remains compatible with the current database version.
 
-For a code rollback, retain the version-3 opener and `onversionchange` handling in `src/todoStore.ts`, the version-independent destination opener in `src/legacyStorage.ts`, and the unsupported-revision guard in `src/journalSync.ts`. A coordinator without revision support refuses automatic writes to a revision-enabled target, including manual resume. Update the app or unlink and export the browser journal. Preserve pending checkpoints and creation tickets; do not delete or downgrade the database to make a rollback load.
+For a code rollback, retain the version-3 opener and `onversionchange` handling in `src/todoStore.ts`, the version-independent destination opener in `src/legacyStorage.ts`, and the unsupported-revision guard in `src/journalSync.ts`. A rollback coordinator must refuse automatic writes to protected targets. Preserve pending outcomes and remote history; see [rollback requirements](REVISION_SYNC.md#storage-upgrade-and-rollback). Do not delete or downgrade the database to make a rollback load.
 
 Access tokens remain in tab memory, outside the ledger, BroadcastChannel and browser storage. Other tabs receive change notifications and reload durable state; credentials are not broadcast. Google account identity is checked against the linked target or pending creation. Scratchpad and appearance preferences remain local and are excluded from file sync.
 
 ## Limits
 
-This is app-level coordination over whole-file transports. The last external check and write are not universally atomic: Syncthing, another editor or another device can write during that interval. Strong Drive ETags are used when the existing adapter receives them, but the app cannot assume they are always available. A generation check cannot cancel an already accepted external write; it only fences subsequent app state changes. No app protocol can recover a file version overwritten externally before it observes that version.
+The last external check and projection write are not universally atomic. Protected writers first preserve their snapshots in immutable files; legacy single-file mode retains the overwrite risk without that history. Strong Drive ETags are used when available, without relying on them for revision correctness. A generation check cannot cancel an already accepted external write; it fences subsequent app state changes. Neither mode can recover an arbitrary external editor version overwritten before it was observed.
 
 Use one editing device at a time, retain provider version history or backups, and inspect Syncthing conflict files. The app does not resolve those separate files automatically. Offline browser storage can also be cleared or evicted; a local working copy is not an independent backup. Imports and file payloads retain the existing 5 MiB / 100,000-line limits. Visible projection limits still apply. There is no hosted change log, background agent, cross-device lock, push notification service or claim of equivalence to Things Cloud.
 

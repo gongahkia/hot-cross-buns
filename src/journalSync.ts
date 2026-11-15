@@ -3,13 +3,15 @@ import { doctorTodoText } from './todoDoctor.ts';
 import { fileBaseline, proposeMerge, resolveMerge } from './todoMerge.ts';
 import { advanceRecurrences } from './recurrence.ts';
 import { parseTodoText, serializeTodoText, validateDocument, type TodoDocument, type TodoItem } from './todoText.ts';
+import type { RevisionState, RevisionTransport } from './revisionProtocol.ts';
+import { synchronizeRevisions } from './revisionSync.ts';
 
 export type SyncProvider = 'file' | 'drive';
 export type SyncStatus = { kind: 'unlinked' | 'saved' | 'saving' | 'waiting' | 'offline' | 'retrying' | 'reauth' | 'permission' | 'changed' | 'error'; name?: string; detail?: string; lastSavedAt?: number | null; retryAt?: number; lastCheckedAt?: number };
 export type SyncLink = { id: string; baselineText: string; baselineDocument: TodoDocument; needsReview: boolean; lastSavedAt: number | null };
 export type SyncCheckpoint = { id: string; text: string; document: TodoDocument; baselineText: string; createdAt: number; uncertain: boolean };
 export type SyncRecovery = { at: number; local: string; remote: string };
-export type SyncLedger = { linkId: string; generation: string; checkpoint?: SyncCheckpoint; history: string[]; failures: number; retryAt: number; status: SyncStatus; recovery?: SyncRecovery };
+export type SyncLedger = { linkId: string; generation: string; checkpoint?: SyncCheckpoint; history: string[]; failures: number; retryAt: number; status: SyncStatus; recovery?: SyncRecovery; revisions?: RevisionState };
 export type SyncBundle<L extends SyncLink> = { link: L; document: TodoDocument; revision: number; ledger: SyncLedger };
 export type SyncStore<L extends SyncLink> = { change: (work: (current: SyncBundle<L>, canIntegrate: boolean) => SyncBundle<L> | null, integrate?: boolean) => Promise<SyncBundle<L> | null> };
 export type SyncAdapter<L extends SyncLink, S extends { text: string }> = {
@@ -20,10 +22,11 @@ export type SyncAdapter<L extends SyncLink, S extends { text: string }> = {
   acknowledge: (link: L, snapshot: S, document: TodoDocument, wrote: boolean, now: number) => L;
   classify: (error: unknown) => 'permission' | 'reauth' | 'changed' | 'retrying' | 'error';
   network: boolean;
+  revisions?: RevisionTransport;
 };
 export function newSyncLedger(linkId: string, previous?: SyncLedger): SyncLedger {
   const retained = previous?.linkId === linkId ? previous : undefined;
-  return { linkId, generation: crypto.randomUUID(), history: retained ? remember(retained, retained.checkpoint?.text) : [], failures: 0, retryAt: 0, status: { kind: 'saving' }, ...(retained?.recovery ? { recovery: retained.recovery } : {}) };
+  return { linkId, generation: crypto.randomUUID(), history: retained ? remember(retained, retained.checkpoint?.text) : [], failures: 0, retryAt: 0, status: { kind: 'saving' }, ...(retained?.recovery ? { recovery: retained.recovery } : {}), ...(retained?.revisions ? { revisions: retained.revisions } : {}) };
 }
 export function retryDelay(failures: number, random = Math.random()): number {
   return Math.round(Math.min(60_000, 2000 * 2 ** Math.min(5, Math.max(0, failures - 1))) * (.8 + .4 * random));
@@ -84,13 +87,16 @@ export function rebaseSyncHistory(history: TodoDocument[], before: TodoDocument,
 }
 
 /** One frozen submission is acknowledged; later local edits and undo remain in the journal. */
-export async function synchronizeJournal<L extends SyncLink, S extends { text: string }>(options: {
+export type JournalSyncOptions<L extends SyncLink, S extends { text: string }> = {
   store: SyncStore<L>; adapter: SyncAdapter<L, S>; canSave: () => boolean; today: () => string;
   online: () => boolean; validate?: (document: TodoDocument) => void; force?: boolean; now?: () => number; random?: () => number;
-}): Promise<SyncBundle<L> | null> {
+  target?: { id: string; generation: string };
+};
+export async function synchronizeJournal<L extends SyncLink, S extends { text: string }>(options: JournalSyncOptions<L, S>): Promise<SyncBundle<L> | null> {
+  if (options.adapter.revisions) return synchronizeRevisions(options);
   const { store, adapter, canSave } = options;
   const now = options.now ?? Date.now;
-  let expected: { id: string; generation: string } | null = null;
+  let expected: { id: string; generation: string } | null = options.target ?? null;
   let observed: SyncBundle<L> | null = null;
   const change = async (work: (bundle: SyncBundle<L>, canIntegrate: boolean) => SyncBundle<L> | null, integrate = false) => {
     const value = await store.change((bundle, canIntegrate) => {

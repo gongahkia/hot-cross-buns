@@ -25,3 +25,6 @@ export function SyncRecoveryFiles({ recovery, onDownload }: { recovery: SyncReco
   if (!recovery) return null;
   return <Recovery aria-label="Sync recovery copies"><p>Copies from the latest sync comparison ({new Date(recovery.at).toLocaleString()}). Download either copy before resolving a conflict, or import one through the normal review. These copies stay in this browser while this file is linked; the next comparison replaces them.</p><div><Button type="button" onClick={() => onDownload(recovery.local, 'TODO-browser-before-sync.txt')}>Download browser copy</Button><Button type="button" onClick={() => onDownload(recovery.remote, 'TODO-file-before-sync.txt')}>Download file copy</Button></div></Recovery>;
 }
+export function RevisionHistoryInfo({ enabled, stats }: { enabled: boolean; stats?: { count: number; bytes: number } }) {
+  return <p>{enabled ? 'Revision history is enabled. Concurrent app changes are kept for review before TODO.txt is updated.' : 'Single-file mode has no shared revision history. A competing write can replace an edit before the app observes it.'}{enabled && <> {stats ? `${stats.count} / 1,000 revisions · ${(stats.bytes / 1048576).toFixed(1)} / 64 MiB.` : 'Preparing history…'} History is never pruned automatically; saving pauses at the limit. Archive the complete history before starting a new target.</>}</p>;
+}
