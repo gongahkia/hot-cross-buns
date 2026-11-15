@@ -370,12 +370,16 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Transfer me' })).toHaveCount(0);
 
   await page.locator(`[data-drop-date="${today}"]`).scrollIntoViewIfNeeded();
-  const secondSource = await page.getByRole('button', { name: 'Drag to reorder Destination task' }).boundingBox();
+  const secondGrip = page.getByRole('button', { name: 'Drag to reorder Destination task' });
+  // hover waits for the grip to settle after the done panel expands.
+  await secondGrip.hover();
+  const secondSource = await secondGrip.boundingBox();
   const secondDestination = await page.locator(`[data-drop-date="${today}"]`).boundingBox();
   expect(secondSource && secondDestination).toBeTruthy();
   await page.mouse.move(secondSource!.x + secondSource!.width / 2, secondSource!.y + secondSource!.height / 2);
   await page.mouse.down();
   await page.mouse.move(secondDestination!.x + secondDestination!.width / 2, secondDestination!.y + secondDestination!.height / 2, { steps: 20 });
+  await expect(page.getByLabel('Dragging Destination task', { exact: true })).toBeVisible();
   await page.mouse.up();
   const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
   await expect(todaySection.getByRole('group', { name: 'Destination task' })).toBeVisible();

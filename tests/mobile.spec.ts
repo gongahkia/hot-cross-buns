@@ -84,9 +84,14 @@ test('touch editors use readable text and weekday headings do not repeat on mobi
     name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${date}\n\nReview on phone\n`),
   });
   const heading = page.locator('section').filter({ has: page.locator(`time[datetime="${date}"]`) }).locator('h2');
+  // importing keeps today in view; exercise the earlier heading on screen.
+  await heading.scrollIntoViewIfNeeded();
+  await expect(heading).toBeInViewport();
   await expect(heading.locator(':scope > span').first()).toBeHidden();
   await expect(page.getByRole('textbox', { name: 'Edit Review on phone' })).toHaveCSS('font-size', '16px');
   await page.setViewportSize({ width: 768, height: 700 });
+  await heading.scrollIntoViewIfNeeded();
+  await expect(heading).toBeInViewport();
   try {
     await expect(heading.locator(':scope > span').first()).toBeVisible();
   } catch (error) {
