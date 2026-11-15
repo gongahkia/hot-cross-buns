@@ -36,7 +36,7 @@ export async function parseRevision(raw: string, journal: string): Promise<Revis
   if (!raw) throw new MissingHistoryError('A history file is still empty. Waiting for its transfer to finish.');
   if (utf8Size(raw) > MAX_REVISION_BYTES) throw new RevisionIntegrityError('A sync revision exceeds the size limit. Keep the history files and inspect them before resuming.');
   let record: Revision;
-  try { record = JSON.parse(raw) as Revision; } catch { throw new RevisionIntegrityError('A sync revision is incomplete or malformed. Keep both copies and inspect the history files.'); }
+  try { record = JSON.parse(raw) as Revision; } catch { throw new MissingHistoryError('A sync revision is incomplete or malformed. Waiting for transfer; keep the history files if saving pauses after repeated attempts.'); }
   if (!record || record.protocol !== 1 || record.journal !== journal || !uuid.test(record.id) || !uuid.test(record.device)
     || !Array.isArray(record.parents) || record.parents.length > MAX_REVISIONS || record.parents.some(id => typeof id !== 'string' || !uuid.test(id) || id === record.id)
     || new Set(record.parents).size !== record.parents.length || [...record.parents].sort().join() !== record.parents.join()

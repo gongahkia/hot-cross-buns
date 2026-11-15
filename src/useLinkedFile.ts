@@ -1,27 +1,14 @@
-import { fileSyncLock, pickSyncFolder, readLinkedText, saveLinkedText, supportsLinkedFiles, type FileLink, type LinkedFileHandle, type LinkedDirectoryHandle } from './linkedFile';
+import { fileSyncLock, pickSyncFolder, readLinkedFile, supportsLinkedFiles, type FileLink, type LinkedFileHandle, type LinkedDirectoryHandle, type LinkedFileSnapshot } from './linkedFile';
+import { fileSyncAdapter as adapter } from './fileSyncAdapter';
 import { loadFileLink, loadDriveLink, storeFileLink, readSyncBundle, changeSyncBundle, commitReviewedLink, loadSyncDevice, type ReviewedJournal, type TodoState } from './todoStore';
 import { loadRevisionHistory, restoreRevision, reviewHistoryBranch, type HistorySnapshot } from './revisionHistory';
 import { useJournalSync } from './useJournalSync';
 import { fileRevisions } from './fileRevisions';
 import { revisionGraph } from './revisionProtocol';
-import type { SyncAdapter } from './journalSync';
 import type { TodoDocument } from './todoText';
 
-const adapter: SyncAdapter<FileLink, { text: string }> = {
-  name: link => link.handle.name,
-  ready: async link => await (link.historyDirectory ?? link.handle).queryPermission({ mode: 'readwrite' }) === 'granted' ? null : 'permission',
-  read: async link => ({ text: await readLinkedText(link.handle) }),
-  write: async (link, text) => {
-    const kind = await saveLinkedText(link, text);
-    if (kind === 'permission') throw new DOMException('Allow read and write access to continue file saving.', 'NotAllowedError');
-    return { kind };
-  },
-  acknowledge: (link, snapshot, document, wrote, now) => ({ ...link, baselineText: snapshot.text, baselineDocument: document, lastSavedAt: wrote ? now : link.lastSavedAt }),
-  classify: error => error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError') ? 'permission' : 'error',
-  network: false,
-};
 export function useLinkedFile(journal: TodoDocument | null, canSave: () => boolean, validate?: (document: TodoDocument) => void) {
-  const sync = useJournalSync<FileLink, { text: string }>('file', journal, canSave, adapter, 1500, supportsLinkedFiles(), validate, link => link.historyDirectory ? { ...adapter, revisions: fileRevisions(link, loadSyncDevice) } : adapter);
+  const sync = useJournalSync<FileLink, LinkedFileSnapshot>('file', journal, canSave, adapter, 1500, supportsLinkedFiles(), validate, link => link.historyDirectory ? { ...adapter, revisions: fileRevisions(link, loadSyncDevice) } : adapter);
   const establish = async (handle: LinkedFileHandle, raw: string, baselineDocument: TodoDocument, expectedId: string | null = null, review?: ReviewedJournal, historyDirectory?: LinkedDirectoryHandle): Promise<TodoState | null> => {
     const result = await navigator.locks.request(fileSyncLock, async () => {
       if (await loadDriveLink()) throw new Error('Unlink Google Drive before linking a local file.');
@@ -39,7 +26,8 @@ export function useLinkedFile(journal: TodoDocument | null, canSave: () => boole
     const bundle = await readSyncBundle<FileLink>('file');
     if (!bundle) throw new Error('The file has been unlinked.');
     const revision = bundle.ledger.revisions?.review;
-    return { generation: bundle.ledger.generation, handle: bundle.link.handle, raw: revision?.text ?? await readLinkedText(bundle.link.handle), id: bundle.link.id, revisionId: revision?.id, baselineDocument: (bundle.ledger.checkpoint?.uncertain ? bundle.ledger.checkpoint.document : bundle.link.baselineDocument) };
+    const snapshot = revision ? { handle: bundle.link.handle, text: revision.text } : await readLinkedFile(bundle.link);
+    return { generation: bundle.ledger.generation, handle: snapshot.handle, historyDirectory: bundle.link.historyDirectory, raw: snapshot.text, id: bundle.link.id, revisionId: revision?.id, baselineDocument: (bundle.ledger.checkpoint?.uncertain ? bundle.ledger.checkpoint.document : bundle.link.baselineDocument) };
   };
   const verifyReview = async (id: string) => {
     const bundle = await readSyncBundle<FileLink>('file');
@@ -80,5 +68,5 @@ export function useLinkedFile(journal: TodoDocument | null, canSave: () => boole
     if (restore) { const result = await restoreRevision(before, id, fresh, store, document => validate?.(document)); await sync.refresh(); return result; }
     await reviewHistoryBranch(before, id, fresh, store); await sync.refresh(); return null;
   };
-  return { status: sync.status, recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.historyDirectory, history, historyAction, establish, review, verifyReview, enableHistory, resume, unlink };
+  return { status: sync.status, conflictCopies: sync.record?.conflictCopies ?? [], recovery: sync.ledger?.recovery, revisions: sync.ledger?.revisions, protected: !!sync.record?.historyDirectory, history, historyAction, establish, review, verifyReview, enableHistory, resume, unlink };
 }

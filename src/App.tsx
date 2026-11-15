@@ -25,7 +25,7 @@ import { useLinkedFile } from './useLinkedFile';
 import { useGoogleDrive } from './useGoogleDrive';
 import { GoogleDriveSettings } from './components/GoogleDriveSettings';
 import type { DriveSnapshot } from './googleDrive';
-import { pickLinkedFile, pickSyncFolder, readLinkedText, type LinkedFileHandle, type LinkedDirectoryHandle } from './linkedFile';
+import { pickLinkedFile, pickSyncFolder, readLinkedFile, readLinkedText, type LinkedFileHandle, type LinkedDirectoryHandle } from './linkedFile';
 import { CommandPalette, commandKey, type PaletteCommand, type PaletteResult } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
@@ -939,7 +939,7 @@ export default function App() {
       const latest = await driveSync.read(pending.snapshot.file.id, pending.revisionId);
       if (latest.snapshot.text !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
       pending.snapshot = latest.snapshot;
-    } else if ((pending.revisionId ? await fileSync.verifyReview(pending.revisionId) : await readLinkedText(pending.handle)) !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
+    } else if ((pending.revisionId ? await fileSync.verifyReview(pending.revisionId) : (await readLinkedFile(pending)).text) !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
     const review = { document, baseline, expectedText, generation: pending.generation, revisionId: pending.revisionId };
     const saved = pending.kind === 'drive'
       ? await driveSync.establish(pending.snapshot, baseline, pending.id ?? null, review)

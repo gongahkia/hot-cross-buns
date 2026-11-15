@@ -4,6 +4,7 @@ import { createRevision, parseRevision, revisionGraph, revisionText, MAX_REVISIO
 import { reviewedRevision } from '../src/revisionSync.ts';
 import { newSyncLedger, synchronizeJournal } from '../src/journalSync.ts';
 import { parseTodoText, serializeTodoText } from '../src/todoText.ts';
+import { classifyLinkedFileError } from '../src/linkedFile.ts';
 
 const raw = title => `UNDATED\n\nLIST: Inbox\n${title}\n`;
 const doc = text => parseTodoText(text).document;
@@ -32,7 +33,7 @@ function device(server, source) {
       },
     },
   };
-  const cycle = (force = false) => synchronizeJournal({ store, adapter, canSave: () => state.canSave, online: () => state.online, today: () => '2026-11-15', now: () => 100_000, force });
+  const cycle = (force = false) => synchronizeJournal({ store, adapter, canSave: () => state.canSave, online: () => state.online, today: () => '2026-11-15', now: () => state.now ?? 100_000, force });
   const edit = title => { state.bundle.document = doc(raw(title)); };
   const accept = () => { state.bundle.ledger.revisions = reviewedRevision(state.bundle.ledger.revisions, state.bundle.ledger.revisions.review.id); state.bundle.link.needsReview = false; state.bundle.ledger.generation = crypto.randomUUID(); state.bundle.ledger.status.kind = 'saving'; };
   return { state, adapter, cycle, edit, accept };
@@ -42,6 +43,30 @@ test('a verified immutable revision precedes the first projection write', async 
   const server = remote(), app = device(server); app.edit('Saved');
   app.state.beforeWrite = () => assert.ok([...server.records.values()].some(record => record.text === raw('Saved')));
   await app.cycle(); assert.equal(server.text, raw('Saved')); assert.equal(app.state.bundle.ledger.status.kind, 'saved');
+});
+test('folder transfer retries are durable and bounded; manual resume delivers newer edits after recovery', async () => {
+  const server = remote(), app = device(server); await app.cycle(); app.edit('Queued while downloading');
+  const read = app.adapter.read; app.adapter.classify = classifyLinkedFileError;
+  app.adapter.read = async () => { throw new DOMException('File is temporarily missing', 'NotFoundError'); };
+  app.state.now = 100_000;
+  for (let failure = 1; failure <= 8; failure++) {
+    await app.cycle(); assert.equal(app.state.bundle.ledger.failures, failure);
+    assert.equal(app.state.bundle.ledger.status.kind, failure < 8 ? 'retrying' : 'error'); app.state.now += 72_001;
+  }
+  const ids = [...server.records.keys()]; assert.equal(ids.length, 2); assert.equal(server.text, raw('Original'));
+  app.adapter.read = read; await app.cycle(); assert.equal(server.text, raw('Original'));
+  await app.cycle(true); assert.equal(server.text, raw('Queued while downloading')); assert.deepEqual([...server.records.keys()], ids);
+});
+test('zero-byte external and app-authored snapshots retain the existing journal until explicit review', async () => {
+  for (const external of [true, false]) {
+    const server = remote(), app = device(server); await app.cycle();
+    if (external) { server.text = ''; await app.cycle(); }
+    else { const record = await createRevision('test', crypto.randomUUID(), app.state.bundle.ledger.revisions.frontier, ''); server.records.set(record.id, record); }
+    await app.cycle();
+    assert.equal(app.state.bundle.link.needsReview, true); assert.equal(serializeTodoText(app.state.bundle.document), raw('Original'));
+    assert.equal(app.state.bundle.ledger.revisions.review.text, '');
+    if (external) assert.ok([...server.records.values()].some(record => record.origin === 'external' && record.text === ''));
+  }
 });
 test('a restoration queued without a transport ID reserves once and reuses that identity after a lost reply', async () => {
   const server = remote(), app = device(server); await app.cycle();

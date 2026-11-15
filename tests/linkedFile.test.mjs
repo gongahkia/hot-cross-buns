@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { saveLinkedText } from '../src/linkedFile.ts';
+import { classifyLinkedFileError, isJournalConflictCopy, readLinkedFile, saveLinkedText } from '../src/linkedFile.ts';
 
 function fixture(raw = 'original') {
   const state = { raw, reads: 0, writes: 0, closes: 0, aborts: 0, permission: 'granted', fail: false, afterRead: null, afterWrite: null };
@@ -82,4 +82,54 @@ test('oversized local and remote files stop before a write', async () => {
   state.raw = 'x'.repeat(5 * 1024 * 1024 + 1);
   await assert.rejects(saveLinkedText(link, 'local edit'), /5 MiB/);
   assert.equal(state.writes, 0);
+});
+
+test('folder reads and writes resolve the granted directory instead of a stale remembered entry', async () => {
+  const { state, link } = fixture(), stale = { ...link.handle, getFile: async () => { throw new DOMException('Replaced entry', 'NotFoundError'); } };
+  const current = { ...link.handle, isSameEntry: async other => other === current };
+  link.handle = stale;
+  link.historyDirectory = { queryPermission: async () => 'granted', getFileHandle: async name => { assert.equal(name, 'TODO.txt'); return current; }, values: async function* () {} };
+  const snapshot = await readLinkedFile(link); assert.equal(snapshot.handle, current); assert.equal(snapshot.text, 'original');
+  assert.equal(await saveLinkedText(link, 'After replacement'), 'saved'); assert.equal(state.raw, 'After replacement');
+});
+test('an entry replacement during staging aborts without committing to the wrong entry', async () => {
+  const { state, link } = fixture(), first = { ...link.handle, isSameEntry: async other => other === first }, second = { ...link.handle, isSameEntry: async other => other === second };
+  let active = first; state.afterWrite = () => { active = second; };
+  link.historyDirectory = { queryPermission: async () => 'granted', getFileHandle: async () => active };
+  assert.equal(await saveLinkedText(link, 'Local edit'), 'changed'); assert.equal(state.raw, 'original'); assert.equal(state.aborts, 1);
+});
+test('folder lookup never recreates a missing projection or escapes the granted directory', async () => {
+  const { state, link } = fixture();
+  link.historyDirectory = { queryPermission: async () => 'granted', getFileHandle: async (name, options) => { assert.equal(name, 'TODO.txt'); assert.equal(options, undefined); throw new DOMException('File is downloading', 'NotFoundError'); } };
+  await assert.rejects(readLinkedFile(link), /downloading/); await assert.rejects(saveLinkedText(link, 'Local edit'), /downloading/);
+  assert.equal(state.writes, 0);
+});
+test('a renamed or differently cased entry cannot silently switch the history namespace', async () => {
+  const { state, link } = fixture(); link.historyDirectory = { getFileHandle: async () => ({ ...link.handle, name: 'Todo.txt' }) };
+  await assert.rejects(readLinkedFile(link), /filename changed/); assert.equal(state.writes, 0);
+});
+test('temporary folder failures retry; permission and permanent failures need the appropriate action', () => {
+  for (const name of ['NotFoundError', 'NotReadableError', 'NoModificationAllowedError', 'AbortError', 'InvalidStateError', 'TimeoutError']) assert.equal(classifyLinkedFileError(new DOMException('Temporary', name)), 'retrying');
+  for (const name of ['NotAllowedError', 'SecurityError']) assert.equal(classifyLinkedFileError(new DOMException('Permission', name)), 'permission');
+  assert.equal(classifyLinkedFileError(new DOMException('Disk full', 'QuotaExceededError')), 'error');
+  assert.equal(classifyLinkedFileError(new Error('Unknown disk failure')), 'error');
+});
+test('provider conflict-copy signatures are scoped to the selected journal filename', () => {
+  for (const name of ['TODO (conflicted copy 2026-11-15 120000).txt', "TODO (Kai's conflicted copy 2026-11-15).txt", 'TODO.sync-conflict-20261115-120000-DEVICE.txt']) assert.equal(isJournalConflictCopy(name, 'TODO.txt'), true);
+  for (const name of ['TODO.txt', 'OTHER (conflicted copy 2026-11-15).txt', 'TODO (conflicted copy).txt.part', 'TODO (notes).txt', 'TODO (conflicted copy).json']) assert.equal(isJournalConflictCopy(name, 'TODO.txt'), false);
+  assert.equal(isJournalConflictCopy('My.log (conflicted copy).txt', 'My.log.txt'), true);
+});
+test('conflict-copy discovery lists names without reading, merging or deleting those files', async () => {
+  const { link } = fixture(); let reads = 0;
+  link.historyDirectory = { getFileHandle: async () => link.handle, values: async function* () {
+    for (const name of ['TODO.txt', 'TODO (conflicted copy 2026-11-15).txt', 'NOTES.txt']) yield { kind: 'file', name, getFile: async () => { reads++; throw new Error('Conflict copies must not be opened automatically'); } };
+  } };
+  assert.deepEqual((await readLinkedFile(link)).conflictCopies, ['TODO (conflicted copy 2026-11-15).txt']); assert.equal(reads, 0);
+});
+test('root folder enumeration has a work limit even when every entry is unrelated', async () => {
+  const { link } = fixture(); let visited = 0;
+  link.historyDirectory = { getFileHandle: async () => link.handle, values: async function* () {
+    for (let i = 0; i < 2001; i++) { visited++; yield { kind: 'file', name: i + '.tmp' }; }
+  } };
+  await assert.rejects(readLinkedFile(link), /scan limit/); assert.equal(visited, 2001);
 });
