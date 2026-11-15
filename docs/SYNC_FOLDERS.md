@@ -86,6 +86,8 @@ No published history, missing ancestors, corrupted records, excessive scans or u
 
 The revision graph retains its existing limits. Both the selected folder and its history directory additionally stop after 2,000 visited entries, including ignored temporary entries. Physical JSON scans remain bounded to 1,000 files and 64 MiB, including duplicates; this may pause before the logical count shown in Settings. No compaction, history deletion or automatic target rotation is introduced.
 
+If concurrent publications already pushed the old graph over budget, its review view and folder check can refuse to load. Keep the complete original and archive; verify the backup's file list and content checksums with your backup tool instead of deleting revisions to force a receipt. Export each available browser's saved journal and any unsaved recovery draft, then review those exports into a fresh dedicated target. This does not reconcile an unavailable device or every archived intermediate branch: retain the old archive for later recovery and review those versions when they become available.
+
 If an existing link points at a large general-purpose sync root, preserve the original and copy the journal, its entire companion history and relevant conflict copies into a dedicated subdirectory. Export current browser work before explicitly unlinking and linking that directory; review its initial branches normally. Leave unrelated files where they are. Use the default plain `TODO.txt` name for new targets; custom names must survive provider and filesystem naming rules with identical spelling, case and Unicode normalization on every device.
 
 ## Architecture decision and rollback
