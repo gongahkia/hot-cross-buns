@@ -1051,8 +1051,8 @@ test('uses Hot Cross Buns branding and storage', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   await expect.poll(() => page.evaluate(async () => {
-    const request = indexedDB.open('hot-cross-buns-v1', 1);
-    const db = await new Promise<IDBDatabase>(resolve => { request.onsuccess = () => resolve(request.result); });
+    const request = indexedDB.open('hot-cross-buns-v1');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     const result = await new Promise<{ revision:number } | undefined>(resolve => {
       const tx = db.transaction('state', 'readonly');
       const get = tx.objectStore('state').get('current');

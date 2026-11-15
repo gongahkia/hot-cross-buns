@@ -39,7 +39,7 @@ function readLegacyJournal(): Promise<Record<string, unknown> | undefined> {
 
 function copyJournal(values: Record<string, unknown>): Promise<void> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(`${prefix}v1`, 1);
+    const request = indexedDB.open(`${prefix}v1`);
     request.onupgradeneeded = () => {
       request.result.createObjectStore('state');
       request.result.createObjectStore('scratchpad');

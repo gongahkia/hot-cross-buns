@@ -11,7 +11,7 @@ export function SaveRecovery({ error, text, kind, onRetry, onDiscard }: {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   useEffect(() => { setNotice(''); setConfirmDiscard(false); }, [error]);
-  return <Modal open={error !== null} onClose={() => {}} title={'Unsaved ' + kind} wide>
+  return <Modal journalEditor={kind === 'journal'} open={error !== null} onClose={() => {}} title={'Unsaved ' + kind} wide>
     <h2>Unsaved {kind}</h2>
     <InlineError role="alert">{error}</InlineError>
     <Muted>Your edits are still here. Retry saving, or copy or download them before discarding.</Muted>

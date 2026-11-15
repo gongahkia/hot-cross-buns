@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
+import { holdSyncDelivery, syncState } from './sync-helpers';
 
 const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n';
 async function setup(page: Page) {
@@ -15,7 +16,7 @@ async function disk(page: Page, synchronized = true): Promise<string> {
   return page.evaluate(async synchronized => {
     const read = async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true })).getFile()).text();
     // a File snapshot can become unreadable when an app save replaces it midway through a test read.
-    return synchronized ? navigator.locks.request('hot-cross-buns-linked-file', read) : read();
+    return synchronized ? navigator.locks.request('hot-cross-buns-sync-delivery', read) : read();
   }, synchronized);
 }
 async function externalEdit(page: Page, text: string) {
@@ -73,16 +74,18 @@ test('linking an existing file imports it and later browser edits save directly'
   await expect(page.getByRole('textbox', { name: 'Edit Only in browser', exact: true })).toBeVisible();
 });
 
-test('an external change pauses saves across reload, and conflict review resumes them', async ({ page }) => {
+test('overlapping file changes pause saves across reload, and conflict review resumes them', async ({ page }) => {
   await setup(page); await externalEdit(page, initial); await linkExisting(page);
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).fill('Local title');
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).press('Tab');
   await expect.poll(() => disk(page)).toContain('Local title');
-  await externalEdit(page, initial.replace('Original', 'Remote title'));
-  const notice = page.getByRole('status', { name: 'File sync', exact: true });
-  await expect(notice).toContainText('changed outside');
+  const release = await holdSyncDelivery(page);
   await page.getByRole('textbox', { name: 'Edit Local title', exact: true }).fill('Local edit after remote change');
   await page.getByRole('textbox', { name: 'Edit Local title', exact: true }).press('Tab');
+  await externalEdit(page, initial.replace('Original', 'Remote title'));
+  await release();
+  const notice = page.getByRole('status', { name: 'File sync', exact: true });
+  await expect(notice).toContainText('changed outside');
   await page.reload();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(notice).toContainText('paused');
@@ -252,8 +255,6 @@ test('an externally completed recurring item produces one portable successor', a
   const pending = `2026-11-16\n\nWater plants\n${rule}\n- [ ] Check soil\n`;
   await externalEdit(page, pending); await linkExisting(page);
   await externalEdit(page, `2026-11-16\nWater plants\n${rule}\n  @completed: 2026-11-16\n- [x] Check soil\n\n`);
-  const notice = page.getByRole('status', { name: 'File sync', exact: true });
-  await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
   await expect.poll(() => disk(page)).toContain('occurrence 2');
   const output = await disk(page);
   expect(output).toContain('2026-11-17');
@@ -264,11 +265,13 @@ test('an externally completed recurring item produces one portable successor', a
 
 test('a stale linked-file conflict review cannot overwrite a newer edit from another window', async ({ page, context }) => {
   await setup(page); await externalEdit(page, initial); await linkExisting(page);
-  await externalEdit(page, initial.replace('Original', 'Remote title'));
-  const notice = page.getByRole('status', { name: 'File sync', exact: true });
-  await expect(notice).toContainText('changed outside');
+  const release = await holdSyncDelivery(page);
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).fill('Local title');
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).press('Tab');
+  await externalEdit(page, initial.replace('Original', 'Remote title'));
+  await release();
+  const notice = page.getByRole('status', { name: 'File sync', exact: true });
+  await expect(notice).toContainText('changed outside');
   await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
   const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
   await expect(review).toContainText('Local title');
@@ -282,4 +285,131 @@ test('a stale linked-file conflict review cannot overwrite a newer edit from ano
   await expect(review.getByRole('alert')).toContainText('journal changed while this review was open');
   expect(await disk(page)).toContain('Remote title');
   await expect(other.getByRole('textbox', { name: 'Edit Newer window edit', exact: true })).toHaveValue('Newer window edit');
+});
+
+test('an incoming file edit merges automatically and survives reload', async ({ page }) => {
+  await setup(page); await externalEdit(page, initial); await linkExisting(page);
+  await externalEdit(page, initial.replace('Original', 'From phone'));
+  await expect(page.getByRole('textbox', { name: 'Edit From phone', exact: true })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'File sync', exact: true })).toHaveCount(0);
+  await page.reload(); await page.getByRole('button', { name: 'Undated', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit From phone', exact: true })).toBeVisible();
+});
+
+test('another tab cannot integrate an external edit over an active journal draft', async ({ page, context }) => {
+  await setup(page); await externalEdit(page, initial); await linkExisting(page);
+  const draft = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await draft.fill('Uncommitted draft');
+  const other = await context.newPage(); await other.goto('/'); await other.getByRole('button', { name: 'Undated', exact: true }).click();
+  await externalEdit(page, initial.replace('Original', 'From phone'));
+  await expect(other.getByRole('status', { name: 'Journal sync', exact: true })).toContainText('Finish editing');
+  await expect(draft).toHaveValue('Uncommitted draft');
+  expect((await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Original');
+  await draft.press('Tab');
+  await expect(page.getByRole('status', { name: 'File sync', exact: true })).toContainText('review');
+  expect(await disk(page)).toContain('From phone');
+  await expect(other.getByRole('textbox', { name: 'Edit Uncommitted draft', exact: true })).toBeVisible();
+});
+
+test('incoming detail changes preserve local undo and recoverable comparison copies', async ({ page }) => {
+  await setup(page); await externalEdit(page, initial); await linkExisting(page);
+  const title = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await title.fill('Local title'); await title.press('Tab');
+  await expect.poll(() => disk(page)).toContain('Local title');
+  await externalEdit(page, (await disk(page)).replace('Keep detail', 'Phone detail'));
+  await expect(page.getByRole('textbox', { name: 'Edit detail Phone detail', exact: true })).toBeVisible();
+  await runCommand(page, 'Settings');
+  const copies = page.getByRole('region', { name: 'Sync recovery copies', exact: true });
+  await expect(copies).toBeVisible();
+  const before = (await syncState(page, 'linked-file')).baselineText;
+  const download = page.waitForEvent('download'); await copies.getByRole('button', { name: 'Download browser copy', exact: true }).click();
+  expect((await download).suggestedFilename()).toBe('TODO-browser-before-sync.txt');
+  expect((await syncState(page, 'linked-file')).baselineText).toBe(before);
+  const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true }); await settings.getByRole('button', { name: 'close', exact: true }).click(); await expect(settings).toBeHidden();
+  await page.getByRole('button', { name: 'Undated', exact: true }).focus(); await page.keyboard.press('Control+z');
+  await expect.poll(() => disk(page)).toContain('Original\n- Phone detail');
+  await page.keyboard.press('Control+Shift+z'); await expect.poll(() => disk(page)).toContain('Local title\n- Phone detail');
+});
+
+test('the sync protocol upgrade retains v1 data and file handles while fencing old writers', async ({ page }) => {
+  let seeded = false;
+  await page.route('**/assets/index-*.js', async route => {
+    if (!seeded) {
+      seeded = true;
+      await page.evaluate(async initial => {
+        const handle = await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true });
+        const writer = await handle.createWritable(); await writer.write(initial); await writer.close();
+        const document = { days: [], undated: [{ name: 'Inbox', items: [{ id: 'legacy-item', text: 'Original', completed: false, details: [{ text: 'Keep detail', completed: false }] }] }] };
+        await new Promise<void>((resolve, reject) => {
+          const open = indexedDB.open('hot-cross-buns-v1', 1);
+          open.onupgradeneeded = () => { open.result.createObjectStore('state'); open.result.createObjectStore('scratchpad'); };
+          open.onsuccess = () => {
+            const db = open.result, tx = db.transaction('state', 'readwrite'), store = tx.objectStore('state');
+            store.put({ document, baseline: document, revision: 7 }, 'current');
+            store.put({ id: 'legacy-link', handle, baselineText: initial, baselineDocument: document, needsReview: false, lastSavedAt: null }, 'linked-file');
+            tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error);
+          }; open.onerror = () => reject(open.error);
+        });
+      }, initial);
+    }
+    await route.continue();
+  });
+  await setup(page); await page.getByRole('button', { name: 'Undated', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit Original', exact: true })).toBeVisible();
+  expect((await syncState(page, 'current')).document.undated[0].items[0].id).toBe('legacy-item');
+  const version = await page.evaluate(() => new Promise((resolve, reject) => {
+    const old = indexedDB.open('hot-cross-buns-v1', 1);
+    old.onsuccess = () => { old.result.close(); reject(new Error('Old writer was admitted')); };
+    old.onerror = () => resolve(old.error?.name);
+  }));
+  expect(version).toBe('VersionError');
+  const title = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await title.fill('After upgrade'); await title.press('Tab');
+  await expect.poll(() => disk(page)).toContain('After upgrade\n- Keep detail');
+});
+
+async function openConflictingFileReview(page: Page) {
+  await setup(page); await externalEdit(page, initial); await linkExisting(page);
+  const release = await holdSyncDelivery(page);
+  const title = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await title.fill('Local title'); await title.press('Tab');
+  await externalEdit(page, initial.replace('Original', 'Remote title')); await release();
+  const notice = page.getByRole('status', { name: 'File sync', exact: true });
+  await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  await expect(review).toContainText('Local title'); await expect(review).toContainText('Remote title'); return review;
+}
+
+test('review refuses a file that changed again before approval', async ({ page }) => {
+  const review = await openConflictingFileReview(page);
+  await externalEdit(page, initial.replace('Original', 'Newer phone edit'));
+  await review.getByRole('radio', { name: 'keep both', exact: true }).check();
+  await review.getByRole('button', { name: 'apply import', exact: true }).click();
+  await expect(review.getByRole('alert')).toContainText('file changed while this review was open');
+  expect((await syncState(page, 'current')).document.undated[0].items.map((item: { text: string }) => item.text)).toEqual(['Local title']);
+  expect(await disk(page)).toContain('Newer phone edit');
+});
+
+test('unlinking in another tab invalidates review before any journal changes commit', async ({ page, context }) => {
+  const review = await openConflictingFileReview(page);
+  const other = await context.newPage(); await other.goto('/'); await runCommand(other, 'Settings');
+  await other.getByRole('region', { name: 'File sync', exact: true }).getByRole('button', { name: 'Unlink file', exact: true }).click();
+  await expect.poll(() => linked(other)).toBe(false);
+  await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
+  await expect(review.getByRole('alert')).toContainText('file link changed');
+  expect((await syncState(page, 'current')).document.undated[0].items.map((item: { text: string }) => item.text)).toEqual(['Local title']);
+  expect(await linked(page)).toBe(false); expect(await disk(page)).toContain('Remote title');
+});
+
+test('a failed reviewed-link transaction rolls back the journal and baseline together', async ({ page }) => {
+  const review = await openConflictingFileReview(page);
+  const generation = (await syncState(page, 'file-sync-ledger')).generation;
+  await page.evaluate(generation => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (key === 'file-sync-ledger' && value.generation !== generation) throw new DOMException('Review checkpoint is full', 'QuotaExceededError');
+      return put.call(this, value, key);
+    };
+  }, generation);
+  await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
+  await expect(review.getByRole('alert')).toContainText('Review checkpoint is full');
+  expect((await syncState(page, 'current')).document.undated[0].items.map((item: { text: string }) => item.text)).toEqual(['Local title']);
+  const link = await syncState(page, 'linked-file'); expect(link.needsReview).toBe(true); expect(link.baselineText).toContain('Original');
+  expect(await disk(page)).toContain('Remote title');
 });

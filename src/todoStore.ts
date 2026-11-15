@@ -1,4 +1,5 @@
-import { emptyDocument, normalizeDocument, validateDocument, type TodoDocument } from './todoText';
+import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
+import { emptyDocument, normalizeDocument, serializeTodoText, validateDocument, type TodoDocument } from './todoText';
 
 export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; revision: number };
 export type ScratchpadState = { text: string; revision: number };
@@ -13,13 +14,20 @@ const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastCh
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore(STATE_STORE);
-      request.result.createObjectStore(SCRATCH_STORE);
+      for (const name of [STATE_STORE, SCRATCH_STORE]) if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onblocked = () => { timer = setTimeout(() => { settled = true; reject(new Error('Finish or export unsaved edits in older Hot Cross Buns tabs, then close them and reload to finish the sync storage upgrade.')); }, 3000); };
+    request.onsuccess = () => {
+      clearTimeout(timer);
+      if (settled) { request.result.close(); return; }
+      request.result.onversionchange = () => request.result.close();
+      settled = true; resolve(request.result);
+    };
+    request.onerror = () => { clearTimeout(timer); settled = true; reject(request.error); };
   });
 }
 
@@ -46,12 +54,13 @@ function transact<T>(stores: string[], work: (tx: IDBTransaction, done: (value: 
 const stateFrom = (value: TodoState | undefined): TodoState => value
   ? { document: normalizeDocument(value.document), baseline: value.baseline ? normalizeDocument(value.baseline) : null, revision: value.revision ?? 0 }
   : emptyState();
-const announce = (kind: 'journal' | 'scratchpad') => channel?.postMessage({ kind });
-export function subscribeStore(kind: 'journal' | 'scratchpad', callback: () => void): () => void {
-  if (!channel) return () => undefined;
+const localNotifications = new EventTarget();
+const announce = (kind: 'journal' | 'scratchpad' | 'sync', self = false) => { channel?.postMessage({ kind }); if (self || kind === 'sync') localNotifications.dispatchEvent(new Event(kind)); };
+export function subscribeStore(kind: 'journal' | 'scratchpad' | 'sync', callback: () => void): () => void {
   const listener = (event: MessageEvent<{ kind?: string }>) => { if (event.data?.kind === kind) callback(); };
-  channel.addEventListener('message', listener);
-  return () => channel.removeEventListener('message', listener);
+  channel?.addEventListener('message', listener);
+  localNotifications.addEventListener(kind, callback);
+  return () => { channel?.removeEventListener('message', listener); localNotifications.removeEventListener(kind, callback); };
 }
 
 async function read<T>(storeName: string, fallback: T): Promise<T> {
@@ -186,13 +195,7 @@ export async function loadFileLink(): Promise<import('./linkedFile').FileLink | 
     });
   } finally { db.close(); }
 }
-export async function storeFileLink(link: import('./linkedFile').FileLink | null): Promise<void> {
-  await transact<void>([STATE_STORE], (tx, done) => {
-    const store = tx.objectStore(STATE_STORE);
-    if (link) store.put(link, 'linked-file'); else store.delete('linked-file');
-    done();
-  });
-}
+export async function storeFileLink(link: import('./linkedFile').FileLink | null): Promise<void> { await storeLinkedTarget('file', link); }
 
 export async function loadDriveLink(): Promise<import('./googleDrive').DriveLink | null> {
   const db = await openDatabase();
@@ -204,10 +207,124 @@ export async function loadDriveLink(): Promise<import('./googleDrive').DriveLink
     });
   } finally { db.close(); }
 }
-export async function storeDriveLink(link: import('./googleDrive').DriveLink | null): Promise<void> {
-  await transact<void>([STATE_STORE], (tx, done) => {
-    const store = tx.objectStore(STATE_STORE);
-    if (link) store.put(link, 'google-drive-link'); else store.delete('google-drive-link');
-    done();
+export async function storeDriveLink(link: import('./googleDrive').DriveLink | null): Promise<void> { await storeLinkedTarget('drive', link); }
+
+async function storeLinkedTarget(provider: SyncProvider, link: SyncLink | null): Promise<void> {
+  await transact<void>([STATE_STORE], (tx, done, fail) => {
+    const store = tx.objectStore(STATE_STORE), key = provider + '-sync-ledger', request = store.get(key);
+    request.onerror = () => fail(request.error);
+    request.onsuccess = () => {
+      try {
+        if (link) {
+          store.put(link, linkKey(provider)); store.put(newSyncLedger(link.id, request.result), key);
+          if (provider === 'drive') store.delete('sync-file-creation');
+        } else { store.delete(linkKey(provider)); store.delete(key); }
+        done();
+      } catch (error) { fail(error); }
+    };
   });
+  announce('sync');
+}
+
+const linkKey = (provider: SyncProvider) => provider === 'file' ? 'linked-file' : 'google-drive-link';
+export async function readSyncBundle<L extends SyncLink>(provider: SyncProvider): Promise<SyncBundle<L> | null> {
+  const db = await openDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const store = db.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE), request = store.get(linkKey(provider));
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const record = request.result as L | undefined;
+        if (!record) { resolve(null); return; }
+        const journal = store.get('current'), ledger = store.get(provider + '-sync-ledger');
+        let remaining = 2;
+        const finish = () => {
+          if (--remaining) return;
+          try {
+            const saved = stateFrom(journal.result);
+            resolve({ link: record, document: saved.document, revision: saved.revision, ledger: ledger.result?.linkId === record.id ? ledger.result : { ...newSyncLedger(record.id), generation: 'legacy:' + record.id } });
+          } catch (error) { reject(error); }
+        };
+        for (const entry of [journal, ledger]) { entry.onsuccess = finish; entry.onerror = () => reject(entry.error); }
+      };
+    });
+  } finally { db.close(); }
+}
+export async function changeSyncBundle<L extends SyncLink>(provider: SyncProvider, work: (current: SyncBundle<L>, canIntegrate: boolean) => SyncBundle<L> | null, integrate = false): Promise<SyncBundle<L> | null> {
+  const commit = async (canIntegrate: boolean) => {
+    let journalChanged = false, metadataChanged = false;
+    const result = await transact<SyncBundle<L> | null>([STATE_STORE], (tx, done, fail) => {
+      const store = tx.objectStore(STATE_STORE);
+      const link = store.get(linkKey(provider)), journal = store.get('current'), ledger = store.get(provider + '-sync-ledger');
+      let remaining = 3;
+      const finish = () => {
+        if (--remaining) return;
+        const record = link.result as L | undefined;
+        if (!record) { done(null); return; }
+        try {
+          const saved = stateFrom(journal.result);
+          const current: SyncBundle<L> = { link: record, document: saved.document, revision: saved.revision, ledger: ledger.result?.linkId === record.id ? ledger.result : { ...newSyncLedger(record.id), generation: 'legacy:' + record.id } };
+          const next = work(current, canIntegrate);
+          if (!next) { done(null); return; }
+          journalChanged = next.document !== current.document && JSON.stringify(next.document) !== JSON.stringify(current.document);
+          if (journalChanged) { validateDocument(next.document); next.revision = saved.revision + 1; store.put({ ...saved, document: next.document, revision: next.revision }, 'current'); }
+          if (next !== current || ledger.result?.linkId !== record.id) { metadataChanged = true; store.put(next.link, linkKey(provider)); store.put(next.ledger, provider + '-sync-ledger'); }
+          done(next);
+        } catch (error) { fail(error); }
+      };
+      for (const request of [link, journal, ledger]) { request.onsuccess = finish; request.onerror = () => fail(request.error); }
+    });
+    if (journalChanged) announce('journal', true);
+    if (metadataChanged || journalChanged) announce('sync');
+    return result;
+  };
+  return navigator.locks.request('hot-cross-buns-linked-file', () => integrate
+    ? navigator.locks.request('hot-cross-buns-journal-editor', { ifAvailable: true }, lock => commit(!!lock))
+    : commit(false));
+}
+
+export type SyncCreation = { id: string; accountId: string; email: string; createdAt: number; text: string; document: TodoDocument; uncertain: boolean };
+export async function loadSyncCreation(): Promise<SyncCreation | null> {
+  const db = await openDatabase();
+  try { return await new Promise((resolve, reject) => { const request = db.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).get('sync-file-creation'); request.onsuccess = () => resolve(request.result ?? null); request.onerror = () => reject(request.error); }); }
+  finally { db.close(); }
+}
+export async function storeSyncCreation(expectedId: string | null, next: SyncCreation | null): Promise<boolean> {
+  const result = await transact<boolean>([STATE_STORE], (tx, done, fail) => {
+    const store = tx.objectStore(STATE_STORE), request = store.get('sync-file-creation');
+    request.onerror = () => fail(request.error);
+    request.onsuccess = () => {
+      try {
+        if ((request.result?.id ?? null) !== expectedId) { done(false); return; }
+        if (next) store.put(next, 'sync-file-creation'); else store.delete('sync-file-creation');
+        done(true);
+      } catch (error) { fail(error); }
+    };
+  });
+  announce('sync'); return result;
+}
+
+export type ReviewedJournal = { document: TodoDocument; baseline: TodoDocument; expectedText: string; generation?: string };
+/** The reviewed journal, target and baseline either commit together or all remain unchanged. */
+export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvider, link: L, expectedId: string | null, review: ReviewedJournal): Promise<TodoState> {
+  const result = await transact<TodoState>([STATE_STORE], (tx, done, fail) => {
+    const store = tx.objectStore(STATE_STORE);
+    const target = store.get(linkKey(provider)), other = store.get(linkKey(provider === 'file' ? 'drive' : 'file')), journal = store.get('current'), ledger = store.get(provider + '-sync-ledger');
+    let remaining = 4;
+    const finish = () => {
+      if (--remaining) return;
+      try {
+        if (other.result || (target.result?.id ?? null) !== expectedId || review.generation && (ledger.result?.generation ?? 'legacy:' + target.result?.id) !== review.generation) throw new Error('The file link changed in another window. Cancel and review it again.');
+        const latest = stateFrom(journal.result);
+        if (serializeTodoText(latest.document) !== review.expectedText) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
+        validateDocument(review.document);
+        const next = { ...latest, document: review.document, baseline: review.baseline, revision: latest.revision + 1 };
+        store.put(next, 'current'); store.put(link, linkKey(provider)); store.put(newSyncLedger(link.id, ledger.result), provider + '-sync-ledger');
+        if (provider === 'drive') store.delete('sync-file-creation');
+        done(next);
+      } catch (error) { fail(error); }
+    };
+    for (const request of [target, other, journal, ledger]) { request.onsuccess = finish; request.onerror = () => fail(request.error); }
+  });
+  announce('journal'); announce('sync'); return result;
 }

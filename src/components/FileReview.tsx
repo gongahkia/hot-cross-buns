@@ -38,7 +38,7 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
   const merge = review?.kind === 'merge' ? review : null;
   const unchecked = !!doctor && rawEdit !== doctor.checked;
   const blocking = doctor?.findings.some(finding => finding.level === 'review') ?? false;
-  return <Modal open={!!review} onClose={onClose} title="Review TODO.txt import" wide>
+  return <Modal journalEditor open={!!review} onClose={onClose} title="Review TODO.txt import" wide>
     <Title>{doctor ? 'Check TODO.txt import' : 'Review TODO.txt import'}</Title>
     {error && <InlineError role="alert">{error}</InlineError>}
     {doctor ? <>

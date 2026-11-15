@@ -122,7 +122,7 @@ export function ScheduleEditor({ kind, item, date, onClose, onTime, onRepeat }: 
     onClose();
   };
 
-  return <Modal open onClose={onClose} title={kind === 'time' ? 'Time block for ' + item.text : 'Repeat ' + item.text} compact>
+  return <Modal journalEditor open onClose={onClose} title={kind === 'time' ? 'Time block for ' + item.text : 'Repeat ' + item.text} compact>
     <Heading>{kind === 'time' ? 'time block' : 'repeat'}</Heading>
     <Form onSubmit={event => { event.preventDefault(); save(); }}>
       {kind === 'time' ? <Inline><Label>start<Input aria-label="Start time" type="time" value={start} onChange={event => setStart(event.target.value)}/></Label><Label>end<Input aria-label="End time" type="time" value={end} onChange={event => setEnd(event.target.value)}/></Label></Inline> : <>

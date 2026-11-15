@@ -3,7 +3,7 @@ import { cloneDocument, emptyDocument, itemContent, itemValue, newId, type TodoD
 export type MergeChoice = 'local' | 'file' | 'both';
 export type MergeRow = {
   key: string; date: string; order: number; localOrder: number; fileOrder: number; local: TodoItem | null; file: TodoItem | null;
-  conflict: boolean; choice: MergeChoice; reorderConflict?: boolean;
+  conflict: boolean; choice: MergeChoice; reorderConflict?: boolean; ambiguous?: boolean;
 };
 export type MergeProposal = { rows: MergeRow[]; conflicts: MergeRow[]; emptyDates: string[]; keepEmptyDates: string[]; fileEmptyDates: string[]; undatedNames?: string[]; fileUndatedNames?: string[] };
 const undatedKey = (name: string) => `UNDATED:${name}`;
@@ -11,7 +11,12 @@ const listName = (key: string) => key.slice('UNDATED:'.length);
 
 const same = (a: TodoItem | null, b: TodoItem | null) => a === b || (!!a && !!b && itemValue(a) === itemValue(b));
 /** Align text-file items to the last observed file without putting private IDs in TODO.txt. */
-function align(base: TodoItem[], file: TodoItem[]) {
+function align(base: TodoItem[], file: TodoItem[], stable = false) {
+  if (stable) {
+    const byId = new Map(file.map((item, index) => [item.id, index]));
+    const ids = new Set(base.map(item => item.id));
+    return { assigned: new Map(base.map(item => [item.id, byId.has(item.id) ? file[byId.get(item.id)!] : null])), positions: new Map(base.filter(item => byId.has(item.id)).map(item => [item.id, byId.get(item.id)!])), ambiguous: new Set<string>(), additions: file.filter(item => !ids.has(item.id)) };
+  }
   const used = new Set<number>();
   const assigned = new Map<string, TodoItem | null>();
   const positions = new Map<string, number>();
@@ -55,7 +60,7 @@ function align(base: TodoItem[], file: TodoItem[]) {
   return { assigned, positions, ambiguous, additions: file.filter((_, index) => !used.has(index)) };
 }
 
-export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: TodoDocument | null): MergeProposal {
+export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: TodoDocument | null, options: { identity?: 'stable'; reviewAdditions?: boolean } = {}): MergeProposal {
   const rows: MergeRow[] = [];
   const groupMap = (document: TodoDocument) => new Map<string, TodoItem[]>([
     ...document.days.map(day => [day.date, day.items] as [string, TodoItem[]]),
@@ -80,7 +85,7 @@ export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: 
     }
     const dayStart = rows.length;
     const baseItems = baseByDate.get(date) ?? [];
-    const { assigned, positions, ambiguous, additions } = align(baseItems, fileItems);
+    const { assigned, positions, ambiguous, additions } = align(baseItems, fileItems, options.identity === 'stable');
     const byId = new Map(localItems.map(item => [item.id, item]));
     const localIndex = new Map(localItems.map((item, index) => [item.id, index]));
     const fileIndex = new Map(fileItems.map((item, index) => [item, index]));
@@ -93,23 +98,23 @@ export function proposeMerge(local: TodoDocument, file: TodoDocument, baseline: 
       const conflict = (localChanged && fileChanged && !same(left, right)) || (ambiguous.has(old.id) && (localChanged || fileChanged));
       const choice: MergeChoice = conflict ? 'local' : fileChanged ? 'file' : 'local';
       const fileIndex = positions.get(old.id) ?? -1;
-      rows.push({ key: `${date}:base:${old.id}`, date, order: fileIndex >= 0 ? fileIndex : index, localOrder: localIndex.get(old.id) ?? -1, fileOrder: fileIndex, local: left, file: right, conflict, choice });
+      rows.push({ key: `${date}:base:${old.id}`, date, order: fileIndex >= 0 ? fileIndex : index, localOrder: localIndex.get(old.id) ?? -1, fileOrder: fileIndex, local: left, file: right, conflict, choice, ...(ambiguous.has(old.id) ? { ambiguous: true } : {}) });
     }
     const baseIds = new Set(baseItems.map(item => item.id));
     const localAdds = localItems.filter(item => !baseIds.has(item.id));
     const localAddsByValue = new Map<string, TodoItem[]>();
     localAdds.forEach(item => {
-      const value = itemValue(item);
+      const value = options.identity === 'stable' ? item.id : itemValue(item);
       const matches = localAddsByValue.get(value) ?? [];
       matches.push(item);
       localAddsByValue.set(value, matches);
     });
     const usedLocalAdds = new Set<string>();
     for (const item of additions) {
-      const match = localAddsByValue.get(itemValue(item))?.shift();
+      const match = localAddsByValue.get(options.identity === 'stable' ? item.id : itemValue(item))?.shift();
       if (match) usedLocalAdds.add(match.id);
       const index = fileIndex.get(item) ?? -1;
-      rows.push({ key: `${date}:file:${item.id}`, date, order: index, localOrder: match ? localIndex.get(match.id) ?? -1 : -1, fileOrder: index, local: match ?? null, file: item, conflict: false, choice: 'file' });
+      rows.push({ key: `${date}:file:${item.id}`, date, order: index, localOrder: match ? localIndex.get(match.id) ?? -1 : -1, fileOrder: index, local: match ?? null, file: item, conflict: !!match && (!!options.reviewAdditions || !same(match, item)), choice: 'file' });
     }
     for (const item of localAdds) {
       if (usedLocalAdds.has(item.id)) continue;
@@ -175,7 +180,10 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
       const list = (document.undated ??= []).find(list => list.name === name) ?? (() => {
         const created = { name, items: [] as TodoItem[] }; document.undated!.push(created); return created;
       })();
-      for (const item of selected) if (item) list.items.push({ ...item, id: list.items.some(existing => existing.id === item.id) ? newId() : item.id, details: item.details.map(detail => ({ ...detail })) });
+      for (const item of selected) if (item) {
+        const identity = item === row.file && row.local && choice !== 'both' ? row.local.id : item.id;
+        list.items.push({ ...item, id: list.items.some(existing => existing.id === identity) ? newId() : identity, details: item.details.map(detail => ({ ...detail })) });
+      }
       continue;
     }
     let day = days.get(row.date);
@@ -188,7 +196,8 @@ export function resolveMerge(proposal: MergeProposal, choices: Record<string, Me
     const ids = idsByDate.get(row.date)!;
     for (const item of selected) {
       if (!item) continue;
-      const id = ids.has(item.id) ? newId() : item.id;
+      const identity = item === row.file && row.local && choice !== 'both' ? row.local.id : item.id;
+      const id = ids.has(identity) ? newId() : identity;
       ids.add(id);
       day.items.push({ ...item, id, details: item.details.map(detail => ({ ...detail })) });
     }

@@ -1,0 +1,27 @@
+import styled from 'styled-components';
+import { CloudCheck, CloudOff, LoaderCircle, CircleAlert } from 'lucide-react';
+import { Button } from '../styles';
+import type { SyncRecovery, SyncStatus } from '../journalSync';
+
+const Status = styled.div`display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-height:24px;margin:0 0 14px;color:var(--muted);font-size:11px;line-height:1.5;button{font-size:11px;min-height:32px;padding:3px 8px;}`;
+const Recovery = styled.section`margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);p{margin-bottom:8px;line-height:1.5;}div{display:flex;gap:8px;flex-wrap:wrap;}`;
+export function JournalSyncStatus({ status, provider, draft, saving, onSettings }: { status: SyncStatus; provider: 'file' | 'drive'; draft: boolean; saving: boolean; onSettings: () => void }) {
+  if (status.kind === 'unlinked' || provider === 'file' && ['changed', 'permission', 'error'].includes(status.kind)) return null;
+  const attention = ['changed', 'permission', 'error', 'reauth'].includes(status.kind);
+  const local = draft ? 'Editing on this device. Finish the field to save.' : saving ? 'Saving on this device…' : 'Saved in this browser.';
+  const remote = status.kind === 'changed' ? 'File changes need review.'
+    : status.kind === 'reauth' ? 'Reconnect this tab to continue saving to Google Drive.'
+    : status.kind === 'error' || status.kind === 'permission' ? 'File saving needs attention.'
+    : status.kind === 'offline' ? 'Google Drive will catch up when online.'
+    : status.kind === 'retrying' ? 'File saving will retry automatically.'
+    : status.kind === 'waiting' ? status.detail ?? 'Finish editing to bring in file changes.'
+    : status.kind === 'saving' ? `Saving ${status.name}…`
+    : draft || saving ? 'The file reflects the last saved journal.' : `${status.name} is up to date.`;
+  const text = `${local} ${remote}`;
+  const Icon = attention ? CircleAlert : status.kind === 'offline' ? CloudOff : ['saving', 'retrying'].includes(status.kind) || saving ? LoaderCircle : CloudCheck;
+  return <Status role="status" aria-label="Journal sync" title={status.lastCheckedAt ? 'Last checked at ' + new Date(status.lastCheckedAt).toLocaleTimeString() : undefined}><Icon size={14} aria-hidden="true"/><span>{text}</span>{attention && <Button type="button" onClick={onSettings}>Sync settings</Button>}</Status>;
+}
+export function SyncRecoveryFiles({ recovery, onDownload }: { recovery: SyncRecovery | undefined; onDownload: (text: string, name: string) => void }) {
+  if (!recovery) return null;
+  return <Recovery aria-label="Sync recovery copies"><p>Copies from the latest sync comparison ({new Date(recovery.at).toLocaleString()}). Download either copy before resolving a conflict, or import one through the normal review. These copies stay in this browser while this file is linked; the next comparison replaces them.</p><div><Button type="button" onClick={() => onDownload(recovery.local, 'TODO-browser-before-sync.txt')}>Download browser copy</Button><Button type="button" onClick={() => onDownload(recovery.remote, 'TODO-file-before-sync.txt')}>Download file copy</Button></div></Recovery>;
+}

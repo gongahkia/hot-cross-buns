@@ -16,6 +16,9 @@ import { UndatedView } from './components/UndatedView';
 import { Modal } from './components/Modal';
 import { StatusToast, type StatusNotice } from './components/StatusToast';
 import { FileSyncSettings, fileSyncMessage } from './components/FileSyncSettings';
+import { rebaseSyncHistory, rebaseLocalJournal } from './journalSync';
+import { JournalSyncStatus, SyncRecoveryFiles } from './components/JournalSyncStatus';
+import { useJournalEditing } from './useJournalEditing';
 import { useLinkedFile } from './useLinkedFile';
 import { useGoogleDrive } from './useGoogleDrive';
 import { GoogleDriveSettings } from './components/GoogleDriveSettings';
@@ -32,7 +35,7 @@ import { datesInRange, shiftDate, shiftRange, weekRange, type DateSpan } from '.
 import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZone, getWeekStart, setWeekStart, getHolidayCountry, setHolidayCountry, getHolidayMode, setHolidayMode, getHolidaysEnabled, setHolidaysEnabled, getPastUnfinishedScope, setPastUnfinishedScope, type DateFormat, type HolidayMode, type PastUnfinishedScope } from './preferences';
 import { earlierUnfinishedDays } from './earlierUnfinished';
 import { addSavedHolidays, fetchHolidayYear, type HolidayYear, type PublicHoliday } from './holidays';
-import { cloneDocument, emptyDocument, itemValue, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
+import { cloneDocument, emptyDocument, newId, parseTodoText, serializeTodoText, todayString, validDate, validateDocument, type TodoDocument, type TodoItem } from './todoText';
 import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
 import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
 import { advanceRecurrences, nextRecurrenceDate } from './recurrence';
@@ -215,10 +218,6 @@ const changedHistoryIds = (before: TodoDocument, after: TodoDocument) => {
   }
   return changed;
 };
-const itemSnapshots = (document: TodoDocument) => new Map([
-  ...document.days.flatMap(day => day.items.map(item => [item.id, JSON.stringify([day.date, itemValue(item)])] as const)),
-  ...(document.undated ?? []).flatMap(list => list.items.map(item => [item.id, JSON.stringify([list.name, itemValue(item)])] as const)),
-]);
 const animateHistoryFallback = (before: Map<string, HistoryRow>, changed: Set<string>) => {
   for (const [id, after] of visibleHistoryRows()) {
     const previous = before.get(id);
@@ -272,6 +271,7 @@ function DayItems({ date, items, selected, revealItemId, completed, upcoming, pr
 }
 
 export default function App() {
+  const editingDraft = useJournalEditing();
   useJournalFieldResize();
   const [popout] = useState(readPopoutScope);
   const [state, setState] = useState<TodoState | null>(null);
@@ -344,9 +344,16 @@ export default function App() {
   const pendingJournal = useRef(0);
   const journalGeneration = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
-  const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; raw: string; id?: string; baselineDocument?: TodoDocument; reviewLocalText?: string } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; baselineDocument?: TodoDocument; reviewLocalText?: string } | null>(null);
-  const fileSync = useLinkedFile(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure);
-  const driveSync = useGoogleDrive(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage);
+  const mergeReviewText = useRef<string | null>(null);
+  const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; raw: string; id?: string; generation?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; baselineDocument?: TodoDocument; } | null>(null);
+  const fileSync = useLinkedFile(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
+  const driveSync = useGoogleDrive(state?.document ?? null, () => !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
+  const preserveSyncHistory = (next: TodoDocument) => {
+    const before = current.current.document;
+    undoStack.current = rebaseSyncHistory(undoStack.current, before, next, todayString());
+    redoStack.current = rebaseSyncHistory(redoStack.current, before, next, todayString());
+    setFeedbackNotice(null);
+  };
   const today = todayString();
   const shownHolidayYears = (viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]).map(date => Number(date.slice(0, 4)));
   const holidayYearsKey = [...new Set(shownHolidayYears)].join(',');
@@ -425,8 +432,8 @@ export default function App() {
         const sameDocument = serializeTodoText(latest.document) === serializeTodoText(current.current.document);
         const sameBaseline = latest.baseline === null && current.current.baseline === null || !!latest.baseline && !!current.current.baseline && serializeTodoText(latest.baseline) === serializeTodoText(current.current.baseline);
         const synchronized = sameDocument ? { ...latest, document: current.current.document } : latest;
+        if (!sameDocument) preserveSyncHistory(latest.document);
         current.current = synchronized;
-        if (!sameDocument) { undoStack.current = []; redoStack.current = []; setFeedbackNotice(null); }
         if (!sameDocument || !sameBaseline) setState(synchronized);
       }).catch(error => setMessage(`Could not refresh journal: ${String(error)}`));
     };
@@ -475,6 +482,7 @@ export default function App() {
         const sameDocument = serializeTodoText(latest.document) === serializeTodoText(current.current.document);
         const sameBaseline = latest.baseline === null && current.current.baseline === null || !!latest.baseline && !!current.current.baseline && serializeTodoText(latest.baseline) === serializeTodoText(current.current.baseline);
         const synchronized = sameDocument ? { ...latest, document: current.current.document } : latest;
+        if (!sameDocument) preserveSyncHistory(latest.document);
         current.current = synchronized;
         if (!sameDocument || !sameBaseline) setState(synchronized);
       } catch (error) { setMessage(`Could not refresh journal: ${String(error)}`); }
@@ -493,18 +501,10 @@ export default function App() {
     setState(stamped);
     await persistSnapshot(stamped, before);
   };
-  const persistEdit = (before: TodoDocument, optimistic: TodoDocument, change: (document: TodoDocument) => void) => enqueueJournal(() => mutateTodoState(latest => {
+  const persistEdit = (before: TodoDocument, optimistic: TodoDocument) => enqueueJournal(() => mutateTodoState(latest => {
     if (serializeTodoText(latest.document) === serializeTodoText(before)) return { ...latest, document: optimistic };
-    const oldItems = itemSnapshots(before);
-    const newItems = itemSnapshots(optimistic);
-    const incomingItems = itemSnapshots(latest.document);
-    const changedIds = new Set([...oldItems.keys(), ...newItems.keys()].filter(id => oldItems.get(id) !== newItems.get(id)));
-    if ([...changedIds].some(id => oldItems.get(id) !== incomingItems.get(id))) throw new Error('The same item changed in another window. Your edit was not saved; reload and try again.');
-    const document = cloneDocument(latest.document);
-    change(document);
-    document.days = document.days.filter(day => day.items.length || day.keepEmpty);
-    advanceRecurrences(latest.document, document, todayString());
-    validateDocument(document);
+    const document = rebaseLocalJournal(before, optimistic, latest.document, todayString());
+    if (!document) throw new Error('The same item changed in another window. Your edit was not saved; reload and try again.');
     return { ...latest, document };
   }));
   const replayState = (documentData: TodoDocument) => {
@@ -572,7 +572,7 @@ export default function App() {
     previousDocument.current = before;
     current.current = stamped;
     setState(stamped);
-    void persistEdit(before,document,change).catch(reportSaveError);
+    void persistEdit(before,document).catch(reportSaveError);
     setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
   };
   const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
@@ -926,12 +926,24 @@ export default function App() {
     for (const date of viewMode === 'range' ? datesInRange(activeRange) : [selectedDate]) projectItemsForDate(document, date, budget);
     if (pastUnfinishedScope === 'all') earlierUnfinishedDays(document, todayString());
   };
-  const finishFileLink = async (baseline: TodoDocument) => {
+  const finishImportedJournal = async (document: TodoDocument, baseline: TodoDocument) => {
+    validateVisibleProjection(document);
     const pending = pendingLink.current;
-    if (!pending) return;
-    if (pending.kind === 'drive') await driveSync.establish(pending.snapshot, baseline, pending.id ?? null);
-    else await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null);
-    pendingLink.current = null;
+    if (!pending) { await commitDocumentState({ ...current.current, document, baseline }); return; }
+    const before = current.current;
+    const expectedText = serializeTodoText(before.document);
+    if (pending.kind === 'drive') {
+      const latest = await driveSync.read(pending.snapshot.file.id);
+      if (latest.snapshot.text !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
+      pending.snapshot = latest.snapshot;
+    } else if (await readLinkedText(pending.handle) !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
+    const review = { document, baseline, expectedText, generation: pending.generation };
+    const saved = pending.kind === 'drive'
+      ? await driveSync.establish(pending.snapshot, baseline, pending.id ?? null, review)
+      : await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null, review);
+    if (!saved) throw new Error('The reviewed journal was not saved. Try reviewing it again.');
+    if (serializeTodoText(document) !== expectedText) { undoStack.current.push(before.document); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = []; }
+    setScratchUndo(null); current.current = saved; setState(saved); pendingLink.current = null;
   };
   const linkFile = async (create: boolean) => {
     setBusy(true); setFileActionError('');
@@ -981,20 +993,19 @@ export default function App() {
     }
     const parsed = parseTodoText(raw);
     if (parsed.issues.length) throw new Error('The TODO.txt doctor found a format issue after review.');
-    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.baselineDocument ?? current.current.baseline);
+    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.baselineDocument ?? current.current.baseline, { reviewAdditions: !!pendingLink.current?.id });
     if (proposal.conflicts.length) {
-      if (pendingLink.current) pendingLink.current.reviewLocalText = serializeTodoText(current.current.document);
+      mergeReviewText.current = serializeTodoText(current.current.document);
       setChoices({}); setReview({ kind: 'merge', raw, proposal }); return;
     }
     const merged = resolveMerge(proposal, {});
     advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
     validateDocument(merged);
-    await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(proposal) });
-    await finishFileLink(fileBaseline(proposal));
-    setReview(null);
+    await finishImportedJournal(merged, fileBaseline(proposal));
+    setReview(null); mergeReviewText.current = null;
     setMessage('TODO.txt imported.');
   };
-  const importFile = async (file: File) => { setBusy(true); try { assertImportSize(file.size); await imported(await file.text()); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
+  const importFile = async (file: File) => { setBusy(true); setFileActionError(''); try { assertImportSize(file.size); await imported(await file.text()); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
   const download = async (fileName: string, lineEnding: LineEnding) => {
     const output = serializeTodoText(current.current.document);
     const fileText = lineEnding === 'crlf' ? output.replace(/\n/g, '\r\n') : output;
@@ -1012,14 +1023,13 @@ export default function App() {
         await imported(rawEdit, review.original);
         return;
       }
-      if (pendingLink.current?.reviewLocalText !== undefined && pendingLink.current.reviewLocalText !== serializeTodoText(current.current.document)) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
+      if (mergeReviewText.current !== null && mergeReviewText.current !== serializeTodoText(current.current.document)) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
       const merged = resolveMerge(review.proposal, choices);
       advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
       validateDocument(merged);
-      await commitDocumentState({ ...current.current, document: merged, baseline: fileBaseline(review.proposal) });
-      await finishFileLink(fileBaseline(review.proposal));
-      setReview(null); setMessage('TODO.txt imported.');
-    } catch (error) { if (pendingLink.current) setFileActionError(String(error)); reportSaveError(error, ''); } finally { setBusy(false); }
+      await finishImportedJournal(merged, fileBaseline(review.proposal));
+      setReview(null); mergeReviewText.current = null; setMessage('TODO.txt imported.');
+    } catch (error) { setFileActionError(String(error)); } finally { setBusy(false); }
   };
   const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); } };
   const doctorAction = (finding: DoctorFinding, action: DoctorAction, value?: string) => {
@@ -1203,6 +1213,7 @@ export default function App() {
     </Notice>}
     <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a TODO.txt file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
+    {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0} onSettings={() => setSettingsOpen(true)}/>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TODO.txt draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
@@ -1288,7 +1299,7 @@ export default function App() {
     </DndContext>
     </>}
     </JournalViewport>
-    <Modal open={!!scopePrompt} onClose={() => { setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false; }} title="Choose recurring edit scope" compact>
+    <Modal journalEditor open={!!scopePrompt} onClose={() => { setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false; }} title="Choose recurring edit scope" compact>
       <ScopeTitle>Change “{scopePrompt?.label}”</ScopeTitle><ScopeHint>Choose which occurrences this change applies to.</ScopeHint>
       <ScopeOption onClick={() => applyScope('this')}>This item</ScopeOption>
       <ScopeOption onClick={() => applyScope('following')}>This and following items</ScopeOption>
@@ -1307,9 +1318,10 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeTodoText(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
-    <AppearanceSettings fileSync={<><FileSyncSettings status={fileSync.status} error={fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
+    <AppearanceSettings fileSync={<><FileSyncSettings status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
       <GoogleDriveSettings config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}
-        onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect}/>
+        onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect} creationPending={!!driveSync.creation} onDismissCreation={() => { void driveSync.dismissCreation().catch(error => setMessage(String(error))); }} onDownloadCreation={() => { if (driveSync.creation) downloadTextFile(driveSync.creation.text, 'TODO-submitted-creation.txt'); }}/>
+      <SyncRecoveryFiles recovery={fileSync.recovery ?? driveSync.recovery} onDownload={downloadTextFile}/>
       </>} open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
       timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
       weekStart={weekStart} onWeekStartChange={value => {
@@ -1328,8 +1340,8 @@ export default function App() {
         edit(document => { added = addSavedHolidays(document, holidays, todayString(), newId); });
         setHolidayStatus(`${added} ${added === 1 ? 'holiday' : 'holidays'} added from ${source}${holidays.length > added ? `; ${holidays.length - added} already present` : ''}.`);
       }).catch(error => { if (!controller.signal.aborted) setHolidayStatus(`Could not add holidays: ${String(error)}`); }).finally(() => { if (holidayImport.current === controller) holidayImport.current = null; }); }}/>
-    <FileReview error={pendingLink.current ? fileActionError : undefined} linked={!!pendingLink.current} review={review} rawEdit={rawEdit} choices={choices} busy={busy}
-      onClose={() => { pendingLink.current = null; setReview(null); }} onRawEdit={setRawEdit}
+    <FileReview error={fileActionError} linked={!!pendingLink.current} review={review} rawEdit={rawEdit} choices={choices} busy={busy}
+      onClose={() => { pendingLink.current = null; mergeReviewText.current = null; setFileActionError(''); setReview(null); }} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
       onReparse={() => void reparse()} onApply={() => void applyReview()} onDoctorAction={doctorAction}/>
     <SaveRecovery error={saveFailure} text={saveFailure ? serializeTodoText(current.current.document) : ''} kind="journal" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={discardUnsavedJournal}/>

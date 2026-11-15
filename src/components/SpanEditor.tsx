@@ -29,7 +29,7 @@ export function SpanEditor({ open, date, span, onClose, onSave }: { open:boolean
     if (!validDate(endDate) || endDate <= date || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) { setError('Choose a valid end date after this date and both times.'); return; }
     onSave({kind:'time',start,endDate,end});
   };
-  return <Modal open={open} onClose={onClose} title="Edit span" compact><Title>When does this item occupy time?</Title><Fields>
+  return <Modal journalEditor open={open} onClose={onClose} title="Edit span" compact><Title>When does this item occupy time?</Title><Fields>
     <Label>span<Select aria-label="Span type" value={kind} onChange={event => { setKind(event.target.value as typeof kind); setError(''); }}><option value="none">No span</option><option value="all-day">All day</option><option value="all-day-through">All day through another date</option><option value="time">Across dates, with times</option></Select></Label>
     {kind === 'all-day-through' && <Label>through<Input aria-label="Span through date" type="date" value={through} onChange={event => setThrough(event.target.value)}/></Label>}
     {kind === 'time' && <><Label>starts<Input aria-label="Span start time" type="time" value={start} onChange={event => setStart(event.target.value)}/></Label><Label>ends on<Input aria-label="Span end date" type="date" value={endDate} onChange={event => setEndDate(event.target.value)}/></Label><Label>at<Input aria-label="Span end time" type="time" value={end} onChange={event => setEnd(event.target.value)}/></Label></>}

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
+import { holdSyncDelivery, syncState } from './sync-helpers';
 
 const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n';
 const scope = 'https://www.googleapis.com/auth/drive.file';
@@ -16,8 +17,8 @@ async function savedLink(page: Page): Promise<Record<string, unknown> | null> {
   }));
 }
 async function setup(page: Page, existing = false) {
-  const remote = { text: initial, version: 1, exists: existing, writes: 0, creates: 0, failSave: 0, account: 'account-1', tokenCalls: 0, requests: 0 };
-  await page.addInitScript(({ scope }) => {
+  const remote = { text: initial, version: 1, exists: existing, writes: 0, creates: 0, failSave: 0, account: 'account-1', tokenCalls: 0, requests: 0, holdSave: false, saveEntered: false, releaseSave: () => {}, dropSaveReply: false, dropCreateReply: false, creationCheckpoint: false, expireOwner: false, otherRequests: 0, holdCreate: false, creationEntered: false, releaseCreate: () => {} };
+  await page.context().addInitScript(({ scope }) => {
     const mock = { activeClick: false, scope: '', picker: {} as Record<string, string | boolean>, pickerCancel: false, deny: false, block: false };
     Reflect.set(window, 'mockGoogle', mock);
     class View { setMimeTypes(mime: string) { mock.picker.mime = mime; return this; } }
@@ -45,26 +46,35 @@ async function setup(page: Page, existing = false) {
     const pick = async () => (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true });
     Object.assign(window, { showOpenFilePicker: async () => [await pick()], showSaveFilePicker: pick });
   }, { scope });
-  await page.route('https://openidconnect.googleapis.com/v1/userinfo', async route => {
+  await page.context().route('https://openidconnect.googleapis.com/v1/userinfo', async route => {
     remote.tokenCalls++;
     expect(route.request().headers().authorization).toBe('Bearer test-only-access-token');
     await route.fulfill({ json: { sub: remote.account, email: remote.account + '@example.com' } });
   });
-  await page.route('https://www.googleapis.com/**', async route => {
-    const request = route.request(), url = new URL(request.url()); remote.requests++;
+  await page.context().route('https://www.googleapis.com/**', async route => {
+    const request = route.request(), url = new URL(request.url()); remote.requests++; if (request.frame().page() !== page) remote.otherRequests++;
     expect(request.headers().authorization).toBe('Bearer test-only-access-token');
     expect(url.searchParams.has('access_token')).toBe(false);
     const metadata = () => ({ id: 'file-1', name: 'TODO.txt', mimeType: 'text/plain', version: String(remote.version), size: String(Buffer.byteLength(remote.text)), capabilities: { canEdit: true } });
     if (request.method() === 'POST') {
+      remote.creationCheckpoint = !!await syncState(route.request().frame().page(), 'sync-file-creation');
       remote.creates++; remote.exists = true;
       const body = request.postData()!;
       remote.text = body.split('Content-Type: text/plain; charset=UTF-8\r\n\r\n')[1].split('\r\n--hcb-')[0];
-      await route.fulfill({ json: metadata() }); return;
+      const accepted = metadata();
+      if (remote.holdCreate) { remote.holdCreate = false; remote.creationEntered = true; await new Promise<void>(resolve => remote.releaseCreate = resolve); }
+      if (remote.dropCreateReply) { remote.dropCreateReply = false; await route.abort('failed'); return; }
+      await route.fulfill({ json: accepted }); return;
     }
     if (request.method() === 'PATCH') {
+      if (remote.expireOwner && request.frame().page() === page) { await route.fulfill({ status: 401, body: '{}' }); return; }
       if (remote.failSave) { await route.fulfill({ status: remote.failSave, body: '{}' }); return; }
       remote.text = request.postData()!; remote.version++; remote.writes++;
-      await route.fulfill({ json: metadata() }); return;
+      const accepted = metadata();
+      if (remote.holdSave) { remote.holdSave = false; remote.saveEntered = true; await new Promise<void>(resolve => remote.releaseSave = resolve); }
+      if (remote.dropSaveReply) { remote.dropSaveReply = false; await route.abort('failed'); return; }
+      try { await route.fulfill({ json: accepted }); } catch (error) { if (!request.frame().page().isClosed()) throw error; }
+      return;
     }
     if (url.pathname.endsWith('/files')) { await route.fulfill({ json: { files: remote.exists ? [metadata()] : [] } }); return; }
     if (url.searchParams.get('alt') === 'media') { await route.fulfill({ contentType: 'text/plain', body: remote.text }); return; }
@@ -162,10 +172,12 @@ test('malformed Drive text is linked only after explicit doctor approval', async
   await expect.poll(() => savedLink(page)).not.toBeNull();
   await expect.poll(() => remote.text).toContain('2026-11-16\n\nTask without divider');
 });
-test('external Drive changes pause writes across reload and normal merge review resumes saving', async ({ page }) => {
+test('overlapping Drive changes pause writes across reload and normal merge review resumes saving', async ({ page }) => {
   const remote = await setup(page); await importInitial(page); await createLinked(page);
-  remote.text = initial.replace('Original', 'Remote title'); remote.version++;
+  const release = await holdSyncDelivery(page);
   await editOriginal(page, 'Local title');
+  remote.text = initial.replace('Original', 'Remote title'); remote.version++;
+  await release();
   await expect(page.getByRole('status', { name: 'Notification', exact: true })).toContainText('Google Drive journal changed');
   expect(remote.text).toContain('Remote title');
   await page.reload(); await runCommand(page, 'Settings'); await connect(page);
@@ -194,8 +206,10 @@ test('a failed upload requires retry and unlinking keeps both copies', async ({ 
   const remote = await setup(page); await importInitial(page); await createLinked(page);
   remote.failSave = 503; await editOriginal(page, 'Retained locally');
   await expect(page.getByRole('status', { name: 'Notification', exact: true })).toContainText('Google Drive request failed (503)');
-  remote.failSave = 0; await runCommand(page, 'Settings');
+  const release = await holdSyncDelivery(page);
+  await runCommand(page, 'Settings'); remote.failSave = 0;
   await region(page).getByRole('button', { name: 'Resume Google Drive saving', exact: true }).click();
+  await release();
   await expect.poll(() => remote.text).toContain('Retained locally');
   await region(page).getByRole('button', { name: 'Unlink Google Drive file', exact: true }).click();
   await expect.poll(() => savedLink(page)).toBeNull(); expect(remote.exists).toBe(true);
@@ -214,8 +228,10 @@ test('only one local or Google Drive target can be linked at a time', async ({ p
 
 test('a stale Drive review cannot overwrite a newer edit from another app window', async ({ page, context }) => {
   const remote = await setup(page); await importInitial(page); await createLinked(page);
-  remote.text = initial.replace('Original', 'Remote title'); remote.version++;
+  const release = await holdSyncDelivery(page);
   await editOriginal(page, 'Local title');
+  remote.text = initial.replace('Original', 'Remote title'); remote.version++;
+  await release();
   await expect.poll(async () => (await savedLink(page))?.needsReview).toBe(true);
   await runCommand(page, 'Settings'); await region(page).getByRole('button', { name: 'Review Google Drive file', exact: true }).click();
   const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
@@ -231,4 +247,161 @@ test('a stale Drive review cannot overwrite a newer edit from another app window
   await expect(review.getByRole('alert')).toContainText('journal changed while this review was open');
   expect(remote.text).toContain('Remote title');
   await expect(other.getByRole('textbox', { name: 'Edit Newer window edit', exact: true })).toHaveValue('Newer window edit');
+});
+
+test('edits stay durable while a save response is stalled and its receipt leaves newer work queued', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  remote.holdSave = true; await editOriginal(page, 'First submission');
+  await expect.poll(() => remote.saveEntered).toBe(true);
+  expect((await syncState(page, 'drive-sync-ledger')).checkpoint.text).toContain('First submission');
+  const title = page.getByRole('textbox', { name: 'Edit First submission', exact: true }); await title.fill('Newer edit'); await title.press('Tab');
+  await expect.poll(async () => (await syncState(page, 'current')).document.undated[0].items[0].text, { timeout: 2000 }).toBe('Newer edit');
+  expect(remote.text).toContain('First submission');
+  remote.releaseSave(); await expect.poll(() => remote.text).toContain('Newer edit');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).checkpoint ?? null).toBeNull();
+});
+
+test('undo during a stalled accepted save survives its acknowledgement', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  remote.holdSave = true; await editOriginal(page, 'Submitted title'); await expect.poll(() => remote.saveEntered).toBe(true);
+  await page.getByRole('button', { name: 'Undated', exact: true }).focus(); await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await syncState(page, 'current')).document.undated[0].items[0].text, { timeout: 2000 }).toBe('Original');
+  remote.releaseSave(); await expect.poll(() => remote.text).toContain('Original\n- Keep detail');
+  expect(remote.writes).toBe(2);
+});
+
+test('a lost save reply is verified after reload without repeating the accepted upload', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  remote.dropSaveReply = true; await editOriginal(page, 'Accepted without reply');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).status.kind).toBe('retrying');
+  expect(remote.writes).toBe(1); await page.reload(); await runCommand(page, 'Settings');
+  expect((await syncState(page, 'drive-sync-ledger')).checkpoint.text).toContain('Accepted without reply');
+  await connect(page);
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).checkpoint ?? null).toBeNull();
+  expect(remote.writes).toBe(1); await expect(region(page)).toContainText('up to date');
+});
+
+test('a different tab takes over a closed network owner and delivers only the remaining edit', async ({ page, context }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  remote.holdSave = true; await editOriginal(page, 'Frozen submission'); await expect.poll(() => remote.saveEntered).toBe(true);
+  const title = page.getByRole('textbox', { name: 'Edit Frozen submission', exact: true }); await title.fill('Remaining edit'); await title.press('Tab');
+  await expect.poll(async () => (await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Remaining edit');
+  await page.close(); remote.releaseSave();
+  const other = await context.newPage(); await other.goto('/'); await runCommand(other, 'Settings'); await connect(other);
+  await expect.poll(() => remote.text).toContain('Remaining edit'); expect(remote.writes).toBe(2);
+  await expect.poll(async () => (await syncState(other, 'drive-sync-ledger')).checkpoint ?? null).toBeNull();
+});
+
+test('a failed pre-send checkpoint stops the upload without losing the browser edit', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  await page.evaluate(() => {
+    Reflect.set(window, 'failSyncCheckpoint', true);
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (key === 'drive-sync-ledger' && value.checkpoint && Reflect.get(window, 'failSyncCheckpoint')) throw new DOMException('Sync checkpoint is full', 'QuotaExceededError');
+      return put.call(this, value, key);
+    };
+  });
+  await editOriginal(page, 'Saved only in browser');
+  await expect(page.getByRole('status', { name: 'Journal sync', exact: true })).toContainText('needs attention');
+  expect(remote.writes).toBe(0); expect((await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Saved only in browser');
+  await page.evaluate(() => Reflect.set(window, 'failSyncCheckpoint', false)); await runCommand(page, 'Settings');
+  await region(page).getByRole('button', { name: 'Resume Google Drive saving', exact: true }).click();
+  await expect.poll(() => remote.text).toContain('Saved only in browser');
+});
+
+test('a failed receipt rolls back its baseline and acknowledges read-back without a second upload', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  await page.evaluate(() => {
+    Object.assign(window, { failSyncReceipt: true, syncHasCheckpoint: false });
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (key === 'drive-sync-ledger') {
+        if (value.checkpoint) Reflect.set(window, 'syncHasCheckpoint', true);
+        else if (Reflect.get(window, 'syncHasCheckpoint') && Reflect.get(window, 'failSyncReceipt')) throw new DOMException('Sync receipt is full', 'QuotaExceededError');
+      }
+      return put.call(this, value, key);
+    };
+  });
+  await editOriginal(page, 'Accepted before storage failure');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).status.kind).toBe('error');
+  expect(remote.writes).toBe(1); expect((await savedLink(page))?.baselineText).toContain('Original');
+  expect((await syncState(page, 'drive-sync-ledger')).checkpoint.text).toContain('Accepted before storage failure');
+  await page.evaluate(() => Reflect.set(window, 'failSyncReceipt', false)); await runCommand(page, 'Settings');
+  await region(page).getByRole('button', { name: 'Resume Google Drive saving', exact: true }).click();
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).checkpoint ?? null).toBeNull();
+  expect(remote.writes).toBe(1); expect((await savedLink(page))?.baselineText).toContain('Accepted before storage failure');
+});
+
+test('offline edits catch up automatically when the connection returns', async ({ page, context }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  await context.setOffline(true); await editOriginal(page, 'Edited offline');
+  await expect(page.getByRole('status', { name: 'Journal sync', exact: true })).toContainText('online');
+  expect(remote.writes).toBe(0);
+  await context.setOffline(false); await expect.poll(() => remote.text).toContain('Edited offline');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).status.kind).toBe('saved');
+});
+
+test('temporary server failures retry automatically with a durable cooldown', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  remote.failSave = 503; await editOriginal(page, 'Retry automatically');
+  await expect.poll(async () => (await syncState(page, 'drive-sync-ledger')).status.kind).toBe('retrying');
+  expect((await syncState(page, 'drive-sync-ledger')).retryAt).toBeGreaterThan(Date.now());
+  remote.failSave = 0; await expect.poll(() => remote.text).toContain('Retry automatically');
+});
+
+test('unconfirmed creation survives reload and recovering its file does not create a duplicate', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await connect(page);
+  remote.dropCreateReply = true;
+  await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  const pending = region(page).getByRole('status', { name: 'Unconfirmed file creation', exact: true });
+  await expect(pending).toBeVisible(); await expect(region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true })).toBeDisabled();
+  expect(remote.creationCheckpoint).toBe(true); expect(remote.creates).toBe(1);
+  await page.reload(); await runCommand(page, 'Settings'); await expect(pending).toBeVisible();
+  await connect(page); await region(page).getByRole('button', { name: 'TODO.txt', exact: true }).click();
+  await expect.poll(() => savedLink(page)).not.toBeNull();
+  expect(await syncState(page, 'sync-file-creation')).toBeNull(); expect(remote.creates).toBe(1);
+});
+
+test('creation I/O leaves local editing responsive and links the frozen creation snapshot', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await connect(page);
+  remote.holdCreate = true; await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  await expect.poll(() => remote.creationEntered).toBe(true);
+  expect((await syncState(page, 'sync-file-creation')).text).toContain('Original');
+  await editOriginal(page, 'Edited during creation');
+  await expect.poll(async () => (await syncState(page, 'current')).document.undated[0].items[0].text, { timeout: 2000 }).toBe('Edited during creation');
+  remote.releaseCreate(); await expect.poll(() => remote.text).toContain('Edited during creation');
+  expect(remote.creates).toBe(1); expect(await syncState(page, 'sync-file-creation')).toBeNull();
+});
+
+test('creation checkpoint failure prevents the POST and leaves the journal available', async ({ page }) => {
+  const remote = await setup(page); await importInitial(page); await connect(page);
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value, key) {
+      if (key === 'sync-file-creation') throw new DOMException('Creation checkpoint is full', 'QuotaExceededError');
+      return put.call(this, value, key);
+    };
+  });
+  await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  await expect(region(page).getByRole('alert')).toContainText('Creation checkpoint is full');
+  expect(remote.creates).toBe(0); expect(await syncState(page, 'sync-file-creation')).toBeNull();
+  expect((await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Original');
+});
+
+
+test('an expired token stays scoped to its tab while another authorized window catches up', async ({ page, context }) => {
+  const remote = await setup(page); await importInitial(page); await createLinked(page);
+  const other = await context.newPage(); await other.goto('/'); await runCommand(other, 'Settings'); await connect(other);
+  await expect.poll(() => remote.otherRequests).toBeGreaterThanOrEqual(2);
+  await other.evaluate(() => navigator.locks.request('hot-cross-buns-sync-delivery', () => {}));
+  // simulate a hidden second window until the first window receives its own rejection.
+  await other.evaluate(() => Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }));
+  remote.expireOwner = true; await editOriginal(page, 'Delivered by another window');
+  await expect(page.getByRole('status', { name: 'Journal sync', exact: true })).toContainText('Reconnect this tab');
+  await expect(region(other).getByRole('button', { name: 'Sign out of this tab', exact: true })).toBeVisible();
+  await other.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
+  await expect.poll(() => remote.text).toContain('Delivered by another window');
+  await expect(region(other).getByRole('button', { name: 'Sign out of this tab', exact: true })).toBeVisible();
+  await runCommand(page, 'Settings'); await expect(region(page).getByRole('button', { name: 'Connect Google Drive', exact: true })).toBeVisible();
 });

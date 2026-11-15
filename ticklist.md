@@ -13,6 +13,7 @@ Keep the product focused on a plain-text journal with lightweight task tracking.
 - [x] Separate, read-only Google Calendar and Tasks snapshot tools.
 - [x] Direct saving to a linked TODO.txt file, with a Syncthing workflow, external-change review and file-write recovery.
 - [x] Optional Google Drive saving through a Web OAuth client, per-file access and the existing import/conflict review.
+- [x] Shared durable sync coordination: frozen submissions, verified receipts, automatic catch-up, conservative merges, cross-tab ownership, draft/undo protection and bounded recovery copies. See [sync behavior and limits](./docs/SYNC.md).
 - [x] Corner toast notifications for transient messages, with dismissal and paused timers during interaction.
 - [x] Failed-save draft recovery and bounded imports and recurrence projections.
 - [x] Quick Today/Tomorrow moves using the journal's time zone, normal recurrence choices and undo.
@@ -26,6 +27,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 ## Next validation
 
 - [ ] Validate Google sign-in, Picker, key restrictions, token expiry and remote conflicts with an actual configured Google Cloud project. Browser automation substitutes these services; tokens stay in memory and reconnecting is required after reload.
+- [ ] Run the [sync fault scenarios](./docs/SYNC.md#verification) with real devices and services, especially interrupted saves, stale device copies and simultaneous edits. Automated fault injection covers the app protocol; provider transport and device delivery need separate observation.
 
 - [ ] Dogfood linked-file saves with real Syncthing devices, browser permission renewal, concurrent edits and conflict copies. Headless tests use real browser file handles with a substituted OS picker; they do not exercise Syncthing transport or native picker dialogs.
 

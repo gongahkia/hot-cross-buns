@@ -28,8 +28,8 @@ const Sheet = styled.dialog<{ $visible: boolean; $wide: boolean; $compact: boole
   `}
 `;
 
-export function Modal({ open, onClose, title, children, wide = false, compact = false, preview = false, palette = false, dialogRef }: {
-  open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean; compact?: boolean; preview?: boolean; palette?: boolean; dialogRef?: RefObject<HTMLDialogElement | null>;
+export function Modal({ open, onClose, title, children, wide = false, compact = false, preview = false, palette = false, dialogRef, journalEditor = false }: {
+  open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean; compact?: boolean; preview?: boolean; palette?: boolean; journalEditor?: boolean; dialogRef?: RefObject<HTMLDialogElement | null>;
 }) {
   const internalRef = useRef<HTMLDialogElement>(null);
   const ref = dialogRef ?? internalRef;
@@ -51,7 +51,7 @@ export function Modal({ open, onClose, title, children, wide = false, compact = 
     const timeout = setTimeout(() => dialog.close(), duration);
     return () => clearTimeout(timeout);
   }, [open, palette, ref]);
-  return <Sheet ref={ref} $wide={wide} $compact={compact} $preview={preview} $palette={palette} $visible={visible} data-command-palette={palette ? 'true' : undefined} data-state={open ? 'open' : 'closed'} aria-labelledby={titleId} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => {
+  return <Sheet data-journal-editor={journalEditor ? "true" : undefined} ref={ref} $wide={wide} $compact={compact} $preview={preview} $palette={palette} $visible={visible} data-command-palette={palette ? 'true' : undefined} data-state={open ? 'open' : 'closed'} aria-labelledby={titleId} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => {
     if (e.target === e.currentTarget) {
       const rect = e.currentTarget.getBoundingClientRect();
       if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) onClose();
