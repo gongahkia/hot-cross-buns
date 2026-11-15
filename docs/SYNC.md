@@ -42,6 +42,8 @@ Settings retains one browser/file comparison pair while that target remains link
 
 Journal, link, confirmed baseline and checkpoint transitions use short IndexedDB transactions. The database retains its existing name, `hot-cross-buns-v1`, with internal schema version 2. Upgrading preserves the journal, scratchpad and stored file handles, while older version-1 writers cannot reopen it. If an older tab blocks the upgrade, finish or export its unsaved draft, close it and reload. The old Shio Pan migration remains compatible with the current database version.
 
+For a code rollback, retain the version-2 opener and `onversionchange` handling in `src/todoStore.ts`, plus the version-independent destination opener in `src/legacyStorage.ts`. Reverting to a version-1 opener would fail to open an upgraded journal. After an uncertain request, inspect and download the linked file and browser journal before changing delivery code: an older coordinator does not understand pending checkpoints or creation tickets. Do not delete the database to make a rollback load.
+
 Access tokens remain in tab memory, outside the ledger, BroadcastChannel and browser storage. Other tabs receive change notifications and reload durable state; credentials are not broadcast. Google account identity is checked against the linked target or pending creation. Scratchpad and appearance preferences remain local and are excluded from file sync.
 
 ## Limits

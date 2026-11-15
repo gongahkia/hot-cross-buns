@@ -356,7 +356,7 @@ test('unconfirmed creation survives reload and recovering its file does not crea
   await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
   const pending = region(page).getByRole('status', { name: 'Unconfirmed file creation', exact: true });
   await expect(pending).toBeVisible(); await expect(region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true })).toBeDisabled();
-  expect(remote.creationCheckpoint).toBe(true); expect(remote.creates).toBe(1);
+  await expect.poll(() => remote.creationCheckpoint).toBe(true); expect(remote.creates).toBe(1);
   await page.reload(); await runCommand(page, 'Settings'); await expect(pending).toBeVisible();
   await connect(page); await region(page).getByRole('button', { name: 'TODO.txt', exact: true }).click();
   await expect.poll(() => savedLink(page)).not.toBeNull();
