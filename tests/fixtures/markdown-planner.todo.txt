@@ -27,7 +27,7 @@ UNDATED
 
 LIST: Inbox
 Read this later
-- [x] literal text, not a checkbox
+- \[x] literal text, not a checkbox
 
 LIST: Ideas
 Prepare a talk

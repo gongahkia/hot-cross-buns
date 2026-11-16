@@ -65,7 +65,20 @@ function assertSize(source: string) {
 /** project planning semantics without serializing or normalizing the original Markdown. */
 export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   assertSize(source);
-  const root = parser.parse(source);
+  // remark removes a leading BOM before calculating offsets; retain our original-source coordinates.
+  const bom = source.startsWith('\uFEFF');
+  const root = parser.parse(bom ? source.slice(1) : source);
+  if (bom) {
+    const pending: Node[] = [root];
+    while (pending.length) {
+      const node = pending.pop()!;
+      if (node.position) {
+        node.position.start.offset!++;
+        node.position.end.offset!++;
+      }
+      for (const child of childrenOf(node)) pending.push(child);
+    }
+  }
   const model: MarkdownPlanner = { source, issues: [], days: [], undated: [] };
   const issue = (code: string, message: string, range: SourceRange, severity: 'error' | 'warning' = 'error') => {
     model.issues.push({ code, message, range, severity });
@@ -103,7 +116,9 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     const prefix = /^[-+*][ \t]+(?:\[([ xX])\][ \t]+)/.exec(slice(source, range));
     const checkbox = prefix && typeof item.checked === 'boolean'
       ? { start: range.start + prefix[0].indexOf('[') + 1, end: range.start + prefix[0].indexOf('[') + 2 } : undefined;
-    return { range, titleRange: rangeOf(paragraph), markdown: slice(source, rangeOf(paragraph)),
+    // task-list parsing can leave the paragraph start before its removed checkbox (e.g. bold first).
+    const titleRange = { start: Math.max(rangeOf(paragraph).start, prefix ? range.start + prefix[0].length : 0), end: rangeOf(paragraph).end };
+    return { range, titleRange, markdown: slice(source, titleRange),
       text: plainText(paragraph).replace(/\r\n|\r|\n/g, ' '), completed: item.checked === true, ...(checkbox ? { checkbox } : {}) };
   };
   const metadata = (entry: PlannerEntry, code: Code) => {
