@@ -221,12 +221,21 @@ export async function startMarkdownWorkspace(convert: boolean): Promise<TodoStat
 
 /** raw read-only recovery remains available even when the canonical source cannot be parsed. */
 export async function readBrowserRecovery(): Promise<Record<string, Record<string, unknown>>> {
-  const db = await openDatabase();
+  // recovery must not retry a schema change that already failed or interpret future storage.
+  const db = await new Promise<IDBDatabase>((resolve,reject) => {
+    const request = indexedDB.open(DB_NAME);
+    request.onupgradeneeded = () => request.transaction!.abort();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => { request.result.onversionchange = () => request.result.close(); resolve(request.result); };
+  });
   try {
     return await new Promise((resolve,reject) => {
-      const tx = db.transaction([STATE_STORE,SCRATCH_STORE],'readonly');
-      const result: Record<string,Record<string,unknown>> = { state: Object.create(null), scratchpad: Object.create(null) };
-      for (const name of [STATE_STORE,SCRATCH_STORE]) {
+      const names = [...db.objectStoreNames];
+      if (!names.length) { reject(new Error('There are no saved browser stores to recover.')); return; }
+      const tx = db.transaction(names,'readonly');
+      const result: Record<string,Record<string,unknown>> = Object.create(null);
+      for (const name of names) {
+        result[name] = Object.create(null);
         const request = tx.objectStore(name).openCursor();
         request.onsuccess = () => { const entry = request.result; if (!entry) return; result[name][String(entry.key)] = entry.value; entry.continue(); };
       }

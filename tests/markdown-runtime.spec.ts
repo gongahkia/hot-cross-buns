@@ -216,3 +216,27 @@ test('capture promotion has one canonical undo and redo, including keyboard use 
   await expect.poll(async()=> (await syncState(page,'current')).document.source).toBe(after);
   await expect(editor).toHaveValue('');
 });
+
+test('an aborted schema upgrade can export the original database without retrying the failed upgrade', async ({page}) => {
+  await oldWorkspace(page);
+  await page.addInitScript(()=>{
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value,key){
+      if (String(key).startsWith('legacy-txt:')) throw new DOMException('Injected schema upgrade quota failure','QuotaExceededError');
+      return put.call(this,value,key);
+    };
+  });
+  await page.goto('/');
+  await expect(page.getByRole('alert')).toContainText('could not open saved data');
+  const download = page.waitForEvent('download',{timeout:5000});
+  await page.getByRole('button',{name:'Download browser recovery',exact:true}).click();
+  const raw = JSON.parse(await readFile(await (await download).path(),'utf8'));
+  expect(raw.state.current.revision).toBe(7);
+  expect(raw.state.current.document.undated[0].items[0].text).toBe('Keep my saved work');
+  expect(raw.scratchpad.current.text).toBe('Earlier private scratchpad');
+  expect(raw.state['legacy-txt:current']).toBeUndefined();
+  expect(await page.evaluate(()=>new Promise(resolve=>{
+    const open=indexedDB.open('hot-cross-buns-v1');
+    open.onsuccess=()=>{const version=open.result.version;open.result.close();resolve(version);};
+  }))).toBe(3);
+});
