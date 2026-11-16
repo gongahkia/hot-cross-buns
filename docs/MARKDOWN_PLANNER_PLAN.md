@@ -214,6 +214,10 @@ The user approved implementation after the planning answers. Continue in coheren
 
 Next: integrate one document mutation path with storage, immutable sync, drafts, recovery and shared scratchpad; implement occurrence-aware completion/movement and explicit developer-workspace replacement. The TXT merge must never become a fallback for arbitrary Markdown. Only then switch existing views and exports to Markdown and add the calendar/rich rendering stages.
 
+Runtime integration is in progress. `journalDocument.ts` adapts existing task operations to exact-source transactions, retaining opaque entry/detail bodies and shared scratchpad content. Its first checkpoint passes 208 unit tests and TypeScript, including 12 adapter tests. It is not yet the running persistence path at this checkpoint.
+
+Historical Markdown review: `25872ac:docs/markdown-editor.md`, `RichMarkdownEditor.tsx` and `MarkdownPreview.tsx` preserve untouched input, separate editor undo, guard composition/shortcuts and load rich processing lazily. Retain those invariants. The historical Tiptap visual bridge serializes the whole edited note and can normalize syntax; do not use it to rewrite this canonical planner or copy its persistent toolbars/account references. Source-aware editing and safe previews fit the current quiet interface.
+
 ### Foundation verification, 16 November 2026
 
 Node 22.18.0: 196 unit tests pass, including 27 Markdown tests; 15 Python tests pass; TypeScript and the production build pass. The build reports the existing 500 kB chunk-size advisory. `npm audit --audit-level=low` reports zero vulnerabilities. README content is identical to `a8d586f`.

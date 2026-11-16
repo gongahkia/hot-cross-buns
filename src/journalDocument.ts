@@ -26,6 +26,13 @@ export function readJournal(source: string): { model: MarkdownPlanner; document:
     days: model.days.map(group => ({ date: group.name, items: group.entries.map(itemFrom), keepEmpty: true })),
     undated: model.undated.map(group => ({ name: group.name, items: group.entries.map(itemFrom) })),
   };
+  const pending: object[] = [document];
+  while (pending.length) {
+    const value = pending.pop()!;
+    if (Object.isFrozen(value)) continue;
+    for (const child of Object.values(value)) if (child && typeof child === 'object') pending.push(child);
+    Object.freeze(value);
+  }
   const result = { model, document };
   cache.set(source, result);
   if (cache.size > 2) cache.delete(cache.keys().next().value!);
@@ -201,5 +208,5 @@ export function journalFromModel(model: TodoDocument, scratchpad = '', documentI
 }
 
 export function escapeMarkdownText(text: string): string {
-  return text.replace(/[\\`*_{}[\]()<>#!|~]/g, '\\$&');
+  return text.replace(/[\\`*_{}[\]()<>!|~]/g, '\\$&').replace(/^([#-])(?=\s|-)/, '\\$1').replace(/^([+])(?=\s)/, '\\$1').replace(/^(\d+)\. /, '$1\\. ');
 }
