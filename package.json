@@ -7,6 +7,9 @@
     "node": ">=22.18.0"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-markdown-parser.mjs",
+    "prebuild": "node scripts/patch-markdown-parser.mjs --check",
+    "pretest:unit": "node scripts/patch-markdown-parser.mjs --check",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
