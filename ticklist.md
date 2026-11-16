@@ -2,6 +2,8 @@
 
 Keep the product focused on a plain-text journal with lightweight task tracking. The [README](./README.md) describes the current app; [TODO_FORMAT.md](./docs/TODO_FORMAT.md) defines its portable data.
 
+The next direction is a single-file Markdown planner, preserving dated/undated workflows, sharing the scratchpad, and adding a quiet calendar view over the same entries. [Planning decisions, syntax candidates and semantic mapping](./docs/MARKDOWN_PLANNER_PLAN.md) are documented for review before implementation. Live Google/Outlook calendar connections are permanently outside scope; only one-time imports are candidates. The delivered list below still describes the existing TXT app.
+
 ## Delivered foundation
 
 - [x] Dated items, undated lists, details, completion and scratchpad capture.
@@ -47,7 +49,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 ## Retired directions
 
-- A full calendar application or parity with the Google Calendar and Tasks suites.
+- Parity with the Google Calendar and Tasks suites, or live calendar-account connections. A calendar over local Markdown entries is now planned in the design document above; it is not implemented yet.
 - Automatic deletion of old journal content.
 - A hosted journal database or continuous Google Calendar/Tasks account sync. Sync remains based on portable TODO.txt files, with Syncthing, Nextcloud and Dropbox desktop-folder workflows and optional Google Drive saving.
 - Electron, a desktop menubar app or an installable PWA as part of this browser restoration.
