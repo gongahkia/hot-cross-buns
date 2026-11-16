@@ -1,6 +1,6 @@
 # One-time Google snapshot
 
-`scripts/pull_google_snapshot.py` saves Google Calendar and Google Tasks API responses as local JSON. It does **not** convert them to Hot Cross Buns `TODO.txt` or change browser data. The later conversion step can inspect this snapshot without making another Google request.
+`scripts/pull_google_snapshot.py` saves Google Calendar and Google Tasks API responses as local JSON. It does **not** convert them to Hot Cross Buns `Planner.md` or change browser data. The later conversion step can inspect this snapshot without making another Google request.
 
 `scripts/convert_google_snapshot.py` is that separate, offline conversion step. It reads the saved snapshot and writes a new Hot Cross Buns file; it never changes browser data or the snapshot.
 
@@ -40,9 +40,11 @@ The default is open, nondeleted Google Tasks plus upcoming, noncancelled Calenda
 
 ```sh
 python3 scripts/convert_google_snapshot.py .local/google-snapshot-YYYYMMDDTHHMMSSZ.json
-python3 scripts/convert_google_snapshot.py .local/google-snapshot-YYYYMMDDTHHMMSSZ.json --include-past-events --output .local/google-all-events-TODO.txt
+python3 scripts/convert_google_snapshot.py .local/google-snapshot-YYYYMMDDTHHMMSSZ.json --include-past-events --output .local/google-all-events-Planner.md
 ```
 
-The default output is named after the snapshot with `-TODO.txt` appended and is private to your computer. The destination must not already exist. The script completes conversion in memory before writing a file and stops with an error if it encounters a recurrence rule it cannot represent. Inspect the file with **Import TODO.txt** in Hot Cross Buns; the import doctor reviews it before it changes the browser copy.
+The default output is named after the snapshot with `-Planner.md` appended and is private to your computer. The destination must not already exist. The script completes conversion in memory before writing a file and stops with an error if it encounters a recurrence rule it cannot represent. Inspect the file with **Import Planner.md** in Hot Cross Buns; the import doctor reviews it before it changes the browser copy.
 
-Open undated Tasks appear under their Google task list headings in Hot Cross Buns's undated section. Dated Tasks become dated items without a list label. Task notes and Calendar descriptions become ordinary details. Locations and useful meeting links become details too. Calendar all-day and multi-day occupancy use `@span`. Guest/RSVP data, reminders, notification settings, and Google-specific event types are intentionally omitted; Hot Cross Buns has one item primitive, no invitation workflow, and no reminders. The raw snapshot remains available if you later want a different conversion.
+Open undated Tasks appear under their Google task list headings in Hot Cross Buns's undated section. Dated Tasks become dated items without a list label. Task notes and Calendar descriptions become ordinary details. Locations and useful meeting links become details too. Calendar all-day and multi-day occupancy use fenced `span` metadata. Guest/RSVP data, reminders, notification settings, and Google-specific event types are intentionally omitted; Hot Cross Buns has one item primitive, no invitation workflow, and no reminders. The raw snapshot remains available if you later want a different conversion.
+
+The output is Markdown format 1, with stable provider-scoped IDs, visible `hcb` metadata and an empty shared Scratchpad section. Provider titles/notes are escaped as literal Markdown; they cannot inject planning fences or checkboxes. No live Calendar/Tasks connection or write-back is created. The converter stops above the same 5 MiB / 100,000-line document limits. Its output is checked against the actual runtime parser in automated tests.

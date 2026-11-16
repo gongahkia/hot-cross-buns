@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a read-only Google snapshot into Hot Cross Buns's human-readable TODO.txt."""
+"""Convert a read-only Google snapshot into Hot Cross Buns's Planner.md."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import json
 import os
 import re
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -20,11 +21,35 @@ class ConversionError(ValueError):
 
 WEEKDAYS = ("MO", "TU", "WE", "TH", "FR", "SA", "SU")
 DAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-RESERVED = re.compile(r"^(?:\\|- |\s*@[a-z][\w-]*:|\d{4}-\d{2}-\d{2}$|UNDATED$|LIST: )", re.I)
+def escape_markdown(value: str) -> str:
+    # provider text is literal content, never executable planning metadata or Markdown.
+    value = re.sub(r"([\\`*_{}\[\]<>()!|~])", r"\\\1", value)
+    value = re.sub(r"^([#-])(?=\s|-)", r"\\\1", value)
+    value = re.sub(r"^(\+)(?=\s)", r"\\\1", value)
+    return re.sub(r"^(\d+)\. ", r"\1\\. ", value)
 
 
-def escape_line(value: str) -> str:
-    return "\\" + value if RESERVED.match(value) else value
+def escape_heading(value: str) -> str:
+    return re.sub(r"([\\`*_{}\[\]<>()!#|~])", r"\\\1", value)
+
+
+def stable_id(kind: str, scope: str, identifier: str) -> str:
+    raw = json.dumps([kind, scope, identifier], ensure_ascii=False, separators=(",", ":"))
+    return "google-" + hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+
+@dataclass
+class Entry:
+    title: str
+    content: list[str]
+    attributes: dict[str, str] = field(default_factory=dict)
+
+    def markdown(self, dated: bool) -> str:
+        lines = [f"- {'[ ] ' if dated else ''}{self.title}", "  ```hcb"]
+        lines.extend(f"  {key}: {value}" for key, value in self.attributes.items())
+        lines.append("  ```")
+        lines.extend(f"  - {'[ ] ' if dated else ''}{escape_markdown(line)}" for line in self.content)
+        return "\n".join(lines)
 
 
 def clean_line(value: str) -> str:
@@ -185,9 +210,9 @@ def occurrences(event: dict, fields: dict[str, str], zone: ZoneInfo, as_of: date
     return None
 
 
-def series_id(event: dict, start: date) -> str:
+def series_id(event: dict, start: date, scope: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", clean_line(event.get("summary") or "item").lower()).strip("-")[:24] or "item"
-    digest = hashlib.sha256(event["id"].encode()).hexdigest()[:8]
+    digest = stable_id("series", scope, event["id"])[7:15]
     return f"{slug}-{start:%Y%m%d}-{digest}"
 
 
@@ -231,21 +256,21 @@ def repeat_line(fields: dict[str, str], original: date, first: date, number: int
     return extended + f"; from {original}; series {identifier}" + (f"; occurrence {number}" if number > 1 else "") + start_clause + (f"; ends after {count}" if count else f"; ends on {end_date}" if end_date else "")
 
 
-def event_lines(event: dict, zone: ZoneInfo, occurrence_date: date | None = None) -> tuple[date, list[str]]:
+def event_entry(event: dict, zone: ZoneInfo, scope: str, occurrence_date: date | None = None) -> tuple[date, Entry]:
     start = event.get("start") or {}
     end = event.get("end") or {}
     original = event_start(event, zone)
     first = occurrence_date or original
     shift = first - original
-    title = clean_line(event.get("summary") or "(untitled)")
-    extras: list[str] = []
+    title = escape_markdown(clean_line(event.get("summary") or "(untitled)"))
+    attributes = {"id": stable_id("event", scope, event["id"])}
     if "date" in start:
         if "date" not in end:
             raise ConversionError("All-day event has a timed end.")
         through = date.fromisoformat(end["date"]) - timedelta(days=1) + shift
         if through < first:
             raise ConversionError("All-day event ends before it starts.")
-        extras.append(f"  @span: all-day{' through ' + str(through) if through > first else ''}")
+        attributes["span"] = f"all-day{' through ' + str(through) if through > first else ''}"
     else:
         beginning = local_datetime(start, zone)
         finish = local_datetime(end, zone)
@@ -257,19 +282,19 @@ def event_lines(event: dict, zone: ZoneInfo, occurrence_date: date | None = None
         if finish.date() == first:
             title = f"{beginning:%H:%M}-{finish:%H:%M} {title}"
         else:
-            extras.append(f"  @span: {beginning:%H:%M} to {finish:%Y-%m-%d %H:%M}")
+            attributes["span"] = f"{beginning:%H:%M} to {finish:%Y-%m-%d %H:%M}"
     content = details(event.get("description"))
     if event.get("location"):
         content.append("Location: " + clean_line(event["location"]))
     if event.get("hangoutLink"):
         content.append("Meeting link: " + clean_line(event["hangoutLink"]))
-    return first, [escape_line(title), *extras, *(f"- [ ] {escape_line(line)}" for line in content)]
+    return first, Entry(title, content, attributes)
 
 
-def insert_skip(lines: list[str], original: date) -> None:
-    marker = f"  @skip: {original}"
-    position = next((index for index, line in enumerate(lines) if line.startswith("- ") or line.startswith("  @skip:") and line > marker), len(lines))
-    lines.insert(position, marker)
+def insert_skip(entry: Entry, original: date) -> None:
+    dates = set(entry.attributes.get("skip", "").split(", ")) - {""}
+    dates.add(str(original))
+    entry.attributes["skip"] = ", ".join(sorted(dates))
 
 
 def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple[str, dict[str, int]]:
@@ -288,8 +313,8 @@ def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple
             suffix += 1
         used_list_names.add(name)
         task_lists[entry["id"]] = name
-    by_day: dict[date, list[list[str]]] = defaultdict(list)
-    undated: dict[str, list[list[str]]] = defaultdict(list)
+    by_day: dict[date, list[Entry]] = defaultdict(list)
+    undated: dict[str, list[Entry]] = defaultdict(list)
     stats = defaultdict(int)
     for group in snapshot["tasksByList"]:
         name = task_lists.get(group["taskListId"], "Untitled list")
@@ -297,18 +322,18 @@ def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple
             if task.get("deleted") or task.get("status") != "needsAction":
                 continue
             title = clean_line(task.get("title") or "(untitled)")
-            lines = [escape_line(title), *(f"- [ ] {escape_line(line)}" for line in details(task.get("notes")))]
+            lines = Entry(escape_markdown(title), details(task.get("notes")), {"id": stable_id("task", group["taskListId"], task["id"])})
             due = task.get("due")
             if due:
                 by_day[date.fromisoformat(due[:10])].append(lines)
                 stats["dated_tasks"] += 1
             else:
-                undated[name].append([escape_line(title), *(f"- {escape_line(line)}" for line in details(task.get("notes")))])
+                undated[name].append(lines)
                 stats["undated_tasks"] += 1
     for calendar in snapshot["calendarEvents"]:
         zone = zones.get(calendar["calendarId"], ZoneInfo("UTC"))
         events = records(calendar["events"])
-        included: dict[str, tuple[date, list[str], str]] = {}
+        included: dict[str, tuple[date, Entry, str]] = {}
         for event in events:
             if event.get("status") == "cancelled" or event.get("recurringEventId"):
                 continue
@@ -319,16 +344,16 @@ def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple
                     continue
                 first, number = next_occurrence
                 original = event_start(event, zone)
-                identifier = series_id(event, original)
-                _, lines = event_lines(event, zone, first)
-                lines.insert(1, "  @repeat: " + repeat_line(fields, original, first, number, identifier, zone, event))
+                identifier = series_id(event, original, calendar["calendarId"])
+                _, lines = event_entry(event, zone, calendar["calendarId"], first)
+                lines.attributes["repeat"] = repeat_line(fields, original, first, number, identifier, zone, event)
                 included[event["id"]] = (first, lines, identifier)
                 by_day[first].append(lines)
                 stats["series"] += 1
                 continue
             if not include_past_events and event_end(event, zone) <= as_of.astimezone(zone):
                 continue
-            first, lines = event_lines(event, zone)
+            first, lines = event_entry(event, zone, calendar["calendarId"])
             by_day[first].append(lines)
             stats["events"] += 1
         for event in events:
@@ -339,7 +364,7 @@ def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple
             original_date = date.fromisoformat(original.get("date") or original.get("dateTime", "")[:10])
             parent = included.get(master_id)
             if event.get("status") != "cancelled" and (include_past_events or event_end(event, zone) > as_of.astimezone(zone)) and (not parent or not include_past_events and original_date < parent[0]):
-                actual_date, lines = event_lines(event, zone)
+                actual_date, lines = event_entry(event, zone, calendar["calendarId"])
                 by_day[actual_date].append(lines)
                 stats["moved_standalone"] += 1
                 continue
@@ -356,25 +381,28 @@ def convert(snapshot: dict, as_of: datetime, include_past_events: bool) -> tuple
                     insert_skip(master_lines, original_date)
                     stats["skips"] += 1
                     continue
-                actual_date, lines = event_lines(event, zone)
-                lines.insert(1, f"  @replaces: {identifier} on {original_date}")
+                actual_date, lines = event_entry(event, zone, calendar["calendarId"])
+                lines.attributes["replaces"] = f"{identifier} on {original_date}"
                 by_day[actual_date].append(lines)
                 stats["replacements"] += 1
-    sections = []
+    identity = hashlib.sha256(json.dumps({**snapshot, "format": "hot-cross-buns-google-raw-v1"}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:32]
+    sections = [f"---\nhcb-format: 1\ndocument-id: google-{identity}\n---", "# Hot Cross Buns", "## Dated"]
     for day in sorted(by_day):
-        sections.append("\n".join([str(day), "", *(line for item in by_day[day] for line in item)]))
-    if undated:
-        section = ["UNDATED"]
-        for name, items in undated.items():
-            section.extend(["", f"LIST: {name}", *(line for item in items for line in item)])
-        sections.append("\n".join(section))
-    return ("\n\n".join(sections) + "\n" if sections else ""), dict(stats)
+        sections.extend([f"### {day}", *(item.markdown(True) for item in by_day[day])])
+    sections.append("## Undated")
+    for name, items in undated.items():
+        sections.extend([f"### {escape_heading(name)}", *(item.markdown(False) for item in items)])
+    sections.append("## Scratchpad")
+    output = "\n\n".join(sections) + "\n"
+    if len(output.encode("utf-8")) > 5 * 1024 * 1024 or len(output.splitlines()) > 100000:
+        raise ConversionError("The converted Markdown exceeds the planner's 5 MiB / 100,000-line limit. Split the source snapshot before importing.")
+    return output, dict(stats)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("snapshot", type=Path, help="Raw JSON file from pull_google_snapshot.py")
-    parser.add_argument("--output", type=Path, help="TODO.txt destination (must not exist)")
+    parser.add_argument("--output", type=Path, help="Planner.md destination (must not exist)")
     parser.add_argument("--include-past-events", action="store_true", help="Include non-cancelled historical Calendar events")
     parser.add_argument("--as-of", help="Override the conversion cutoff as YYYY-MM-DD in the calendar's local zone")
     args = parser.parse_args()
@@ -386,7 +414,7 @@ def main() -> None:
         zone = ZoneInfo(primary.get("timeZone") or "UTC")
         as_of = datetime.combine(date.fromisoformat(args.as_of), time.min, zone)
     output, counts = convert(data, as_of, args.include_past_events)
-    destination = args.output or args.snapshot.with_name(args.snapshot.stem + "-TODO.txt")
+    destination = args.output or args.snapshot.with_name(args.snapshot.stem + "-Planner.md")
     destination.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as file:
