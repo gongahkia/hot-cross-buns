@@ -13,7 +13,7 @@ export type SourceRange = { start: number; end: number };
 export type PlannerIssue = { code: string; message: string; range: SourceRange; severity: 'error' | 'warning' };
 export type PlannerDetail = {
   range: SourceRange; titleRange: SourceRange; markdown: string; text: string;
-  completed: boolean; checkbox?: SourceRange;
+  completed: boolean; checkbox?: SourceRange; column: number;
 };
 export type PlannerEntry = PlannerDetail & {
   id?: string; date?: string; list?: string; details: PlannerDetail[];
@@ -22,10 +22,12 @@ export type PlannerEntry = PlannerDetail & {
   repeat?: RecurrenceRule; completedOn?: string; span?: TodoSpan;
   skips?: string[]; replaces?: TodoReplacement;
 };
-export type PlannerGroup = { name: string; range: SourceRange; entries: PlannerEntry[] };
+export type PlannerGroup = { name: string; range: SourceRange; content: SourceRange; entries: PlannerEntry[] };
 export type MarkdownPlanner = {
   source: string; documentId?: string; format?: number; issues: PlannerIssue[];
   days: PlannerGroup[]; undated: PlannerGroup[]; scratchpad?: SourceRange;
+  sections: Partial<Record<'Dated' | 'Undated' | 'Scratchpad', SourceRange>>;
+  sectionEnds: Partial<Record<'Dated' | 'Undated', number>>;
 };
 export type SourcePatch = { range: SourceRange; expected: string; text: string };
 
@@ -83,7 +85,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
       for (const child of childrenOf(node)) pending.push(child);
     }
   }
-  const model: MarkdownPlanner = { source, issues: [], days: [], undated: [] };
+  const model: MarkdownPlanner = { source, issues: [], days: [], undated: [], sections: {}, sectionEnds: {} };
   const issue = (code: string, message: string, range: SourceRange, severity: 'error' | 'warning' = 'error') => {
     model.issues.push({ code, message, range, severity });
   };
@@ -124,7 +126,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     // task-list parsing can leave the paragraph start before its removed checkbox (e.g. bold first).
     const titleRange = { start: Math.max(rangeOf(paragraph).start, prefix ? range.start + prefix[0].length : 0), end: rangeOf(paragraph).end };
     return { range, titleRange, markdown: slice(source, titleRange),
-      text: plainText(paragraph).replace(/\r\n|\r|\n/g, ' '), completed: item.checked === true, ...(checkbox ? { checkbox } : {}) };
+      text: plainText(paragraph).replace(/\r\n|\r|\n/g, ' '), completed: item.checked === true, column: item.position!.start.column - 1, ...(checkbox ? { checkbox } : {}) };
   };
   const metadata = (entry: PlannerEntry, code: Code) => {
     entry.metadata = rangeOf(code);
@@ -185,14 +187,17 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   for (const node of root.children) {
     const range = rangeOf(node);
     if (node.type === 'heading') {
+      if (group) group.content.end = range.start;
       const name = plainText(node);
       const literal = node.children.every(child => child.type === 'text');
       if (node.depth <= 2) {
+        if (section) model.sectionEnds[section] = range.start;
         group = undefined;
         section = undefined;
         if (node.depth === 2 && literal && ['Dated', 'Undated', 'Scratchpad'].includes(name)) {
           if (seen.includes(name)) issue('duplicate-section', `Repeated ${name} section.`, range);
           seen.push(name);
+          model.sections[name as 'Dated' | 'Undated' | 'Scratchpad'] = range;
           if (name === 'Scratchpad') {
             const lineEnd = /\r\n|\r|\n/.exec(source.slice(range.end));
             model.scratchpad = { start: lineEnd ? range.end + lineEnd.index + lineEnd[0].length : source.length, end: source.length };
@@ -209,7 +214,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
         }
         const groups = section === 'Dated' ? model.days : model.undated;
         if (groups.some(previous => previous.name === name)) issue('duplicate-group', `Repeated ${section} heading: ${name}.`, range);
-        group = { name, range, entries: [] };
+        group = { name, range, content: { start: range.end, end: source.length }, entries: [] };
         groups.push(group);
         groupDepth = node.depth;
       } else if (node.depth > groupDepth) group = undefined;

@@ -3,13 +3,13 @@ import { formatRecurrence, parseRecurrence, type RecurrenceRule } from './recurr
 import { parseTimeBlock } from './timeBlock.ts';
 import { getTimeZone } from './preferences.ts';
 
-export type TodoDetail = { text: string; completed: boolean };
+export type TodoDetail = { text: string; completed: boolean; sourceRef?: string };
 export type TodoSpan = { kind: 'all-day'; through?: string } | { kind: 'time'; start: string; endDate: string; end: string };
 export type TodoReplacement = { series: string; on: string };
-export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean; repeat?: RecurrenceRule; completedOn?: string; span?: TodoSpan; skips?: string[]; replaces?: TodoReplacement };
+export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean; repeat?: RecurrenceRule; completedOn?: string; span?: TodoSpan; skips?: string[]; replaces?: TodoReplacement; sourceRef?: string };
 export type TodoDay = { date: string; items: TodoItem[]; keepEmpty?: boolean };
 export type TodoList = { name: string; items: TodoItem[] };
-export type TodoDocument = { days: TodoDay[]; undated?: TodoList[] };
+export type TodoDocument = { days: TodoDay[]; undated?: TodoList[]; source?: string; scratchpad?: string };
 export type ParseIssue = { line: number; message: string };
 export type ParseResult = { document: TodoDocument; issues: ParseIssue[] };
 
