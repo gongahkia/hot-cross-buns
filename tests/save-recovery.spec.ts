@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
@@ -17,9 +18,9 @@ async function stored(page: Page, store = 'state') {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const entry = db.transaction(store).objectStore(store).get('current');
+      const entry = db.transaction('state').objectStore('state').get('current');
       entry.onerror = () => { db.close(); reject(entry.error); };
-      entry.onsuccess = () => { db.close(); resolve(entry.result); };
+      entry.onsuccess = () => { db.close(); resolve(store === 'scratchpad' ? { text: entry.result?.document?.scratchpad ?? '' } : entry.result); };
     };
   }), store);
 }
@@ -84,7 +85,7 @@ test('clipboard refusal keeps the draft and offers a complete recovery download'
   const pending = page.waitForEvent('download');
   await recovery.getByRole('button', { name: 'Download unsaved text' }).click();
   const downloaded = await pending;
-  expect(downloaded.suggestedFilename()).toBe('TODO-unsaved.txt');
+  expect(downloaded.suggestedFilename()).toBe('Planner-unsaved.md');
   expect(await readFile((await downloaded.path())!, 'utf8')).toContain('Unsaved replacement text');
   await recovery.getByRole('button', { name: 'Discard unsaved edits' }).click();
   await recovery.getByRole('button', { name: 'Keep unsaved edits' }).click();
@@ -131,8 +132,8 @@ test('an import can be discarded after a failed write without reporting success'
   await initialJournal(page);
   await failWrites(page);
   const today = await page.evaluate(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }));
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(today + '\n\nImported draft\n') });
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(today + '\n\nImported draft\n')) });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
   await review.getByRole('radio', { name: 'use file', exact: true }).check();
   await review.getByRole('button', { name: 'apply import', exact: true }).click();
   const recovery = page.getByRole('dialog', { name: 'Unsaved journal', exact: true });
@@ -140,7 +141,7 @@ test('an import can be discarded after a failed write without reporting success'
   await recovery.getByRole('button', { name: 'Discard unsaved edits' }).click();
   await recovery.getByRole('button', { name: 'Confirm discard' }).click();
   await expect(recovery).toBeHidden();
-  await expect(page.getByText('TODO.txt imported.', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Planner.md imported.', { exact: true })).toHaveCount(0);
   expect(await titles(page)).toEqual(['Original saved text']);
 });
 
@@ -180,7 +181,7 @@ test('discarding an unsaved scratchpad returns to its durable contents', async (
   expect((await stored(page, 'scratchpad'))?.text).toBe('Keep saved scratchpad');
 });
 
-test('an aborted two-store capture keeps the scratchpad and journal unchanged', async ({ page }) => {
+test('an aborted canonical-document capture keeps the scratchpad and journal unchanged', async ({ page }) => {
   await initialJournal(page);
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });

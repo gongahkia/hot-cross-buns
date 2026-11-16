@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { runCommand } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -40,23 +41,26 @@ async function seedLargeProjection(page: Page, span = true) {
       tx.onabort = () => { db.close(); reject(tx.error); };
     };
   }), span);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Convert saved workspace', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Open command palette', exact: true })).toBeVisible();
 }
 
 test('oversized file and line-count imports leave the existing journal intact', async ({ page }) => {
   await existingJournal(page);
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.alloc(MAX_IMPORT_BYTES + 1, 'a') });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.alloc(MAX_IMPORT_BYTES + 1, 'a') });
   await expect(page.getByText(/imports are limited to 5 MiB/)).toBeVisible();
   expect(await savedTitles(page)).toEqual(['Keep this journal']);
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(('a\n').repeat(MAX_IMPORT_LINES + 1)) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(('a\n').repeat(MAX_IMPORT_LINES + 1))) });
   await expect(page.getByText(/imports are limited to 100,000 lines/)).toBeVisible();
   expect(await savedTitles(page)).toEqual(['Keep this journal']);
 });
 
 test('an expensive recurrence import is rejected before replacing saved data', async ({ page }) => {
   await existingJournal(page);
-  const raw = '2000-01-01\n\nLong recurring span\n  @repeat: daily; series long-span\n  @span: all-day through 2100-01-01\n';
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const raw = plannerFixture('2000-01-01\n\nLong recurring span\n  @repeat: daily; series long-span\n  @span: all-day through 2100-01-01\n');
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await review.getByRole('radio', { name: 'use file', exact: true }).check();
   await review.getByRole('button', { name: 'apply import', exact: true }).click();
   await expect(page.getByText(/This view contains too many items/)).toBeVisible();
@@ -74,17 +78,17 @@ test('an older over-budget journal remains exportable and can be repaired throug
   await page.getByRole('button', { name: 'Choose date', exact: true }).click();
   await expect(page.getByRole('button', { name: /unfinished status unavailable/ }).first()).toBeVisible();
   await page.keyboard.press('Escape');
-  await runCommand(page, 'Download TODO.txt');
-  const preview = page.getByRole('dialog', { name: 'Download TODO.txt', exact: true });
-  await expect(preview.getByLabel('TODO.txt preview')).toContainText('@span: all-day through 2100-01-01');
+  await runCommand(page, 'Download Planner.md');
+  const preview = page.getByRole('dialog', { name: 'Download Planner.md', exact: true });
+  await expect(preview.getByLabel('Planner.md preview')).toContainText('span: all-day through 2100-01-01');
   const pending = page.waitForEvent('download');
   await preview.getByRole('button', { name: 'download', exact: true }).click();
   const downloaded = await pending;
   const original = await readFile((await downloaded.path())!, 'utf8');
-  expect(original).toContain('@repeat: daily; series long-span');
-  expect(original).toContain('@span: all-day through 2100-01-01');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(original.replace('@span: all-day through 2100-01-01', '@span: all-day')) });
-  await expect(page.getByRole('status').filter({ hasText: 'TODO.txt imported.' })).toBeVisible();
+  expect(original).toContain('repeat: daily; series long-span');
+  expect(original).toContain('span: all-day through 2100-01-01');
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(original.replace('span: all-day through 2100-01-01', 'span: all-day'))) });
+  await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Long recurring span', exact: true }).first()).toBeVisible();
   expect(errors).toEqual([]);

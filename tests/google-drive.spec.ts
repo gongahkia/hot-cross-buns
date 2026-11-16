@@ -1,9 +1,10 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { openHistory, runCommand } from './commands';
 import { holdSyncDelivery, syncState } from './sync-helpers';
 import { createRevision, revisionText } from '../src/revisionProtocol';
 
-const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n';
+const initial = plannerFixture('UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n');
 const scope = 'https://www.googleapis.com/auth/drive.file';
 const region = (page: Page) => page.getByRole('region', { name: 'Google Drive', exact: true });
 const settings = (page: Page) => page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
@@ -45,7 +46,7 @@ async function setup(page: Page, existing = false) {
       } }) } },
       picker: { View, ViewId: { DOCS: 'docs' }, PickerBuilder: Builder, Action: { PICKED: 'picked', CANCEL: 'cancel' } },
     });
-    const pick = async () => (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true });
+    const pick = async () => (await navigator.storage.getDirectory()).getFileHandle('Planner.md', { create: true });
     Object.assign(window, { showOpenFilePicker: async () => [await pick()], showSaveFilePicker: pick });
   }, { scope });
   await page.context().route('https://openidconnect.googleapis.com/v1/userinfo', async route => {
@@ -57,7 +58,7 @@ async function setup(page: Page, existing = false) {
     const request = route.request(), url = new URL(request.url()); remote.requests++; if (request.frame().page() !== page) remote.otherRequests++;
     expect(request.headers().authorization).toBe('Bearer test-only-access-token');
     expect(url.searchParams.has('access_token')).toBe(false);
-    const metadata = () => ({ id: 'file-1', name: 'TODO.txt', mimeType: 'text/plain', version: String(remote.version), size: String(Buffer.byteLength(remote.text)), capabilities: { canEdit: true } });
+    const metadata = () => ({ id: 'file-1', name: 'Planner.md', mimeType: 'text/plain', version: String(remote.version), size: String(Buffer.byteLength(remote.text)), capabilities: { canEdit: true } });
     if (url.pathname.endsWith('/generateIds')) { await route.fulfill({ json: { ids: ['revision-file-' + ++remote.reserved] } }); return; }
     if (request.method() === 'POST' && request.postData()?.includes('"hcbRevision"')) {
       const parts = request.postData()!.split('Content-Type: application/json; charset=UTF-8\r\n\r\n');
@@ -80,7 +81,7 @@ async function setup(page: Page, existing = false) {
       remote.creationCheckpoint = !!await syncState(route.request().frame().page(), 'sync-file-creation');
       remote.creates++; remote.exists = true;
       const body = request.postData()!;
-      remote.text = body.split('Content-Type: text/plain; charset=UTF-8\r\n\r\n')[1].split('\r\n--hcb-')[0];
+      remote.text = body.split('Content-Type: text/markdown; charset=UTF-8\r\n\r\n')[1].split('\r\n--hcb-')[0];
       const accepted = metadata();
       if (remote.holdCreate) { remote.holdCreate = false; remote.creationEntered = true; await new Promise<void>(resolve => remote.releaseCreate = resolve); }
       if (remote.dropCreateReply) { remote.dropCreateReply = false; await route.abort('failed'); return; }
@@ -114,13 +115,13 @@ async function connect(page: Page) {
 }
 async function importInitial(page: Page) {
   await closeSettings(page);
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Edit Original', exact: true })).toBeVisible();
   await runCommand(page, 'Settings');
 }
 async function createLinked(page: Page) {
-  await connect(page); await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  await connect(page); await region(page).getByRole('button', { name: 'Create Planner.md in Google Drive', exact: true }).click();
   await expect.poll(() => savedLink(page)).not.toBeNull();
   await expect.poll(async () => (await syncState(page, 'drive-sync-ledger'))?.status.kind).toBe('saved');
 }
@@ -138,11 +139,11 @@ test('Google Drive remains optional and does not contact Google without configur
 });
 test('creating a Drive file saves the whole journal and autosaves later persisted edits', async ({ page }) => {
   const remote = await setup(page); await importInitial(page); await createLinked(page);
-  expect(remote.creates).toBe(1); expect(remote.text).toContain('Original\n- Keep detail');
+  expect(remote.creates).toBe(1); expect(remote.text).toMatch(/Original[\s\S]*  - Keep\ detail/);
   const auth = await page.evaluate(() => Reflect.get(window, 'mockGoogle'));
   expect(auth.activeClick).toBe(true); expect(auth.scope).toBe('openid email ' + scope);
   await editOriginal(page, 'Saved directly');
-  await expect.poll(() => remote.text).toContain('Saved directly\n- Keep detail');
+  await expect.poll(() => remote.text).toMatch(/Saved\ directly[\s\S]*  - Keep\ detail/);
   const link = await savedLink(page); expect(link?.accountId).toBe('account-1');
   expect(JSON.stringify(link)).not.toContain('test-only-access-token');
   const storage = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
@@ -172,7 +173,7 @@ test('opening an existing file uses Picker with narrow access and imports before
   await expect(page.getByRole('textbox', { name: 'Edit Original', exact: true })).toBeVisible();
   expect(remote.writes).toBe(0);
   const picker = await page.evaluate(() => Reflect.get(window, 'mockGoogle').picker);
-  expect(picker).toMatchObject({ key: 'test-key', appId: '123', origin: new URL(page.url()).origin, mime: 'text/plain', modalOpen: false });
+  expect(picker).toMatchObject({ key: 'test-key', appId: '123', origin: new URL(page.url()).origin, mime: 'text/markdown,text/plain,application/octet-stream', modalOpen: false });
 });
 test('cancelling Picker preserves the journal without creating a link', async ({ page }) => {
   await setup(page, true); await connect(page);
@@ -183,15 +184,19 @@ test('cancelling Picker preserves the journal without creating a link', async ({
   expect(await savedLink(page)).toBeNull();
 });
 test('malformed Drive text is linked only after explicit doctor approval', async ({ page }) => {
-  const remote = await setup(page, true); remote.text = '2026-11-16\nTask without divider\n'; await connect(page);
-  await region(page).getByRole('button', { name: 'TODO.txt', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
-  await expect(review).toContainText('including any repairs');
+  const remote = await setup(page, true);
+  const corrected = plannerFixture('2026-11-16\n\nReviewed task\n');
+  remote.text = corrected.replace('hcb-format: 1','hcb-format: 999'); await connect(page);
+  await region(page).getByRole('button', { name: 'Planner.md', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
+  await expect(review).toContainText('Only hcb-format: 1 is supported');
   expect(await savedLink(page)).toBeNull(); expect(remote.writes).toBe(0);
-  await review.getByRole('button', { name: 'mark this day upcoming', exact: true }).click();
+  await review.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true }).fill(corrected);
+  await review.getByRole('button', { name: 'check file', exact: true }).click();
+  await expect(review.getByRole('button', { name: 'apply import', exact: true })).toBeEnabled();
   await review.getByRole('button', { name: 'apply import', exact: true }).click();
   await expect.poll(() => savedLink(page)).not.toBeNull();
-  await expect.poll(() => remote.text).toContain('2026-11-16\n\nTask without divider');
+  await expect.poll(() => remote.text).toBe(corrected);
 });
 test('overlapping Drive changes pause writes across reload and normal merge review resumes saving', async ({ page }) => {
   const remote = await setup(page); await importInitial(page); await createLinked(page);
@@ -204,7 +209,7 @@ test('overlapping Drive changes pause writes across reload and normal merge revi
   await page.reload(); await runCommand(page, 'Settings'); await connect(page);
   await expect(region(page)).toContainText('changed in Google Drive');
   await region(page).getByRole('button', { name: 'Review Google Drive file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local title'); await expect(review).toContainText('Remote title');
   await review.getByRole('button', { name: 'cancel', exact: true }).click();
   await runCommand(page, 'Settings'); await expect(region(page)).toContainText('changed in Google Drive');
@@ -239,12 +244,12 @@ test('a failed upload requires retry and unlinking keeps both copies', async ({ 
 test('only one local or Google Drive target can be linked at a time', async ({ page }) => {
   await setup(page); await createLinked(page);
   const local = page.getByRole('region', { name: 'File sync', exact: true });
-  await expect(local.getByRole('button', { name: 'Create linked TODO.txt', exact: true })).toBeDisabled();
+  await expect(local.getByRole('button', { name: 'Create linked Planner.md', exact: true })).toBeDisabled();
   await region(page).getByRole('button', { name: 'Unlink Google Drive file', exact: true }).click();
-  await expect(local.getByRole('button', { name: 'Create linked TODO.txt', exact: true })).toBeEnabled();
-  await local.getByRole('button', { name: 'Create linked TODO.txt', exact: true }).click();
+  await expect(local.getByRole('button', { name: 'Create linked Planner.md', exact: true })).toBeEnabled();
+  await local.getByRole('button', { name: 'Create linked Planner.md', exact: true }).click();
   await expect(local).toContainText('up to date');
-  await expect(region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true })).toBeDisabled();
+  await expect(region(page).getByRole('button', { name: 'Create Planner.md in Google Drive', exact: true })).toBeDisabled();
 });
 
 test('a stale Drive review cannot overwrite a newer edit from another app window', async ({ page, context }) => {
@@ -255,7 +260,7 @@ test('a stale Drive review cannot overwrite a newer edit from another app window
   await release();
   await expect.poll(async () => (await savedLink(page))?.needsReview).toBe(true);
   await runCommand(page, 'Settings'); await region(page).getByRole('button', { name: 'Review Google Drive file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local title');
   const other = await context.newPage();
   // the other window has no token; it still shares the local journal and Drive link.
@@ -287,7 +292,7 @@ test('undo during a stalled accepted save survives its acknowledgement', async (
   remote.holdSave = true; await editOriginal(page, 'Submitted title'); await expect.poll(() => remote.saveEntered).toBe(true);
   await page.getByRole('button', { name: 'Undated', exact: true }).focus(); await page.keyboard.press('Control+z');
   await expect.poll(async () => (await syncState(page, 'current')).document.undated[0].items[0].text, { timeout: 2000 }).toBe('Original');
-  remote.releaseSave(); await expect.poll(() => remote.text).toContain('Original\n- Keep detail');
+  remote.releaseSave(); await expect.poll(() => remote.text).toMatch(/Original[\s\S]*  - Keep\ detail/);
   expect(remote.writes).toBe(2);
 });
 
@@ -374,19 +379,19 @@ test('temporary server failures retry automatically with a durable cooldown', as
 test('unconfirmed creation survives reload and recovering its file does not create a duplicate', async ({ page }) => {
   const remote = await setup(page); await importInitial(page); await connect(page);
   remote.dropCreateReply = true;
-  await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  await region(page).getByRole('button', { name: 'Create Planner.md in Google Drive', exact: true }).click();
   const pending = region(page).getByRole('status', { name: 'Unconfirmed file creation', exact: true });
-  await expect(pending).toBeVisible(); await expect(region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true })).toBeDisabled();
+  await expect(pending).toBeVisible(); await expect(region(page).getByRole('button', { name: 'Create Planner.md in Google Drive', exact: true })).toBeDisabled();
   await expect.poll(() => remote.creationCheckpoint).toBe(true); expect(remote.creates).toBe(1);
   await page.reload(); await runCommand(page, 'Settings'); await expect(pending).toBeVisible();
-  await connect(page); await region(page).getByRole('button', { name: 'TODO.txt', exact: true }).click();
+  await connect(page); await region(page).getByRole('button', { name: 'Planner.md', exact: true }).click();
   await expect.poll(() => savedLink(page)).not.toBeNull();
   expect(await syncState(page, 'sync-file-creation')).toBeNull(); expect(remote.creates).toBe(1);
 });
 
 test('creation I/O leaves local editing responsive and links the frozen creation snapshot', async ({ page }) => {
   const remote = await setup(page); await importInitial(page); await connect(page);
-  remote.holdCreate = true; await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  remote.holdCreate = true; await region(page).getByRole('button', { name: 'Create Planner.md in Google Drive', exact: true }).click();
   await expect.poll(() => remote.creationEntered).toBe(true);
   expect((await syncState(page, 'sync-file-creation')).text).toContain('Original');
   await editOriginal(page, 'Edited during creation');
@@ -404,7 +409,7 @@ test('creation checkpoint failure prevents the POST and leaves the journal avail
       return put.call(this, value, key);
     };
   });
-  await region(page).getByRole('button', { name: 'Create TODO.txt in Google Drive', exact: true }).click();
+  await region(page).getByRole('button', { name: 'Create Planner.md in Google Drive', exact: true }).click();
   await expect(region(page).getByRole('alert')).toContainText('Creation checkpoint is full');
   expect(remote.creates).toBe(0); expect(await syncState(page, 'sync-file-creation')).toBeNull();
   expect((await syncState(page, 'current')).document.undated[0].items[0].text).toBe('Original');
@@ -451,7 +456,7 @@ test('a concurrent Drive revision survives a lost projection and resolves throug
   remote.revisionFiles.set('foreign-file', { id: 'foreign-file', name: 'HCB-foreign.json', mimeType: 'application/json', appProperties: { hcbJournal: 'file-1', hcbRevision: record.id, hcbDigest: record.digest }, raw, version: '1', size: String(Buffer.byteLength(raw)) });
   await runCommand(page, 'Settings'); await region(page).getByRole('button', { name: 'Check Google Drive now', exact: true }).click(); await release();
   await region(page).getByRole('button', { name: 'Review Google Drive file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local protected branch'); await expect(review).toContainText('Foreign protected branch');
   await review.getByRole('radio', { name: 'keep both', exact: true }).check(); await review.getByRole('button', { name: 'apply import', exact: true }).click();
   await expect(review).toBeHidden(); await expect.poll(() => remote.text).toContain('Foreign protected branch');

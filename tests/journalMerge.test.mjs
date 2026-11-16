@@ -53,9 +53,21 @@ test('manual review retains complete source versions and validates an explicit m
   assert.equal(resolveMerge(proposal, { source: 'local' }).source, local.source);
   assert.equal(resolveMerge(proposal, { source: 'file' }).source, remote.source);
   const manual = withScratchpad(base, 'Local capture\nRemote capture').source;
-  assert.equal(resolveMerge(proposal, { source: 'both' }, manual).scratchpad, 'Local capture\nRemote capture');
-  assert.throws(() => resolveMerge(proposal, { source: 'both' }, 'invalid document'), /planner|frontmatter|sections/);
+  assert.equal(resolveMerge(proposal, { source: 'manual' }, manual).scratchpad, 'Local capture\nRemote capture');
+  assert.throws(() => resolveMerge(proposal, { source: 'manual' }, 'invalid document'), /planner|frontmatter|sections/);
   assert.equal(fileBaseline(proposal).source, remote.source);
+});
+
+test('keep both is available only for one isolated non-recurring entry and retains each complete body', () => {
+  const base = baseline();
+  const local = edit(base,doc=>{doc.days[0].items[0].text='Local title';});
+  const remote = edit(base,doc=>{doc.days[0].items[0].text='Remote title';});
+  const proposal=proposeMerge(local,remote,base);
+  assert.ok(proposal.both);
+  const both=resolveMerge(proposal,{source:'both'});
+  assert.deepEqual(both.days[0].items.map(item=>item.text),['Local title','Remote title','Read notes']);
+  assert.equal(new Set(both.days[0].items.map(item=>item.id)).size,3);
+  assert.equal(proposeMerge(local,withScratchpad(remote,'Also changed capture'),base).both,undefined);
 });
 
 test('different document identities and ambiguous structural edits do not auto-merge', () => {

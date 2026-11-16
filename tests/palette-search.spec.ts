@@ -1,16 +1,17 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { openCommands, runCommand, selectSearchResult } from './commands';
 
 async function importText(page: Page, raw: string) {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
-  await expect(page.getByRole('status').filter({ hasText: 'TODO.txt imported.' })).toBeVisible();
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
+  await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
 }
 const input = (page: Page) => page.getByRole('combobox', { name: 'Search commands and journal', exact: true });
 const results = (page: Page) => page.getByRole('group', { name: 'Dated entries', exact: true });
 
 test('typing in the default palette searches entries alongside commands without an inline search bar', async ({ page }) => {
-  await importText(page, '2000-01-01\n\nSettings for the garden\n- [ ] Bring a spade\n');
+  await importText(page, plannerFixture('2000-01-01\n\nSettings for the garden\n- [ ] Bring a spade\n'));
   const datesBefore = await page.locator('[data-journal-date]').evaluateAll(elements => elements.map(element => element.getAttribute('data-journal-date')));
   const palette = await openCommands(page);
   await input(page).fill('settings');
@@ -26,7 +27,7 @@ test('typing in the default palette searches entries alongside commands without 
 });
 
 test('a completed result opens its collapsed section and focuses the entry', async ({ page }) => {
-  await importText(page, '2000-01-01\nArchived win\n- [x] Searchable context\n\nStill open\n');
+  await importText(page, plannerFixture('2000-01-01\nArchived win\n- [x] Searchable context\n\nStill open\n'));
   await runCommand(page, 'Open search');
   await input(page).fill('searchable context');
   await page.getByRole('button', { name: 'Done items', exact: true }).click();
@@ -41,7 +42,7 @@ test('a completed result opens its collapsed section and focuses the entry', asy
 test('long result lists stay bounded, report their total, and can be refined before navigation', async ({ page }) => {
   const titles = Array.from({ length: 80 }, (_, index) => 'Entry ' + String(index).padStart(3, '0'));
   const today = new Date().toLocaleDateString('en-CA');
-  await importText(page, `${today}\n${titles.join('\n')}\n\n`);
+  await importText(page, plannerFixture(`${today}\n${titles.join('\n')}\n\n`));
   await runCommand(page, 'Open search');
   await expect(results(page).getByRole('option')).toHaveCount(50);
   await expect(results(page)).toContainText('80 entries · showing first 50');
@@ -53,7 +54,7 @@ test('long result lists stay bounded, report their total, and can be refined bef
 });
 
 test('Ctrl F selects the current palette query, and closing clears every search filter', async ({ page }) => {
-  await importText(page, '2000-01-01\nDone #work\n\nOpen #home\n');
+  await importText(page, plannerFixture('2000-01-01\nDone #work\n\nOpen #home\n'));
   await openCommands(page); await input(page).fill('#work');
   await page.keyboard.press('Control+f');
   await expect(page.getByRole('button', { name: 'Back to commands', exact: true })).toBeVisible();
@@ -85,7 +86,7 @@ test('search results refresh after edits in another window without losing the qu
 });
 
 test('filters and results can scroll while the input and close control fit a short viewport', async ({ page }) => {
-  await importText(page, '2000-01-01\n\nTagged entry #one #two #three #four #five #six #seven #eight\n');
+  await importText(page, plannerFixture('2000-01-01\n\nTagged entry #one #two #three #four #five #six #seven #eight\n'));
   await page.setViewportSize({ width: 320, height: 700 });
   await runCommand(page, 'Open search');
   await page.setViewportSize({ width: 320, height: 220 });

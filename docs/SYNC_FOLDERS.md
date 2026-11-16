@@ -1,6 +1,6 @@
 # Nextcloud and Dropbox sync folders
 
-Hot Cross Buns supports Nextcloud and Dropbox through their **desktop sync folders**, using the same protected file transport as Syncthing. Each provider has a separate settings section with its logo, setup details and folder picker. Link one dedicated, locally available journal folder. The browser writes `TODO.txt` and immutable companion revisions; the desktop client handles authentication, cloud upload and device transfer. Enter Nextcloud server/account details or Dropbox sign-in in the corresponding desktop client, rather than in Hot Cross Buns. There is no new Nextcloud, WebDAV, Dropbox or OneDrive API connection in this release.
+Hot Cross Buns supports Nextcloud and Dropbox through their **desktop sync folders**, using the same protected file transport as Syncthing. Each provider has a separate settings section with its logo, setup details and folder picker. Link one dedicated, locally available journal folder. The browser writes `Planner.md` and immutable companion revisions; the desktop client handles authentication, cloud upload and device transfer. Enter Nextcloud server/account details or Dropbox sign-in in the corresponding desktop client, rather than in Hot Cross Buns. There is no new Nextcloud, WebDAV, Dropbox or OneDrive API connection in this release.
 
 Automated tests exercise the app with real browser-local file handles and simulated transfer faults. **Actual Nextcloud/Dropbox accounts, desktop clients, native OS pickers and physical-device delivery have not been validated.** Treat the setup below as the supported app workflow with that validation boundary, rather than evidence that your client configuration transfers every file.
 
@@ -10,10 +10,10 @@ Automated tests exercise the app with real browser-local file handles and simula
 2. Create a dedicated `HotCrossBuns` directory inside a synchronized location. Include it in the folders selected for synchronization. A shared team folder must give every editing device write access.
 3. Keep the **whole directory available offline**, including its hidden `.hot-cross-buns` contents. Check ignored-file patterns and any ignore-hidden-files option. On [macOS File Provider](https://docs.nextcloud.com/server/stable/user_manual/en/desktop/macosfileprovider.html), Finder can evict local files; keep the journal directory downloaded. A placeholder is not a usable local backup.
 4. Open **Commands → Settings → Nextcloud → Link Nextcloud folder** and select that dedicated directory. Existing text goes through normal import/doctor review. An empty target receives the saved browser journal.
-5. Wait for the app to finish writing locally, then check the Nextcloud client's transfer status. Verify both `TODO.txt` and `.hot-cross-buns` on the second device before linking there. The verification procedure below provides a repeatable content check.
+5. Wait for the app to finish writing locally, then check the Nextcloud client's transfer status. Verify both `Planner.md` and `.hot-cross-buns` on the second device before linking there. The verification procedure below provides a repeatable content check.
 6. On the second device, finish downloading the entire directory and link it through the same action. Its initial branch may need explicit review even when the text matches. Keep the app open and visible while it catches up.
 
-Nextcloud's [conflict documentation](https://docs.nextcloud.com/server/stable/user_manual/en/desktop/conflicts.html) describes separate files such as `TODO (conflicted copy 2026-11-15 120000).txt`. These copies may remain local rather than uploading by default. Inspect the device that created the conflict; cloud contents alone may omit that copy. Hot Cross Buns notices recognizable English conflict-copy names in the selected directory and offers **Import a conflict copy** in File sync settings. It does not modify the client or turn on conflict uploading.
+Nextcloud's [conflict documentation](https://docs.nextcloud.com/server/stable/user_manual/en/desktop/conflicts.html) describes separate files such as `Planner (conflicted copy 2026-11-15 120000).md`. These copies may remain local rather than uploading by default. Inspect the device that created the conflict; cloud contents alone may omit that copy. Hot Cross Buns notices recognizable English conflict-copy names in the selected directory and offers **Import a conflict copy** in File sync settings. It does not modify the client or turn on conflict uploading.
 
 ## Dropbox second
 
@@ -29,7 +29,7 @@ The app requires no paid Dropbox integration. Account storage, device allowances
 
 Folder linking requires HTTPS or localhost, the directory picker, local file read/write permissions and Web Locks. The app checks these capabilities. Desktop Chromium is the automated browser target. Nextcloud and Dropbox client availability does not establish browser file-picker compatibility on that platform.
 
-Safari, Firefox, mobile browsers and native OS picker behavior remain separate validation. If linking is unavailable, use **Import TODO.txt** and **Download TODO.txt**, or the existing optional [Google Drive connection](GOOGLE_DRIVE.md) where supported. Manual transfer of only TODO.txt does not carry unresolved revision branches. Offline editing refers to an already-loaded tab; this release adds no offline app-shell cache or background service. Restarting the app offline may require connectivity to load it.
+Safari, Firefox, mobile browsers and native OS picker behavior remain separate validation. If linking is unavailable, use **Import Planner.md** and **Download Planner.md**, or the existing optional [Google Drive connection](GOOGLE_DRIVE.md) where supported. Manual transfer of only Planner.md does not carry unresolved revision branches. Offline editing refers to an already-loaded tab; this release adds no offline app-shell cache or background service. Restarting the app offline may require connectivity to load it.
 
 Use one active target. Unlink before changing provider, account or directory. The browser is authorized to the selected directory, not a Nextcloud or Dropbox account; it cannot detect a desktop client reconfigured to back the same path with another account. Verify the destination in the client. Do not place the same live directory under two independent desktop sync engines. Existing browser journals, individual-file links and Drive links stay available; folder history still requires explicitly granting the directory. Keep custom journal filenames and their exact case unchanged because the history namespace includes the filename.
 
@@ -39,11 +39,11 @@ Use one active target. Unlink before changing provider, account or directory. Th
 | --- | --- | --- |
 | Saved in this browser | IndexedDB commit | A field still being edited is a draft; browser storage can be cleared. |
 | Published to this local folder | Immutable envelope and checksum read-back | The desktop client may still be offline, paused or uploading. |
-| TODO.txt up to date in this folder | Checked projection matches the saved journal | This is a local comparison, not cloud or device delivery. |
+| Planner.md up to date in this folder | Checked projection matches the saved journal | This is a local comparison, not cloud or device delivery. |
 | Uploaded by the desktop client | Client/server status inspected separately | The browser has no provider upload receipt in folder mode. |
 | Observed on another device | Receiving device reads matching history and projection | An additional offline device can still hold an unseen branch. |
 
-Local editing remains available while file operations are pending. A temporary missing, unreadable or locked file retries with the shared durable backoff. After eight consecutive failures, saving pauses for **Resume file saving**. Permission denial instead asks for access; quota and other permanent disk errors need attention. The app does not create a replacement TODO.txt when a linked file temporarily disappears.
+Local editing remains available while file operations are pending. A temporary missing, unreadable or locked file retries with the shared durable backoff. After eight consecutive failures, saving pauses for **Resume file saving**. Permission denial instead asks for access; quota and other permanent disk errors need attention. The app does not create a replacement Planner.md when a linked file temporarily disappears.
 
 Reads and writes resolve the exact journal name inside the granted directory. A changed entry observed during staging aborts that write. This is not an atomic cross-device lock: app-authored revisions are retained before projection writes, while an arbitrary editor version overwritten before observation remains unrecoverable.
 
@@ -67,11 +67,11 @@ $ npm run --silent sync:check -- /path/to/HotCrossBuns Journal.txt
 
 The read-only command reuses the app's history scanner and revision graph validator. It checks the selected projection and available history, rejects observed symlink entries, and outputs a JSON receipt with:
 
-- `projection.sha256`: exact TODO.txt bytes, without printing the text.
+- `projection.sha256`: exact Planner.md bytes, without printing the text.
 - `history.sha256`: sorted logical revision IDs and checksums, independent of filename ordering, timestamps and identical duplicate envelopes.
 - Revision count, canonical history bytes, heads and the count of recognizable root-level conflict copies.
 
-Compare the two SHA-256 values and heads on both devices. If they differ, retain both folders, finish transfer and inspect exclusions or unresolved branches. The tool cannot identify which device is authoritative, discover a branch neither folder contains, read browser-only pending work, or establish a cloud acknowledgement. It checks history integrity and transfer agreement, not approval of TODO.txt syntax or an import. A receipt is an observation of files read sequentially, not an atomic directory snapshot; rerun after writes stop. Root conflict-copy contents and unrelated files are not included in the two fingerprints and still need separate inspection and backup.
+Compare the two SHA-256 values and heads on both devices. If they differ, retain both folders, finish transfer and inspect exclusions or unresolved branches. The tool cannot identify which device is authoritative, discover a branch neither folder contains, read browser-only pending work, or establish a cloud acknowledgement. It checks history integrity and transfer agreement, not approval of Planner.md syntax or an import. A receipt is an observation of files read sequentially, not an atomic directory snapshot; rerun after writes stop. Root conflict-copy contents and unrelated files are not included in the two fingerprints and still need separate inspection and backup.
 
 If saving receipts, keep them outside the live journal folder, especially outside `.hot-cross-buns`. A receipt JSON is a diagnostic observation, not a revision envelope.
 
@@ -88,7 +88,7 @@ The revision graph retains its existing limits. Both the selected folder and its
 
 If concurrent publications already pushed the old graph over budget, its review view and folder check can refuse to load. Keep the complete original and archive; verify the backup's file list and content checksums with your backup tool instead of deleting revisions to force a receipt. Export each available browser's saved journal and any unsaved recovery draft, then review those exports into a fresh dedicated target. This does not reconcile an unavailable device or every archived intermediate branch: retain the old archive for later recovery and review those versions when they become available.
 
-If an existing link points at a large general-purpose sync root, preserve the original and copy the journal, its entire companion history and relevant conflict copies into a dedicated subdirectory. Export current browser work before explicitly unlinking and linking that directory; review its initial branches normally. Leave unrelated files where they are. Use the default plain `TODO.txt` name for new targets; custom names must survive provider and filesystem naming rules with identical spelling, case and Unicode normalization on every device.
+If an existing link points at a large general-purpose sync root, preserve the original and copy the journal, its entire companion history and relevant conflict copies into a dedicated subdirectory. Export current browser work before explicitly unlinking and linking that directory; review its initial branches normally. Leave unrelated files where they are. Use the default plain `Planner.md` name for new targets; custom names must survive provider and filesystem naming rules with identical spelling, case and Unicode normalization on every device.
 
 ## Architecture decision and rollback
 
@@ -102,7 +102,7 @@ Direct browser adapters were evaluated separately:
 
 Folder mode needs no app-side provider credentials, CORS permissions, pagination API or paid backend. The app's local directory iterator is still not an atomic snapshot. The shared immutable protocol, identity checks, missing-known-head checks, bounded retries, draft locks, recovery and explicit review remain responsible for app-level safety. Things 3 is an experience reference, not a claim of Things Cloud protocol or background-service equivalence.
 
-There is no database or revision version change. `FileLink.conflictCopies` is optional local metadata; older code can ignore it. Current journals, file handles and pending identities are retained. Rollback must retain the existing version-3 opener, unsupported-revision guard and `bce3167` transport-ID reservation support. Older folder code may require manual resume for temporary errors and does not expose conflict-copy notices; preserve remote history and browser pending work when rolling back.
+The Markdown runtime now uses schema **4** and revision protocol **2**. Earlier TXT journals, scratchpads, handles and pending records are archived for an explicit workspace transition; remote files are untouched. `FileLink.conflictCopies` remains optional local metadata. Rollback needs the source-authoritative version-4 store, shared scratchpad transactions, protocol-2 guards/publication and transport-ID reservation, not only the earlier version-3 compatibility commits. See [workspace transition and rollback](MARKDOWN_RUNTIME.md#earlier-developer-workspaces-and-rollback).
 
 Transport hardening is isolated in [`fa15303`](https://github.com/gongahkia/hot-cross-buns/commit/fa15303). Reverting the provider workflow/UI/CLI commit can retain that transport support. The standalone hardening commit has its own unit/type verification; it does not require the added settings controls or verification script.
 

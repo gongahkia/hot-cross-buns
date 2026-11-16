@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test } from '@playwright/test';
 
 test.use({ viewport: { width: 320, height: 700 }, isMobile: true, hasTouch: true });
@@ -11,9 +12,9 @@ test('timed items and details stay readable after a phone rotates', async ({ pag
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
   const title = 'Prepare a long report for the mobile layout';
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain',
-    buffer: Buffer.from(`${todayString()}\n\n09:00-10:00 ${title}\n- [ ] Collect the relevant details from colleagues\n`),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain',
+    buffer: Buffer.from(plannerFixture(`${todayString()}\n\n09:00-10:00 ${title}\n- [ ] Collect the relevant details from colleagues\n`)),
   });
   const row = page.getByRole('group', { name: `09:00-10:00 ${title}` });
   await expect(row).toBeVisible();
@@ -80,8 +81,8 @@ test('touch editors use readable text and weekday headings do not repeat on mobi
   const otherDay = new Date();
   otherDay.setDate(otherDay.getDate() + (otherDay.getDay() === 1 ? 1 : -1));
   const date = `${otherDay.getFullYear()}-${String(otherDay.getMonth() + 1).padStart(2, '0')}-${String(otherDay.getDate()).padStart(2, '0')}`;
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${date}\n\nReview on phone\n`),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${date}\n\nReview on phone\n`)),
   });
   const heading = page.locator('section').filter({ has: page.locator(`time[datetime="${date}"]`) }).locator('h2');
   // importing keeps today in view; exercise the earlier heading on screen.

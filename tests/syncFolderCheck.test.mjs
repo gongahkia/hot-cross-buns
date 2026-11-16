@@ -10,7 +10,7 @@ import { createRevision, revisionText, sha256 } from '../src/revisionProtocol.ts
 
 const execute = promisify(execFile), script = fileURLToPath(new URL('../scripts/check-sync-folder.mjs', import.meta.url));
 const raw = 'UNDATED\n\nLIST: Inbox\nPrivate test-only journal text\n';
-async function fixture(t, name = 'TODO.txt') {
+async function fixture(t, name = 'Planner.md') {
   const folder = await mkdtemp(join(tmpdir(), 'hcb-folder-check-')); t.after(() => rm(folder, { recursive: true, force: true }));
   const history = join(folder, '.hot-cross-buns', await sha256(name)); await mkdir(history, { recursive: true });
   const record = await createRevision('file:' + name, crypto.randomUUID(), [], raw);
@@ -24,7 +24,7 @@ test('folder receipts use shared validation, contain no journal text and leave f
   assert.equal(receipt.history.revisions, 1); assert.deepEqual(receipt.history.heads, [f.record.id]);
   assert.equal(receipt.projection.sha256, await sha256(raw)); assert.equal(receipt.conflictCopies, 0);
   assert.ok(!result.stdout.includes('Private')); assert.deepEqual(await readdir(f.history), before);
-  assert.equal(await readFile(join(f.folder, 'TODO.txt'), 'utf8'), raw);
+  assert.equal(await readFile(join(f.folder, 'Planner.md'), 'utf8'), raw);
 });
 test('receipt identity ignores delivery order and byte-equivalent duplicate logical records', async t => {
   const f = await fixture(t), before = JSON.parse((await check(f)).stdout);
@@ -33,7 +33,7 @@ test('receipt identity ignores delivery order and byte-equivalent duplicate logi
 });
 test('an otherwise valid but incomplete branch set produces a different history fingerprint', async t => {
   const f = await fixture(t), before = JSON.parse((await check(f)).stdout);
-  const child = await createRevision('file:TODO.txt', f.record.device, [f.record.id], raw.replace('text', 'new text'));
+  const child = await createRevision('file:Planner.md', f.record.device, [f.record.id], raw.replace('text', 'new text'));
   await writeFile(join(f.history, child.id + '.json'), revisionText(child));
   const after = JSON.parse((await check(f)).stdout); assert.notEqual(before.history.sha256, after.history.sha256);
   assert.equal(before.projection.sha256, after.projection.sha256);
@@ -46,7 +46,7 @@ test('corrupt or incomplete history fails without printing journal contents', as
   }
 });
 test('missing ancestors and missing history do not produce a misleading success receipt', async t => {
-  const f = await fixture(t), child = await createRevision('file:TODO.txt', f.record.device, [crypto.randomUUID()], raw);
+  const f = await fixture(t), child = await createRevision('file:Planner.md', f.record.device, [crypto.randomUUID()], raw);
   await writeFile(join(f.history, child.id + '.json'), revisionText(child));
   await assert.rejects(check(f), error => /ancestor/.test(error.stderr));
   await rm(f.history, { recursive: true }); await assert.rejects(check(f), error => error.stdout === '');
@@ -58,6 +58,6 @@ test('checks preserve custom journal names and count provider conflict copies se
 });
 test('the filesystem check rejects symlinked revisions', async t => {
   const f = await fixture(t), path = join(f.history, f.record.id + '.json'); await rm(path);
-  await symlink(join(f.folder, 'TODO.txt'), path);
+  await symlink(join(f.folder, 'Planner.md'), path);
   await assert.rejects(check(f), error => /symbolic links/.test(error.stderr));
 });

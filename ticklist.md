@@ -1,16 +1,17 @@
 # Hot Cross Buns follow-ups
 
-Keep the product focused on a plain-text journal with lightweight task tracking. The [README](./README.md) describes the current app; [TODO_FORMAT.md](./docs/TODO_FORMAT.md) defines its portable data.
+Hot Cross Buns is becoming a single-file Markdown browser planner while keeping dated/undated workflows, a shared scratchpad and a quiet interface. [MARKDOWN_FORMAT.md](./docs/MARKDOWN_FORMAT.md) defines the running format; [runtime and rollback guidance](./docs/MARKDOWN_RUNTIME.md) covers source ownership, storage and sync. README.md is intentionally unchanged during this transition.
 
-The approved next direction is a single-file Markdown planner, preserving dated/undated workflows, sharing the scratchpad, and adding quiet day/week/month views over the same entries. [Implementation stages and semantic mapping](./docs/MARKDOWN_PLANNER_PLAN.md) and [the format contract](./docs/MARKDOWN_FORMAT.md) distinguish the new foundation from the current TXT runtime. Live Google/Outlook calendar connections are permanently outside scope; only one-time imports are candidates. The delivered list below still describes the existing TXT app.
+[Implementation stages](./docs/MARKDOWN_PLANNER_PLAN.md) separate the delivered runtime from later rich rendering, source search/linking and day/week/month calendar views. Live Google/Outlook connections remain outside scope; only one-time imports are supported.
 
 ## Markdown transition
 
 - [x] Freeze the single-document contract: visible hcb metadata, explicit identity, readable planning fields, terminal shared scratchpad and floating wall times.
 - [x] Add source-preserving parsing and validated atomic source patches, identity insertion, title edits, non-recurring completion and scratchpad replacement, with paired TXT/Markdown semantic fixtures.
-- [ ] Connect one document mutation path to durable storage, drafts, undo, immutable revisions and explicit branch review. Include scratchpad in saves/restores and fence incompatible writers; never round-trip Markdown through the TXT merge.
-- [ ] Implement occurrence-aware completion, successor creation, movement, span updates and recurrence scope using atomic document transactions.
-- [ ] Switch existing dated/undated/scratchpad views, search/linking, import/export and recovery to Markdown, with an explicit developer-workspace transition rather than a legacy migration product.
+- [x] Connect one document mutation path to durable storage, drafts, undo, immutable revisions and explicit branch review. Include scratchpad in saves/restores and fence incompatible writers; never round-trip Markdown through the TXT merge.
+- [x] Implement occurrence-aware completion, successor creation, movement, span updates and recurrence scope using atomic document transactions.
+- [x] Switch existing dated/undated/scratchpad views, scoped entry search, import/export and recovery to Markdown, with an explicit archived developer-workspace conversion. Add hidden source editing, stale-draft recovery and raw startup recovery.
+- [ ] Expand search/indexing to arbitrary prose, shared scratchpad and stable-link navigation without adding persistent UI.
 - [ ] Add safe Markdown, Mermaid and math rendering with bounded work and source fallback.
 - [ ] Build editable day/week/month calendar views with quiet contextual controls, keyboard/touch alternatives, spans, recurrence review and undo. The existing dated list remains the agenda.
 - [ ] Benchmark parsing, indexing, search, typing, calendar navigation and durable saves on defined datasets; then validate browsers and actual file/device delivery. Agent/MCP support comes later.
@@ -22,9 +23,9 @@ The approved next direction is a single-file Markdown planner, preserving dated/
 - [x] Time blocks, multi-day spans and scheduled or after-completion recurrence.
 - [x] Drag to reorder or move items; keyboard sibling creation and detail promotion/demotion.
 - [x] Responsive browser layouts, themes, appearance preferences and shared browser popouts.
-- [x] Explicit TODO.txt import, doctor, conflict review and download preview.
+- [x] Explicit Markdown import, doctor, conflict review and download preview.
 - [x] Separate, read-only Google Calendar and Tasks snapshot tools.
-- [x] Direct saving to a linked TODO.txt file, with a Syncthing workflow, external-change review and file-write recovery.
+- [x] Direct saving to a linked Planner.md file, with a Syncthing workflow, external-change review and file-write recovery.
 - [x] Optional Google Drive saving through a Web OAuth client, per-file access and the existing import/conflict review.
 - [x] Shared durable sync coordination: frozen submissions, verified receipts, automatic catch-up, conservative merges, cross-tab ownership, draft/undo protection and bounded recovery copies. See [sync behavior and limits](./docs/SYNC.md).
 - [x] Immutable revision history for sync folders and new Drive links, with stable retry identities, verified ancestry, explicit concurrent-branch review, bounded scans and safe storage upgrades. See [revision protocol and retention](./docs/REVISION_SYNC.md).
@@ -42,7 +43,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 ## Next validation
 
-- [ ] Investigate the existing 1,200-item completion/undo performance gate before claiming a speed advantage. Both the current runtime and baseline `a8d586f` exceeded its unchanged limits on 16 November 2026; see [measurements and verification boundaries](./docs/MARKDOWN_PLANNER_PLAN.md#foundation-verification-16-november-2026). The Markdown foundation is not yet connected to the app.
+- [ ] Investigate the existing 1,200-item completion/undo performance gate before claiming a speed advantage. Both the current runtime and baseline `a8d586f` exceeded its unchanged limits on 16 November 2026; see [measurements and verification boundaries](./docs/MARKDOWN_PLANNER_PLAN.md#foundation-verification-16-november-2026). The runtime is now connected; retain the unchanged regression gate and record current measurements.
 - [ ] Validate Nextcloud and Dropbox with actual desktop clients/accounts and two physical devices, including hidden-history exclusions, offline availability, replacement handles, conflict copies, interrupted transfer and matching folder receipts. This implementation uses automated fault models only, as requested; native pickers, provider acknowledgements and device delivery remain unverified.
 - [ ] Evaluate OneDrive as the alternative managed provider after the selected Dropbox workflow is dogfooded. A direct Nextcloud WebDAV, Dropbox or Graph adapter needs its own browser/authentication and transport contract; no such API integration is advertised here.
 - [ ] Investigate the existing intermittent Chromium mobile-rotation weekday visibility failure if it recurs; preserve assertions and report retries explicitly.
@@ -63,7 +64,9 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 - Parity with the Google Calendar and Tasks suites, or live calendar-account connections. A calendar over local Markdown entries is now planned in the design document above; it is not implemented yet.
 - Automatic deletion of old journal content.
-- A hosted journal database or continuous Google Calendar/Tasks account sync. Sync remains based on portable TODO.txt files, with Syncthing, Nextcloud and Dropbox desktop-folder workflows and optional Google Drive saving.
+- A hosted journal database or continuous Google Calendar/Tasks account sync. Sync remains based on portable Markdown files, with Syncthing, Nextcloud and Dropbox desktop-folder workflows and optional Google Drive saving.
 - Electron, a desktop menubar app or an installable PWA as part of this browser restoration.
 
-Keep the one-time Shio Pan storage migration, old Google snapshot format alias and old service-worker retirement code while existing users may still need them. Removing those compatibility paths requires a separate migration decision.
+Keep the archived developer-workspace records and version-4/protocol-2 rollback compatibility. One-time Shio Pan preference migration, snapshot alias and service-worker retirement remain isolated compatibility paths; there is no permanent TXT file-import mode.
+
+- [ ] Replace the temporary checksum-guarded micromark prefix patch when an inspected upstream release supplies the correction; rerun source/offset and performance suites. See [parser dependency guidance](./docs/PARSER_PERFORMANCE.md).

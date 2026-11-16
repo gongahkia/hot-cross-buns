@@ -46,7 +46,7 @@ import { advanceRecurrences, nextRecurrenceDate } from './recurrence';
 import { parseTimeBlock } from './timeBlock';
 import { materializeOccurrence, projectItemsForDate, type ViewItem } from './seriesView';
 import { newSeriesId, type RecurrenceRule } from './recurrence';
-import { emptyState, loadTodoState, mutateTodoState, subscribeStore, undoScratchpadConversion, type ScratchpadUndo, type TodoState } from './todoStore';
+import { emptyState, loadTodoState, mutateTodoState, subscribeStore, type TodoState } from './todoStore';
 
 const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header`position:relative;z-index:40;display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:20px;`;
@@ -87,7 +87,7 @@ const PopoutField = styled.label`display:grid;gap:6px;margin:12px 0;font-size:13
 const PopoutList = styled.div`display:grid;gap:2px;max-height:45dvh;overflow:auto;`;
 const PopoutCheck = styled.label`display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;input{width:18px;height:18px;accent-color:var(--link);}`;
 const PopoutActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:18px;`;
-type UndoNotice = { kind: Exclude<UndoNoticeKind, 'scratchpad-conversion'>; text: string; document: TodoDocument };
+type UndoNotice = { kind: UndoNoticeKind; text: string; document: TodoDocument };
 type DeletionFeedback = { kind: 'item-deletion' | 'detail-deletion'; text: string };
 type PopoutScope = { kind: 'scratchpad' } | { kind: 'dated'; from: string; to: string } | { kind: 'undated'; lists: string[] };
 const readPopoutScope = (): PopoutScope | null => {
@@ -317,7 +317,13 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [scratchPending, setScratchPending] = useState(false);
+  const scratchPendingRef = useRef(false);
+  const scratchActivity = useRef(-Infinity);
   const [legacyRawDraft, setLegacyRawDraft] = useState<string | null>(null);
+  const [reviewDraftRecovery, setReviewDraftRecovery] = useState<{ key: string; text: string } | null>(null);
+  const reviewDraft = useRef<{ key: string; text: string; dirty: boolean } | null>(null);
+  const reviewDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -329,8 +335,6 @@ export default function App() {
   const [popoutFrom, setPopoutFrom] = useState(todayString);
   const [popoutTo, setPopoutTo] = useState(todayString);
   const [popoutLists, setPopoutLists] = useState<string[]>([]);
-  const [scratchUndo, setScratchUndo] = useState<ScratchpadUndo | null>(null);
-  const [scratchReloadToken, setScratchReloadToken] = useState(0);
   const [review, setReview] = useState<FileReviewState | null>(null);
   const [choices, setChoices] = useState<Record<string, MergeChoice>>({});
   const [rawEdit, setRawEdit] = useState('');
@@ -345,6 +349,7 @@ export default function App() {
   const importInput = useRef<HTMLInputElement>(null);
   const undoStack = useRef<TodoDocument[]>([]);
   const redoStack = useRef<TodoDocument[]>([]);
+  const captureReplay = useRef<string | null>(null);
   const writeQueue = useRef<WriteQueue<TodoState | null> | null>(null);
   if (!writeQueue.current) writeQueue.current = new WriteQueue(error => setSaveFailure('Could not save: ' + String(error)));
   const journalQueue = useRef<Promise<void>>(Promise.resolve());
@@ -353,8 +358,8 @@ export default function App() {
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const mergeReviewText = useRef<string | null>(null);
   const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; historyDirectory?: LinkedDirectoryHandle; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | null>(null);
-  const fileSync = useLinkedFile(state?.document ?? null, () => !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
-  const driveSync = useGoogleDrive(state?.document ?? null, () => !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
+  const fileSync = useLinkedFile(state?.document ?? null, () => !scratchPendingRef.current && performance.now() - scratchActivity.current >= 500 && !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
+  const driveSync = useGoogleDrive(state?.document ?? null, () => !scratchPendingRef.current && performance.now() - scratchActivity.current >= 500 && !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
   const preserveSyncHistory = (next: TodoDocument) => {
     const before = current.current.document;
     undoStack.current = rebaseSyncHistory(undoStack.current, before, next, todayString());
@@ -412,6 +417,9 @@ export default function App() {
     current.current = loaded;
     setState(loaded);
     try {
+      const key = `hot-cross-buns-markdown-review:${readJournal(loaded.document.source!).model.documentId}`;
+      const text = sessionStorage.getItem(key);
+      if (text !== null) setReviewDraftRecovery({ key, text });
       const draft = sessionStorage.getItem(LEGACY_RAW_DRAFT_KEY);
       if (draft === serializeJournal(loaded.document)) sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY);
       else if (draft !== null) setLegacyRawDraft(draft);
@@ -455,12 +463,7 @@ export default function App() {
     const timeout = window.setTimeout(() => setFeedbackNotice(null), 6000);
     return () => window.clearTimeout(timeout);
   }, [feedbackNotice]);
-  useEffect(() => {
-    if (!scratchUndo) return;
-    const timeout = window.setTimeout(() => setScratchUndo(null), 6000);
-    return () => window.clearTimeout(timeout);
-  }, [scratchUndo]);
-  const toastNotice = useMemo(() => scratchUndo ? { kind: 'scratchpad-conversion' as const, text: 'Scratchpad text' } : feedbackNotice, [scratchUndo, feedbackNotice]);
+  const toastNotice = feedbackNotice;
   const reportSaveError = (error: unknown, prefix = 'Could not save: ') => {
     if (!(error instanceof WriteDiscardedError)) setMessage(prefix + String(error));
   };
@@ -471,7 +474,7 @@ export default function App() {
     current.current = latest;
     setState(latest);
     undoStack.current = []; redoStack.current = [];
-    setFeedbackNotice(null); setScratchUndo(null); setReview(null);
+    setFeedbackNotice(null); setReview(null);
     setSaveFailure(null);
     setMessage('Unsaved journal edits discarded.');
   };
@@ -502,7 +505,6 @@ export default function App() {
   }));
   const commitState = async (next: TodoState) => {
     next = { ...next, document: materializeJournal(next.document) };
-    setScratchUndo(null);
     const before = current.current;
     const stamped = { ...next, revision: before.revision + 1 };
     current.current = stamped;
@@ -570,7 +572,6 @@ export default function App() {
     advanceRecurrences(before, document, todayString());
     try { document = materializeJournal(document); validateVisibleProjection(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeJournal(before) === serializeJournal(document)) return;
-    setScratchUndo(null);
     const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
     const completed = document.days.flatMap(day => day.items).find(item => item.completed && priorItems.get(item.id)?.completed === false);
     undoStack.current.push(before);
@@ -583,8 +584,8 @@ export default function App() {
     void persistEdit(before,document).catch(reportSaveError);
     setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
   };
-  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
-  const redo = () => { const next = redoStack.current.pop(); if (!next) return; setFeedbackNotice(null); undoStack.current.push(current.current.document); replayState(next); };
+  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; captureReplay.current = feedbackNotice?.kind === 'scratchpad-conversion' ? serializeJournal(previous) : null; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
+  const redo = () => { const next = redoStack.current.pop(); if (!next) return; captureReplay.current = null; setFeedbackNotice(null); undoStack.current.push(current.current.document); replayState(next); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
@@ -603,6 +604,10 @@ export default function App() {
       if (document.querySelector('dialog[open]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         if (exportOpen) return;
+        const scratch = event.target instanceof HTMLTextAreaElement && event.target.getAttribute('aria-label') === 'Scratchpad text';
+        const captureUndo = feedbackNotice?.kind === 'scratchpad-conversion' && serializeJournal(feedbackNotice.document) === serializeJournal(current.current.document);
+        const captureRedo = event.shiftKey && captureReplay.current === serializeJournal(current.current.document) && redoStack.current.length > 0;
+        if (scratch && (scratchPendingRef.current || !captureUndo && !captureRedo)) return;
         event.preventDefault();
         const target = event.target;
         if (target instanceof HTMLTextAreaElement && target.hasAttribute('data-journal-entry')) target.blur();
@@ -945,13 +950,13 @@ export default function App() {
       if (latest.snapshot.text !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
       pending.snapshot = latest.snapshot;
     } else if ((pending.revisionId ? await fileSync.verifyReview(pending.revisionId) : (await readLinkedFile(pending)).text) !== pending.raw) throw new Error('The file changed while this review was open. Cancel and review it again.');
-    const review = { document, baseline, expectedText, generation: pending.generation, revisionId: pending.revisionId };
+    const review = { document, baseline, expectedText, observedText: pending.raw, generation: pending.generation, revisionId: pending.revisionId };
     const saved = pending.kind === 'drive'
       ? await driveSync.establish(pending.snapshot, baseline, pending.id ?? null, review)
       : await fileSync.establish(pending.handle, pending.raw, baseline, pending.id ?? null, review, pending.historyDirectory);
     if (!saved) throw new Error('The reviewed journal was not saved. Try reviewing it again.');
     if (serializeJournal(document) !== expectedText) { undoStack.current.push(before.document); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = []; }
-    setScratchUndo(null); current.current = saved; setState(saved); pendingLink.current = null;
+    current.current = saved; setState(saved); pendingLink.current = null;
   };
   const linkFile = async (create: boolean, folder = false) => {
     setBusy(true); setFileActionError('');
@@ -992,10 +997,35 @@ export default function App() {
     } catch (error) { pendingLink.current = null; setMessage('Could not open Google Drive file: ' + String(error)); }
     finally { setBusy(false); }
   };
+  const checkpointReviewDraft = () => {
+    clearTimeout(reviewDraftTimer.current);
+    const draft = reviewDraft.current;
+    if (!draft?.dirty) return;
+    try { sessionStorage.setItem(draft.key,draft.text); setReviewDraftRecovery({ key: draft.key, text: draft.text }); }
+    catch { setFileActionError('Could not checkpoint this import draft. Download the working source before leaving this review.'); }
+  };
+  const changeImportDraft = (text: string) => {
+    setRawEdit(text);
+    if (!reviewDraft.current) return;
+    reviewDraft.current.text = text; reviewDraft.current.dirty = true;
+    clearTimeout(reviewDraftTimer.current); reviewDraftTimer.current = setTimeout(checkpointReviewDraft,250);
+  };
+  const clearImportDraft = () => {
+    const draft = reviewDraft.current;
+    clearTimeout(reviewDraftTimer.current);
+    if (draft) { try { sessionStorage.removeItem(draft.key); } catch { /* a recovery copy can be explicitly discarded later. */ } }
+    reviewDraft.current = null; setReviewDraftRecovery(null);
+  };
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => { if (reviewDraft.current?.dirty) { checkpointReviewDraft(); event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload',unload);
+    return () => { clearTimeout(reviewDraftTimer.current); window.removeEventListener('beforeunload',unload); };
+  }, []);
   const imported = async (raw: string, original = raw) => {
     assertImportText(raw);
     const diagnosis = doctorJournal(raw);
     if (diagnosis.findings.some(finding => finding.level === 'review')) {
+      reviewDraft.current ??= { key: `hot-cross-buns-markdown-review:${readJournal(current.current.document.source!).model.documentId}`, text: raw, dirty: false };
       setRawEdit(diagnosis.candidate);
       setReview({ kind: 'doctor', original, checked: diagnosis.candidate, findings: diagnosis.findings });
       return;
@@ -1005,6 +1035,7 @@ export default function App() {
     const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.revisionId ? null : pendingLink.current?.baselineDocument ?? current.current.baseline);
     if (isEmptyJournal(current.current.document)) { proposal.merged = parsed.document; proposal.conflicts = []; }
     if (proposal.conflicts.length) {
+      reviewDraft.current ??= { key: `hot-cross-buns-markdown-review:${readJournal(current.current.document.source!).model.documentId}`, text: raw, dirty: false };
       mergeReviewText.current = serializeJournal(current.current.document);
       setChoices({}); setRawEdit(serializeJournal(proposal.local)); setReview({ kind: 'merge', raw, proposal }); return;
     }
@@ -1012,7 +1043,7 @@ export default function App() {
     advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
     validateJournal(merged);
     await finishImportedJournal(merged, fileBaseline(proposal));
-    setReview(null); mergeReviewText.current = null;
+    clearImportDraft(); setReview(null); mergeReviewText.current = null;
     setMessage('Planner.md imported.');
   };
   const importFile = async (file: File) => { setBusy(true); setFileActionError(''); try { assertImportSize(file.size); await imported(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await file.arrayBuffer())); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
@@ -1038,7 +1069,7 @@ export default function App() {
       advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
       validateJournal(merged);
       await finishImportedJournal(merged, fileBaseline(review.proposal));
-      setReview(null); mergeReviewText.current = null; setMessage('Planner.md imported.');
+      clearImportDraft(); setReview(null); mergeReviewText.current = null; setMessage('Planner.md imported.');
     } catch (error) { setFileActionError(String(error)); } finally { setBusy(false); }
   };
   const reparse = async () => {
@@ -1050,9 +1081,12 @@ export default function App() {
       } catch (error) { setFileActionError(String(error)); }
       return;
     }
-    const original = review?.original ?? rawEdit;
-    setReview(null);
-    try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); }
+    if (review?.kind !== 'doctor') return;
+    try {
+      const diagnosis = doctorJournal(rawEdit);
+      setReview({ kind: 'doctor', original: review.original, checked: rawEdit, findings: diagnosis.findings });
+      setFileActionError('');
+    } catch (error) { setFileActionError(String(error)); }
   };
   const documentData = state?.document ?? current.current.document;
   const priorDocument = previousDocument.current;
@@ -1190,7 +1224,7 @@ export default function App() {
   }, [searchTarget, paletteOpen, selectedDate, journalDays]);
   const loadHistory = async () => { await journalQueue.current; return await fileSync.history() ?? await driveSync.history(); };
   const historyAction = async (snapshot: HistorySnapshot, id: string, restore: boolean) => {
-    if (pendingJournal.current || saveFailure) throw new Error('Finish saving the browser journal before using history.');
+    if (scratchPendingRef.current || pendingJournal.current || saveFailure) throw new Error('Finish saving the browser journal before using history.');
     const before = current.current;
     pendingJournal.current++; journalGeneration.current++;
     try {
@@ -1198,7 +1232,7 @@ export default function App() {
       if (restore && saved) {
         undoStack.current.push(before.document); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = [];
         const next = { ...before, document: saved.document, revision: saved.revision };
-        setScratchUndo(null); setFeedbackNotice(null); current.current = next; setState(next);
+        setFeedbackNotice(null); current.current = next; setState(next);
         setMessage('Version restored in this browser. File saving will follow.');
       }
       setHistoryOpen(false);
@@ -1218,6 +1252,7 @@ export default function App() {
   };
   const saveSource = async (source: string, expected: string) => {
     await journalQueue.current;
+    if (scratchPendingRef.current) throw new Error('Finish saving the scratchpad before replacing the Markdown source.');
     if (serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while this source draft was open. Download your draft, close and reopen the source to review the latest version.');
     const parsed = parseJournal(source);
     if (parsed.issues.length) throw new Error(parsed.issues.slice(0,20).map(issue => `Line ${issue.line}: ${issue.message}`).join(' '));
@@ -1264,22 +1299,17 @@ export default function App() {
     </Notice>}
     <input ref={importInput} type="file" accept=".md,.markdown,text/markdown,text/plain" hidden aria-label="Import a Planner.md file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
-    {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0} conflictCopies={fileSync.conflictCopies.length} onSettings={() => setSettingsOpen(true)}/>}
+    {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0 || scratchPending} conflictCopies={fileSync.conflictCopies.length} onSettings={() => setSettingsOpen(true)}/>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TXT draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
       setLegacyRawDraft(null);
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
     }}>download draft</Button><Dismiss aria-label="Dismiss draft notice" onClick={() => setLegacyRawDraft(null)}>×</Dismiss></Notice>}
+    {reviewDraftRecovery && reviewDraftRecovery.key === `hot-cross-buns-markdown-review:${readJournal(documentData.source!).model.documentId}` && !review && <Notice role="status">An unfinished Markdown import draft is available. <Button onClick={() => { downloadTextFile(reviewDraftRecovery.text,'Planner-import-draft.md'); try { sessionStorage.removeItem(reviewDraftRecovery.key); } catch { /* the download retains the recovery copy. */ } setReviewDraftRecovery(null); }}>Download import draft</Button><Button onClick={() => { try { sessionStorage.removeItem(reviewDraftRecovery.key); } catch { /* the current saved journal is unaffected. */ } setReviewDraftRecovery(null); }}>Discard import draft</Button></Notice>}
     {projectionError && <Notice role="alert">{projectionError}</Notice>}
     <StatusToast notice={notification} onDismiss={dismissNotification} aboveUndo={!!toastNotice}/>
-    <UndoFeedback notice={toastNotice} onDismiss={() => { setScratchUndo(null); setFeedbackNotice(null); }} onUndo={() => {
-      if (scratchUndo) {
-        const pending = scratchUndo;
-        setScratchUndo(null);
-        void undoScratchpadConversion(pending).then(({ journal }) => { current.current = journal; setState(journal); setScratchReloadToken(value => value + 1); }).catch(error => setMessage(String(error)));
-        return;
-      }
+    <UndoFeedback notice={toastNotice} onDismiss={() => { setFeedbackNotice(null); }} onUndo={() => {
       if (feedbackNotice && serializeJournal(current.current.document) === serializeJournal(feedbackNotice.document)) undo();
       else setFeedbackNotice(null);
     }}/>
@@ -1290,12 +1320,14 @@ export default function App() {
       } else if (visibleEarlier.length) scrollToJournalDate(visibleEarlier[0].date,true);
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
     <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
-    <div hidden={activeTab !== 'scratchpad'} style={{ height: '100%' }}><ScratchpadView active={activeTab === 'scratchpad'} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} reloadToken={scratchReloadToken} beforeConvert={() => journalQueue.current} onJournalCommitted={(journal, undo) => {
-      if (journal.revision >= current.current.revision) { current.current = journal; setState(journal); }
-      undoStack.current = [];
-      redoStack.current = [];
-      setFeedbackNotice(null);
-      setScratchUndo(undo);
+    <div hidden={activeTab !== 'scratchpad'} style={{ height: '100%' }}><ScratchpadView active={activeTab === 'scratchpad'} onPendingChange={pending => { if (pending) scratchActivity.current = performance.now(); scratchPendingRef.current = pending; setScratchPending(pending); }} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} beforeConvert={async () => { await journalQueue.current; pendingJournal.current++; journalGeneration.current++; }} afterConvert={() => { pendingJournal.current--; }} onJournalCommitted={(journal, undo) => {
+      if (journal.revision < current.current.revision) return;
+      if (serializeJournal(current.current.document) !== serializeJournal(undo.before.document)) preserveSyncHistory(undo.before.document);
+      undoStack.current.push(undo.before.document);
+      if (undoStack.current.length > 100) undoStack.current.shift();
+      redoStack.current = []; captureReplay.current = null;
+      current.current = journal; setState(journal);
+      setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
     }}/></div>
     {activeTab === 'scratchpad' ? null : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
@@ -1393,7 +1425,7 @@ export default function App() {
         setHolidayStatus(`${added} ${added === 1 ? 'holiday' : 'holidays'} added from ${source}${holidays.length > added ? `; ${holidays.length - added} already present` : ''}.`);
       }).catch(error => { if (!controller.signal.aborted) setHolidayStatus(`Could not add holidays: ${String(error)}`); }).finally(() => { if (holidayImport.current === controller) holidayImport.current = null; }); }}/>
     <FileReview error={fileActionError} linked={!!pendingLink.current} review={review} rawEdit={rawEdit} choices={choices} busy={busy}
-      onClose={() => { pendingLink.current = null; mergeReviewText.current = null; setFileActionError(''); setReview(null); }} onRawEdit={setRawEdit}
+      onClose={() => { checkpointReviewDraft(); reviewDraft.current = null; pendingLink.current = null; mergeReviewText.current = null; setFileActionError(''); setReview(null); }} onRawEdit={changeImportDraft}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
       onReparse={() => void reparse()} onApply={() => void applyReview()}/>
     <SaveRecovery error={saveFailure} text={saveFailure ? serializeJournal(current.current.document) : ''} kind="journal" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={discardUnsavedJournal}/>

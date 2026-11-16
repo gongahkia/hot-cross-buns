@@ -4,7 +4,7 @@ import { createDriveApi, GoogleDriveError, validateDriveFile } from '../src/goog
 import { validateGoogleConfig } from '../src/googleAuth.ts';
 
 const session = { accessToken: 'test-token', expiresAt: Date.now() + 3_600_000, accountId: 'account-1', email: 'test@example.com' };
-const file = { id: 'file-1', name: 'TODO.txt', version: '1', mimeType: 'text/plain', capabilities: { canEdit: true } };
+const file = { id: 'file-1', name: 'Planner.md', version: '1', mimeType: 'text/plain', capabilities: { canEdit: true } };
 const link = { fileId: file.id, version: '1', baselineText: 'Original\n' };
 function server({ text = 'Original\n', etag = '"revision-1"', failSave = 0, mutate } = {}) {
   let version = 1;
@@ -88,14 +88,14 @@ test('Drive rejects non-text, read-only, trashed, oversized and malformed metada
   const invalidUtf8 = createDriveApi(session, async url => { calls++; return url.includes('alt=media') ? new Response(new Uint8Array([0xc0, 0xaf])) : Response.json(file); });
   await assert.rejects(invalidUtf8.read(file.id), /encoded data|encoding/i); assert.equal(calls, 2);
 });
-test('creating TODO.txt includes the complete UTF-8 journal in a single multipart request', async () => {
+test('creating Planner.md includes the complete UTF-8 journal in a single multipart request', async () => {
   let upload;
   const api = createDriveApi(session, async (url, init) => { upload = { url, ...init }; return Response.json(file); });
   const text = 'UNDATED\n\nLIST: Inbox\n你好 🍞\n- Detail\n';
   const created = await api.create(text);
   assert.equal(created.text, text); assert.equal(upload.method, 'POST');
   assert.match(upload.url, /uploadType=multipart/); assert.match(upload.body.type, /multipart\/related; boundary=hcb-/);
-  const body = await upload.body.text(); assert.ok(body.includes(text)); assert.ok(body.includes('"name":"TODO.txt"'));
+  const body = await upload.body.text(); assert.ok(body.includes(text)); assert.ok(body.includes('"name":"Planner.md"'));
 });
 test('recent app-authorized files exclude read-only and oversized entries', async () => {
   const api = createDriveApi(session, async url => {

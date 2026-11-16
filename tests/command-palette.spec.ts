@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test } from '@playwright/test';
 import { openCommands, runCommand } from './commands';
 import { readFile } from 'node:fs/promises';
@@ -5,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 test('the single launcher exposes only the five current toolbar commands', async ({ page }) => {
   await page.goto('/');
   const header = page.locator('header');
-  for (const name of ['Open search', 'Import TODO.txt', 'Download TODO.txt', 'Open view in browser window', 'Hot Cross Buns settings']) {
+  for (const name of ['Open search', 'Import Planner.md', 'Download Planner.md', 'Open view in browser window', 'Hot Cross Buns settings']) {
     await expect(header.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
   await expect(header.locator('input')).toHaveCount(0);
@@ -13,7 +14,7 @@ test('the single launcher exposes only the five current toolbar commands', async
   await expect(header.getByRole('button', { name: 'Choose date', exact: true })).toBeVisible();
   const palette = await openCommands(page);
   expect(await palette.getByRole('option').allTextContents()).toEqual([
-    expect.stringContaining('Search journal'), 'Import TODO.txt', 'Download TODO.txt', 'Open view in browser window', 'Settings',
+    expect.stringContaining('Search journal'), 'Import Planner.md', 'Download Planner.md', 'Open view in browser window', 'Settings',
   ]);
   await expect(palette.getByRole('combobox', { name: 'Search commands and journal', exact: true })).toBeFocused();
   await expect(palette.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
@@ -25,7 +26,7 @@ test('filtering supports aliases, empty results and a fresh query on reopen', as
   const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await input.fill('  EXPORT  ');
   await expect(palette.getByRole('option')).toHaveCount(1);
-  await expect(palette.getByRole('option')).toHaveText('Download TODO.txt');
+  await expect(palette.getByRole('option')).toHaveText('Download Planner.md');
   await input.fill('Google Calendar');
   await expect(palette.getByRole('option')).toHaveCount(0);
   await expect(palette.getByRole('status')).toHaveText('No matching entries or commands.');
@@ -50,7 +51,7 @@ test('Ctrl K, arrows, Home, End and Enter hand off to settings with focus', asyn
   const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await expect(input).toBeFocused();
   await input.press('ArrowDown');
-  await expect(palette.getByRole('option', { name: 'Import TODO.txt', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(palette.getByRole('option', { name: 'Import Planner.md', exact: true })).toHaveAttribute('aria-selected', 'true');
   await input.press('Home');
   await expect(palette.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
   await input.press('End');
@@ -90,17 +91,17 @@ test('search receives focus, retains its filters and still supports Ctrl F', asy
 test('import opens the real file chooser and download preserves the whole journal', async ({ page }) => {
   await page.goto('/');
   const choose = page.waitForEvent('filechooser');
-  await runCommand(page, 'Import TODO.txt');
-  await (await choose).setFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2026-11-16\n\nPalette import\n- [ ] Keep this detail\n') });
-  await expect(page.getByRole('status').filter({ hasText: 'TODO.txt imported.' })).toBeVisible();
-  await runCommand(page, 'Download TODO.txt');
-  const preview = page.getByRole('dialog', { name: 'Download TODO.txt', exact: true });
-  await expect(preview.getByLabel('TODO.txt preview')).toContainText('Palette import');
+  await runCommand(page, 'Import Planner.md');
+  await (await choose).setFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-11-16\n\nPalette import\n- [ ] Keep this detail\n')) });
+  await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
+  await runCommand(page, 'Download Planner.md');
+  const preview = page.getByRole('dialog', { name: 'Download Planner.md', exact: true });
+  await expect(preview.getByLabel('Planner.md preview')).toContainText('Palette import');
   await expect(page.locator('dialog[open]')).toHaveCount(1);
   const download = page.waitForEvent('download');
   await preview.getByRole('button', { name: 'download', exact: true }).click();
   const file = await download;
-  expect(await readFile((await file.path())!, 'utf8')).toContain('Palette import\n- [ ] Keep this detail');
+  expect(await readFile((await file.path())!, 'utf8')).toBe(plannerFixture('2026-11-16\n\nPalette import\n- [ ] Keep this detail\n'));
 });
 
 test('scratchpad popouts retain browser activation and their limited commands', async ({ page }) => {
@@ -130,7 +131,7 @@ test('palette text editing and composition do not trigger journal undo or comman
   await input.fill('download');
   await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true });
   await expect(palette).toBeVisible();
-  await expect(page.getByRole('dialog', { name: 'Download TODO.txt', exact: true })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: 'Download Planner.md', exact: true })).toBeHidden();
   await input.fill('Keep the journal');
   await expect(palette.getByRole('option').filter({ has: page.getByText('Keep the journal', { exact: true }) })).toHaveCount(1);
   await input.press('Escape');

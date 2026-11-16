@@ -19,8 +19,8 @@ function fixture() {
     values: async function* () { for (const name of state.files.keys()) { state.visited++; yield await folder.getFileHandle(name); } },
   };
   const root = { getDirectoryHandle: async () => ({ getDirectoryHandle: async () => folder }) };
-  const device = crypto.randomUUID(), link = { handle: { name: 'TODO.txt' }, historyDirectory: root };
-  return { state, transport: fileRevisions(link, async () => device), record: () => createRevision('file:TODO.txt', device, [], 'UNDATED\n\nLIST: Inbox\nSaved\n') };
+  const device = crypto.randomUUID(), link = { handle: { name: 'Planner.md' }, historyDirectory: root };
+  return { state, transport: fileRevisions(link, async () => device), record: () => createRevision('file:Planner.md', device, [], 'UNDATED\n\nLIST: Inbox\nSaved\n') };
 }
 async function collision(record) {
   const other = { ...record, text: record.text.replace('Saved', 'Conflicting') };
@@ -36,7 +36,7 @@ test('immutable retries leave a verified existing file untouched', async () => {
 test('a conflicting revision delivered while a writer opens or stages is never overwritten', async () => {
   for (const phase of ['onOpen', 'onWrite']) {
     const f = fixture(), record = await f.record(), other = await collision(record), name = record.id + '.json';
-    await parseRevision(revisionText(other), 'file:TODO.txt');
+    await parseRevision(revisionText(other), 'file:Planner.md');
     f.state[phase] = () => { f.state.files.set(name, revisionText(other)); };
     await assert.rejects(f.transport.put(record), /different revision/);
     assert.equal(f.state.files.get(name), revisionText(other)); assert.equal(f.state.closed, 0); assert.equal(f.state.aborted, 1);

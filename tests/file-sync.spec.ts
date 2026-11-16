@@ -1,27 +1,29 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
 import { holdSyncDelivery, syncState } from './sync-helpers';
 
-const initial = 'UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n';
-async function setup(page: Page) {
+const initial = plannerFixture('UNDATED\n\nLIST: Inbox\nOriginal\n- Keep detail\n');
+async function setup(page: Page, transition = false) {
   // use real, cloneable browser file handles; only the OS picker is replaced in headless tests.
   await page.addInitScript(() => {
-    const pick = async () => (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true });
+    const pick = async () => (await navigator.storage.getDirectory()).getFileHandle('Planner.md', { create: true });
     Object.assign(window, { showOpenFilePicker: async () => [await pick()], showSaveFilePicker: pick });
   });
   await page.goto('/');
+  if (transition) await page.getByRole('button', { name: 'Convert saved workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
 }
 async function disk(page: Page, synchronized = true): Promise<string> {
   return page.evaluate(async synchronized => {
-    const read = async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true })).getFile()).text();
+    const read = async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('Planner.md', { create: true })).getFile()).text();
     // a File snapshot can become unreadable when an app save replaces it midway through a test read.
     return synchronized ? navigator.locks.request('hot-cross-buns-sync-delivery', read) : read();
   }, synchronized);
 }
 async function externalEdit(page: Page, text: string) {
   await page.evaluate(async text => {
-    const handle = await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt', { create: true });
+    const handle = await (await navigator.storage.getDirectory()).getFileHandle('Planner.md', { create: true });
     const writer = await handle.createWritable(); await writer.write(text); await writer.close();
   }, text);
 }
@@ -37,23 +39,23 @@ async function linked(page: Page): Promise<boolean> {
 }
 async function linkExisting(page: Page) {
   await runCommand(page, 'Settings');
-  await page.getByRole('button', { name: 'Link existing TODO.txt', exact: true }).click();
+  await page.getByRole('button', { name: 'Link existing Planner.md', exact: true }).click();
   await expect.poll(() => linked(page)).toBe(true);
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
 }
 
 test('creating a linked file saves the full journal and persists the handle after reload', async ({ page }) => {
   await setup(page);
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await runCommand(page, 'Settings');
-  await page.getByRole('button', { name: 'Create linked TODO.txt', exact: true }).click();
-  await expect.poll(() => disk(page)).toContain('Original\n- Keep detail');
+  await page.getByRole('button', { name: 'Create linked Planner.md', exact: true }).click();
+  await expect.poll(() => disk(page)).toMatch(/Original[\s\S]*  - Keep\ detail/);
   await expect(page.getByRole('region', { name: 'File sync', exact: true })).toContainText('Last written at');
   await page.reload();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).fill('After reload');
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).press('Tab');
-  await expect.poll(() => disk(page)).toContain('After reload\n- Keep detail');
+  await expect.poll(() => disk(page)).toMatch(/After\ reload[\s\S]*  - Keep\ detail/);
 });
 
 test('linking an existing file imports it and later browser edits save directly', async ({ page }) => {
@@ -61,7 +63,7 @@ test('linking an existing file imports it and later browser edits save directly'
   await expect(page.getByRole('textbox', { name: 'Edit Original', exact: true })).toBeVisible();
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).fill('Saved directly');
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).press('Tab');
-  await expect.poll(() => disk(page)).toContain('Saved directly\n- Keep detail');
+  await expect.poll(() => disk(page)).toMatch(/Saved\ directly[\s\S]*  - Keep\ detail/);
   await runCommand(page, 'Settings');
   await page.getByRole('button', { name: 'Unlink file', exact: true }).click();
   await expect.poll(() => linked(page)).toBe(false);
@@ -91,7 +93,7 @@ test('overlapping file changes pause saves across reload, and conflict review re
   await expect(notice).toContainText('paused');
   expect(await disk(page)).toContain('Remote title');
   await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local edit after remote change');
   await expect(review).toContainText('Remote title');
   await review.getByRole('button', { name: 'cancel', exact: true }).click();
@@ -106,14 +108,14 @@ test('overlapping file changes pause saves across reload, and conflict review re
 
 test('cancelling an initial link review leaves the file unlinked and unchanged', async ({ page }) => {
   await setup(page);
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).fill('Local title');
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).press('Tab');
   await externalEdit(page, initial.replace('Original', 'Remote title'));
   await runCommand(page, 'Settings');
-  await page.getByRole('button', { name: 'Link existing TODO.txt', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  await page.getByRole('button', { name: 'Link existing Planner.md', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toBeVisible();
   await review.getByRole('button', { name: 'cancel', exact: true }).click();
   expect(await linked(page)).toBe(false); expect(await disk(page)).toContain('Remote title');
@@ -123,7 +125,7 @@ test('cancelling an initial link review leaves the file unlinked and unchanged',
 test('creating a link refuses to replace a file that already has content', async ({ page }) => {
   await setup(page); await externalEdit(page, initial);
   await runCommand(page, 'Settings');
-  await page.getByRole('button', { name: 'Create linked TODO.txt', exact: true }).click();
+  await page.getByRole('button', { name: 'Create linked Planner.md', exact: true }).click();
   expect(await linked(page)).toBe(false); expect(await disk(page)).toBe(initial);
   await expect(page.getByRole('region', { name: 'File sync', exact: true }).getByRole('alert')).toContainText('This file already contains text');
 });
@@ -160,17 +162,20 @@ test('unsupported browsers retain import and download without a dead link button
 
 test('linked-file repairs are written only after explicit doctor approval', async ({ page }) => {
   await setup(page);
-  const malformed = '2026-11-16\nTask without divider\n';
+  const corrected = plannerFixture('2026-11-16\n\nReviewed task\n');
+  const malformed = corrected.replace('hcb-format: 1','hcb-format: 999');
   await externalEdit(page, malformed);
   await runCommand(page, 'Settings');
-  await page.getByRole('button', { name: 'Link existing TODO.txt', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
-  await expect(review).toContainText('including any repairs');
+  await page.getByRole('button', { name: 'Link existing Planner.md', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
+  await expect(review).toContainText('Only hcb-format: 1 is supported');
   expect(await linked(page)).toBe(false); expect(await disk(page)).toBe(malformed);
-  await review.getByRole('button', { name: 'mark this day upcoming', exact: true }).click();
+  await review.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true }).fill(corrected);
+  await review.getByRole('button', { name: 'check file', exact: true }).click();
+  await expect(review.getByRole('button', { name: 'apply import', exact: true })).toBeEnabled();
   await review.getByRole('button', { name: 'apply import', exact: true }).click();
   await expect.poll(() => linked(page)).toBe(true);
-  await expect.poll(() => disk(page)).toContain('2026-11-16\n\nTask without divider');
+  await expect.poll(() => disk(page)).toBe(corrected);
 });
 
 test('a shared write lock serializes saves from two browser windows', async ({ page, context }) => {
@@ -188,7 +193,7 @@ test('a shared write lock serializes saves from two browser windows', async ({ p
   await second.getByRole('textbox', { name: 'Edit detail Keep detail', exact: true }).press('Tab');
   expect(await disk(page, false)).toContain('Original');
   await page.evaluate(() => Reflect.get(window, 'releaseFileLock')());
-  await expect.poll(() => disk(page)).toContain('First window\n- Second window detail');
+  await expect.poll(() => disk(page)).toMatch(/First\ window[\s\S]*  - Second\ window\ detail/);
   await expect(page.getByRole('status', { name: 'File sync', exact: true })).toHaveCount(0);
   await expect(second.getByRole('status', { name: 'File sync', exact: true })).toHaveCount(0);
 });
@@ -220,18 +225,18 @@ test('manual downloads cannot replace the linked-file merge baseline', async ({ 
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).fill('Local title');
   await page.getByRole('textbox', { name: 'Edit Original', exact: true }).press('Tab');
   await runCommand(page, 'Settings');
-  await expect(page.getByRole('region', { name: 'File sync', exact: true })).toContainText('Saving TODO.txt');
+  await expect(page.getByRole('region', { name: 'File sync', exact: true })).toContainText('Saving Planner.md');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
   await settings.getByRole('button', { name: 'close', exact: true }).click(); await expect(settings).toBeHidden();
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   const download = page.waitForEvent('download');
-  await page.getByRole('dialog', { name: 'Download TODO.txt', exact: true }).getByRole('button', { name: 'download', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Download Planner.md', exact: true }).getByRole('button', { name: 'download', exact: true }).click();
   await download;
   await externalEdit(page, initial.replace('Original', 'Remote title'));
   await page.evaluate(() => Reflect.get(window, 'releaseFileLock')());
   const notice = page.getByRole('status', { name: 'File sync', exact: true });
   await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local title'); await expect(review).toContainText('Remote title');
   await review.getByRole('radio', { name: 'keep both', exact: true }).check();
   await review.getByRole('button', { name: 'apply import', exact: true }).click();
@@ -243,18 +248,18 @@ test('cancelling the native picker leaves the journal unlinked without an error'
   await setup(page);
   await page.evaluate(() => Reflect.set(window, 'showSaveFilePicker', async () => { throw new DOMException('Cancelled', 'AbortError'); }));
   await runCommand(page, 'Settings');
-  await page.getByRole('button', { name: 'Create linked TODO.txt', exact: true }).click();
+  await page.getByRole('button', { name: 'Create linked Planner.md', exact: true }).click();
   const section = page.getByRole('region', { name: 'File sync', exact: true });
-  await expect(section.getByRole('button', { name: 'Create linked TODO.txt', exact: true })).toBeEnabled();
+  await expect(section.getByRole('button', { name: 'Create linked Planner.md', exact: true })).toBeEnabled();
   await expect(section.getByRole('alert')).toHaveCount(0); expect(await linked(page)).toBe(false);
 });
 
 test('an externally completed recurring item produces one portable successor', async ({ page }) => {
   await setup(page);
   const rule = '  @repeat: every 1 day after completion; series file-water; occurrence 1';
-  const pending = `2026-11-16\n\nWater plants\n${rule}\n- [ ] Check soil\n`;
+  const pending = plannerFixture(`2026-11-16\n\nWater plants\n${rule}\n- [ ] Check soil\n`);
   await externalEdit(page, pending); await linkExisting(page);
-  await externalEdit(page, `2026-11-16\nWater plants\n${rule}\n  @completed: 2026-11-16\n- [x] Check soil\n\n`);
+  await externalEdit(page, plannerFixture(`2026-11-16\nWater plants\n${rule}\n  @completed: 2026-11-16\n- [x] Check soil\n\n`));
   await expect.poll(() => disk(page)).toContain('occurrence 2');
   const output = await disk(page);
   expect(output).toContain('2026-11-17');
@@ -273,7 +278,7 @@ test('a stale linked-file conflict review cannot overwrite a newer edit from ano
   const notice = page.getByRole('status', { name: 'File sync', exact: true });
   await expect(notice).toContainText('changed outside');
   await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local title');
   const other = await context.newPage(); await other.goto('/');
   await other.getByRole('button', { name: 'Undated', exact: true }).click();
@@ -321,15 +326,15 @@ test('incoming detail changes preserve local undo and recoverable comparison cop
   await expect(copies).toBeVisible();
   const before = (await syncState(page, 'linked-file')).baselineText;
   const download = page.waitForEvent('download'); await copies.getByRole('button', { name: 'Download browser copy', exact: true }).click();
-  expect((await download).suggestedFilename()).toBe('TODO-browser-before-sync.txt');
+  expect((await download).suggestedFilename()).toBe('Planner-browser-before-sync.md');
   expect((await syncState(page, 'linked-file')).baselineText).toBe(before);
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true }); await settings.getByRole('button', { name: 'close', exact: true }).click(); await expect(settings).toBeHidden();
   await page.getByRole('button', { name: 'Undated', exact: true }).focus(); await page.keyboard.press('Control+z');
-  await expect.poll(() => disk(page)).toContain('Original\n- Phone detail');
-  await page.keyboard.press('Control+Shift+z'); await expect.poll(() => disk(page)).toContain('Local title\n- Phone detail');
+  await expect.poll(() => disk(page)).toMatch(/Original[\s\S]*  - Phone\ detail/);
+  await page.keyboard.press('Control+Shift+z'); await expect.poll(() => disk(page)).toMatch(/Local\ title[\s\S]*  - Phone\ detail/);
 });
 
-for (const storageVersion of [1, 2]) test(`the sync protocol upgrade retains v${storageVersion} data and file handles while fencing old writers`, async ({ page }) => {
+for (const storageVersion of [1, 2]) test(`the Markdown transition archives v${storageVersion} data and file handles while fencing old writers`, async ({ page }) => {
   let seeded = false;
   await page.route('**/assets/index-*.js', async route => {
     if (!seeded) {
@@ -352,9 +357,11 @@ for (const storageVersion of [1, 2]) test(`the sync protocol upgrade retains v${
     }
     await route.continue();
   });
-  await setup(page); await page.getByRole('button', { name: 'Undated', exact: true }).click();
+  await setup(page,true); await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Edit Original', exact: true })).toBeVisible();
   expect((await syncState(page, 'current')).document.undated[0].items[0].id).toBe('legacy-item');
+  expect(await linked(page)).toBe(false);
+  expect((await syncState(page,'legacy-txt:linked-file')).handle.name).toBe('TODO.txt');
   const version = await page.evaluate(storageVersion => new Promise((resolve, reject) => {
     const old = indexedDB.open('hot-cross-buns-v1', storageVersion);
     old.onsuccess = () => { old.result.close(); reject(new Error('Old writer was admitted')); };
@@ -362,7 +369,8 @@ for (const storageVersion of [1, 2]) test(`the sync protocol upgrade retains v${
   }), storageVersion);
   expect(version).toBe('VersionError');
   const title = page.getByRole('textbox', { name: 'Edit Original', exact: true }); await title.fill('After upgrade'); await title.press('Tab');
-  await expect.poll(() => disk(page)).toContain('After upgrade\n- Keep detail');
+  await expect.poll(async()=> (await syncState(page,'current')).document.source).toContain('After upgrade');
+  expect(await page.evaluate(async()=> (await (await (await navigator.storage.getDirectory()).getFileHandle('TODO.txt')).getFile()).text())).toBe(initial);
 });
 
 async function openConflictingFileReview(page: Page) {
@@ -372,7 +380,7 @@ async function openConflictingFileReview(page: Page) {
   await externalEdit(page, initial.replace('Original', 'Remote title')); await release();
   const notice = page.getByRole('status', { name: 'File sync', exact: true });
   await notice.getByRole('button', { name: 'Review linked file', exact: true }).click();
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import', exact: true });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
   await expect(review).toContainText('Local title'); await expect(review).toContainText('Remote title'); return review;
 }
 

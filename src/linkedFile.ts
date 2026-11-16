@@ -38,6 +38,7 @@ export async function pickLinkedFile(create: boolean): Promise<LinkedFileHandle>
   const handle = create
     ? await pickers().showSaveFilePicker!({ suggestedName: 'Planner.md', types: pickerTypes })
     : (await pickers().showOpenFilePicker!({ multiple: false, types: pickerTypes }))[0];
+  if (!/\.(md|markdown)$/i.test(handle.name)) throw new Error('Choose a .md or .markdown file. Earlier TXT targets stay separate from the Markdown workspace.');
   if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow read and write access to link this file.');
   return handle;
 }

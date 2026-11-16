@@ -23,8 +23,8 @@ const Note = styled(Muted)`display:flex;align-items:center;gap:6px;`;
 type Selection = { start: number; end: number; text: string };
 type Destination = 'dated' | 'undated' | null;
 
-export function ScratchpadView({ active, listNames, today, reloadToken, beforeConvert, onJournalCommitted }: {
-  active: boolean; listNames: string[]; today: string; reloadToken: number; beforeConvert: () => Promise<void>; onJournalCommitted: (journal: TodoState, undo: ScratchpadUndo) => void;
+export function ScratchpadView({ active, onPendingChange, listNames, today, beforeConvert, afterConvert, onJournalCommitted }: {
+  active: boolean; onPendingChange: (pending: boolean) => void; listNames: string[]; today: string; beforeConvert: () => Promise<void>; afterConvert: () => void; onJournalCommitted: (journal: TodoState, undo: ScratchpadUndo) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState('');
@@ -38,6 +38,8 @@ export function ScratchpadView({ active, listNames, today, reloadToken, beforeCo
   const [newList, setNewList] = useState('');
   const [copyMode, setCopyMode] = useState<'cut' | 'copy'>('cut');
   const [message, setMessage] = useState('');
+  const [converting,setConverting] = useState(false);
+  const conversionActive = useRef(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const editor = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -88,7 +90,6 @@ export function ScratchpadView({ active, listNames, today, reloadToken, beforeCo
     };
   }, []);
   useEffect(() => { if (active) requestEdit(); else releaseLock.current?.(); }, [active]);
-  useEffect(() => { if (reloadToken) void refresh().catch(error => setMessage(String(error))); }, [reloadToken]);
   useEffect(() => { if (editable && active) editor.current?.focus(); }, [editable,active]);
   useEffect(() => {
     if (!contextMenu) return;
@@ -115,13 +116,13 @@ export function ScratchpadView({ active, listNames, today, reloadToken, beforeCo
     setDraft(text);
     setSelection(null);
     setContextMenu(null);
-    pendingSaves.current++;
+    pendingSaves.current++; onPendingChange(true);
     queue.current = writeQueue.current!.enqueue(async () => {
       const next = await saveScratchpadText(current.current.revision, text);
       current.current = next;
     }).catch(error => {
       if (!(error instanceof WriteDiscardedError)) setMessage(String(error));
-    }).finally(() => { pendingSaves.current--; });
+    }).finally(() => { pendingSaves.current--; onPendingChange(pendingSaves.current > 0); });
   };
   const rememberSelection = () => {
     const field = editor.current;
@@ -168,24 +169,24 @@ export function ScratchpadView({ active, listNames, today, reloadToken, beforeCo
     editor.current?.focus();
   };
   const convert = async () => {
-    if (!destination || !selection || !editable) return;
-    await queue.current;
-    await beforeConvert();
-    const items = mapScratchpadSelection(selection.text, getScratchpadMapping());
+    if (!destination || !selection || !editable || conversionActive.current) return;
+    const items = mapScratchpadSelection(selection.text,getScratchpadMapping());
     if (!items.length) { setMessage('Select nonempty text to create an item.'); return; }
     const target = destination === 'dated'
       ? validDate(date) ? { kind: 'dated' as const, date } : null
       : { kind: 'undated' as const, list: newList.trim() || list || 'Inbox' };
     if (!target) { setMessage('Choose a valid date.'); return; }
+    conversionActive.current = true; setConverting(true);
+    let started = false;
     try {
+      await queue.current;
+      await beforeConvert(); started = true;
       const result = await convertScratchpadSelection({ start: selection.start, end: selection.end, selected: selection.text, scratchRevision: current.current.revision, destination: target, items, cut: getScratchpadMoveMode() === 'cut' || copyMode === 'cut' });
       current.current = result.scratchpad;
-      setDraft(result.scratchpad.text);
-      setSelection(null);
-      setDestination(null);
-      setMessage('');
-      onJournalCommitted(result.journal, result.undo);
+      setDraft(result.scratchpad.text); setSelection(null); setDestination(null); setMessage('');
+      onJournalCommitted(result.journal,result.undo);
     } catch (error) { setMessage(String(error)); }
+    finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false); }
   };
   return <Wrap aria-label="Scratchpad">
     {!editable && loaded && <Note><LockKeyhole size={14}/> {waiting ? 'Taking over the scratchpad…' : 'The scratchpad is open for editing in another window.'} {!waiting && <Button onClick={() => requestEdit(true)}>Take over editing</Button>}</Note>}
@@ -203,7 +204,7 @@ export function ScratchpadView({ active, listNames, today, reloadToken, beforeCo
         : <><Label>Existing list<Select aria-label="Destination list" value={list} onChange={event => setList(event.target.value)}>{(listNames.length ? listNames : ['Inbox']).map(name => <option key={name}>{name}</option>)}</Select></Label><Label>Or new list<Field aria-label="New destination list" value={newList} onChange={event => setNewList(event.target.value)} placeholder="Optional new list name"/></Label></>}
       {getScratchpadMoveMode() === 'ask' && <Label>After creating<Select aria-label="Keep source text" value={copyMode} onChange={event => setCopyMode(event.target.value as 'cut' | 'copy')}><option value="cut">Remove selected text</option><option value="copy">Keep selected text</option></Select></Label>}
       <Row><Muted>{mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length} {(mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length === 1) ? 'item' : 'items'} will be created.</Muted></Row>
-      <DialogActions><Button onClick={() => setDestination(null)}>Cancel</Button><Button $primary onClick={() => void convert()}>Create item</Button></DialogActions>
+      <DialogActions><Button onClick={() => setDestination(null)}>Cancel</Button><Button $primary disabled={converting} onClick={() => void convert()}>Create item</Button></DialogActions>
     </Modal>
     <SaveRecovery error={saveFailure} text={draft} kind="scratchpad" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={async () => {
       const latest = await loadScratchpadState();

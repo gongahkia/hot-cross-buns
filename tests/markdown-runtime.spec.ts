@@ -53,6 +53,7 @@ test('source editing stays hidden from the empty palette, validates identity and
   const palette = await openCommands(page);
   await expect(palette.getByRole('option',{ name:'Edit Markdown source',exact:true })).toHaveCount(0);
   await palette.press('Escape');
+  await expect(palette).toBeHidden();
   const dialog = await editSource(page);
   const field = dialog.getByRole('textbox',{ name:'Markdown source',exact:true });
   const draft = source().replace('Unstructured **meeting context**.','Extra prose with $x^2$ and [a link](#hcb-first-task).');
@@ -79,7 +80,7 @@ test('newer changes in another window leave an open source draft recoverable ins
   await expect.poll(async()=> (await syncState(other,'current'))?.document.source.includes('Other window edit')).toBe(true);
   await dialog.getByRole('button',{ name:'Save Markdown',exact:true }).click();
   await expect(dialog.getByRole('alert')).toContainText('journal changed');
-  await expect(dialog.getByRole('textbox',{ name:'Markdown source',exact:true })).toContainText('');
+  await expect(dialog.getByRole('textbox',{ name:'Markdown source',exact:true })).toHaveValue(source('Unsaved source capture\n'));
   const download = page.waitForEvent('download');
   await dialog.getByRole('button',{ name:'Download draft',exact:true }).click();
   expect(await readFile(await (await download).path(),'utf8')).toContain('Unsaved source capture');
@@ -130,4 +131,88 @@ test('a scratchpad-only workspace also requires an explicit transition and is re
   expect((await syncState(page,'current')).document.source).not.toContain('Earlier private scratchpad');
   const oldScratch=await page.evaluate(()=>new Promise<any>(resolve=>{const open=indexedDB.open('hot-cross-buns-v1');open.onsuccess=()=>{const db=open.result,request=db.transaction('scratchpad').objectStore('scratchpad').get('legacy-txt:current');request.onsuccess=()=>{db.close();resolve(request.result);};};}));
   expect(oldScratch.text).toBe('Earlier private scratchpad');
+});
+
+test('corrupted canonical source offers raw read-only recovery instead of accepting a stale task cache', async ({page}) => {
+  await page.goto('/'); await importSource(page);
+  const corrupted = source().replace('hcb-format: 1','hcb-format: 999');
+  await page.evaluate(text=>new Promise<void>((resolve,reject)=>{
+    const open=indexedDB.open('hot-cross-buns-v1');
+    open.onsuccess=()=>{const db=open.result,tx=db.transaction('state','readwrite'),store=tx.objectStore('state'),read=store.get('current');read.onsuccess=()=>store.put({...read.result,document:{...read.result.document,source:text}},'current');tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>{db.close();reject(tx.error);};};
+  }),corrupted);
+  await page.reload();
+  await expect(page.getByRole('alert')).toContainText('could not open saved data');
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download browser recovery',exact:true}).click();
+  const backup=JSON.parse(await readFile(await(await download).path(),'utf8'));
+  expect(backup.state.current.document.source).toBe(corrupted);
+  expect((await syncState(page,'current')).document.source).toBe(corrupted);
+  await expect(page.getByRole('button',{name:'Open command palette',exact:true})).toHaveCount(0);
+});
+
+test('a failed scratchpad save stays recoverable and retries against newer task edits without losing either change', async ({page,context}) => {
+  await page.goto('/'); await importSource(page);
+  await page.evaluate(()=>{
+    Reflect.set(window,'failScratch',true);
+    const put=IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put=function(value,key){
+      if(Reflect.get(window,'failScratch')&&this.name==='state'&&key==='current'&&value?.document?.source?.includes('Unsaved shared capture')) throw new DOMException('Injected scratchpad quota failure','QuotaExceededError');
+      return put.call(this,value,key);
+    };
+  });
+  await page.getByRole('button',{name:'Scratchpad',exact:true}).click();
+  await page.getByRole('textbox',{name:'Scratchpad text',exact:true}).fill('Unsaved shared capture');
+  const recovery=page.getByRole('dialog',{name:'Unsaved scratchpad',exact:true});
+  await expect(recovery.getByRole('textbox',{name:'Unsaved scratchpad text',exact:true})).toHaveValue('Unsaved shared capture');
+  const other=await context.newPage(); await other.goto('/');
+  const title=other.getByRole('textbox',{name:'Edit First task',exact:true});
+  await title.fill('Newer task edit'); await title.press('Enter');
+  await expect.poll(async()=> (await syncState(other,'current')).document.source.includes('Newer task edit')).toBe(true);
+  await page.evaluate(()=>Reflect.set(window,'failScratch',false));
+  await recovery.getByRole('button',{name:'Retry saving',exact:true}).click();
+  await expect(recovery).toBeHidden();
+  await expect.poll(async()=> (await syncState(page,'current')).document.source.includes('Unsaved shared capture')).toBe(true);
+  expect((await syncState(page,'current')).document.source).toContain('Newer task edit');
+});
+
+test('a failed workspace transition keeps the earlier records and succeeds after retry', async ({page}) => {
+  await oldWorkspace(page);
+  await page.addInitScript(()=>{
+    Reflect.set(window,'failTransition',true);
+    const put=IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put=function(value,key){
+      if(Reflect.get(window,'failTransition')&&this.name==='state'&&key==='current'&&value?.document?.source) throw new DOMException('Injected transition quota failure','QuotaExceededError');
+      return put.call(this,value,key);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:'Convert saved workspace',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('transition quota failure');
+  expect(await syncState(page,'current')).toBeNull();
+  expect((await syncState(page,'legacy-txt:current')).revision).toBe(7);
+  await page.evaluate(()=>Reflect.set(window,'failTransition',false));
+  await page.getByRole('button',{name:'Convert saved workspace',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Open command palette',exact:true})).toBeVisible();
+  expect((await syncState(page,'current')).document.source).toContain('Earlier private scratchpad');
+});
+
+test('capture promotion has one canonical undo and redo, including keyboard use from the scratchpad', async ({page}) => {
+  await page.goto('/'); await importSource(page,source('Capture title\nFollow up\n'));
+  const before=(await syncState(page,'current')).document.source;
+  await page.getByRole('button',{name:'Scratchpad',exact:true}).click();
+  const editor=page.getByRole('textbox',{name:'Scratchpad text',exact:true});
+  await editor.evaluate(element=>{const field=element as HTMLTextAreaElement;field.focus();field.setSelectionRange(0,field.value.length);field.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Shift'}));});
+  await editor.press('Shift+F10');
+  await page.getByRole('menuitem',{name:'Move to undated',exact:true}).click();
+  const destination=page.getByRole('dialog',{name:'Move text to an undated list',exact:true});
+  await destination.getByRole('button',{name:'Create item',exact:true}).click();
+  await expect(destination).toBeHidden();
+  await expect.poll(async()=> (await syncState(page,'current')).document.undated[0].items.some((item:{text:string})=>item.text==='Capture title')).toBe(true);
+  const after=(await syncState(page,'current')).document.source;
+  await editor.focus(); await editor.press('Control+z');
+  await expect.poll(async()=> (await syncState(page,'current')).document.source).toBe(before);
+  await expect(editor).toHaveValue('Capture title\nFollow up\n');
+  await editor.focus(); await editor.press('Control+Shift+z');
+  await expect.poll(async()=> (await syncState(page,'current')).document.source).toBe(after);
+  await expect(editor).toHaveValue('');
 });

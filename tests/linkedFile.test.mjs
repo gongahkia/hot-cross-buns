@@ -11,7 +11,7 @@ function fixture(raw = 'original') {
       const text = state.raw;
       state.reads++;
       state.afterRead?.(state.reads);
-      return { size: Buffer.byteLength(text), text: async () => text };
+      return { size: Buffer.byteLength(text), text: async () => text, arrayBuffer: async () => new TextEncoder().encode(text).buffer };
     },
     createWritable: async options => {
       assert.equal(options.mode, 'exclusive');

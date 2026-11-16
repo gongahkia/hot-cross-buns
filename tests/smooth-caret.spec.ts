@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { runCommand } from './commands';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -161,10 +162,10 @@ test('wrapping and textarea scrolling keep the caret inside the editor', async (
 
 test('the caret appears above native dialogs and stops during composition', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2026-11-16\nMissing divider\n'),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-11-16\nReview this source\n').replace('hcb-format: 1','hcb-format: 999')),
   });
-  const input = page.getByRole('textbox', { name: 'Edit imported TODO.txt', exact: true });
+  const input = page.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true });
   await input.focus();
   await visiblePosition(page, input);
   expect(await caret(page).evaluate(element => element.matches(':popover-open'))).toBe(true);

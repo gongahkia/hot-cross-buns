@@ -1,37 +1,37 @@
 # Immutable journal revisions
 
-Revision history protects participating Hot Cross Buns writers from replacing each other's only shared copy during the last-check/write interval. A verified immutable snapshot is published before updating `TODO.txt`. Another device can replace that text projection, but the app-authored snapshots remain separate files for later discovery and review. This is a recovery and convergence protocol, not an atomic lock on the shared text file.
+Revision history protects participating Hot Cross Buns writers from replacing each other's only shared copy during the last-check/write interval. A verified immutable snapshot is published before updating `Planner.md`. Another device can replace that text projection, but the app-authored snapshots remain separate files for later discovery and review. This is a recovery and convergence protocol, not an atomic lock on the shared text file.
 
 ## Enable and migrate
 
-- **Local files:** choose **Settings → File sync → Link sync folder**. The folder contains `TODO.txt` and `.hot-cross-buns/`. Grant access to the entire folder and transfer both through Syncthing, Nextcloud or Dropbox. Keep the complete directory locally available; see [provider setup and verification boundaries](SYNC_FOLDERS.md). A linked individual file can use **Enable folder revision history**; select its actual parent folder. A mismatched folder is rejected. Upgrading retains the existing journal, file, handle and link.
-- **Google Drive:** new links enable history. An older link can choose **Enable Drive revision history**. Additional `HCB-<journal-file-id>-<revision-id>.json` files are created in My Drive using the existing `drive.file` scope. They contain full journal snapshots and consume Drive storage. These are ordinary app-created files, separate from Drive's built-in file revisions. Use the **same Web OAuth client ID and Google account on every device** so the same app can access its private properties and files. Changing the OAuth application or mixing accounts is not a supported history migration.
-- **Single-file compatibility:** individual local-file links and older Drive links remain available, explicitly labeled as having no shared history. They retain the old whole-file race. They cannot gain revision protection without the folder grant or Drive upgrade. Upgrade all devices that will participate; older apps and external editors do not publish this protocol.
+- **Local files:** choose **Settings → File sync → Link sync folder**. The folder contains `Planner.md` and `.hot-cross-buns/`. Grant access to the entire folder and transfer both through Syncthing, Nextcloud or Dropbox. Keep the complete directory locally available; see [provider setup and verification boundaries](SYNC_FOLDERS.md). A linked individual file can use **Enable folder revision history**; select its actual parent folder. A mismatched folder is rejected. Upgrading retains the existing journal, file, handle and link.
+- **Google Drive:** new links enable history. An individual Markdown link can choose **Enable Drive revision history**. Additional `HCB-<journal-file-id>-<revision-id>.json` files are created in My Drive using the existing `drive.file` scope. They contain full journal snapshots and consume Drive storage. These are ordinary app-created files, separate from Drive's built-in file revisions. Use the **same Web OAuth client ID and Google account on every device** so the same app can access its private properties and files. Changing the OAuth application or mixing accounts is not a supported history migration.
+- **Individual-file mode:** individual Markdown local-file links remain available, explicitly labeled as having no shared history. They retain the old whole-file race. They cannot gain revision protection without the folder grant or Drive upgrade. Upgrade all devices that will participate; older apps and external editors do not publish this protocol.
 
 The first revision on a newly linked browser captures its saved journal. If another browser already has history, the new root is treated as a concurrent branch. Choosing **Review linked file** or **Review Google Drive file** acknowledges that branch through the normal import review. Identical text may need no per-item choices; accepting different contents remains explicit.
 
 ## On-disk format
 
-Local history lives under `.hot-cross-buns/<SHA-256 of the exact journal filename>/<revision UUID>.json`. Selecting a new sync folder uses `TODO.txt`. Existing custom filenames can upgrade in their own folders; preserve their exact names and the corresponding history directory when transferring or archiving.
+Local history lives under `.hot-cross-buns/<SHA-256 of the exact journal filename>/<revision UUID>.json`. Selecting a new sync folder uses `Planner.md`; individual-file targets must use `.md` or `.markdown`. Existing custom filenames can upgrade in their own folders; preserve their exact names and the corresponding history directory when transferring or archiving.
 
 Each UTF-8 JSON envelope has exactly these fields:
 
 ```json
 {
-  "protocol": 1,
-  "journal": "file:TODO.txt",
+  "protocol": 2,
+  "journal": "file:Planner.md",
   "id": "a revision UUID",
   "device": "a persistent browser-profile UUID",
   "parents": ["sorted, distinct parent revision UUIDs"],
   "origin": "journal",
-  "text": "the complete portable TODO.txt contents",
+  "text": "the complete Markdown source including scratchpad",
   "digest": "SHA-256 of the canonical envelope without digest"
 }
 ```
 
 The example describes field meanings, not a valid record. Drive uses `drive:<journal-file-id>` as its journal namespace. `origin` is `journal` for saved app state or `external` for observed text-editor contents. IDs, origins and parent references are included in the checksum. Checksums detect altered bytes; they are not signatures or an authorization system. Users with storage access can edit or delete files. The coordinator never updates a nonempty existing revision. A UUID filename collision with different contents or two differing envelopes with one logical ID pauses saving.
 
-`TODO.txt` itself gains no new metadata or private item IDs. It remains readable, importable and downloadable in the existing [format](TODO_FORMAT.md). While history is enabled, the journal's recoverable meaning includes its revisions and unresolved branches; the latest text projection alone is insufficient to recover every concurrent edit.
+`Planner.md` remains readable in the [Markdown format](MARKDOWN_FORMAT.md), including its explicit entry IDs and visible planning metadata. Envelope protocol 2 is separate from Markdown format 1. Protocol-1 envelopes and unknown protocols are rejected; old TXT targets remain archived/unlinked during the explicit workspace transition. While history is enabled, the recoverable meaning includes revisions and unresolved branches; the latest projection alone cannot recover every concurrent edit.
 
 ## Publication and discovery
 
@@ -40,7 +40,7 @@ The example describes field meanings, not a valid record. Drive uses `drive:<jou
 3. Publish and read back that exact revision. A local revision uses its stable UUID filename. Drive first reserves a file ID, persists it with the envelope, then creates that ID; a retry receiving `409` reads and checks the existing file instead of generating another identity. A failed checkpoint sends no revision. A lost reply or failed receipt keeps the same pending identity through reload or tab handoff.
 4. Enumerate and validate history: protocol, namespace, identity, checksum, limits, parent availability and acyclic ancestry. Identical logical copies coalesce. Listing order and timestamps do not decide winners. Known heads cannot disappear silently, and missing ancestors or incomplete listings pause projection writes and retry. A browser cache is not a substitute for a missing history file.
 5. A validated linear descendant may integrate through the existing conservative import merge and view limits. Concurrent heads require explicit review, even when their fields might be independently mergeable. Review combines two snapshots at a time. Approval records only the selected branch and previously accepted frontier as parents; an unreviewed third branch remains pending. The next publication records the chosen result as a new immutable merge revision.
-6. After the observed branches have been integrated or reviewed, update `TODO.txt` using the existing checked whole-file writer. The write still has a physical race, but participating app writers have already retained their snapshots. Read back the projection before reporting it as current. Explicit rejections and uncertain receipts keep different review baselines.
+6. After the observed branches have been integrated or reviewed, update `Planner.md` using the existing checked whole-file writer. The write still has a physical race, but participating app writers have already retained their snapshots. Read back the projection before reporting it as current. Explicit rejections and uncertain receipts keep different review baselines.
 
 There is no mutable head manifest, shared append file, timestamp lease or cross-device lock. Browser Web Locks serialize same-origin delivery only. Old or closed owners cannot recreate a replaced link in local storage. Credentials stay in tab memory; an expired session in one tab does not disable other authorized tabs.
 
@@ -48,9 +48,9 @@ Drive discovery follows all pages, including empty pages with continuation token
 
 ## External text editors
 
-If a checked `TODO.txt` contains newly observed text different from its confirmed projection and the current journal, the coordinator freezes an `external` revision before replacing it. Its parents refer to the last confirmed projection rather than a newer local edit. Text matching an older revision or a pre-upgrade submitted payload is ambiguous between a delayed write and an intentional rollback, so it becomes a separate root requiring review. A matching uncertain projection submission is verified as its pending receipt instead. Malformed text is retained and goes through the doctor; repairs require explicit approval. The normal recovery comparison downloads remain available, without advancing the baseline.
+If a checked `Planner.md` contains newly observed text different from its confirmed projection and the current journal, the coordinator freezes an `external` revision before replacing it. Its parents refer to the last confirmed projection rather than a newer local edit. Text matching an older revision or a pre-upgrade submitted payload is ambiguous between a delayed write and an intentional rollback, so it becomes a separate root requiring review. A matching uncertain projection submission is verified as its pending receipt instead. Malformed text is retained and goes through the doctor; repairs require explicit approval. The normal recovery comparison downloads remain available, without advancing the baseline.
 
-An external edit overwritten before any participating app observes it cannot be reconstructed by this protocol. Editing only `TODO.txt`, deleting companion history, using an older app, or running a writer that ignores revisions remains outside the app-to-app protection. Syncthing conflict copies should be retained and inspected. Do not delete or hand-edit history envelopes to resolve a journal conflict; use the app's review flow.
+An external edit overwritten before any participating app observes it cannot be reconstructed by this protocol. Editing only `Planner.md`, deleting companion history, using an older app, or running a writer that ignores revisions remains outside the app-to-app protection. Syncthing conflict copies should be retained and inspected. Do not delete or hand-edit history envelopes to resolve a journal conflict; use the app's review flow.
 
 ## History and recovery
 
@@ -62,9 +62,9 @@ The comparison shows the changed region and nearby context, bounded to 24,000 ch
 
 **Restore version** asks for confirmation before replacing the whole journal. First finish queued file saving and resolve observed incoming branches. Restoration revalidates the selected checksum and graph, the journal revision, target generation and frontier, checks format and view limits, and takes the existing editor lock. A stale selection, active draft in another window, corrupt/incomplete history or failed storage transaction leaves the journal intact. Refresh after other windows edit. Close the view to let queued file saving finish.
 
-The restored document and a new immutable pending envelope are committed together to IndexedDB, with the current accepted frontier as parents. The link generation changes to fence earlier delivery receipts. No source version is edited or deleted; later history stays available. Undo can return to the preceding local journal. Scratchpad and preferences stay local and unchanged. The new version is initially durable in this browser; normal sync publishes and verifies it before updating TODO.txt. Retain the browser working copy until saving completes. Drive reserves and checkpoints a transport ID before publishing this already frozen logical revision; interrupted publication reuses both identities.
+The restored document and a new immutable pending envelope are committed together to IndexedDB, with the current accepted frontier as parents. The link generation changes to fence earlier delivery receipts. No source version is edited or deleted; later history stays available. Undo can return to the preceding local journal. The shared scratchpad is restored with the document; appearance and local view preferences stay unchanged. The new version is initially durable in this browser; normal sync publishes and verifies it before updating Planner.md. Retain the browser working copy until saving completes. Drive reserves and checkpoints a transport ID before publishing this already frozen logical revision; interrupted publication reuses both identities.
 
-This view adds no database or revision schema version. A restoration may persist a Drive pending envelope before a transport ID has been reserved. For rollback, retain compatibility commit [`bce3167`](https://github.com/gongahkia/hot-cross-buns/commit/bce3167), which reserves and checkpoints the transport ID in `src/revisionSync.ts`, until these envelopes have been delivered. The earlier implementation at `8edeb54` rejects their missing transport ID rather than delivering them. Reverting only the history UI commit keeps that reservation support. Keep the existing version-3 storage and revision protocol compatibility requirements below. History limits and retention remain unchanged; this view is not an archive or compaction tool.
+Restoration retains the complete source, including scratchpad. A Drive pending envelope may exist before a transport ID is reserved; reservation must remain checkpointed before publication and retries must retain both identities. The current storage compatibility floor is schema 4 with protocol 2, described below. The earlier history-only compatibility commits do not support this Markdown format transition.
 
 ## Bounds and retention
 
@@ -78,9 +78,9 @@ Folder transport also bounds every visited directory entry, including non-JSON t
 
 ## Storage upgrade and rollback
 
-The browser database keeps its name `hot-cross-buns-v1` and upgrades its internal version to **3**. Existing version-1 and version-2 journals, scratchpads, baselines and file handles are retained. Older incompatible writers cannot reopen it. Finish or export drafts in older tabs before reloading. The Shio Pan migration still opens the destination without downgrading its schema.
+The browser database remains `hot-cross-buns-v1`, at schema **4**. Upgrading archives old TXT journals, scratchpads, baselines, handles, pending outcomes and creation tickets instead of automatically delivering them. A visible workspace transition offers preview/recovery and explicit conversion or a fresh workspace. Existing targets and protocol-1 history remain untouched; link a new Markdown target. Finish/export older drafts before closing tabs that block the upgrade.
 
-Compatibility commit [`8e74d5e`](https://github.com/gongahkia/hot-cross-buns/commit/8e74d5e) retains the version-3 opener and a guard that blocks a coordinator without revision support from writing a protected target. Keep that compatibility floor when rolling back the revision implementation. An older coordinator that merely opens version 3 still must not write revision-enabled links. It should show the update/unlink/export error and allow local journal recovery. Never delete the database or lower its version to force a rollback. Preserve pending envelopes, creation tickets and the complete remote history until their outcomes are resolved.
+Rollback must retain the version-4 source-authoritative store, shared scratchpad transactions, protocol-2 publication/validation, protected-target guards, frozen retry identities and generation checks. Do not rely on the previous schema-3 compatibility commits or downgrade envelopes/database state. Preserve every pending outcome and remote revision. See [the complete transition and rollback contract](MARKDOWN_RUNTIME.md#earlier-developer-workspaces-and-rollback).
 
 ## Verification and provider references
 

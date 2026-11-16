@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -18,8 +19,8 @@ async function importJournal(page: Page, raw: string) {
   // UTC is still November 15; the journal's default Singapore zone is November 16.
   await page.clock.install({ time: new Date('2026-11-15T17:30:00Z') });
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
-  await expect(page.getByRole('status').filter({ hasText: 'TODO.txt imported.' })).toBeVisible();
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
+  await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
 }
 
 async function openMove(page: Page, title: string, date = '2026-11-16') {
@@ -28,32 +29,36 @@ async function openMove(page: Page, title: string, date = '2026-11-16') {
 }
 
 test('quick today brings an older item forward and undo restores its original date', async ({ page }) => {
-  await importJournal(page, '2026-11-10\n\nReview notes\n- [ ] Keep the context\n');
+  await importJournal(page, plannerFixture('2026-11-10\n\nReview notes\n- [ ] Keep the context\n'));
   await runCommand(page, 'Open search');
   await page.getByRole('combobox', { name: 'Search commands and journal' }).fill('Review notes');
   await selectSearchResult(page, 'Review notes');
   await openMove(page, 'Review notes', '2026-11-10');
   await page.getByRole('button', { name: 'Move Review notes to today', exact: true }).click();
-  await expect.poll(async () => (await documentIn(page)).days[0].date).toBe('2026-11-16');
-  expect((await documentIn(page)).days[0].items[0].details[0].text).toBe('Keep the context');
+  await expect.poll(async () => (await documentIn(page)).days.find(day => day.items.some(item => item.text === 'Review notes'))?.date).toBe('2026-11-16');
+  expect((await documentIn(page)).days.find(day => day.date === '2026-11-16')?.items[0].details[0].text).toBe('Keep the context');
   await page.keyboard.press('Control+z');
-  await expect.poll(async () => (await documentIn(page)).days[0].date).toBe('2026-11-10');
+  await expect.poll(async () => (await documentIn(page)).days.find(day => day.items.some(item => item.text === 'Review notes'))?.date).toBe('2026-11-10');
 });
 
 test('quick tomorrow keeps the full span and details across reload and export', async ({ page }) => {
-  await importJournal(page, '2026-11-16\n\nTrip\n  @span: all-day through 2026-11-18\n- [ ] Pack bag\n');
+  await importJournal(page, plannerFixture('2026-11-16\n\nTrip\n  @span: all-day through 2026-11-18\n- [ ] Pack bag\n'));
   await openMove(page, 'Trip');
   await expect(page.getByRole('button', { name: 'Move Trip to today', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Move Trip to tomorrow', exact: true }).click();
-  await expect.poll(async () => (await documentIn(page)).days[0].date).toBe('2026-11-17');
-  expect((await documentIn(page)).days[0].items[0].span?.through).toBe('2026-11-19');
+  await expect.poll(async () => (await documentIn(page)).days.find(day => day.items.length)?.date).toBe('2026-11-17');
+  expect((await documentIn(page)).days.find(day => day.date === '2026-11-17')?.items[0].span?.through).toBe('2026-11-19');
   await page.reload();
-  await runCommand(page, 'Download TODO.txt');
-  await expect(page.getByLabel('TODO.txt preview')).toContainText('2026-11-17\n\nTrip\n  @span: all-day through 2026-11-19\n- [ ] Pack bag');
+  await runCommand(page, 'Download Planner.md');
+  const preview = page.getByLabel('Planner.md preview');
+  await expect(preview).toContainText('### 2026-11-17');
+  await expect(preview).toContainText('- [ ] Trip');
+  await expect(preview).toContainText('span: all-day through 2026-11-19');
+  await expect(preview).toContainText('- [ ] Pack bag');
 });
 
 test('quick moves ask for recurrence scope before changing a series', async ({ page }) => {
-  await importJournal(page, '2026-11-16\n\nDaily review\n  @repeat: daily; series review\n');
+  await importJournal(page, plannerFixture('2026-11-16\n\nDaily review\n  @repeat: daily; series review\n'));
   const before = await documentIn(page);
   await openMove(page, 'Daily review');
   await page.getByRole('button', { name: 'Move Daily review to tomorrow', exact: true }).click();
@@ -70,10 +75,10 @@ test('quick moves ask for recurrence scope before changing a series', async ({ p
 
 test('quick tomorrow stays reachable on a narrow phone', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  await importJournal(page, '2026-11-16\n\nPhone task\n');
+  await importJournal(page, plannerFixture('2026-11-16\n\nPhone task\n'));
   await openMove(page, 'Phone task');
   const tomorrow = page.getByRole('button', { name: 'Move Phone task to tomorrow', exact: true });
   await expect(tomorrow).toBeInViewport();
   await tomorrow.click();
-  await expect.poll(async () => (await documentIn(page)).days[0].date).toBe('2026-11-17');
+  await expect.poll(async () => (await documentIn(page)).days.find(day => day.items.length)?.date).toBe('2026-11-17');
 });

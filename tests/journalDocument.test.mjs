@@ -141,3 +141,101 @@ test('unknown versions, malformed content and missing source never use a TXT ser
   assert.throws(() => materializeJournal(bad.document), /Only hcb-format/);
   assert.ok(parseJournal('2026-11-16\n\nOld file\n').issues.length);
 });
+
+test('title-only edits retain the exact spelling and delimiter of the same entry metadata', () => {
+  const source = fixture.replace('  ```hcb\n  id: team-sync\n  repeat: weekly on mon; series standup\n  skip: 2026-11-23\n  ```', '  ~~~~hcb\n  skip: 2026-11-23  \n  repeat: weekly on mon; series standup\n  id: team-sync\n  ~~~~');
+  const document = parse(source);
+  const next = edit(document, next => { next.days[0].items[1].text = '09:00-09:30 Updated meeting'; });
+  assert.equal(next.source, source.replace('09:00-09:30 Team sync #work','09:00-09:30 Updated meeting'));
+});
+
+test('a repeated serialization of one edit assigns one identity to an externally authored entry', () => {
+  const document = parse(fixture);
+  const next = structuredClone(document);
+  next.days[0].items[2].text = 'Updated trip';
+  assert.equal(serializeJournal(next), serializeJournal(next));
+  assert.ok(!materializeJournal(next).days[0].items[2].id.startsWith('source:'));
+});
+
+test('after-completion successors retain rich bodies, detail provenance and span duration', () => {
+  const source = fixture.replace('  completed: 2026-11-16', '  span: all-day through 2026-11-18\n  completed: 2026-11-16').replace('  - [x] Check soil', '  > Instructions remain with each occurrence.\n\n  - [x] Check soil\n\n    A detailed note.');
+  const document = parse(source);
+  const reopened = edit(document, next => { const water = next.days[0].items[0]; water.completed = false; water.completedOn = undefined; water.details[0].completed = false; });
+  const next = structuredClone(reopened);
+  next.days[0].items[0].completed = true; next.days[0].items[0].details[0].completed = true;
+  advanceRecurrences(reopened,next,'2026-11-17');
+  const saved = materializeJournal(next);
+  assert.equal((saved.source.match(/Instructions remain with each occurrence/g) ?? []).length,2);
+  assert.equal((saved.source.match(/A detailed note/g) ?? []).length,2);
+  assert.equal(saved.days.find(day => day.date === '2026-11-20').items[0].span.through,'2026-11-22');
+});
+
+test('raw captured checkbox and heading prefixes stay plain undated titles', () => {
+  for (const text of ['- [ ] A task','[x] A literal marker','# A heading','> A quote','1. A step','<div>Raw HTML</div>']) {
+    const document = createJournal('capture');
+    const next = edit(document, next => next.undated[0].items.push(item('literal',text)));
+    assert.equal(readJournal(next.source).model.undated[0].entries[0].text,text);
+    assert.equal(next.undated[0].items[0].completed,false);
+  }
+});
+
+test('canonical parsed views are immutable so a caller cannot poison later reads from the source cache', () => {
+  const document = parse(fixture);
+  assert.throws(()=>{document.scratchpad='Poisoned';},TypeError);
+  assert.throws(()=>{document.days[0].items[0].text='Poisoned';},TypeError);
+  assert.equal(readJournal(fixture).document.source,fixture);
+});
+
+test('list names stay literal Markdown and renaming retains prose and entry bodies in place', () => {
+  const original = createJournal('lists');
+  const added = edit(original, next => next.undated.push({ name: '**Ideas** #', items: [item('idea','Write a talk')] }));
+  assert.equal(added.undated[1].name,'**Ideas** #');
+  const source = added.source.replace('- Write a talk','Prose before the entry.\n\n- Write a talk').replace('  id: idea\n  ```','  id: idea\n  ```\n\n  > Retain this body.');
+  const before = parse(source);
+  const renamed = edit(before, next => { next.undated[1].name='[Links] <examples>'; });
+  assert.equal(renamed.source,source.replace('### \\*\\*Ideas\\*\\* \\#','### \\[Links\\] \\<examples\\>'));
+  assert.equal(renamed.undated[1].name,'[Links] <examples>');
+  assert.equal(renamed.undated[1].items[0].id,'idea');
+});
+
+test('source cache models cannot be mutated and multiple leading BOMs are rejected before offset calculation', () => {
+  assert.throws(()=>{readJournal(fixture).model.days[0].entries[0].range.start=0;},TypeError);
+  assert.throws(()=>parseJournal('\ufeff\ufeff'+fixture),/one leading/);
+});
+
+test('soft-wrapped timed titles retain their block through source and task operations', async () => {
+  const { parseTimeBlock, setTimeBlock } = await import('../src/timeBlock.ts');
+  const title = '09:00-09:30 Team\n  planning';
+  const document = parse(fixture.replace('09:00-09:30 Team sync #work', title));
+  assert.deepEqual(parseTimeBlock(document.days[0].items[1].text), { start:'09:00',end:'09:30',title:'Team\n  planning' });
+  const saved = edit(document, next => { next.days[0].items[1].text = setTimeBlock(next.days[0].items[1].text,'10:00','11:00'); });
+  assert.deepEqual(readJournal(saved.source).model.days[0].entries[1].timeBlock,{ start:'10:00',end:'11:00' });
+});
+
+test('dating and undating an entry converts every detail marker without hiding its content or body', () => {
+  let document = createJournal('placement');
+  document = edit(document, next => next.undated[0].items.push(item('talk','Draft a talk',[{text:'possible venue',completed:false}])));
+  document = parse(document.source.replace('  - possible venue','  - possible venue\n\n    > Detailed context.'));
+  const dated = edit(document, next => { const entry = next.undated[0].items.pop(); next.days.push({date:'2026-11-17',items:[entry]}); });
+  assert.equal(dated.days[0].items[0].details[0].text,'possible venue');
+  assert.ok(dated.source.includes('  - [ ] possible venue'));
+  assert.ok(dated.source.includes('> Detailed context.'));
+  const undated = edit(dated, next => { const entry = next.days[0].items.pop(); next.undated[0].items.push(entry); });
+  assert.equal(undated.undated[0].items[0].details[0].text,'possible venue');
+  assert.ok(undated.source.includes('  - possible venue'));
+  assert.ok(!undated.source.includes('  - [ ] possible venue'));
+  assert.ok(undated.source.includes('> Detailed context.'));
+  assert.equal(undated.undated[0].items[0].id,'talk');
+});
+
+test('entry demotion removes obsolete identity metadata so promotion works again without duplicate active blocks', () => {
+  let document = createJournal('promotion');
+  document = edit(document, next => next.undated[0].items.push(item('one','One'),item('two','Two')));
+  document = parse(document.source.replace('  id: one\n  ```','  id: one\n  ```\n\n  > Keep original context.'));
+  const demoted = edit(document, next => { const [one] = next.undated[0].items.splice(0,1); next.undated[0].items[0].details.push({text:one.text,completed:false,sourceRef:one.sourceRef}); });
+  assert.ok(!demoted.source.includes('id: one'));
+  const promoted = edit(demoted, next => { const detail = next.undated[0].items[0].details.pop(); next.undated[0].items.push({...detail,id:'promoted-one',details:[]}); });
+  assert.deepEqual(promoted.undated[0].items.map(item=>item.text),['Two','One']);
+  assert.ok(promoted.source.includes('> Keep original context.'));
+  assert.deepEqual(parseJournal(promoted.source).issues,[]);
+});

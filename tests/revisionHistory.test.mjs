@@ -3,9 +3,9 @@ import test from 'node:test';
 import { historyPreview, historyRows, loadRevisionHistory, restoreRevision, reviewHistoryBranch } from '../src/revisionHistory.ts';
 import { createRevision, MAX_REVISIONS } from '../src/revisionProtocol.ts';
 import { newSyncLedger } from '../src/journalSync.ts';
-import { parseTodoText, serializeTodoText } from '../src/todoText.ts';
+import { plannerFixture, parseTodoText, serializeTodoText } from './planner-fixture.ts';
 
-const raw = title => `UNDATED\n\nLIST: Inbox\n${title}\n`;
+const raw = title => plannerFixture(`UNDATED\n\nLIST: Inbox\n${title}\n`);
 async function fixture() {
   const device = crypto.randomUUID(), root = await createRevision('test', device, [], raw('Original'));
   const latest = await createRevision('test', device, [root.id], raw('Current'));

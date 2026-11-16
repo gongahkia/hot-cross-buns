@@ -22,13 +22,17 @@ const itemFrom = (entry: PlannerEntry): TodoItem => ({
 export function readJournal(source: string): { model: MarkdownPlanner; document: TodoDocument } {
   const cached = cache.get(source);
   if (cached) return cached;
-  const model = parseMarkdownPlanner(source);
+  return projectJournal(parseMarkdownPlanner(source));
+}
+
+function projectJournal(model: MarkdownPlanner): { model: MarkdownPlanner; document: TodoDocument } {
+  const source = model.source;
   const document: TodoDocument = {
     source, scratchpad: model.scratchpad ? textAt(source, model.scratchpad) : '',
     days: model.days.map(group => ({ date: group.name, items: group.entries.map(itemFrom), keepEmpty: true })),
-    undated: model.undated.map(group => ({ name: group.name, items: group.entries.map(itemFrom) })),
+    ...(model.undated.length ? { undated: model.undated.map(group => ({ name: group.name, sourceRef: `list:${group.range.start}`, items: group.entries.map(itemFrom) })) } : {}),
   };
-  const pending: object[] = [document];
+  const pending: object[] = [document, model];
   while (pending.length) {
     const value = pending.pop()!;
     if (Object.isFrozen(value)) continue;
@@ -99,7 +103,8 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     return raw;
   };
   const title = (text: string, indent: number, dated: boolean) => {
-    if (!dated && /^(?:[+*-]\s|#{1,6}\s|>|\d+[.)]\s|\[[ xX]\]\s|`{3}|~{3}|<(?!(?:https?:\/\/))|(?:[-*_]\s*){3,}$)/.test(text)) text = '\\' + text;
+    if (!dated && /^\d+[.)]\s/.test(text)) text = text.replace(/^(\d+)([.)])/,'$1\\$2');
+    else if (!dated && /^(?:[+*-]\s|#{1,6}\s|>|\[[ xX]\]\s|`{3}|~{3}|<(?!(?:https?:\/\/))|(?:[-*_]\s*){3,}$)/.test(text)) text = '\\' + text;
     return text.replace(/\r\n|\r|\n/g, `${nl}${' '.repeat(indent)}`);
   };
   const render = (item: TodoDetail | TodoItem, dated: boolean, column: number, asEntry: boolean): string => {
@@ -141,7 +146,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
       }
       const oldDetails = old?.details ?? [];
       const detailColumn = old?.indent.length ?? original!.column + 2;
-      if (!old || JSON.stringify(entry.details) !== JSON.stringify(oldValue!.details)) {
+      if (!old || !!old.date !== dated || JSON.stringify(entry.details) !== JSON.stringify(oldValue!.details)) {
         oldDetails.forEach((detail, index) => edits.push({ range: detail.range, text: entry.details[index] ? render(entry.details[index], dated, detailColumn, false) : '' }));
         const extra = entry.details.slice(oldDetails.length);
         if (extra.length) {
@@ -155,6 +160,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     } else if (original!.entry) {
       // demotion flattens planning details into sibling details; retain the rest of the body once.
       for (const child of original!.entry.details) edits.push({ range: child.range, text: '' });
+      if (original!.entry.metadata) edits.push({ range: original!.entry.metadata, text: '' });
     }
     return adjustIndent(localPatch(textAt(source, node.range), node.range, edits), original!.column, column, nl);
   };
@@ -172,25 +178,28 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     }
     return output + source.slice(cursor, group.content.end);
   };
-  const updateGroups = (groups: PlannerGroup[], desired: Array<{ name: string; items: TodoItem[] }>, dated: boolean) => {
+  const heading = (name: string) => name.replace(/[\\`*_{}[\]()<>!|~#]/g, '\\$&');
+  const updateGroups = (groups: PlannerGroup[], desired: Array<{ name: string; items: TodoItem[]; sourceRef?: string }>, dated: boolean) => {
     const prior = new Map(groups.map(group => [group.name, group]));
+    const references = new Set(groups.map(group => `list:${group.range.start}`));
     for (const group of groups) {
-      const next = desired.find(candidate => candidate.name === group.name);
+      const next = desired.find(candidate => !dated && candidate.sourceRef === `list:${group.range.start}`) ?? desired.find(candidate => candidate.name === group.name);
       if (!next) add({ start: group.range.start, end: group.content.end }, '');
       else {
+        if (next.name !== group.name) add(group.range, `### ${heading(next.name)}`);
         const previousItems = group.entries.map(itemFrom);
         if (JSON.stringify(previousItems) !== JSON.stringify(next.items)) add(group.content, groupText(group, next.items, dated));
       }
     }
-    const additions = desired.filter(group => !prior.has(group.name));
+    const additions = desired.filter(group => !prior.has(group.name) && (dated || !group.sourceRef || !references.has(group.sourceRef)));
     if (additions.length) {
       const offset = model.sectionEnds[dated ? 'Dated' : 'Undated']!;
-      const text = additions.map(group => `### ${group.name}${nl}${nl}${group.items.map(item => render(item, dated, 0, true)).join(nl + nl)}${nl}${nl}`).join('');
+      const text = additions.map(group => `### ${heading(group.name)}${nl}${nl}${group.items.map(item => render(item, dated, 0, true)).join(nl + nl)}${nl}${nl}`).join('');
       add({ start: offset, end: offset }, text);
     }
   };
   updateGroups(model.days, document.days.map(day => ({ name: day.date, items: day.items })), true);
-  updateGroups(model.undated, (document.undated ?? []).map(list => ({ name: list.name, items: list.items })), false);
+  updateGroups(model.undated, document.undated ?? [], false);
   if (document.scratchpad !== undefined && document.scratchpad !== before.scratchpad) add(model.scratchpad!, document.scratchpad);
   if (!patches.length) return before;
   // a group ending at the insertion boundary and a new group may share that boundary.
@@ -201,7 +210,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     else merged.push(patch);
   }
   const next = applyPlannerEdits(model, source, merged);
-  return readJournal(next.source).document;
+  return projectJournal(next).document;
 }
 
 export const serializeJournal = (document: TodoDocument): string => materializeJournal(document).source!;

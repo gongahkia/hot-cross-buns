@@ -7,7 +7,7 @@ export function validTime(value: string) {
 }
 
 export function parseTimeBlock(text: string): TimeBlock | null {
-  const match = /^(\d{2}:\d{2})-(\d{2}:\d{2}) (.+)$/.exec(text);
+  const match = /^(\d{2}:\d{2})-(\d{2}:\d{2}) ([\s\S]+)$/.exec(text);
   if (!match || !validTime(match[1]) || !validTime(match[2]) || match[1] >= match[2]) return null;
   return { start: match[1], end: match[2], title: match[3] };
 }

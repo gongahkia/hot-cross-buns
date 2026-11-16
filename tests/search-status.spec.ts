@@ -1,12 +1,13 @@
+import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 
 async function setup(page: Page) {
   const today = new Date().toLocaleDateString('en-CA');
   await page.goto('/');
-  const raw = `2000-01-01\nArchive done #work\n\nOld open #work\n- [ ] Needle in a detail\n\n${today}\nToday done #home\n\nToday open #home\n\nUNDATED\n\nLIST: Inbox\nRead later #work\n`;
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
-  await expect(page.getByRole('status').filter({ hasText: 'TODO.txt imported.' })).toBeVisible();
+  const raw = plannerFixture(`2000-01-01\nArchive done #work\n\nOld open #work\n- [ ] Needle in a detail\n\n${today}\nToday done #home\n\nToday open #home\n\nUNDATED\n\nLIST: Inbox\nRead later #work\n`);
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
+  await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
   await runCommand(page, 'Open search');
 }
 const entries = (page: Page) => page.getByRole('group', { name: 'Dated entries', exact: true });
@@ -78,7 +79,7 @@ test('a result can be completed and undone, and export keeps entries outside the
   await expect(page.getByRole('button', { name: 'Expand done items for 2000-01-01', exact: true })).toContainText('2');
   await page.keyboard.press('Control+z');
   await expect(page.getByRole('group', { name: 'Old open #work', exact: true })).toBeVisible();
-  await runCommand(page, 'Download TODO.txt');
-  const preview = page.getByLabel('TODO.txt preview');
+  await runCommand(page, 'Download Planner.md');
+  const preview = page.getByLabel('Planner.md preview');
   for (const text of ['Archive done #work', 'Today done #home', 'Old open #work', 'Read later #work']) await expect(preview).toContainText(text);
 });

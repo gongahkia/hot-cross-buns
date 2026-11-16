@@ -1,26 +1,19 @@
-# TODO.txt import doctor
+# Markdown import review
 
-The doctor runs before an import changes Hot Cross Buns's IndexedDB working copy. It shows the imported file and a separate editable working copy. Ordinary imports do not rewrite the selected file. When linking a file or reviewing a linked file, applying the import resumes automatic file saves, including approved repairs; cancelling leaves the file untouched. See [file sync](FILE_SYNC.md). Only **Apply import** changes the browser journal. If both the browser journal and file changed the same item, a separate merge review follows the format review.
+The import doctor validates [Planner.md](MARKDOWN_FORMAT.md) before changing the durable browser journal. Its filename remains for existing links; it no longer repairs the historical TXT syntax. Ordinary imports do not write the selected file. Linking or reviewing a linked target permits later saves only after explicit approval; cancelling leaves the source and journal intact.
 
-The doctor proposes narrow repairs when the intended structure is recognizable. Every proposal is shown with its original and replacement text. You can edit the working copy, then choose **Check file** to run the doctor again. You can cancel without applying anything.
+Review keeps the exact original source alongside an editable working copy, with complete original and working-source downloads. **Check file** reruns validation without committing. **Apply import** is the explicit commit. No guessed checkbox state, completion date, ID repair or metadata normalization is applied automatically. Invalid/unsupported source remains recoverable. Session checkpoints retain working review drafts across reload for download; they are not automatically applied to a newer journal.
 
-| Input pattern or problem | Doctor result | Why |
-| --- | --- | --- |
-| Recognizable `@repeat:` rule with extra indentation, tabs, or different marker case, such as `\t@REPEAT: daily` | Proposes `  @repeat: daily` | A valid rule can keep its meaning with the canonical marker. The rule value stays as written. |
-| Valid `@completed:` date with noncanonical indentation or marker case | Proposes `  @completed: YYYY-MM-DD` | The date value stays the same. |
-| Indented checkbox detail, such as `  - [ ] check soil` | Proposes `- [ ] check soil` | A visible checkbox detail marker identifies the intended structure. |
-| Checkbox detail without the usual spaces, such as `-[ ] task` or `- [ ]task` | Proposes `- [ ] task` | The checkbox remains in the same state. Review the proposed text before importing. |
-| Date contains items but no blank completed/upcoming divider | Requires **mark this day upcoming** or **mark this day done** | The doctor cannot infer item status from a missing separator. It inserts the divider only after your choice. |
-| Completed after-completion item has no `@completed:` date | Requires the actual completion date | Inferring a date from the heading or import time would create the wrong next occurrence. Scheduled recurrence does not need a completion date to show its next date. |
-| Completed after-completion rule has no `series` and `occurrence` | Offers **start a new series here**, or you can edit the working copy to link an existing series | A stable occurrence identity prevents duplicates after reimport. Starting a series appends a generated readable identifier and `occurrence 1`. |
-| Invalid span, skip, replacement, repeat rule, date, time range, undated checkbox, orphan detail, duplicate occurrence, or completion date on an upcoming item | Shows an error; import stays blocked | These cases cannot be repaired safely from the text alone. Edit the working copy and check it again. The doctor does not guess what a malformed span or replacement meant. |
-| Empty valid date heading | Keeps the heading | An empty date is intentional journal structure. |
+| Finding | Behavior |
+| --- | --- |
+| Missing/unsupported `hcb-format`, invalid document identity or reserved section structure | Show diagnostics and block import until the working source is corrected. Keep the original available. |
+| Invalid date/time/span, repeat, completion date, skip or replacement | Require explicit source correction; do not guess scheduling intent. |
+| Duplicate IDs, series/occurrences/replacements, unknown planning fields or malformed/unclosed metadata | Block structured use; preserve source for a compatible reader or manual correction. |
+| Parent/detail checkbox disagreement or undated completion state | Require explicit correction of the checkboxes; do not infer done/open from blank lines. |
+| Broken `#hcb-` link or inert `hcb` example outside a direct planning entry | Warn without discarding or activating the source. |
+| Ordinary prose, tables, comments, code, unfamiliar Markdown or empty date headings | Retain source; do not format the whole file or flatten bodies into task titles. |
+| Invalid Unicode, file above 5 MiB or more than 100,000 logical lines | Reject before parsing; the selected external file remains untouched. |
 
-## Editing rules
+Applying valid source may open whole-document conflict review. It offers browser/file choice, a narrow **keep both** for one safe non-recurring entry, or manual source merging. It does not merge arbitrary content by task-array index. See [source conflict policy](MARKDOWN_RUNTIME.md#conflicts-and-recovery).
 
-- Date headings use `YYYY-MM-DD` and must occur once per file.
-- The optional `UNDATED` section comes after dated sections. It contains distinct `LIST: name` headings. Its item and detail lines have no checkboxes or dated metadata.
-- Metadata begins with exactly two spaces. Detail lines begin at the left margin. Put `\` before a line that should be a literal item title even though it resembles a date, detail, or metadata marker.
-- A blank line separates completed items above from upcoming items below. Keep it even when one section has no items.
-- A completed **after-completion** recurrence needs its actual `@completed:` date and a stable `series` plus one-based `occurrence` to reconstruct the next item across machines or imports. If an existing successor belongs to the same series, preserve its identity and increment the occurrence number. Do not select **start a new series here** to link an existing one.
-- The doctor does not discard invalid lines, invent task text, infer completion times, or silently choose a side in an item merge.
+Approval rechecks observed target bytes, the saved browser source, link generation and selected immutable branch. A stale review or failed IndexedDB transaction does not partially commit the journal/link/baseline. Applied linked-file repairs retain original observed contents in comparison recovery. Downloads and validation do not advance sync baselines. Protected targets publish a complete protocol-2 revision before the projection write; external edits overwritten before observation remain outside that protection.

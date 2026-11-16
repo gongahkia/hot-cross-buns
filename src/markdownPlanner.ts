@@ -71,6 +71,7 @@ function assertSize(source: string) {
 /** project planning semantics without serializing or normalizing the original Markdown. */
 export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   assertSize(source);
+  if (source.startsWith('\uFEFF\uFEFF')) throw new Error('Markdown permits only one leading UTF-8 byte-order mark. Keep the original source for recovery.');
   // remark removes a leading BOM before calculating offsets; retain our original-source coordinates.
   const bom = source.startsWith('\uFEFF');
   const root = parser.parse(bom ? source.slice(1) : source);

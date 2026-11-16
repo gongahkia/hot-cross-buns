@@ -39,6 +39,7 @@ async function seedLegacyJournal(page: Page, existing = false) {
 test('renaming preserves the old journal, scratchpad, preferences and draft across reloads', async ({ page }) => {
   await seedLegacyJournal(page);
   await page.goto('/');
+  await page.getByRole('button', { name: 'Convert saved workspace', exact: true }).click();
   await expect(page).toHaveTitle('Hot Cross Buns');
   await expect(page.getByRole('group', { name: 'Original journal', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
@@ -80,6 +81,7 @@ test('renaming preserves the old journal, scratchpad, preferences and draft acro
 test('an existing renamed journal and preferences take precedence over older data', async ({ page }) => {
   await seedLegacyJournal(page, true);
   await page.goto('/');
+  await page.getByRole('button', { name: 'Convert saved workspace', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Newer journal', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Original journal', exact: true })).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
@@ -104,6 +106,7 @@ test('a failed storage migration leaves the original data available for retry', 
   await expect(page.getByRole('alert')).toContainText('The original data has been kept');
   expect(await page.evaluate(() => localStorage.getItem('hot-cross-buns-storage-renamed-v1'))).toBeNull();
   await page.reload();
+  await page.getByRole('button', { name: 'Convert saved workspace', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Original journal', exact: true })).toBeVisible();
 });
 

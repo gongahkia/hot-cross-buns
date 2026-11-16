@@ -6,6 +6,7 @@ export function assertImportSize(bytes: number): void {
 }
 
 export function assertImportText(raw: string): void {
+  if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(raw)) throw new Error('Journal text must be valid Unicode before UTF-8 storage.');
   assertImportSize(raw.length);
   assertImportSize(new TextEncoder().encode(raw).byteLength);
   let lines = raw.length ? 1 : 0;

@@ -1,9 +1,10 @@
+import { createJournal, materializeJournal } from '../src/journalDocument.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { newSyncLedger, reconcileJournal, rebaseSyncHistory, rebaseLocalJournal, retryDelay, synchronizeJournal } from '../src/journalSync.ts';
-import { parseTodoText, serializeTodoText } from '../src/todoText.ts';
+import { plannerFixture, parseTodoText, serializeTodoText } from './planner-fixture.ts';
 
-const raw = title => `UNDATED\n\nLIST: Inbox\n${title}\n- Detail\n`;
+const raw = title => plannerFixture(`UNDATED\n\nLIST: Inbox\n${title}\n- Detail\n`);
 const parse = text => parseTodoText(text).document;
 function fixture() {
   const baseline = parse(raw('Original'));
@@ -18,10 +19,11 @@ function fixture() {
     if (!next) return null;
     if (state.failCheckpoint && next.ledger.checkpoint && !state.bundle.ledger.checkpoint) throw new Error('Checkpoint storage failed');
     if (state.failReceipt && state.bundle.ledger.checkpoint && !next.ledger.checkpoint) throw new Error('Receipt storage failed');
+    next.document = materializeJournal(next.document);
     state.bundle = structuredClone(next); return structuredClone(next);
   } };
   const adapter = {
-    name: () => 'TODO.txt', network: true, ready: async () => state.blocked,
+    name: () => 'Planner.md', network: true, ready: async () => state.blocked,
     read: async () => { state.reads++; const snapshot = { text: state.remote }; await state.afterRead?.(); return snapshot; },
     write: async (_link, text) => { state.writes.push(text); state.remote = text; await state.afterWrite?.(); return { kind: 'saved' }; },
     acknowledge: (link, snapshot, document, wrote, now) => ({ ...link, baselineText: snapshot.text, baselineDocument: document, lastSavedAt: wrote ? now : link.lastSavedAt }),
@@ -84,8 +86,8 @@ test('lost response followed by undo and an independent remote edit preserves bo
   state.afterWrite = () => { title('Original'); state.remote = state.remote.replace('- Detail', '- From phone'); throw new TypeError('Connection lost'); };
   await cycle(); state.afterWrite = null;
   await cycle(true);
-  assert.match(state.remote, /Original\n- From phone/);
-  assert.match(serializeTodoText(state.bundle.document), /Original\n- From phone/);
+  assert.match(state.remote, /Original[\s\S]*- From phone/);
+  assert.match(serializeTodoText(state.bundle.document), /Original[\s\S]*- From phone/);
 });
 test('failed receipt storage retains the checkpoint and reconciles without a duplicate upload', async () => {
   const { state, cycle, title } = fixture(); title('Accepted'); state.failReceipt = true;
@@ -108,9 +110,13 @@ test('an unlink during network I/O keeps local edits and cannot be undone by its
 });
 test('independent fields merge automatically with a recoverable before-and-file copy', async () => {
   const { state, cycle, title } = fixture(); title('Local title'); state.remote = state.remote.replace('- Detail', '- Phone detail');
-  await cycle(); assert.match(state.remote, /Local title\n- Phone detail/);
-  assert.match(state.bundle.ledger.recovery.local, /Local title\n- Detail/);
-  assert.match(state.bundle.ledger.recovery.remote, /Original\n- Phone detail/);
+  await cycle();
+  const merged = parse(state.remote).undated[0].items[0];
+  assert.equal(merged.text, 'Local title'); assert.equal(merged.details[0].text, 'Phone detail');
+  const savedLocal = parse(state.bundle.ledger.recovery.local).undated[0].items[0];
+  const savedRemote = parse(state.bundle.ledger.recovery.remote).undated[0].items[0];
+  assert.equal(savedLocal.text, 'Local title'); assert.equal(savedLocal.details[0].text, 'Detail');
+  assert.equal(savedRemote.text, 'Original'); assert.equal(savedRemote.details[0].text, 'Phone detail');
 });
 test('overlapping titles, ambiguous identities, deletions and malformed text require review', async () => {
   for (const remote of [raw('Phone title'), '', '2026-11-16\nMissing divider\n']) {
@@ -176,7 +182,7 @@ test('undo history rebases local title changes while preserving incoming detail 
   const earlier = structuredClone(before); earlier.undated[0].items[0].text = 'Original';
   const after = structuredClone(before); after.undated[0].items[0].details[0].text = 'From phone';
   const history = rebaseSyncHistory([earlier], before, after, '2026-11-15');
-  assert.equal(history.length, 1); assert.match(serializeTodoText(history[0]), /Original\n- From phone/);
+  assert.equal(history.length, 1); assert.match(serializeTodoText(history[0]), /Original[\s\S]*- From phone/);
   assert.equal(history[0].undated[0].items[0].id, before.undated[0].items[0].id);
 });
 test('ambiguous inverses and the history work budget retire older undo safely', () => {
@@ -199,7 +205,7 @@ test('an authentication failure during verification does not call an accepted wr
   adapter.read = async (...args) => { if (verify) { verify = false; throw Object.assign(new Error('Reconnect'), { status: 401 }); } return read(...args); };
   state.afterWrite = () => { title('Original'); state.remote = state.remote.replace('- Detail', '- From phone'); verify = true; state.afterWrite = null; };
   await cycle(); assert.equal(state.bundle.ledger.checkpoint.uncertain, true);
-  await cycle(true); assert.match(state.remote, /Original\n- From phone/);
+  await cycle(true); assert.match(state.remote, /Original[\s\S]*- From phone/);
 });
 test('review starts a new generation while retaining uncertain payloads for late-echo detection', () => {
   const before = newSyncLedger('same-target'); before.checkpoint = { text: 'Possible late write' }; before.recovery = { at: 1, local: 'Local', remote: 'Remote' };
@@ -224,13 +230,15 @@ test('local field rebasing preserves concurrent progress without replacing incom
   const ours = structuredClone(before); ours.undated[0].items[0].text = 'Local title';
   const theirs = structuredClone(before); theirs.undated[0].items[0].details[0].text = 'Other tab detail';
   const merged = rebaseLocalJournal(before, ours, theirs, '2026-11-15');
-  assert.match(serializeTodoText(merged), /Local title\n- Other tab detail/);
+  assert.match(serializeTodoText(merged), /Local title[\s\S]*- Other tab detail/);
   theirs.undated[0].items[0].text = 'Other title';
   assert.equal(rebaseLocalJournal(before, ours, theirs, '2026-11-15'), null);
 });
 test('distinct same-text captures in two tabs remain separate items with their original identities', () => {
-  const ours = parse(raw('Same')), theirs = parse(raw('Same'));
-  const merged = rebaseLocalJournal({ days: [] }, ours, theirs, '2026-11-15');
+  const before = createJournal('test-journal');
+  const branch = id => { const next = structuredClone(before); next.undated[0].items.push({ id, text: 'Same', completed: false, details: [] }); return materializeJournal(next); };
+  const ours = branch('capture-one'), theirs = branch('capture-two');
+  const merged = rebaseLocalJournal(before, ours, theirs, '2026-11-15');
   assert.equal(merged.undated[0].items.length, 2);
   assert.deepEqual(new Set(merged.undated[0].items.map(item => item.id)), new Set([ours.undated[0].items[0].id, theirs.undated[0].items[0].id]));
 });

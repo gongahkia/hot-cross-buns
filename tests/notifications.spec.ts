@@ -62,14 +62,14 @@ test('notifications are readable and dismissible above settings dialogs', async 
   await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await page.evaluate(async () => {
     const pick = async () => {
-      const file = await (await navigator.storage.getDirectory()).getFileHandle('occupied.txt', { create: true });
+      const file = await (await navigator.storage.getDirectory()).getFileHandle('occupied.md', { create: true });
       const writer = await file.createWritable(); await writer.write('existing text'); await writer.close(); return file;
     };
     Object.assign(window, { showOpenFilePicker: async () => [await pick()], showSaveFilePicker: pick });
   });
   await runCommand(page, 'Settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
-  await settings.getByRole('button', { name: 'Create linked TODO.txt', exact: true }).click();
+  await settings.getByRole('button', { name: 'Create linked Planner.md', exact: true }).click();
   const toast = page.getByRole('status', { name: 'Notification', exact: true });
   await expect(toast).toContainText('This file already contains text.');
   await toast.getByRole('button', { name: 'Dismiss message', exact: true }).click();

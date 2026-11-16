@@ -1,4 +1,7 @@
-# Hot Cross Buns TODO.txt format
+# Historical TODO.txt format
+
+This is the **historical TXT contract**, retained as a semantic mapping and recurrence-vocabulary reference. The running app now reads and writes [Planner.md](MARKDOWN_FORMAT.md); see [the workspace transition and rollback rules](MARKDOWN_RUNTIME.md). The syntax, browser-local scratchpad and repair behavior below describe the earlier TXT app, not current imports. Do not use the TXT serializer or merge to rewrite Markdown.
+
 
 `TODO.txt` is Hot Cross Buns's portable, human-readable journal. It is UTF-8 plain text. IndexedDB is a working copy; explicit import and download move data between the browser and the file. A [local linked file](FILE_SYNC.md) or [Google Drive file](GOOGLE_DRIVE.md) can also receive automatic journal saves while a tab is open and visible. Independent changes can merge automatically; overlapping or ambiguous changes pause for review. See [sync recovery](SYNC.md). The file carries the meaning of items, details, spans, time blocks, and recurrence. Browser item IDs are implementation details.
 

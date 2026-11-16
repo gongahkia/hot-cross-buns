@@ -72,7 +72,8 @@ const stateFrom = (value: TodoState | undefined): TodoState => {
 };
 const canonicalState = (next: TodoState, previous: TodoState): TodoState => {
   const document = materializeJournal(next.document);
-  return { ...next, document, revision: previous.revision + 1,
+  const baseline = next.baseline ? materializeJournal(next.baseline) : null;
+  return { ...next, document, baseline, revision: previous.revision + 1,
     scratchRevision: (previous.scratchRevision ?? 0) + Number(document.scratchpad !== previous.document.scratchpad) };
 };
 const localNotifications = new EventTarget();
@@ -85,6 +86,16 @@ export function subscribeStore(kind: 'journal' | 'scratchpad' | 'sync', callback
 }
 
 export async function loadTodoState(): Promise<TodoState> {
+  const db = await openDatabase();
+  let existing: TodoState | undefined;
+  try {
+    existing = await new Promise((resolve,reject) => {
+      const request = db.transaction(STATE_STORE,'readonly').objectStore(STATE_STORE).get('current');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } finally { db.close(); }
+  if (existing) return stateFrom(existing);
   return transact<TodoState>([STATE_STORE, SCRATCH_STORE], (tx, done, fail) => {
     const store = tx.objectStore(STATE_STORE), current = store.get('current'), legacy = store.get('legacy-txt:current'), scratch = tx.objectStore(SCRATCH_STORE).get('legacy-txt:current');
     let remaining = 3;
@@ -198,8 +209,31 @@ export async function startMarkdownWorkspace(convert: boolean): Promise<TodoStat
   return transact<TodoState>([STATE_STORE], (tx, done, fail) => {
     const store = tx.objectStore(STATE_STORE), request = store.get('current');
     request.onerror = () => fail(request.error);
-    request.onsuccess = () => { if (request.result) { done(stateFrom(request.result)); return; } const next: TodoState = { document, baseline: null, revision: 0, scratchRevision: 0 }; store.put(next, 'current'); done(next); };
+    request.onsuccess = () => {
+      try {
+        if (request.result) { done(stateFrom(request.result)); return; }
+        const next: TodoState = { document, baseline: null, revision: 0, scratchRevision: 0 };
+        store.put(next, 'current'); done(next);
+      } catch (error) { fail(error); }
+    };
   });
+}
+
+/** raw read-only recovery remains available even when the canonical source cannot be parsed. */
+export async function readBrowserRecovery(): Promise<Record<string, Record<string, unknown>>> {
+  const db = await openDatabase();
+  try {
+    return await new Promise((resolve,reject) => {
+      const tx = db.transaction([STATE_STORE,SCRATCH_STORE],'readonly');
+      const result: Record<string,Record<string,unknown>> = { state: Object.create(null), scratchpad: Object.create(null) };
+      for (const name of [STATE_STORE,SCRATCH_STORE]) {
+        const request = tx.objectStore(name).openCursor();
+        request.onsuccess = () => { const entry = request.result; if (!entry) return; result[name][String(entry.key)] = entry.value; entry.continue(); };
+      }
+      tx.oncomplete = () => resolve(result);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
 }
 
 // a separate key preserves the linked file's baseline when manual imports or downloads change theirs.
@@ -245,6 +279,21 @@ async function storeLinkedTarget(provider: SyncProvider, link: SyncLink | null):
 }
 
 const linkKey = (provider: SyncProvider) => provider === 'file' ? 'linked-file' : 'google-drive-link';
+function checkedBundle<L extends SyncLink>(record: L, saved: TodoState, storedLedger: SyncBundle<L>['ledger'] | undefined): SyncBundle<L> {
+  if (record.baselineDocument?.source === undefined) throw new Error('The linked target has no Markdown baseline. Keep its recovery data, unlink it and select a Markdown target.');
+  const baseline = readJournal(record.baselineDocument.source).document;
+  validateJournal(baseline);
+  if (!storedLedger || storedLedger.linkId !== record.id) throw new Error('The linked target is missing its matching sync ledger. Saving is paused; keep the browser data and recover the target before relinking.');
+  let ledger = storedLedger;
+  if (ledger.checkpoint) {
+    if (ledger.checkpoint.document?.source !== ledger.checkpoint.text) throw new Error('The pending save checkpoint is inconsistent. Saving is paused; keep the browser data and recovery copies.');
+    const document = readJournal(ledger.checkpoint.text).document;
+    validateJournal(document);
+    ledger = { ...ledger, checkpoint: { ...ledger.checkpoint, document } };
+  }
+  if (ledger.revisions?.pending && ledger.revisions.pending.record.protocol !== 2) throw new Error('The pending revision uses an incompatible protocol. Keep it for recovery and use a compatible build.');
+  return { link: { ...record, baselineDocument: baseline }, document: saved.document, revision: saved.revision, ledger };
+}
 export async function readSyncBundle<L extends SyncLink>(provider: SyncProvider): Promise<SyncBundle<L> | null> {
   const db = await openDatabase();
   try {
@@ -260,7 +309,7 @@ export async function readSyncBundle<L extends SyncLink>(provider: SyncProvider)
           if (--remaining) return;
           try {
             const saved = stateFrom(journal.result);
-            resolve({ link: record, document: saved.document, revision: saved.revision, ledger: ledger.result?.linkId === record.id ? ledger.result : { ...newSyncLedger(record.id), generation: 'legacy:' + record.id } });
+            resolve(checkedBundle(record, saved, ledger.result));
           } catch (error) { reject(error); }
         };
         for (const entry of [journal, ledger]) { entry.onsuccess = finish; entry.onerror = () => reject(entry.error); }
@@ -281,10 +330,11 @@ export async function changeSyncBundle<L extends SyncLink>(provider: SyncProvide
         if (!record) { done(null); return; }
         try {
           const saved = stateFrom(journal.result);
-          const current: SyncBundle<L> = { link: record, document: saved.document, revision: saved.revision, ledger: ledger.result?.linkId === record.id ? ledger.result : { ...newSyncLedger(record.id), generation: 'legacy:' + record.id } };
+          const current = checkedBundle(record, saved, ledger.result);
           const next = work(current, canIntegrate);
           if (!next) { done(null); return; }
-          journalChanged = next.document !== current.document && JSON.stringify(next.document) !== JSON.stringify(current.document);
+          next.document = materializeJournal(next.document);
+          journalChanged = serializeJournal(next.document) !== serializeJournal(current.document);
           if (journalChanged) { const state = canonicalState({ ...saved, document: next.document }, saved); next.document = state.document; next.revision = state.revision; store.put(state, 'current'); }
           if (next !== current || ledger.result?.linkId !== record.id) { metadataChanged = true; store.put(next.link, linkKey(provider)); store.put(next.ledger, provider + '-sync-ledger'); }
           done(next);
@@ -330,7 +380,7 @@ export async function loadSyncDevice(): Promise<string> {
   });
 }
 
-export type ReviewedJournal = { document: TodoDocument; baseline: TodoDocument; expectedText: string; generation?: string; revisionId?: string };
+export type ReviewedJournal = { document: TodoDocument; baseline: TodoDocument; expectedText: string; observedText?: string; generation?: string; revisionId?: string };
 /** The reviewed journal, target and baseline either commit together or all remain unchanged. */
 export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvider, link: L, expectedId: string | null, review: ReviewedJournal): Promise<TodoState> {
   const result = await transact<TodoState>([STATE_STORE], (tx, done, fail) => {
@@ -346,6 +396,7 @@ export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvi
         validateJournal(review.document);
         const next = canonicalState({ ...latest, document: review.document, baseline: review.baseline }, latest);
         const nextLedger = newSyncLedger(link.id, ledger.result);
+        nextLedger.recovery = { at: Date.now(), local: review.expectedText, remote: review.observedText ?? link.baselineText };
         if (review.revisionId) {
           if (!nextLedger.revisions) throw new Error('The journal revision link changed. Review it again.');
           nextLedger.revisions = reviewedRevision(nextLedger.revisions, review.revisionId);

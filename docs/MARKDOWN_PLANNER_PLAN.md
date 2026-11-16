@@ -1,10 +1,8 @@
 # Single-file Markdown planner
 
-Status: implementation approved, 16 November 2026. The user confirmed visible fenced metadata, day/week/month alongside the existing dated list, and floating times with explicit opt-in display conversion. Stage 1 implements [the Markdown contract](MARKDOWN_FORMAT.md), source-preserving parsing/editing and semantic mapping tests. The running app has not switched formats yet.
+Status: implementation approved, 16 November 2026; Markdown runtime integration, 17 November 2026. The user confirmed visible fenced metadata, day/week/month alongside the existing dated list, and floating times with explicit opt-in display conversion. The source-preserving format engine and runtime storage/sync/view transition are implemented. Calendar and rich rendering remain later stages; verification status is recorded below.
 
-Baseline inspected: `a8d586f`; subsequent local commits preserve the planning/foundation work. The running app still uses [the existing TODO.txt format](TODO_FORMAT.md). Keep that document accurate for the running app until the Markdown implementation replaces it. Do not edit the README during this work.
-
-Repository guidance now distinguishes the current TXT runtime from the approved Markdown replacement. Do not add permanent TXT compatibility merely to satisfy the former format constraint.
+Baseline inspected: `a8d586f`. [MARKDOWN_FORMAT.md](MARKDOWN_FORMAT.md) now defines the running format; [MARKDOWN_RUNTIME.md](MARKDOWN_RUNTIME.md) records source operations, shared scratchpad, developer-workspace conversion and rollback. [TODO_FORMAT.md](TODO_FORMAT.md) is retained as a historical semantic acceptance reference. Keep README.md unchanged as requested. Do not add permanent TXT compatibility or live Google/Outlook calendar connections.
 
 ## Confirmed direction
 
@@ -25,11 +23,11 @@ Repository guidance now distinguishes the current TXT runtime from the approved 
 
 | Area | Current behavior | Target |
 | --- | --- | --- |
-| Portable content | A structured TXT journal | A single Markdown document with prose and planning semantics |
+| Portable content | One source-preserved Markdown document | Rich previews and further planning views over the same source |
 | Dated UI | Date-oriented item lists | Keep those lists and add calendar views over the same entries |
 | Undated UI | Named lists without completion circles | Keep this workflow; do not silently turn existing undated notes into completed/open tasks |
-| Scratchpad | Separate browser-only text | A capture section in the shared document; no automatic promotion into the planner |
-| Rich content | Item and detail text | Source-preserved Markdown, including diagrams and mathematics |
+| Scratchpad | Terminal scratchpad shared in the same document | Keep explicit capture promotion and one-document undo |
+| Rich content | Source-preserved Markdown titles/bodies; source editor | Safe rich rendering, including diagrams and mathematics |
 | Search/linking | View-scoped palette search and tags | Fast content search and stable internal links within the one document |
 | Persistence | Durable browser working copy and sync outbox | Keep durability; separate rebuildable indexes from drafts and pending writes |
 | Calendar accounts | Separate one-time Google snapshot tools | One-time imports only; no live calendar connections, now or later |
@@ -212,9 +210,9 @@ One-time external calendar imports must produce owned entries and an interpretat
 
 The user approved implementation after the planning answers. Continue in coherent stages with verification. No product decision is blocking the foundation. Do not infer authorization to delete a developer workspace, rename linked targets without a visible transition, or advertise unfinished runtime stages. Keep the README untouched. The calendar-account, task/event, shared-scratchpad, metadata, view-set and floating-time decisions are settled; do not ask them again by default.
 
-Next: integrate one document mutation path with storage, immutable sync, drafts, recovery and shared scratchpad; implement occurrence-aware completion/movement and explicit developer-workspace replacement. The TXT merge must never become a fallback for arbitrary Markdown. Only then switch existing views and exports to Markdown and add the calendar/rich rendering stages.
+The runtime now uses one exact-source mutation path through `journalDocument.ts`, shared scratchpad transactions, schema-4 storage and protocol-2 revisions. Existing recurrence completion/successors/movement/scope operations, dated/undated/capture controls, import/export, undo and recovery are wired through that path. Source review is conservative and never falls back to TXT serialization. Existing developer workspaces require an explicit archived transition; linked targets are not silently renamed or replayed. The hidden source editor retains drafts and checks staleness/identity before saving.
 
-Runtime integration is in progress. `journalDocument.ts` adapts existing task operations to exact-source transactions, retaining opaque entry/detail bodies and shared scratchpad content. Its first checkpoint passes 208 unit tests and TypeScript, including 12 adapter tests. It is not yet the running persistence path at this checkpoint.
+Next after this stage: safe bounded Markdown/Mermaid/math rendering and expanded source search/linking, then quiet editable day/week/month views. Define optional timezone-aware display semantics before implementing conversion. Retain floating times, source ownership and all existing sync/recovery boundaries.
 
 Historical Markdown review: `25872ac:docs/markdown-editor.md`, `RichMarkdownEditor.tsx` and `MarkdownPreview.tsx` preserve untouched input, separate editor undo, guard composition/shortcuts and load rich processing lazily. Retain those invariants. The historical Tiptap visual bridge serializes the whole edited note and can normalize syntax; do not use it to rewrite this canonical planner or copy its persistent toolbars/account references. Source-aware editing and safe previews fit the current quiet interface.
 

@@ -3,10 +3,11 @@ import test from 'node:test';
 import { createRevision, parseRevision, revisionGraph, revisionText, MAX_REVISIONS } from '../src/revisionProtocol.ts';
 import { reviewedRevision } from '../src/revisionSync.ts';
 import { newSyncLedger, synchronizeJournal } from '../src/journalSync.ts';
-import { parseTodoText, serializeTodoText } from '../src/todoText.ts';
+import { plannerFixture, parseTodoText, serializeTodoText } from './planner-fixture.ts';
 import { classifyLinkedFileError } from '../src/linkedFile.ts';
+import { materializeJournal, readJournal } from '../src/journalDocument.ts';
 
-const raw = title => `UNDATED\n\nLIST: Inbox\n${title}\n`;
+const raw = title => plannerFixture(`UNDATED\n\nLIST: Inbox\n${title}\n`);
 const doc = text => parseTodoText(text).document;
 const remote = () => ({ text: raw('Original'), records: new Map(), puts: [], writes: [] });
 function device(server, source) {
@@ -17,10 +18,11 @@ function device(server, source) {
     const next = work(structuredClone(state.bundle), state.canIntegrate); if (!next) return null;
     if (state.failCheckpoint && next.ledger.revisions?.pending && !state.bundle.ledger.revisions?.pending) throw new Error('Checkpoint storage full');
     if (state.failReceipt && state.bundle.ledger.revisions?.pending && !next.ledger.revisions?.pending) throw new Error('Receipt storage full');
+    next.document = materializeJournal(next.document);
     state.bundle = structuredClone(next); return structuredClone(next);
   } };
   const adapter = {
-    name: () => 'TODO.txt', network: true, ready: async () => null,
+    name: () => 'Planner.md', network: true, ready: async () => null,
     read: async () => ({ text: server.text }),
     write: async (_link, text) => { await state.beforeWrite?.(); server.writes.push(text); server.text = text; return { kind: 'saved' }; },
     acknowledge: (link, snapshot, document, wrote) => ({ ...link, baselineText: snapshot.text, baselineDocument: document, lastSavedAt: wrote ? 1 : link.lastSavedAt }),
@@ -222,9 +224,9 @@ test('undo after a lost projection reply remains deliverable without a spurious 
   assert.equal([...server.records.values()].filter(record => record.origin === 'external').length, 0);
 });
 test('linear recurring completion records one successor without mistaking its projection for a rollback', async () => {
-  const server = remote(); server.text = '2026-11-15\n\nWater\n  @repeat: every 1 day after completion; series plants; occurrence 1\n';
+  const server = remote(); server.text = plannerFixture('2026-11-15\n\nWater\n  @repeat: every 1 day after completion; series plants; occurrence 1\n');
   const app = device(server); await app.cycle();
-  const completed = '2026-11-15\nWater\n  @repeat: every 1 day after completion; series plants; occurrence 1\n  @completed: 2026-11-15\n\n';
+  const completed = plannerFixture('2026-11-15\nWater\n  @repeat: every 1 day after completion; series plants; occurrence 1\n  @completed: 2026-11-15\n\n');
   const record = await createRevision('test', crypto.randomUUID(), app.state.bundle.ledger.revisions.frontier, completed);
   server.records.set(record.id, record); server.text = completed;
   await app.cycle(); await app.cycle(); await app.cycle();
@@ -245,7 +247,8 @@ test('reviewed merges record only acknowledged branches and keep a third branch 
 test('integrity, identity collisions, future protocols, and history bounds fail closed', async () => {
   const record = await createRevision('test', crypto.randomUUID(), [], raw('One'));
   await assert.rejects(parseRevision(revisionText(record).replace('One', 'Two'), 'test'), /integrity/);
-  await assert.rejects(parseRevision(JSON.stringify({ ...record, protocol: 2 }), 'test'), /unsupported/);
+  await assert.rejects(parseRevision(JSON.stringify({ ...record, protocol: 3 }), 'test'), /unsupported/);
+  await assert.rejects(parseRevision(JSON.stringify({ ...record, protocol: 1 }), 'test'), /unsupported/);
   await assert.rejects(parseRevision(revisionText(record), 'another-journal'), /different journal/);
   const other = await createRevision('test', record.device, [], raw('Other'));
   const collision = { ...record, text: other.text, digest: '' };
@@ -255,4 +258,36 @@ test('integrity, identity collisions, future protocols, and history bounds fail 
   assert.equal((await revisionGraph([record, record], 'test')).stats.count, 1);
   const records = await Promise.all(Array.from({ length: MAX_REVISIONS + 1 }, () => createRevision('test', record.device, [], '')));
   await assert.rejects(revisionGraph(records, 'test'), /limit/);
+});
+
+test('concurrent Markdown captures survive a projection race, delayed discovery and a lost publication reply as complete source revisions', async () => {
+  const server = remote();
+  server.text = server.text.replace('## Dated', 'A **shared note**.\n\n| Topic | Owner |\n| --- | --- |\n| Review | Me |\n\n## Dated').replace('## Scratchpad\n', '## Scratchpad\nBaseline capture\n');
+  const first = device(server); await first.cycle();
+  const second = device(server, first.state.bundle), root = [...server.records.keys()][0];
+  const source = server.text;
+  first.state.bundle.document = readJournal(source.replace('Baseline capture', 'First offline capture')).document;
+  second.state.bundle.document = readJournal(source.replace('Baseline capture', 'Second offline capture')).document;
+  second.state.afterPut = () => { throw new TypeError('Lost publication reply'); };
+  first.state.beforeWrite = async () => {
+    second.state.visible = new Set([root]); await second.cycle(); first.state.beforeWrite = null;
+  };
+  await first.cycle();
+  const pending = structuredClone(second.state.bundle.ledger.revisions.pending);
+  assert.ok(pending);
+  assert.ok([...server.records.values()].some(record => record.text.includes('First offline capture')));
+  assert.ok([...server.records.values()].some(record => record.text.includes('Second offline capture')));
+  second.state.afterPut = null; second.state.visible = null;
+  const reloaded = device(server, second.state.bundle); await reloaded.cycle(true); await first.cycle();
+  assert.equal(reloaded.state.bundle.link.needsReview, true);
+  assert.equal(first.state.bundle.link.needsReview, true);
+  assert.equal(server.puts.filter(put => put.record.id === pending.record.id).length, 2);
+  assert.equal(new Set(server.puts.filter(put => put.record.id === pending.record.id).map(put => put.transportId)).size, 1);
+  assert.equal(server.records.size, 3);
+  for (const record of server.records.values()) {
+    assert.equal(record.protocol, 2);
+    assert.ok(record.text.includes('A **shared note**.'));
+    assert.ok(record.text.includes('| Review | Me |'));
+    assert.equal(readJournal(record.text).model.documentId, 'test-journal');
+  }
 });

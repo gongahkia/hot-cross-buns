@@ -1,8 +1,9 @@
+import { useMemo } from 'react';
 import styled from 'styled-components';
 import { Button, InlineError } from '../styles';
 import type { JournalFinding } from '../journalDoctor';
 import type { JournalMergeProposal } from '../journalMerge';
-import type { MergeChoice } from '../todoMerge';
+import type { MergeChoice } from '../journalMerge';
 import { serializeJournal } from '../journalDocument';
 import { historyPreview } from '../revisionHistory';
 import { downloadTextFile } from '../files';
@@ -30,8 +31,11 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
   const merge = review?.kind === 'merge' ? review : null;
   const local = merge ? serializeJournal(merge.proposal.local) : '';
   const file = doctor?.original ?? merge?.raw ?? '';
-  const preview = historyPreview(local, file);
-  const manual = !!merge && choices.source === 'both';
+  const preview = useMemo(() => historyPreview(local, file),[local,file]);
+  const manual = !!merge && choices.source === 'manual';
+  const options: MergeChoice[] = ['local','file'];
+  if (merge?.proposal.both) options.push('both');
+  options.push('manual');
   const unchecked = !!doctor && rawEdit !== doctor.checked || manual && rawEdit !== merge?.checked;
   const blocking = doctor?.findings.some(finding => finding.level === 'review') ?? false;
   return <Modal journalEditor open={!!review} onClose={onClose} title="Review Planner.md import" wide>
@@ -46,11 +50,12 @@ export function FileReview({ review, rawEdit, choices, busy, onClose, onRawEdit,
     </> : <>
       <Panes><Pane><Label>Browser journal</Label><Text aria-label="Browser version">{preview.before.text}</Text></Pane><Pane><Label>File version</Label><Text aria-label="File version">{preview.after.text}</Text></Pane></Panes>
       {(preview.before.truncated || preview.after.truncated) && <Note>Changed-region previews are shortened. Downloads contain the complete sources.</Note>}
-      <Choices>{(['local','file','both'] as const).map(choice => <label key={choice}><input type="radio" name="source" checked={choices.source === choice} onChange={() => onChoice('source',choice)}/>{choice === 'local' ? 'keep browser version' : choice === 'file' ? 'use file' : 'merge manually'}</label>)}</Choices>
+      <Choices>{options.map(choice => <label key={choice}><input type="radio" name="source" checked={choices.source === choice} onChange={() => onChoice('source',choice)}/>{choice === 'local' ? 'keep browser version' : choice === 'file' ? 'use file' : choice === 'both' ? 'keep both' : 'merge manually'}</label>)}</Choices>
     </>}
     {(doctor || manual) && <><Label>{doctor ? 'Working import' : 'Combined Markdown source'}</Label><Editor aria-label={doctor ? 'Edit imported Planner.md' : 'Edit merged Markdown'} value={rawEdit} onChange={event => onRawEdit(event.target.value)}/>{unchecked && <Note>Check the edited source before applying it.</Note>}</>}
     <Actions>
       {merge && <Button onClick={() => downloadTextFile(local,'Planner-browser-before-review.md')}>Download browser version</Button>}
+      {(doctor || manual) && <Button onClick={() => downloadTextFile(rawEdit,'Planner-working-import-draft.md')}>Download working source</Button>}
       <Button onClick={() => downloadTextFile(file,'Planner-file-before-review.md')}>Download original file</Button>
       <Button onClick={onClose}>cancel</Button>
       {(doctor || manual) && <Button disabled={busy} onClick={onReparse}>{doctor ? 'check file' : 'check merge'}</Button>}

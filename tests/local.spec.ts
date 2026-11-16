@@ -1,3 +1,5 @@
+import { parseJournal } from '../src/journalDocument';
+import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -8,7 +10,7 @@ function dateOffset(days: number) {
 }
 
 async function confirmTodoDownload(page: Page) {
-  const preview = page.getByRole('dialog', { name: 'Download TODO.txt' });
+  const preview = page.getByRole('dialog', { name: 'Download Planner.md' });
   await expect(preview).toBeVisible();
   await preview.getByRole('button', { name: 'download' }).click();
 }
@@ -47,7 +49,7 @@ async function showJournalDay(page: Page, date: string) {
   await selectJournalCalendarDate(page, date);
 }
 
-test('edits a dated journal and exports a portable TODO.txt', async ({ page }) => {
+test('edits a dated journal and exports a portable Planner.md', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Review paper #work');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
@@ -67,11 +69,13 @@ test('edits a dated journal and exports a portable TODO.txt', async ({ page }) =
   await runCommand(page, 'Open search');
   await expect(page.getByRole('navigation', { name: 'Tags' }).getByText('#work')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const download = await downloadPromise;
   const text = await readFile(await download.path(), 'utf8');
-  expect(text).toContain(`${dateOffset(0)}\nReview paper #work\n- [x] send feedback\n\nCall Alex\n`);
+  const exported = parseJournal(text);
+  expect(exported.issues).toEqual([]);
+  expect(exported.document.days.find(day => day.date === dateOffset(0))?.items).toEqual(expect.arrayContaining([expect.objectContaining({ text: 'Review paper #work', completed: true, details: [expect.objectContaining({ text: 'send feedback', completed: true })] }), expect.objectContaining({ text: 'Call Alex', completed: false })]));
   await expect(page.getByRole('button', { name: 'Start focus timer' })).toHaveCount(0);
 });
 
@@ -118,14 +122,14 @@ test('completion confirmation enters and exits on dismissal or timeout', async (
 test('imports, reviews conflicting items, and preserves the file baseline', async ({ page }) => {
   await page.goto('/');
   const today = dateOffset(0);
-  const initial = `${today}\n\nRead article #idea\n`;
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
+  const initial = plannerFixture(`${today}\n\nRead article #idea\n`);
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await expect(page.getByRole('group', { name: 'Read article #idea' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Edit Read article #idea' }).fill('Read article and annotate #idea');
   await page.getByRole('textbox', { name: 'Edit Read article #idea' }).press('Enter');
-  const external = `${today}\n\nRead article and share #idea\n`;
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(external) });
-  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' }).getByText('Read article and share #idea')).toBeVisible();
+  const external = plannerFixture(`${today}\n\nRead article and share #idea\n`);
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(external)) });
+  await expect(page.getByRole('dialog', { name: 'Review Planner.md import' }).getByText('Read article and share #idea')).toBeVisible();
   await page.getByLabel('use file').check();
   await page.getByRole('button', { name: 'apply import' }).click();
   await expect(page.getByRole('group', { name: 'Read article and share #idea' })).toBeVisible();
@@ -134,11 +138,12 @@ test('imports, reviews conflicting items, and preserves the file baseline', asyn
 
 test('flags malformed text and unfinished work on an earlier date', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2021-11-31\n- orphan\n') });
-  await expect(page.getByText('Invalid date: 2021-11-31')).toBeVisible();
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2021-11-30\n\nTask\n').replace('2021-11-30','2021-11-31')) });
+  await expect(page.getByText(/Invalid date heading/)).toBeVisible();
   const yesterday = dateOffset(-1);
-  await page.getByRole('textbox', { name: 'Edit imported TODO.txt' }).fill(`${yesterday}\n\nCarry forward manually\n`);
+  await page.getByRole('textbox', { name: 'Edit imported Planner.md' }).fill(plannerFixture(`${yesterday}\n\nCarry forward manually\n`));
   await page.getByRole('button', { name: 'check file' }).click();
+  await page.getByRole('button', { name: 'apply import', exact: true }).click();
   // yesterday can be outside the default week, notably on Mondays.
   await showJournalDay(page, yesterday);
   await expect(page.getByRole('group', { name: 'Carry forward manually' })).toBeVisible();
@@ -158,56 +163,55 @@ test('offers explicit import and download even when direct file access is availa
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Open command palette', exact: true }).click();
-  await expect(page.getByRole('option', { name: 'Import TODO.txt', exact: true })).toBeVisible();
-  await expect(page.getByRole('option', { name: 'Download TODO.txt', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open TODO.txt' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Save connected TODO.txt' })).toHaveCount(0);
+  await expect(page.getByRole('option', { name: 'Import Planner.md', exact: true })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Download Planner.md', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Planner.md' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save connected Planner.md' })).toHaveCount(0);
 });
 
-test('doctor previews narrow repairs, requires a divider choice, and leaves the source untouched', async ({ page }) => {
+test('Markdown validation preserves the original, checks edits without saving and requires explicit approval', async ({ page }) => {
   const today = dateOffset(0);
-  const original = `${today}\nReview notes\n\t@REPEAT: daily\n  - [ ] check links\n`;
+  const corrected = plannerFixture(`${today}\n\nReview notes\n- [ ] check links\n`);
+  const original = corrected.replace('hcb-format: 1','hcb-format: 999');
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(original) });
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
-  await expect(review.getByText('Check TODO.txt import')).toBeVisible();
-  await expect(review.getByLabel('Original imported TODO.txt')).toContainText('\t@REPEAT: daily');
-  await expect(review.getByLabel('Edit imported TODO.txt')).toHaveValue(`${today}\nReview notes\n  @repeat: daily\n- [ ] check links\n`);
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(original) });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
+  await expect(review.getByText('Check Markdown import')).toBeVisible();
   await expect(review.getByRole('button', { name: 'apply import' })).toBeDisabled();
-  await review.getByRole('button', { name: 'mark this day upcoming' }).click();
-  await expect(review.getByLabel('Original imported TODO.txt')).toContainText('\t@REPEAT: daily');
+  await review.getByRole('textbox', { name: 'Edit imported Planner.md' }).fill(corrected);
+  await review.getByRole('button', { name: 'check file' }).click();
+  await expect(review).toBeVisible();
+  await expect.poll(async()=> (await storedJournal(page))?.days.length).toBe(0);
   await review.getByRole('button', { name: 'apply import' }).click();
-  await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Review notes' }).getByRole('button', { name: 'Complete Review notes' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Review notes', exact: true })).toBeVisible();
 });
 
-test('doctor asks for recurrence completion date and identity before rebuilding a successor', async ({ page }) => {
-  const yesterday = dateOffset(-1);
-  const today = dateOffset(0);
-  const original = `${yesterday}\nWater plants\n  @repeat: every 1 day after completion\n\n`;
+test('completed recurrence needs explicit identity and actual completion date before rebuilding a successor', async ({ page }) => {
+  const yesterday = dateOffset(-1), today = dateOffset(0);
+  const corrected = plannerFixture(`${yesterday}\nWater plants\n  @repeat: every 1 day after completion; series plants; occurrence 1\n  @completed: ${yesterday}\n\n`);
+  const original = corrected.replace('; series plants; occurrence 1','').replace(`  completed: ${yesterday}\n`,'');
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(original) });
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
-  await expect(review.getByText(/repeats but has no completion date/)).toBeVisible();
-  await review.getByLabel('Completion date for line 2').fill(yesterday);
-  await review.getByRole('button', { name: 'set completion date' }).click();
-  await review.getByRole('button', { name: 'start a new series here' }).click();
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(original) });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
+  await expect(review.getByText(/Repeat rules need/)).toBeVisible();
+  await review.getByRole('textbox', { name: 'Edit imported Planner.md' }).fill(corrected);
+  await review.getByRole('button', { name: 'check file' }).click();
   await review.getByRole('button', { name: 'apply import' }).click();
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('group', { name: 'Water plants' })).toBeVisible();
   const promise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
-  await confirmTodoDownload(page);
+  await runCommand(page, 'Download Planner.md'); await confirmTodoDownload(page);
   const raw = await readFile(await (await promise).path(), 'utf8');
-  expect(raw).toContain(`  @completed: ${yesterday}`);
-  expect(raw).toMatch(/@repeat: every 1 day after completion; series water-plants-[\w-]+; occurrence 2/);
+  expect(raw).toContain(`completed: ${yesterday}`);
+  expect(raw).toContain('repeat: every 1 day after completion; series plants; occurrence 2');
 });
 
 test('an invalid imported file cannot replace existing journal data', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this item');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2026-02-30\nMissing date\n') });
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
-  await expect(review.getByText('Invalid date: 2026-02-30')).toBeVisible();
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-02-28\n\nMissing date\n').replace('2026-02-28','2026-02-30')) });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
+  await expect(review.getByText(/Invalid date heading/)).toBeVisible();
   await expect(review.getByRole('button', { name: 'apply import' })).toBeDisabled();
   await review.getByRole('button', { name: 'cancel' }).click();
   await page.reload();
@@ -217,14 +221,14 @@ test('an invalid imported file cannot replace existing journal data', async ({ p
 test('imports and exports an empty date heading without turning it into an item', async ({ page }) => {
   const day = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${day}\n`) });
-  await expect(page.getByRole('dialog', { name: 'Review TODO.txt import' })).toHaveCount(0);
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${day}\n`)) });
+  await expect(page.getByRole('dialog', { name: 'Review Planner.md import' })).toHaveCount(0);
   await expect.poll(async () => (await storedJournal(page))?.days.some(entry => entry.date === day && entry.keepEmpty), { timeout: 10000 }).toBe(true);
   await page.reload();
   const promise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
-  expect(await readFile(await (await promise).path(), 'utf8')).toBe(`${day}\n`);
+  expect(await readFile(await (await promise).path(), 'utf8')).toBe(plannerFixture(`${day}\n`));
 });
 
 test('keeps mobile lines readable and keyboard controls usable', async ({ page }) => {
@@ -235,7 +239,7 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
   await expect(page.getByRole('link', { name: 'Skip to journal' })).toBeFocused();
   await expect(page.getByRole('textbox', { name: 'New daily item' })).toHaveAttribute('placeholder', 'No lines yet. Add the first one below.');
 
-  const original = 'A long line that should wrap across the narrow screen while staying one TODO.txt line #mobile';
+  const original = 'A long line that should wrap across the narrow screen while staying one Planner.md line #mobile';
   await page.getByRole('textbox', { name: 'New daily item' }).fill(original);
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await expect.poll(() => page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
@@ -270,7 +274,7 @@ test('persists a journal edit across reload', async ({ page }) => {
 test('collapses details, sorts tasks, and styles completed work', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nAlpha\n- one detail\n\nBeta\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nAlpha\n- one detail\n\nBeta\n`)) });
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
   await page.getByRole('button', { name: 'Collapse details for Alpha' }).click();
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toHaveCount(0);
@@ -342,7 +346,7 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   const tomorrow = dateOffset(1);
   await page.setViewportSize({ width: 1280, height: 1600 });
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`)) });
   await page.getByRole('button', { name: 'Choose date' }).click();
   await selectJournalCalendarDate(page, today);
   await selectJournalCalendarDate(page, tomorrow);
@@ -394,7 +398,7 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
 test('dragging an item between Upcoming and Done updates every detail', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nDone anchor\n\nMove me\n- [x] first\n- [ ] second\n- [ ] third\n\nOpen anchor\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nDone anchor\n\nMove me\n- [x] first\n- [ ] second\n- [ ] third\n\nOpen anchor\n`)) });
   await page.getByRole('button', { name: 'Complete Done anchor' }).click();
   await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
 
@@ -437,7 +441,7 @@ test('dragging an item between Upcoming and Done updates every detail', async ({
 test('tracks detail progress, completes the parent, and round-trips detail markers', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nProgress task\n- [x] first step\n- [ ] second step\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nProgress task\n- [x] first step\n- [ ] second step\n`)) });
   const parent = page.getByRole('group', { name: 'Progress task' });
   await expect(parent.getByRole('button', { name: 'Complete Progress task' })).toHaveAttribute('aria-description', '1 of 2 details done');
   await expect(parent.getByRole('button', { name: 'Collapse details for Progress task' })).toBeVisible();
@@ -452,10 +456,10 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   await expect(parent.getByRole('button', { name: 'Reopen Progress task' })).toBeVisible();
   await expect(text).toHaveCSS('text-decoration-line', 'line-through');
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
-  expect(exported).toContain('- [x] first step\n- [x] second step');
+  expect(exported).toContain('  - [x] first step\n  - [x] second step');
   await page.reload();
   await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await expect(page.getByRole('button', { name: 'Reopen detail second step' })).toBeVisible();
@@ -463,7 +467,7 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
   await expect(page.getByRole('button', { name: 'Complete Progress task' })).toBeVisible();
 });
 
-test('edits a time block and recurrence, creates one next item, and keeps both in TODO.txt', async ({ page }) => {
+test('edits a time block and recurrence, creates one next item, and keeps both in Planner.md', async ({ page }) => {
   const today = dateOffset(0);
   const next = dateOffset(3);
   await page.goto('/');
@@ -491,29 +495,29 @@ test('edits a time block and recurrence, creates one next item, and keeps both i
   await expect(future.getByRole('button', { name: 'Complete 09:00-09:30 Water plants #home' })).toBeVisible();
   await expect(future.getByText('every 3 days after completion')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
-  expect(raw).toContain(`${today}\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
-  expect(raw).toContain(`${next}\n\n09:00-09:30 Water plants #home\n  @repeat: every 3 days after completion`);
+  const saved = parseJournal(raw); expect(saved.issues).toEqual([]);
+  for (const date of [today,next]) expect(saved.document.days.find(day => day.date === date)?.items).toEqual(expect.arrayContaining([expect.objectContaining({ text: '09:00-09:30 Water plants #home', repeat: expect.objectContaining({ kind: 'after', every: 3, unit: 'days' }) })]));
   await page.reload();
   await expect(future).toBeVisible();
 });
 
-test('an externally completed recurring item advances once when TODO.txt is imported', async ({ page }) => {
+test('an externally completed recurring item advances once when Planner.md is imported', async ({ page }) => {
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
   const repeat = '  @repeat: daily; series check-filter-import; occurrence 1';
-  const pending = `${today}\n\nCheck filter\n${repeat}\n- [ ] inspect it\n`;
-  const completed = `${today}\nCheck filter\n${repeat}\n  @completed: ${today}\n- [x] inspect it\n\n`;
+  const pending = plannerFixture(`${today}\n\nCheck filter\n${repeat}\n- [ ] inspect it\n`);
+  const completed = plannerFixture(`${today}\nCheck filter\n${repeat}\n  @completed: ${today}\n- [x] inspect it\n\n`);
   await page.goto('/');
-  const importFile = page.getByLabel('Import a TODO.txt file');
-  await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
-  await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  const importFile = page.getByLabel('Import a Planner.md file');
+  await importFile.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(pending)) });
+  await importFile.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(completed)) });
   await showJournalDay(page, tomorrow);
   const nextDay = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
   await expect(nextDay.getByRole('group', { name: 'Check filter' }).getByRole('button', { name: 'Complete detail inspect it' })).toBeVisible();
-  await importFile.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  await importFile.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(completed)) });
   await expect(nextDay.getByRole('group', { name: 'Check filter' })).toHaveCount(1);
 });
 
@@ -545,42 +549,42 @@ test('custom anchored recurrence projects its count and stores only completed ex
   await expect(third).toBeVisible();
   await third.getByRole('button', { name: 'Complete Check in' }).click();
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain('; from ' + today + '; series ');
-  expect(raw.match(/@repeat: every 2 weeks/g)).toHaveLength(1);
-  expect(raw.match(/@replaces: .* on /g)).toHaveLength(2);
+  expect(raw.match(/repeat: every 2 weeks/g)).toHaveLength(1);
+  expect(raw.match(/replaces: .* on /g)).toHaveLength(2);
   await page.reload();
   await expect(page.locator('time[datetime="' + thirdDate + '"]')).toBeVisible();
 });
 
-test('an edited TODO.txt completion advances a custom series only once', async ({ page }) => {
+test('an edited Planner.md completion advances a custom series only once', async ({ page }) => {
   const today = dateOffset(0);
   const next = dateOffset(14);
   const weekdayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const weekday = weekdayNames[new Date(today + 'T12:00:00Z').getUTCDay()];
   const line = '  @repeat: every 2 weeks on ' + weekday + '; from ' + today + '; series imported-series; occurrence 1; ends after 2';
-  const pending = today + '\n\nCheck filter\n' + line + '\n';
-  const completed = today + '\nCheck filter\n' + line + '\n  @completed: ' + today + '\n\n';
+  const pending = plannerFixture(today + '\n\nCheck filter\n' + line + '\n');
+  const completed = plannerFixture(today + '\nCheck filter\n' + line + '\n  @completed: ' + today + '\n\n');
   await page.goto('/');
   await showThirtyOneDays(page);
-  const input = page.getByLabel('Import a TODO.txt file');
-  await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(pending) });
-  await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  const input = page.getByLabel('Import a Planner.md file');
+  await input.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(pending)) });
+  await input.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(completed)) });
   const successor = page.locator('section').filter({ has: page.locator('time[datetime="' + next + '"]') }).getByRole('group', { name: 'Check filter' });
   await expect(successor.getByRole('button', { name: 'Complete Check filter' })).toBeVisible();
-  await input.setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(completed) });
+  await input.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(completed)) });
   await expect(successor).toHaveCount(1);
   const promise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await promise).path(), 'utf8');
-  expect(raw.match(/@repeat: every 2 weeks/g)).toHaveLength(1);
+  expect(raw.match(/repeat: every 2 weeks/g)).toHaveLength(1);
   expect(raw).not.toContain('occurrence 2');
 });
 
-test('custom monthly ordinal and end date survive the repeat editor and TODO.txt', async ({ page }) => {
+test('custom monthly ordinal and end date survive the repeat editor and Planner.md', async ({ page }) => {
   const today = dateOffset(0);
   const endDate = dateOffset(100);
   await page.goto('/');
@@ -616,7 +620,7 @@ test('custom monthly ordinal and end date survive the repeat editor and TODO.txt
   await expect(editor.getByRole('button', { name: /^Repeat ends on:/ })).toContainText(endDate.slice(0, 4));
   await editor.getByRole('button', { name: 'cancel' }).click();
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const raw = await readFile(await (await downloadPromise).path(), 'utf8');
   expect(raw).toContain('every 1 month on last fri; from ' + today);
@@ -640,7 +644,7 @@ test('date-based repeat presets serialize their selected calendar pattern', asyn
   };
   const download = async () => {
     const promise = page.waitForEvent('download');
-    await runCommand(page, 'Download TODO.txt');
+    await runCommand(page, 'Download Planner.md');
     await confirmTodoDownload(page);
     return readFile(await (await promise).path(), 'utf8');
   };
@@ -663,7 +667,7 @@ test('date-based repeat presets serialize their selected calendar pattern', asyn
 test('moves an undated item into a date and supports undo without losing its detail', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nDraft a talk\n- possible venue\n') });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nDraft a talk\n- possible venue\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   await expect(page.getByRole('textbox', { name: 'Edit Draft a talk' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Complete Draft a talk' })).toHaveCount(0);
@@ -680,7 +684,7 @@ test('moves an undated item into a date and supports undo without losing its det
 
 test('reorders undated items and details, and deletes a list with undo', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n\nLIST: Inbox\nKeep me\n') });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n\nLIST: Inbox\nKeep me\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   const ideas = page.locator('section[aria-label="Ideas"]');
   const drag = async (source: string, target: string) => {
@@ -700,11 +704,12 @@ test('reorders undated items and details, and deletes a list with undo', async (
   await expect.poll(order).toEqual(['Beta', 'Alpha']);
   const download = async () => {
     const promise = page.waitForEvent('download');
-    await runCommand(page, 'Download TODO.txt');
+    await runCommand(page, 'Download Planner.md');
     await confirmTodoDownload(page);
     return readFile(await (await promise).path(), 'utf8');
   };
-  expect(await download()).toContain('LIST: Ideas\nBeta\nAlpha\n- second detail\n- first detail');
+  const saved = parseJournal(await download()); expect(saved.issues).toEqual([]);
+  expect(saved.document.undated?.find(list => list.name === 'Ideas')?.items).toEqual([expect.objectContaining({ text: 'Beta' }), expect.objectContaining({ text: 'Alpha', details: [expect.objectContaining({ text: 'second detail' }), expect.objectContaining({ text: 'first detail' })] })]);
   await page.reload();
   await page.getByRole('button', { name: 'Undated' }).click();
   await expect.poll(order).toEqual(['Beta', 'Alpha']);
@@ -716,11 +721,12 @@ test('reorders undated items and details, and deletes a list with undo', async (
   await expect(ideas.getByText('You can undo this.')).toBeVisible();
   await ideas.getByRole('button', { name: 'delete list and items' }).click();
   await expect(ideas).toHaveCount(0);
-  expect(await download()).not.toContain('LIST: Ideas');
-  expect(await download()).toContain('LIST: Inbox\nKeep me');
+  expect(await download()).not.toContain('### Ideas');
+  expect(await download()).toMatch(/### Inbox\s+- Keep me/);
   await page.keyboard.press('Control+z');
   await expect(ideas).toBeVisible();
-  expect(await download()).toContain('LIST: Ideas\nBeta\nAlpha\n- second detail\n- first detail');
+  const restored = parseJournal(await download()); expect(restored.issues).toEqual([]);
+  expect(restored.document.undated?.find(list => list.name === 'Ideas')?.items).toEqual([expect.objectContaining({ text: 'Beta' }), expect.objectContaining({ text: 'Alpha', details: [expect.objectContaining({ text: 'second detail' }), expect.objectContaining({ text: 'first detail' })] })]);
   await page.getByRole('button', { name: '+ new list' }).click();
   await page.getByRole('textbox', { name: 'New list name' }).fill('Temporary');
   await page.getByRole('textbox', { name: 'New list name' }).press('Enter');
@@ -728,14 +734,14 @@ test('reorders undated items and details, and deletes a list with undo', async (
   await temporary.getByRole('button', { name: 'More actions for list Temporary' }).click();
   await temporary.getByRole('button', { name: 'delete list', exact: true }).click();
   await expect(temporary).toHaveCount(0);
-  expect(await download()).not.toContain('LIST: Temporary');
+  expect(await download()).not.toContain('### Temporary');
 });
 
 test('undated item and detail deletions show an undo confirmation and restore their original place', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain',
-    buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n'),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain',
+    buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n')),
   });
   await page.getByRole('button', { name: 'Undated' }).click();
   const ideas = page.locator('section[aria-label="Ideas"]');
@@ -762,9 +768,9 @@ test('undated item and detail deletions show an undo confirmation and restore th
 
 test('Enter on an undated item opens a focused sibling draft and preserves list order', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain',
-    buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\nBeta\n'),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain',
+    buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\nBeta\n')),
   });
   await page.getByRole('button', { name: 'Undated' }).click();
   const ideas = page.locator('section[aria-label="Ideas"]');
@@ -789,14 +795,15 @@ test('Enter on an undated item opens a focused sibling draft and preserves list 
   await expect(ideas.getByRole('textbox', { name: 'Edit Discard me' })).toHaveCount(0);
 
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
-  expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain('LIST: Ideas\nAlpha revised\n- first detail\nBetween\nBeta');
+  const saved = parseJournal(await readFile(await (await downloadPromise).path(), 'utf8')); expect(saved.issues).toEqual([]);
+  expect(saved.document.undated?.find(list => list.name === 'Ideas')?.items).toEqual([expect.objectContaining({ text: 'Alpha revised', details: [expect.objectContaining({ text: 'first detail' })] }), expect.objectContaining({ text: 'Between' }), expect.objectContaining({ text: 'Beta' })]);
 });
 
 test('makes undated items details and promotes details back to items', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- alpha note\nBeta\n- beta note\n\nLIST: Inbox\nGamma\n') });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- alpha note\nBeta\n- beta note\n\nLIST: Inbox\nGamma\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   const ideas = page.locator('section[aria-label="Ideas"]');
   const inbox = page.locator('section[aria-label="Inbox"]');
@@ -826,11 +833,12 @@ test('makes undated items details and promotes details back to items', async ({ 
   await expect(ideas.getByRole('textbox', { name: 'Edit alpha note' })).toBeVisible();
 
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
-  expect(exported).toContain('LIST: Ideas\nBeta\n- beta note\n- Alpha\n- Gamma\nalpha note');
-  expect(exported).toContain('LIST: Inbox\n');
+  const saved = parseJournal(exported); expect(saved.issues).toEqual([]);
+  expect(saved.document.undated?.find(list => list.name === 'Ideas')?.items).toEqual([expect.objectContaining({ text: 'Beta', details: ['beta note','Alpha','Gamma'].map(text => expect.objectContaining({ text })) }), expect.objectContaining({ text: 'alpha note' })]);
+  expect(saved.document.undated?.find(list => list.name === 'Inbox')?.items).toEqual([]);
   await page.reload();
   await page.getByRole('button', { name: 'Undated' }).click();
   await expect(ideas.getByRole('textbox', { name: 'Edit alpha note' })).toBeVisible();
@@ -840,7 +848,7 @@ test('makes undated items details and promotes details back to items', async ({ 
 test('undated make-detail picker and promotion fit on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('UNDATED\n\nLIST: Thoughts\nOne\nTwo\n') });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Thoughts\nOne\nTwo\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   await page.getByRole('button', { name: 'More actions for One' }).click();
   await page.getByRole('button', { name: 'Make One a detail', exact: true }).click();
@@ -863,9 +871,9 @@ test('splits a count-limited series when editing this and following items', asyn
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
   const after = dateOffset(2);
-  const raw = `${today}\n\nCheck in\n  @repeat: every 1 day; from ${today}; series check-in; ends after 3\n`;
+  const raw = plannerFixture(`${today}\n\nCheck in\n  @repeat: every 1 day; from ${today}; series check-in; ends after 3\n`);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
   await showJournalDay(page, tomorrow);
   const next = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
   await next.getByRole('textbox', { name: 'Edit Check in' }).fill('Changed check in');
@@ -875,10 +883,10 @@ test('splits a count-limited series when editing this and following items', asyn
   await page.getByRole('button', { name: 'Next day' }).click();
   await expect(page.locator('section').filter({ has: page.locator(`time[datetime="${after}"]`) }).getByRole('group', { name: 'Changed check in' })).toBeVisible();
   const promise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await promise).path(), 'utf8');
-  expect(exported.match(/@repeat:/g)).toHaveLength(2);
+  expect(exported.match(/repeat:/g)).toHaveLength(2);
   expect(exported).toContain('ends after 2');
   expect(exported).not.toContain(`${after}\n\nChanged check in`);
 });
@@ -889,16 +897,17 @@ test('moving a spanning item keeps its full duration', async ({ page }) => {
   const oldEnd = dateOffset(2);
   const newEnd = dateOffset(3);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nTrip\n  @span: all-day through ${oldEnd}\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nTrip\n  @span: all-day through ${oldEnd}\n`)) });
   await page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('button', { name: 'More actions for Trip' }).click();
   await page.getByRole('button', { name: 'Move Trip' }).click();
   await page.locator(`.rdp-day[data-day="${tomorrow}"] button`).click();
   await page.getByRole('button', { name: 'Move here' }).click();
   const promise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await promise).path(), 'utf8');
-  expect(exported).toContain(`${tomorrow}\n\nTrip\n  @span: all-day through ${newEnd}`);
+  const saved = parseJournal(exported); expect(saved.issues).toEqual([]);
+  expect(saved.document.days.find(day => day.date === tomorrow)?.items).toEqual([expect.objectContaining({ text: 'Trip', span: { kind: 'all-day', through: newEnd } })]);
 });
 
 test('moving all recurring items shifts skips and moved exceptions with the rule', async ({ page }) => {
@@ -908,20 +917,21 @@ test('moving all recurring items shifts skips and moved exceptions with the rule
   const newOverrideDay = dateOffset(3);
   const oldSkip = dateOffset(4);
   const newSkip = dateOffset(5);
-  const source = `${today}\n\nStandup\n  @repeat: daily; series standup\n  @skip: ${oldSkip}\n\n${oldOverrideDay}\n\nRescheduled standup\n  @replaces: standup on ${next}\n`;
+  const source = plannerFixture(`${today}\n\nStandup\n  @repeat: daily; series standup\n  @skip: ${oldSkip}\n\n${oldOverrideDay}\n\nRescheduled standup\n  @replaces: standup on ${next}\n`);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(source) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(source)) });
   await page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('button', { name: 'More actions for Standup' }).click();
   await page.getByRole('button', { name: 'Move Standup' }).click();
   await page.locator(`.rdp-day[data-day="${next}"] button`).click();
   await page.getByRole('button', { name: 'Move here' }).click();
   await page.getByRole('dialog', { name: 'Choose recurring edit scope' }).getByRole('button', { name: 'All items' }).click();
   const promise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const output = await readFile(await (await promise).path(), 'utf8');
-  expect(output).toContain(`${next}\n\nStandup\n  @repeat: daily; series standup\n  @skip: ${newSkip}`);
-  expect(output).toContain(`${newOverrideDay}\n\nRescheduled standup\n  @replaces: standup on ${oldOverrideDay}`);
+  const saved = parseJournal(output); expect(saved.issues).toEqual([]);
+  expect(saved.document.days.find(day => day.date === next)?.items).toEqual([expect.objectContaining({ text: 'Standup', skips: [newSkip], repeat: expect.objectContaining({ series: 'standup' }) })]);
+  expect(saved.document.days.find(day => day.date === newOverrideDay)?.items).toEqual([expect.objectContaining({ text: 'Rescheduled standup', replaces: { series: 'standup', on: oldOverrideDay } })]);
 });
 
 test('custom yearly recurrence controls stay reachable on a phone', async ({ page }) => {
@@ -958,7 +968,7 @@ test('custom yearly recurrence controls stay reachable on a phone', async ({ pag
 test('animates detail progress wedges in both directions, including when the item moves through Done', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nProgress task\n- [ ] first step\n- [ ] second step\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nProgress task\n- [ ] first step\n- [ ] second step\n`)) });
   const parent = page.getByRole('group', { name: 'Progress task' });
   const circle = () => parent.getByRole('button', { name: /^(Complete|Reopen) Progress task$/ }).locator('span');
   const fill = () => circle().evaluate(element => parseFloat(getComputedStyle(element).getPropertyValue('--circle-progress')));
@@ -990,7 +1000,7 @@ test('animates detail progress wedges in both directions, including when the ite
   await expect(circle()).toHaveCSS('--circle-progress', '0%');
 });
 
-test('formats date headings independently of TODO.txt and focuses app search with Ctrl/Cmd+F', async ({ page }) => {
+test('formats date headings independently of Planner.md and focuses app search with Ctrl/Cmd+F', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Find this task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
@@ -1013,15 +1023,16 @@ test('formats date headings independently of TODO.txt and focuses app search wit
   await page.reload();
   await expect(page.locator(`time[datetime="${today}"]`)).toHaveText(today);
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
-  expect(await readFile(await (await downloadPromise).path(), 'utf8')).toContain(`${today}\n\nFind this task\n`);
+  const saved = parseJournal(await readFile(await (await downloadPromise).path(), 'utf8')); expect(saved.issues).toEqual([]);
+  expect(saved.document.days.find(day => day.date === today)?.items).toEqual([expect.objectContaining({ text: 'Find this task' })]);
 });
 
 test('hides completed work by default and toggles search without browser find', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nFinished task\n- [x] finished detail\n- [ ] other detail\n\nOpen task\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nFinished task\n- [x] finished detail\n- [ ] other detail\n\nOpen task\n`)) });
   await page.getByRole('button', { name: 'Complete Finished task' }).click();
   await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('group', { name: 'Finished task' })).toHaveCount(0);
@@ -1129,10 +1140,10 @@ test('keeps commands discoverable and persists expanded appearance choices', asy
   await expect(dialog.getByRole('button', { name: 'Light mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.getByRole('button', { name: 'Dark mode' }).locator('svg')).toBeVisible();
   await expect(dialog.getByLabel('Font', { exact: true })).toHaveCount(0);
-  await expect(dialog.getByLabel('TODO.txt font')).toHaveCount(0);
+  await expect(dialog.getByLabel('Planner.md font')).toHaveCount(0);
   await expect(dialog.getByLabel('Date headings').locator('option')).toHaveCount(20);
   await expect(dialog.getByText('The journal stays in this browser')).toHaveCount(0);
-  await expect(dialog.getByText('TODO.txt always keeps')).toHaveCount(0);
+  await expect(dialog.getByText('Planner.md always keeps')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Dark mode' }).click();
   await dialog.getByLabel('Date headings').selectOption('iso-dots');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
@@ -1231,7 +1242,7 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   expect(await viewport.evaluate(element => element.scrollHeight > element.clientHeight && getComputedStyle(element).overflowY === 'auto')).toBe(true);
 
   const raw = `${older}\n\nOlder unfinished\n\n${yesterday}\n\nRecent unfinished\n\n${today}\n\nToday item\n`;
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(raw) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
   await page.getByRole('button', { name: 'Choose date' }).click();
   await selectJournalCalendarDate(page, yesterday);
   await selectJournalCalendarDate(page, tomorrow);
@@ -1274,7 +1285,7 @@ test('new item typing matches the saved item text size', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'Edit Undated size check' })).toHaveCSS('font-size', undatedSize);
 });
 
-test('holiday view stays out of TODO.txt, saved holidays round-trip, and week start updates the calendar', async ({ page }) => {
+test('holiday view stays out of Planner.md, saved holidays round-trip, and week start updates the calendar', async ({ page }) => {
   const today = dateOffset(0);
   await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
   await page.goto('/');
@@ -1295,18 +1306,18 @@ test('holiday view stays out of TODO.txt, saved holidays round-trip, and week st
   await page.getByRole('button', { name: 'Choose date' }).click();
   await expect(page.getByLabel('Choose journal date').locator('.rdp-weekday').first()).toContainText('Su');
   await page.getByRole('button', { name: 'Choose date' }).click();
-  await runCommand(page, 'Download TODO.txt');
-  await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).not.toContainText('Test Holiday');
-  await page.getByRole('dialog', { name: 'Download TODO.txt' }).press('Escape');
+  await runCommand(page, 'Download Planner.md');
+  await expect(page.getByRole('dialog', { name: 'Download Planner.md' })).not.toContainText('Test Holiday');
+  await page.getByRole('dialog', { name: 'Download Planner.md' }).press('Escape');
   await runCommand(page, 'Hot Cross Buns settings');
   await settings.getByLabel('How to use holidays').selectOption('saved');
   await expect(settings.getByRole('status').filter({ hasText: '1 holiday added' })).toContainText('1 holiday added');
   await settings.getByLabel('Use public holidays').uncheck();
   await settings.getByRole('button', { name: 'close' }).click();
   await expect(page.getByText('Test Holiday')).toBeVisible();
-  await runCommand(page, 'Download TODO.txt');
-  await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('Test Holiday');
-  await expect(page.getByRole('dialog', { name: 'Download TODO.txt' })).toContainText('@span: all-day');
+  await runCommand(page, 'Download Planner.md');
+  await expect(page.getByRole('dialog', { name: 'Download Planner.md' })).toContainText('Test Holiday');
+  await expect(page.getByRole('dialog', { name: 'Download Planner.md' })).toContainText('span: all-day');
   await page.reload();
   await expect(page.getByText('Test Holiday')).toBeVisible();
   await runCommand(page, 'Hot Cross Buns settings');
@@ -1396,7 +1407,7 @@ test('marks unfinished calendar days and keeps existing item editing visually qu
 test('reveals item actions on hover and reorders details within their item', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nParent task\n- first detail\n- second detail\n\nOther task\n- other detail\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nParent task\n- first detail\n- second detail\n\nOther task\n- other detail\n`)) });
   const parent = page.getByRole('group', { name: 'Parent task' });
   const grip = parent.getByRole('button', { name: 'Drag to reorder Parent task' });
   const check = parent.getByRole('button', { name: 'Complete Parent task' });
@@ -1420,12 +1431,12 @@ test('reveals item actions on hover and reorders details within their item', asy
   const detailOrder = () => parent.getByRole('textbox', { name: /^Edit detail / }).evaluateAll(elements => elements.map(element => (element as HTMLTextAreaElement).value));
   await expect.poll(detailOrder).toEqual(['second detail', 'first detail']);
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
-  await expect(page.getByRole('status').getByText('TODO.txt downloaded.')).toBeVisible({ timeout: 3000 });
+  await expect(page.getByRole('status').getByText('Planner.md downloaded.')).toBeVisible({ timeout: 3000 });
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
-  expect(exported).toContain('Parent task\n- [ ] second detail\n- [ ] first detail');
-  expect(exported).toContain('Other task\n- [ ] other detail');
+  const saved = parseJournal(exported); expect(saved.issues).toEqual([]);
+  expect(saved.document.days.find(day => day.date === today)?.items).toEqual(expect.arrayContaining([expect.objectContaining({ text: 'Parent task', details: ['second detail','first detail'].map(text => expect.objectContaining({ text, completed: false })) }), expect.objectContaining({ text: 'Other task', details: [expect.objectContaining({ text: 'other detail', completed: false })] })]));
   await page.reload();
   await expect.poll(detailOrder).toEqual(['second detail', 'first detail']);
 });
@@ -1433,7 +1444,7 @@ test('reveals item actions on hover and reorders details within their item', asy
 test('creates siblings with Enter and promotes or demotes through row menus', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nParent\n- first\n- [x] second\n\nFollowing\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nParent\n- first\n- [x] second\n\nFollowing\n`)) });
   const parent = page.getByRole('group', { name: 'Parent' });
   await expect(parent.getByRole('button', { name: 'Collapse details for Parent' })).toContainText('1/2');
   const chevron = parent.getByRole('button', { name: 'Collapse details for Parent' }).locator('svg');
@@ -1471,10 +1482,10 @@ test('creates siblings with Enter and promotes or demotes through row menus', as
   await expect(page.getByRole('textbox', { name: 'Edit detail between' })).toBeVisible();
 });
 
-test('make detail can choose a later item on the same date and preserves the choice in TODO.txt', async ({ page }) => {
+test('make detail can choose a later item on the same date and preserves the choice in Planner.md', async ({ page }) => {
   const today = dateOffset(0);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\nFirst\nSecond\nThird\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nFirst\nSecond\nThird\n`)) });
   await page.getByRole('button', { name: 'More actions for First' }).click();
   await page.getByRole('button', { name: 'Make First a detail' }).click();
   await expect(page.getByRole('button', { name: 'Make First a detail of First' })).toHaveCount(0);
@@ -1483,10 +1494,11 @@ test('make detail can choose a later item on the same date and preserves the cho
   await expect(page.getByRole('group', { name: 'First' })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Third' }).getByRole('textbox', { name: 'Edit detail First' })).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await runCommand(page, 'Download TODO.txt');
+  await runCommand(page, 'Download Planner.md');
   await confirmTodoDownload(page);
   const exported = await readFile(await (await downloadPromise).path(), 'utf8');
-  expect(exported).toContain('Third\n- [ ] First');
+  const saved = parseJournal(exported); expect(saved.issues).toEqual([]);
+  expect(saved.document.days.flatMap(day => day.items).find(item => item.text === 'Third')?.details).toEqual([expect.objectContaining({ text: 'First', completed: false })]);
   await page.reload();
   await expect(page.getByRole('group', { name: 'Third' }).getByRole('textbox', { name: 'Edit detail First' })).toBeVisible();
 });
@@ -1588,7 +1600,7 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   const today = dateOffset(0);
   const lines = Array.from({ length: 1200 }, (_, index) => `Task ${String(index).padStart(4, '0')} ${index === 1199 ? 'unique-needle' : 'ordinary'}`);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(`${today}\n\n${lines.join('\n\n')}\n`) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\n${lines.join('\n\n')}\n`)) });
   await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible({ timeout: 20000 });
   const unfilteredEditStart = Date.now();
   await page.getByRole('button', { name: `Complete ${lines[1199]}` }).click();
@@ -1616,38 +1628,38 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   expect(editMs).toBeLessThan(5000);
 });
 
-test('TODO.txt preview shows the complete portable file before download', async ({ page }) => {
+test('Planner.md preview shows the complete portable file before download', async ({ page }) => {
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
-  const initial = `${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline\n\n${tomorrow}\n\nFollow up\n`;
+  const initial = plannerFixture(`${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline\n\n${tomorrow}\n\nFollow up\n`);
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(initial) });
-  await expect(page.getByRole('button', { name: 'Show raw TODO.txt' })).toHaveCount(0);
-  await runCommand(page, 'Download TODO.txt');
-  const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
-  const preview = dialog.getByLabel('TODO.txt preview');
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
+  await expect(page.getByRole('button', { name: 'Show raw Planner.md' })).toHaveCount(0);
+  await runCommand(page, 'Download Planner.md');
+  const dialog = page.getByRole('dialog', { name: 'Download Planner.md' });
+  const preview = dialog.getByLabel('Planner.md preview');
   await expect(preview).toContainText('09:00-09:30 Plan #work');
-  await expect(preview).toContainText('  @repeat: weekly on mon');
+  await expect(preview).toContainText('  repeat: weekly on mon');
   await expect(preview).toContainText('- [ ] Outline');
   await expect(preview).toContainText(tomorrow);
-  await expect(dialog.getByLabel('File name')).toHaveValue('TODO.txt');
+  await expect(dialog.getByLabel('File name')).toHaveValue('Planner.md');
   await expect(dialog.getByLabel('Line endings')).toHaveValue('lf');
   const previewText = await preview.textContent();
   const downloadPromise = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'download' }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('TODO.txt');
+  expect(download.suggestedFilename()).toBe('Planner.md');
   expect(await readFile(await download.path(), 'utf8')).toBe(previewText);
   await expect(page.getByRole('group', { name: '09:00-09:30 Plan #work' })).toBeVisible();
 });
 
-test('preview options preserve TODO.txt meaning and reset after closing', async ({ page }) => {
+test('preview options preserve Planner.md meaning and reset after closing', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
-  await runCommand(page, 'Download TODO.txt');
-  const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
-  const preview = dialog.getByLabel('TODO.txt preview');
+  await runCommand(page, 'Download Planner.md');
+  const dialog = page.getByRole('dialog', { name: 'Download Planner.md' });
+  const preview = dialog.getByLabel('Planner.md preview');
   const canonical = await preview.textContent();
   await dialog.getByLabel('File name').fill('My tasks');
   await dialog.getByLabel('Line endings').selectOption('crlf');
@@ -1656,12 +1668,12 @@ test('preview options preserve TODO.txt meaning and reset after closing', async 
   const downloadPromise = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'download' }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('My tasks.txt');
+  expect(download.suggestedFilename()).toBe('My tasks.md');
   const text = await readFile(await download.path(), 'utf8');
   expect(text).toContain('\r\n');
   expect(text.replace(/\r\n/g, '\n')).toBe(canonical);
-  await runCommand(page, 'Download TODO.txt');
-  await expect(dialog.getByLabel('File name')).toHaveValue('TODO.txt');
+  await runCommand(page, 'Download Planner.md');
+  await expect(dialog.getByLabel('File name')).toHaveValue('Planner.md');
   await expect(dialog.getByLabel('Line endings')).toHaveValue('lf');
   await expect(dialog.getByRole('checkbox', { name: 'Wrap long lines in preview' })).toBeChecked();
   await dialog.getByRole('button', { name: 'cancel' }).click();
@@ -1669,15 +1681,15 @@ test('preview options preserve TODO.txt meaning and reset after closing', async 
   await expect(page.getByRole('group', { name: 'Keep this task' })).toBeVisible();
 });
 
-test('a large TODO.txt preview remains usable on a phone', async ({ page }) => {
+test('a large Planner.md preview remains usable on a phone', async ({ page }) => {
   const today = dateOffset(0);
-  const text = `${today}\n\n${Array.from({ length: 1200 }, (_, index) => `Task ${index}`).join('\n')}\n`;
+  const text = plannerFixture(`${today}\n\n${Array.from({ length: 1200 }, (_, index) => `Task ${index}`).join('\n')}\n`);
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
-  await runCommand(page, 'Download TODO.txt');
-  const dialog = page.getByRole('dialog', { name: 'Download TODO.txt' });
-  await expect(dialog.getByLabel('TODO.txt preview')).toContainText('Task 1199');
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(text)) });
+  await runCommand(page, 'Download Planner.md');
+  const dialog = page.getByRole('dialog', { name: 'Download Planner.md' });
+  await expect(dialog.getByLabel('Planner.md preview')).toContainText('Task 1199');
   const box = await dialog.boundingBox();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(375);
@@ -1686,10 +1698,10 @@ test('a large TODO.txt preview remains usable on a phone', async ({ page }) => {
 });
 
 test('an unfinished draft from the removed editor can still be downloaded', async ({ page }) => {
-  const draft = '2026-02-30\nUnfinished edit\n';
+  const draft = plannerFixture('2026-02-30\nUnfinished edit\n');
   await page.addInitScript(value => sessionStorage.setItem('hot-cross-buns-raw-draft-v1', value), draft);
   await page.goto('/');
-  await expect(page.getByText('An unfinished TODO.txt draft from the old editor is available.')).toBeVisible();
+  await expect(page.getByText('An unfinished TXT draft from the old editor is available.')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'download draft' }).click();
   const download = await downloadPromise;

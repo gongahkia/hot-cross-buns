@@ -1,10 +1,11 @@
+import { plannerFixture } from './planner-fixture';
 import { expect, test } from '@playwright/test';
 
 test('late exit cleanup cannot remove a newer deletion confirmation', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain',
-    buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\nBeta\n'),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain',
+    buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\nBeta\n')),
   });
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   const ideas = page.getByRole('region', { name: 'Ideas', exact: true });

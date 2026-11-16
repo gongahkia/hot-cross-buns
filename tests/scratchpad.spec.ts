@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
 import { expect, test } from '@playwright/test';
 
@@ -59,8 +60,8 @@ test('moves selected plain text into a dated item and undo restores both sides',
   await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Meeting idea' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Edit detail Ask Pat' })).toBeVisible();
-  await runCommand(page, 'Download TODO.txt');
-  await expect(page.getByLabel('TODO.txt preview')).not.toContainText('Keep this');
+  await runCommand(page, 'Download Planner.md');
+  await expect(page.getByLabel('Planner.md preview')).toContainText('## Scratchpad\nKeep this');
   await page.getByRole('button', { name: 'cancel' }).click();
   await page.getByRole('button', { name: 'Undo scratchpad conversion' }).click();
   await expect(page.getByRole('group', { name: 'Meeting idea' })).toHaveCount(0);
@@ -129,7 +130,7 @@ test('scratchpad popout takes over editing and updates the main view', async ({ 
   await popup.close();
 });
 
-test('scratchpad survives reload and stays out of TODO.txt import and export', async ({ page }) => {
+test('scratchpad survives reload, is exported with Markdown and is retained when browser content wins review', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
@@ -141,8 +142,8 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
       request.onerror = () => reject(request.error);
     });
     const value = await new Promise<{ text: string }>(resolve => {
-      const request = db.transaction('scratchpad', 'readonly').objectStore('scratchpad').get('current');
-      request.onsuccess = () => resolve(request.result);
+      const request = db.transaction('state', 'readonly').objectStore('state').get('current');
+      request.onsuccess = () => resolve({ text: request.result?.document?.scratchpad ?? '' });
     });
     db.close();
     return value?.text;
@@ -154,12 +155,12 @@ test('scratchpad survives reload and stays out of TODO.txt import and export', a
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Portable journal line');
   await add.press('Enter');
-  await runCommand(page, 'Download TODO.txt');
-  await expect(page.getByLabel('TODO.txt preview')).not.toContainText('Private capture');
+  await runCommand(page, 'Download Planner.md');
+  await expect(page.getByLabel('Planner.md preview')).toContainText('Private capture');
   await page.getByRole('button', { name: 'cancel' }).click();
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2020-01-01\n\nImported item\n') });
-  const review = page.getByRole('dialog', { name: 'Review TODO.txt import' });
-  await review.getByRole('radio', { name: 'keep Hot Cross Buns' }).check();
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2020-01-01\n\nImported item\n')) });
+  const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
+  await review.getByRole('radio', { name: 'keep browser version' }).check();
   await review.getByRole('button', { name: 'apply import' }).click();
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toHaveValue('Private capture that has not moved');
@@ -177,15 +178,15 @@ test('one-title mapping joins selected lines into one portable item', async ({ p
   await page.getByRole('dialog', { name: 'Move text to an undated list' }).getByRole('button', { name: 'Create item' }).click();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Edit First line Second line' })).toBeVisible();
-  await runCommand(page, 'Download TODO.txt');
-  await expect(page.getByLabel('TODO.txt preview')).toContainText('First line Second line');
+  await runCommand(page, 'Download Planner.md');
+  await expect(page.getByLabel('Planner.md preview')).toContainText('First line Second line');
 });
 
 test('undated popout shows only chosen lists and edits synchronize', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({
-    name: 'TODO.txt', mimeType: 'text/plain',
-    buffer: Buffer.from('UNDATED\n\nLIST: Ideas\nIdea one\n\nLIST: Inbox\nInbox one\n'),
+  await page.getByLabel('Import a Planner.md file').setInputFiles({
+    name: 'Planner.md', mimeType: 'text/plain',
+    buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nIdea one\n\nLIST: Inbox\nInbox one\n')),
   });
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await runCommand(page, 'Open view in browser window');

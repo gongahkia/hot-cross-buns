@@ -1,3 +1,4 @@
+import { plannerFixture } from './planner-fixture';
 import { runCommand } from './commands';
 import { expect, test } from '@playwright/test';
 
@@ -46,8 +47,8 @@ test('caret motion reaches scratchpad and dynamically opened import editors', as
   await expect(scratchpad).toHaveCSS('animation-name', 'hcb-caret-pulse');
   await expect(scratchpad).toHaveValue('First line\nSecond line');
   await page.getByRole('button', { name: 'Dated', exact: true }).click();
-  await page.getByLabel('Import a TODO.txt file').setInputFiles({ name: 'TODO.txt', mimeType: 'text/plain', buffer: Buffer.from('2026-11-16\nMissing divider\n') });
-  const doctor = page.getByRole('textbox', { name: 'Edit imported TODO.txt', exact: true });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-11-16\nReview this source\n').replace('hcb-format: 1','hcb-format: 999')) });
+  const doctor = page.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true });
   await doctor.focus();
   await expect(doctor).toHaveAttribute('data-caret-typing', 'true');
   await expect(doctor).toHaveCSS('border-top-width', '0px');

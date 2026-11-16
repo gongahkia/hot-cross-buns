@@ -10,7 +10,7 @@ export async function holdSyncDelivery(page: Page) {
 export async function syncState(page: Page, key: string): Promise<any> {
   return page.evaluate(key => new Promise((resolve, reject) => {
     const open = indexedDB.open('hot-cross-buns-v1');
-    open.onsuccess = () => { const db = open.result, read = db.transaction('state').objectStore('state').get(key); read.onsuccess = () => { db.close(); resolve(read.result ?? null); }; read.onerror = () => { db.close(); reject(read.error); }; };
+    open.onsuccess = () => { const db = open.result, read = db.transaction('state').objectStore('state').get(key); read.onsuccess = () => { db.close(); const value = read.result; resolve(value?.handle ? { ...value, handle: { name: value.handle.name, kind: value.handle.kind } } : value ?? null); }; read.onerror = () => { db.close(); reject(read.error); }; };
     open.onerror = () => reject(open.error);
   }), key);
 }
