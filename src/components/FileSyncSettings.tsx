@@ -10,7 +10,7 @@ const Actions = styled.div`display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;b
 const providers = [
   { name: 'Syncthing', site: 'https://syncthing.net/', icon: 'syncthing.svg', button: 'Link sync folder',
     description: 'Carry your journal directly between devices with Syncthing, a free, open source sync tool.',
-    setup: ['Install Syncthing on each device and pair them using their device IDs in Syncthing.', 'Share a dedicated journal folder with every editing device. Include TODO.txt and the hidden .hot-cross-buns directory.', 'Choose that local folder below. Let Syncthing finish transferring the complete folder before switching devices.'],
+    setup: ['Install Syncthing on each device and pair them using their device IDs in Syncthing.', 'Share a dedicated journal folder with every editing device. Include Planner.md and the hidden .hot-cross-buns directory.', 'Choose that local folder below. Let Syncthing finish transferring the complete folder before switching devices.'],
     guide: 'https://github.com/gongahkia/hot-cross-buns/blob/main/docs/FILE_SYNC.md' },
   { name: 'Nextcloud', site: 'https://nextcloud.com/home-users/', icon: 'nextcloud.svg', button: 'Link Nextcloud folder',
     description: 'Keep your journal in a Nextcloud desktop folder backed by your own server or a hosting provider.',
@@ -30,7 +30,7 @@ export function fileSyncMessage(status: SyncStatus): string {
   if (status.kind === 'error') return `File saving is paused. Your journal is still available in this browser. ${status.detail}`;
   if (status.kind === 'saving') return `Saving ${status.name}… Keep this tab visible until the file is up to date.`;
   if (status.kind === 'saved') return `${status.name} is up to date in this folder. ${status.lastSavedAt ? `Last written at ${new Date(status.lastSavedAt).toLocaleTimeString()} (local folder).` : 'The file matches the browser journal.'}`;
-  return 'Link the journal folder to save TODO.txt and its revision history.';
+  return 'Link the journal folder to save Planner.md and its revision history.';
 }
 export function FileSyncSettings({ status, error, busy, onLink, onReview, onResume, onUnlink, onFolder, protectedHistory, historyStats, onEnableHistory, conflictCopies = [], onImportConflict }: {
   status: SyncStatus; error: string; busy: boolean; onLink: (create: boolean) => void; onReview: () => void; onResume: () => void; onUnlink: () => void;
@@ -39,11 +39,11 @@ export function FileSyncSettings({ status, error, busy, onLink, onReview, onResu
 }) {
   const foldersSupported = supportsSyncFolders(), linked = status.kind !== 'unlinked';
   return <Section aria-label="File sync"><h3>Local sync folders</h3>
-    <p>Choose one folder for this journal. Hot Cross Buns writes TODO.txt and its revision history while this tab is open and visible.</p>
+    <p>Choose one folder for this journal. Hot Cross Buns writes Planner.md and its revision history while this tab is open and visible.</p>
     {error && <p role="alert">{error}</p>}
     {supportsLinkedFiles() ? <>
       <p role="status">{fileSyncMessage(status)}</p>
-      <p>Sync TODO.txt and its .hot-cross-buns folder together. Unlink the current journal before choosing another folder or Google Drive.</p>
+      <p>Sync Planner.md and its .hot-cross-buns folder together. Unlink the current journal before choosing another folder or Google Drive.</p>
       {status.kind !== 'unlinked' && <RevisionHistoryInfo enabled={protectedHistory} stats={historyStats}/>}
       {!!conflictCopies.length && <section aria-label="Sync folder conflict copies"><p>{conflictCopies.length} {conflictCopies.length === 1 ? 'provider conflict copy is' : 'provider conflict copies are'} present in this folder. Keep these files and import any changes you need; they are never merged or deleted automatically.</p><ul>{conflictCopies.slice(0, 5).map(name => <li key={name}>{name}</li>)}</ul>{conflictCopies.length > 5 && <p>And {conflictCopies.length - 5} more.</p>}{onImportConflict && <Button disabled={busy} onClick={onImportConflict}>Import a conflict copy</Button>}</section>}
       {linked && <Actions>
@@ -53,13 +53,13 @@ export function FileSyncSettings({ status, error, busy, onLink, onReview, onResu
         <Button disabled={busy} onClick={onUnlink}>Unlink file</Button>
       </Actions>}
       <p>A local save does not confirm cloud upload or delivery to another device. Check your sync client before switching devices. Scratchpad and appearance settings stay in this browser. Unlinking keeps both copies.</p>
-    </> : <p>This browser cannot link local files. Use Commands → Import TODO.txt and Download TODO.txt with your synced folder.</p>}
+    </> : <p>This browser cannot link local files. Use Commands → Import Planner.md and Download Planner.md with your synced folder.</p>}
     {providers.map(provider => <Provider key={provider.name} aria-label={provider.name}>
       <h4 aria-label={provider.name}><a href={provider.site} target="_blank" rel="noreferrer" aria-label={`${provider.name} website`}><img src={`/providers/${provider.icon}`} alt={provider.name}/></a>{provider.name}</h4>
       <p>{provider.description}</p>
       <details><summary>{provider.name} setup</summary><ol>{provider.setup.map(step => <li key={step}>{step}</li>)}</ol><p><a href={provider.guide} target="_blank" rel="noreferrer">{provider.name} setup and recovery guide</a></p></details>
       {foldersSupported ? <Actions><Button type="button" disabled={busy || linked} onClick={onFolder}>{provider.button}</Button></Actions> : <p>Folder linking is unavailable in this browser. Use import and download with your synced folder.</p>}
     </Provider>)}
-    {supportsLinkedFiles() && !linked && <Provider aria-label="Individual-file options"><h4>Individual-file options</h4><p>Single-file mode saves TODO.txt without shared revision history. Link a provider folder above to retain concurrent app-authored versions.</p><Actions><Button disabled={busy} onClick={() => onLink(false)}>Link existing TODO.txt</Button><Button disabled={busy} onClick={() => onLink(true)}>Create linked TODO.txt</Button></Actions></Provider>}
+    {supportsLinkedFiles() && !linked && <Provider aria-label="Individual-file options"><h4>Individual-file options</h4><p>Single-file mode saves Planner.md without shared revision history. Link a provider folder above to retain concurrent app-authored versions.</p><Actions><Button disabled={busy} onClick={() => onLink(false)}>Link existing Planner.md</Button><Button disabled={busy} onClick={() => onLink(true)}>Create linked Planner.md</Button></Actions></Provider>}
   </Section>;
 }

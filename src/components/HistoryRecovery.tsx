@@ -63,10 +63,10 @@ export function HistoryRecovery({ open, currentText, onClose, onSettings, onLoad
         <Comparison><section><h3>Current journal</h3><pre aria-label="Current journal comparison">{preview.before.text || '(empty)'}</pre></section><section><h3>Selected version</h3><pre aria-label="Selected version comparison">{preview.after.text || '(empty)'}</pre></section></Comparison>
         {(preview.before.truncated || preview.after.truncated) && <Note>Preview shortened. Download the version for its complete text.</Note>}
       </>}
-      {confirm && <div role="group" aria-label="Confirm restoration"><Note>Replace the entire journal with this version? Your current version stays in history. Scratchpad and preferences are kept. File saving follows after this view closes.</Note><Actions><Button disabled={busy} onClick={() => setConfirm(false)}>Cancel restoration</Button><Button $primary disabled={!!blocked} onClick={() => void action(true)}>Restore as new version</Button></Actions></div>}
+      {confirm && <div role="group" aria-label="Confirm restoration"><Note>Replace the entire journal with this version? Your current version stays in history. This also restores scratchpad content. Appearance and account preferences are kept. File saving follows after this view closes.</Note><Actions><Button disabled={busy} onClick={() => setConfirm(false)}>Cancel restoration</Button><Button $primary disabled={!!blocked} onClick={() => void action(true)}>Restore as new version</Button></Actions></div>}
     </>}
     <Actions>
-      {row && <Button disabled={busy} onClick={() => downloadTextFile(row.record.text, `TODO-version-${row.record.id.slice(0, 8)}.txt`)}>Download version</Button>}
+      {row && <Button disabled={busy} onClick={() => downloadTextFile(row.record.text, `Planner-version-${row.record.id.slice(0, 8)}.md`)}>Download version</Button>}
       {row?.status === 'Needs review' && <Button disabled={busy || stale || snapshot?.pending} onClick={() => void action(false)}>Review this branch</Button>}
       {row && !confirm && <Button disabled={!!blocked || preview?.same} onClick={() => setConfirm(true)}>Restore version</Button>}
       <Button disabled={busy} onClick={() => void refresh()}>Refresh history</Button>

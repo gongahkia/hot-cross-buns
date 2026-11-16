@@ -32,11 +32,11 @@ export async function pickSyncFolder(): Promise<LinkedDirectoryHandle> {
   if (await directory.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow access to the journal folder and its history files.');
   return directory;
 }
-const pickerTypes = [{ description: 'Hot Cross Buns journal', accept: { 'text/plain': ['.txt'] } }];
+const pickerTypes = [{ description: 'Hot Cross Buns journal', accept: { 'text/markdown': ['.md', '.markdown'] } }];
 
 export async function pickLinkedFile(create: boolean): Promise<LinkedFileHandle> {
   const handle = create
-    ? await pickers().showSaveFilePicker!({ suggestedName: 'TODO.txt', types: pickerTypes })
+    ? await pickers().showSaveFilePicker!({ suggestedName: 'Planner.md', types: pickerTypes })
     : (await pickers().showOpenFilePicker!({ multiple: false, types: pickerTypes }))[0];
   if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Allow read and write access to link this file.');
   return handle;
@@ -44,7 +44,7 @@ export async function pickLinkedFile(create: boolean): Promise<LinkedFileHandle>
 export async function readLinkedText(handle: LinkedFileHandle): Promise<string> {
   const file = await handle.getFile();
   assertImportSize(file.size);
-  const text = await file.text();
+  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await file.arrayBuffer());
   assertImportText(text);
   return text;
 }

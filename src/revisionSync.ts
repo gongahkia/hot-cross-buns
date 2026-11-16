@@ -1,6 +1,7 @@
+import { serializeJournal } from './journalDocument.ts';
 import { assertHistorySpace, createRevision, MissingHistoryError, revisionGraph, type RevisionState } from './revisionProtocol.ts';
 import { reconcileJournal, retryDelay, type JournalSyncOptions, type SyncBundle, type SyncLink, type SyncStatus } from './journalSync.ts';
-import { serializeTodoText } from './todoText.ts';
+
 
 /** Immutable publication precedes projection writes; concurrent heads require explicit review. */
 export async function synchronizeRevisions<L extends SyncLink, S extends { text: string }>(options: JournalSyncOptions<L, S>): Promise<SyncBundle<L> | null> {
@@ -43,14 +44,14 @@ export async function synchronizeRevisions<L extends SyncLink, S extends { text:
     if (!bundle.ledger.revisions) bundle = await change(current => ({ ...current, ledger: { ...current.ledger, revisions: { frontier: [], seenHeads: [], recordedText: null } } }));
     if (!bundle) return null;
     if (bundle.ledger.revisions!.pending) { bundle = await publish(bundle); if (!bundle) return null; }
-    let revisions = bundle.ledger.revisions!, text = serializeTodoText(bundle.document);
+    let revisions = bundle.ledger.revisions!, text = serializeJournal(bundle.document);
     // freeze our own intent before discovery; a newly discovered branch must not become its parent.
     if (text !== revisions.recordedText || revisions.frontier.length > 1) {
       const record = await createRevision(transport.journal, await transport.device(), revisions.frontier, text);
       assertHistorySpace(revisions.stats, record);
       const transportId = await transport.reserve?.();
       bundle = await change(current => {
-        if (!canSave() || serializeTodoText(current.document) !== text || current.ledger.revisions!.pending) return state(current, 'saving');
+        if (!canSave() || serializeJournal(current.document) !== text || current.ledger.revisions!.pending) return state(current, 'saving');
         return { ...state(current, 'saving'), ledger: { ...state(current, 'saving').ledger, revisions: { ...current.ledger.revisions!, pending: { record, transportId } } } };
       });
       if (!bundle) return null;
@@ -59,11 +60,11 @@ export async function synchronizeRevisions<L extends SyncLink, S extends { text:
     revisions = bundle.ledger.revisions!;
     const listed = await transport.list();
     const graph = await revisionGraph(listed, transport.journal);
-    for (const id of [...revisions.frontier, ...revisions.seenHeads]) if (!graph.byId.has(id)) throw new MissingHistoryError('Previously observed sync history is missing. Waiting for a complete listing; the journal and TODO.txt are unchanged.');
+    for (const id of [...revisions.frontier, ...revisions.seenHeads]) if (!graph.byId.has(id)) throw new MissingHistoryError('Previously observed sync history is missing. Waiting for a complete listing; the journal and Planner.md are unchanged.');
     bundle = await change(current => ({ ...current, ledger: { ...current.ledger, revisions: { ...current.ledger.revisions!, seenHeads: graph.heads, stats: graph.stats } } }));
     if (!bundle) return null;
     revisions = bundle.ledger.revisions!;
-    if (!canSave() || serializeTodoText(bundle.document) !== revisions.recordedText) return await change(current => state(current, 'saving'));
+    if (!canSave() || serializeJournal(bundle.document) !== revisions.recordedText) return await change(current => state(current, 'saving'));
     const known = new Set(revisions.frontier.flatMap(id => [...graph.ancestors.get(id)!]));
     const incoming = graph.heads.find(id => !known.has(id));
     if (incoming) {
@@ -72,16 +73,16 @@ export async function synchronizeRevisions<L extends SyncLink, S extends { text:
       const merged = linear ? reconcileJournal(bundle.document, record.text, bundle.document, options.today()) : null;
       let valid = !!merged; try { if (merged) options.validate?.(merged.document); } catch { valid = false; }
       if (!merged || !valid) return await change(current => ({ ...state(current, 'changed', 'A concurrent or external journal revision needs review.'), link: { ...current.link, needsReview: true }, ledger: { ...state(current, 'changed').ledger,
-        revisions: { ...current.ledger.revisions!, review: record }, recovery: { at: now(), local: serializeTodoText(current.document), remote: record.text } } }));
+        revisions: { ...current.ledger.revisions!, review: record }, recovery: { at: now(), local: serializeJournal(current.document), remote: record.text } } }));
       return await change((current, integrate) => {
         if (!integrate || !canSave()) return state(current, 'waiting', 'Finish editing to bring in journal revisions.');
-        if (serializeTodoText(current.document) !== revisions.recordedText) return state(current, 'saving');
-        return { ...state(current, 'saving'), document: merged.document, ledger: { ...state(current, 'saving').ledger, revisions: { ...current.ledger.revisions!, frontier: [incoming], recordedText: record.text, handledProjection: record.text }, recovery: { at: now(), local: serializeTodoText(current.document), remote: record.text } } };
+        if (serializeJournal(current.document) !== revisions.recordedText) return state(current, 'saving');
+        return { ...state(current, 'saving'), document: merged.document, ledger: { ...state(current, 'saving').ledger, revisions: { ...current.ledger.revisions!, frontier: [incoming], recordedText: record.text, handledProjection: record.text }, recovery: { at: now(), local: serializeJournal(current.document), remote: record.text } } };
       }, true);
     }
-    // TODO.txt is a projection. Capture newly observed editor text before replacing it.
+    // Planner.md is a projection. Capture newly observed editor text before replacing it.
     const snapshot = await adapter.read(bundle.link, true);
-    text = serializeTodoText(bundle.document);
+    text = serializeJournal(bundle.document);
     const expectedReceipt = bundle.ledger.checkpoint?.uncertain && snapshot.text === bundle.ledger.checkpoint.text;
     if (snapshot.text !== bundle.link.baselineText && snapshot.text !== text && !expectedReceipt && revisions.handledProjection !== snapshot.text) {
       // an old projection and an intentional editor rollback are indistinguishable; review either.
@@ -95,12 +96,12 @@ export async function synchronizeRevisions<L extends SyncLink, S extends { text:
       return await change(current => state(current, 'saving'));
     }
     if (snapshot.text === text) return await change(current => {
-      const matches = serializeTodoText(current.document) === snapshot.text;
+      const matches = serializeJournal(current.document) === snapshot.text;
       return { ...state(current, matches ? 'saved' : 'saving'), link: adapter.acknowledge(current.link, snapshot, bundle!.document, false, now()), ledger: { ...state(current, matches ? 'saved' : 'saving').ledger, checkpoint: undefined, failures: 0, retryAt: 0, revisions: { ...current.ledger.revisions!, projectedHeads: revisions.frontier, handledProjection: undefined } } };
     });
     const frozen = { id: crypto.randomUUID(), text, document: bundle.document, baselineText: snapshot.text, createdAt: now(), uncertain: true };
     bundle = await change(current => {
-      if (!canSave() || serializeTodoText(current.document) !== text) return state(current, 'saving');
+      if (!canSave() || serializeJournal(current.document) !== text) return state(current, 'saving');
       return { ...state(current, 'saving'), link: adapter.acknowledge(current.link, snapshot, current.link.baselineDocument, false, now()), ledger: { ...state(current, 'saving').ledger, checkpoint: frozen } };
     });
     if (!bundle || bundle.ledger.checkpoint?.id !== frozen.id || !canSave()) return bundle;
@@ -117,7 +118,7 @@ export async function synchronizeRevisions<L extends SyncLink, S extends { text:
     if (confirmed.text !== frozen.text) return await change(current => state(current, 'saving'));
     return await change(current => {
       const link = adapter.acknowledge(current.link, confirmed, frozen.document, result.kind === 'saved', now());
-      const matches = serializeTodoText(current.document) === frozen.text;
+      const matches = serializeJournal(current.document) === frozen.text;
       return { ...state({ ...current, link }, matches ? 'saved' : 'saving'), ledger: { ...state({ ...current, link }, matches ? 'saved' : 'saving').ledger, checkpoint: undefined, failures: 0, retryAt: 0, revisions: { ...current.ledger.revisions!, projectedHeads: revisions.frontier, handledProjection: undefined } } };
     });
   } catch (error) {

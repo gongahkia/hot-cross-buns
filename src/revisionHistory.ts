@@ -1,5 +1,6 @@
-import { doctorTodoText } from './todoDoctor.ts';
-import { parseTodoText, serializeTodoText, validateDocument, type TodoDocument } from './todoText.ts';
+import { parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
+import { doctorJournal } from './journalDoctor.ts';
+import { type TodoDocument } from './todoText.ts';
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider, type SyncStore } from './journalSync.ts';
 import { assertHistorySpace, createRevision, revisionGraph, type Revision, type RevisionTransport } from './revisionProtocol.ts';
 
@@ -12,8 +13,8 @@ export async function loadRevisionHistory<L extends SyncLink>(provider: SyncProv
   if (!latest || latest.link.id !== initial.link.id || latest.ledger.generation !== initial.ledger.generation) throw new Error('The sync target changed. Close history and open it again.');
   const revisions = latest.ledger.revisions;
   for (const id of [...(revisions?.frontier ?? []), ...(revisions?.seenHeads ?? [])]) if (!graph.byId.has(id)) throw new Error('History is incomplete or changed while loading. Let file transfer finish, then refresh.');
-  return { provider, linkId: latest.link.id, generation: latest.ledger.generation, revision: latest.revision, document: latest.document, documentText: serializeTodoText(latest.document), journal: transport.journal,
-    device: await transport.device(), records: [...graph.byId.values()], heads: graph.heads, frontier: revisions?.frontier ?? [], pending: !!revisions?.pending || !!latest.ledger.checkpoint || revisions?.recordedText !== serializeTodoText(latest.document), needsReview: latest.link.needsReview, stats: graph.stats };
+  return { provider, linkId: latest.link.id, generation: latest.ledger.generation, revision: latest.revision, document: latest.document, documentText: serializeJournal(latest.document), journal: transport.journal,
+    device: await transport.device(), records: [...graph.byId.values()], heads: graph.heads, frontier: revisions?.frontier ?? [], pending: !!revisions?.pending || !!latest.ledger.checkpoint || revisions?.recordedText !== serializeJournal(latest.document), needsReview: latest.link.needsReview, stats: graph.stats };
 }
 export function historyRows(snapshot: HistorySnapshot) {
   const records = new Map(snapshot.records.map(record => [record.id, record]));
@@ -44,11 +45,11 @@ function checkSnapshot(before: HistorySnapshot, fresh: HistorySnapshot, id: stri
 export async function restoreRevision<L extends SyncLink>(before: HistorySnapshot, id: string, fresh: HistorySnapshot, store: SyncStore<L>, validate: (document: TodoDocument) => void): Promise<SyncBundle<L>> {
   const record = checkSnapshot(before, fresh, id);
   if (fresh.pending || fresh.needsReview || historyRows(fresh).some(row => row.status === 'Needs review')) throw new Error('Finish file saving and review pending branches before restoring a version.');
-  if (doctorTodoText(record.text).findings.length) throw new Error('This version needs import repair. Download it and use Import TODO.txt.');
-  const parsed = parseTodoText(record.text); if (parsed.issues.length) throw new Error('This version needs import repair. Download it and use Import TODO.txt.');
-  validateDocument(parsed.document); validate(parsed.document);
-  const text = serializeTodoText(parsed.document);
-  if (text === serializeTodoText(fresh.document)) throw new Error('This version already matches the journal.');
+  if (doctorJournal(record.text).findings.some(finding => finding.level === 'review')) throw new Error('This version needs import repair. Download it and use Import Planner.md.');
+  const parsed = parseJournal(record.text); if (parsed.issues.length) throw new Error('This version needs import repair. Download it and use Import Planner.md.');
+  validateJournal(parsed.document); validate(parsed.document);
+  const text = serializeJournal(parsed.document);
+  if (text === serializeJournal(fresh.document)) throw new Error('This version already matches the journal.');
   const revision = await createRevision(fresh.journal, fresh.device, fresh.frontier, text);
   assertHistorySpace(fresh.stats, revision);
   const result = await store.change((current, integrate) => {

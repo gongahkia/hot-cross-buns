@@ -86,7 +86,7 @@ export async function pickGoogleFile(config: GoogleConfig, session: GoogleSessio
   const services = browser().google?.picker;
   if (!services) throw new Error('Google Picker is unavailable. Try again.');
   return new Promise(resolve => {
-    const view = new services.View(services.ViewId.DOCS); view.setMimeTypes('text/plain');
+    const view = new services.View(services.ViewId.DOCS); view.setMimeTypes('text/markdown,text/plain,application/octet-stream');
     const picker = new services.PickerBuilder().setDeveloperKey(config.apiKey).setAppId(config.projectNumber).setOAuthToken(session.accessToken).setOrigin(location.origin).addView(view).setCallback(data => {
       if (data.action === services.Action.CANCEL) { picker.dispose?.(); resolve(null); }
       if (data.action === services.Action.PICKED) { const id = data.docs?.[0]?.id; picker.dispose?.(); resolve(typeof id === 'string' && id ? id : null); }

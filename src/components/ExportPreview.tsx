@@ -41,25 +41,25 @@ const Actions = styled.div`
 
 export function exportFileName(value: string) {
   const safe = value.trim().replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-');
-  return safe ? safe.toLowerCase().endsWith('.txt') ? safe : `${safe}.txt` : 'TODO.txt';
+  return safe ? safe.toLowerCase().endsWith('.md') ? safe : `${safe}.md` : 'Planner.md';
 }
 
 export function ExportPreview({ open, text, onClose, onDownload }: {
   open: boolean; text: string; onClose: () => void;
   onDownload: (fileName: string, lineEnding: LineEnding) => void;
 }) {
-  const [fileName, setFileName] = useState('TODO.txt');
+  const [fileName, setFileName] = useState('Planner.md');
   const [lineEnding, setLineEnding] = useState<LineEnding>('lf');
   const [wrap, setWrap] = useState(true);
   useEffect(() => {
-    if (open) { setFileName('TODO.txt'); setLineEnding('lf'); setWrap(true); }
+    if (open) { setFileName('Planner.md'); setLineEnding('lf'); setWrap(true); }
   }, [open]);
-  return <Modal open={open} onClose={onClose} title="Download TODO.txt" preview>
-    <Title>TODO.txt</Title>
+  return <Modal open={open} onClose={onClose} title="Download Planner.md" preview>
+    <Title>Planner.md</Title>
     <Description>Preview the complete file before downloading.</Description>
     <Layout>
       <DocumentFrame>
-        {text ? <Text aria-label="TODO.txt preview" $wrap={wrap}>{text}</Text> : <Empty>The journal is empty.</Empty>}
+        {text ? <Text aria-label="Planner.md preview" $wrap={wrap}>{text}</Text> : <Empty>The journal is empty.</Empty>}
       </DocumentFrame>
       <Options>
         <Label>File name<Field aria-label="File name" value={fileName} onChange={event => setFileName(event.target.value)} onBlur={() => setFileName(exportFileName(fileName))}/></Label>

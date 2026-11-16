@@ -1,3 +1,4 @@
+import { serializeJournal } from './journalDocument.ts';
 import { assertImportText } from './importLimits';
 import { useEffect, useRef, useState } from 'react';
 import { authorizeGoogle, pickGoogleFile, preloadGoogle, validateGoogleConfig, type GoogleConfig } from './googleAuth';
@@ -8,7 +9,7 @@ import { loadRevisionHistory, restoreRevision, reviewHistoryBranch, type History
 import { revisionGraph, type Revision } from './revisionProtocol';
 import { useJournalSync } from './useJournalSync';
 import type { SyncAdapter, SyncStatus } from './journalSync';
-import { serializeTodoText, type TodoDocument } from './todoText';
+import { type TodoDocument } from './todoText';
 
 export type DriveStatus = SyncStatus;
 const configKey = 'hot-cross-buns.google-drive-config';
@@ -110,7 +111,7 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
     const previous = await loadDriveLink();
     if (previous?.fileId !== snapshot.file.id) revisionCache.current.clear();
     if ((previous?.id ?? null) !== expectedId) throw new Error('The Google Drive link changed in another window. Review it again.');
-    const link: DriveLink = { id: previous?.id ?? crypto.randomUUID(), fileId: snapshot.file.id, fileName: snapshot.file.name, accountId: connected.accountId, email: connected.email, baselineText: review?.revisionId ? previous!.baselineText : snapshot.text, baselineDocument, version: snapshot.file.version, needsReview: false, lastSavedAt: created ? Date.now() : previous?.lastSavedAt ?? null, revisionProtocol: previous?.revisionProtocol ?? 1 };
+    const link: DriveLink = { id: previous?.id ?? crypto.randomUUID(), fileId: snapshot.file.id, fileName: snapshot.file.name, accountId: connected.accountId, email: connected.email, baselineText: review?.revisionId ? previous!.baselineText : snapshot.text, baselineDocument, version: snapshot.file.version, needsReview: false, lastSavedAt: created ? Date.now() : previous?.lastSavedAt ?? null, revisionProtocol: previous?.revisionProtocol ?? 2 };
     if (review) return commitReviewedLink('drive', link, expectedId, review);
     await storeDriveLink(link); record.current = link; return null;
   };
@@ -127,7 +128,7 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
           const connected = activeSession.current;
           if (!connected) throw new Error('Connect Google Drive first.');
           const saved = await loadTodoState();
-          const text = serializeTodoText(saved.document); assertImportText(text);
+          const text = serializeJournal(saved.document); assertImportText(text);
           const pending: SyncCreation = { id: crypto.randomUUID(), accountId: connected.accountId, email: connected.email, createdAt: Date.now(), text, document: saved.document, uncertain: true };
           if (!await storeSyncCreation(null, pending)) throw new Error('Another window already started file creation.');
           return pending;
@@ -140,7 +141,7 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
           await writeLink(snapshot, pending.document, null, true);
         });
         setFiles(current => [snapshot.file, ...current].slice(0, 20));
-        notify.current('Created TODO.txt in Google Drive.');
+        notify.current('Created Planner.md in Google Drive.');
       });
     } catch (error) {
       if (ticket && error instanceof GoogleDriveError && error.status >= 400 && error.status < 500 && error.status !== 408) await storeSyncCreation((ticket as SyncCreation).id, null);

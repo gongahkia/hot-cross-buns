@@ -1,8 +1,10 @@
+import { parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { assertImportText, MAX_IMPORT_BYTES } from './importLimits.ts';
-import { doctorTodoText } from './todoDoctor.ts';
-import { fileBaseline, proposeMerge, resolveMerge } from './todoMerge.ts';
+import { doctorJournal } from './journalDoctor.ts';
+import { mergeJournalSources } from './journalMerge.ts';
+import { materializeJournal } from './journalDocument.ts';
 import { advanceRecurrences } from './recurrence.ts';
-import { parseTodoText, serializeTodoText, validateDocument, type TodoDocument, type TodoItem } from './todoText.ts';
+import { type TodoDocument } from './todoText.ts';
 import type { RevisionState, RevisionTransport } from './revisionProtocol.ts';
 import { synchronizeRevisions } from './revisionSync.ts';
 
@@ -36,40 +38,23 @@ function remember(ledger: SyncLedger, ...texts: Array<string | undefined>): stri
   while (new TextEncoder().encode(history.join('')).byteLength > MAX_IMPORT_BYTES) history.pop();
   return history;
 }
-const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
-function mergeItem(base: TodoItem, local: TodoItem, remote: TodoItem): TodoItem | null {
-  // progress and recurrence are one value: completion can create a successor or alter details.
-  const fields = (item: TodoItem) => [item.text, [item.completed, item.details, item.completedOn, item.repeat, item.span, item.skips, item.replaces]];
-  const before = fields(base), ours = fields(local), theirs = fields(remote);
-  const selected = ours.map((value, index) => equal(value, before[index]) ? theirs[index] : equal(theirs[index], before[index]) || equal(value, theirs[index]) ? value : undefined);
-  if (selected.some(value => value === undefined)) return null;
-  const source = equal(selected[1], theirs[1]) ? remote : local;
-  return { ...source, id: local.id, text: selected[0] as string };
-}
 export function reconcileJournal(local: TodoDocument, raw: string, baseline: TodoDocument, today: string): { document: TodoDocument; baseline: TodoDocument } | null {
-  if (doctorTodoText(raw).findings.length) return null;
-  const parsed = parseTodoText(raw); if (parsed.issues.length) return null;
-  return mergeDocuments(local, parsed.document, baseline, today);
-}
-function mergeDocuments(local: TodoDocument, remote: TodoDocument, baseline: TodoDocument, today: string, advance = true, stable = false) {
-  const proposal = proposeMerge(local, remote, baseline, stable ? { identity: 'stable' } : { reviewAdditions: true });
-  const baseItems = new Map([...baseline.days.flatMap(day => day.items), ...(baseline.undated ?? []).flatMap(list => list.items)].map(item => [item.id, item]));
-  for (const row of proposal.conflicts) {
-    if (!row.local || !row.file || row.reorderConflict || row.ambiguous) return null;
-    const base = baseItems.get(row.local.id); if (!base) return null;
-    const merged = mergeItem(base, row.local, row.file); if (!merged) return null;
-    row.local = merged; row.choice = 'local'; row.conflict = false;
-  }
   try {
-    const document = resolveMerge(proposal, {});
-    if (advance) advanceRecurrences(local, document, today, true, baseline);
-    validateDocument(document); assertImportText(serializeTodoText(document));
-    return { document, baseline: fileBaseline(proposal) };
+    if (doctorJournal(raw).findings.some(finding => finding.level === 'review')) return null;
+    const parsed = parseJournal(raw); if (parsed.issues.length) return null;
+    const merged = mergeDocuments(local, parsed.document, baseline, today);
+    return merged ? { document: merged, baseline: parsed.document } : null;
   } catch { return null; }
 }
-
+function mergeDocuments(local: TodoDocument, remote: TodoDocument, baseline: TodoDocument, today: string, advance = true): TodoDocument | null {
+  const merged = mergeJournalSources(baseline, local, remote);
+  if (!merged) return null;
+  const document = structuredClone(merged);
+  if (advance) advanceRecurrences(local, document, today, true, baseline);
+  return materializeJournal(document);
+}
 export function rebaseLocalJournal(before: TodoDocument, optimistic: TodoDocument, latest: TodoDocument, today: string): TodoDocument | null {
-  return mergeDocuments(optimistic, latest, before, today, true, true)?.document ?? null;
+  return mergeDocuments(optimistic, latest, before, today);
 }
 
 /** Keep only a contiguous, safely rebased history suffix within a bounded amount of work. */
@@ -79,9 +64,9 @@ export function rebaseSyncHistory(history: TodoDocument[], before: TodoDocument,
   for (let index = history.length - 1; index >= 0; index--) {
     budget -= shared + rows(history[index]);
     if (budget < 0) break;
-    const result = mergeDocuments(history[index], after, before, today, false, true);
+    const result = mergeDocuments(history[index], after, before, today, false);
     if (!result) break;
-    rebased.unshift(result.document);
+    rebased.unshift(result);
   }
   return rebased;
 }
@@ -122,12 +107,12 @@ export async function synchronizeJournal<L extends SyncLink, S extends { text: s
     if (!options.force && retryAt > now() && retryAt <= now() + 72_000) return bundle;
     if (!canSave()) return bundle;
     for (let races = 0; races < 3; races++) {
-      const snapshot = await adapter.read(bundle.link, !!bundle.ledger.checkpoint || serializeTodoText(bundle.document) !== bundle.link.baselineText);
+      const snapshot = await adapter.read(bundle.link, !!bundle.ledger.checkpoint || serializeJournal(bundle.document) !== bundle.link.baselineText);
       let submission: SyncCheckpoint | undefined;
       bundle = await change((current, canIntegrate) => {
         if (current.link.needsReview) return state(current, 'changed');
         if (!canSave()) return state(current, 'waiting', 'Finish the current edit or review to continue syncing.');
-        const text = serializeTodoText(current.document), checkpoint = current.ledger.checkpoint;
+        const text = serializeJournal(current.document), checkpoint = current.ledger.checkpoint;
         const acknowledge = (document: TodoDocument) => ({
           ...current, link: adapter.acknowledge(current.link, snapshot, document, false, now()),
           ledger: { ...current.ledger, checkpoint: undefined, failures: 0, retryAt: 0, history: checkpoint || snapshot.text !== current.link.baselineText ? remember(current.ledger, checkpoint?.text, current.link.baselineText) : current.ledger.history, status: { kind: text === snapshot.text ? 'saved' as const : 'saving' as const, name: adapter.name(current.link), lastSavedAt: current.link.lastSavedAt, lastCheckedAt: now() } },
@@ -141,11 +126,11 @@ export async function synchronizeJournal<L extends SyncLink, S extends { text: s
           const reviewed = current.ledger.history.includes(snapshot.text) ? null : reconcileJournal(current.document, snapshot.text, (checkpoint?.uncertain ? checkpoint.document : baseline), options.today());
           if (!reviewed) return { ...state(current, 'changed'), link: { ...current.link, needsReview: true }, ledger: { ...state(current, 'changed').ledger, recovery } };
           try { options.validate?.(reviewed.document); } catch (error) { return { ...state(current, 'changed', String(error)), link: { ...current.link, needsReview: true }, ledger: { ...state(current, 'changed', String(error)).ledger, recovery } }; }
-          if (serializeTodoText(reviewed.document) !== text && !canIntegrate) return state(current, 'waiting', 'Finish editing to bring in file changes.');
+          if (serializeJournal(reviewed.document) !== text && !canIntegrate) return state(current, 'waiting', 'Finish editing to bring in file changes.');
           document = reviewed.document; baseline = reviewed.baseline;
           current = { ...current, document, ledger: { ...current.ledger, recovery } };
         }
-        const outgoing = serializeTodoText(document); assertImportText(outgoing);
+        const outgoing = serializeJournal(document); assertImportText(outgoing);
         if (outgoing === snapshot.text) return { ...acknowledge(baseline), document, ledger: { ...acknowledge(baseline).ledger, recovery: current.ledger.recovery, status: { kind: 'saved', name: adapter.name(current.link), lastSavedAt: current.link.lastSavedAt, lastCheckedAt: now() } } };
         submission = { id: crypto.randomUUID(), text: outgoing, document, baselineText: snapshot.text, createdAt: now(), uncertain: false };
         return {
@@ -175,7 +160,7 @@ export async function synchronizeJournal<L extends SyncLink, S extends { text: s
       return await change(latest => {
         if (latest.ledger.checkpoint?.id !== outgoing.id) return null;
         const link = adapter.acknowledge(latest.link, confirmed, outgoing.document, result.kind === 'saved', now());
-        return { ...latest, link, ledger: { ...latest.ledger, checkpoint: undefined, failures: 0, retryAt: 0, history: remember(latest.ledger, outgoing.text, latest.link.baselineText), status: { kind: serializeTodoText(latest.document) === outgoing.text ? 'saved' : 'saving', name: adapter.name(link), lastSavedAt: link.lastSavedAt, lastCheckedAt: now() } } };
+        return { ...latest, link, ledger: { ...latest.ledger, checkpoint: undefined, failures: 0, retryAt: 0, history: remember(latest.ledger, outgoing.text, latest.link.baselineText), status: { kind: serializeJournal(latest.document) === outgoing.text ? 'saved' : 'saving', name: adapter.name(link), lastSavedAt: link.lastSavedAt, lastCheckedAt: now() } } };
       });
     }
     return await change(current => ({ ...state(current, 'changed', 'The file kept changing. Review it before another save.'), link: { ...current.link, needsReview: true } }));

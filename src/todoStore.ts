@@ -1,13 +1,13 @@
+import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel, withScratchpad } from './journalDocument.ts';
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
 import { reviewedRevision } from './revisionSync';
-import { emptyDocument, normalizeDocument, serializeTodoText, validateDocument, type TodoDocument } from './todoText';
+import { normalizeDocument, type TodoDocument } from './todoText';
 
-export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; revision: number };
+export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; revision: number; scratchRevision?: number };
 export type ScratchpadState = { text: string; revision: number };
 export type ScratchpadDestination = { kind: 'dated'; date: string } | { kind: 'undated'; list: string };
 export type ScratchpadUndo = { before: TodoState; scratchBefore: ScratchpadState; journalRevision: number; scratchRevision: number };
-export const emptyState = (): TodoState => ({ document: emptyDocument(), baseline: null, revision: 0 });
-const emptyScratchpad = (): ScratchpadState => ({ text: '', revision: 0 });
+export const emptyState = (): TodoState => ({ document: createJournal(), baseline: null, revision: 0 });
 const DB_NAME = 'hot-cross-buns-v1';
 const STATE_STORE = 'state';
 const SCRATCH_STORE = 'scratchpad';
@@ -17,9 +17,18 @@ function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const request = indexedDB.open(DB_NAME, 3);
-    request.onupgradeneeded = () => {
+    const request = indexedDB.open(DB_NAME, 4);
+    request.onupgradeneeded = event => {
       for (const name of [STATE_STORE, SCRATCH_STORE]) if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
+      if (event.oldVersion > 0 && event.oldVersion < 4) for (const name of [STATE_STORE, SCRATCH_STORE]) {
+        const store = request.transaction!.objectStore(name), cursor = store.openCursor();
+        cursor.onsuccess = () => {
+          const entry = cursor.result;
+          if (!entry) return;
+          if (!String(entry.key).startsWith('legacy-txt:')) { store.put(entry.value, 'legacy-txt:' + entry.key); entry.delete(); }
+          entry.continue();
+        };
+      }
     };
     request.onblocked = () => { timer = setTimeout(() => { settled = true; reject(new Error('Finish or export unsaved edits in older Hot Cross Buns tabs, then close them and reload to finish the sync storage upgrade.')); }, 3000); };
     request.onsuccess = () => {
@@ -52,9 +61,20 @@ function transact<T>(stores: string[], work: (tx: IDBTransaction, done: (value: 
   }));
 }
 
-const stateFrom = (value: TodoState | undefined): TodoState => value
-  ? { document: normalizeDocument(value.document), baseline: value.baseline ? normalizeDocument(value.baseline) : null, revision: value.revision ?? 0 }
-  : emptyState();
+const stateFrom = (value: TodoState | undefined): TodoState => {
+  if (!value) return emptyState();
+  if (value.document.source === undefined) throw new Error('This workspace needs the explicit Markdown transition. Export its recovery copy before continuing.');
+  const document = readJournal(value.document.source).document;
+  validateJournal(document);
+  if (value.baseline && value.baseline.source === undefined) throw new Error('The saved baseline has no Markdown source. Keep the browser data for recovery.');
+  const baseline = value.baseline ? readJournal(value.baseline.source!).document : null;
+  return { document, baseline, revision: value.revision ?? 0, scratchRevision: value.scratchRevision ?? 0 };
+};
+const canonicalState = (next: TodoState, previous: TodoState): TodoState => {
+  const document = materializeJournal(next.document);
+  return { ...next, document, revision: previous.revision + 1,
+    scratchRevision: (previous.scratchRevision ?? 0) + Number(document.scratchpad !== previous.document.scratchpad) };
+};
 const localNotifications = new EventTarget();
 const announce = (kind: 'journal' | 'scratchpad' | 'sync', self = false) => { channel?.postMessage({ kind }); if (self || kind === 'sync') localNotifications.dispatchEvent(new Event(kind)); };
 export function subscribeStore(kind: 'journal' | 'scratchpad' | 'sync', callback: () => void): () => void {
@@ -64,18 +84,26 @@ export function subscribeStore(kind: 'journal' | 'scratchpad' | 'sync', callback
   return () => { channel?.removeEventListener('message', listener); localNotifications.removeEventListener(kind, callback); };
 }
 
-async function read<T>(storeName: string, fallback: T): Promise<T> {
-  const db = await openDatabase();
-  try {
-    return await new Promise((resolve, reject) => {
-      const request = db.transaction(storeName, 'readonly').objectStore(storeName).get('current');
-      request.onsuccess = () => resolve(request.result ?? fallback);
-      request.onerror = () => reject(request.error);
-    });
-  } finally { db.close(); }
+export async function loadTodoState(): Promise<TodoState> {
+  return transact<TodoState>([STATE_STORE, SCRATCH_STORE], (tx, done, fail) => {
+    const store = tx.objectStore(STATE_STORE), current = store.get('current'), legacy = store.get('legacy-txt:current'), scratch = tx.objectStore(SCRATCH_STORE).get('legacy-txt:current');
+    let remaining = 3;
+    const finish = () => {
+      if (--remaining) return;
+      try {
+        if (!current.result && (legacy.result || scratch.result)) throw new Error('Finish the Markdown workspace transition before opening the journal.');
+        const state = stateFrom(current.result);
+        if (!current.result) store.put(state, 'current');
+        done(state);
+      } catch (error) { fail(error); }
+    };
+    for (const request of [current, legacy, scratch]) { request.onsuccess = finish; request.onerror = () => fail(request.error); }
+  });
 }
-export async function loadTodoState(): Promise<TodoState> { return stateFrom(await read<TodoState | undefined>(STATE_STORE, undefined)); }
-export async function loadScratchpadState(): Promise<ScratchpadState> { return read(SCRATCH_STORE, emptyScratchpad()); }
+export async function loadScratchpadState(): Promise<ScratchpadState> {
+  const state = await loadTodoState();
+  return { text: state.document.scratchpad ?? '', revision: state.scratchRevision ?? 0 };
+}
 
 /** Reading and writing in one transaction serializes writes from all app windows. */
 export async function mutateTodoState(change: (latest: TodoState) => TodoState | null): Promise<TodoState | null> {
@@ -88,101 +116,90 @@ export async function mutateTodoState(change: (latest: TodoState) => TodoState |
         const latest = stateFrom(request.result);
         const changed = change(latest);
         if (!changed) { done(null); return; }
-        validateDocument(changed.document);
-        const next = { ...changed, revision: latest.revision + 1 };
+        validateJournal(changed.document);
+        const next = canonicalState(changed, latest);
         store.put(next, 'current');
         done(next);
       } catch (error) { fail(error); }
     };
   });
-  if (result) announce('journal');
+  if (result) { announce('journal'); announce('scratchpad', true); }
   return result;
 }
 
 export async function saveScratchpadText(expectedRevision: number, text: string): Promise<ScratchpadState> {
-  const result = await transact<ScratchpadState>([SCRATCH_STORE], (tx, done, fail) => {
-    const store = tx.objectStore(SCRATCH_STORE);
-    const request = store.get('current');
-    request.onerror = () => fail(request.error);
-    request.onsuccess = () => {
-      const latest: ScratchpadState = request.result ?? emptyScratchpad();
-      if (latest.revision !== expectedRevision) { fail(new Error('Scratchpad changed in another window. Reload it before editing.')); return; }
-      const next = { text, revision: latest.revision + 1 };
-      store.put(next, 'current');
-      done(next);
-    };
+  const result = await mutateTodoState(latest => {
+    if ((latest.scratchRevision ?? 0) !== expectedRevision) throw new Error('Scratchpad changed in another window. Reload it before editing.');
+    return { ...latest, document: withScratchpad(latest.document, text) };
   });
-  announce('scratchpad');
-  return result;
+  if (!result) throw new Error('The scratchpad was not saved.');
+  return { text: result.document.scratchpad ?? '', revision: result.scratchRevision ?? 0 };
 }
 
 export async function convertScratchpadSelection(args: { start: number; end: number; selected: string; scratchRevision: number; destination: ScratchpadDestination; items: Array<{ title: string; details: string[] }>; cut: boolean }): Promise<{ journal: TodoState; scratchpad: ScratchpadState; undo: ScratchpadUndo }> {
-  const result = await transact<{ journal: TodoState; scratchpad: ScratchpadState; undo: ScratchpadUndo }>([STATE_STORE, SCRATCH_STORE], (tx, done, fail) => {
-    const stateStore = tx.objectStore(STATE_STORE);
-    const scratchStore = tx.objectStore(SCRATCH_STORE);
-    const journalRequest = stateStore.get('current');
-    const scratchRequest = scratchStore.get('current');
-    let journal: TodoState | null = null;
-    let scratchpad: ScratchpadState | null = null;
-    const apply = () => {
-      if (!journal || !scratchpad) return;
-      try {
-        if (scratchpad.revision !== args.scratchRevision || scratchpad.text.slice(args.start, args.end) !== args.selected) throw new Error('The scratchpad changed. Select the text again.');
-        const nextDocument = structuredClone(journal.document);
-        const newItems = args.items.map(({ title, details }) => ({ id: crypto.randomUUID(), text: title, completed: false, details: details.map(text => ({ text, completed: false })) }));
-        if (args.destination.kind === 'dated') {
-          const date = args.destination.date;
-          let day = nextDocument.days.find(day => day.date === date);
-          if (!day) { day = { date, items: [] }; nextDocument.days.push(day); nextDocument.days.sort((a,b) => a.date.localeCompare(b.date)); }
-          day.items.push(...newItems);
-        } else {
-          const name = args.destination.list;
-          let list = nextDocument.undated?.find(list => list.name === name);
-          if (!list) { list = { name, items: [] }; (nextDocument.undated ??= []).push(list); }
-          list.items.push(...newItems);
-        }
-        validateDocument(nextDocument);
-        const nextJournal = { ...journal, document: nextDocument, revision: journal.revision + 1 };
-        const nextScratch = args.cut ? { text: scratchpad.text.slice(0, args.start) + scratchpad.text.slice(args.end), revision: scratchpad.revision + 1 } : scratchpad;
-        stateStore.put(nextJournal, 'current');
-        if (args.cut) scratchStore.put(nextScratch, 'current');
-        done({ journal: nextJournal, scratchpad: nextScratch, undo: { before: journal, scratchBefore: scratchpad, journalRevision: nextJournal.revision, scratchRevision: nextScratch.revision } });
-      } catch (error) { fail(error); }
-    };
-    journalRequest.onsuccess = () => { journal = stateFrom(journalRequest.result); apply(); };
-    scratchRequest.onsuccess = () => { scratchpad = scratchRequest.result ?? emptyScratchpad(); apply(); };
-    journalRequest.onerror = () => fail(journalRequest.error);
-    scratchRequest.onerror = () => fail(scratchRequest.error);
+  let undo: ScratchpadUndo | undefined;
+  const result = await mutateTodoState(latest => {
+    const scratch = latest.document.scratchpad ?? '';
+    if ((latest.scratchRevision ?? 0) !== args.scratchRevision || scratch.slice(args.start, args.end) !== args.selected) throw new Error('The scratchpad changed. Select the text again.');
+    const document = structuredClone(latest.document);
+    const items = args.items.map(({ title, details }) => ({ id: crypto.randomUUID(), text: title, completed: false, details: details.map(text => ({ text, completed: false })) }));
+    if (args.destination.kind === 'dated') {
+      const date = args.destination.date;
+      let day = document.days.find(day => day.date === date);
+      if (!day) { day = { date, items: [] }; document.days.push(day); }
+      day.items.push(...items);
+    } else {
+      const name = args.destination.list;
+      let list = document.undated?.find(list => list.name === name);
+      if (!list) { list = { name, items: [] }; (document.undated ??= []).push(list); }
+      list.items.push(...items);
+    }
+    if (args.cut) document.scratchpad = scratch.slice(0, args.start) + scratch.slice(args.end);
+    const next = canonicalState({ ...latest, document }, latest);
+    undo = { before: latest, scratchBefore: { text: scratch, revision: latest.scratchRevision ?? 0 }, journalRevision: next.revision, scratchRevision: next.scratchRevision ?? 0 };
+    return next;
   });
-  announce('journal');
-  if (args.cut) announce('scratchpad');
-  return result;
+  if (!result || !undo) throw new Error('The capture promotion was not saved.');
+  return { journal: result, scratchpad: { text: result.document.scratchpad ?? '', revision: result.scratchRevision ?? 0 }, undo };
 }
 
 export async function undoScratchpadConversion(undo: ScratchpadUndo): Promise<{ journal: TodoState; scratchpad: ScratchpadState }> {
-  const result = await transact<{ journal: TodoState; scratchpad: ScratchpadState }>([STATE_STORE, SCRATCH_STORE], (tx, done, fail) => {
-    const journalStore = tx.objectStore(STATE_STORE);
-    const scratchStore = tx.objectStore(SCRATCH_STORE);
-    const journalRequest = journalStore.get('current');
-    const scratchRequest = scratchStore.get('current');
-    let journal: TodoState | null = null;
-    let scratchpad: ScratchpadState | null = null;
-    const apply = () => {
-      if (!journal || !scratchpad) return;
-      if (journal.revision !== undo.journalRevision || scratchpad.revision !== undo.scratchRevision) { fail(new Error('New edits were made. Undo is no longer available.')); return; }
-      const nextJournal = { ...undo.before, revision: journal.revision + 1 };
-      const nextScratch = { ...undo.scratchBefore, revision: scratchpad.revision + 1 };
-      journalStore.put(nextJournal, 'current');
-      scratchStore.put(nextScratch, 'current');
-      done({ journal: nextJournal, scratchpad: nextScratch });
-    };
-    journalRequest.onsuccess = () => { journal = stateFrom(journalRequest.result); apply(); };
-    scratchRequest.onsuccess = () => { scratchpad = scratchRequest.result ?? emptyScratchpad(); apply(); };
-    journalRequest.onerror = () => fail(journalRequest.error);
-    scratchRequest.onerror = () => fail(scratchRequest.error);
+  const result = await mutateTodoState(latest => {
+    if (latest.revision !== undo.journalRevision || (latest.scratchRevision ?? 0) !== undo.scratchRevision) throw new Error('New edits were made. Undo is no longer available.');
+    return { ...latest, document: undo.before.document, baseline: undo.before.baseline };
   });
-  announce('journal'); announce('scratchpad');
-  return result;
+  if (!result) throw new Error('The capture promotion was not undone.');
+  return { journal: result, scratchpad: { text: result.document.scratchpad ?? '', revision: result.scratchRevision ?? 0 } };
+}
+
+export async function loadWorkspaceArchive(): Promise<{ state: Record<string, unknown>; scratchpad: Record<string, unknown> } | null> {
+  const db = await openDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction([STATE_STORE, SCRATCH_STORE], 'readonly');
+      const result: { state: Record<string, unknown>; scratchpad: Record<string, unknown> } = { state: {}, scratchpad: {} };
+      let current = false;
+      const active = tx.objectStore(STATE_STORE).get('current'); active.onsuccess = () => { current = !!active.result; };
+      for (const name of [STATE_STORE, SCRATCH_STORE]) {
+        const request = tx.objectStore(name).openCursor();
+        request.onsuccess = () => { const entry = request.result; if (!entry) return; if (String(entry.key).startsWith('legacy-txt:')) result[name as 'state' | 'scratchpad'][String(entry.key).slice(11)] = entry.value; entry.continue(); };
+      }
+      tx.oncomplete = () => resolve(!current && (Object.keys(result.state).length || Object.keys(result.scratchpad).length) ? result : null);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
+}
+export async function startMarkdownWorkspace(convert: boolean): Promise<TodoState> {
+  const archive = await loadWorkspaceArchive();
+  if (!archive) return loadTodoState();
+  const old = archive.state.current as TodoState | undefined;
+  const scratch = archive.scratchpad.current as ScratchpadState | undefined;
+  const document = convert ? journalFromModel(old ? normalizeDocument(old.document) : { days: [] }, scratch?.text ?? '') : createJournal();
+  return transact<TodoState>([STATE_STORE], (tx, done, fail) => {
+    const store = tx.objectStore(STATE_STORE), request = store.get('current');
+    request.onerror = () => fail(request.error);
+    request.onsuccess = () => { if (request.result) { done(stateFrom(request.result)); return; } const next: TodoState = { document, baseline: null, revision: 0, scratchRevision: 0 }; store.put(next, 'current'); done(next); };
+  });
 }
 
 // a separate key preserves the linked file's baseline when manual imports or downloads change theirs.
@@ -268,14 +285,14 @@ export async function changeSyncBundle<L extends SyncLink>(provider: SyncProvide
           const next = work(current, canIntegrate);
           if (!next) { done(null); return; }
           journalChanged = next.document !== current.document && JSON.stringify(next.document) !== JSON.stringify(current.document);
-          if (journalChanged) { validateDocument(next.document); next.revision = saved.revision + 1; store.put({ ...saved, document: next.document, revision: next.revision }, 'current'); }
+          if (journalChanged) { const state = canonicalState({ ...saved, document: next.document }, saved); next.document = state.document; next.revision = state.revision; store.put(state, 'current'); }
           if (next !== current || ledger.result?.linkId !== record.id) { metadataChanged = true; store.put(next.link, linkKey(provider)); store.put(next.ledger, provider + '-sync-ledger'); }
           done(next);
         } catch (error) { fail(error); }
       };
       for (const request of [link, journal, ledger]) { request.onsuccess = finish; request.onerror = () => fail(request.error); }
     });
-    if (journalChanged) announce('journal', true);
+    if (journalChanged) { announce('journal', true); announce('scratchpad', true); }
     if (metadataChanged || journalChanged) announce('sync');
     return result;
   };
@@ -325,9 +342,9 @@ export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvi
       try {
         if (other.result || (target.result?.id ?? null) !== expectedId || review.generation && (ledger.result?.generation ?? 'legacy:' + target.result?.id) !== review.generation) throw new Error('The file link changed in another window. Cancel and review it again.');
         const latest = stateFrom(journal.result);
-        if (serializeTodoText(latest.document) !== review.expectedText) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
-        validateDocument(review.document);
-        const next = { ...latest, document: review.document, baseline: review.baseline, revision: latest.revision + 1 };
+        if (serializeJournal(latest.document) !== review.expectedText) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
+        validateJournal(review.document);
+        const next = canonicalState({ ...latest, document: review.document, baseline: review.baseline }, latest);
         const nextLedger = newSyncLedger(link.id, ledger.result);
         if (review.revisionId) {
           if (!nextLedger.revisions) throw new Error('The journal revision link changed. Review it again.');
@@ -340,5 +357,5 @@ export async function commitReviewedLink<L extends SyncLink>(provider: SyncProvi
     };
     for (const request of [target, other, journal, ledger]) { request.onsuccess = finish; request.onerror = () => fail(request.error); }
   });
-  announce('journal'); announce('sync'); return result;
+  announce('journal'); announce('scratchpad', true); announce('sync'); return result;
 }

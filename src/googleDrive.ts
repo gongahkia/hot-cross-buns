@@ -6,7 +6,7 @@ export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export type GoogleSession = { accessToken: string; expiresAt: number; accountId: string; email: string };
 export type DriveFile = { id: string; name: string; version: string; mimeType: string; size?: string; trashed?: boolean; modifiedTime?: string; capabilities?: { canEdit?: boolean } };
 export type DriveSnapshot = { file: DriveFile; text: string; etag: string | null; revisionId?: string };
-export type DriveLink = { id: string; fileId: string; fileName: string; accountId: string; email: string; baselineText: string; baselineDocument: TodoDocument; version: string; needsReview: boolean; lastSavedAt: number | null; revisionProtocol?: 1 };
+export type DriveLink = { id: string; fileId: string; fileName: string; accountId: string; email: string; baselineText: string; baselineDocument: TodoDocument; version: string; needsReview: boolean; lastSavedAt: number | null; revisionProtocol?: 2 };
 export class GoogleDriveError extends Error {
   status: number;
   constructor(message: string, status = 0) { super(message); this.status = status; }
@@ -17,7 +17,7 @@ export function validateDriveFile(value: unknown): DriveFile {
   const file = value as Partial<DriveFile> | null;
   if (!file || typeof file.id !== 'string' || !file.id || typeof file.name !== 'string' || typeof file.version !== 'string' || !/^\d+$/.test(file.version)) throw new GoogleDriveError('Google Drive returned incomplete file metadata. Try again.');
   if (file.trashed) throw new GoogleDriveError('The Google Drive file is in the trash. Restore it or unlink it.');
-  if (file.mimeType !== 'text/plain' && !(file.mimeType === 'application/octet-stream' && /\.txt$/i.test(file.name))) throw new GoogleDriveError('Choose a plain-text TODO.txt file, rather than a Google document or folder.');
+  if (!/\.(md|markdown)$/i.test(file.name) || !['text/markdown', 'text/plain', 'application/octet-stream'].includes(file.mimeType ?? '')) throw new GoogleDriveError('Choose a plain-text Planner.md file, rather than a Google document or folder.');
   if (file.capabilities?.canEdit === false) throw new GoogleDriveError('You do not have permission to edit this Google Drive file.');
   if (file.size !== undefined) { const size = Number(file.size); if (!Number.isFinite(size) || size < 0) throw new GoogleDriveError('Google Drive returned an invalid file size.'); assertImportSize(size); }
   return file as DriveFile;
@@ -25,7 +25,7 @@ export function validateDriveFile(value: unknown): DriveFile {
 async function readText(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return '';
-  const decoder = new TextDecoder('utf-8', { fatal: true });
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
   let size = 0, text = '';
   try {
     for (;;) {
@@ -87,7 +87,7 @@ export function createDriveApi(session: GoogleSession, fetcher: typeof fetch = g
   const create = async (text: string): Promise<DriveSnapshot> => {
     assertImportText(text);
     const boundary = 'hcb-' + crypto.randomUUID();
-    const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, JSON.stringify({ name: 'TODO.txt', mimeType: 'text/plain', description: 'Hot Cross Buns plain-text journal' }), `\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n`, text, `\r\n--${boundary}--\r\n`], { type: `multipart/related; boundary=${boundary}` });
+    const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, JSON.stringify({ name: 'Planner.md', mimeType: 'text/markdown', description: 'Hot Cross Buns single-file Markdown planner' }), `\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n`, text, `\r\n--${boundary}--\r\n`], { type: `multipart/related; boundary=${boundary}` });
     const response = await request(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${encodeURIComponent(fields)}`, { method: 'POST', body });
     return { file: validateDriveFile(await response.json()), text, etag: null };
   };
@@ -104,7 +104,7 @@ export function createDriveApi(session: GoogleSession, fetcher: typeof fetch = g
   const readRevision = async (id: string, journal: string) => {
     const response = await request(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`);
     const reader = response.body?.getReader(); if (!reader) throw new MissingHistoryError('A Drive revision body is unavailable. Try again after its transfer finishes.');
-    const decoder = new TextDecoder('utf-8', { fatal: true }); let raw = '', size = 0;
+    const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }); let raw = '', size = 0;
     try { for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.byteLength; if (size > MAX_REVISION_BYTES) { await reader.cancel(); throw new GoogleDriveError('The Drive revision exceeds the size limit.'); } raw += decoder.decode(value, { stream: true }); } raw += decoder.decode(); }
     finally { reader.releaseLock(); }
     return parseRevision(raw, journal);
@@ -150,7 +150,7 @@ export function createDriveApi(session: GoogleSession, fetcher: typeof fetch = g
         try { await request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', body }); }
         catch (error) { if (!(error instanceof GoogleDriveError && error.status === 409)) throw error; }
         const verified = await readRevision(transportId, journal);
-        if (verified.id !== record.id || verified.digest !== record.digest) throw new GoogleDriveError('The saved Drive revision does not match its pending submission. TODO.txt was not written.');
+        if (verified.id !== record.id || verified.digest !== record.digest) throw new GoogleDriveError('The saved Drive revision does not match its pending submission. Planner.md was not written.');
       },
     };
   };

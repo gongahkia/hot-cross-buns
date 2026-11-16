@@ -28,7 +28,7 @@ export function GoogleDriveSettings({ config, onConfigure, sdkReady, onRetrySdk,
     : status.kind === 'error' ? `Saving is paused. ${status.detail}`
     : status.kind === 'saving' ? `Saving ${status.name} to Google Drive…`
     : status.kind === 'saved' ? `${status.name} is up to date.${status.lastSavedAt ? ' Last written at ' + new Date(status.lastSavedAt).toLocaleTimeString() + '.' : ''}`
-    : connected ? `Connected${email ? ' as ' + email : ''}. Create a journal or open an existing text file.` : 'Save TODO.txt directly to your Google Drive account.';
+    : connected ? `Connected${email ? ' as ' + email : ''}. Create a journal or open an existing text file.` : 'Save Planner.md directly to your Google Drive account.';
   return <Section aria-label="Google Drive"><h3><img src="/providers/google-drive.png" alt=""/>Google Drive</h3>
     <p>{message}</p>
     <p>Optional Google sign-in with your own Web OAuth client. Only files created or opened through this app are requested.</p>
@@ -43,13 +43,13 @@ export function GoogleDriveSettings({ config, onConfigure, sdkReady, onRetrySdk,
     </details>
     {(error || configError) && <p role="alert">{configError || error}</p>}
     {localLinked && <p>Unlink the local file above before linking a Google Drive journal.</p>}
-    {!supported && <p>This browser cannot link Google Drive files. Use a browser with Web Locks, or import and download TODO.txt manually.</p>}
-    {creationPending && !linked && <div role="status" aria-label="Unconfirmed file creation"><p>The previous file creation may have finished. Connect the same account and choose its TODO.txt before creating another. Allowing another creation keeps any file already created.</p><Actions><Button type="button" disabled={busy} onClick={onDownloadCreation}>Download submitted journal</Button><Button type="button" disabled={busy} onClick={onDismissCreation}>Allow another creation</Button></Actions></div>}
+    {!supported && <p>This browser cannot link Google Drive files. Use a browser with Web Locks, or import and download Planner.md manually.</p>}
+    {creationPending && !linked && <div role="status" aria-label="Unconfirmed file creation"><p>The previous file creation may have finished. Connect the same account and choose its Planner.md before creating another. Allowing another creation keeps any file already created.</p><Actions><Button type="button" disabled={busy} onClick={onDownloadCreation}>Download submitted journal</Button><Button type="button" disabled={busy} onClick={onDismissCreation}>Allow another creation</Button></Actions></div>}
     <Actions>{!connected || status.kind === 'reauth' ? <>
       <Button type="button" disabled={busy || !supported || !config.clientId || !sdkReady} title="Connect Google Drive" onClick={onConnect}>{busy ? 'Connecting…' : 'Connect Google Drive'}</Button>
       {!!config.clientId && !sdkReady && <Button type="button" disabled={busy} onClick={onRetrySdk}>Retry Google loading</Button>}
     </> : !linked ? <>
-      <Button type="button" disabled={busy || !supported || localLinked || creationPending} onClick={onCreate}>Create TODO.txt in Google Drive</Button>
+      <Button type="button" disabled={busy || !supported || localLinked || creationPending} onClick={onCreate}>Create Planner.md in Google Drive</Button>
       <Button type="button" disabled={busy || !supported || localLinked || !config.apiKey || !config.projectNumber} onClick={onPick}>Choose from Google Drive</Button>
     </> : <>
       {!protectedHistory && <Button type="button" disabled={busy} onClick={onEnableHistory}>Enable Drive revision history</Button>}

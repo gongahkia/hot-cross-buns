@@ -3,7 +3,7 @@ import { assertImportText, MAX_IMPORT_BYTES } from './importLimits.ts';
 export const MAX_REVISIONS = 1000;
 export const MAX_HISTORY_BYTES = 64 * 1024 * 1024;
 export const MAX_REVISION_BYTES = MAX_IMPORT_BYTES * 6 + 128 * 1024;
-export type Revision = { protocol: 1; journal: string; id: string; device: string; parents: string[]; origin: 'journal' | 'external'; text: string; digest: string };
+export type Revision = { protocol: 2; journal: string; id: string; device: string; parents: string[]; origin: 'journal' | 'external'; text: string; digest: string };
 export type RevisionState = {
   frontier: string[]; seenHeads: string[]; recordedText: string | null;
   pending?: { record: Revision; transportId?: string }; review?: Revision;
@@ -28,7 +28,7 @@ export function assertHistorySpace(stats: RevisionState['stats'], record: Revisi
 }
 export async function createRevision(journal: string, device: string, parents: string[], text: string, origin: Revision['origin'] = 'journal'): Promise<Revision> {
   assertImportText(text);
-  const record: Revision = { protocol: 1, journal, id: crypto.randomUUID(), device, parents: [...new Set(parents)].sort(), origin, text, digest: '' };
+  const record: Revision = { protocol: 2, journal, id: crypto.randomUUID(), device, parents: [...new Set(parents)].sort(), origin, text, digest: '' };
   record.digest = await sha256(JSON.stringify(body(record)));
   return record;
 }
@@ -37,7 +37,7 @@ export async function parseRevision(raw: string, journal: string): Promise<Revis
   if (utf8Size(raw) > MAX_REVISION_BYTES) throw new RevisionIntegrityError('A sync revision exceeds the size limit. Keep the history files and inspect them before resuming.');
   let record: Revision;
   try { record = JSON.parse(raw) as Revision; } catch { throw new MissingHistoryError('A sync revision is incomplete or malformed. Waiting for transfer; keep the history files if saving pauses after repeated attempts.'); }
-  if (!record || record.protocol !== 1 || record.journal !== journal || !uuid.test(record.id) || !uuid.test(record.device)
+  if (!record || record.protocol !== 2 || record.journal !== journal || !uuid.test(record.id) || !uuid.test(record.device)
     || !Array.isArray(record.parents) || record.parents.length > MAX_REVISIONS || record.parents.some(id => typeof id !== 'string' || !uuid.test(id) || id === record.id)
     || new Set(record.parents).size !== record.parents.length || [...record.parents].sort().join() !== record.parents.join()
     || !['journal', 'external'].includes(record.origin) || typeof record.text !== 'string' || typeof record.digest !== 'string'

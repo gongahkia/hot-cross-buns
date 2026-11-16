@@ -1,7 +1,8 @@
+import { serializeJournal } from './journalDocument.ts';
 import { useEffect, useRef, useState } from 'react';
 import { synchronizeJournal, type SyncAdapter, type SyncBundle, type SyncLink, type SyncProvider, type SyncStatus } from './journalSync';
 import { changeSyncBundle, readSyncBundle, subscribeStore } from './todoStore';
-import { serializeTodoText, todayString, type TodoDocument } from './todoText';
+import { todayString, type TodoDocument } from './todoText';
 
 export function useJournalSync<L extends SyncLink, S extends { text: string }>(provider: SyncProvider, document: TodoDocument | null, canSave: () => boolean, adapter: SyncAdapter<L, S>, interval: number, enabled = true, validate?: (document: TodoDocument) => void, selectAdapter?: (link: L) => SyncAdapter<L, S>) {
   const [bundle, setBundle] = useState<SyncBundle<L> | null>(null);
@@ -73,6 +74,6 @@ export function useJournalSync<L extends SyncLink, S extends { text: string }>(p
   if (blocked && bundle) status = { ...status, kind: blocked };
   if (failure) status = { ...status, kind: 'error', detail: failure };
   else if (bundle?.link.needsReview) status = { ...status, kind: 'changed' };
-  else if (bundle && status.kind === 'saved' && document && serializeTodoText(document) !== bundle.link.baselineText) status = { ...status, kind: 'saving' };
+  else if (bundle && status.kind === 'saved' && document && serializeJournal(document) !== bundle.link.baselineText) status = { ...status, kind: 'saving' };
   return { status, record: bundle?.link ?? null, ledger: bundle?.ledger, refresh, poll: (force = false) => execute.current(force) };
 }
