@@ -42,6 +42,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 ## Next validation
 
+- [ ] Investigate the existing 1,200-item completion/undo performance gate before claiming a speed advantage. Both the current runtime and baseline `a8d586f` exceeded its unchanged limits on 16 November 2026; see [measurements and verification boundaries](./docs/MARKDOWN_PLANNER_PLAN.md#foundation-verification-16-november-2026). The Markdown foundation is not yet connected to the app.
 - [ ] Validate Nextcloud and Dropbox with actual desktop clients/accounts and two physical devices, including hidden-history exclusions, offline availability, replacement handles, conflict copies, interrupted transfer and matching folder receipts. This implementation uses automated fault models only, as requested; native pickers, provider acknowledgements and device delivery remain unverified.
 - [ ] Evaluate OneDrive as the alternative managed provider after the selected Dropbox workflow is dogfooded. A direct Nextcloud WebDAV, Dropbox or Graph adapter needs its own browser/authentication and transport contract; no such API integration is advertised here.
 - [ ] Investigate the existing intermittent Chromium mobile-rotation weekday visibility failure if it recurs; preserve assertions and report retries explicitly.

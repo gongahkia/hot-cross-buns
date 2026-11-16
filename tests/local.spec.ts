@@ -139,6 +139,8 @@ test('flags malformed text and unfinished work on an earlier date', async ({ pag
   const yesterday = dateOffset(-1);
   await page.getByRole('textbox', { name: 'Edit imported TODO.txt' }).fill(`${yesterday}\n\nCarry forward manually\n`);
   await page.getByRole('button', { name: 'check file' }).click();
+  // yesterday can be outside the default week, notably on Mondays.
+  await showJournalDay(page, yesterday);
   await expect(page.getByRole('group', { name: 'Carry forward manually' })).toBeVisible();
   const notice = page.locator('span[title="1 unfinished on this day"]');
   await expect(notice).toBeVisible();

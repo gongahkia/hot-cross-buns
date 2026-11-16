@@ -217,7 +217,8 @@ test('independent additions from two windows both survive', async ({ page }) => 
   const popup = await popupEvent;
   await popup.waitForLoadState();
   await expect(popup.getByRole('group', { name: 'Main window item' })).toBeVisible();
-  const popupAdd = popup.getByRole('textbox', { name: 'New daily item' }).first();
+  await popup.getByRole('textbox', { name: 'Edit Main window item' }).press('Enter');
+  const popupAdd = popup.getByRole('textbox', { name: 'New item after current item' });
   await popupAdd.fill('Popout item');
   await popupAdd.press('Enter');
   await expect(page.getByRole('group', { name: 'Main window item' })).toBeVisible();

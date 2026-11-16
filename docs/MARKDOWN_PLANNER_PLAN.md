@@ -117,7 +117,7 @@ This is a design acceptance matrix. Implementation must add concrete input/outpu
 | Parent/detail completion rules | Keep completing/reopening children with the parent and completing the parent when its last detail is completed |
 | Undated `LIST:` groups | Undated subheadings, plain item bullets and nested plain detail bullets; preserve their non-checkbox workflow |
 | Item/detail promotion and movement | Structural edits in the same source document, keeping content, identity where applicable and one undoable action |
-| Same-day `HH:MM-HH:MM` prefix | Keep the readable prefix in Candidate A; preserve its local wall-clock meaning |
+| Same-day `HH:MM-HH:MM` prefix | Keep the literal Markdown title prefix; preserve its local wall-clock meaning and distinguish inline-code examples |
 | `@span: all-day` | Entry metadata `span: all-day`; distinguish explicit all-day occupancy from an untimed dated item |
 | `@span: all-day through DATE` | Preserve the inclusive end date; project across days without storing duplicate entries |
 | Overnight/multi-day timed span | Preserve start clock, end date and end clock; retain one source entry |
@@ -177,7 +177,7 @@ Confirmed product requirement: optional display conversion is configurable in Se
 - An operation that actually converts stored schedules needs a preview, explicit confirmation and undo. Keep that operation separate from a viewing preference.
 - Define shared versus per-browser settings, day boundaries, DST gaps/ambiguities, all-day inclusive ends and recurrence expansion before implementing conversion. Default floating times and all-day dates must not be shifted incidentally.
 
-This interpretation is a proposal, not a claim that timezone conversion has been implemented or its metadata format chosen.
+This interpretation is approved product direction, not a claim that timezone conversion has been implemented or its metadata format chosen.
 
 ## Source editing, capture, search and rendering
 
@@ -188,7 +188,7 @@ This interpretation is a proposal, not a claim that timezone conversion has been
 - Origin links and capture provenance are proposed enhancements. If cut removes the source passage, the UI must not promise a working jump-back unless the source context is deliberately retained elsewhere in the same document. Resolve that behavior before adding provenance metadata.
 - Build search/link/calendar indexes incrementally or off the main thread when measurements justify it. Render visible calendar ranges and lazily render diagrams/math. No broad workspace rerender or history scan should be required for each keystroke.
 - Preserve the quiet UI: dated, undated and scratchpad workflows remain primary. Calendar switching, metadata, source tools, linking and advanced commands should use restrained/contextual controls. A Markdown transition must not require a permanent graph, inspector or navigation sidebar.
-- Render untrusted Markdown safely, restrict URL schemes, and keep metadata comments inert. Mermaid/math processing must have bounded work and isolated failures; unsupported or invalid content stays available as source. Single-file support does not silently add a binary-attachment directory.
+- Render untrusted Markdown safely, restrict URL schemes, and keep metadata/code inert. Mermaid/math processing must have bounded work and isolated failures; unsupported or invalid content stays available as source. Single-file support does not silently add a binary-attachment directory.
 
 ## Sync and future agents
 
@@ -213,6 +213,21 @@ One-time external calendar imports must produce owned entries and an interpretat
 The user approved implementation after the planning answers. Continue in coherent stages with verification. No product decision is blocking the foundation. Do not infer authorization to delete a developer workspace, rename linked targets without a visible transition, or advertise unfinished runtime stages. Keep the README untouched. The calendar-account, task/event, shared-scratchpad, metadata, view-set and floating-time decisions are settled; do not ask them again by default.
 
 Next: integrate one document mutation path with storage, immutable sync, drafts, recovery and shared scratchpad; implement occurrence-aware completion/movement and explicit developer-workspace replacement. The TXT merge must never become a fallback for arbitrary Markdown. Only then switch existing views and exports to Markdown and add the calendar/rich rendering stages.
+
+### Foundation verification, 16 November 2026
+
+Node 22.18.0: 196 unit tests pass, including 27 Markdown tests; 15 Python tests pass; TypeScript and the production build pass. The build reports the existing 500 kB chunk-size advisory. `npm audit --audit-level=low` reports zero vulnerabilities. README content is identical to `a8d586f`.
+
+Full repository verification is **not green**. The first browser run passed 210 of 214 tests. Investigation separated four failures:
+
+- The malformed-import test assumed yesterday was visible in the current week. It failed on Monday on both this tree and the original `a8d586f`. Its setup now opens the imported date; all original visibility/layout assertions remain. The corrected case passed three repeated runs.
+- The two-window additions test requested an empty-day creation input after that day already had an item. The same failure reproduced on `a8d586f`. Its setup now uses the existing Enter-to-create-sibling flow; all assertions that both windows retain both additions remain.
+- A scratchpad-move test failed when overlapping verification commands shared Playwright's output directory and removed an active trace file. This was a verification mistake, not a product diagnosis. A separate-output, single-worker rerun passed.
+- The 1,200-item performance test failed its unchanged 8,000 ms unfiltered completion/undo gate. The isolated current-tree rerun measured 11,106 ms unfiltered, 2,387 ms search and 6,149 ms filtered completion/undo. An isolated `a8d586f` run also failed: 12,462 / 2,456 / 7,222 ms respectively. The filtered gate is 5,000 ms and also needs attention; search stayed below its 5,000 ms gate. These are individual observed runs, not statistical benchmarks or cross-device performance claims.
+
+The four-case isolated rerun passed all three functional cases and failed only the performance gate. The complete browser suite was not rerun after correcting its two setup defects. A build comparison produced byte-identical application JavaScript for the original baseline and this foundation; the new module is not imported by the running app. No existing runtime, theme, caret, sync or view code was changed. The remaining speed failure is an explicit follow-up, not a reason to weaken the thresholds or claim full verification passed. Actual Markdown UI, storage/sync and device delivery remain unimplemented/unverified at this stage.
+
+Reproduce foundation checks with `npm run test:unit`, `npm run test:python` and `npm run build` on the supported Node version. For the remaining browser gate, run `npm run test:ui -- tests/local.spec.ts --grep "searches a large journal" --workers=1`. Run browser commands serially or give each a separate `--output` directory; `npm run verify` remains the full repository gate.
 
 ## Research notes
 
