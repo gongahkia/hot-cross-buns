@@ -42,7 +42,7 @@ export function spanEnd(item: TodoItem, date: string) {
   return item.span?.kind === 'all-day' ? item.span.through ?? date : item.span?.endDate ?? date;
 }
 
-/** Build one visible day. Virtual rows never enter IndexedDB or TODO.txt. */
+/** Build one visible day. Virtual rows never enter IndexedDB or Planner.md. */
 export function projectItemsForDate(document: TodoDocument, date: string, budget: ProjectionBudget = createProjectionBudget()): ViewItem[] {
   const replaced = new Set<string>();
   const skipped = new Map<TodoItem, Set<string>>();
@@ -87,7 +87,7 @@ export function projectItemsForDate(document: TodoDocument, date: string, budget
         : item.span?.kind === 'time' ? { ...item.span, endDate: shiftDate(item.span.endDate, delta) } : undefined;
       result.push({ ...item, id: 'series:' + item.id + ':' + occurrence + ':' + date, completed: false, completedOn: undefined,
         span,
-        details: item.details.map(detail => ({ text: detail.text, completed: false })),
+        details: item.details.map(detail => ({ ...detail, completed: false })),
         projection: { kind: 'series', masterId: item.id, originalDate: occurrence, series: rule.series, continuation: offset > 0 } });
     }
   }

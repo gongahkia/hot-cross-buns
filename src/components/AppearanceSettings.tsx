@@ -42,7 +42,7 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
     </SettingsSection>
     <SettingsSection aria-label="Journal preferences"><SectionTitle>Journal</SectionTitle>
       <FontField>Time zone<FontSelect value={timeZone} onChange={event => onTimeZoneChange(event.target.value)}>{Intl.supportedValuesOf('timeZone').map(zone => <option key={zone} value={zone}>{zone.replaceAll('_', ' ')}</option>)}</FontSelect></FontField>
-      <Hint>This sets which date counts as today. Item times remain the wall times written in TODO.txt.</Hint>
+      <Hint>This sets which date counts as today. Item times remain the wall times written in Planner.md.</Hint>
       <FontField>Week starts on<FontSelect value={weekStart} onChange={event => onWeekStartChange(Number(event.target.value) as WeekStart)}>{weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}</FontSelect></FontField>
       <FontField>Earlier unfinished items<FontSelect value={pastUnfinishedScope} onChange={event => onPastUnfinishedScopeChange(event.target.value as PastUnfinishedScope)}><option value="visible">Current visible range</option><option value="all">Every earlier date</option></FontSelect></FontField>
       <Hint>Choose which earlier items appear in the count above the dated journal.</Hint>
@@ -52,15 +52,15 @@ export function AppearanceSettings({ open, onClose, dateFormat, onDateFormatChan
         <FontField>Holiday country<FontSelect value={holidayCountry} onChange={event => onHolidayCountryChange(event.target.value)}>{holidayCountries.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</FontSelect></FontField>
         {holidayMode === 'saved' ? <><FontField>Year to add<YearInput type="number" min={1900} max={2100} value={holidayYear} onChange={event => setHolidayYear(Number(event.target.value))}/></FontField>
           {holidaysEnabled && <ImportButton type="button" disabled={!Number.isInteger(holidayYear) || holidayYear < 1900 || holidayYear > 2100} onClick={() => onImportHolidays(holidayCountry, holidayYear)}>Add {holidayYear} holidays</ImportButton>}
-          <Hint>Added holidays become ordinary all-day Hot Cross Buns items in TODO.txt. Turning this setting off keeps them. Importing the same unchanged holiday twice will not duplicate it.</Hint></>
-          : <Hint>Holidays appear beside their dates while this is on. This view stays current and adds nothing to TODO.txt. Outside Singapore, only countrywide holidays are shown.</Hint>}
+          <Hint>Added holidays become ordinary all-day Hot Cross Buns items in Planner.md. Turning this setting off keeps them. Importing the same unchanged holiday twice will not duplicate it.</Hint></>
+          : <Hint>Holidays appear beside their dates while this is on. This view stays current and adds nothing to Planner.md. Outside Singapore, only countrywide holidays are shown.</Hint>}
         {holidayStatus && <Hint role="status">{holidayStatus}</Hint>}
       </section>
     </SettingsSection>
     <SettingsSection aria-label="Scratchpad preferences"><SectionTitle>Scratchpad</SectionTitle>
       <FontField>Selected lines become<FontSelect value={scratchpadMapping} onChange={event => { const value = event.target.value as ScratchpadMapping; setScratchpadMapping(value); setMappingState(value); }}><option value="details">First line as title, rest as details</option><option value="items">One item per nonempty line</option><option value="single">One title joining all lines</option></FontSelect></FontField>
       <FontField>After creating an item<FontSelect value={scratchpadMoveMode} onChange={event => { const value = event.target.value as ScratchpadMoveMode; setScratchpadMoveMode(value); setMoveModeState(value); }}><option value="cut">Remove selected scratchpad text</option><option value="ask">Ask whether to remove or keep it</option></FontSelect></FontField>
-      <Hint>Scratchpad text is stored only in this browser. Move text into dated or undated items to include it in TODO.txt.</Hint>
+      <Hint>Scratchpad text is part of Planner.md and syncs with the rest of your journal. Moving selected text organizes it into dated or undated entries.</Hint>
     </SettingsSection>
     <SettingsSection aria-label="Sync and recovery"><SectionTitle>Sync and recovery</SectionTitle>
       {syncSettings}

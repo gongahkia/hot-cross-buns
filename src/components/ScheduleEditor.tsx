@@ -150,6 +150,6 @@ export function ScheduleEditor({ kind, item, date, onClose, onTime, onRepeat }: 
       {error && <Error role="alert">{error}</Error>}
       <Actions>{kind === 'time' && block && <Button type="button" onClick={() => { onTime(setTimeBlock(item.text, null, null)); onClose(); }}>remove time</Button>}<Button type="button" onClick={onClose}>cancel</Button><Button $primary type="submit">save</Button></Actions>
     </Form>
-    {kind === 'repeat' && item.repeat && <p style={{ fontSize:11, color:'var(--muted)', margin:'8px 4px 0', overflowWrap:'anywhere' }}>TODO.txt: @repeat: {formatRecurrence(item.repeat)}</p>}
+    {kind === 'repeat' && item.repeat && <p style={{ fontSize:11, color:'var(--muted)', margin:'8px 4px 0', overflowWrap:'anywhere' }}>repeat: {formatRecurrence(item.repeat)}</p>}
   </Modal>;
 }

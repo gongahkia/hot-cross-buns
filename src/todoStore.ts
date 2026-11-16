@@ -123,7 +123,7 @@ export async function mutateTodoState(change: (latest: TodoState) => TodoState |
       } catch (error) { fail(error); }
     };
   });
-  if (result) { announce('journal'); announce('scratchpad', true); }
+  if (result) { announce('journal', true); announce('scratchpad', true); }
   return result;
 }
 

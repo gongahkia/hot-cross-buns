@@ -52,7 +52,7 @@ export function FileSyncSettings({ status, error, busy, onLink, onReview, onResu
         {(status.kind === 'permission' || status.kind === 'error') && <Button disabled={busy} onClick={onResume}>Resume file saving</Button>}
         <Button disabled={busy} onClick={onUnlink}>Unlink file</Button>
       </Actions>}
-      <p>A local save does not confirm cloud upload or delivery to another device. Check your sync client before switching devices. Scratchpad and appearance settings stay in this browser. Unlinking keeps both copies.</p>
+      <p>A local save does not confirm cloud upload or delivery to another device. Check your sync client before switching devices. The scratchpad is included in the synced file. Appearance settings stay in this browser. Unlinking keeps both copies.</p>
     </> : <p>This browser cannot link local files. Use Commands → Import Planner.md and Download Planner.md with your synced folder.</p>}
     {providers.map(provider => <Provider key={provider.name} aria-label={provider.name}>
       <h4 aria-label={provider.name}><a href={provider.site} target="_blank" rel="noreferrer" aria-label={`${provider.name} website`}><img src={`/providers/${provider.icon}`} alt={provider.name}/></a>{provider.name}</h4>

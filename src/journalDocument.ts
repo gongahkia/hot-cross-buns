@@ -5,6 +5,8 @@ import { formatSpan, type TodoDetail, type TodoDocument, type TodoItem } from '.
 export const JOURNAL_FILE_NAME = 'Planner.md';
 export const JOURNAL_FORMAT = 'hcb-markdown-1';
 const cache = new Map<string, { model: MarkdownPlanner; document: TodoDocument }>();
+const assignedIds = new WeakMap<TodoItem, string>();
+const canonical = new WeakSet<TodoDocument>();
 const textAt = (source: string, range: SourceRange) => source.slice(range.start, range.end);
 const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 const fields = ['repeat', 'completedOn', 'span', 'skips', 'replaces'] as const;
@@ -33,6 +35,7 @@ export function readJournal(source: string): { model: MarkdownPlanner; document:
     for (const child of Object.values(value)) if (child && typeof child === 'object') pending.push(child);
     Object.freeze(value);
   }
+  if (plannerWritable(model)) canonical.add(document);
   const result = { model, document };
   cache.set(source, result);
   if (cache.size > 2) cache.delete(cache.keys().next().value!);
@@ -46,7 +49,7 @@ export function parseJournal(source: string) {
   })) };
 }
 
-export function createJournal(documentId = crypto.randomUUID()): TodoDocument {
+export function createJournal(documentId: string = crypto.randomUUID()): TodoDocument {
   return readJournal(`---\nhcb-format: 1\ndocument-id: ${documentId}\n---\n\n# Hot Cross Buns\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\n`).document;
 }
 
@@ -79,6 +82,7 @@ function adjustIndent(raw: string, from: number, to: number, nl: string) {
 
 /** the arrays are editable projections; only this adapter commits their changes back to source. */
 export function materializeJournal(document: TodoDocument): TodoDocument {
+  if (canonical.has(document)) return document;
   if (document.source === undefined) throw new Error('The journal has no Markdown source. Explicitly convert or create a Markdown workspace.');
   const { model, document: before } = readJournal(document.source);
   assertModel(model);
@@ -94,14 +98,17 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     for (const edit of edits.sort((a, b) => b.range.start - a.range.start)) raw = raw.slice(0, edit.range.start - owner.start) + edit.text + raw.slice(edit.range.end - owner.start);
     return raw;
   };
-  const title = (text: string, indent: number) => text.replace(/\r\n|\r|\n/g, `${nl}${' '.repeat(indent)}`);
+  const title = (text: string, indent: number, dated: boolean) => {
+    if (!dated && /^(?:[+*-]\s|#{1,6}\s|>|\d+[.)]\s|\[[ xX]\]\s|`{3}|~{3}|<(?!(?:https?:\/\/))|(?:[-*_]\s*){3,}$)/.test(text)) text = '\\' + text;
+    return text.replace(/\r\n|\r|\n/g, `${nl}${' '.repeat(indent)}`);
+  };
   const render = (item: TodoDetail | TodoItem, dated: boolean, column: number, asEntry: boolean): string => {
     const original = item.sourceRef ? originals.get(item.sourceRef) : undefined;
     const node = original?.node;
     const marker = `- ${dated ? `[${item.completed ? 'x' : ' '}] ` : ''}`;
     const childColumn = column + 2;
     if (!node) {
-      let raw = marker + title(item.text, childColumn);
+      let raw = marker + title(item.text, childColumn, dated);
       if (asEntry) {
         const entry = item as TodoItem;
         if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(entry.id)) throw new Error('New entries require a stable ID.');
@@ -115,13 +122,18 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     const originalDated = !!node.checkbox;
     if (originalDated !== dated) edits.push({ range: { start: node.range.start, end: node.titleRange.start }, text: marker });
     else if (node.checkbox && item.completed !== node.completed) edits.push({ range: node.checkbox, text: item.completed ? 'x' : ' ' });
-    if (item.text !== node.markdown) edits.push({ range: node.titleRange, text: title(item.text, original!.column + (prefix.match(/^[-+*][ \t]+/)?.[0].length ?? 2)) });
+    if (item.text !== node.markdown) edits.push({ range: node.titleRange, text: title(item.text, original!.column + (prefix.match(/^[-+*][ \t]+/)?.[0].length ?? 2), dated) });
     if (asEntry) {
       const entry = item as TodoItem, old = original!.entry;
-      const id = /^source:/.test(entry.id) ? crypto.randomUUID() : entry.id;
       const oldValue = old && itemFrom(old);
       const changed = !old || value(entry) !== value(oldValue!) || entry.id !== entryId(old);
-      if (changed) {
+      const changedMetadata = !old || !!old.id && entry.id !== old.id || !!old.date !== dated || JSON.stringify(fields.map(key => entry[key])) !== JSON.stringify(fields.map(key => old[key]));
+      if (changedMetadata || !old?.id && changed) {
+        let id = entry.id;
+        if (/^source:/.test(id)) {
+          id = assignedIds.get(entry) ?? crypto.randomUUID();
+          assignedIds.set(entry, id);
+        }
         const indent = old?.indent ?? ' '.repeat(original!.column + 2);
         const block = `\`\`\`hcb${nl}${metadata(entry, id, dated).map(line => indent + line).join(nl)}${nl}${indent}\`\`\``;
         if (old?.metadata) edits.push({ range: old.metadata, text: block });
@@ -195,9 +207,10 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
 export const serializeJournal = (document: TodoDocument): string => materializeJournal(document).source!;
 export const validateJournal = (document: TodoDocument): void => { materializeJournal(document); };
 export const withScratchpad = (document: TodoDocument, text: string) => materializeJournal({ ...document, scratchpad: text });
+export const isEmptyJournal = (document: TodoDocument) => document.source?.trim() === createJournal(readJournal(document.source!).model.documentId).source!.trim();
 
 /** one explicit workspace conversion, not a reader for legacy files in the running app. */
-export function journalFromModel(model: TodoDocument, scratchpad = '', documentId = crypto.randomUUID()): TodoDocument {
+export function journalFromModel(model: TodoDocument, scratchpad = '', documentId: string = crypto.randomUUID()): TodoDocument {
   const empty = createJournal(documentId);
   const items = (entries: TodoItem[]) => entries.map(item => ({ ...item, id: /^[a-z0-9][a-z0-9-]{0,79}$/.test(item.id) ? item.id : crypto.randomUUID(), sourceRef: undefined,
     text: escapeMarkdownText(item.text), details: item.details.map(detail => ({ text: escapeMarkdownText(detail.text), completed: detail.completed })) }));

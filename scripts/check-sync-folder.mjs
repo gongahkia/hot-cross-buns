@@ -23,7 +23,7 @@ async function readBounded(path, limit) {
   return Buffer.concat(chunks);
 }
 async function check() {
-  const [folder, name = 'TODO.txt', ...extra] = process.argv.slice(2);
+  const [folder, name = 'Planner.md', ...extra] = process.argv.slice(2);
   if (!folder || extra.length || !name || /[\\/\u0000-\u001f]/.test(name) || ['.', '..'].includes(name)) throw new Error('Usage: npm run --silent sync:check -- /path/to/journal-folder [journal-filename]');
   const root = resolve(folder); await regular(root, true);
   const projection = await readBounded(join(root, name), MAX_IMPORT_BYTES); assertImportText(projection.toString('utf8'));

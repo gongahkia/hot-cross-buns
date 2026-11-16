@@ -1,3 +1,4 @@
+import { shiftDate } from './dayWindow.ts';
 import { validDate, type TodoDocument } from './todoText.ts';
 import { describeScheduled, formatScheduled, newSeriesId, nextScheduledDate, parseScheduled, validSeriesId, type ScheduledRule } from './scheduledRecurrence.ts';
 export { newSeriesId } from './scheduledRecurrence.ts';
@@ -161,7 +162,12 @@ export function reconcileRecurrences(document: TodoDocument, onlyKeys?: Set<stri
     const nextRule: RecurrenceRule = { ...rule, occurrence: rule.occurrence + 1 };
     let nextDay = document.days.find(candidate => candidate.date === nextDate);
     if (!nextDay) { nextDay = { date: nextDate, items: [] }; document.days.push(nextDay); }
-    nextDay.items.push({ id: crypto.randomUUID(), text: item.text, completed: false, repeat: nextRule, details: item.details.map(detail => ({ text: detail.text, completed: false })) });
+    const delta = Math.round((Date.parse(nextDate + 'T12:00:00Z') - Date.parse(date + 'T12:00:00Z')) / 86400000);
+    const span = item.span?.kind === 'all-day'
+      ? { ...item.span, ...(item.span.through ? { through: shiftDate(item.span.through, delta) } : {}) }
+      : item.span?.kind === 'time' ? { ...item.span, endDate: shiftDate(item.span.endDate, delta) } : undefined;
+    nextDay.items.push({ ...item, id: crypto.randomUUID(), completed: false, completedOn: undefined, repeat: nextRule,
+      ...(span ? { span } : {}), details: item.details.map(detail => ({ ...detail, completed: false })) });
     seen.add(nextKey);
   }
   document.days.sort((a, b) => a.date.localeCompare(b.date));

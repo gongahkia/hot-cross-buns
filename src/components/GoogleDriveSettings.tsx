@@ -28,7 +28,7 @@ export function GoogleDriveSettings({ config, onConfigure, sdkReady, onRetrySdk,
     : status.kind === 'error' ? `Saving is paused. ${status.detail}`
     : status.kind === 'saving' ? `Saving ${status.name} to Google Drive…`
     : status.kind === 'saved' ? `${status.name} is up to date.${status.lastSavedAt ? ' Last written at ' + new Date(status.lastSavedAt).toLocaleTimeString() + '.' : ''}`
-    : connected ? `Connected${email ? ' as ' + email : ''}. Create a journal or open an existing text file.` : 'Save Planner.md directly to your Google Drive account.';
+    : connected ? `Connected${email ? ' as ' + email : ''}. Create a journal or open an existing Markdown file.` : 'Save Planner.md directly to your Google Drive account.';
   return <Section aria-label="Google Drive"><h3><img src="/providers/google-drive.png" alt=""/>Google Drive</h3>
     <p>{message}</p>
     <p>Optional Google sign-in with your own Web OAuth client. Only files created or opened through this app are requested.</p>
@@ -59,8 +59,8 @@ export function GoogleDriveSettings({ config, onConfigure, sdkReady, onRetrySdk,
     </>}
     {linked && <Button type="button" disabled={busy} onClick={onUnlink}>Unlink Google Drive file</Button>}
     {connected && <Button type="button" disabled={busy} onClick={onDisconnect}>Sign out of this tab</Button>}</Actions>
-    {connected && !linked && !localLinked && files.length > 0 && <><p>Recent text files opened by this app</p><Files aria-label="Google Drive journal files">{files.map(file => <Button key={file.id} type="button" disabled={busy} onClick={() => onOpen(file.id)}>{file.name}{file.modifiedTime ? ' · ' + new Date(file.modifiedTime).toLocaleDateString() : ''}</Button>)}</Files></>}
-    <p>Saving runs while a tab is open and visible. Scratchpad text and appearance settings stay in this browser. Unlinking keeps the Google Drive file and browser journal.</p>
+    {connected && !linked && !localLinked && files.length > 0 && <><p>Recent Markdown files opened by this app</p><Files aria-label="Google Drive journal files">{files.map(file => <Button key={file.id} type="button" disabled={busy} onClick={() => onOpen(file.id)}>{file.name}{file.modifiedTime ? ' · ' + new Date(file.modifiedTime).toLocaleDateString() : ''}</Button>)}</Files></>}
+    <p>Saving runs while a tab is open and visible. The scratchpad is included in Planner.md. Appearance settings stay in this browser. Unlinking keeps the Google Drive file and browser journal.</p>
     <p><a href="https://github.com/gongahkia/hot-cross-buns/blob/main/docs/GOOGLE_DRIVE.md" target="_blank" rel="noreferrer">Google Drive setup guide</a></p>
   </Section>;
 }

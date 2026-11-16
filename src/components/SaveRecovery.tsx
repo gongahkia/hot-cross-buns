@@ -31,7 +31,7 @@ export function SaveRecovery({ error, text, kind, onRetry, onDiscard }: {
         catch { setNotice('Clipboard access was denied. Download the unsaved text instead.'); }
       }}>Copy unsaved text</Button>
       <Button type="button" onClick={() => {
-        try { downloadTextFile(text, kind === 'journal' ? 'TODO-unsaved.txt' : 'scratchpad-unsaved.txt'); setNotice('Unsaved text download started.'); }
+        try { downloadTextFile(text, kind === 'journal' ? 'Planner-unsaved.md' : 'scratchpad-unsaved.md'); setNotice('Unsaved text download started.'); }
         catch (cause) { setNotice('Could not download: ' + String(cause)); }
       }}>Download unsaved text</Button>
       <Button type="button" onClick={() => setConfirmDiscard(true)}>Discard unsaved edits</Button>

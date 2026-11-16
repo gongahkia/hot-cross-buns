@@ -1,4 +1,4 @@
-import { parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
+import { parseJournal, serializeJournal } from './journalDocument.ts';
 import { assertImportText, MAX_IMPORT_BYTES } from './importLimits.ts';
 import { doctorJournal } from './journalDoctor.ts';
 import { mergeJournalSources } from './journalMerge.ts';

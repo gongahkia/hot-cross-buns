@@ -22,7 +22,7 @@ export function useJournalEditing() {
     const leave = () => { editor = null; setDraft(false); updateLease(); };
     const focus = () => {
       const active = document.activeElement;
-      if (!(active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement && ['text', 'search', 'email', 'url', 'tel'].includes(active.type)) || active.closest('dialog') || active.getAttribute('aria-label') === 'Scratchpad text') { leave(); return; }
+      if (!(active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement && ['text', 'search', 'email', 'url', 'tel'].includes(active.type)) || active.closest('dialog')) { leave(); return; }
       if (active === editor) return;
       editor = active; initial = active.value; setDraft(false); updateLease();
     };

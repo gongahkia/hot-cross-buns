@@ -3,7 +3,7 @@ export const MAX_VISIBLE_ROWS = 5_000;
 
 export class ProjectionLimitError extends Error {
   constructor() {
-    super('This view contains too many items or repeated spans. Choose fewer dates, limit earlier unfinished items to the visible range, or download TODO.txt to review the journal.');
+    super('This view contains too many items or repeated spans. Choose fewer dates, limit earlier unfinished items to the visible range, or download Planner.md to review the journal.');
   }
 }
 

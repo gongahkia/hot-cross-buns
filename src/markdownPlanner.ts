@@ -342,7 +342,7 @@ const entryStructure = (entry: PlannerEntry) => JSON.stringify([
 ]);
 
 /** persist identity only when an operation needs it; untouched captures stay terse. */
-export function ensurePlannerEntryId(model: MarkdownPlanner, current: string, start: number, newId = () => crypto.randomUUID()): { model: MarkdownPlanner; id: string } {
+export function ensurePlannerEntryId(model: MarkdownPlanner, current: string, start: number, newId: () => string = () => crypto.randomUUID()): { model: MarkdownPlanner; id: string } {
   assertCurrent(model, current);
   const entry = findEntry(model, start);
   if (entry.id) return { model, id: entry.id };

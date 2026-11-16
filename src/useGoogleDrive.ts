@@ -64,7 +64,7 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
     classify: error => error instanceof GoogleDriveError ? error.status === 401 ? 'reauth' : error.status === 412 ? 'changed' : [408, 429, 500, 502, 503, 504].includes(error.status) ? 'retrying' : 'error' : error instanceof TypeError || error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name) ? 'retrying' : 'error',
     network: true,
   };
-  const sync = useJournalSync<DriveLink, DriveSnapshot>('drive', journal, () => canSave() && !operating.current, adapter, 15_000, true, validate, link => link.revisionProtocol === 1 ? { ...adapter, revisions: {
+  const sync = useJournalSync<DriveLink, DriveSnapshot>('drive', journal, () => canSave() && !operating.current, adapter, 15_000, true, validate, link => link.revisionProtocol === 2 ? { ...adapter, revisions: {
     journal: 'drive:' + link.fileId, device: loadSyncDevice,
     reserve: () => authenticated(() => api().revisions(link.fileId, loadSyncDevice).reserve!()),
     list: () => authenticated(() => api().revisions(link.fileId, loadSyncDevice).list()),
@@ -170,7 +170,7 @@ export function useGoogleDrive(journal: TodoDocument | null, canSave: () => bool
   const enableHistory = async () => {
     await navigator.locks.request('hot-cross-buns-sync-delivery', () => navigator.locks.request(fileSyncLock, async () => {
       const link = await loadDriveLink(); if (!link) throw new Error('The Drive file was unlinked.');
-      await storeDriveLink({ ...link, revisionProtocol: 1 });
+      await storeDriveLink({ ...link, revisionProtocol: 2 });
     }));
     await sync.refresh(); void sync.poll(true);
   };

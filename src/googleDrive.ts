@@ -77,7 +77,7 @@ export function createDriveApi(session: GoogleSession, fetcher: typeof fetch = g
     const remote = await read(link.fileId);
     if (remote.text === text) return { kind: 'unchanged', snapshot: remote };
     if (remote.file.version !== link.version || remote.text !== link.baselineText) return { kind: 'changed', snapshot: remote };
-    const headers = new Headers({ 'Content-Type': 'text/plain;charset=utf-8' });
+    const headers = new Headers({ 'Content-Type': 'text/markdown;charset=utf-8' });
     if (remote.etag) headers.set('If-Match', remote.etag);
     const response = await request(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(link.fileId)}?uploadType=media&fields=${encodeURIComponent(fields)}`, { method: 'PATCH', headers, body: text });
     const file = validateDriveFile(await response.json());
@@ -87,18 +87,19 @@ export function createDriveApi(session: GoogleSession, fetcher: typeof fetch = g
   const create = async (text: string): Promise<DriveSnapshot> => {
     assertImportText(text);
     const boundary = 'hcb-' + crypto.randomUUID();
-    const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, JSON.stringify({ name: 'Planner.md', mimeType: 'text/markdown', description: 'Hot Cross Buns single-file Markdown planner' }), `\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n`, text, `\r\n--${boundary}--\r\n`], { type: `multipart/related; boundary=${boundary}` });
+    const body = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, JSON.stringify({ name: 'Planner.md', mimeType: 'text/markdown', description: 'Hot Cross Buns single-file Markdown planner' }), `\r\n--${boundary}\r\nContent-Type: text/markdown; charset=UTF-8\r\n\r\n`, text, `\r\n--${boundary}--\r\n`], { type: `multipart/related; boundary=${boundary}` });
     const response = await request(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${encodeURIComponent(fields)}`, { method: 'POST', body });
     return { file: validateDriveFile(await response.json()), text, etag: null };
   };
   const list = async (): Promise<DriveFile[]> => {
-    const query = new URLSearchParams({ q: "trashed = false and mimeType = 'text/plain'", pageSize: '20', orderBy: 'modifiedTime desc', fields: `files(${fields})` });
+    const query = new URLSearchParams({ q: "trashed = false and (mimeType = 'text/markdown' or mimeType = 'text/plain' or mimeType = 'application/octet-stream')", pageSize: '20', orderBy: 'modifiedTime desc', fields: `files(${fields})` });
     const response = await request('https://www.googleapis.com/drive/v3/files?' + query);
     const data = await response.json() as { files?: unknown[] };
     if (!Array.isArray(data.files)) throw new GoogleDriveError('Google Drive returned an invalid file list.');
     return data.files.filter(value => {
       const file = value as Partial<DriveFile> | null;
-      return file?.capabilities?.canEdit !== false && !(file?.size && Number(file.size) > MAX_IMPORT_BYTES);
+      if (!file || typeof file.name !== 'string') throw new GoogleDriveError('Google Drive returned an invalid file list.');
+      return /\.(md|markdown)$/i.test(file.name) && file.capabilities?.canEdit !== false && !(file.size && Number(file.size) > MAX_IMPORT_BYTES);
     }).map(validateDriveFile);
   };
   const readRevision = async (id: string, journal: string) => {

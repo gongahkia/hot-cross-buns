@@ -7,6 +7,8 @@ import { installTouchHaptics } from './haptics';
 import { installCaretMotion } from './textEntry';
 import { applyStoredAppearance } from './preferences';
 import { migrateLegacyStorage } from './legacyStorage';
+import { loadWorkspaceArchive } from './todoStore';
+import { WorkspaceTransition } from './components/WorkspaceTransition';
 
 async function start() {
   await migrateLegacyStorage();
@@ -16,9 +18,11 @@ async function start() {
   const removeCaretMotion = installCaretMotion();
   if (import.meta.hot) import.meta.hot.dispose(removeCaretMotion);
 
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode><GlobalStyle /><App /></React.StrictMode>,
-  );
+  const root = ReactDOM.createRoot(document.getElementById('root')!);
+  const archive = await loadWorkspaceArchive();
+  const renderApp = () => root.render(<React.StrictMode><GlobalStyle /><App /></React.StrictMode>);
+  if (archive) root.render(<React.StrictMode><GlobalStyle /><WorkspaceTransition archive={archive} onReady={renderApp}/></React.StrictMode>);
+  else renderApp();
 }
 
 void start().catch(error => {

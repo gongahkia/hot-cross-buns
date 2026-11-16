@@ -23,8 +23,8 @@ const Note = styled(Muted)`display:flex;align-items:center;gap:6px;`;
 type Selection = { start: number; end: number; text: string };
 type Destination = 'dated' | 'undated' | null;
 
-export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, onJournalCommitted }: {
-  listNames: string[]; today: string; reloadToken: number; beforeConvert: () => Promise<void>; onJournalCommitted: (journal: TodoState, undo: ScratchpadUndo) => void;
+export function ScratchpadView({ active, listNames, today, reloadToken, beforeConvert, onJournalCommitted }: {
+  active: boolean; listNames: string[]; today: string; reloadToken: number; beforeConvert: () => Promise<void>; onJournalCommitted: (journal: TodoState, undo: ScratchpadUndo) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState('');
@@ -79,8 +79,7 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
     lockChannel.current.onmessage = event => {
       if (event.data?.type === 'takeover' && releaseLock.current) releaseLock.current();
     };
-    requestEdit();
-    const unsubscribe = subscribeStore('scratchpad', () => { if (!releaseLock.current) void refresh().catch(error => setMessage(String(error))); });
+    const unsubscribe = subscribeStore('scratchpad', () => { if (!pendingSaves.current) void refresh().catch(error => setMessage(String(error))); });
     return () => {
       mounted.current = false;
       releaseLock.current?.();
@@ -88,8 +87,9 @@ export function ScratchpadView({ listNames, today, reloadToken, beforeConvert, o
       unsubscribe();
     };
   }, []);
+  useEffect(() => { if (active) requestEdit(); else releaseLock.current?.(); }, [active]);
   useEffect(() => { if (reloadToken) void refresh().catch(error => setMessage(String(error))); }, [reloadToken]);
-  useEffect(() => { if (editable) editor.current?.focus(); }, [editable]);
+  useEffect(() => { if (editable && active) editor.current?.focus(); }, [editable,active]);
   useEffect(() => {
     if (!contextMenu) return;
     const dismiss = (event: PointerEvent) => { if (!menu.current?.contains(event.target as Node)) setContextMenu(null); };

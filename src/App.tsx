@@ -1,4 +1,4 @@
-import { createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
+import { materializeJournal, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { createPortal, flushSync } from 'react-dom';
@@ -30,6 +30,7 @@ import { pickLinkedFile, pickSyncFolder, readLinkedFile, readLinkedText, type Li
 import { CommandPalette, commandKey, type PaletteCommand, type PaletteResult } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
 import { SaveRecovery } from './components/SaveRecovery';
+import { SourceEditor } from './components/SourceEditor';
 import { WriteQueue, WriteDiscardedError } from './writeQueue';
 import { downloadTextFile } from './files';
 import { assertImportSize, assertImportText } from './importLimits';
@@ -39,8 +40,8 @@ import { formatDateHeading, getDateFormat, setDateFormat, getTimeZone, setTimeZo
 import { earlierUnfinishedDays } from './earlierUnfinished';
 import { addSavedHolidays, fetchHolidayYear, type HolidayYear, type PublicHoliday } from './holidays';
 import { cloneDocument, newId, todayString, validDate, type TodoDocument, type TodoItem } from './todoText';
-import { applyDoctorAction, doctorTodoText, type DoctorAction, type DoctorFinding } from './todoDoctor';
-import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './todoMerge';
+import { doctorJournal } from './journalDoctor';
+import { fileBaseline, proposeMerge, resolveMerge, type MergeChoice } from './journalMerge';
 import { advanceRecurrences, nextRecurrenceDate } from './recurrence';
 import { parseTimeBlock } from './timeBlock';
 import { materializeOccurrence, projectItemsForDate, type ViewItem } from './seriesView';
@@ -278,7 +279,8 @@ export default function App() {
   useJournalFieldResize();
   const [popout] = useState(readPopoutScope);
   const [state, setState] = useState<TodoState | null>(null);
-  const current = useRef<TodoState>(emptyState());
+  const [initialState] = useState(emptyState);
+  const current = useRef<TodoState>(initialState);
   const previousDocument = useRef<TodoDocument | null>(null);
   const [initialRange] = useState(readSavedRange);
   const [selectedDate, setSelectedDate] = useState(() => popout?.kind === 'dated' ? popout.from : todayString());
@@ -314,6 +316,7 @@ export default function App() {
   const [completionFilter, setCompletionFilter] = useState<'all' | 'open' | 'done'>('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [legacyRawDraft, setLegacyRawDraft] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
@@ -350,8 +353,8 @@ export default function App() {
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const mergeReviewText = useRef<string | null>(null);
   const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; historyDirectory?: LinkedDirectoryHandle; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | null>(null);
-  const fileSync = useLinkedFile(state?.document ?? null, () => !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
-  const driveSync = useGoogleDrive(state?.document ?? null, () => !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
+  const fileSync = useLinkedFile(state?.document ?? null, () => !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
+  const driveSync = useGoogleDrive(state?.document ?? null, () => !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
   const preserveSyncHistory = (next: TodoDocument) => {
     const before = current.current.document;
     undoStack.current = rebaseSyncHistory(undoStack.current, before, next, todayString());
@@ -498,6 +501,7 @@ export default function App() {
     return { ...next, revision: latest.revision };
   }));
   const commitState = async (next: TodoState) => {
+    next = { ...next, document: materializeJournal(next.document) };
     setScratchUndo(null);
     const before = current.current;
     const stamped = { ...next, revision: before.revision + 1 };
@@ -560,11 +564,11 @@ export default function App() {
   };
   const edit = (change: (document: TodoDocument) => void, feedback?: DeletionFeedback) => {
     const before = current.current.document;
-    const document = cloneDocument(before);
+    let document = cloneDocument(before);
     change(document);
     document.days = document.days.filter(day => day.items.length || day.keepEmpty);
     advanceRecurrences(before, document, todayString());
-    try { validateJournal(document); validateVisibleProjection(document); } catch (error) { setMessage(String(error)); return; }
+    try { document = materializeJournal(document); validateVisibleProjection(document); } catch (error) { setMessage(String(error)); return; }
     if (serializeJournal(before) === serializeJournal(document)) return;
     setScratchUndo(null);
     const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -760,7 +764,7 @@ export default function App() {
       else master.repeat = { ...rule, endsOn: cutoff };
       master.skips = oldSkips.filter(value => value < originalDate);
       const next: TodoItem = { ...structuredClone(master), id: newId(), repeat: nextRule, completed: false, completedOn: undefined,
-        details: master.details.map(detail => ({ text: detail.text, completed: false })), skips: oldSkips.filter(value => value >= originalDate) };
+        details: master.details.map(detail => ({ ...detail, completed: false })), skips: oldSkips.filter(value => value >= originalDate) };
       shiftItemSpan(next,masterDay.date,originalDate);
       let target = document.days.find(day => day.date === originalDate);
       if (!target) { target = { date: originalDate, items: [] }; document.days.push(target); }
@@ -880,8 +884,8 @@ export default function App() {
       } else source.items.splice(source.items.indexOf(stored),1);
       let list = document.undated?.find(list => list.name === listName);
       if (!list) { list = { name: listName, items: [] }; (document.undated ??= []).push(list); }
-      const copy = { ...structuredClone(view), id: newId(), repeat: undefined, skips: undefined, replaces: undefined, completed: false, completedOn: undefined, span: undefined,
-        details: view.details.map(detail => ({ text: detail.text, completed: false })) };
+      const copy = { ...structuredClone(view), id: view.repeat && view.repeat.kind !== 'after' ? newId() : stored.id, repeat: undefined, skips: undefined, replaces: undefined, completed: false, completedOn: undefined, span: undefined,
+        details: view.details.map(detail => ({ ...detail, completed: false })) };
       delete (copy as ViewItem).projection;
       const time = parseTimeBlock(copy.text);
       if (time) { copy.text = time.title; copy.details.unshift({ text: `Time: ${time.start}–${time.end}`, completed: false }); }
@@ -896,7 +900,7 @@ export default function App() {
     const parent = items?.find(item => item.id === parentId);
     if (!items || index < 0 || !parent || id === parentId || items[index].repeat || items[index].span || items[index].replaces || parseTimeBlock(items[index].text)) return;
     const [child] = items.splice(index, 1);
-    parent.details.push({ text: child.text, completed: child.completed }, ...child.details);
+    parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed }, ...child.details);
     parent.completed = parent.details.every(detail => detail.completed);
   });
   const moveItem = (date: string, id: string, target: string, keepRange = false) => {
@@ -990,30 +994,31 @@ export default function App() {
   };
   const imported = async (raw: string, original = raw) => {
     assertImportText(raw);
-    const diagnosis = doctorTodoText(raw);
-    if (diagnosis.findings.length) {
+    const diagnosis = doctorJournal(raw);
+    if (diagnosis.findings.some(finding => finding.level === 'review')) {
       setRawEdit(diagnosis.candidate);
       setReview({ kind: 'doctor', original, checked: diagnosis.candidate, findings: diagnosis.findings });
       return;
     }
     const parsed = parseJournal(raw);
     if (parsed.issues.length) throw new Error('The Planner.md doctor found a format issue after review.');
-    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.revisionId ? null : pendingLink.current?.baselineDocument ?? current.current.baseline, { reviewAdditions: !!pendingLink.current?.id });
+    const proposal = proposeMerge(current.current.document, parsed.document, pendingLink.current?.revisionId ? null : pendingLink.current?.baselineDocument ?? current.current.baseline);
+    if (isEmptyJournal(current.current.document)) { proposal.merged = parsed.document; proposal.conflicts = []; }
     if (proposal.conflicts.length) {
       mergeReviewText.current = serializeJournal(current.current.document);
-      setChoices({}); setReview({ kind: 'merge', raw, proposal }); return;
+      setChoices({}); setRawEdit(serializeJournal(proposal.local)); setReview({ kind: 'merge', raw, proposal }); return;
     }
-    const merged = resolveMerge(proposal, {});
+    const merged = cloneDocument(resolveMerge(proposal, {}));
     advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
     validateJournal(merged);
     await finishImportedJournal(merged, fileBaseline(proposal));
     setReview(null); mergeReviewText.current = null;
     setMessage('Planner.md imported.');
   };
-  const importFile = async (file: File) => { setBusy(true); setFileActionError(''); try { assertImportSize(file.size); await imported(await file.text()); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
+  const importFile = async (file: File) => { setBusy(true); setFileActionError(''); try { assertImportSize(file.size); await imported(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await file.arrayBuffer())); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
   const download = async (fileName: string, lineEnding: LineEnding) => {
     const output = serializeJournal(current.current.document);
-    const fileText = lineEnding === 'crlf' ? output.replace(/\n/g, '\r\n') : output;
+    const fileText = lineEnding === 'crlf' ? output.replace(/\r\n|\r|\n/g, '\r\n') : output;
     downloadTextFile(fileText, fileName);
     setExportOpen(false);
     await commitState({ ...current.current, baseline: cloneDocument(current.current.document) });
@@ -1029,25 +1034,27 @@ export default function App() {
         return;
       }
       if (mergeReviewText.current !== null && mergeReviewText.current !== serializeJournal(current.current.document)) throw new Error('The journal changed while this review was open. Cancel and review the linked file again.');
-      const merged = resolveMerge(review.proposal, choices);
+      const merged = cloneDocument(resolveMerge(review.proposal, choices, rawEdit));
       advanceRecurrences(current.current.document, merged, todayString(), true, pendingLink.current?.baselineDocument ?? current.current.baseline);
       validateJournal(merged);
       await finishImportedJournal(merged, fileBaseline(review.proposal));
       setReview(null); mergeReviewText.current = null; setMessage('Planner.md imported.');
     } catch (error) { setFileActionError(String(error)); } finally { setBusy(false); }
   };
-  const reparse = async () => { const original = review?.kind === 'doctor' ? review.original : rawEdit; setReview(null); try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); } };
-  const doctorAction = (finding: DoctorFinding, action: DoctorAction, value?: string) => {
-    if (review?.kind !== 'doctor') return;
-    try {
-      assertImportText(rawEdit);
-      const updated = applyDoctorAction(rawEdit, finding, action, value);
-      const diagnosis = doctorTodoText(updated);
-      setRawEdit(diagnosis.candidate);
-      setReview({ kind: 'doctor', original: review.original, checked: diagnosis.candidate, findings: diagnosis.findings });
-    } catch (error) { reportSaveError(error, ''); }
+  const reparse = async () => {
+    if (review?.kind === 'merge') {
+      try {
+        const parsed = parseJournal(rawEdit);
+        if (parsed.issues.length) throw new Error(parsed.issues.map(issue => issue.message).join(' '));
+        setReview({ ...review, checked: rawEdit }); setFileActionError('');
+      } catch (error) { setFileActionError(String(error)); }
+      return;
+    }
+    const original = review?.original ?? rawEdit;
+    setReview(null);
+    try { await imported(rawEdit, original); } catch (error) { reportSaveError(error, ''); }
   };
-  const documentData = state?.document ?? createJournal();
+  const documentData = state?.document ?? current.current.document;
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
@@ -1209,6 +1216,15 @@ export default function App() {
       if (snapshot.provider === 'file') await reviewLinkedFile(); else await openDriveFile(undefined, true);
     }
   };
+  const saveSource = async (source: string, expected: string) => {
+    await journalQueue.current;
+    if (serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while this source draft was open. Download your draft, close and reopen the source to review the latest version.');
+    const parsed = parseJournal(source);
+    if (parsed.issues.length) throw new Error(parsed.issues.slice(0,20).map(issue => `Line ${issue.line}: ${issue.message}`).join(' '));
+    if (readJournal(source).model.documentId !== readJournal(expected).model.documentId) throw new Error('Source editing keeps document-id unchanged. Use explicit import review to replace the whole journal.');
+    await commitDocumentState({ ...current.current, document: parsed.document });
+    setMessage('Markdown source saved.');
+  };
   const commands: PaletteCommand[] = [];
   if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: 'Search journal', keywords: 'find filter entries', icon: Search, run: () => openJournalSearch(true) });
   if (!popout && activeTab !== 'scratchpad') commands.push(
@@ -1216,6 +1232,7 @@ export default function App() {
     { id: 'download', label: 'Download Planner.md', keywords: 'export save file', icon: Download, run: () => setExportOpen(true) },
   );
   if (!popout) commands.push({ id: 'window', label: 'Open view in browser window', keywords: 'popout new window', icon: PanelsTopLeft, run: openPopoutChooser });
+  if (!popout) commands.push({ id: 'source', label: 'Edit Markdown source', keywords: 'source document notes text raw', hidden: true, icon: FileInput, run: () => { setDateOpen(false); setSourceOpen(true); } });
   if (!popout) commands.push({ id: 'history', label: 'History and recovery', keywords: 'versions restore backup', hidden: true, icon: History, run: () => { setDateOpen(false); setHistoryOpen(true); } });
   commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
@@ -1245,11 +1262,11 @@ export default function App() {
       {fileSyncMessage(fileSync.status)}
       <Button disabled={busy} onClick={() => { if (fileSync.status.kind === 'changed') void reviewLinkedFile(); else void fileSync.resume().catch(error => reportSaveError(error)); }}>{fileSync.status.kind === 'changed' ? 'Review linked file' : 'Resume file saving'}</Button>
     </Notice>}
-    <input ref={importInput} type="file" accept=".txt,text/plain" hidden aria-label="Import a Planner.md file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
+    <input ref={importInput} type="file" accept=".md,.markdown,text/markdown,text/plain" hidden aria-label="Import a Planner.md file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
     {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0} conflictCopies={fileSync.conflictCopies.length} onSettings={() => setSettingsOpen(true)}/>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
-    {legacyRawDraft !== null && <Notice role="status">An unfinished Planner.md draft from the old editor is available. <Button type="button" onClick={() => {
+    {legacyRawDraft !== null && <Notice role="status">An unfinished TXT draft from the old editor is available. <Button type="button" onClick={() => {
       downloadTextFile(legacyRawDraft, 'TODO-draft.txt');
       setLegacyRawDraft(null);
       try { sessionStorage.removeItem(LEGACY_RAW_DRAFT_KEY); } catch { /* The downloaded copy remains available. */ }
@@ -1273,15 +1290,14 @@ export default function App() {
       } else if (visibleEarlier.length) scrollToJournalDate(visibleEarlier[0].date,true);
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
     <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
-    {activeTab === 'scratchpad' ? <ScratchpadView listNames={(documentData.undated ?? []).map(list => list.name)} today={today} reloadToken={scratchReloadToken} beforeConvert={() => journalQueue.current} onJournalCommitted={(journal, undo) => {
-      current.current = journal;
-      setState(journal);
+    <div hidden={activeTab !== 'scratchpad'} style={{ height: '100%' }}><ScratchpadView active={activeTab === 'scratchpad'} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} reloadToken={scratchReloadToken} beforeConvert={() => journalQueue.current} onJournalCommitted={(journal, undo) => {
+      if (journal.revision >= current.current.revision) { current.current = journal; setState(journal); }
       undoStack.current = [];
       redoStack.current = [];
       setFeedbackNotice(null);
       setScratchUndo(undo);
-    }}/>
-    : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
+    }}/></div>
+    {activeTab === 'scratchpad' ? null : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
       onAdd={addUndated}
@@ -1305,12 +1321,12 @@ export default function App() {
         const parent = target?.items.find(item => item.id === parentId);
         if (!source || !target || sourceIndex < 0 || !parent || id === parentId) return;
         const [moved] = source.items.splice(sourceIndex,1);
-        parent.details.push({ text: moved.text, completed: false }, ...moved.details.map(detail => ({ text: detail.text, completed: false })));
+        parent.details.push({ text: moved.text, sourceRef: moved.sourceRef, completed: false }, ...moved.details.map(detail => ({ ...detail, completed: false })));
       })}
       onMakeItem={(list,id,index) => editUndated(list,id,(item,items) => {
         if (index < 0 || index >= item.details.length) return;
         const [detail] = item.details.splice(index,1);
-        items.splice(items.indexOf(item)+1,0,{ id: newId(), text: detail.text, details: [], completed: false });
+        items.splice(items.indexOf(item)+1,0,{ id: newId(), text: detail.text, sourceRef: detail.sourceRef, details: [], completed: false });
       })}
       onDate={dateUndated}
       onDelete={(list,id) => removeUndated(list,id)}/>
@@ -1352,10 +1368,11 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeJournal(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
+    <SourceEditor open={sourceOpen} source={serializeJournal(state.document)} onClose={() => setSourceOpen(false)} onSave={saveSource}/>
     <HistoryRecovery open={historyOpen} currentText={historyOpen ? serializeJournal(state.document) : ''} onClose={() => setHistoryOpen(false)} onSettings={() => { setHistoryOpen(false); setSettingsOpen(true); }} onLoad={loadHistory} onRestore={(snapshot, id) => historyAction(snapshot, id, true)} onReview={(snapshot, id) => historyAction(snapshot, id, false)}/>
     <AppearanceSettings syncSettings={<><FileSyncSettings conflictCopies={fileSync.conflictCopies} onImportConflict={popout ? undefined : () => importInput.current?.click()} status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onFolder={() => { void linkFile(false, true); }} protectedHistory={fileSync.protected} historyStats={fileSync.revisions?.stats} onEnableHistory={() => { void fileSync.enableHistory().catch(error => setFileActionError(String(error))); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
       <GoogleDriveSettings protectedHistory={driveSync.protected} historyStats={driveSync.revisions?.stats} onEnableHistory={() => { void driveSync.enableHistory().catch(error => setMessage(String(error))); }} config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}
-        onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect} creationPending={!!driveSync.creation} onDismissCreation={() => { void driveSync.dismissCreation().catch(error => setMessage(String(error))); }} onDownloadCreation={() => { if (driveSync.creation) downloadTextFile(driveSync.creation.text, 'TODO-submitted-creation.txt'); }}/>
+        onConnect={() => { void driveSync.connect().catch(error => setMessage(String(error))); }} onCreate={() => { void journalQueue.current.then(() => driveSync.create()).catch(error => setMessage(String(error))); }} onPick={() => { void openDriveFile(); }} onOpen={id => { void openDriveFile(id); }} onReview={() => { void openDriveFile(undefined, true); }} onResume={() => { void driveSync.resume().catch(error => setMessage(String(error))); }} onUnlink={() => { void driveSync.unlink().catch(error => setMessage(String(error))); }} onDisconnect={driveSync.disconnect} creationPending={!!driveSync.creation} onDismissCreation={() => { void driveSync.dismissCreation().catch(error => setMessage(String(error))); }} onDownloadCreation={() => { if (driveSync.creation) downloadTextFile(driveSync.creation.text, 'Planner-submitted-creation.md'); }}/>
       <SyncRecoveryFiles recovery={fileSync.recovery ?? driveSync.recovery} onDownload={downloadTextFile}/>
       </>} open={settingsOpen} onClose={() => setSettingsOpen(false)} dateFormat={dateFormat} onDateFormatChange={value => { setDateFormat(value); setDateFormatState(value); }}
       timeZone={timeZone} onTimeZoneChange={value => { const wasToday = selectedDate === today; setTimeZone(value); setTimeZoneState(value); if (wasToday) setSelectedDate(todayString()); if (!rangeCustomized) setActiveRange(weekRange(todayString(), weekStart)); }}
@@ -1378,7 +1395,7 @@ export default function App() {
     <FileReview error={fileActionError} linked={!!pendingLink.current} review={review} rawEdit={rawEdit} choices={choices} busy={busy}
       onClose={() => { pendingLink.current = null; mergeReviewText.current = null; setFileActionError(''); setReview(null); }} onRawEdit={setRawEdit}
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
-      onReparse={() => void reparse()} onApply={() => void applyReview()} onDoctorAction={doctorAction}/>
+      onReparse={() => void reparse()} onApply={() => void applyReview()}/>
     <SaveRecovery error={saveFailure} text={saveFailure ? serializeJournal(current.current.document) : ''} kind="journal" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={discardUnsavedJournal}/>
   </Page>;
 }

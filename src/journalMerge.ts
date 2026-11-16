@@ -1,6 +1,7 @@
 import { parseJournal, readJournal, serializeJournal } from './journalDocument.ts';
 import type { TodoDocument } from './todoText.ts';
 import type { MergeChoice } from './todoMerge.ts';
+export type { MergeChoice } from './todoMerge.ts';
 import type { SourceRange } from './markdownPlanner.ts';
 
 type Change = SourceRange & { text: string };

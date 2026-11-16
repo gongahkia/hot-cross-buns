@@ -41,7 +41,7 @@ export function fileRevisions(link: FileLink, device: () => Promise<string>): Re
         if (await existing()) { await writer.abort(); return; }
         await writer.close();
       } catch (error) { try { await writer.abort(); } catch { /* an accepted close can have an uncertain receipt. */ } throw error; }
-      if ((await parseRevision(await (await handle.getFile()).text(), journal)).digest !== record.digest) throw new Error('The saved revision could not be verified. TODO.txt was not written.');
+      if ((await parseRevision(await (await handle.getFile()).text(), journal)).digest !== record.digest) throw new Error('The saved revision could not be verified. Planner.md was not written.');
     },
   };
 }
