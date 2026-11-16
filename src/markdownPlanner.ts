@@ -18,6 +18,7 @@ export type PlannerDetail = {
 export type PlannerEntry = PlannerDetail & {
   id?: string; date?: string; list?: string; details: PlannerDetail[];
   metadata?: SourceRange; indent: string;
+  timeBlock?: { start: string; end: string };
   repeat?: RecurrenceRule; completedOn?: string; span?: TodoSpan;
   skips?: string[]; replaces?: TodoReplacement;
 };
@@ -51,6 +52,9 @@ function plainText(node: Node): string {
 }
 
 function assertSize(source: string) {
+  if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(source)) {
+    throw new Error('Markdown source must be valid Unicode before UTF-8 storage.');
+  }
   if (source.length > MAX_IMPORT_BYTES || new TextEncoder().encode(source).byteLength > MAX_IMPORT_BYTES) {
     throw new Error('Markdown planners are limited to 5 MiB of UTF-8 text.');
   }
@@ -116,6 +120,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     const prefix = /^[-+*][ \t]+(?:\[([ xX])\][ \t]+)/.exec(slice(source, range));
     const checkbox = prefix && typeof item.checked === 'boolean'
       ? { start: range.start + prefix[0].indexOf('[') + 1, end: range.start + prefix[0].indexOf('[') + 2 } : undefined;
+    if (typeof item.checked === 'boolean' && !checkbox) issue('checkbox-syntax', 'A planning checkbox needs its title on the same first line.', range);
     // task-list parsing can leave the paragraph start before its removed checkbox (e.g. bold first).
     const titleRange = { start: Math.max(rangeOf(paragraph).start, prefix ? range.start + prefix[0].length : 0), end: rangeOf(paragraph).end };
     return { range, titleRange, markdown: slice(source, titleRange),
@@ -150,7 +155,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     const span = values.get('span');
     if (span !== undefined) {
       const parsed = parseSpan(span, entry.date!);
-      if (!parsed || parseTimeBlock(entry.text)) issue('span', 'Span is invalid or conflicts with the title time block.', entry.metadata);
+      if (!parsed || entry.timeBlock) issue('span', 'Span is invalid or conflicts with the title time block.', entry.metadata);
       else entry.span = parsed;
     }
     const completed = values.get('completed');
@@ -221,6 +226,12 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
       for (const char of marker[0]) column += char === '\t' ? 4 - column % 4 : 1;
       const entry: PlannerEntry = { ...base, details: [], indent: ' '.repeat(column),
         ...(section === 'Dated' ? { date: group.name } : { list: group.name }) };
+      // interpret a literal source prefix, not clock-shaped text inside inline code or emphasis.
+      if (entry.date && /^\d{2}:\d{2}-\d{2}:\d{2}(?:\s|$)/.test(entry.markdown)) {
+        const block = parseTimeBlock(entry.markdown.replace(/\r\n|\r|\n/g, ' '));
+        if (!block) issue('time', 'Title time blocks need valid same-day clocks and an end after the start.', entry.titleRange);
+        else entry.timeBlock = { start: block.start, end: block.end };
+      }
       let count = 0;
       for (const child of item.children.slice(1)) {
         if (child.type === 'code' && child.lang === 'hcb') {
@@ -236,9 +247,6 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
           if (section === 'Undated' && typeof nested.checked === 'boolean') issue('undated-checkbox', 'Undated details use plain bullets.', projected.range);
           entry.details.push(projected);
         }
-      }
-      if (entry.date && /^\d{2}:\d{2}-\d{2}:\d{2}(?:\s|$)/.test(entry.text) && !parseTimeBlock(entry.text)) {
-        issue('time', 'Title time blocks need valid same-day clocks and an end after the start.', entry.titleRange);
       }
       if (entry.details.length && entry.completed !== entry.details.every(child => child.completed)) {
         issue('completion-state', 'Parent completion must agree with its planning details; review the checkboxes.', entry.range);
@@ -323,6 +331,10 @@ function findEntry(model: MarkdownPlanner, start: number): PlannerEntry {
 }
 
 const patchFor = (model: MarkdownPlanner, range: SourceRange, text: string): SourcePatch => ({ range, expected: slice(model.source, range), text });
+const entryStructure = (entry: PlannerEntry) => JSON.stringify([
+  entry.id, entry.date, entry.list, entry.completed, entry.repeat, entry.completedOn,
+  entry.span, entry.skips, entry.replaces, entry.details.map(detail => [detail.markdown, detail.completed]),
+]);
 
 /** persist identity only when an operation needs it; untouched captures stay terse. */
 export function ensurePlannerEntryId(model: MarkdownPlanner, current: string, start: number, newId = () => crypto.randomUUID()): { model: MarkdownPlanner; id: string } {
@@ -349,7 +361,7 @@ export function renamePlannerEntry(model: MarkdownPlanner, current: string, star
   if (/[\r\n]/.test(markdown) || inline.children.length !== 1 || inline.children[0].type !== 'paragraph' || !plainText(inline.children[0]).trim()) throw new Error('An entry title needs one nonempty Markdown paragraph on one line.');
   const next = applyPlannerEdits(model, current, [patchFor(model, entry.titleRange, markdown)]);
   const changed = findEntry(next, start);
-  if (changed.id !== entry.id || changed.markdown !== markdown) throw new Error('Title changed the entry structure.');
+  if (entryStructure(changed) !== entryStructure(entry) || changed.markdown !== markdown) throw new Error('Title changed the entry structure.');
   return next;
 }
 

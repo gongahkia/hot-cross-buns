@@ -2,7 +2,18 @@
 
 Keep the product focused on a plain-text journal with lightweight task tracking. The [README](./README.md) describes the current app; [TODO_FORMAT.md](./docs/TODO_FORMAT.md) defines its portable data.
 
-The next direction is a single-file Markdown planner, preserving dated/undated workflows, sharing the scratchpad, and adding a quiet calendar view over the same entries. [Planning decisions, syntax candidates and semantic mapping](./docs/MARKDOWN_PLANNER_PLAN.md) are documented for review before implementation. Live Google/Outlook calendar connections are permanently outside scope; only one-time imports are candidates. The delivered list below still describes the existing TXT app.
+The approved next direction is a single-file Markdown planner, preserving dated/undated workflows, sharing the scratchpad, and adding quiet day/week/month views over the same entries. [Implementation stages and semantic mapping](./docs/MARKDOWN_PLANNER_PLAN.md) and [the format contract](./docs/MARKDOWN_FORMAT.md) distinguish the new foundation from the current TXT runtime. Live Google/Outlook calendar connections are permanently outside scope; only one-time imports are candidates. The delivered list below still describes the existing TXT app.
+
+## Markdown transition
+
+- [x] Freeze the single-document contract: visible hcb metadata, explicit identity, readable planning fields, terminal shared scratchpad and floating wall times.
+- [x] Add source-preserving parsing and validated atomic source patches, identity insertion, title edits, non-recurring completion and scratchpad replacement, with paired TXT/Markdown semantic fixtures.
+- [ ] Connect one document mutation path to durable storage, drafts, undo, immutable revisions and explicit branch review. Include scratchpad in saves/restores and fence incompatible writers; never round-trip Markdown through the TXT merge.
+- [ ] Implement occurrence-aware completion, successor creation, movement, span updates and recurrence scope using atomic document transactions.
+- [ ] Switch existing dated/undated/scratchpad views, search/linking, import/export and recovery to Markdown, with an explicit developer-workspace transition rather than a legacy migration product.
+- [ ] Add safe Markdown, Mermaid and math rendering with bounded work and source fallback.
+- [ ] Build editable day/week/month calendar views with quiet contextual controls, keyboard/touch alternatives, spans, recurrence review and undo. The existing dated list remains the agenda.
+- [ ] Benchmark parsing, indexing, search, typing, calendar navigation and durable saves on defined datasets; then validate browsers and actual file/device delivery. Agent/MCP support comes later.
 
 ## Delivered foundation
 

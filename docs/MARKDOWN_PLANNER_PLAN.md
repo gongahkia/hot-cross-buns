@@ -1,10 +1,10 @@
 # Single-file Markdown planner
 
-Status: planning draft, 16 November 2026. Product decisions below, including the calendar view set and default floating-time behavior, are confirmed. The example syntax and technical design still need review. This document does not describe shipped functionality or authorize implementation.
+Status: implementation approved, 16 November 2026. The user confirmed visible fenced metadata, day/week/month alongside the existing dated list, and floating times with explicit opt-in display conversion. Stage 1 implements [the Markdown contract](MARKDOWN_FORMAT.md), source-preserving parsing/editing and semantic mapping tests. The running app has not switched formats yet.
 
-Baseline inspected: `a8d586f`. The running app still uses [the existing TODO.txt format](TODO_FORMAT.md). Keep that document accurate for the running app until the Markdown implementation replaces it. Do not edit the README during this planning work.
+Baseline inspected: `a8d586f`; subsequent local commits preserve the planning/foundation work. The running app still uses [the existing TODO.txt format](TODO_FORMAT.md). Keep that document accurate for the running app until the Markdown implementation replaces it. Do not edit the README during this work.
 
-The on-disk agent guide also describes the current TXT format. The user's explicit new direction supersedes that future format constraint; update repository guidance and active format documentation together only when the Markdown implementation is approved. Do not add permanent TXT compatibility merely to satisfy outdated guidance.
+Repository guidance now distinguishes the current TXT runtime from the approved Markdown replacement. Do not add permanent TXT compatibility merely to satisfy the former format constraint.
 
 ## Confirmed direction
 
@@ -13,7 +13,7 @@ The on-disk agent guide also describes the current TXT format. The user's explic
 - Preserve dated and undated workflows. Add a fully functional calendar as another editable view of the same dated entries.
 - Initial calendar views are day, week and month. The existing dated-task list already serves as the agenda; do not add a separate agenda view.
 - Keep one entry/task model for now. A timed meeting-shaped entry and a timed task do not become separate event and task entities.
-- Written times remain floating by default: changing viewing time zone does not convert a written 09:00. Optional conversion behavior belongs in Settings and must announce actual conversion with the existing toast mechanism. The precise opt-in conversion semantics remain part of the design review below.
+- Written times remain floating by default: changing viewing time zone does not convert a written 09:00. Optional display conversion belongs in Settings and must announce actual conversion with the existing toast mechanism. It requires explicit source-zone meaning and does not rewrite saved schedules, as described below.
 - Include the scratchpad in the same file and sync it. This deliberately changes its current browser-local behavior; uncategorized capture remains a distinct workflow.
 - Keep the current quiet visual language, command palette, contextual actions, keyboard access and reduced-motion behavior.
 - Never add live Google Calendar or Outlook calendar integration, bidirectional mirroring, remote calendar ownership, or write-back. At most, those products supply one-time imports whose resulting entries belong to Hot Cross Buns.
@@ -37,11 +37,11 @@ The on-disk agent guide also describes the current TXT format. The user's explic
 
 One content file does not mean one physical storage artifact. Browser working copies, indexes and immutable recovery revisions may still exist. Do not put credentials in Markdown or remove companion revision protection merely to advertise one file. Unresolved revisions can contain work absent from the current projection; document and retain that existing boundary.
 
-## Markdown format proposal
+## Approved Markdown format
 
 Use CommonMark-compatible content plus GFM task lists and tables as the baseline. Frontmatter, planning attributes, stable block anchors, mathematics and Mermaid rendering are explicitly documented extensions, not universal Markdown features. A plain Markdown reader should retain readable content even when it cannot interpret the planner.
 
-Candidate A uses ordinary headings and checkboxes, with an indented `hcb` code fence for structured planning metadata. Fences keep attributes readable in a generic Markdown preview and avoid assigning meaning to arbitrary prose. This is an illustrative candidate, not a complete grammar or implemented parser:
+The selected format uses ordinary headings and checkboxes, with an indented `hcb` code fence for structured planning metadata. Fences keep attributes readable in a generic Markdown preview and avoid assigning meaning to arbitrary prose. The example below is introductory; [MARKDOWN_FORMAT.md](MARKDOWN_FORMAT.md) is the normative grammar and documents current implementation boundaries:
 
 ````markdown
 ---
@@ -90,14 +90,14 @@ Meeting notes can include ordinary paragraphs and [a related entry](#hcb-water-p
 Unsorted meeting fragments remain here until explicitly promoted.
 ````
 
-Candidate B keeps the same content structure but stores the attributes in an indented HTML comment. It is quieter in other Markdown previews, but hides planning meaning in those previews. Candidate A remains the recommendation for inspectability: keep ordinary tasks terse, add metadata only where needed, and fold it in the rendered app. Do not require users to type an ID for every ordinary capture. Identity generation and which entries need persisted IDs still need a precise contract. The user requested a recommendation rather than selecting a representation; neither representation has been approved yet.
+Visible fences were approved over hidden HTML-comment metadata. Keep ordinary tasks terse, add metadata only where needed, and fold it in the rendered app. Users do not need to type an ID for every capture; identity is persisted before linking or other operations that require lasting identity. The format contract defines validation, ownership and the reserved entry-anchor namespace.
 
-The final format contract must settle these details before parser work:
+The format contract settles the following rules; renderer, sync and full operation integration must continue to respect them:
 
 - Recognize planner sections only at defined structural positions outside fenced code. Document reserved headings and literal escapes. Treat the scratchpad as the final capture section, so pasted headings and checkboxes there do not accidentally become planner entries.
 - Preserve ordinary paragraphs, nested headings, lists, tables, quotes, comments, whitespace and unfamiliar extensions. Invalid planner metadata produces diagnostics without discarding source.
 - Define task/detail ownership and metadata placement precisely, including continuation paragraphs, code fences, duplicate fields and duplicate IDs. An example alone is not a grammar.
-- Give linkable entries stable text identities. IDs survive title edits, moves and rescheduling; duplicates receive new IDs. Choose the ID spelling and validation policy in the final contract. Browser-generated IDs must no longer be the only identity for linkable content.
+- Give linkable entries stable text identities. IDs survive title edits, moves and rescheduling; duplicates receive new IDs. The contract defines ID spelling and validation. Browser-generated IDs must no longer be the only identity for linkable content.
 - Prefer ordinary Markdown links. Candidate `#hcb-<id>` anchors resolve through entry metadata in Hot Cross Buns; they are a custom extension and will not necessarily resolve in other renderers. Define heading-link collisions, broken-link diagnostics and deletion behavior. Do not link by mutable array index or title alone.
 - Keep document format versions separate from sync protocol versions. An older writer must not reinterpret or overwrite an unsupported document version.
 - Define safe metadata types and escaping; per-entry attributes are data, not executable expressions. Do not execute YAML tags, Markdown code blocks, diagrams or agent instructions.
@@ -168,7 +168,7 @@ The old calendar also has Google-specific permissions, delivery states and sched
 
 Confirmed default: keep existing floating wall times. A written 09:00 remains 09:00 when a viewer changes time zone. It is not an instant without additional information, and the app must not invent its original zone or silently convert it to UTC. A task's placement date must not become its creation date or a deadline.
 
-Confirmed product requirement: optional conversion behavior is configurable in Settings, and an actual conversion is announced through a toast. Recommended interpretation for review:
+Confirmed product requirement: optional display conversion is configurable in Settings, and an actual conversion is announced through a toast. The following interpretation was approved; timezone-aware source representation and DST policy need a separate contract before conversion is implemented:
 
 - Separate display conversion from changing the saved schedule. Changing a display preference should not rewrite Markdown, reschedule tasks, or mutate recurrence rules.
 - Only offer meaningful cross-zone conversion when a source date and explicit source zone/instant are available. Adding timezone-aware behavior must not introduce a separate event entity.
@@ -202,17 +202,17 @@ One-time external calendar imports must produce owned entries and an interpretat
 
 ## Implementation gates
 
-1. Choose the metadata presentation and review the calendar interaction and optional time-conversion details within the confirmed view set/default. Then freeze a normative Markdown grammar, identity/link rules and semantic mapping examples.
-2. Add source-model/parser/writer fixtures covering the mapping matrix, unfamiliar Markdown, ambiguous syntax, stable identity, encoding, edits and diagnostics. No permanent old-schema support is required.
+1. Completed: confirm metadata presentation, calendar view set and optional display-conversion meaning; freeze [the normative Markdown grammar](MARKDOWN_FORMAT.md) and identity/link rules.
+2. Implemented foundation: source-model/parser/edit primitives and semantic mapping fixtures, including unfamiliar Markdown, stable identity, encoding, stale edits and diagnostics. Full runtime and occurrence-aware operations remain the next stage. No permanent old-schema support is required.
 3. Implement one shared document mutation path for dated, undated and scratchpad content; adapt storage/sync/recovery with corruption, failed-write, concurrent-edit and shared-scratchpad tests. Decide how a developer's existing local workspace is reset or converted explicitly; do not delete it automatically because the app has no real users yet.
 4. Reproduce the current dated/undated/scratchpad flows in Markdown, then complete their richer editing, linking, search, Mermaid and mathematics support. Keep source export and fallback available throughout.
 5. Add and verify calendar views against the same source. Cover drag/resize, keyboard/touch alternatives, overlap/overflow, all-day/overnight spans, recurrence exceptions, DST decisions, undo and stale source versions.
 6. Publish repeatable performance results for source size, visible items, search, typing/input-to-paint, calendar navigation and durable saves. Set budgets from a defined dataset/device, distinguish warm and cold starts, and report failures. Current loose end-to-end tests and old-calendar measurements do not establish a speed advantage.
 7. Validate supported browsers and real file/device delivery separately from mocks when access is available. First-class MCP support gets its own later design and approval.
 
-Do not begin runtime implementation until the planning questions are resolved and the concrete format/design is approved. Documentation changes now do not imply authorization to replace the app, reset storage, rename live sync targets, or deploy a new format.
+The user approved implementation after the planning answers. Continue in coherent stages with verification. No product decision is blocking the foundation. Do not infer authorization to delete a developer workspace, rename linked targets without a visible transition, or advertise unfinished runtime stages. Keep the README untouched. The calendar-account, task/event, shared-scratchpad, metadata, view-set and floating-time decisions are settled; do not ask them again by default.
 
-Immediate review: decide on the recommended visible fenced metadata and review the exact meaning of opt-in display conversion versus saved-schedule changes. The calendar view set and floating-time default have been answered, alongside the earlier calendar-account, task/event and shared-scratchpad decisions; do not ask those questions again by default.
+Next: integrate one document mutation path with storage, immutable sync, drafts, recovery and shared scratchpad; implement occurrence-aware completion/movement and explicit developer-workspace replacement. The TXT merge must never become a fallback for arbitrary Markdown. Only then switch existing views and exports to Markdown and add the calendar/rich rendering stages.
 
 ## Research notes
 

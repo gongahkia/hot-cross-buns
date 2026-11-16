@@ -1,3 +1,3 @@
 # Repository guidance
 
-Read [TODO_FORMAT.md](docs/TODO_FORMAT.md) before changing journal data, parsing, serialization, recurrence, time blocks, imports, or exports. `TODO.txt` must preserve every meaningful item field in readable text; browser storage is a working copy. Keep new syntax optional and maintain round-trip tests for it.
+Read [TODO_FORMAT.md](docs/TODO_FORMAT.md) before changing the current TXT runtime. Read [MARKDOWN_FORMAT.md](docs/MARKDOWN_FORMAT.md) and [the implementation plan](docs/MARKDOWN_PLANNER_PLAN.md) before changing the approved Markdown replacement. Preserve every meaningful item field and exact Markdown source outside intentional edits; browser storage is a working copy. Maintain semantic mapping and source-edit tests. The Markdown foundation is not yet wired into storage, sync or views. Do not add permanent TXT compatibility or live Google/Outlook calendar connections. Keep README.md unchanged during this transition.

@@ -56,6 +56,14 @@ test('all existing recurrence forms retain their rule fields without expanding o
   }
 });
 
+test('floating time blocks come from a literal Markdown prefix, not code examples or formatted clocks', () => {
+  const source = wrap('- [ ] 09:00-09:30 **Meeting**\n  continues here\n\n- [ ] `09:00-09:30` Example\n\n- [ ] **25:00-26:00** Example\n\n- [ ] `09:00-09:30` All day example\n  ```hcb\n  span: all-day\n  ```');
+  const model = valid(source);
+  assert.deepEqual(model.days[0].entries.map(entry => entry.timeBlock), [{ start: '09:00', end: '09:30' }, undefined, undefined, undefined]);
+  assert.deepEqual(model.days[0].entries[3].span, { kind: 'all-day' });
+  assert.equal(model.source, source);
+});
+
 test('ordinary Markdown and examples do not become planner data', () => {
   const prose = [
     '> ### 2099-01-01\n> - [ ] Quoted',
@@ -108,6 +116,46 @@ test('wrapped titles remain one paragraph; a rename changes only that paragraph'
   const next = renamePlannerEntry(model, model.source, entry.range.start, 'Replacement');
   assert.match(next.source, /A separate body paragraph\./);
   assert.match(next.source, /graph TD; A-->B/);
+});
+
+test('escaped legacy-looking titles and detail text retain their literal meaning', () => {
+  const pairs = [
+    ['\\- literal dash', '- literal dash'], ['2026-12-25', '2026-12-25'],
+    ['\\[x\\] literal marker', '[x] literal marker'], ['\\# heading-shaped', '# heading-shaped'],
+    ['\\\\path', '\\path'], ['@repeat: ordinary text', '@repeat: ordinary text'],
+    ['LIST: ordinary text', 'LIST: ordinary text'], ['UNDATED', 'UNDATED'],
+    ['Price \\$20 and \\*stars\\*', 'Price $20 and *stars*'],
+  ];
+  for (const [markdown, text] of pairs) {
+    const model = valid(wrap(`- [ ] ${markdown}\n  - [ ] ${markdown}`, `- ${markdown}\n  - ${markdown}`));
+    for (const entry of plannerEntries(model)) {
+      assert.equal(entry.text, text);
+      assert.equal(entry.details[0].text, text);
+      assert.equal(entry.markdown, markdown);
+    }
+  }
+});
+
+test('formatted-first titles retain the checkbox and planning body during rename', () => {
+  for (const title of ['**Bold**', '*Emphasis*', '`Code`', '[Link](https://example.com)', '![Image](image.png)']) {
+    const model = valid(wrap(`- [ ] ${title}\n  - [ ] Detail`));
+    const entry = model.days[0].entries[0];
+    assert.equal(entry.markdown, title);
+    const next = renamePlannerEntry(model, model.source, entry.range.start, '**Changed**');
+    assert.equal(next.days[0].entries[0].markdown, '**Changed**');
+    assert.equal(next.days[0].entries[0].completed, false);
+    assert.equal(next.days[0].entries[0].details[0].text, 'Detail');
+    assert.match(next.source, /- \[ \] \*\*Changed\*\*/);
+  }
+});
+
+test('comment-looking title text remains literal and retains the planning body', () => {
+  const model = valid(wrap('- [ ] Task\n  ```hcb\n  span: all-day\n  ```\n\n  <!-- body comment -->'));
+  const entry = model.days[0].entries[0];
+  const next = renamePlannerEntry(model, model.source, entry.range.start, 'Task <!--');
+  assert.deepEqual(next.days[0].entries[0].span, { kind: 'all-day' });
+  assert.equal(next.days[0].entries[0].text, 'Task <!--');
+  assert.match(next.source, /<!-- body comment -->/);
 });
 
 test('checkbox edits apply the existing parent/detail completion rules atomically', () => {
@@ -294,4 +342,10 @@ test('Markdown resource limits count UTF-8 bytes and logical lines before parsin
   assert.throws(() => parseMarkdownPlanner('a'.repeat(MAX_IMPORT_BYTES + 1)), /5 MiB/);
   assert.throws(() => parseMarkdownPlanner('🥐'.repeat(MAX_IMPORT_BYTES / 4 + 1)), /5 MiB/);
   assert.throws(() => parseMarkdownPlanner('a\r\n'.repeat(MAX_IMPORT_LINES + 1)), /100,000 lines/);
+});
+
+test('invalid Unicode is rejected instead of being changed by UTF-8 encoding', () => {
+  for (const invalid of ['\ud83e', '\udd50', 'A\ud83eB']) assert.throws(() => parseMarkdownPlanner(wrap(invalid)), /valid Unicode/);
+  const model = valid(wrap());
+  assert.throws(() => replacePlannerScratchpad(model, model.source, '\ud83e'), /valid Unicode/);
 });
