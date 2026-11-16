@@ -12,7 +12,7 @@ Hot Cross Buns is becoming a single-file Markdown browser planner while keeping 
 - [x] Implement occurrence-aware completion, successor creation, movement, span updates and recurrence scope using atomic document transactions.
 - [x] Switch existing dated/undated/scratchpad views, scoped entry search, import/export and recovery to Markdown, with an explicit archived developer-workspace conversion. Add hidden source editing, stale-draft recovery and raw startup recovery.
 - [ ] Expand search/indexing to arbitrary prose, shared scratchpad and stable-link navigation without adding persistent UI.
-- [ ] Add safe Markdown, Mermaid and math rendering with bounded work and source fallback.
+- [ ] Add safe Markdown, Mermaid and math rendering with bounded work and source fallback. Define rich-detail promotion behavior for inert hcb examples and deeper lists; unsupported structural edits currently require source review.
 - [ ] Build editable day/week/month calendar views with quiet contextual controls, keyboard/touch alternatives, spans, recurrence review and undo. The existing dated list remains the agenda.
 - [ ] Benchmark parsing, indexing, search, typing, calendar navigation and durable saves on defined datasets; then validate browsers and actual file/device delivery. Agent/MCP support comes later.
 
@@ -43,7 +43,7 @@ Caret movement covers ordinary text inputs and textareas. Selections, IME compos
 
 ## Next validation
 
-- [ ] Investigate the existing 1,200-item completion/undo performance gate before claiming a speed advantage. Both the current runtime and baseline `a8d586f` exceeded its unchanged limits on 16 November 2026; see [measurements and verification boundaries](./docs/MARKDOWN_PLANNER_PLAN.md#foundation-verification-16-november-2026). The runtime is now connected; retain the unchanged regression gate and record current measurements.
+- [x] Investigate the 1,200-item completion/undo regression and retain its unchanged budgets. The source-authoritative runtime now passes the clean local gate; [measurements and limits](./docs/MARKDOWN_PLANNER_PLAN.md#runtime-verification-17-november-2026) distinguish this result from a general speed claim.
 - [ ] Validate Nextcloud and Dropbox with actual desktop clients/accounts and two physical devices, including hidden-history exclusions, offline availability, replacement handles, conflict copies, interrupted transfer and matching folder receipts. This implementation uses automated fault models only, as requested; native pickers, provider acknowledgements and device delivery remain unverified.
 - [ ] Evaluate OneDrive as the alternative managed provider after the selected Dropbox workflow is dogfooded. A direct Nextcloud WebDAV, Dropbox or Graph adapter needs its own browser/authentication and transport contract; no such API integration is advertised here.
 - [ ] Investigate the existing intermittent Chromium mobile-rotation weekday visibility failure if it recurs; preserve assertions and report retries explicitly.

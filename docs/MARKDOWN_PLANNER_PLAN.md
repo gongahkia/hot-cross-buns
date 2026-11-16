@@ -12,7 +12,7 @@ Baseline inspected: `a8d586f`. [MARKDOWN_FORMAT.md](MARKDOWN_FORMAT.md) now defi
 - Initial calendar views are day, week and month. The existing dated-task list already serves as the agenda; do not add a separate agenda view.
 - Keep one entry/task model for now. A timed meeting-shaped entry and a timed task do not become separate event and task entities.
 - Written times remain floating by default: changing viewing time zone does not convert a written 09:00. Optional display conversion belongs in Settings and must announce actual conversion with the existing toast mechanism. It requires explicit source-zone meaning and does not rewrite saved schedules, as described below.
-- Include the scratchpad in the same file and sync it. This deliberately changes its current browser-local behavior; uncategorized capture remains a distinct workflow.
+- Include the scratchpad in the same file and sync it. This changes its former browser-local behavior; uncategorized capture remains a distinct workflow.
 - Keep the current quiet visual language, command palette, contextual actions, keyboard access and reduced-motion behavior.
 - Never add live Google Calendar or Outlook calendar integration, bidirectional mirroring, remote calendar ownership, or write-back. At most, those products supply one-time imports whose resulting entries belong to Hot Cross Buns.
 - File storage/sync is a different concern: Google Drive can carry the Markdown document, just as a desktop sync folder can. That is not Google Calendar integration.
@@ -215,6 +215,16 @@ The runtime now uses one exact-source mutation path through `journalDocument.ts`
 Next after this stage: safe bounded Markdown/Mermaid/math rendering and expanded source search/linking, then quiet editable day/week/month views. Define optional timezone-aware display semantics before implementing conversion. Retain floating times, source ownership and all existing sync/recovery boundaries.
 
 Historical Markdown review: `25872ac:docs/markdown-editor.md`, `RichMarkdownEditor.tsx` and `MarkdownPreview.tsx` preserve untouched input, separate editor undo, guard composition/shortcuts and load rich processing lazily. Retain those invariants. The historical Tiptap visual bridge serializes the whole edited note and can normalize syntax; do not use it to rewrite this canonical planner or copy its persistent toolbars/account references. Source-aware editing and safe previews fit the current quiet interface.
+
+### Runtime verification, 17 November 2026
+
+A clean `npm ci` and `npm run verify` under Node 22.18.0 pass **229 unit tests, 15 Python tests and all 223 browser tests**, plus TypeScript, the production build and an audit with zero vulnerabilities. The build retains its chunk-size advisory (about 833 kB before gzip). Unit suites run sequentially to bound concurrent parser allocations; performance thresholds were not raised. README.md has the same Git blob as `a8d586f`.
+
+The 10,000-entry Markdown round trip measured 4,231 ms in that clean run. The unchanged 1,200-item browser gate measured 5,868 ms for unfiltered completion/undo, 946 ms for search and 3,724 ms for completion/undo after search. These local samples pass their existing budgets; they do not establish a general speed advantage or physical-device performance. See [the checksum-guarded parser dependency correction](PARSER_PERFORMANCE.md).
+
+An additional initial-upgrade quota test reproduced a recovery export that retried the failed schema upgrade. Commit `1d64076` corrects that path; the rebuilt runtime passes all **10 Markdown runtime browser cases**, including the original nine and the new read-only export of the unchanged version-3 database. The full suite now contains 224 browser cases; CI runs full verification on Node 22.18.0 and 24.
+
+The Markdown runtime boundary is `b42be7e`, with the recovery follow-up `1d64076`. Rollback must retain their schema-4/source/protocol-2 compatibility; see [the runtime contract](MARKDOWN_RUNTIME.md). Failed intermediate fixture-porting runs were corrected without reducing performance thresholds or removing data-preservation assertions. Google sign-in/HTTP and desktop transfer are automated substitutes; actual services, native permissions and physical-device delivery remain unverified.
 
 ### Foundation verification, 16 November 2026
 
