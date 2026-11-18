@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openCommands } from './commands';
+import { openCommands, openScratchpad, closeScratchpad } from './commands';
 
 test('large imports use the parser worker while animation frames continue', async ({ page }) => {
   await page.addInitScript(() => {
@@ -18,7 +18,7 @@ test('large imports use the parser worker while animation frames continue', asyn
   const raw = `---\nhcb-format: 1\ndocument-id: background-large\n---\n\n## Dated\n\n### 2000-01-01\n\n${Array.from({ length: 5000 }, (_, index) => `- [ ] Task ${index} &amp; context\n  \`\`\`hcb\n  id: task-${index}\n  \`\`\`\n  - [ ] Step ${index}\n`).join('\n')}\n## Undated\n\n### Inbox\n\n## Scratchpad\n`;
   await page.goto('/');
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(raw) });
-  await page.getByRole('button', { name: 'Undated', exact: true }).click();
+  await closeScratchpad(page); await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByText('Planner.md imported.', { exact: true })).toBeVisible({ timeout: 15000 });
   const results = await page.evaluate(() => (window as unknown as { __backgroundResults: Array<{ kind: string; length: number; frames: number }> }).__backgroundResults);
   const parsed = results.find(result => result.kind === 'parse' && result.length > 300_000);
@@ -54,6 +54,6 @@ test('worker failure falls back to full validation, retains invalid drafts and p
   await dialog.getByRole('button', { name: 'Save Markdown', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   await expect(page.getByRole('textbox', { name: 'Scratchpad text', exact: true })).toHaveValue('Worker retry marker\n');
 });

@@ -1,3 +1,4 @@
+import { openScratchpad, closeScratchpad } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -44,9 +45,9 @@ test('renaming preserves the old journal, scratchpad, preferences and draft acro
   await expect(page.getByRole('group', { name: 'Original journal', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
   expect(await page.evaluate(() => sessionStorage.getItem('hot-cross-buns-raw-draft-v1'))).toBe('Recover this draft');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toHaveValue('Original journal scratchpad');
-  await page.getByRole('button', { name: 'Dated', exact: true }).click();
+  await closeScratchpad(page); await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await page.getByRole('textbox', { name: 'Edit Original journal', exact: true }).press('Enter');
   const add = page.getByRole('textbox', { name: 'New item after current item' });
   await add.fill('Added after rename');
@@ -85,7 +86,7 @@ test('an existing renamed journal and preferences take precedence over older dat
   await expect(page.getByRole('group', { name: 'Newer journal', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Original journal', exact: true })).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'day');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toHaveValue('Newer journal scratchpad');
 });
 

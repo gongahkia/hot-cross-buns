@@ -7,13 +7,13 @@ import type { TodoDocument } from '../todoText';
 import { Button, Muted } from '../styles';
 import { MarkdownBodyEditor } from './OutlineEditor';
 
-export function WritingDocument({ document, location, label, onWrite, onToggleTask }: { document: TodoDocument; location: WritingLocation; label: string; onWrite: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void }) {
+export function WritingDocument({ document, location, label, onWrite, onToggleTask, readOnly = false }: { document: TodoDocument; location: WritingLocation; label: string; onWrite: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void; readOnly?: boolean }) {
   const parent = useContext(MarkdownDocumentContext), model = journalModel(document), [limit, setLimit] = useState(200);
   const locationKey = JSON.stringify(location);
   const presentation = useMemo(() => writingPresentation(model, location, limit), [model, locationKey, limit]);
   const context = useMemo(() => ({ ...parent, source: model.source, index: model.markdown, bodyViews: presentation.views, hiddenMetadata: presentation.hiddenMetadata, entryIds: presentation.entryIds }), [parent, model, presentation]);
   return <MarkdownDocumentContext.Provider value={context}>
-    <MarkdownBodyEditor documentMode label={label} body={presentation.body} draftKey={`hcb-writing-draft:${model.documentId}:${locationKey}`} onToggleTask={onToggleTask} onSave={async (markdown, block, expected, links) => {
+    <MarkdownBodyEditor documentMode readOnly={readOnly} label={label} body={presentation.body} draftKey={`hcb-writing-draft:${model.documentId}:${locationKey}`} onToggleTask={onToggleTask} onSave={async (markdown, block, expected, links) => {
       if (expected !== model.source || block === undefined) throw new Error('This document changed. Download the draft and review the latest content.');
       if (block === presentation.body.length) {
         await onWrite({ kind: 'append', destination: location, markdown, links }, expected);

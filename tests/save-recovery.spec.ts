@@ -1,3 +1,4 @@
+import { openScratchpad } from './commands';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -148,7 +149,7 @@ test('an import can be discarded after a failed write without reporting success'
 test('keeps scratchpad text, copies it and retries without losing its saved predecessor', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await expect(editor).toBeEditable(); await editor.fill('Saved scratchpad');
   await expect.poll(async () => (await stored(page, 'scratchpad'))?.text).toBe('Saved scratchpad');
@@ -161,13 +162,13 @@ test('keeps scratchpad text, copies it and retries without losing its saved pred
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Unsaved scratchpad');
   await recovery.getByRole('button', { name: 'Retry saving' }).click();
   await expect.poll(async () => (await stored(page, 'scratchpad'))?.text).toBe('Unsaved scratchpad');
-  await page.reload(); await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await page.reload(); await openScratchpad(page);
   await expect(page.getByRole('textbox', { name: 'Scratchpad text', exact: true })).toHaveValue('Unsaved scratchpad');
 });
 
 test('discarding an unsaved scratchpad returns to its durable contents', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await expect(editor).toBeEditable(); await editor.fill('Keep saved scratchpad');
   await expect.poll(async () => (await stored(page, 'scratchpad'))?.text).toBe('Keep saved scratchpad');
@@ -183,7 +184,7 @@ test('discarding an unsaved scratchpad returns to its durable contents', async (
 
 test('an aborted canonical-document capture keeps the scratchpad and journal unchanged', async ({ page }) => {
   await initialJournal(page);
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await editor.fill('Keep this capture');
   await expect.poll(async () => (await stored(page, 'scratchpad')).text).toBe('Keep this capture');

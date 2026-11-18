@@ -1,5 +1,5 @@
 import { plannerFixture } from './planner-fixture';
-import { runCommand } from './commands';
+import { runCommand, openScratchpad } from './commands';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const caret = (page: Page) => page.locator('[data-moving-caret]');
@@ -25,7 +25,7 @@ async function search(page: Page, value = 'Caret') {
 }
 async function scratchpad(page: Page) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   const input = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await input.evaluate(element => {
     element.style.fontFamily = 'monospace'; element.style.fontSize = '16px';

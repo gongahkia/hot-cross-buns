@@ -39,6 +39,7 @@ import type { DriveSnapshot } from './googleDrive';
 import { pickLinkedFile, pickSyncFolder, readLinkedFile, readLinkedText, type LinkedFileHandle, type LinkedDirectoryHandle } from './linkedFile';
 import { CommandPalette, commandKey, type PaletteCommand, type PaletteResult } from './components/CommandPalette';
 import { ScratchpadView } from './components/ScratchpadView';
+import { openScratchpadWindow } from './scratchpadWindow';
 import { SaveRecovery } from './components/SaveRecovery';
 import { SourceEditor } from './components/SourceEditor';
 import { WriteQueue, WriteDiscardedError } from './writeQueue';
@@ -97,6 +98,7 @@ const PopoutField = styled.label`display:grid;gap:6px;margin:12px 0;font-size:13
 const PopoutList = styled.div`display:grid;gap:2px;max-height:45dvh;overflow:auto;`;
 const PopoutCheck = styled.label`display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;input{width:18px;height:18px;accent-color:var(--link);}`;
 const PopoutActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:18px;`;
+const CaptureBody = styled.div`height:min(65dvh,600px);min-height:240px;overflow:auto;`;
 type UndoNotice = { kind: UndoNoticeKind; text: string; document: TodoDocument };
 type DeletionFeedback = { kind: 'item-deletion' | 'detail-deletion'; text: string };
 type PopoutScope = { kind: 'scratchpad' } | { kind: 'dated'; from: string; to: string } | { kind: 'undated'; lists: string[] };
@@ -289,6 +291,9 @@ export default function App() {
   const editingDraft = useJournalEditing();
   useJournalFieldResize();
   const [popout] = useState(readPopoutScope);
+  const [scratchCaptureOpen, setScratchCaptureOpen] = useState(false);
+  const scratchCaptureDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (popout?.kind === 'scratchpad') document.title = 'Scratchpad · Hot Cross Buns'; }, [popout]);
   const [state, setState] = useState<TodoState | null>(null);
   const [initialState] = useState(emptyState);
   const current = useRef<TodoState>(initialState);
@@ -1392,6 +1397,13 @@ export default function App() {
     if (target.entry.date) mutateItem(target.entry.date, id, change);
     else if (target.entry.list) editUndated(target.entry.list, id, change);
   };
+  const closeScratchCapture = () => {
+    if (scratchCaptureDialog.current?.querySelector('[data-editor-dirty="true"]')) setMessage('Your Scratchpad draft is kept in this tab. Reopen Scratchpad to save or download it.');
+    setScratchCaptureOpen(false);
+  };
+  const openScratchCapture = () => {
+    if (scratchPendingRef.current || scratchCaptureDialog.current?.querySelector('[data-editor-dirty="true"]') || !openScratchpadWindow()) setScratchCaptureOpen(true);
+  };
   const commands: PaletteCommand[] = [];
   if (!unified && !popout) commands.push({ id: 'writing', label: 'Enable unified writing', keywords: 'documents prose checkbox editor', hidden: true, icon: FileInput, run: enableWriting });
   if (!recursive && !popout) commands.push({ id: 'outlines', label: 'Enable deeper outlines', keywords: 'nested children subtasks recursive', hidden: true, icon: FileInput, run: enableOutlines });
@@ -1400,10 +1412,20 @@ export default function App() {
     { id: 'import', label: 'Import Planner.md', keywords: 'load upload file', icon: FileInput, run: () => importInput.current?.click() },
     { id: 'download', label: 'Download Planner.md', keywords: 'export save file', icon: Download, run: () => setExportOpen(true) },
   );
+  if (popout?.kind !== 'scratchpad') commands.push({ id: 'scratchpad', label: 'Open Scratchpad', keywords: 'capture quick notes popup', icon: PanelsTopLeft, run: openScratchCapture });
   if (!popout) commands.push({ id: 'window', label: 'Open view in browser window', keywords: 'popout new window', icon: PanelsTopLeft, run: openPopoutChooser });
   if (!popout) commands.push({ id: 'source', label: 'Edit Markdown source', keywords: 'source document notes text raw', hidden: true, icon: FileInput, run: () => { setDateOpen(false); setSourceOpen(true); } });
   if (!popout) commands.push({ id: 'history', label: 'History and recovery', keywords: 'versions restore backup', hidden: true, icon: History, run: () => { setDateOpen(false); setHistoryOpen(true); } });
   commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
+  const scratchpadSurface = <ScratchpadView active={activeTab === 'scratchpad' || scratchCaptureOpen} document={documentData} onWrite={saveWriting} onToggleTask={toggleWritingTask} onPendingChange={pending => { if (pending) scratchActivity.current = performance.now(); scratchPendingRef.current = pending; setScratchPending(pending); }} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} beforeConvert={async () => { await editQueue.current; await journalQueue.current; pendingJournal.current++; journalGeneration.current++; }} afterConvert={() => { pendingJournal.current--; }} onJournalCommitted={(journal, undo) => {
+      if (journal.revision < current.current.revision) return;
+      if (serializeJournal(current.current.document) !== serializeJournal(undo.before.document)) preserveSyncHistory(undo.before.document);
+      undoStack.current.push(undo.before.document);
+      if (undoStack.current.length > 100) undoStack.current.shift();
+      redoStack.current = []; captureReplay.current = null;
+      current.current = journal; setState(journal);
+      setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
+    }}/>;
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
   return <OutlineDocumentContext.Provider value={outlineContext}><Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
@@ -1432,7 +1454,7 @@ export default function App() {
       <Button disabled={busy} onClick={() => { if (fileSync.status.kind === 'changed') void reviewLinkedFile(); else void fileSync.resume().catch(error => reportSaveError(error)); }}>{fileSync.status.kind === 'changed' ? 'Review linked file' : 'Resume file saving'}</Button>
     </Notice>}
     <input ref={importInput} type="file" accept=".md,.markdown,text/markdown,text/plain" hidden aria-label="Import a Planner.md file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
-    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
+    {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab></ViewTabs>}
     {!unified && !popout && <Notice>Use one editor for paragraphs, outlines and tasks in either view.<Button disabled={busy} onClick={enableWriting}>Enable unified writing</Button></Notice>}
     {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0 || scratchPending} conflictCopies={fileSync.conflictCopies.length} onSettings={() => setSettingsOpen(true)}/>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
@@ -1455,15 +1477,7 @@ export default function App() {
       } else if (visibleEarlier.length) scrollToJournalDate(visibleEarlier[0].date,true);
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
     <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
-    <div hidden={activeTab !== 'scratchpad'} style={{ height: '100%' }}><ScratchpadView active={activeTab === 'scratchpad'} onPendingChange={pending => { if (pending) scratchActivity.current = performance.now(); scratchPendingRef.current = pending; setScratchPending(pending); }} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} beforeConvert={async () => { await editQueue.current; await journalQueue.current; pendingJournal.current++; journalGeneration.current++; }} afterConvert={() => { pendingJournal.current--; }} onJournalCommitted={(journal, undo) => {
-      if (journal.revision < current.current.revision) return;
-      if (serializeJournal(current.current.document) !== serializeJournal(undo.before.document)) preserveSyncHistory(undo.before.document);
-      undoStack.current.push(undo.before.document);
-      if (undoStack.current.length > 100) undoStack.current.shift();
-      redoStack.current = []; captureReplay.current = null;
-      current.current = journal; setState(journal);
-      setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
-    }}/></div>
+    {activeTab === 'scratchpad' && scratchpadSurface}
     {activeTab === 'scratchpad' ? null : unified ? <WritingJournal document={documentData} view={activeTab} dates={journalDays.map(day => day.date)} visibleLists={popout?.kind === 'undated' ? popout.lists : undefined} onWrite={saveWriting} onToggleTask={toggleWritingTask} onCreateList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })} renderDateHeading={date => <DateHeading date={date} today={today} format={dateFormat} highlighted={false} unfinished={projectItemsForDate(documentData, date).reduce((count, item) => count + unfinishedTaskCount(item), 0)} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[date] ?? [] : []}/>}/>
     : activeTab === 'undated' ? <UndatedView recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'undated' ? searchTarget.itemId : undefined} onEditOutline={editUndated} lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
@@ -1518,6 +1532,10 @@ export default function App() {
     </DndContext>
     </>}
     </JournalViewport>
+    {activeTab !== 'scratchpad' && <Modal journalEditor dialogRef={scratchCaptureDialog} open={scratchCaptureOpen} onClose={closeScratchCapture} title="Scratchpad" wide>
+      <CaptureBody>{scratchpadSurface}</CaptureBody>
+      <PopoutActions><Button onClick={closeScratchCapture}>Close Scratchpad</Button></PopoutActions>
+    </Modal>}
     <Modal journalEditor open={!!scopePrompt} onClose={() => { setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false; }} title="Choose recurring edit scope" compact>
       <ScopeTitle>Change “{scopePrompt?.label}”</ScopeTitle><ScopeHint>Choose which occurrences this change applies to.</ScopeHint>
       <ScopeOption onClick={() => applyScope('this')}>This item</ScopeOption>

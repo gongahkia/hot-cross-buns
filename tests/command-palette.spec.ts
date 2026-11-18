@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { openCommands, runCommand } from './commands';
 import { readFile } from 'node:fs/promises';
 
-test('the single launcher exposes only the five current toolbar commands', async ({ page }) => {
+test('the single launcher exposes the core commands and quick capture', async ({ page }) => {
   await page.goto('/');
   const header = page.locator('header');
   for (const name of ['Open search', 'Import Planner.md', 'Download Planner.md', 'Open view in browser window', 'Hot Cross Buns settings']) {
@@ -14,7 +14,7 @@ test('the single launcher exposes only the five current toolbar commands', async
   await expect(header.getByRole('button', { name: 'Choose date', exact: true })).toBeVisible();
   const palette = await openCommands(page);
   expect(await palette.getByRole('option').allTextContents()).toEqual([
-    expect.stringContaining('Search journal'), 'Import Planner.md', 'Download Planner.md', 'Open view in browser window', 'Settings',
+    expect.stringContaining('Search journal'), 'Import Planner.md', 'Download Planner.md', 'Open Scratchpad', 'Open view in browser window', 'Settings',
   ]);
   await expect(palette.getByRole('combobox', { name: 'Search commands and journal', exact: true })).toBeFocused();
   await expect(palette.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
@@ -38,7 +38,7 @@ test('filtering supports aliases, empty results and a fresh query on reopen', as
   await expect(page.getByRole('button', { name: 'Open command palette', exact: true })).toBeFocused();
   await openCommands(page);
   await expect(input).toHaveValue('');
-  await expect(palette.getByRole('option')).toHaveCount(5);
+  await expect(palette.getByRole('option')).toHaveCount(6);
   await page.mouse.click(2, 2);
   await expect(palette).toBeHidden();
 });
@@ -106,11 +106,10 @@ test('import opens the real file chooser and download preserves the whole journa
 
 test('scratchpad popouts retain browser activation and their limited commands', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   const palette = await openCommands(page);
-  await expect(palette.getByRole('option')).toHaveText(['Open view in browser window', 'Settings']);
+  await expect(palette.getByRole('option', { name: 'Open Scratchpad', exact: true })).toBeVisible();
   const pending = page.waitForEvent('popup');
-  await palette.getByRole('option', { name: 'Open view in browser window', exact: true }).click();
+  await palette.getByRole('option', { name: 'Open Scratchpad', exact: true }).click();
   const popup = await pending;
   await expect(popup.getByRole('textbox', { name: 'Scratchpad text', exact: true })).toBeVisible();
   const popoutCommands = await openCommands(popup);

@@ -1,9 +1,27 @@
 import type { Page } from '@playwright/test';
 
 export async function openCommands(page: Page) {
+  await closeScratchpad(page);
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
   if (!(await palette.isVisible())) await page.getByRole('button', { name: 'Open command palette', exact: true }).click();
   return palette;
+}
+
+export async function closeScratchpad(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  if (await dialog.isVisible()) {
+    await dialog.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
+    await dialog.waitFor({ state: 'hidden' });
+  }
+}
+
+/** exercise capture in this page through the real popup-blocked fallback. */
+export async function openScratchpad(page: Page) {
+  const original = await page.evaluateHandle(() => window.open);
+  await page.evaluate(() => { window.open = () => null; });
+  try { await runCommand(page, 'Open Scratchpad'); }
+  finally { await page.evaluate(open => { window.open = open; }, original); await original.dispose(); }
+  await page.getByRole('dialog', { name: 'Scratchpad', exact: true }).waitFor();
 }
 
 export async function runCommand(page: Page, name: string) {

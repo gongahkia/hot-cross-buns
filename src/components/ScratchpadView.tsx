@@ -6,7 +6,10 @@ import { Button, Field, Muted } from '../styles';
 import { getScratchpadMapping, getScratchpadMoveMode } from '../preferences';
 import { mapScratchpadSelection } from '../scratchpad';
 import { convertScratchpadSelection, loadScratchpadState, saveScratchpadText, subscribeStore, type ScratchpadState, type ScratchpadUndo, type TodoState } from '../todoStore';
-import { validDate } from '../todoText';
+import { validDate, type TodoDocument } from '../todoText';
+import { journalModel } from '../journalDocument';
+import type { WritingOperation } from '../journalWriting';
+import { WritingDocument } from './WritingDocument';
 import { Modal } from './Modal';
 import { SaveRecovery } from './SaveRecovery';
 import { WriteQueue, WriteDiscardedError } from '../writeQueue';
@@ -23,8 +26,9 @@ const Note = styled(Muted)`display:flex;align-items:center;gap:6px;`;
 type Selection = { start: number; end: number; text: string };
 type Destination = 'dated' | 'undated' | null;
 
-export function ScratchpadView({ active, onPendingChange, listNames, today, beforeConvert, afterConvert, onJournalCommitted }: {
+export function ScratchpadView({ active, onPendingChange, listNames, today, beforeConvert, afterConvert, onJournalCommitted, document: journal, onWrite, onToggleTask }: {
   active: boolean; onPendingChange: (pending: boolean) => void; listNames: string[]; today: string; beforeConvert: () => Promise<void>; afterConvert: () => void; onJournalCommitted: (journal: TodoState, undo: ScratchpadUndo) => void;
+  document?: TodoDocument; onWrite?: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState('');
@@ -188,9 +192,9 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
     } catch (error) { setMessage(String(error)); }
     finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false); }
   };
-  return <Wrap aria-label="Scratchpad">
+  return <Wrap aria-label="Quick capture">
     {!editable && loaded && <Note><LockKeyhole size={14}/> {waiting ? 'Taking over the scratchpad…' : 'The scratchpad is open for editing in another window.'} {!waiting && <Button onClick={() => requestEdit(true)}>Take over editing</Button>}</Note>}
-    <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>
+    {journal && journalModel(journal).format === 3 && onWrite ? <WritingDocument document={journal} location={{ kind: 'scratchpad' }} label="Scratchpad" readOnly={!editable} onWrite={onWrite} onToggleTask={onToggleTask}/> : <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>}
     {contextMenu && createPortal(<ContextMenu ref={menu} role="menu" aria-label="Scratchpad selection actions" style={{ left: contextMenu.x, top: contextMenu.y }}>
       <MenuAction type="button" role="menuitem" onClick={() => void copySelection()}><Copy aria-hidden="true"/>Copy selection</MenuAction>
       <MenuAction type="button" role="menuitem" onClick={() => openDestination('dated')}><ArrowRight aria-hidden="true"/>Move to dated</MenuAction>

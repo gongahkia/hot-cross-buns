@@ -1,5 +1,5 @@
 import { plannerFixture } from './planner-fixture';
-import { runCommand } from './commands';
+import { runCommand, openScratchpad, closeScratchpad } from './commands';
 import { expect, test } from '@playwright/test';
 
 test('carets stay solid during typing, pulse when idle and keep native selection', async ({ page }) => {
@@ -39,14 +39,14 @@ test('composition keeps the caret steady until it ends and blur releases typing 
 
 test('caret motion reaches scratchpad and dynamically opened import editors', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
+  await openScratchpad(page);
   const scratchpad = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await scratchpad.fill('First line\nSecond line');
   await expect(scratchpad).toHaveAttribute('data-caret-typing', 'true');
   await expect(scratchpad).toHaveCSS('border-top-width', '0px');
   await expect(scratchpad).toHaveCSS('animation-name', 'hcb-caret-pulse');
   await expect(scratchpad).toHaveValue('First line\nSecond line');
-  await page.getByRole('button', { name: 'Dated', exact: true }).click();
+  await closeScratchpad(page); await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-11-16\nReview this source\n').replace('hcb-format: 1','hcb-format: 999')) });
   const doctor = page.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true });
   await doctor.focus();

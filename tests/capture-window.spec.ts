@@ -1,0 +1,88 @@
+import { expect, test, type Page } from '@playwright/test';
+import { runCommand } from './commands';
+
+const fixture = '---\nhcb-format: 3\ndocument-id: capture-window\n---\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\nA **shared capture**.\n';
+async function load(page: Page) {
+  await page.goto('/');
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(fixture) });
+  await expect(page.getByRole('navigation', { name: 'Views', exact: true }).getByRole('button')).toHaveText(['Dated', 'Undated']);
+}
+
+test('Commands opens one reusable capture window and preserves its unsaved Markdown draft', async ({ page, context }) => {
+  await load(page);
+  const pending = page.waitForEvent('popup');
+  await runCommand(page, 'Open Scratchpad');
+  const popup = await pending;
+  await expect(popup).toHaveURL(/popout=scratchpad/);
+  await expect(popup).toHaveTitle('Scratchpad · Hot Cross Buns');
+  await popup.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  const field = popup.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true });
+  await field.fill('An **unsaved capture**.');
+  await runCommand(page, 'Open Scratchpad');
+  expect(context.pages()).toHaveLength(2);
+  await expect(field).toHaveValue('An **unsaved capture**.');
+  await popup.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(field).toHaveCount(0);
+  await expect(popup.getByRole('region', { name: 'Quick capture', exact: true }).locator('strong')).toHaveText('unsaved capture');
+  await popup.close();
+  const reopened = page.waitForEvent('popup');
+  await runCommand(page, 'Open Scratchpad');
+  const next = await reopened;
+  await expect(next.getByRole('region', { name: 'Quick capture', exact: true }).locator('strong')).toHaveText('unsaved capture');
+  await next.close();
+});
+
+test('mobile capture opens in-app and retains a draft when closed and reopened', async ({ page, context }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await load(page);
+  await runCommand(page, 'Open Scratchpad');
+  const dialog = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  await expect(dialog).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+  await dialog.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  const field = dialog.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true });
+  await field.fill('A **mobile draft**.');
+  await dialog.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await runCommand(page, 'Open Scratchpad');
+  await expect(field).toHaveValue('A **mobile draft**.');
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(dialog.locator('strong')).toHaveText('mobile draft');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('a blocked desktop popup falls back to the same capture editor', async ({ page, context }) => {
+  await page.addInitScript(() => { window.open = () => null; });
+  await load(page);
+  await runCommand(page, 'Open Scratchpad');
+  const dialog = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  await expect(dialog.locator('strong')).toHaveText('shared capture');
+  await expect(dialog.getByRole('button', { name: 'Add writing', exact: true })).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+  await dialog.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Dated', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
+test('capture retains its cross-window editing lease and an old draft survives takeover', async ({ page, context }) => {
+  await page.addInitScript(() => { window.open = () => null; });
+  await load(page);
+  await runCommand(page, 'Open Scratchpad');
+  const first = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  await first.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  const draft = first.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true });
+  await draft.fill('Keep this **old draft**.');
+  const second = await context.newPage();
+  await second.goto('/?popout=scratchpad');
+  await expect(second.getByRole('button', { name: 'Take over editing', exact: true })).toBeVisible();
+  await expect(second.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true })).toHaveCount(0);
+  await second.getByRole('button', { name: 'Take over editing', exact: true }).click();
+  await second.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  await second.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true }).fill('A **newer capture**.');
+  await second.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(second.getByRole('region', { name: 'Quick capture', exact: true }).locator('strong')).toHaveText('newer capture');
+  await expect(draft).toHaveValue('Keep this **old draft**.');
+  await expect(draft).toHaveAttribute('readonly');
+  await expect(first.getByRole('button', { name: 'Download draft', exact: true })).toBeVisible();
+  await second.close();
+});
