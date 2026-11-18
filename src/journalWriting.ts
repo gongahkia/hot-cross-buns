@@ -1,3 +1,4 @@
+import {editWritingOutline, type WritingOutlineAction} from './writingOutline.ts';
 import { journalModel, materializeJournal, readJournal } from './journalDocument.ts';
 import { editMarkdownPassage } from './markdownPassage.ts';
 import { applyPlannerEdits, plannerEntries, plannerWritable, type MarkdownPlanner, type PlannerGroup, type SourcePatch, type SourceRange } from './markdownPlanner.ts';
@@ -10,7 +11,7 @@ export type WritingDestination = { kind: 'dated'; date: string } | { kind: 'unda
 export type WritingLocation = WritingDestination | { kind: 'scratchpad' };
 export type WritingBlock = { type: 'entry' | 'markdown'; range: SourceRange; entryId?: string };
 export type WritingCapture = { start: number; end: number; selected: string; destination: WritingDestination; cut: boolean };
-export type WritingOperation = { kind: 'fragment'; location: WritingLocation; range: SourceRange; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'append'; destination: WritingLocation; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'capture'; capture: WritingCapture } | { kind: 'toggle'; location: WritingLocation; start: number };
+export type WritingOperation = {kind:'outline';start:number;action:WritingOutlineAction} | { kind: 'fragment'; location: WritingLocation; range: SourceRange; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'append'; destination: WritingLocation; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'capture'; capture: WritingCapture } | { kind: 'toggle'; location: WritingLocation; start: number };
 const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 
 function assertWriting(model: MarkdownPlanner): void {
@@ -132,6 +133,7 @@ export function transferWritingCapture(source: string, capture: WritingCapture):
 }
 
 export function runWritingOperation(source: string, operation: WritingOperation): MarkdownPlanner {
+  if (operation.kind === 'outline') return editWritingOutline(source,operation.start,operation.action);
   if (operation.kind === 'fragment') return editWritingFragment(source, operation.location, operation.range, operation.markdown, operation.links);
   if (operation.kind === 'append') return appendWritingMarkdown(source, operation.destination, operation.markdown, operation.links);
   if (operation.kind === 'toggle') return toggleWritingCheckbox(source, operation.location, operation.start);

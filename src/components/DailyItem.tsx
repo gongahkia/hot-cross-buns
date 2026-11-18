@@ -18,7 +18,7 @@ import { CalendarPanel } from './CalendarPanel';
 import { ScheduleEditor } from './ScheduleEditor';
 import { SpanEditor } from './SpanEditor';
 
-const ItemRow = styled.div<{ $dragging: boolean; $standalone?: boolean }>`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; background: ${({ $dragging }) => $dragging ? 'var(--soft)' : 'transparent'}; opacity: ${({ $dragging }) => $dragging ? .35 : 1}; &:hover { background: var(--soft); } [data-row-control] { opacity: 0; transition: opacity 120ms ease-out; } &:hover [data-row-control], &:focus-within [data-row-control] { opacity: 1; } @media(hover:none) { [data-row-control] { opacity: 1; } } @media(max-width:540px){display:grid; grid-template-columns:max-content max-content minmax(0,1fr) 44px; column-gap:4px; row-gap:0;${({ $standalone }) => $standalone ? "grid-template-columns:max-content minmax(0,1fr) 44px;[data-calendar-title]{grid-column:2;}[data-calendar-actions]{grid-column:3;}[data-calendar-meta]{grid-column:2 / -1;}" : ""}}`;
+const ItemRow = styled.div<{ $dragging: boolean; $standalone?: boolean }>`position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 40px; border-radius: 7px; background: ${({ $dragging }) => $dragging ? 'var(--soft)' : 'transparent'}; opacity: ${({ $dragging }) => $dragging ? .35 : 1}; &:hover { background: var(--soft); } [data-row-control] { opacity: 0; transition: opacity 120ms ease-out; } &:hover [data-row-control], &:focus-within [data-row-control] { opacity: 1; } @media(hover:none) { [data-row-control] { opacity: 1; } } @media(max-width:540px){display:grid; grid-template-columns:max-content max-content minmax(0,1fr) 44px; column-gap:4px; row-gap:0;${({ $standalone }) => $standalone ? "grid-template-columns:max-content minmax(0,1fr) 44px;[data-calendar-title]{grid-column:2;}[data-calendar-actions]{grid-column:3;}[data-calendar-actions]>button{grid-column:3;}[data-calendar-meta]{grid-column:2 / -1;}" : ""}}`;
 const Grip = styled.button`width: 22px; height: 40px; display: grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: grab !important; touch-action: none; &:active { cursor: grabbing !important; } @media(pointer:coarse){width:44px;height:44px;}`;
 const CheckButton = styled.button<{ $done: boolean }>`width: 34px; height: 40px; display: grid; place-items: center; flex: none; border: 0; background: transparent; color: ${({ $done }) => $done ? 'var(--link)' : 'var(--checkbox)'}; @media(pointer:coarse){width:44px;height:44px;}`;
 const Circle = styled.span<{ $done: boolean; $progress?: number; $previousProgress?: number }>`
@@ -125,6 +125,7 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
   const [moveDate, setMoveDate] = useState(date);
   const [scheduleEditor, setScheduleEditor] = useState<'time' | 'repeat' | null>(null);
   const [spanEditor, setSpanEditor] = useState(false);
+  const [actionGroup,setActionGroup]=useState<'main'|'schedule'|'move'>('main');
   const [detailInsertAt, setDetailInsertAt] = useState<number | null>(null);
   const [detailDraft, setDetailDraft] = useState('');
   const [detailsExpanded, setDetailsExpanded] = useState(true);
@@ -175,7 +176,7 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
     setMenuPosition({ top, left });
   };
   const saveText = () => { const original = timeBlock?.title ?? item.text; if (cancelText.current) { cancelText.current = false; setText(original); return; } const value = text.trim(); if (value && value !== original) onEdit(item => { item.text = timeBlock ? `${timeBlock.start}-${timeBlock.end} ${value}` : value; }); else setText(original); };
-  const closeMenu = (action: () => void) => { setMenuOpen(false); setMoveOpen(false); setParentOpen(false); action(); };
+  const closeMenu = (action: () => void) => { setMenuOpen(false); setMoveOpen(false); setParentOpen(false);setActionGroup('main'); action(); };
   const detailDraftRow = detailInsertAt === null ? null : <DetailDraftRow key="new-detail"><LineField detail autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelDetail.current = true; event.currentTarget.blur(); } }} onBlur={() => { if (!cancelDetail.current && detailDraft.trim()) onEdit(item => { item.details.splice(detailInsertAt, 0, { text: detailDraft.trim(), completed: false }); item.completed = false; }); cancelDetail.current = false; setDetailDraft(''); setDetailInsertAt(null); }}/></DetailDraftRow>;
   return <ItemRow $standalone={standalone} ref={setNodeRef} role="group" aria-label={item.text} data-transition-id={item.id} data-search-item-id={item.id} $dragging={isDragging} style={{ transform: CSS.Transform.toString(transform), transition }}>
     {!standalone && <Grip data-row-control ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.text}`} title="Drag to reorder or move to another date"><GripVertical size={16}/></Grip>}
@@ -207,17 +208,27 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
             {parentMatches.length > 50 && <ParentHint>Search to see more items</ParentHint>}
           </ParentList>
         </> : <>
+        {(!unified || actionGroup==='main') && <>
         <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => { setDetailsExpanded(true); if (recursive) setOutlineAdd(value => value + 1); else setDetailInsertAt(item.details.length); })}><Plus size={15}/>{unified ? 'Add child' : 'add detail'}</Action>
         <Action onClick={() => closeMenu(() => { if (recursive) { setDetailsExpanded(true); setNotesRequest(value => value + 1); } else onEnableOutline(); })}><Plus size={15}/>{recursive ? unified ? 'Edit content' : 'edit notes' : 'enable deeper outlines'}</Action>
         {unified && <Action disabled={item.completed || item.repeat?.kind === 'after'} title={item.completed ? 'Reopen this task before making it plain' : undefined} onClick={()=>closeMenu(()=>onEdit(next=>{next.kind=next.kind==='note'?undefined:'note';refreshItemCompletion(next);} ))}>{item.kind==='note'?'Make task':'Make plain item'}</Action>}
+        {unified && <><Action onClick={()=>setActionGroup('schedule')}>Schedule…</Action><Action onClick={()=>setActionGroup('move')}>Move…</Action></>}
+        </>}
+        {unified && actionGroup!=='main' && <Action onClick={()=>{setActionGroup('main');setMoveOpen(false);setUndatedOpen(false);}}>Back to item actions</Action>}
+        {(!unified || actionGroup==='move') && <>
         <Action aria-label={`Make ${item.text} a detail`} title={item.repeat || timeBlock || item.span || item.replaces ? 'Remove the schedule and span first' : parentItems.length < 2 ? 'Add another item to this day first' : undefined} disabled={parentItems.length < 2 || !!item.repeat || !!timeBlock || !!item.span || !!item.replaces} onClick={() => { setParentQuery(''); setParentOpen(true); positionMenu(false, true); }}><CornerDownRight size={15}/> make detail</Action>
+        </>}
+        {(!unified || actionGroup==='schedule') && <>
         <Action aria-label={`Set time block for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('time'))}><Clock3 size={15}/> {timeBlock ? 'edit time' : 'add time block'}</Action>
         <Action aria-label={`Set span for ${item.text}`} onClick={() => closeMenu(() => setSpanEditor(true))}><CalendarDays size={15}/> {item.span ? 'edit span' : 'add span'}</Action>
         <Action aria-label={`Set repeat for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('repeat'))}><Repeat2 size={15}/> {item.repeat ? 'edit repeat' : 'repeat'}</Action>
+        </>}
+        {(!unified || actionGroup==='move') && <>
         <Action aria-label={`Move ${item.text}`} aria-expanded={moveOpen} onClick={() => { if (!moveOpen) { setMoveDate(date); positionMenu(true); } else positionMenu(false); setMoveOpen(value => !value); }}><CalendarDays size={15}/> move to date</Action>
         <Action aria-label={`Make ${item.text} undated`} disabled={unified && !!(item.repeat || item.span || item.replaces || timeBlock)} title={unified && (item.repeat || item.span || item.replaces || timeBlock) ? "Clear the schedule before moving to an undated document" : undefined} onClick={() => setUndatedOpen(value => !value)}><CalendarDays size={15}/> make undated</Action>
         {undatedOpen && (undatedListNames.length ? undatedListNames : ['Inbox']).map(name => <Action key={name} aria-label={`Move ${item.text} to undated list ${name}`} onClick={() => closeMenu(() => onMakeUndated(name))}>{name}</Action>)}
-        <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(onDelete)}><Trash2 size={15}/> delete</Action>
+        </>}
+        {(!unified || actionGroup==='main') &&         <Action aria-label={`Delete ${item.text}`} onClick={() => closeMenu(onDelete)}><Trash2 size={15}/> delete</Action>}
         {moveOpen && <MoveFlyout $inline={standalone} style={standalone ? {position:'static',transform:'none',width:'100%',overflow:'visible'} : undefined}>
           <QuickMoves role="group" aria-label="Quick move dates">
             <Button type="button" disabled={date === today} aria-label={`Move ${item.text} to today`} onClick={() => closeMenu(() => onMove(today))}>Today</Button>

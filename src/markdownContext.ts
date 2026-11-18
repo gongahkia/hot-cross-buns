@@ -7,6 +7,7 @@ export type MarkdownContextValue = {
   bodyViews?: Record<string, MarkdownNode>;
   hiddenMetadata?: Set<string>;
   entryIds?: Record<number, string>;
+  isOutlineItem?: (start:number)=>boolean;
   navigate?: (fragment: string) => void;
   jump?: (target: MarkdownTarget) => void;
   navigation?: MarkdownNavigation;

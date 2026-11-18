@@ -1,6 +1,6 @@
 import { createElement, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
-import { ArrowRight, Pencil } from 'lucide-react';
+import { ArrowRight, MoreHorizontal, Pencil } from 'lucide-react';
 import { headingSlug, markdownKey, MARKDOWN_RENDER_LIMITS, parseMarkdownPreview, safeMarkdownUrl, type MarkdownNode } from '../markdown';
 import { MarkdownDocumentContext } from '../markdownContext';
 import type { TodoBody } from '../todoText';
@@ -14,6 +14,8 @@ const BlockEdit = styled.button`position:absolute;right:0;top:4px;display:grid;p
 const BlockMove = styled(BlockEdit)`right:32px;@media(pointer:coarse){right:44px;}`;
 const Callout = styled.aside`margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--soft);color:var(--ink);&>strong{display:block;font-weight:600;}&>details>summary{min-height:36px;font-weight:600;cursor:pointer;}@media(pointer:coarse){&>details>summary{min-height:44px;}}`;
 
+const NodeAction = styled.button`float:right;display:inline-grid;place-items:center;width:28px;min-height:32px;margin-left:4px;padding:4px;border:0;border-radius:4px;background:transparent;color:var(--muted);opacity:0;li:hover>&,li:focus-within>&{opacity:1;}&:hover,&:focus-visible{background:var(--soft);color:var(--ink);}@media(hover:none){opacity:1;}@media(pointer:coarse){width:44px;min-height:44px;}`;
+
 function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?: string }) {
   const [loaded, setLoaded] = useState(false), [failed, setFailed] = useState(false);
   const href = url && safeMarkdownUrl(url), description = alt || 'no description';
@@ -22,7 +24,7 @@ function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?
   return <img src={href} alt={alt ?? ''} title={title} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)}/>;
 }
 
-export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, editor, onToggleTask, documentMode = false, onMoveBlock }: { markdown: string; body?: TodoBody[]; label?: string; onEditBlock?: (index: number) => void; activeBlock?: number | null; editor?: ReactNode; onToggleTask?: (start: number) => void; documentMode?: boolean; onMoveBlock?: (index: number, anchor: HTMLButtonElement) => void }) {
+export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, editor, onToggleTask, documentMode = false, onMoveBlock, onNodeAction }: { onNodeAction?: (start:number,anchor:HTMLButtonElement)=>void; markdown: string; body?: TodoBody[]; label?: string; onEditBlock?: (index: number) => void; activeBlock?: number | null; editor?: ReactNode; onToggleTask?: (start: number) => void; documentMode?: boolean; onMoveBlock?: (index: number, anchor: HTMLButtonElement) => void }) {
   const context = useContext(MarkdownDocumentContext), scope = useId();
   const content = useMemo(() => {
     const saved = body?.map(block => block.sourceRef ? context.bodyViews?.[block.sourceRef] : undefined);
@@ -65,7 +67,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
           const title = node.children?.[0], text = title?.children?.map(child => child.value ?? nodeSource.slice(child.range.start, child.range.end)).join('') || 'task';
           const toggle = nodeSource === context.source ? onToggleTask : undefined;
           const checkbox = typeof node.checked === 'boolean' ? <input type="checkbox" checked={node.checked} disabled={!toggle} aria-label={toggle ? `${node.checked ? 'Reopen' : 'Complete'} ${text.slice(0, 120)}` : 'Checkbox in body preview'} onChange={() => toggle?.(node.range.start)}/> : null;
-          return <li key={key} data-outline-start={node.range.start} data-search-item-id={nodeSource === context.source ? context.entryIds?.[node.range.start] : undefined} tabIndex={nodeSource === context.source && context.entryIds?.[node.range.start] ? -1 : undefined}>{checkbox && toggle ? <label data-task-control>{checkbox}</label> : checkbox} {children()}</li>;
+          return <li key={key} data-outline-start={node.range.start} data-search-item-id={nodeSource === context.source ? context.entryIds?.[node.range.start] : undefined} tabIndex={nodeSource === context.source && context.entryIds?.[node.range.start] ? -1 : undefined}>{nodeSource===context.source && onNodeAction && context.isOutlineItem?.(node.range.start) && <NodeAction data-writing-node type="button" aria-label={`Actions for ${text.slice(0,120)}`} onClick={event=>onNodeAction(node.range.start,event.currentTarget)}><MoreHorizontal size={15}/></NodeAction>}{checkbox && toggle ? <label data-task-control>{checkbox}</label> : checkbox} {children()}</li>;
         }
         case 'link': case 'linkReference': {
           const definition = node.identifier && Object.hasOwn(definitions, node.identifier) ? definitions[node.identifier] : undefined;
@@ -91,7 +93,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
         default: return <span key={key}>{children()}</span>;
       }
     };
-    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index} $move={!!onMoveBlock} tabIndex={-1} data-markdown-start={node.range.start} data-markdown-end={node.range.end}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit>{onMoveBlock && <BlockMove data-block-edit type="button" aria-label={`Move block ${index + 1} from ${label ?? 'document'}`} onClick={event => onMoveBlock(index, event.currentTarget)}><ArrowRight size={14}/></BlockMove>}</Block> : render(node, index));
+    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index} $move={!!onMoveBlock} tabIndex={-1} data-markdown-start={node.range.start} data-markdown-end={node.range.end}><div>{render(node, index)}</div>{!(onNodeAction && context.entryIds?.[node.range.start]) && <BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit>}{onMoveBlock && <BlockMove data-block-edit type="button" aria-label={`Move block ${index + 1} from ${label ?? 'document'}`} onClick={event => onMoveBlock(index, event.currentTarget)}><ArrowRight size={14}/></BlockMove>}</Block> : render(node, index));
     const notes: ReactNode[] = [];
     for (let index = 0; index < footnotes.length; index++) {
       const identifier = footnotes[index], note = preview.index.footnotes[identifier];
@@ -99,6 +101,6 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
       notes.push(<li key={identifier} id={footnoteId(identifier)} tabIndex={-1}>{note.type === 'source' ? <pre>{nodeSource.slice(note.range.start, note.range.end)}</pre> : note.children?.map((child, index) => render(child, index, 0, nodeSource))}{references.get(identifier)?.map((id, index) => <a key={id} href={`#${id}`} aria-label={`Back to footnote ${footnotes.indexOf(identifier) + 1} reference ${index + 1}`} onClick={event => { event.preventDefault(); scrollTo(id); }}>Back{index ? ` ${index + 1}` : ''}</a>)}</li>);
     }
     return <>{nodes}{!!notes.length && <section data-footnotes aria-label="Footnotes"><ol>{notes}</ol></section>}</>;
-  }, [markdown, body, context, scope, label, onEditBlock, activeBlock, editor, onToggleTask, onMoveBlock]);
+  }, [markdown, body, context, scope, label, onEditBlock, activeBlock, editor, onToggleTask, onMoveBlock, onNodeAction]);
   return <Content $document={documentMode}>{content}</Content>;
 }

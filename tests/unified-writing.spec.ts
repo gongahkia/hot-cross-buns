@@ -121,3 +121,18 @@ test('the shared document surface fits a phone and supports dark appearance and 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(day.getByRole('checkbox', { name: 'Complete Nested action', exact: true })).toBeVisible();
 });
+
+test('one child action opens a recoverable local draft and movement preserves a mixed branch',async({page})=>{
+ const day=await load(page);await day.getByRole('button',{name:'Actions for Plain outline',exact:true}).click();
+ const menu=page.getByLabel('Actions for Plain outline',{exact:true}).filter({has:page.getByRole('button',{name:'Add child',exact:true})});
+ await expect(menu.getByRole('button',{name:'Add subtask',exact:true})).toHaveCount(0);await menu.getByRole('button',{name:'Add child',exact:true}).click();
+ const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await expect(field).toHaveValue(/- New child/);await page.keyboard.type('Plain child');await expect(field).toHaveValue(/- Plain child/);await day.getByRole('button',{name:'Save',exact:true}).click();await expect(field).toHaveCount(0);await expect(day.getByText('Plain child',{exact:true})).toBeVisible();
+ await day.getByRole('button',{name:'Actions for Plain child',exact:true}).click();await page.getByRole('button',{name:'Make task',exact:true}).click();await expect(day.getByRole('checkbox',{name:'Complete Plain child',exact:true})).toBeVisible();
+ await day.getByRole('button',{name:'Actions for Plain child',exact:true}).click();await page.getByRole('button',{name:'Move…',exact:true}).click();await page.getByRole('button',{name:'Indent',exact:true}).click();
+ const text=await download(page);expect(text).toContain('    - [ ] Plain child');expect(text).toContain('> Attached **context** stays visible.');
+});
+
+test('undated task/plain conversion and moves preserve completion rather than resetting it',async({page})=>{
+ await load(page);await page.getByRole('button',{name:'Undated',exact:true}).click();const inbox=page.getByRole('region',{name:'Document for Inbox',exact:true});await inbox.getByRole('button',{name:'Actions for Plain context',exact:true}).click();await page.getByRole('button',{name:'Make task',exact:true}).click();await expect(inbox.getByRole('checkbox',{name:'Complete Plain context',exact:true})).toBeVisible();await inbox.getByRole('checkbox',{name:'Complete Undated child',exact:true}).click();await expect(inbox.getByRole('checkbox',{name:'Reopen Undated action',exact:true})).toBeChecked();
+ await inbox.getByRole('button',{name:'Actions for Undated action',exact:true}).click();await expect(page.getByRole('button',{name:'Make plain item',exact:true})).toBeDisabled();await page.getByRole('button',{name:'Move…',exact:true}).click();await page.getByLabel('Move item to date',{exact:true}).fill(today());await page.getByRole('button',{name:'Move to date',exact:true}).click();await page.getByRole('button',{name:'Dated',exact:true}).click();await expect(page.getByRole('checkbox',{name:'Reopen Undated action',exact:true})).toBeChecked();expect(await download(page)).toContain('- [x] Undated action');
+});

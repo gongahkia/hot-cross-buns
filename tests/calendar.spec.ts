@@ -20,7 +20,7 @@ test('calendar stays within Dated, displays canonical periods and preserves sour
 });
 test('calendar completion, time editing, day-document creation and journal undo use the same source',async({page})=>{
  await load(page);let entry=await openMeeting(page);await expect(entry.locator('blockquote')).toContainText('Context stays here.');
- await entry.getByRole('button',{name:'More actions for 09:00-10:00 Meeting',exact:true}).click();await entry.getByRole('button',{name:'Set time block for 09:00-10:00 Meeting',exact:true}).click();
+ await entry.getByRole('button',{name:'More actions for 09:00-10:00 Meeting',exact:true}).click();await entry.getByRole('button',{name:'Schedule…',exact:true}).click();await entry.getByRole('button',{name:'Set time block for 09:00-10:00 Meeting',exact:true}).click();
  const time=page.getByRole('dialog',{name:'Time block for 09:00-10:00 Meeting',exact:true});await time.getByLabel('Start time',{exact:true}).fill('10:00');await time.getByLabel('End time',{exact:true}).fill('11:00');await time.getByRole('button',{name:'save',exact:true}).click();
  await expect(entry.getByRole('textbox',{name:'Edit 10:00-11:00 Meeting',exact:true})).toBeVisible();await entry.getByRole('button',{name:'Close entry',exact:true}).click();
  await page.getByRole('checkbox',{name:`Complete Meeting on ${today()}`,exact:true}).click();await expect(page.getByRole('checkbox',{name:`Reopen Meeting on ${today()}`,exact:true})).toBeChecked();

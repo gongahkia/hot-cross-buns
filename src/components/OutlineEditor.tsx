@@ -24,7 +24,7 @@ const BodyInput = styled.textarea`width:100%;min-height:140px;resize:vertical;pa
 const BodyActions = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;button{min-height:36px;}@media(pointer:coarse){button{min-height:44px;}}`;
 const hasDraft = (key: string) => { try { return sessionStorage.getItem(key) !== null; } catch { return false; } };
 
-export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey, expanded = false, blockOnly = false, documentMode = false, onToggleTask, readOnly = false, onMoveBlock, appendRequest = 0, onEditRequest }: { onEditRequest?: (index:number)=>boolean; appendRequest?: number; body?: TodoBody[]; label: string; onSave: (markdown: string, block?: number, expectedSource?: string, links?: MarkdownLinkPreparation[]) => void | boolean | Promise<void | boolean>; editRequest?: number; draftKey: string; expanded?: boolean; blockOnly?: boolean; documentMode?: boolean; onToggleTask?: (start: number) => void; readOnly?: boolean; onMoveBlock?: (index: number, anchor: HTMLButtonElement) => void }) {
+export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey, expanded = false, blockOnly = false, documentMode = false, onToggleTask, readOnly = false, onMoveBlock, appendRequest = 0, onEditRequest, onNodeAction, draftRequest }: { draftRequest?: {key:number;index:number;markdown?:string;selection?:number}; onNodeAction?: (start:number,anchor:HTMLButtonElement)=>void; onEditRequest?: (index:number)=>boolean; appendRequest?: number; body?: TodoBody[]; label: string; onSave: (markdown: string, block?: number, expectedSource?: string, links?: MarkdownLinkPreparation[]) => void | boolean | Promise<void | boolean>; editRequest?: number; draftKey: string; expanded?: boolean; blockOnly?: boolean; documentMode?: boolean; onToggleTask?: (start: number) => void; readOnly?: boolean; onMoveBlock?: (index: number, anchor: HTMLButtonElement) => void }) {
   const { source, navigation } = useContext(OutlineDocumentContext);
   const markdown = (body ?? []).map(block => block.markdown).join('\n\n');
   const [recovered] = useState(() => {
@@ -58,10 +58,13 @@ export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draft
   const clear = () => { try { sessionStorage.removeItem(draftKey); } catch { /* the saved document remains available. */ } };
   useEffect(() => { if (submitted && markdown.trim() === expected.current.trim()) { clear(); setEditing(false); setSubmitted(false); setActiveBlock(null); setError(''); restoreFocus(activeBlock); } }, [markdown, submitted]);
   const begin = (block: number | null) => {
-    if (block !== null && onEditRequest?.(block)) return;
-    if (editing && draft !== (activeBlock === null ? baseline.current.markdown : body?.[activeBlock]?.markdown ?? '')) { setError('Save, download or cancel this draft before editing another block.'); return; }
-    baseline.current = { markdown, label, source }; pendingLinks.current = []; setDraft(block === null ? markdown : body?.[block]?.markdown ?? ''); setActiveBlock(block); setSubmitted(false); setError(''); setEditing(true);
+    if (block !== null && onEditRequest?.(block)) return false;
+    if (editing && draft !== (activeBlock === null ? baseline.current.markdown : body?.[activeBlock]?.markdown ?? '')) { setError('Save, download or cancel this draft before editing another block.'); return false; }
+    baseline.current = { markdown, label, source }; pendingLinks.current = []; setDraft(block === null ? markdown : body?.[block]?.markdown ?? ''); setActiveBlock(block); setSubmitted(false); setError(''); setEditing(true); return true;
   };
+  const requestedSelection=useRef<number|null>(null);
+  useEffect(()=>{if(draftRequest && begin(draftRequest.index)){requestedSelection.current=draftRequest.selection??null;if(draftRequest.markdown!==undefined)setDraft(draftRequest.markdown);}},[draftRequest?.key]);
+  useLayoutEffect(()=>{if(input.current && requestedSelection.current!==null){input.current.focus();input.current.setSelectionRange(requestedSelection.current,requestedSelection.current+9);requestedSelection.current=null;}},[editing,draft,activeBlock]);
   const priorAppend = useRef(0);
   useEffect(() => { if (appendRequest && priorAppend.current !== appendRequest) { priorAppend.current = appendRequest; begin(body?.length ?? 0); } }, [appendRequest]);
   const save = () => {
@@ -97,7 +100,7 @@ export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draft
   </>;
   return <Body as={documentMode ? 'section' : 'details'} $document={documentMode} ref={ref} open={documentMode ? undefined : expanded || !!editRequest || !!recovered || undefined} onToggle={documentMode ? undefined : (event: SyntheticEvent<HTMLDetailsElement>) => setVisible(event.currentTarget.open)} data-journal-editor="true" data-editor-dirty={editing && (draft !== original || source !== baseline.current.source) ? 'true' : 'false'}>
     {!documentMode && <summary><FileText size={14}/>{markdown ? 'Notes' : 'Add notes'}</summary>}
-    {editing && activeBlock === null ? editor : documentMode || visible ? <><MarkdownBody markdown={markdown} body={body} label={label} onEditBlock={readOnly ? undefined : index => begin(index)} activeBlock={editing ? activeBlock : null} editor={editor} onToggleTask={editing || readOnly ? undefined : onToggleTask} documentMode={documentMode} onMoveBlock={editing || readOnly ? undefined : onMoveBlock}/>{editing && documentMode && activeBlock === (body?.length ?? 0) && editor}{!editing && !readOnly && (documentMode ? <BodyActions><Button data-add-writing type="button" onClick={() => begin(body?.length ?? 0)}>{body?.length ? 'Add writing' : 'Start writing'}</Button></BodyActions> : !blockOnly && <BodyActions><Button data-edit-notes type="button" onClick={() => begin(null)}>Edit notes</Button></BodyActions>)}</> : null}
+    {editing && activeBlock === null ? editor : documentMode || visible ? <><MarkdownBody onNodeAction={editing || readOnly ? undefined : onNodeAction} markdown={markdown} body={body} label={label} onEditBlock={readOnly ? undefined : index => begin(index)} activeBlock={editing ? activeBlock : null} editor={editor} onToggleTask={editing || readOnly ? undefined : onToggleTask} documentMode={documentMode} onMoveBlock={editing || readOnly ? undefined : onMoveBlock}/>{editing && documentMode && activeBlock === (body?.length ?? 0) && editor}{!editing && !readOnly && (documentMode ? <BodyActions><Button data-add-writing type="button" onClick={() => begin(body?.length ?? 0)}>{body?.length ? 'Add writing' : 'Start writing'}</Button></BodyActions> : !blockOnly && <BodyActions><Button data-edit-notes type="button" onClick={() => begin(null)}>Edit notes</Button></BodyActions>)}</> : null}
   </Body>;
 }
 
@@ -159,6 +162,7 @@ export function OutlineEditor({ item, dated, onEdit: edit, onToggle: toggle, onP
       onSave={text => onEdit(next => { detailAt(next.details, path).text = text; })}
       onToggle={() => onToggle(next => { const target = detailAt(next.details, path), completed = !target.completed; for (const child of outlineNodes([target])) if (child.kind !== 'note') child.completed = completed; refreshItemCompletion(next); })}
       onMove={direction => move(path, direction)} onAdd={note => add(path, node.children?.length ?? 0, note)} onSibling={() => add(parent, index + 1, node.kind === 'note')}
+      onConvert={()=>onEdit(next=>{const node=detailAt(next.details,path);if(node.completed)throw new Error('Reopen this task before making it plain.');node.kind=node.kind==='note'?undefined:'note';refreshItemCompletion(next);})}
       onDelete={() => onEdit(next => { detailSiblings(next, path).splice(index, 1); if (dated) refreshItemCompletion(next); })}
       onPromote={() => onPromote(path, content)} onBody={(markdown, block, source, links) => onEdit(next => { const node = detailAt(next.details, path); node.body = replaceMarkdownBody(node.body, markdown, block); }, source, links)}
       childrenContent={nodes(node.children ?? [], path)}
@@ -173,13 +177,13 @@ export function OutlineEditor({ item, dated, onEdit: edit, onToggle: toggle, onP
   </Wrap>;
 }
 
-function OutlineNode({ node, path, dated, unified, reveal, siblings, draftKey, onSave, onToggle, onMove, onAdd, onSibling, onDelete, onPromote, onBody, childrenContent, draftContent }: {
+function OutlineNode({ node, path, dated, unified, reveal, siblings, draftKey, onSave, onToggle, onMove, onAdd, onSibling, onDelete, onPromote, onBody, onConvert, childrenContent, draftContent }: {
   node: TodoDetail; path: number[]; dated: boolean; unified: boolean; reveal: boolean; siblings: number; onSave: (text: string) => void; onToggle: () => void;
   draftKey: string;
   onMove: (direction: 'up' | 'down' | 'in' | 'out') => void; onAdd: (note: boolean) => void; onSibling: () => void; onDelete: () => void; onPromote: () => void;
-  onBody: (markdown: string, block?: number, expectedSource?: string, links?: MarkdownLinkPreparation[]) => void | Promise<void>; childrenContent: React.ReactNode; draftContent: React.ReactNode;
+  onConvert:()=>void; onBody: (markdown: string, block?: number, expectedSource?: string, links?: MarkdownLinkPreparation[]) => void | Promise<void>; childrenContent: React.ReactNode; draftContent: React.ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(path.length < 4), [menu, setMenu] = useState(false), [notes, setNotes] = useState(0);
+  const [expanded, setExpanded] = useState(path.length < 4), [menu, setMenu] = useState(false), [notes, setNotes] = useState(0),[moving,setMoving]=useState(false);
   const [value, setValue] = useState(node.text);
   const title = useRef<HTMLTextAreaElement>(null), trigger = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null);
   const cancelled = useRef(false);
@@ -210,7 +214,7 @@ function OutlineNode({ node, path, dated, unified, reveal, siblings, draftKey, o
   };
   const rect = menu ? trigger.current?.getBoundingClientRect() : null;
   const dialog = trigger.current?.closest('dialog'), origin = dialog?.getBoundingClientRect();
-  const run = (action: () => void) => { setMenu(false); action(); };
+  const run = (action: () => void) => { setMenu(false);setMoving(false); action(); };
   return <li>
     <Row $depth={path.length - 1}>
       {node.children?.length || draftContent ? <Control type="button" aria-label={`${expanded ? 'Collapse' : 'Expand'} outline ${node.text}`} aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>{expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}</Control> : <span/>}
@@ -221,15 +225,21 @@ function OutlineNode({ node, path, dated, unified, reveal, siblings, draftKey, o
     {(node.body?.length || notes || hasDraft(draftKey)) ? <MarkdownBodyEditor documentMode={unified} draftKey={draftKey} label={node.text} body={node.body} editRequest={notes} onSave={onBody}/> : null}
     {expanded && <div id={id}>{childrenContent}</div>}
     {menu && rect && createPortal(<Menu ref={panel} aria-label={`Actions for detail ${node.text}`} style={{ left: Math.max((origin?.left ?? 0) + 8, Math.min(rect.right - 200, (origin?.right ?? innerWidth) - 208)) - (origin?.left ?? 0) + (dialog?.scrollLeft ?? 0), top: Math.max((origin?.top ?? 0) + 8, Math.min(rect.bottom + 4, (origin?.bottom ?? innerHeight) - (dated ? 450 : 400))) - (origin?.top ?? 0) + (dialog?.scrollTop ?? 0), maxHeight: origin ? origin.height - 24 : undefined }}>
+      {!moving && <>
       {!unified && dated && <Action disabled={path.length >= MAX_OUTLINE_DEPTH} onClick={() => run(() => { setExpanded(true); onAdd(false); })}><Plus size={15}/> add subtask</Action>}
       <Action disabled={path.length >= MAX_OUTLINE_DEPTH} onClick={() => run(() => { setExpanded(true); onAdd(unified ? node.kind === 'note' : true); })}><Plus size={15}/>{unified ? 'Add child' : 'add nested note'}</Action>
+      <Action onClick={() => run(() => setNotes(value => value + 1))}><FileText size={15}/>{unified ? 'Edit content' : 'edit notes'}</Action>
+      {unified && <><Action disabled={node.completed} onClick={()=>run(onConvert)}>{node.kind==='note'?'Make task':'Make plain item'}</Action><Action onClick={()=>setMoving(true)}>Move…</Action></>}
+      </>}
+      {(!unified || moving) && <>
+      {unified && <Action onClick={()=>setMoving(false)}>Back to item actions</Action>}
       <Action disabled={!index || path.length >= MAX_OUTLINE_DEPTH} onClick={() => run(() => onMove('in'))}><IndentIncrease size={15}/> indent</Action>
       <Action disabled={path.length < 2} onClick={() => run(() => onMove('out'))}><IndentDecrease size={15}/> outdent</Action>
       <Action disabled={!index} onClick={() => run(() => onMove('up'))}><ArrowUp size={15}/> move up</Action>
       <Action disabled={index === siblings - 1} onClick={() => run(() => onMove('down'))}><ArrowDown size={15}/> move down</Action>
-      <Action onClick={() => run(() => setNotes(value => value + 1))}><FileText size={15}/>{unified ? 'Edit content' : 'edit notes'}</Action>
       <Action aria-label={`Make detail ${node.text} an item`} onClick={() => run(onPromote)}><CornerDownRight size={15}/> make item</Action>
-      <Action aria-label={`Delete detail ${node.text} and its children`} onClick={() => run(onDelete)}><Trash2 size={15}/> delete branch</Action>
+      </>}
+      {!moving && <Action aria-label={`Delete detail ${node.text} and its children`} onClick={() => run(onDelete)}><Trash2 size={15}/> delete branch</Action>}
     </Menu>, dialog ?? document.body)}
   </li>;
 }
