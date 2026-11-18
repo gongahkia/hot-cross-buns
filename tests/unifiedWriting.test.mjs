@@ -3,7 +3,8 @@ import test from 'node:test';
 import { createJournal, journalModel, materializeJournal, parseJournal, readJournal } from '../src/journalDocument.ts';
 import { upgradeOutlineJournal, upgradeWritingJournal } from '../src/journalOutline.ts';
 import { parseMarkdownPlanner, plannerWritable, setPlannerCompletion } from '../src/markdownPlanner.ts';
-import { detailAt, refreshItemCompletion, setItemCompletion } from '../src/outline.ts';
+import { detailAt, refreshItemCompletion, setItemCompletion, unfinishedTaskCount } from '../src/outline.ts';
+import { earlierUnfinishedDays } from '../src/earlierUnfinished.ts';
 import { runJournalWork } from '../src/journalWorker.ts';
 import { mergeJournalSources } from '../src/journalMerge.ts';
 
@@ -137,4 +138,11 @@ test('worker upgrades and conservative merge preserve format boundaries', () => 
   const concurrent = edit(before, document => { document.scratchpad += 'Remote edit\n'; });
   assert.equal(mergeJournalSources(before, upgraded, concurrent), null);
   assert.equal(journalModel(createJournal('empty-writing', 3)).format, 3);
+});
+
+test('unfinished counts ignore plain writing and count actionable branches under plain outlines', () => {
+  const document = parse(wrap(mixed + '\n\n- Just a note'));
+  assert.equal(unfinishedTaskCount(document.days[0].items[0]), 1);
+  assert.equal(unfinishedTaskCount(document.days[0].items[2]), 0);
+  assert.deepEqual(earlierUnfinishedDays(document, '2026-11-19'), [{ date: '2026-11-18', count: 2 }]);
 });

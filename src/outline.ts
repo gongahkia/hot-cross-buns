@@ -47,6 +47,10 @@ export function setItemCompletion(item: TodoItem, completed: boolean): void {
   for (const node of outlineNodes(item.details)) if (node.kind !== 'note') node.completed = completed;
 }
 
+export function unfinishedTaskCount(item: TodoItem): number {
+  return item.kind === 'note' ? taskChildren(item.details).filter(task => !task.completed).length : Number(!item.completed);
+}
+
 export function resetDetails(details: TodoDetail[]): TodoDetail[] {
   const next = structuredClone(details);
   for (const node of outlineNodes(next)) node.completed = false;

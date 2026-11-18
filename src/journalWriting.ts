@@ -1,14 +1,16 @@
-import { readJournal } from './journalDocument.ts';
+import { journalModel, materializeJournal, readJournal } from './journalDocument.ts';
 import { editMarkdownPassage } from './markdownPassage.ts';
 import { applyPlannerEdits, plannerEntries, plannerWritable, type MarkdownPlanner, type PlannerGroup, type SourcePatch, type SourceRange } from './markdownPlanner.ts';
-import type { MarkdownLinkPreparation } from './markdownNavigation.ts';
+import { prepareMarkdownLinks, type MarkdownLinkPreparation } from './markdownNavigation.ts';
 import { validDate } from './todoText.ts';
+import { parseMarkdownTree } from './markdown.ts';
+import type { Nodes } from 'mdast';
 
 export type WritingDestination = { kind: 'dated'; date: string } | { kind: 'undated'; list: string };
 export type WritingLocation = WritingDestination | { kind: 'scratchpad' };
 export type WritingBlock = { type: 'entry' | 'markdown'; range: SourceRange; entryId?: string };
 export type WritingCapture = { start: number; end: number; selected: string; destination: WritingDestination; cut: boolean };
-export type WritingOperation = { kind: 'fragment'; location: WritingLocation; range: SourceRange; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'append'; destination: WritingDestination; markdown: string } | { kind: 'capture'; capture: WritingCapture };
+export type WritingOperation = { kind: 'fragment'; location: WritingLocation; range: SourceRange; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'append'; destination: WritingLocation; markdown: string; links?: MarkdownLinkPreparation[] } | { kind: 'capture'; capture: WritingCapture } | { kind: 'toggle'; location: WritingLocation; start: number };
 const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 
 function assertWriting(model: MarkdownPlanner): void {
@@ -22,6 +24,14 @@ export function writingGroup(model: MarkdownPlanner, location: WritingDestinatio
 
 export function writingRange(model: MarkdownPlanner, location: WritingLocation): SourceRange | undefined {
   return location.kind === 'scratchpad' ? model.scratchpad : writingGroup(model, location)?.content;
+}
+
+export function writingLocationAt(model: MarkdownPlanner, start: number): WritingLocation | undefined {
+  if (model.scratchpad && start >= model.scratchpad.start && start < model.scratchpad.end) return { kind: 'scratchpad' };
+  const day = model.days.find(group => start >= group.content.start && start < group.content.end);
+  if (day) return { kind: 'dated', date: day.name };
+  const list = model.undated.find(group => start >= group.content.start && start < group.content.end);
+  if (list) return { kind: 'undated', list: list.name };
 }
 
 /** entries and ordinary blocks retain their source order; no view-only reserialization. */
@@ -73,24 +83,36 @@ export function editWritingFragment(source: string, location: WritingLocation, r
   return after;
 }
 
-function insertion(model: MarkdownPlanner, location: WritingDestination, markdown: string): SourcePatch {
+function insertion(model: MarkdownPlanner, location: WritingLocation, markdown: string): SourcePatch {
   if (!markdown.trim()) throw new Error('Write some content before adding it to a document.');
+  const nl = nlOf(model.source);
+  const pad = (text: string) => text.endsWith(nl + nl) ? '' : text.endsWith(nl) ? nl : nl + nl;
+  if (location.kind === 'scratchpad') {
+    if (!model.scratchpad) throw new Error('The scratchpad is unavailable. Keep your draft for recovery.');
+    const offset = model.scratchpad.end, content = model.source.slice(model.scratchpad.start);
+    return { range: { start: offset, end: offset }, expected: '', text: (content.length ? pad(content) : '') + markdown + (markdown.endsWith(nl) ? '' : nl) };
+  }
   const name = location.kind === 'dated' ? location.date : location.list;
   if (location.kind === 'dated' ? !validDate(name) : !name.trim() || name !== name.trim() || /[\r\n]/.test(name)) throw new Error('Choose a valid date or a nonempty list name on one line.');
-  const group = writingGroup(model, location), nl = nlOf(model.source);
+  const group = writingGroup(model, location);
   const offset = group?.content.end ?? model.sectionEnds[location.kind === 'dated' ? 'Dated' : 'Undated'];
   if (offset === undefined) throw new Error('This document section is unavailable. Keep the original source for recovery.');
-  const pad = (text: string) => text.endsWith(nl + nl) ? '' : text.endsWith(nl) ? nl : nl + nl;
   const heading = group ? '' : `### ${name.replace(/[\\`*_{}[\]()<>!|~#]/g, '\\$&')}${nl}${nl}`;
   return { range: { start: offset, end: offset }, expected: '', text: pad(model.source.slice(Math.max(0, offset - nl.length * 2), offset)) + heading + markdown + pad(markdown) };
 }
 
-export function appendWritingMarkdown(source: string, destination: WritingDestination, markdown: string): MarkdownPlanner {
-  const before = readJournal(source).model;
+export function appendWritingMarkdown(source: string, destination: WritingLocation, markdown: string, links: MarkdownLinkPreparation[] = []): MarkdownPlanner {
+  const original = readJournal(source);
+  let before = original.model;
   assertWriting(before);
+  if (links.length) {
+    const document = structuredClone(original.document);
+    prepareMarkdownLinks(document, source, links);
+    before = journalModel(materializeJournal(document));
+  }
   const patch = insertion(before, destination, markdown);
-  const after = applyPlannerEdits(before, source, [patch]);
-  assertGroups(before, after, destination);
+  const after = applyPlannerEdits(before, before.source, [patch]);
+  assertGroups(before, after, destination.kind === 'scratchpad' ? undefined : destination);
   assertUnchangedEntries(before, after, [patch]);
   return after;
 }
@@ -111,6 +133,27 @@ export function transferWritingCapture(source: string, capture: WritingCapture):
 
 export function runWritingOperation(source: string, operation: WritingOperation): MarkdownPlanner {
   if (operation.kind === 'fragment') return editWritingFragment(source, operation.location, operation.range, operation.markdown, operation.links);
-  if (operation.kind === 'append') return appendWritingMarkdown(source, operation.destination, operation.markdown);
+  if (operation.kind === 'append') return appendWritingMarkdown(source, operation.destination, operation.markdown, operation.links);
+  if (operation.kind === 'toggle') return toggleWritingCheckbox(source, operation.location, operation.start);
   return transferWritingCapture(source, operation.capture);
+}
+
+export function toggleWritingCheckbox(source: string, location: WritingLocation, start: number): MarkdownPlanner {
+  const before = readJournal(source).model;
+  assertWriting(before);
+  const range = writingRange(before, location);
+  if (!range || start < range.start || start >= range.end) throw new Error('This checkbox is outside the current document.');
+  const pending: Nodes[] = [...parseMarkdownTree(source.slice(range.start, range.end)).children];
+  let checked: boolean | undefined;
+  while (pending.length) {
+    const node = pending.pop()!;
+    if (node.type === 'listItem' && node.position!.start.offset! + range.start === start) { checked = node.checked ?? undefined; break; }
+    if ('children' in node) for (const child of node.children) pending.push(child);
+  }
+  const match = /^(?:[-+*]|\d+[.)])[ \t]+\[([ xX])\][ \t]+/.exec(source.slice(start, start + 128));
+  if (checked === undefined || !match) throw new Error('Choose an actual Markdown task checkbox. Code and examples stay literal.');
+  const offset = start + match[0].indexOf('[') + 1;
+  const after = applyPlannerEdits(before, source, [{ range: { start: offset, end: offset + 1 }, expected: match[1], text: checked ? ' ' : 'x' }]);
+  assertGroups(before, after);
+  return after;
 }

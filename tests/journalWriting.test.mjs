@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createJournal, journalModel, readJournal } from '../src/journalDocument.ts';
 import { plannerWritable } from '../src/markdownPlanner.ts';
-import { appendWritingMarkdown, editWritingFragment, transferWritingCapture, writingBlocks, writingRange } from '../src/journalWriting.ts';
+import { appendWritingMarkdown, editWritingFragment, toggleWritingCheckbox, transferWritingCapture, writingBlocks, writingLocationAt, writingRange } from '../src/journalWriting.ts';
 import { runJournalWork } from '../src/journalWorker.ts';
 
 const date = { kind: 'dated', date: '2026-11-18' };
@@ -119,4 +119,17 @@ test('writing operations require explicit format upgrade and use the production 
   const failed = runJournalWork({ id: 25, kind: 'writing', source, operation: { kind: 'append', destination: date, markdown: '## Scratchpad' } });
   assert.equal(failed.ok, false);
   assert.ok(failed.error.includes('invalid planner content'));
+});
+
+test('ordered and captured Markdown checkboxes toggle while code examples remain literal', () => {
+  const source = wrap('1. [ ] Ordered action\n\n~~~md\n- [ ] Literal example\n~~~', '- [ ] Captured task\n');
+  const ordered = source.indexOf('1. [ ] Ordered action'), captured = source.indexOf('- [ ] Captured task'), literal = source.indexOf('- [ ] Literal example');
+  const first = toggleWritingCheckbox(source, date, ordered);
+  assert.equal(first.source, source.replace('1. [ ] Ordered action', '1. [x] Ordered action'));
+  const second = toggleWritingCheckbox(first.source, { kind: 'scratchpad' }, captured);
+  assert.equal(second.source, first.source.replace('- [ ] Captured task', '- [x] Captured task'));
+  assert.throws(() => toggleWritingCheckbox(source, date, literal), /actual Markdown task checkbox/);
+  assert.throws(() => toggleWritingCheckbox(source, list, ordered), /outside the current document/);
+  assert.deepEqual(writingLocationAt(valid(source), captured), { kind: 'scratchpad' });
+  assert.deepEqual(writingLocationAt(valid(source), ordered), date);
 });

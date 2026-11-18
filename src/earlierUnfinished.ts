@@ -3,6 +3,7 @@ import { shiftDate } from './dayWindow.ts';
 import { nextRecurrenceDate } from './recurrence.ts';
 import { projectItemsForDate, spanEnd } from './seriesView.ts';
 import type { TodoDocument } from './todoText.ts';
+import { taskChildren, unfinishedTaskCount } from './outline.ts';
 
 /** Candidate dates include stored items, span continuations, and virtual scheduled occurrences. */
 export function earlierUnfinishedDays(document: TodoDocument, today: string, budget: ProjectionBudget = createProjectionBudget()): { date: string; count: number }[] {
@@ -19,7 +20,7 @@ export function earlierUnfinishedDays(document: TodoDocument, today: string, bud
   };
   for (const day of document.days) for (const item of day.items) {
     budget.work();
-    if (day.date >= today) continue;
+    if (day.date >= today || item.kind === 'note' && !taskChildren(item.details).length) continue;
     const end = spanEnd(item, day.date);
     addOccurrence(day.date, end);
     const rule = item.repeat;
@@ -37,6 +38,6 @@ export function earlierUnfinishedDays(document: TodoDocument, today: string, bud
     }
   }
   return [...candidates].sort().map(date => ({
-    date, count: projectItemsForDate(document, date, budget).filter(item => !item.completed).length,
+    date, count: projectItemsForDate(document, date, budget).reduce((count, item) => count + unfinishedTaskCount(item), 0),
   })).filter(day => day.count > 0);
 }
