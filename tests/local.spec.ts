@@ -1546,6 +1546,7 @@ test('plays history transitions and skips them when reduced motion is requested'
   await editor.fill('After');
   await editor.press('Control+z');
   await expect(page.getByRole('group', { name: 'Before' })).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>(window as Window & {__replays?:ViewTransition[]}).__replays?.length??0)).toBe(1);
   const duration = await page.evaluate(async () => {
     const replay = (window as Window & { __replays?: ViewTransition[] }).__replays!.at(-1)!;
     await replay.ready;
