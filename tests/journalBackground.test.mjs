@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { JournalBackground, materializeJournalAsync, readJournalAsync } from '../src/journalBackground.ts';
+import { JournalBackground, JournalWorkerUnavailable, materializeJournalAsync, readJournalAsync } from '../src/journalBackground.ts';
 import { createJournal, parseJournal } from '../src/journalDocument.ts';
 import { runJournalWork } from '../src/journalWorker.ts';
 
@@ -41,7 +41,7 @@ test('worker errors release outstanding work and a retry starts a fresh worker',
   const source = createJournal('worker-error').source;
   const first = client.request({ kind: 'parse', source });
   ports[0].onerror(new Event('error'));
-  await assert.rejects(first, /validation failed/);
+  await assert.rejects(first, error => error instanceof JournalWorkerUnavailable && error.message.includes('validation failed'));
   assert.equal(ports[0].terminated, true);
   const second = client.request({ kind: 'parse', source });
   ports[1].finish();
@@ -57,6 +57,7 @@ test('outstanding work and stalled workers are bounded', async () => {
   await assert.rejects(client.request({ kind: 'parse', source }), /busy/);
   const results = await settled;
   assert.ok(results.every(result => result.status === 'rejected' && result.reason.message.includes('time budget')));
+  assert.ok(results.every(result => !(result.reason instanceof JournalWorkerUnavailable)), 'a deadline must not resubmit the same expensive parse on the UI thread');
   assert.equal(port.terminated, true);
 });
 

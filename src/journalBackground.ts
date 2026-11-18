@@ -29,8 +29,8 @@ export class JournalBackground {
         this.pending.delete(result.id); pending.cleanup();
         if (result.ok) pending.resolve(result); else pending.reject(new Error(result.error));
       };
-      this.worker.onerror = event => { event.preventDefault(); this.dispose(`Background journal validation failed${event.message ? ': ' + event.message : ''}. Retry the edit; the submitted draft has not been applied.`); };
-      this.worker.onmessageerror = () => this.dispose('Background journal validation returned unreadable data. Retry the edit.');
+      this.worker.onerror = event => { event.preventDefault(); this.dispose(`Background journal validation failed${event.message ? ': ' + event.message : ''}. Retry the edit; the submitted draft has not been applied.`, true); };
+      this.worker.onmessageerror = () => this.dispose('Background journal validation returned unreadable data. Retry the edit.', true);
     }
     const id = ++this.sequence;
     return new Promise((resolve, reject) => {
@@ -44,9 +44,9 @@ export class JournalBackground {
     });
   }
 
-  dispose(message = 'Journal validation was stopped. Keep your draft and retry.'): void {
+  dispose(message = 'Journal validation was stopped. Keep your draft and retry.', allowFallback = false): void {
     this.worker?.terminate(); this.worker = null;
-    for (const pending of this.pending.values()) { pending.cleanup(); pending.reject(new JournalWorkerUnavailable(message)); }
+    for (const pending of this.pending.values()) { pending.cleanup(); pending.reject(allowFallback ? new JournalWorkerUnavailable(message) : new Error(message)); }
     this.pending.clear();
   }
 }
