@@ -1,7 +1,7 @@
 export type DateSpan = { from: string; to: string };
 
 function dateString(day: Date) {
-  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  return `${String(day.getFullYear()).padStart(4, '0')}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 }
 
 export function shiftDate(date: string, amount: number) {
