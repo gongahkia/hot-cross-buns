@@ -959,7 +959,7 @@ export default function App() {
     const items = document.days.find(day => day.date === date)?.items;
     const index = items?.findIndex(item => item.id === id) ?? -1;
     const parent = items?.find(item => item.id === parentId);
-    if (!items || index < 0 || !parent || id === parentId || items[index].repeat || items[index].span || items[index].replaces || parseTimeBlock(items[index].text)) return;
+    if (!items || index < 0 || !parent || id === parentId || unified && !items[index].id.startsWith('source:') || items[index].repeat || items[index].span || items[index].replaces || parseTimeBlock(items[index].text)) return;
     const [child] = items.splice(index, 1);
     if ((journalModel(current.current.document).format ?? 1) >= 2) parent.details.push({ ...(child.kind ? {kind:child.kind} : {}), text: child.text, sourceRef: child.sourceRef, completed: child.completed, body: child.body, children: child.details });
     else parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed }, ...child.details);

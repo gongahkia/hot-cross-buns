@@ -21,7 +21,7 @@ export function WritingNodeMenu({ target, anchor, lists, onClose, onEdit, onChil
     {moving ? <>
       <Action onClick={()=>setMoving(false)}><ArrowLeft size={14}/>Item actions</Action>
       <Action onClick={()=>run('up')}>Move up</Action><Action onClick={()=>run('down')}>Move down</Action>
-      <Action disabled={!!target.path.length && !index || target.path.length>=32} onClick={()=>run('in')}>Indent</Action>
+      <Action disabled={!!target.path.length && !index || target.path.length>=32 || !target.path.length && !!target.entry.metadata} title={!target.path.length && target.entry.metadata ? 'Keep identified entries at the top level; use Add child to extend the outline' : undefined} onClick={()=>run('in')}>Indent</Action>
       <Action disabled={target.path.length<2} onClick={()=>run('out')}>Outdent</Action>
       {!!target.path.length && <Action onClick={()=>run('promote')}>Make top-level item</Action>}
       {!target.path.length && <><Destination onSubmit={event=>{event.preventDefault();run({date});}}><label>Move to date<Field type="date" aria-label="Move item to date" value={date} onChange={event=>setDate(event.target.value)}/></label><Button type="submit" disabled={!validDate(date)}>Move to date</Button></Destination><Destination onSubmit={event=>{event.preventDefault();run({list});}}><label>Move to document<select aria-label="Move item to document" value={list} onChange={event=>setList(event.target.value)}>{(lists.length?lists:['Inbox']).map(name=><option key={name}>{name}</option>)}</select></label><Button type="submit" disabled={!!(target.entry.repeat||target.entry.span||target.entry.timeBlock||target.entry.replaces)}>Move to document</Button></Destination></>}

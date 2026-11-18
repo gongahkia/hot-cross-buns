@@ -216,7 +216,7 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
         </>}
         {unified && actionGroup!=='main' && <Action onClick={()=>{setActionGroup('main');setMoveOpen(false);setUndatedOpen(false);}}>Back to item actions</Action>}
         {(!unified || actionGroup==='move') && <>
-        <Action aria-label={`Make ${item.text} a detail`} title={item.repeat || timeBlock || item.span || item.replaces ? 'Remove the schedule and span first' : parentItems.length < 2 ? 'Add another item to this day first' : undefined} disabled={parentItems.length < 2 || !!item.repeat || !!timeBlock || !!item.span || !!item.replaces} onClick={() => { setParentQuery(''); setParentOpen(true); positionMenu(false, true); }}><CornerDownRight size={15}/> make detail</Action>
+        <Action aria-label={`Make ${item.text} a detail`} title={unified && !item.id.startsWith('source:') ? 'Keep identified entries at the top level; use Add child to extend the outline' : item.repeat || timeBlock || item.span || item.replaces ? 'Remove the schedule and span first' : parentItems.length < 2 ? 'Add another item to this day first' : undefined} disabled={unified && !item.id.startsWith('source:') || parentItems.length < 2 || !!item.repeat || !!timeBlock || !!item.span || !!item.replaces} onClick={() => { setParentQuery(''); setParentOpen(true); positionMenu(false, true); }}><CornerDownRight size={15}/> make detail</Action>
         </>}
         {(!unified || actionGroup==='schedule') && <>
         <Action aria-label={`Set time block for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('time'))}><Clock3 size={15}/> {timeBlock ? 'edit time' : 'add time block'}</Action>

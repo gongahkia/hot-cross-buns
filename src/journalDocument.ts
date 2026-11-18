@@ -175,6 +175,7 @@ export function materializeJournal(document: TodoDocument, references: readonly 
     }
     const original = item.sourceRef ? originals.get(item.sourceRef) : undefined;
     const node = original?.node;
+    if(model.format===3 && !asEntry && original?.entry && (original.entry.metadata || original.entry.timeBlock)) throw new Error('Keep identified or scheduled entries at the top level. Add child extends the outline without dropping its identity or schedule.');
     const checked = (dated || model.format === 3) && item.kind !== 'note';
     const marker = `- ${checked ? `[${item.completed ? 'x' : ' '}] ` : ''}`;
     const childColumn = column + 2;

@@ -49,7 +49,7 @@ export function editWritingOutline(source: string, start: number, action: Writin
       const next=index+(action==='up'?-1:1);
       if(next>=0 && next<items.length){items.splice(index,1);items.splice(next,0,item);}
     } else if(action==='in' && index>0) {
-      if(item.repeat || item.span || item.replaces || item.completedOn || parseTimeBlock(item.text)) throw new Error('Clear the schedule and completion date before nesting this entry.');
+      if(target.entry.metadata || item.repeat || item.span || item.replaces || item.completedOn || parseTimeBlock(item.text)) throw new Error('Keep identified or scheduled entries at the top level. Add child extends the outline without dropping its identity or schedule.');
       const parent=items[index-1];items.splice(index,1);
       parent.details.push({text:item.text,completed:item.completed,kind:item.kind,sourceRef:item.sourceRef,body:item.body,children:item.details});refreshItemCompletion(parent);
     } else throw new Error('This item cannot move in that direction.');

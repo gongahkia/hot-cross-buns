@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readJournal } from '../src/journalDocument.ts';
+import { materializeJournal, readJournal } from '../src/journalDocument.ts';
 import { editWritingOutline, writingChildDraft } from '../src/writingOutline.ts';
 import { editWritingFragment } from '../src/journalWriting.ts';
 const source='---\nhcb-format: 3\ndocument-id: writing-actions\n---\n\n## Dated\n\n### 2026-11-18\n\nKeep **prose**.\n\n- Parent\n  ```hcb\n  id: parent\n  ```\n  - Context\n    > Keep *attached* text.\n    - [ ] Child\n  - Sibling\n\n- [x] Done\n  ```hcb\n  id: done\n  completed: 2026-11-17\n  ```\n\n## Undated\n\n### Inbox\n\nKeep **undated** prose.\n\n## Scratchpad\nCapture.\n';
@@ -29,4 +29,17 @@ test('moving a completed task between documents retains completion, date, identi
 test('scheduled and recurring moves cannot silently discard fields or skip scope',()=>{
  const scheduled=source.replace('id: parent','id: parent\n  span: all-day through 2026-11-20');assert.throws(()=>editWritingOutline(scheduled,at(scheduled,'- Parent'),{list:'Inbox'}),/Clear the schedule/);
  const recurring=source.replace('id: parent','id: parent\n  repeat: daily; series parent');assert.throws(()=>editWritingOutline(recurring,at(recurring,'- Parent'),'task'),/choose which occurrences/);
+});
+
+test('identified top-level entries cannot lose their metadata during nesting',()=>{
+ assert.throws(()=>editWritingOutline(source,at(source,'- [x] Done'),'in'),/Keep identified/);
+ const clean=source.replace('- [x] Done','- Done').replace('  completed: 2026-11-17\n','');
+ assert.throws(()=>editWritingOutline(clean,at(clean,'- Done'),'in'),/Keep identified/);
+ assert.equal(parse(clean).document.days[0].items[1].id,'done');
+});
+
+test('the source adapter rejects metadata-losing demotion even outside contextual controls',()=>{
+ const document=structuredClone(parse(source).document);const [child]=document.days[0].items.splice(1,1);
+ document.days[0].items[0].details.push({text:child.text,completed:child.completed,sourceRef:child.sourceRef,children:child.details,body:child.body});
+ assert.throws(()=>materializeJournal(document),/Keep identified/);assert.equal(parse(source).document.days[0].items[1].id,'done');
 });
