@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { applyPlannerEdits, incrementallyValidatePlanner, parseMarkdownPlanner, plannerValidationKind, plannerWritable } from '../src/markdownPlanner.ts';
 import { createPlannerIncrementalValidator } from '../src/plannerIncremental.ts';
-import { journalModel, materializeJournal, readJournal } from '../src/journalDocument.ts';
+import { journalFromPlanner, journalModel, materializeJournal, readJournal } from '../src/journalDocument.ts';
 import { runJournalWork } from '../src/journalWorker.ts';
 import { benchmarkPlanner } from '../scripts/markdown-benchmark-fixture.mjs';
 import { setItemCompletion } from '../src/outline.ts';
@@ -109,4 +109,24 @@ test('a safe edit cannot conceal another changed region or update only part of a
  assert.equal(incrementallyValidatePlanner(model,changed),null);
  const next=applyPlannerEdits(model,model.source,[{range:{start:0,end:model.source.length},expected:model.source,text:changed}]);
  assert.equal(plannerValidationKind(next),'full');assert.deepEqual(next,parseMarkdownPlanner(changed));assert.equal(model.days[0].entries[0].completed,false);
+});
+
+
+test('incremental projection reuses frozen groups and entries without stale changed content',()=>{
+ const source=wrap('- [ ] Alpha\n\n- [ ] Bravo\n\n### 2026-11-19\n\n- [ ] Other');
+ const before=readJournal(source),entry=before.model.days[0].entries[0];
+ const next=equalFull(before.model,candidate(before.model,[{range:entry.titleRange,text:'Omega'}]));
+ const after=journalFromPlanner(next);
+ assert.equal(journalFromPlanner(next),after);
+ assert.equal(after.document.days[1],before.document.days[1]);
+ assert.equal(after.document.undated[0],before.document.undated[0]);
+ assert.equal(after.document.days[0].items[1],before.document.days[0].items[1]);
+ assert.notEqual(after.document.days[0].items[0],before.document.days[0].items[0]);
+ assert.equal(after.document.days[0].items[0].text,'Omega');
+ assert.equal(before.document.days[0].items[0].text,'Alpha');
+ assert.ok(Object.isFrozen(after.document.days[0].items[0]));
+ assert.deepEqual(after.document,journalFromPlanner(parseMarkdownPlanner(next.source)).document);
+ // equivalent sources parsed into fresh objects cannot inherit another model's projections.
+ const fresh=journalFromPlanner(parseMarkdownPlanner(next.source));
+ assert.notEqual(fresh.document.days[1],after.document.days[1]);
 });

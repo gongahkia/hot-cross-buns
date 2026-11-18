@@ -1,6 +1,6 @@
 import { applyPlannerEdits, parseMarkdownPlanner, plannerEntries, plannerWritable, type MarkdownPlanner, type PlannerDetail, type PlannerEntry, type PlannerGroup, type SourcePatch, type SourceRange } from './markdownPlanner.ts';
 import { formatRecurrence } from './recurrence.ts';
-import { formatSpan, type TodoBody, type TodoDetail, type TodoDocument, type TodoItem } from './todoText.ts';
+import { formatSpan, type TodoBody, type TodoDay, type TodoDetail, type TodoDocument, type TodoItem, type TodoList } from './todoText.ts';
 import { markdownKey, type MarkdownNode } from './markdown.ts';
 
 export const JOURNAL_FILE_NAME = 'Planner.md';
@@ -10,6 +10,9 @@ const assignedIds = new WeakMap<TodoItem, string>();
 const canonical = new WeakSet<TodoDocument>();
 // models live only as long as their immutable documents; the source cache stays bounded.
 const models = new WeakMap<TodoDocument, MarkdownPlanner>();
+const itemViews = new WeakMap<PlannerEntry, TodoItem>();
+const dayViews = new WeakMap<PlannerGroup, TodoDay>();
+const listViews = new WeakMap<PlannerGroup, TodoList>();
 const bodyViews = new WeakMap<TodoDocument, Record<string, MarkdownNode>>();
 export const isCanonicalJournal = (document: TodoDocument) => canonical.has(document);
 export const cachedJournal = (source: string) => cache.get(source);
@@ -28,13 +31,19 @@ const detailFrom = (detail: PlannerDetail, ref: string): TodoDetail => ({
   ...(detail.children?.length ? { children: detail.children.map((child, index) => detailFrom(child, `${ref}:detail:${index}`)) } : {}),
   ...(detail.body?.length ? { body: bodyFrom(detail, ref) } : {}),
 });
-const itemFrom = (entry: PlannerEntry): TodoItem => ({
-  id: entryId(entry), sourceRef: entryRef(entry), text: entry.markdown, completed: entry.completed,
-  ...(entry.kind ? { kind: entry.kind } : {}),
-  details: entry.details.map((detail, index) => detailFrom(detail, `${entryRef(entry)}:detail:${index}`)),
-  ...(entry.body?.length ? { body: bodyFrom(entry, entryRef(entry)) } : {}),
-  ...Object.fromEntries(fields.filter(key => entry[key] !== undefined).map(key => [key, entry[key]])),
-});
+const itemFrom = (entry: PlannerEntry): TodoItem => {
+  const cached = itemViews.get(entry);
+  if (Object.isFrozen(entry) && cached && Object.isFrozen(cached)) return cached;
+  const item: TodoItem = {
+    id: entryId(entry), sourceRef: entryRef(entry), text: entry.markdown, completed: entry.completed,
+    ...(entry.kind ? { kind: entry.kind } : {}),
+    details: entry.details.map((detail, index) => detailFrom(detail, `${entryRef(entry)}:detail:${index}`)),
+    ...(entry.body?.length ? { body: bodyFrom(entry, entryRef(entry)) } : {}),
+    ...Object.fromEntries(fields.filter(key => entry[key] !== undefined).map(key => [key, entry[key]])),
+  };
+  if (Object.isFrozen(entry)) itemViews.set(entry, item);
+  return item;
+};
 
 export function readJournal(source: string): { model: MarkdownPlanner; document: TodoDocument } {
   const cached = cache.get(source);
@@ -68,11 +77,19 @@ export function journalBodyViews(document: TodoDocument): Record<string, Markdow
 }
 
 function projectJournal(model: MarkdownPlanner): { model: MarkdownPlanner; document: TodoDocument } {
-  const source = model.source;
+  const source = model.source, cached = cache.get(source);
+  if (cached?.model === model) return cached;
+  const groupView = <T extends TodoDay | TodoList>(group: PlannerGroup, views: WeakMap<PlannerGroup, T>, create: () => T): T => {
+    const cached = views.get(group);
+    if (Object.isFrozen(group) && cached && Object.isFrozen(cached)) return cached;
+    const view = create();
+    if (Object.isFrozen(group)) views.set(group, view);
+    return view;
+  };
   const document: TodoDocument = {
     source, scratchpad: model.scratchpad ? textAt(source, model.scratchpad) : '',
-    days: model.days.map(group => ({ date: group.name, items: group.entries.map(itemFrom), keepEmpty: true })),
-    ...(model.undated.length ? { undated: model.undated.map(group => ({ name: group.name, sourceRef: `list:${group.range.start}`, items: group.entries.map(itemFrom) })) } : {}),
+    days: model.days.map(group => groupView(group, dayViews, () => ({ date: group.name, items: group.entries.map(itemFrom), keepEmpty: true }))),
+    ...(model.undated.length ? { undated: model.undated.map(group => groupView(group, listViews, () => ({ name: group.name, sourceRef: `list:${group.range.start}`, items: group.entries.map(itemFrom) }))) } : {}),
   };
   const pending: object[] = [document, model];
   while (pending.length) {
