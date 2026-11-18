@@ -112,7 +112,7 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
   }, [contextMenu]);
   useEffect(() => {
     const guardPendingSave = (event: BeforeUnloadEvent) => {
-      if (!pendingSaves.current) return;
+      if (!pendingSaves.current && !conversionActive.current) return;
       event.preventDefault();
       event.returnValue = '';
     };
@@ -205,7 +205,7 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
       ? validDate(date) ? { kind: 'dated' as const, date } : null
       : { kind: 'undated' as const, list: newList.trim() || list || 'Inbox' };
     if (!target) { setMessage('Choose a valid date.'); return; }
-    conversionActive.current = true; setConverting(true);pendingSaves.current++;
+    conversionActive.current = true; setConverting(true);
     let started = false;
     const previous=queue.current;let finish!:()=>void;
     const held=new Promise<void>(resolve=>{finish=resolve;});queue.current=previous.then(()=>held);
@@ -217,7 +217,7 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
       setDraft(result.scratchpad.text); setSelection(null); setDestination(null); setMessage('');
       onJournalCommitted(result.journal,result.undo);
     } catch (error) { setMessage(String(error)); }
-    finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false);pendingSaves.current--;finish(); }
+    finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false);finish(); }
   };
   const dialog = surface.current?.closest('dialog[open]'), bounds = dialog?.getBoundingClientRect();
   const menuPosition = contextMenu && bounds ? { position: 'absolute' as const, left: Math.max(8, Math.min(contextMenu.x - bounds.left, bounds.width - 230)) + dialog!.scrollLeft, top: Math.max(8, Math.min(contextMenu.y - bounds.top, bounds.height - 150)) + dialog!.scrollTop } : { left: contextMenu?.x, top: contextMenu?.y };

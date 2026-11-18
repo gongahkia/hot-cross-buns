@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {syncState} from './sync-helpers';
-import { runCommand } from './commands';
+import { runCommand, openCommands } from './commands';
 
 const fixture = '---\nhcb-format: 3\ndocument-id: capture-window\n---\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\nA **shared capture**.\n';
 async function load(page: Page, text = fixture) {
@@ -141,4 +141,19 @@ test('takeover waits for an accepted rich capture save before granting the next 
  await load(page);await runCommand(page,'Open Scratchpad');const first=page.getByRole('dialog',{name:'Scratchpad',exact:true});await first.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true}).click();await first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true}).fill('Held **capture**.');await first.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>typeof Reflect.get(window,'releaseHeldCapture')==='function');
  const other=await page.context().newPage();await other.goto('/?popout=scratchpad');await other.getByRole('button',{name:'Take over editing',exact:true}).click();await expect(other.getByText('Taking over the scratchpad…',{exact:false})).toBeVisible();await expect(other.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true})).toHaveCount(0);
  await page.evaluate(()=>Reflect.get(window,'releaseHeldCapture')());await expect(first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true})).toHaveCount(0);await expect(other.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true})).toBeVisible();await expect(other.getByRole('region',{name:'Quick capture',exact:true}).locator('strong')).toHaveText('capture');await expect(first.getByRole('button',{name:'Take over editing',exact:true})).toBeVisible();await other.close();
+});
+
+test('capture queued behind a legacy text save releases pending state after the transfer',async({page})=>{
+ await page.addInitScript(()=>{
+  window.open=()=>null;
+  const post=Worker.prototype.postMessage;
+  Worker.prototype.postMessage=function(message,options?:StructuredSerializeOptions|Transferable[]){
+   if(message.kind==='materialize' && message.document?.scratchpad==='Pending capture'){
+    Reflect.set(window,'releaseLegacyCapture',()=>post.call(this,message,options as StructuredSerializeOptions));return;
+   }
+   post.call(this,message,options as StructuredSerializeOptions);
+  };
+ });
+ await load(page,fixture.replace('hcb-format: 3','hcb-format: 1'));await runCommand(page,'Open Scratchpad');const editor=page.getByRole('textbox',{name:'Scratchpad text',exact:true});await editor.fill('Pending capture');await page.waitForFunction(()=>typeof Reflect.get(window,'releaseLegacyCapture')==='function');await editor.evaluate(element=>{const field=element as HTMLTextAreaElement;field.setSelectionRange(0,field.value.length);});await editor.press('Shift+F10');await page.getByRole('menuitem',{name:'Move to undated',exact:true}).click();const destination=page.getByRole('dialog',{name:'Move text to an undated list',exact:true});await destination.getByRole('button',{name:'Create item',exact:true}).click();await page.evaluate(()=>Reflect.get(window,'releaseLegacyCapture')());await expect(destination).not.toBeVisible();await expect.poll(async()=>(await syncState(page,'current')).document.undated[0].items[0]?.text).toBe('Pending capture');
+ const palette=await openCommands(page);await palette.getByRole('combobox').fill('source');await palette.getByRole('option',{name:'Edit Markdown source',exact:true}).click();const source=page.getByRole('dialog',{name:'Edit Markdown source',exact:true});await source.getByRole('button',{name:'Save Markdown',exact:true}).click();await expect(source).not.toBeVisible();
 });
