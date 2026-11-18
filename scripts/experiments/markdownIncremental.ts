@@ -1,7 +1,7 @@
 import type {MarkdownNode} from '../../src/markdown.ts';
 import type { MarkdownPlanner, SourcePatch } from '../../src/markdownPlanner.ts';
 
-/** benchmark-only experiment; production source edits still use the full validator. */
+/** benchmark-only title prototype; production eligibility and completion checks live in plannerIncremental.ts. */
 export function incrementalTitleExperiment(model: MarkdownPlanner, patch: SourcePatch): MarkdownPlanner | null {
   if (model.issues.some(issue => issue.severity === 'error') || patch.text.length !== patch.expected.length || model.source.slice(patch.range.start, patch.range.end) !== patch.expected || !/^[A-Za-z](?:[A-Za-z ]*[A-Za-z])?$/.test(patch.text) || !/^[A-Za-z](?:[A-Za-z ]*[A-Za-z])?$/.test(patch.expected)) return null;
   for (const key of ['days', 'undated'] as const) for (let groupIndex = 0; groupIndex < model[key].length; groupIndex++) {

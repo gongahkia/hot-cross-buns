@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-11-18T14:00:02.497Z",
+  "baselineCommit": "bdd39a68a163d7faa2a4213b109936a999e281cf",
+  "candidateCommit": "ca5d8743609863855ad7b4a1a01da47fd421ae70",
+  "environment": {
+    "node": "v26.7.0",
+    "cpu": "Apple M3",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "entries": 10000,
+  "samples": 6,
+  "fullRead": {
+    "before": [
+      1306.806458,
+      1142.0676249999997,
+      1147.9443330000004,
+      1056.7920830000003,
+      1210.357250000001,
+      1042.1346249999988
+    ],
+    "after": [
+      1175.52425,
+      1098.6542500000005,
+      1083.7668749999993,
+      1169.1992919999993,
+      1029.1359169999996,
+      1101.176790999998
+    ]
+  },
+  "completion": {
+    "before": [
+      1125.570375,
+      1117.3723340000006,
+      1133.4903749999994,
+      1046.9687909999993,
+      1083.0523329999996,
+      1216.8480000000018
+    ],
+    "after": [
+      35.2066249999998,
+      30.57049999999981,
+      33.37920800000029,
+      52.312291999998706,
+      32.97729099999924,
+      32.95770799999809
+    ]
+  },
+  "notes": [
+    "same-process interleaved Node runs using the same installed dependencies; input cloning is outside the completion timer",
+    "fullRead includes full parsing, projection and freezing; completion includes source materialization and validation, not browser transfer, paint or durable saving"
+  ]
+}

@@ -30,7 +30,7 @@ const report = { generatedAt: new Date().toISOString(), complete: false, environ
   'React measurements use the production profiling build and include its instrumentation overhead.',
   'Worker echo round trips include structured cloning, scheduling and both directions; they are not pure copy CPU time.',
   'Durable save includes opening IndexedDB, validation, serialization and the completed transaction.',
-  'The incremental-title implementation is a benchmark-only experiment; production retains full validation.',
+  'Production reuses validated grammar for certified same-width title/checkbox edits; other edits retain full parsing. The separate title-only prototype remains benchmark-only.',
   'Typing measures the input event to a second animation frame, a paint opportunity proxy rather than physical input-to-display latency.',
   'Calendar automation timings include browser protocol overhead; React render work is recorded separately.',
   'No Obsidian/Notion or physical-device speed comparison is established by this benchmark.',
@@ -84,7 +84,9 @@ try {
         await page.evaluate(() => { window.__hcbMarkdownMetrics.samples = []; });
         await page.getByRole('checkbox', { name: 'Complete Visible task 0', exact: true }).click();
         await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), undefined, { timeout: 30000 });
-        measurements.push(...(await page.evaluate(() => window.__hcbMarkdownMetrics.samples)).map(item => ({ ...item, phase: `completion:${item.phase}` })));
+        const completionMetrics = await page.evaluate(() => window.__hcbMarkdownMetrics.samples);
+        assert.ok(completionMetrics.some(item => item.phase === 'workerValidation:materialize:incremental'), 'the measured completion must exercise production incremental validation');
+        measurements.push(...completionMetrics.map(item => ({ ...item, phase: `completion:${item.phase}` })));
         await page.getByRole('button',{name:'Actions for Visible task 1',exact:true}).click();
         await page.getByRole('button',{name:'Edit content',exact:true}).click();
         const draft=page.getByRole('textbox',{name:`Markdown for ${today}`,exact:true});

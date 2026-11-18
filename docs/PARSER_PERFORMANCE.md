@@ -28,7 +28,7 @@ Structured edits and undo/redo are queued in order. Worker results are checked a
 
 `journalBackground.test.mjs` checks request ordering, cancellation, failure/restart, deadlines, bounded work, invalid content and worker operations. `background.spec.ts` verifies an actual production worker, rendering during a 5,000-entry parse and recovery after worker failure. One local browser run continued 66 animation frames during that parse. The existing 1,200-entry browser regression also exercises completion/undo and search; neither test establishes universal latency targets.
 
-Production incremental parsing is deferred. Avoiding redundant parses and moving full validation off the UI thread address measured costs without changing reference resolution or arbitrary Markdown ownership. Future incremental work must compare complete resulting source, diagnostics and UTF-16 ranges against the current parser, including global references, frontmatter, nested fences, section boundaries and terminal scratchpad changes. A worker improves responsiveness; it does not remove full-document CPU cost or full-snapshot storage/history amplification.
+General incremental parsing was deferred at this stage; the later bounded production path is described below. Avoiding redundant parses and moving full validation off the UI thread address measured costs without changing reference resolution or arbitrary Markdown ownership. Future incremental work must compare complete resulting source, diagnostics and UTF-16 ranges against the current parser, including global references, frontmatter, nested fences, section boundaries and terminal scratchpad changes. A worker improves responsiveness; it does not remove full-document CPU cost or full-snapshot storage/history amplification.
 
 ## Visible-date source index
 
@@ -90,4 +90,36 @@ The two-frame input measure is a paint-opportunity proxy, not physical input-to-
 
 Format 3 retains bounded root-outline render trees in addition to attached bodies. The serialized compact model grew from 602,073 to 1,253,823 characters at 1,000 entries and from 6,186,116 to 7,436,199 at 10,000 entries. This explains a real transfer/adoption tradeoff; visible documents reuse saved trees or bounded cached fallback previews rather than keeping an unbounded full AST. Completion validation remains similar to the previous full-parser measurements. Lower durable-save observations cannot be attributed to this UI change alone.
 
-The narrow benchmark-only incremental-title experiment now updates retained root text trees too and matches the complete model for 180 generated edits across formats 1/2/3, BOM and supported line endings. Its 10,000-entry median is 3.05 ms; it remains excluded from production. The next parser priority is conservative changed-candidate invalidation with complete-source/model/diagnostic equivalence, followed by smaller worker model transfers. Full validation, database version 4 and revision protocol 2 remain intact.
+The narrow benchmark-only incremental-title experiment now updates retained root text trees too and matches the complete model for 180 generated edits across formats 1/2/3, BOM and supported line endings. Its 10,000-entry median is 3.05 ms; it remains excluded from production. The following production-validation section implements the first conservative subset; arbitrary Markdown invalidation and smaller worker model transfers remain future work. Full validation, database version 4 and revision protocol 2 remain intact.
+
+## Conservative incremental validation
+
+The production source-edit path now reuses validated grammar for same-width ASCII plain-title replacements and changes to existing planning checkbox characters. It accepts a candidate only when every differing character belongs to one of those certified tokens. Existing offsets, metadata, reference context, UTF-8 byte count and line count stay unchanged. Task ancestry and completion-date constraints are checked again, and both planning fields and retained render trees are updated. Other candidates go through the original complete parser, including invalid completion candidates so that their diagnostics retain the original behavior.
+
+Full parser results are deeply frozen and certified by a private validator instance. Copied, shallow-frozen or wire-adopted objects cannot qualify by claiming that they were validated. The token index is weakly scoped to its model and shared across accepted edits whose geometry is unchanged; no second full Markdown AST or durable index is introduced. State ownership, full-source equality checks, undo, database version 4 and revision protocol 2 remain unchanged. An unseen imported/source baseline still needs full parsing; exact already-validated sources retain their existing cache reuse.
+
+`plannerIncremental.test.mjs` compares complete models, including diagnostics, global reference/footnote/math indexes and all UTF-16 ranges, against a fresh full parse. Its corpus includes 972 checkbox candidates across three formats, three markers, nine rich titles, BOM and LF/CRLF/CR; 216 sequential plain-title edits; mixed dated/undated outlines; depth 32; tabs; render-budget fallbacks; untrusted/copied certificates; mixed safe/unsafe changes; metadata, structure, capture, reference and Unicode fallbacks; and a 10,000-entry worker/source-adapter round trip. These finite cases support the narrow recognizer, not a general CommonMark incremental-parsing claim. `incremental-validation.spec.ts` checks the actual worker path, exact export/undo and full fallback for rich writing.
+
+The [three-sample browser report](performance/incremental-validation-2026-11-18.json) uses the same format-3 fixture, 20 visible entries and seven dates as the earlier report. The benchmark now asserts that each measured completion actually takes the production incremental path. Values below are milliseconds, median / p95.
+
+| Measurement | 1,000 entries | 10,000 entries |
+| --- | ---: | ---: |
+| Completion materialization and validation, worker CPU | 5.2 / 5.4 | 37.8 / 41.4 |
+| Completion worker round trip | 17.7 / 18.0 | 102.1 / 107.8 |
+| Main-thread model adoption | 3.3 / 4.9 | 20.8 / 22.5 |
+| Completion durable save | 16.2 / 18.2 | 68.5 / 77.5 |
+| React render work per completion commit | 0.3 / 5.8 | 0.5 / 26.6 |
+| Local input event to second frame | 20.7 / 24.4 | 19.6 / 25.1 |
+| Cold full parse, worker CPU | 143.8 / 164.0 | 1,099.6 / 1,232.2 |
+
+At 10,000 entries, the measured worker completion work fell from the earlier 811.0 ms median to 37.8 ms, about 21 times less worker time for this eligible operation. This is not a 21-times end-to-end latency claim: full-model transfer, adoption, rendering and saving remain measurable, and phases can overlap. Three-sample p95 is the maximum observation. The input metric remains a paint-opportunity proxy; no physical-device or Notion/Obsidian comparison is established.
+
+The newer cold full-parse numbers are higher than the historical run. The reproducible six-pair same-process comparison measured full-read medians of 1,145.0 ms before and 1,099.9 ms after. [Inference] The historical increase is consistent with run-to-run variation; these small samples do not isolate an attributable full-parse regression. Smaller worker result transfers are the next measured target; variable-length Markdown invalidation should remain behind complete-model equivalence tests.
+
+### Paired comparison and verification
+
+Run `node --experimental-strip-types scripts/benchmark-validation-comparison.mjs --baseline=bdd39a6 --samples=6`. The script resolves a local commit, extracts only its source into an owned temporary directory, runs both versions with the same installed dependencies, alternates execution order, checks exact saved source and complete-model equality outside the timer, and removes the temporary source afterward. Results are written to `.tmp/validation-comparison/latest.json`. It does not check out files over the working tree or change journal data.
+
+The [six-pair Node report](performance/incremental-comparison-2026-11-18.json) compares `bdd39a6` with `ca5d874` at 10,000 entries. Completion materialization/validation medians were 1,121.5 ms before and 33.2 ms after (about 33.8 times less CPU elapsed time within this Node scope). Cloning, full baseline reads, browser communication, painting and durable saving are outside that completion timer. Full-read medians were 1,145.0 / 1,099.9 ms. These scopes differ from the three-sample browser worker measurements and must not be presented as end-to-end user latency.
+
+Final `npm run verify`: 355 unit tests, 15 Python tests, TypeScript/production build and 275 Chromium browser tests passed. The command then exited 1 on the unchanged four high-severity dependency findings through Vite/fdir/tinyglobby/picomatch. The existing large-main-chunk and optional Mermaid asset warnings remain. No validation gate, dependency audit threshold, database version or revision protocol was weakened. `git diff --check` passed; README.md remains unchanged. Local runs used Node 26.7 on Apple M3/macOS and Chromium 156. Node 22/24 CI, other browser engines and physical devices were not run here.
