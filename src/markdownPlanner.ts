@@ -1,7 +1,4 @@
-import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import remarkGfm from 'remark-gfm';
-import remarkFrontmatter from 'remark-frontmatter';
+import { indexMarkdown, parseMarkdownTree, type MarkdownIndex } from './markdown.ts';
 import type { Node } from 'unist';
 import type { Code, ListItem } from 'mdast';
 import { parseRecurrence, type RecurrenceRule } from './recurrence.ts';
@@ -30,10 +27,10 @@ export type MarkdownPlanner = {
   days: PlannerGroup[]; undated: PlannerGroup[]; scratchpad?: SourceRange;
   sections: Partial<Record<'Dated' | 'Undated' | 'Scratchpad', SourceRange>>;
   sectionEnds: Partial<Record<'Dated' | 'Undated', number>>;
+  markdown: MarkdownIndex;
 };
 export type SourcePatch = { range: SourceRange; expected: string; text: string };
 
-const parser = unified().use(remarkParse).use(remarkGfm).use(remarkFrontmatter);
 const identity = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const rangeOf = (node: Node): SourceRange => ({ start: node.position!.start.offset!, end: node.position!.end.offset! });
 const slice = (source: string, range: SourceRange) => source.slice(range.start, range.end);
@@ -74,21 +71,9 @@ function assertSize(source: string) {
 export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   assertSize(source);
   if (source.startsWith('\uFEFF\uFEFF')) throw new Error('Markdown permits only one leading UTF-8 byte-order mark. Keep the original source for recovery.');
-  // remark removes a leading BOM before calculating offsets; retain our original-source coordinates.
-  const bom = source.startsWith('\uFEFF');
-  const root = parser.parse(bom ? source.slice(1) : source);
-  if (bom) {
-    const pending: Node[] = [root];
-    while (pending.length) {
-      const node = pending.pop()!;
-      if (node.position) {
-        node.position.start.offset!++;
-        node.position.end.offset!++;
-      }
-      for (const child of childrenOf(node)) pending.push(child);
-    }
-  }
-  const model: MarkdownPlanner = { source, issues: [], days: [], undated: [], sections: {}, sectionEnds: {} };
+  const root = parseMarkdownTree(source);
+  const renderRanges: SourceRange[] = [];
+  const model: Omit<MarkdownPlanner, 'markdown'> = { source, issues: [], days: [], undated: [], sections: {}, sectionEnds: {} };
   const issue = (code: string, message: string, range: SourceRange, severity: 'error' | 'warning' = 'error') => {
     model.issues.push({ code, message, range, severity });
   };
@@ -133,7 +118,11 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   };
   const bodyBlocks = (item: ListItem, entry: boolean) => item.children.slice(1)
     .filter(node => !(node.type === 'list' && !node.ordered) && !(entry && node.type === 'code' && node.lang === 'hcb'))
-    .map(node => ({ range: rangeOf(node), markdown: slice(source, rangeOf(node)), column: node.position!.start.column - 1 }));
+    .map(node => {
+      const range = rangeOf(node);
+      renderRanges.push(range);
+      return { range, markdown: slice(source, range), column: node.position!.start.column - 1 };
+    });
   const nestedDetail = (item: ListItem, dated: boolean, depth: number): PlannerDetail | undefined => {
     if (depth > MAX_OUTLINE_DEPTH) { issue('outline-depth', `Outlines are limited to ${MAX_OUTLINE_DEPTH} levels. Keep deeper content in source until simplified.`, rangeOf(item)); return; }
     const node = detail(item);
@@ -327,10 +316,10 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     }
     for (const child of childrenOf(node)) pending.push(child);
   }
-  return model;
+  return { ...model, markdown: indexMarkdown(root, renderRanges, source) };
 }
 
-export const plannerEntries = (model: MarkdownPlanner) => [...model.days, ...model.undated].flatMap(group => group.entries);
+export const plannerEntries = (model: Pick<MarkdownPlanner, 'days' | 'undated'>) => [...model.days, ...model.undated].flatMap(group => group.entries);
 export const plannerWritable = (model: MarkdownPlanner) => !model.issues.some(issue => issue.severity === 'error');
 
 function assertCurrent(model: MarkdownPlanner, current: string) {
@@ -393,7 +382,7 @@ export function ensurePlannerEntryId(model: MarkdownPlanner, current: string, st
 export function renamePlannerEntry(model: MarkdownPlanner, current: string, start: number, markdown: string): MarkdownPlanner {
   assertCurrent(model, current);
   const entry = findEntry(model, start);
-  const inline = parser.parse(markdown);
+  const inline = parseMarkdownTree(markdown);
   if (/[\r\n]/.test(markdown) || inline.children.length !== 1 || inline.children[0].type !== 'paragraph' || !plainText(inline.children[0]).trim()) throw new Error('An entry title needs one nonempty Markdown paragraph on one line.');
   const next = applyPlannerEdits(model, current, [patchFor(model, entry.titleRange, markdown)]);
   const changed = findEntry(next, start);
