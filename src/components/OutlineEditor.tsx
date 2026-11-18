@@ -1,4 +1,4 @@
-import { Fragment, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Circle, CornerDownRight, FileText, IndentDecrease, IndentIncrease, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
@@ -7,6 +7,8 @@ import type { TodoBody, TodoDetail, TodoItem } from '../todoText';
 import { Button } from '../styles';
 import { MarkdownBody } from './MarkdownBody';
 import { downloadTextFile } from '../files';
+import { MarkdownDocumentContext as OutlineDocumentContext } from '../markdownContext';
+export { MarkdownDocumentContext as OutlineDocumentContext } from '../markdownContext';
 
 const Wrap = styled.div`margin:4px 0 6px 34px;min-width:0;ul{list-style:none;margin:0;padding:0;}@media(max-width:540px){margin-left:0;}`;
 const Row = styled.div<{ $depth: number }>`display:grid;grid-template-columns:28px 28px minmax(0,1fr) 36px;align-items:start;padding-left:${({ $depth }) => Math.min($depth, 6) * 14}px;min-width:0;border-radius:5px;&:hover,&:focus-within{background:var(--soft);}@media(max-width:540px){padding-left:${({ $depth }) => Math.min($depth, 4) * 9}px;}@media(pointer:coarse){grid-template-columns:36px 36px minmax(0,1fr) 44px;}`;
@@ -17,7 +19,6 @@ const Action = styled.button`display:flex;align-items:center;gap:9px;min-height:
 const Body = styled.details`margin:4px 0 10px 56px;min-width:0;summary{display:flex;align-items:center;gap:6px;min-height:36px;color:var(--muted);font-size:12px;cursor:pointer;}@media(max-width:540px){margin-left:28px;}@media(pointer:coarse){summary{min-height:44px;}}`;
 const BodyInput = styled.textarea`width:100%;min-height:140px;resize:vertical;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);font:13px/1.6 var(--raw-font);@media(pointer:coarse){font-size:16px;}`;
 const BodyActions = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;button{min-height:36px;}@media(pointer:coarse){button{min-height:44px;}}`;
-export const OutlineDocumentContext = createContext({ id: '', source: '' });
 const hasDraft = (key: string) => { try { return sessionStorage.getItem(key) !== null; } catch { return false; } };
 
 function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: { body?: TodoBody[]; label: string; onSave: (markdown: string) => void; editRequest?: number; draftKey: string }) {
@@ -53,7 +54,7 @@ function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: 
       <BodyInput autoFocus data-markdown-body-editor aria-label={`Markdown notes for ${label}`} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); } }}/>
       {error && <p role="status">{error}</p>}
       <BodyActions><Button type="button" onClick={save}>Save notes</Button><Button type="button" onClick={() => downloadTextFile(draft, 'Planner-notes-draft.md')}>Download notes draft</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(false); setSubmitted(false); setError(''); }}>Cancel notes edit</Button></BodyActions>
-    </> : visible ? <><MarkdownBody markdown={markdown}/><BodyActions><Button type="button" onClick={() => { baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(true); }}>Edit notes</Button></BodyActions></> : null}
+    </> : visible ? <><MarkdownBody markdown={markdown} body={body}/><BodyActions><Button type="button" onClick={() => { baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(true); }}>Edit notes</Button></BodyActions></> : null}
   </Body>;
 }
 

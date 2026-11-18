@@ -1,6 +1,7 @@
 import { applyPlannerEdits, parseMarkdownPlanner, plannerEntries, plannerWritable, type MarkdownPlanner, type PlannerDetail, type PlannerEntry, type PlannerGroup, type SourcePatch, type SourceRange } from './markdownPlanner.ts';
 import { formatRecurrence } from './recurrence.ts';
 import { formatSpan, type TodoBody, type TodoDetail, type TodoDocument, type TodoItem } from './todoText.ts';
+import { markdownKey, type MarkdownNode } from './markdown.ts';
 
 export const JOURNAL_FILE_NAME = 'Planner.md';
 export const JOURNAL_FORMAT = 'hcb-markdown-1';
@@ -9,6 +10,7 @@ const assignedIds = new WeakMap<TodoItem, string>();
 const canonical = new WeakSet<TodoDocument>();
 // models live only as long as their immutable documents; the source cache stays bounded.
 const models = new WeakMap<TodoDocument, MarkdownPlanner>();
+const bodyViews = new WeakMap<TodoDocument, Record<string, MarkdownNode>>();
 export const isCanonicalJournal = (document: TodoDocument) => canonical.has(document);
 export const cachedJournal = (source: string) => cache.get(source);
 const textAt = (source: string, range: SourceRange) => source.slice(range.start, range.end);
@@ -41,6 +43,23 @@ export function readJournal(source: string): { model: MarkdownPlanner; document:
 
 export function journalModel(document: TodoDocument): MarkdownPlanner {
   return models.get(document) ?? readJournal(serializeJournal(document)).model;
+}
+
+export function journalBodyViews(document: TodoDocument): Record<string, MarkdownNode> {
+  const cached = bodyViews.get(document);
+  if (cached) return cached;
+  const model = journalModel(document), views: Record<string, MarkdownNode> = Object.create(null);
+  const visit = (node: PlannerDetail, ref: string) => {
+    node.body?.forEach((block, index) => {
+      const view = model.markdown.blocks[markdownKey(block.range)];
+      if (view) views[`${ref}:body:${index}`] = view;
+    });
+    ('details' in node ? (node as PlannerEntry).details : node.children)?.forEach((child, index) => visit(child, `${ref}:detail:${index}`));
+  };
+  for (const entry of plannerEntries(model)) visit(entry, entryRef(entry));
+  Object.freeze(views);
+  bodyViews.set(document, views);
+  return views;
 }
 
 function projectJournal(model: MarkdownPlanner): { model: MarkdownPlanner; document: TodoDocument } {

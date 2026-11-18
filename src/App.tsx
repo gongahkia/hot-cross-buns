@@ -2,7 +2,7 @@ import { OutlineDocumentContext } from './components/OutlineEditor';
 import { OutlineUpgrade } from './components/OutlineUpgrade';
 import { materializeJournalAsync, readJournalAsync, upgradeOutlineJournalAsync } from './journalBackground';
 import { outlineText, refreshItemCompletion, resetDetails, setItemCompletion } from './outline';
-import { isCanonicalJournal, journalModel, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
+import { isCanonicalJournal, journalBodyViews, journalModel, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { createPortal, flushSync } from 'react-dom';
@@ -1115,7 +1115,7 @@ export default function App() {
     } catch (error) { setFileActionError(String(error)); }
   };
   const documentData = state?.document ?? current.current.document;
-  const outlineContext = useMemo(() => ({ id: journalModel(documentData).documentId!, source: documentData.source! }), [documentData]);
+  const outlineContext = useMemo(() => ({ id: journalModel(documentData).documentId!, source: documentData.source!, index: journalModel(documentData).markdown, bodyViews: journalBodyViews(documentData) }), [documentData]);
   const recursive = journalModel(documentData).format === 2;
   const enableOutlines = () => {
     setBusy(true);

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { headingSlug, indexMarkdown, markdownKey, markdownRange, parseMarkdownPreview, parseMarkdownTree, safeMarkdownUrl, MARKDOWN_RENDER_LIMITS } from '../src/markdown.ts';
 import { applyPlannerEdits, parseMarkdownPlanner } from '../src/markdownPlanner.ts';
+import { journalBodyViews, readJournal } from '../src/journalDocument.ts';
 
 const walk = nodes => nodes.flatMap(node => [node, ...walk(node.children ?? [])]);
 const source = notes => `---\nhcb-format: 2\ndocument-id: markdown-corpus\n---\n\n# Journal\n\n[global]: https://example.com "Global title"\n\n[^global]: A document-wide footnote.\n\n## Dated\n\n### 2026-11-18\n\n- [ ] Entry\n  \`\`\`hcb\n  id: entry\n  \`\`\`\n\n  ${notes.replaceAll('\n', '\n  ')}\n\n## Undated\n\n### Inbox\n\n## Scratchpad\nExact **capture**.\n`;
@@ -49,6 +50,14 @@ test('saved body blocks share the planner parse and resolve document-wide refere
   assert.ok(walk(preview.nodes).some(node => node.type === 'linkReference'));
   assert.ok(walk(preview.nodes).some(node => node.type === 'footnoteReference'));
   assert.equal(preview.nodes.length, 1, 'appended context must not appear in the draft preview');
+});
+
+test('projected body references reuse immutable render trees without reparsing note fragments', () => {
+  const { model, document } = readJournal(source('Read [the target][global].'));
+  const body = document.days[0].items[0].body[0], views = journalBodyViews(document);
+  assert.equal(views[body.sourceRef], model.markdown.blocks[markdownKey(model.days[0].entries[0].body[0].range)]);
+  assert.equal(journalBodyViews(document), views);
+  assert.ok(Object.isFrozen(views));
 });
 
 test('external reference context never leaks into unfinished code or HTML', () => {
