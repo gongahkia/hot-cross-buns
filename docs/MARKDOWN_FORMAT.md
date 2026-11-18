@@ -1,4 +1,4 @@
-# Hot Cross Buns Markdown format, version 1
+# Hot Cross Buns Markdown format, versions 1 and 2
 
 This is the runtime contract for Planner.md. [`markdownPlanner.ts`](../src/markdownPlanner.ts) parses source and validates atomic edits; [`journalDocument.ts`](../src/journalDocument.ts) connects existing operations to source-preserving transactions. Storage, shared scratchpad, sync, import/export, undo and recovery now use Markdown. Rich rendering, linking/search expansion and day/week/month views remain later stages in [the implementation plan](MARKDOWN_PLANNER_PLAN.md). See [workspace conversion and rollback](MARKDOWN_RUNTIME.md).
 
@@ -47,9 +47,11 @@ Unsorted fragments, headings, code and checkboxes stay here until promoted.
 
 Parsing uses CommonMark with GFM task lists, tables, autolinks, footnotes and strikethrough, plus a frontmatter extension. These are parsed as Markdown, rather than by searching arbitrary lines for task-shaped text. Frontmatter and `hcb` blocks have the restricted data grammar below; they are not executable YAML. Diagrams, mathematics and unfamiliar extensions remain source content at this stage. Rendering support is a separate stage.
 
+Version 1 retains its original direct-detail semantics below. Version 2 opts into recursive outlines; it changes only the frontmatter version and descendant interpretation, not database schema 4 or revision protocol 2. New and existing version-1 workspaces are not silently upgraded on read, import or sync.
+
 Structural rules:
 
-1. Frontmatter is the first block, optionally after a UTF-8 BOM. It contains exactly `hcb-format: 1` and `document-id: ID`, in either order. Blank lines are allowed. Unsupported versions or fields are diagnostics and disable structured writing; retain the original source for recovery or a compatible reader.
+1. Frontmatter is the first block, optionally after a UTF-8 BOM. It contains exactly `hcb-format: 1` (or `2`) and `document-id: ID`, in either order. Blank lines are allowed. Unsupported versions or fields are diagnostics and disable structured writing; retain the original source for recovery or a compatible reader.
 2. Root-level, plain-text level-two headings `Dated`, `Undated` and `Scratchpad` occur once in that order. A title and ordinary Markdown can surround the first two sections. Other root level-one/two headings end the active planning section. Reserved-looking text inside code fences, blockquotes, lists or HTML comments is not structural. Formatting or escaping can make an example ordinary Markdown, but an escaped heading marker such as `\## Dated` is the clearest literal form.
 3. Under `Dated`, root level-three headings containing an exact valid Gregorian `YYYY-MM-DD` open date groups. Date-like invalid headings are errors. Empty date groups are meaningful. Groups retain source order; views can sort projections without rewriting source. Duplicate dates are errors.
 4. Under `Undated`, plain-text root level-three headings open named lists. Duplicate names are errors. Deeper root headings end entry collection for the active group; their contents are ordinary notes until another level-three group starts.
@@ -57,6 +59,14 @@ Structural rules:
 6. The first paragraph is an entry's title, with inline Markdown retained. Soft-wrapped title paragraphs remain one title; other paragraphs, quotes, tables, code and deeper nested content belong to the entry as source. A structured rename currently replaces the title with one nonempty inline Markdown line.
 7. Immediate child unordered-list task items are dated planning details. Plain child list items are undated details. Deeper lists and other body blocks remain ordinary Markdown; they do not become independently scheduled entries. A parent is complete exactly when all its planning details are complete. Inconsistent hand-edited checkboxes need review rather than silent normalization. Completing/reopening a parent toggles its planning details; toggling a detail recomputes its parent's state.
 8. Scratchpad begins immediately after its heading's line ending and runs to end of file, including all whitespace. Every subsequent heading, task, fence or metadata-looking line is capture content. No planner entry is implicitly created there. Promotion must eventually update destination and scratchpad in one document transaction and undo step.
+
+### Version 2 recursive outlines
+
+Immediate unordered-list children and their descendants become outline nodes, up to 32 levels below an entry. Dated outlines may mix task checkboxes and plain notes. Undated outlines remain plain bullets without completion state at any depth. Ordered lists, paragraphs, quotes, tables and code are owned body content, not independently scheduled entries. Only the top-level entry owns ID, date, recurrence and other planning metadata; descendant `hcb` fences remain inert examples with warnings.
+
+A task parent with task children is complete exactly when those child task branches are complete. Plain notes do not count toward completion; task descendants underneath a plain note still belong to the nearest task ancestor. A task without task descendants retains its own checkbox state. Completing/reopening a task toggles all task descendants and leaves plain notes unchanged. Hand-edited inconsistent branches are diagnostics. Moving, indenting, outdenting, promoting or deleting a node acts on its entire subtree, including ordinary body content.
+
+Enabling deeper outlines is an explicit, undoable source-format upgrade. Its preview changes the frontmatter version and recomputes ancestor checkboxes from existing descendant states; it preserves document identity and all unrelated source. Other diagnostics, including deeply nested undated checkboxes, require explicit source correction before upgrade. Older version-1-only clients reject format 2 rather than flattening it. Concurrent format upgrades and other source edits require review instead of automatic merging.
 
 ## Identity and links
 
@@ -103,4 +113,4 @@ Inputs and transaction results must be valid Unicode and are limited to 5 MiB of
 
 [`markdownPlanner.test.mjs`](../tests/markdownPlanner.test.mjs) exercises semantic equivalence against handwritten TXT/Markdown fixtures, recurrence rule fields, exact-source edits, structure/fence ownership, shared scratchpad boundaries, identities, links, stale writes, invalid transactions, corruption and resource ceilings. This is format/operation validation, not evidence of a shipped calendar or real device delivery. Runtime and provider suites separately cover Markdown persistence and simulated sync.
 
-There is no permanent TXT file reader or compatibility mode. Paired fixtures are a development acceptance tool; the explicit developer-workspace conversion archives earlier records and leaves targets untouched. Browser storage is schema 4, revision envelopes are protocol 2, and document format remains 1. See [MARKDOWN_RUNTIME.md](MARKDOWN_RUNTIME.md) for shared scratchpad privacy, drafts, migration, rollback and runtime test coverage. Calendar and rich rendering are not implemented by this storage transition.
+There is no permanent TXT file reader or compatibility mode. Paired fixtures are a development acceptance tool; the explicit developer-workspace conversion archives earlier records and leaves targets untouched. Browser storage is schema 4, revision envelopes are protocol 2, and document formats 1 and 2 are supported. See [MARKDOWN_RUNTIME.md](MARKDOWN_RUNTIME.md) for shared scratchpad privacy, drafts, migration, rollback and runtime test coverage. Calendar and rich rendering are not implemented by this storage transition.

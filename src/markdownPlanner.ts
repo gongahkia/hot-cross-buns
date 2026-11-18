@@ -8,12 +8,14 @@ import { parseRecurrence, type RecurrenceRule } from './recurrence.ts';
 import { parseSpan, validDate, type TodoReplacement, type TodoSpan } from './todoText.ts';
 import { parseTimeBlock } from './timeBlock.ts';
 import { MAX_IMPORT_BYTES, MAX_IMPORT_LINES } from './importLimits.ts';
+import { MAX_OUTLINE_DEPTH, outlineNodes, taskChildren } from './outline.ts';
 
 export type SourceRange = { start: number; end: number };
 export type PlannerIssue = { code: string; message: string; range: SourceRange; severity: 'error' | 'warning' };
 export type PlannerDetail = {
   range: SourceRange; titleRange: SourceRange; markdown: string; text: string;
   completed: boolean; checkbox?: SourceRange; column: number;
+  kind?: 'note'; children?: PlannerDetail[]; body?: Array<{ range: SourceRange; markdown: string; column: number }>;
 };
 export type PlannerEntry = PlannerDetail & {
   id?: string; date?: string; list?: string; details: PlannerDetail[];
@@ -107,8 +109,8 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   if (header?.type !== 'yaml') issue('missing-header', 'A planner starts with hcb-format and document-id frontmatter.', { start: 0, end: 0 });
   else {
     const values = fields(header.value, rangeOf(header), new Set(['hcb-format', 'document-id']));
-    if (values.get('hcb-format') !== '1') issue('format-version', 'Only hcb-format: 1 is supported. Source remains available for recovery.', rangeOf(header));
-    else model.format = 1;
+    if (!['1', '2'].includes(values.get('hcb-format') ?? '')) issue('format-version', 'Only hcb-format: 1 or 2 is supported. Source remains available for recovery.', rangeOf(header));
+    else model.format = Number(values.get('hcb-format'));
     const id = values.get('document-id');
     if (!id || !identity.test(id)) issue('document-id', 'document-id must be 1–80 lowercase letters, digits or hyphens, starting with a letter or digit.', rangeOf(header));
     else model.documentId = id;
@@ -128,6 +130,26 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     const titleRange = { start: Math.max(rangeOf(paragraph).start, prefix ? range.start + prefix[0].length : 0), end: rangeOf(paragraph).end };
     return { range, titleRange, markdown: slice(source, titleRange),
       text: plainText(paragraph).replace(/\r\n|\r|\n/g, ' '), completed: item.checked === true, column: item.position!.start.column - 1, ...(checkbox ? { checkbox } : {}) };
+  };
+  const bodyBlocks = (item: ListItem, entry: boolean) => item.children.slice(1)
+    .filter(node => !(node.type === 'list' && !node.ordered) && !(entry && node.type === 'code' && node.lang === 'hcb'))
+    .map(node => ({ range: rangeOf(node), markdown: slice(source, rangeOf(node)), column: node.position!.start.column - 1 }));
+  const nestedDetail = (item: ListItem, dated: boolean, depth: number): PlannerDetail | undefined => {
+    if (depth > MAX_OUTLINE_DEPTH) { issue('outline-depth', `Outlines are limited to ${MAX_OUTLINE_DEPTH} levels. Keep deeper content in source until simplified.`, rangeOf(item)); return; }
+    const node = detail(item);
+    if (!node) return;
+    if (dated && typeof item.checked !== 'boolean') node.kind = 'note';
+    if (!dated && typeof item.checked === 'boolean') issue('undated-checkbox', 'Undated details use plain bullets.', node.range);
+    const children = item.children.flatMap(child => child.type === 'list' && !child.ordered
+      ? child.children.flatMap(nested => { const node = nestedDetail(nested, dated, depth + 1); return node ? [node] : []; }) : []);
+    const body = bodyBlocks(item, false);
+    if (children.length) node.children = children;
+    if (body.length) node.body = body;
+    if (dated && node.kind !== 'note') {
+      const tasks = taskChildren(children);
+      if (tasks.length && node.completed !== tasks.every(child => child.completed)) issue('completion-state', 'Parent completion must agree with its planning details; review the checkboxes.', node.range);
+    }
+    return node;
   };
   const metadata = (entry: PlannerEntry, code: Code) => {
     entry.metadata = rangeOf(code);
@@ -234,6 +256,10 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
       for (const char of marker[0]) column += char === '\t' ? 4 - column % 4 : 1;
       const entry: PlannerEntry = { ...base, details: [], indent: ' '.repeat(column),
         ...(section === 'Dated' ? { date: group.name } : { list: group.name }) };
+      if (model.format === 2) {
+        const body = bodyBlocks(item, true);
+        if (body.length) entry.body = body;
+      }
       // interpret a literal source prefix, not clock-shaped text inside inline code or emphasis.
       if (entry.date && /^\d{2}:\d{2}-\d{2}:\d{2}(?:\s|$)/.test(entry.markdown)) {
         const block = parseTimeBlock(entry.markdown.replace(/\r\n|\r|\n/g, ' '));
@@ -249,14 +275,15 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
         }
         if (child.type !== 'list' || child.ordered) continue;
         for (const nested of child.children) {
-          if (section === 'Dated' && typeof nested.checked !== 'boolean') continue;
-          const projected = detail(nested);
+          if (model.format !== 2 && section === 'Dated' && typeof nested.checked !== 'boolean') continue;
+          const projected = model.format === 2 ? nestedDetail(nested, section === 'Dated', 1) : detail(nested);
           if (!projected) continue;
-          if (section === 'Undated' && typeof nested.checked === 'boolean') issue('undated-checkbox', 'Undated details use plain bullets.', projected.range);
+          if (model.format !== 2 && section === 'Undated' && typeof nested.checked === 'boolean') issue('undated-checkbox', 'Undated details use plain bullets.', projected.range);
           entry.details.push(projected);
         }
       }
-      if (entry.details.length && entry.completed !== entry.details.every(child => child.completed)) {
+      const tasks = model.format === 2 ? taskChildren(entry.details) : entry.details;
+      if (tasks.length && entry.completed !== tasks.every(child => child.completed)) {
         issue('completion-state', 'Parent completion must agree with its planning details; review the checkboxes.', entry.range);
       }
       if (entry.repeat?.kind === 'after' && entry.completed && !entry.completedOn) issue('completion-date', 'Completed after-completion entries need their actual completion date.', entry.range);
@@ -339,9 +366,10 @@ function findEntry(model: MarkdownPlanner, start: number): PlannerEntry {
 }
 
 const patchFor = (model: MarkdownPlanner, range: SourceRange, text: string): SourcePatch => ({ range, expected: slice(model.source, range), text });
+const detailStructure = (detail: PlannerDetail): unknown => [detail.markdown, detail.completed, detail.kind, detail.children?.map(detailStructure), detail.body?.map(block => block.markdown)];
 const entryStructure = (entry: PlannerEntry) => JSON.stringify([
   entry.id, entry.date, entry.list, entry.completed, entry.repeat, entry.completedOn,
-  entry.span, entry.skips, entry.replaces, entry.details.map(detail => [detail.markdown, detail.completed]),
+  entry.span, entry.skips, entry.replaces, entry.details.map(detailStructure), entry.body?.map(block => block.markdown),
 ]);
 
 /** persist identity only when an operation needs it; untouched captures stay terse. */
@@ -381,12 +409,12 @@ export function setPlannerCompletion(model: MarkdownPlanner, current: string, st
   const changes = new Map<SourceRange, boolean>();
   if (detailIndex === undefined) {
     changes.set(entry.checkbox, completed);
-    entry.details.forEach(detail => changes.set(detail.checkbox!, completed));
+    outlineNodes(entry.details).forEach(detail => { if (detail.checkbox) changes.set(detail.checkbox, completed); });
   } else {
     const detail = entry.details[detailIndex];
     if (!detail?.checkbox) throw new Error('Detail is not part of this entry.');
-    changes.set(detail.checkbox, completed);
-    changes.set(entry.checkbox, entry.details.every((detail, index) => index === detailIndex ? completed : detail.completed));
+    outlineNodes([detail]).forEach(node => { if (node.checkbox) changes.set(node.checkbox, completed); });
+    changes.set(entry.checkbox, taskChildren(entry.details).every(child => child === detail ? completed : child.completed));
   }
   return applyPlannerEdits(model, current, [...changes].map(([range, checked]) => patchFor(model, range, checked ? 'x' : ' ')));
 }

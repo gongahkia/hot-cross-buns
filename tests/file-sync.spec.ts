@@ -168,7 +168,7 @@ test('linked-file repairs are written only after explicit doctor approval', asyn
   await runCommand(page, 'Settings');
   await page.getByRole('button', { name: 'Link existing Planner.md', exact: true }).click();
   const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
-  await expect(review).toContainText('Only hcb-format: 1 is supported');
+  await expect(review).toContainText('Only hcb-format: 1 or 2 is supported');
   expect(await linked(page)).toBe(false); expect(await disk(page)).toBe(malformed);
   await review.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true }).fill(corrected);
   await review.getByRole('button', { name: 'check file', exact: true }).click();

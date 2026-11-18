@@ -321,7 +321,7 @@ test('duplicate identities, series, occurrences and replacements are errors', ()
 
 test('unsupported versions, malformed structure and undated scheduling are read-only', () => {
   const cases = [
-    [wrap().replace('hcb-format: 1', 'hcb-format: 2'), 'format-version'],
+    [wrap().replace('hcb-format: 1', 'hcb-format: 999'), 'format-version'],
     [wrap().replace('document-id: test-planner', 'document-id: ../outside'), 'document-id'],
     [wrap().replace('## Dated', '## Unknown'), 'sections'],
     [wrap().replace('2026-11-16', '2026-02-30'), 'date'],

@@ -1,4 +1,5 @@
 import { createProjectionBudget, type ProjectionBudget } from './projectionBudget.ts';
+import { outlineNodes, resetDetails } from './outline.ts';
 import { shiftDate } from './dayWindow.ts';
 import type { RecurrenceRule } from './recurrence.ts';
 import { nextScheduledDate } from './scheduledRecurrence.ts';
@@ -62,14 +63,14 @@ export function projectItemsForDate(document: TodoDocument, date: string, budget
   for (const item of actual) {
     budget.work();
     if (item.repeat?.series && (replaced.has(item.repeat.series + ':' + date) || skipped.get(item)?.has(date))) continue;
-    budget.rows(1 + item.details.length);
+    budget.rows(1 + outlineNodes(item.details).length);
     result.push(item);
   }
   for (const day of document.days) for (const item of day.items) {
     budget.work();
     const skips = skipped.get(item)!;
     if (item.span && date > day.date && date <= spanEnd(item, day.date) && !skips.has(day.date) && (!item.repeat?.series || !replaced.has(item.repeat.series + ':' + day.date))) {
-      budget.rows(1 + item.details.length);
+      budget.rows(1 + outlineNodes(item.details).length);
       result.push({ ...item, id: 'span:' + item.id + ':' + date, projection: { kind: 'span', masterId: item.id, originalDate: day.date, continuation: true } });
     }
     const rule = item.repeat;
@@ -80,14 +81,14 @@ export function projectItemsForDate(document: TodoDocument, date: string, budget
       budget.work();
       const occurrence = shiftDate(date, -offset);
       if (occurrence === day.date || !occursOn(rule, day.date, occurrence, budget) || skips.has(occurrence) || replaced.has(rule.series + ':' + occurrence)) continue;
-      budget.rows(1 + item.details.length);
+      budget.rows(1 + outlineNodes(item.details).length);
       const delta = Math.round((Date.parse(occurrence + 'T12:00:00Z') - Date.parse(day.date + 'T12:00:00Z')) / 86400000);
       const span = item.span?.kind === 'all-day'
         ? { kind: 'all-day' as const, ...(item.span.through ? { through: shiftDate(item.span.through, delta) } : {}) }
         : item.span?.kind === 'time' ? { ...item.span, endDate: shiftDate(item.span.endDate, delta) } : undefined;
       result.push({ ...item, id: 'series:' + item.id + ':' + occurrence + ':' + date, completed: false, completedOn: undefined,
         span,
-        details: item.details.map(detail => ({ ...detail, completed: false })),
+        details: resetDetails(item.details),
         projection: { kind: 'series', masterId: item.id, originalDate: occurrence, series: rule.series, continuation: offset > 0 } });
     }
   }

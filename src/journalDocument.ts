@@ -1,6 +1,6 @@
 import { applyPlannerEdits, parseMarkdownPlanner, plannerEntries, plannerWritable, type MarkdownPlanner, type PlannerDetail, type PlannerEntry, type PlannerGroup, type SourcePatch, type SourceRange } from './markdownPlanner.ts';
 import { formatRecurrence } from './recurrence.ts';
-import { formatSpan, type TodoDetail, type TodoDocument, type TodoItem } from './todoText.ts';
+import { formatSpan, type TodoBody, type TodoDetail, type TodoDocument, type TodoItem } from './todoText.ts';
 
 export const JOURNAL_FILE_NAME = 'Planner.md';
 export const JOURNAL_FORMAT = 'hcb-markdown-1';
@@ -14,10 +14,20 @@ const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 const fields = ['repeat', 'completedOn', 'span', 'skips', 'replaces'] as const;
 const entryId = (entry: PlannerEntry) => entry.id ?? `source:${entry.range.start}`;
 const entryRef = (entry: PlannerEntry) => `entry:${entryId(entry)}`;
-const value = (item: TodoItem) => JSON.stringify([item.text, item.completed, item.details.map(detail => [detail.text, detail.completed, detail.sourceRef]), ...fields.map(key => item[key])]);
+const value = (item: TodoItem) => JSON.stringify([item.text, item.completed, item.details, item.body, ...fields.map(key => item[key])]);
+const bodyFrom = (node: PlannerDetail, ref: string): TodoBody[] | undefined => node.body?.map((block, index) => ({
+  markdown: adjustIndent(block.markdown, block.column, 0, nlOf(block.markdown)), sourceRef: `${ref}:body:${index}`,
+}));
+const detailFrom = (detail: PlannerDetail, ref: string): TodoDetail => ({
+  text: detail.markdown, completed: detail.completed, sourceRef: ref,
+  ...(detail.kind ? { kind: detail.kind } : {}),
+  ...(detail.children?.length ? { children: detail.children.map((child, index) => detailFrom(child, `${ref}:detail:${index}`)) } : {}),
+  ...(detail.body?.length ? { body: bodyFrom(detail, ref) } : {}),
+});
 const itemFrom = (entry: PlannerEntry): TodoItem => ({
   id: entryId(entry), sourceRef: entryRef(entry), text: entry.markdown, completed: entry.completed,
-  details: entry.details.map((detail, index) => ({ text: detail.markdown, completed: detail.completed, sourceRef: `${entryRef(entry)}:detail:${index}` })),
+  details: entry.details.map((detail, index) => detailFrom(detail, `${entryRef(entry)}:detail:${index}`)),
+  ...(entry.body?.length ? { body: bodyFrom(entry, entryRef(entry)) } : {}),
   ...Object.fromEntries(fields.filter(key => entry[key] !== undefined).map(key => [key, entry[key]])),
 });
 
@@ -52,6 +62,8 @@ function projectJournal(model: MarkdownPlanner): { model: MarkdownPlanner; docum
   if (cache.size > 2) cache.delete(cache.keys().next().value!);
   return result;
 }
+
+export const journalFromPlanner = projectJournal;
 
 export function parseJournal(source: string) {
   const { model, document } = readJournal(source);
@@ -101,9 +113,23 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
   const patches: SourcePatch[] = [];
   const add = (range: SourceRange, text: string) => { if (textAt(source, range) !== text) patches.push({ range, expected: textAt(source, range), text }); };
   const originals = new Map<string, Original>();
+  const bodies = new Map<string, NonNullable<PlannerDetail['body']>[number]>();
+  const remember = (node: PlannerDetail, ref: string) => {
+    node.body?.forEach((block, index) => bodies.set(`${ref}:body:${index}`, block));
+    node.children?.forEach((child, index) => {
+      const childRef = `${ref}:detail:${index}`;
+      originals.set(childRef, { node: child, column: child.column });
+      remember(child, childRef);
+    });
+  };
   for (const entry of plannerEntries(model)) {
     originals.set(entryRef(entry), { node: entry, entry, column: entry.column });
-    entry.details.forEach((node, index) => originals.set(`${entryRef(entry)}:detail:${index}`, { node, column: node.column }));
+    remember(entry, entryRef(entry));
+    entry.details.forEach((node, index) => {
+      const ref = `${entryRef(entry)}:detail:${index}`;
+      originals.set(ref, { node, column: node.column });
+      remember(node, ref);
+    });
   }
   const localPatch = (raw: string, owner: SourceRange, edits: Array<{ range: SourceRange; text: string }>) => {
     for (const edit of edits.sort((a, b) => b.range.start - a.range.start)) raw = raw.slice(0, edit.range.start - owner.start) + edit.text + raw.slice(edit.range.end - owner.start);
@@ -117,24 +143,41 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
   const render = (item: TodoDetail | TodoItem, dated: boolean, column: number, asEntry: boolean): string => {
     const original = item.sourceRef ? originals.get(item.sourceRef) : undefined;
     const node = original?.node;
-    const marker = `- ${dated ? `[${item.completed ? 'x' : ' '}] ` : ''}`;
+    const checked = dated && !('kind' in item && item.kind === 'note');
+    const marker = `- ${checked ? `[${item.completed ? 'x' : ' '}] ` : ''}`;
     const childColumn = column + 2;
+    const children = asEntry ? (item as TodoItem).details : (item as TodoDetail).children ?? [];
+    const renderBody = (block: TodoBody, indent: number) => {
+      const original = block.sourceRef ? bodies.get(block.sourceRef) : undefined;
+      if (original && block.markdown === adjustIndent(original.markdown, original.column, 0, nlOf(original.markdown))) return adjustIndent(original.markdown, original.column, indent, nl);
+      return block.markdown.replace(/\r\n|\r|\n/g, `${nl}${' '.repeat(indent)}`);
+    };
     if (!node) {
       let raw = marker + title(item.text, childColumn, dated);
       if (asEntry) {
         const entry = item as TodoItem;
         if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(entry.id)) throw new Error('New entries require a stable ID.');
         raw += `${nl}${' '.repeat(childColumn)}\`\`\`hcb${nl}${metadata(entry, entry.id, dated).map(line => ' '.repeat(childColumn) + line).join(nl)}${nl}${' '.repeat(childColumn)}\`\`\``;
-        for (const detail of entry.details) raw += `${nl}${' '.repeat(childColumn)}${render(detail, dated, childColumn, false)}`;
       }
+      for (const block of item.body ?? []) raw += `${nl}${nl}${' '.repeat(childColumn)}${renderBody(block, childColumn)}`;
+      for (const child of children) raw += `${nl}${' '.repeat(childColumn)}${render(child, dated, childColumn, false)}`;
       return raw;
     }
     const edits: Array<{ range: SourceRange; text: string }> = [];
     const prefix = textAt(source, { start: node.range.start, end: node.titleRange.start });
     const originalDated = !!node.checkbox;
-    if (originalDated !== dated) edits.push({ range: { start: node.range.start, end: node.titleRange.start }, text: marker });
+    if (originalDated !== checked) edits.push({ range: { start: node.range.start, end: node.titleRange.start }, text: marker });
     else if (node.checkbox && item.completed !== node.completed) edits.push({ range: node.checkbox, text: item.completed ? 'x' : ' ' });
     if (item.text !== node.markdown) edits.push({ range: node.titleRange, text: title(item.text, original!.column + (prefix.match(/^[-+*][ \t]+/)?.[0].length ?? 2), dated) });
+    if (model.format === 2 && JSON.stringify(item.body) !== JSON.stringify(bodyFrom(node, item.sourceRef!))) {
+      const oldBody = node.body ?? [], nextBody = item.body ?? [], indent = original!.column + 2;
+      oldBody.forEach((block, index) => edits.push({ range: block.range, text: nextBody[index] ? renderBody(nextBody[index], indent) : '' }));
+      const extra = nextBody.slice(oldBody.length);
+      if (extra.length) {
+        const offset = oldBody.at(-1)?.range.end ?? node.titleRange.end;
+        edits.push({ range: { start: offset, end: offset }, text: extra.map(block => `${nl}${nl}${' '.repeat(indent)}${renderBody(block, indent)}`).join('') });
+      }
+    }
     if (asEntry) {
       const entry = item as TodoItem, old = original!.entry;
       const oldValue = old && itemFrom(old);
@@ -151,7 +194,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
         if (old?.metadata) edits.push({ range: old.metadata, text: block });
         else edits.push({ range: { start: node.titleRange.end, end: node.titleRange.end }, text: `${nl}${indent}${block}` });
       }
-      const oldDetails = old?.details ?? [];
+      const oldDetails = old?.details ?? node.children ?? [];
       const detailColumn = old?.indent.length ?? original!.column + 2;
       if (!old || !!old.date !== dated || JSON.stringify(entry.details) !== JSON.stringify(oldValue!.details)) {
         oldDetails.forEach((detail, index) => edits.push({ range: detail.range, text: entry.details[index] ? render(entry.details[index], dated, detailColumn, false) : '' }));
@@ -159,6 +202,22 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
         if (extra.length) {
           const offset = oldDetails.at(-1)?.range.end ?? node.range.end;
           const text = extra.map(detail => `${nl}${' '.repeat(detailColumn)}${render(detail, dated, detailColumn, false)}`).join('');
+          const existing = edits.find(edit => edit.range.end === offset && edit.range.start !== edit.range.end);
+          if (existing) existing.text += text;
+          else edits.push({ range: { start: offset, end: offset }, text });
+        }
+      }
+    } else if (model.format === 2) {
+      const oldChildren = original!.entry?.details ?? node.children ?? [];
+      const oldDetails = oldChildren.map((child, index) => detailFrom(child, `${item.sourceRef}:detail:${index}`));
+      if (original!.entry?.metadata) edits.push({ range: original!.entry.metadata, text: '' });
+      if (originalDated !== checked || JSON.stringify(children) !== JSON.stringify(oldDetails)) {
+        const indent = original!.column + 2;
+        oldChildren.forEach((child, index) => edits.push({ range: child.range, text: children[index] ? render(children[index], dated, indent, false) : '' }));
+        const extra = children.slice(oldChildren.length);
+        if (extra.length) {
+          const offset = oldChildren.at(-1)?.range.end ?? node.range.end;
+          const text = extra.map(child => `${nl}${' '.repeat(indent)}${render(child, dated, indent, false)}`).join('');
           const existing = edits.find(edit => edit.range.end === offset && edit.range.start !== edit.range.end);
           if (existing) existing.text += text;
           else edits.push({ range: { start: offset, end: offset }, text });

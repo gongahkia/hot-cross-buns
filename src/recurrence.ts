@@ -1,4 +1,5 @@
 import { shiftDate } from './dayWindow.ts';
+import { resetDetails } from './outline.ts';
 import { validDate, type TodoDocument } from './todoText.ts';
 import { describeScheduled, formatScheduled, newSeriesId, nextScheduledDate, parseScheduled, validSeriesId, type ScheduledRule } from './scheduledRecurrence.ts';
 export { newSeriesId } from './scheduledRecurrence.ts';
@@ -167,7 +168,7 @@ export function reconcileRecurrences(document: TodoDocument, onlyKeys?: Set<stri
       ? { ...item.span, ...(item.span.through ? { through: shiftDate(item.span.through, delta) } : {}) }
       : item.span?.kind === 'time' ? { ...item.span, endDate: shiftDate(item.span.endDate, delta) } : undefined;
     nextDay.items.push({ ...item, id: crypto.randomUUID(), completed: false, completedOn: undefined, repeat: nextRule,
-      ...(span ? { span } : {}), details: item.details.map(detail => ({ ...detail, completed: false })) });
+      ...(span ? { span } : {}), details: resetDetails(item.details) });
     seen.add(nextKey);
   }
   document.days.sort((a, b) => a.date.localeCompare(b.date));

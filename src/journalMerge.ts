@@ -2,6 +2,7 @@ import { journalModel, materializeJournal, parseJournal, readJournal, serializeJ
 import { applyPlannerEdits } from './markdownPlanner.ts';
 import type { TodoDocument } from './todoText.ts';
 import type { MarkdownPlanner, SourceRange } from './markdownPlanner.ts';
+import { outlineNodes } from './outline.ts';
 
 export type MergeChoice = 'local' | 'file' | 'both' | 'manual';
 
@@ -23,8 +24,10 @@ function atomicFields(model: MarkdownPlanner, change: Change): Set<string> {
   for (const group of [...model.days, ...model.undated]) for (const entry of group.entries) {
     const key = String(entry.range.start);
     if (intersects(change, entry.titleRange)) keys.add(key + ':title');
-    if ([entry.checkbox, entry.metadata, ...entry.details.map(detail => detail.checkbox)].some(range => range && intersects(change, range))) keys.add(key + ':progress');
-    entry.details.forEach((detail, index) => { if (intersects(change, detail.titleRange)) keys.add(`${key}:detail:${index}`); });
+    const details = outlineNodes(entry.details);
+    if ([entry.checkbox, entry.metadata, ...details.map(detail => detail.checkbox)].some(range => range && intersects(change, range))) keys.add(key + ':progress');
+    details.forEach(detail => { if (intersects(change, detail.titleRange)) keys.add(`${key}:detail:${detail.range.start}`); });
+    for (const node of [entry, ...details]) node.body?.forEach(block => { if (intersects(change, block.range)) keys.add(`${key}:body:${block.range.start}`); });
   }
   if (model.scratchpad && intersects(change, model.scratchpad)) keys.add('scratchpad');
   return keys;
@@ -49,6 +52,7 @@ export function mergeJournalSources(baseline: TodoDocument, local: TodoDocument,
   if (localModel.documentId !== identity || remoteModel.documentId !== identity) return null;
   if (ours === theirs || theirs === base) return local;
   if (ours === base) return remote;
+  if (localModel.format !== baseModel.format || remoteModel.format !== baseModel.format) return null;
   const left = changeFrom(base, ours), right = changeFrom(base, theirs);
   let source: string;
   if (left.start === left.end && right.start === right.end && left.start === right.start) {
