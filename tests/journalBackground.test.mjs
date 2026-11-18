@@ -125,3 +125,79 @@ test('background negotiates a compact response and preserves the original immuta
  assert.equal(document.days[0].items[0].completed,false);assert.ok(Object.isFrozen(result.model));
  client.dispose();
 });
+
+test('mismatched or malformed compact responses request a complete model exactly once',async()=>{
+ for(const corrupt of [wire=>({...wire,modelId:999}),wire=>({...wire,delta:{...wire.delta,baselineId:999}}),wire=>({...wire,delta:null}),wire=>({...wire,delta:{...wire.delta,patches:[{}]}}),wire=>({...wire,delta:{...wire.delta,patches:wire.delta.patches.map(patch=>({...patch,expected:'z'}))}})]){
+  const port=new CompactPort(),client=new JournalBackground(()=>port);
+  const document=await bootstrap(client,port),pending=client.request({kind:'materialize',document:completed(document)});
+  port.finish(1,corrupt);assert.equal(port.messages.length,3);assert.equal(port.messages[2].fullModel,true);
+  assert.equal(port.messages[2].id,port.messages[1].id);assert.equal(port.messages[2].baselineId,undefined);
+  port.onmessage({data:port.responses[1]});assert.equal(port.messages.length,3,'duplicate delta must not start another repair');
+  port.finish(2);assert.ok(port.responses[2].model);assert.equal((await pending).model.source,document.source.replace('[ ] Alpha','[x] Alpha'));
+  client.dispose();
+ }
+});
+
+test('repair uses an input snapshot even when the caller mutates its draft after submission',async()=>{
+ const port=new CompactPort(),client=new JournalBackground(()=>port),document=await bootstrap(client,port);
+ const draft=completed(document),pending=client.request({kind:'materialize',document:draft});
+ draft.source='Different source';draft.days[0].items[0].text='Later draft';
+ port.finish(1,wire=>({...wire,delta:{...wire.delta,baselineId:999}}));port.finish(2);
+ assert.equal((await pending).model.source,document.source.replace('[ ] Alpha','[x] Alpha'));
+ client.dispose();
+});
+
+test('abort during full-model recovery drops its late response and leaves later requests usable',async()=>{
+ const port=new CompactPort(),client=new JournalBackground(()=>port),document=await bootstrap(client,port),controller=new AbortController();
+ const pending=client.request({kind:'materialize',document:completed(document)},controller.signal);
+ port.finish(1,wire=>({...wire,delta:{...wire.delta,patches:null}}));controller.abort();
+ await assert.rejects(pending,{name:'AbortError'});port.finish(2);
+ const next=client.request({kind:'materialize',document:completed(document)});port.finish(3);
+ assert.equal((await next).model.source,document.source.replace('[ ] Alpha','[x] Alpha'));client.dispose();
+});
+
+test('full-model recovery retains its original timeout and propagates validation errors',async()=>{
+ const port=new CompactPort(),client=new JournalBackground(()=>port,20),document=await bootstrap(client,port);
+ const pending=client.request({kind:'materialize',document:completed(document)});
+ port.finish(1,wire=>({...wire,delta:{...wire.delta,patches:null}}));
+ await assert.rejects(pending,/time budget/);assert.equal(port.terminated,true);
+ const other=new CompactPort(),second=new JournalBackground(()=>other),initial=await bootstrap(second,other);
+ const failing=second.request({kind:'materialize',document:completed(initial)});
+ other.finish(1,wire=>({...wire,delta:{...wire.delta,patches:null}}));
+ other.onmessage({data:{id:other.messages[2].id,ok:false,error:'Full validation rejected the edit'}});
+ await assert.rejects(failing,/Full validation rejected/);second.dispose();
+});
+
+test('restart discards session baselines and ignores late messages and errors from the old worker',async()=>{
+ const ports=[],client=new JournalBackground(()=>{const port=new CompactPort();ports.push(port);return port;});
+ const first=client.request({kind:'parse',source:compactSource()});ports[0].finish();const document=journalFromPlanner((await first).model).document;
+ ports[0].onerror(new Event('error'));
+ const next=client.request({kind:'materialize',document:completed(document)}),current=ports[1];
+ assert.equal(current.messages[0].baselineId,undefined);assert.ok(current.messages[0].id>ports[0].messages[0].id);
+ ports[0].finish();ports[0].onerror(new Event('error'));ports[0].onmessageerror(new Event('messageerror'));
+ assert.equal(current.terminated,false);current.finish();assert.ok(current.responses[0].model);
+ assert.equal((await next).model.source,document.source.replace('[ ] Alpha','[x] Alpha'));client.dispose();
+});
+
+test('concurrent compact edits remain pinned to their own baseline after eviction and out-of-order results',async()=>{
+ const port=new CompactPort(),client=new JournalBackground(()=>port),document=await bootstrap(client,port);
+ const first=client.request({kind:'materialize',document:completed(document)});
+ const rename=structuredClone(document);rename.days[0].items[0].text='Omega';
+ const second=client.request({kind:'materialize',document:rename});
+ // compute both wire deltas while the worker still holds their common baseline.
+ const wireFirst=structuredClone(port.host(port.messages[1])),wireSecond=structuredClone(port.host(port.messages[2]));
+ for(let index=0;index<5;index++){
+  const pending=client.request({kind:'parse',source:document.source.replace('background-compact',`evict-${index}`)});port.finish(port.messages.length-1);await pending;
+ }
+ port.onmessage({data:wireSecond});port.onmessage({data:wireFirst});
+ assert.ok(wireFirst.delta);assert.ok(wireSecond.delta);
+ assert.equal((await first).model.source,document.source.replace('[ ] Alpha','[x] Alpha'));
+ assert.equal((await second).model.source,document.source.replace('Alpha','Omega'));client.dispose();
+});
+
+test('an unexpected compact response without an advertised baseline recovers with a full model',async()=>{
+ const port=new CompactPort(),client=new JournalBackground(()=>port),source=compactSource();
+ const pending=client.request({kind:'parse',source});
+ port.onmessage({data:{id:port.messages[0].id,ok:true,modelId:port.messages[0].id,delta:{baselineId:99,patches:[]}}});
+ assert.equal(port.messages[1].fullModel,true);port.finish(1);assert.equal((await pending).model.source,source);client.dispose();
+});

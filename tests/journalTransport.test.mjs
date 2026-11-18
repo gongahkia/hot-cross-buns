@@ -72,3 +72,24 @@ test('delta replay rejects malformed ranges, fragments, overlaps, size and unsup
  assert.equal(replayJournalDelta(base,[{range:{start:metadata,end:metadata+7},expected:'compact',text:'another'}],validator.validate),null);
  assert.deepEqual(normalize(replayJournalDelta(base,[safe],validator.validate)),normalize(parseMarkdownPlanner(source.replace('Alpha','Omega'))));
 });
+
+test('too many validated token changes and unavailable weak receipts fall back to full responses',()=>{
+ const wide=source.replace('- [ ] Alpha\n  - [ ] Child', '- [ ] Alpha\n  ```hcb\n  id: alpha\n  ```\n'+Array.from({length:257},(_,index)=>`  - [ ] Child ${index}`).join('\n'));
+ const host=createJournalWorkerHost();host({id:1,kind:'parse',source:wide});
+ const document=structuredClone(readJournal(wide).document);document.days[0].items[0].completed=true;document.days[0].items[0].details.forEach(detail=>{detail.completed=true;});
+ assert.ok(host({id:2,kind:'materialize',document,baselineId:1}).model);
+ const NativeWeakRef=globalThis.WeakRef;
+ try {
+  globalThis.WeakRef=undefined;
+  const fresh=createJournalWorkerHost();fresh({id:1,kind:'parse',source});
+  assert.ok(fresh({id:2,kind:'materialize',document:edit(),baselineId:1}).model);
+ }finally{globalThis.WeakRef=NativeWeakRef;}
+});
+
+test('delta replay cannot split UTF-16 pairs or partially complete an outline',()=>{
+ const validator=createPlannerIncrementalValidator(),unicode=source.replace('Capture.','Capture 🥐.'),base=validator.seal(parseMarkdownPlanner(unicode));
+ const at=unicode.indexOf('🥐');
+ assert.equal(replayJournalDelta(base,[{range:{start:at,end:at+1},expected:unicode[at],text:'A'}],validator.validate),null);
+ const parent=unicode.indexOf('[ ] Alpha')+1;
+ assert.equal(replayJournalDelta(base,[{range:{start:parent,end:parent+1},expected:' ',text:'x'}],validator.validate),null);
+});
