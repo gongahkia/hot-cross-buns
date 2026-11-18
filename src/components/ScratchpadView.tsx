@@ -29,7 +29,7 @@ type Destination = 'dated' | 'undated' | null;
 
 export function ScratchpadView({ active, onPendingChange, listNames, today, beforeConvert, afterConvert, onJournalCommitted, document: journal, onWrite, onToggleTask }: {
   active: boolean; onPendingChange: (pending: boolean) => void; listNames: string[]; today: string; beforeConvert: () => Promise<void>; afterConvert: () => void; onJournalCommitted: (journal: TodoState, undo: ScratchpadUndo) => void;
-  document?: TodoDocument; onWrite?: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void;
+  document?: TodoDocument; onWrite?: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void | Promise<void>;
 }) {
   const [loaded, setLoaded] = useState(false);
   const unified = !!journal && journalModel(journal).format === 3;
@@ -57,7 +57,7 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
   const pendingSaves = useRef(0);
   const releaseLock = useRef<(() => void) | null>(null);
   const lockChannel = useRef<BroadcastChannel | null>(null);
-  const mounted = useRef(true);
+  const mounted = useRef(true), editOwner = useRef(false);
 
   const refresh = async () => {
     if (writeQueue.current!.failed) return;
@@ -74,8 +74,8 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
       if (!lock) { setWaiting(false); return; }
       await refresh();
       setWaiting(false);
-      setEditable(true);
-      await new Promise<void>(resolve => { releaseLock.current = resolve; });
+      editOwner.current=true;setEditable(true);
+      await new Promise<void>(resolve => { releaseLock.current = () => {editOwner.current=false;if(mounted.current)setEditable(false);resolve();}; });
       await queue.current;
       releaseLock.current = null;
       if (mounted.current) setEditable(false);
@@ -130,6 +130,14 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
     }).catch(error => {
       if (!(error instanceof WriteDiscardedError)) setMessage(String(error));
     }).finally(() => { pendingSaves.current--; onPendingChange(pendingSaves.current > 0); });
+  };
+  // source transactions own journal save state; this queue retains the capture lease until they settle.
+  const enqueueCapture = <T,>(work:()=>T|Promise<T>):Promise<T> => {
+    if(!editOwner.current) return Promise.reject(new Error('Take over editing before changing the Scratchpad. Your draft is kept.'));
+    pendingSaves.current++;
+    const pending=queue.current.then(work);
+    queue.current=pending.then(()=>undefined,()=>undefined).finally(()=>{pendingSaves.current--;});
+    return pending;
   };
   const rememberSelection = () => {
     const field = editor.current;
@@ -190,30 +198,32 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
     editor.current?.focus();
   };
   const convert = async () => {
-    if (!destination || !selection || !editable || conversionActive.current) return;
+    if (!destination || !selection || !editOwner.current || conversionActive.current) return;
     const items = unified ? [] : mapScratchpadSelection(selection.text,getScratchpadMapping());
     if (unified ? !selection.text.trim() : !items.length) { setMessage('Select nonempty content to move.'); return; }
     const target = destination === 'dated'
       ? validDate(date) ? { kind: 'dated' as const, date } : null
       : { kind: 'undated' as const, list: newList.trim() || list || 'Inbox' };
     if (!target) { setMessage('Choose a valid date.'); return; }
-    conversionActive.current = true; setConverting(true);
+    conversionActive.current = true; setConverting(true);pendingSaves.current++;
     let started = false;
+    const previous=queue.current;let finish!:()=>void;
+    const held=new Promise<void>(resolve=>{finish=resolve;});queue.current=previous.then(()=>held);
     try {
-      await queue.current;
+      await previous;
       await beforeConvert(); started = true;
       const result = await convertScratchpadSelection({ start: selection.start, end: selection.end, selected: selection.text, scratchRevision: current.current.revision, destination: target, items, cut: unified ? copyMode === 'cut' : getScratchpadMoveMode() === 'cut' || copyMode === 'cut' });
       current.current = result.scratchpad;
       setDraft(result.scratchpad.text); setSelection(null); setDestination(null); setMessage('');
       onJournalCommitted(result.journal,result.undo);
     } catch (error) { setMessage(String(error)); }
-    finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false); }
+    finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false);pendingSaves.current--;finish(); }
   };
   const dialog = surface.current?.closest('dialog[open]'), bounds = dialog?.getBoundingClientRect();
   const menuPosition = contextMenu && bounds ? { position: 'absolute' as const, left: Math.max(8, Math.min(contextMenu.x - bounds.left, bounds.width - 230)) + dialog!.scrollLeft, top: Math.max(8, Math.min(contextMenu.y - bounds.top, bounds.height - 150)) + dialog!.scrollTop } : { left: contextMenu?.x, top: contextMenu?.y };
   return <Wrap ref={surface} aria-label="Quick capture">
     {!editable && loaded && <Note><LockKeyhole size={14}/> {waiting ? 'Taking over the scratchpad…' : 'The scratchpad is open for editing in another window.'} {!waiting && <Button onClick={() => requestEdit(true)}>Take over editing</Button>}</Note>}
-    {journal && unified && onWrite ? <WritingDocument document={journal} location={{ kind: 'scratchpad' }} label="Scratchpad" readOnly={!editable} onWrite={onWrite} onToggleTask={onToggleTask} onMoveCapture={(range, anchor) => { void moveCaptureBlock(range, anchor); }}/> : <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>}
+    {journal && unified && onWrite ? <WritingDocument document={journal} location={{ kind: 'scratchpad' }} label="Scratchpad" readOnly={!editable} onWrite={(operation,expected)=>enqueueCapture(()=>onWrite(operation,expected))} onToggleTask={start=>{void enqueueCapture(()=>onToggleTask?.(start)).catch(error=>setMessage(String(error)));}} onMoveCapture={(range, anchor) => { void moveCaptureBlock(range, anchor); }}/> : <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>}
     {contextMenu && createPortal(<ContextMenu ref={menu} role="menu" aria-label="Scratchpad selection actions" style={menuPosition}>
       <MenuAction type="button" role="menuitem" onClick={() => void copySelection()}><Copy aria-hidden="true"/>Copy selection</MenuAction>
       <MenuAction type="button" role="menuitem" onClick={() => openDestination('dated')}><ArrowRight aria-hidden="true"/>Move to dated</MenuAction>

@@ -126,3 +126,19 @@ test('capture blocks copy or move with Markdown structure and one atomic undo', 
   await runCommand(page, 'Open Scratchpad');
   await expect(capture.locator('code')).toHaveText('const retained = "🥐";');
 });
+
+test('takeover waits for an accepted rich capture save before granting the next editor',async({page})=>{
+ await page.addInitScript(()=>{
+  window.open=()=>null;
+  const post=Worker.prototype.postMessage;
+  Worker.prototype.postMessage=function(message,options?:StructuredSerializeOptions|Transferable[]){
+   if(message.kind==='writing' && message.operation?.markdown?.includes('Held **capture**')){
+    Reflect.set(window,'releaseHeldCapture',()=>post.call(this,message,options as StructuredSerializeOptions));return;
+   }
+   post.call(this,message,options as StructuredSerializeOptions);
+  };
+ });
+ await load(page);await runCommand(page,'Open Scratchpad');const first=page.getByRole('dialog',{name:'Scratchpad',exact:true});await first.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true}).click();await first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true}).fill('Held **capture**.');await first.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>typeof Reflect.get(window,'releaseHeldCapture')==='function');
+ const other=await page.context().newPage();await other.goto('/?popout=scratchpad');await other.getByRole('button',{name:'Take over editing',exact:true}).click();await expect(other.getByText('Taking over the scratchpad…',{exact:false})).toBeVisible();await expect(other.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true})).toHaveCount(0);
+ await page.evaluate(()=>Reflect.get(window,'releaseHeldCapture')());await expect(first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true})).toHaveCount(0);await expect(other.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true})).toBeVisible();await expect(other.getByRole('region',{name:'Quick capture',exact:true}).locator('strong')).toHaveText('capture');await expect(first.getByRole('button',{name:'Take over editing',exact:true})).toBeVisible();await other.close();
+});

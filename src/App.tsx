@@ -1408,7 +1408,7 @@ export default function App() {
     const source = serializeJournal(documentData), target = writingTarget(journalModel(documentData), start);
     if (!target?.node.checkbox) {
       const location = writingLocationAt(journalModel(documentData), start);
-      if (location) void saveWriting({ kind: 'toggle', location, start }, source).catch(error => setMessage(String(error)));
+      if (location) return saveWriting({ kind: 'toggle', location, start }, source).catch(error => setMessage(String(error)));
       return;
     }
     const change = withMarkdownPreparation((item: TodoItem) => {
@@ -1420,8 +1420,8 @@ export default function App() {
       }
     }, source);
     const id = target.entry.id ?? `source:${target.entry.range.start}`;
-    if (target.entry.date) mutateItem(target.entry.date, id, change);
-    else if (target.entry.list) editUndated(target.entry.list, id, change);
+    if (target.entry.date) return mutateItem(target.entry.date, id, change);
+    else if (target.entry.list) return editUndated(target.entry.list, id, change);
   };
   const openDayDocument = (date: string, compose = false) => { setInspectedEntry(null); setActiveTab('dated'); setDatedPresentation('list'); setSelectedDate(date); setViewMode('day'); if(compose) setComposeRequest({date,key:Date.now()}); };
   const inspectEntry = (date: string, item: ViewItem) => setInspectedEntry({date,id:item.id,series:item.projection?.series ?? item.replaces?.series ?? item.repeat?.series,on:item.projection?.originalDate ?? item.replaces?.on ?? date});
