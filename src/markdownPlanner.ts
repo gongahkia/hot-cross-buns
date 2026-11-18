@@ -1,3 +1,4 @@
+import { createPlannerIncrementalValidator } from './plannerIncremental.ts';
 import { indexMarkdown, insideMarkdownMath, parseMarkdownTree, type MarkdownIndex } from './markdown.ts';
 import type { Node } from 'unist';
 import type { Code, ListItem } from 'mdast';
@@ -31,6 +32,10 @@ export type MarkdownPlanner = {
   markdown: MarkdownIndex;
 };
 export type SourcePatch = { range: SourceRange; expected: string; text: string };
+
+const incremental = createPlannerIncrementalValidator();
+export const incrementallyValidatePlanner = incremental.validate;
+export const plannerValidationKind = incremental.kind;
 
 const identity = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const rangeOf = (node: Node): SourceRange => ({ start: node.position!.start.offset!, end: node.position!.end.offset! });
@@ -327,8 +332,9 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     }
     for (const child of childrenOf(node)) pending.push(child);
   }
+  const parsed = incremental.seal({ ...model, markdown });
   finishMarkdownMeasurement('synchronousParse', started, source.length);
-  return { ...model, markdown };
+  return parsed;
 }
 
 export const plannerEntries = (model: Pick<MarkdownPlanner, 'days' | 'undated'>) => [...model.days, ...model.undated].flatMap(group => group.entries);
@@ -354,7 +360,7 @@ export function applyPlannerEdits(model: MarkdownPlanner, current: string, patch
   }
   let source = current;
   for (const patch of sorted.reverse()) source = source.slice(0, patch.range.start) + patch.text + source.slice(patch.range.end);
-  const next = parseMarkdownPlanner(source);
+  const next = incrementallyValidatePlanner(model, source) ?? parseMarkdownPlanner(source);
   if (!plannerWritable(next)) throw new Error(`Edit would produce invalid planner content: ${next.issues.filter(issue => issue.severity === 'error').map(issue => issue.message).join(' ')}`);
   if (next.documentId !== model.documentId) throw new Error('Structured edits cannot change document identity.');
   return next;

@@ -9,7 +9,7 @@ import { runWritingOperation, type WritingOperation } from './journalWriting.ts'
 
 export type JournalWork = { kind: 'parse'; source: string } | { kind: 'materialize' | 'upgrade' | 'upgrade-writing'; document: TodoDocument } | { kind: 'passage'; source: string; range: SourceRange; markdown: string; links: MarkdownLinkPreparation[] } | { kind: 'writing'; source: string; operation: WritingOperation };
 export type JournalWorkRequest = JournalWork & { id: number; profile?: boolean };
-export type JournalWorkResult = ({ id: number; ok: true; model: MarkdownPlanner; checkboxChanges?: number } | { id: number; ok: false; error: string }) & { workerMs?: number };
+export type JournalWorkResult = ({ id: number; ok: true; model: MarkdownPlanner; checkboxChanges?: number } | { id: number; ok: false; error: string }) & { workerMs?: number; validation?: 'full' | 'incremental' };
 
 export function runJournalWork(request: JournalWorkRequest): JournalWorkResult {
   try {

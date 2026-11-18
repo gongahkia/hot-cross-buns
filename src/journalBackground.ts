@@ -32,7 +32,10 @@ export class JournalBackground {
         const result = event.data, pending = this.pending.get(result.id);
         if (!pending) return;
         finishMarkdownMeasurement(`workerRoundTrip:${pending.operation}`, pending.started);
-        if (pending.started !== undefined && result.workerMs !== undefined) recordMarkdownDuration(`workerWork:${pending.operation}`, result.workerMs);
+        if (pending.started !== undefined && result.workerMs !== undefined) {
+          recordMarkdownDuration(`workerWork:${pending.operation}`, result.workerMs);
+          if (result.validation) recordMarkdownDuration(`workerValidation:${pending.operation}:${result.validation}`, result.workerMs);
+        }
         this.pending.delete(result.id); pending.cleanup();
         if (result.ok) pending.resolve(result); else pending.reject(new Error(result.error));
       };
