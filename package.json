@@ -43,7 +43,10 @@
     "unified": "^11.0.5"
   },
   "overrides": {
-    "esbuild": "npm:esbuild-wasm@^0.25.12"
+    "esbuild": "npm:esbuild-wasm@^0.25.12",
+    "micromark-extension-math": {
+      "katex": "$katex"
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
