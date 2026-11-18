@@ -7,14 +7,16 @@ Planner.md remains exact source. Parsing a construct does not imply that every v
 | Paragraphs, headings, emphasis, strong, strikethrough, inline code | Yes | Yes | Yes | Markdown source / body draft |
 | Soft and hard breaks, escapes, entities, Unicode | Yes | Yes | Yes | Markdown source / body draft |
 | Ordered lists, nested lists, task lists, blockquotes, thematic breaks | Yes | Yes | Yes; body checkboxes are read-only | Markdown source / body draft; format-2 outlines have task controls |
-| Fenced and indented code | Yes | Yes | Literal code; no highlighting yet | Markdown source / body draft |
+| Fenced and indented code | Yes | Yes | Lazy highlighting for registered common languages; exact text fallback | Markdown source / body draft |
 | Inline links and autolinks | Yes | Yes | Safe HTTP(S), mail and fragment links | Markdown source / body draft |
 | Reference links | Yes | Yes, document-wide | Yes, including definitions outside the body | Markdown source / body draft |
 | GFM tables and alignment | Yes | Yes | Yes | Markdown source / body draft |
 | GFM footnotes | Yes | Yes, document-wide | Numbered references, definitions and return links | Markdown source / body draft |
 | Images | Yes | Yes | Description and explicit HTTP(S) image loading; no automatic fetch | Markdown source / body draft |
 | Raw HTML | Yes | Yes | Literal source; never executed | Markdown source / body draft |
-| Callouts, mathematics, Mermaid | Yes | Source retained | Rich processing in progress | Markdown source / body draft |
+| Callouts | Yes | Render-only quote extension | Neutral callouts, optional native folding | Markdown source / body draft |
+| Mathematics | Yes | Render-only `$$` extension and math/latex/tex code fences | Lazy, bounded KaTeX with MathML accessibility | Markdown source / body draft |
+| Mermaid | Yes | Mermaid code fences | Lazy sandboxed diagram or source fallback | Markdown source / body draft |
 | Entry and heading navigation, backlinks, link suggestions | Yes | Document-wide entry, heading and actual backlink indexes | Cross-view navigation, heading deep links and collapsed linked mentions | Contextual link picker while editing Markdown |
 
 ## Shared grammar and rendering data
@@ -26,6 +28,16 @@ Render trees are capped at 32 levels, 2,000 nodes per preview, 40,000 source cha
 Saved body previews use immutable render trees from the planner's parse, including after worker adoption. Source references map each projected body block to that tree; repeated lookups reuse one document-scoped mapping. Local draft parsing uses the same grammar and document reference context. Appended reference context is excluded from preview output; unfinished code fences and HTML retain their original content instead of swallowing that context.
 
 Body footnotes use instance-scoped DOM identities with keyboard-focusable destinations and return links for each occurrence. Remote images require an explicit click, use no-referrer requests and retain retry controls on failure. Raw HTML stays literal and unsupported URL schemes stay inert.
+
+## Rich processing
+
+Code and math processing use a separate rendering worker, leaving the journal validation worker independent. Code highlighting accepts at most 12,000 characters, 3,000 output nodes and 32 levels; formulas accept at most 2,000 characters, 100 macro expansions and size 10. Output is capped at 500,000 characters, with eight outstanding requests and a three-second worker deadline. Worker failures or limits retain exact source. Thirty-two cached results (at most 1,000,000 source/output characters) reuse unchanged code/formulas across document revisions. Identical pending work is deduplicated, and offscreen content waits until it approaches the viewport.
+
+The math rendering extension supports `$$x_i$$`, standalone double-dollar blocks and `math`, `latex` or `tex` code fences. Single dollar signs remain literal currency text. Escaped delimiters and code stay literal. Container prefixes and line endings map back to original UTF-16 ranges. Reference definitions outside a math-containing paragraph remain available, while links inside math do not become backlinks. This is a render-only extension of the shared Markdown model: it does not reinterpret the version-1/2 planning grammar, entry metadata or canonical source. KaTeX receives `trust: false`, a fresh macro environment and bounded expansion; its code and styles load only for visible formulas.
+
+Callouts use `> [!note] Title` (including custom types); `+`/`-` after the marker controls initial folding. Their content keeps normal Markdown rendering and uses the existing neutral surface, with no outline-menu actions.
+
+Mermaid uses a bundled classic script in an opaque `sandbox="allow-scripts"` frame. Source arrives through `postMessage`, never interpolated into the frame's HTML. Rendering uses strict security, disabled diagram-supplied configuration, at most 6,000 characters, 120 line/statement separators and 100 edges. Frame CSP blocks connections, external images, forms and base URL changes. Load and processing deadlines retain downloadable/editable source on failure. The optional Mermaid asset is about 5.5 MB before compression; it is not fetched for collapsed notes or offscreen diagrams. A frame plus input/complexity limits isolates document access, but is not a cross-browser guarantee of separate-process CPU scheduling.
 
 ## Live body blocks
 
@@ -45,7 +57,6 @@ Root prose and scratchpad link destinations open a focused passage using the sam
 
 ## Remaining implementation and acceptance
 
-- Cache unchanged block rendering across revisions after measuring the invalidation and copying costs.
-- Add lazy syntax highlighting, callouts, bounded mathematics and isolated Mermaid, retaining safe source fallback.
+- Measure general block-cache invalidation and copying costs; unchanged code/formula rendering is already cached.
 - Measure parsing, worker message copying, React commit work and durable saving separately on 1,000- and 10,000-entry journals. Evaluate revision patches and incremental parsing against the complete parser, including distant references, fences and section changes.
 - Verify the final UI at desktop and phone sizes and run the repository's full verification command. Keep README.md unchanged.
