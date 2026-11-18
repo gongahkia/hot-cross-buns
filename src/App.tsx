@@ -1,10 +1,13 @@
 import { OutlineDocumentContext } from './components/OutlineEditor';
 import { OutlineUpgrade } from './components/OutlineUpgrade';
 import { MarkdownPassage } from './components/MarkdownPassage';
-import { markdownFragment, markdownNavigation, prepareMarkdownChange, type MarkdownLinkPreparation, type MarkdownTarget } from './markdownNavigation';
+import { markdownFragment, markdownNavigation, prepareMarkdownChange, withMarkdownPreparation, type MarkdownLinkPreparation, type MarkdownTarget } from './markdownNavigation';
 import type { SourceRange } from './markdownPlanner';
-import { editMarkdownPassageAsync, materializeJournalAsync, readJournalAsync, upgradeOutlineJournalAsync } from './journalBackground';
-import { outlineText, refreshItemCompletion, resetDetails, setItemCompletion } from './outline';
+import { editMarkdownPassageAsync, materializeJournalAsync, readJournalAsync, upgradeOutlineJournalAsync, upgradeWritingJournalAsync, writeJournalAsync } from './journalBackground';
+import { detailAt, outlineNodes, outlineText, refreshItemCompletion, resetDetails, setItemCompletion, unfinishedTaskCount } from './outline';
+import { WritingJournal } from './components/WritingJournal';
+import { writingTarget } from './writingPresentation';
+import { writingLocationAt, type WritingOperation } from './journalWriting';
 import { isCanonicalJournal, journalBodyViews, journalModel, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
@@ -328,7 +331,7 @@ export default function App() {
   const [markdownPassage, setMarkdownPassage] = useState<MarkdownTarget | null>(null);
   const [markdownJump, setMarkdownJump] = useState<MarkdownTarget | null>(null);
   const markdownJumpHandler = useRef<(target: MarkdownTarget) => boolean>(() => false);
-  const [outlineUpgrade, setOutlineUpgrade] = useState<{ document: TodoDocument; expected: string; checkboxChanges: number } | null>(null);
+  const [outlineUpgrade, setOutlineUpgrade] = useState<{ document: TodoDocument; expected: string; checkboxChanges: number; writing?: boolean } | null>(null);
   const [scratchPending, setScratchPending] = useState(false);
   const scratchPendingRef = useRef(false);
   const scratchActivity = useRef(-Infinity);
@@ -1130,7 +1133,8 @@ export default function App() {
     jump: (target: MarkdownTarget) => { if (markdownJumpHandler.current(target) && target.fragment) window.history.pushState(null, '', `#${encodeURIComponent(target.fragment)}`); },
     navigate: (url: string) => { const fragment = markdownFragment(url), target = fragment && navigation.byFragment.get(fragment); if (!target) { setMessage('This Markdown link target is no longer available. The link remains in your source.'); return; } if (markdownJumpHandler.current(target)) window.history.pushState(null, '', `#${encodeURIComponent(fragment!)}`); },
   }), [documentData, navigation]);
-  const recursive = journalModel(documentData).format === 2;
+  const unified = journalModel(documentData).format === 3;
+  const recursive = (journalModel(documentData).format ?? 1) >= 2;
   const enableOutlines = () => {
     setBusy(true);
     void (async () => {
@@ -1139,6 +1143,16 @@ export default function App() {
       const upgraded = await upgradeOutlineJournalAsync(before);
       if (serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while preparing outlines. Review the latest journal and try again.');
       setOutlineUpgrade({ ...upgraded, expected });
+    })().catch(error => setMessage(String(error))).finally(() => setBusy(false));
+  };
+  const enableWriting = () => {
+    setBusy(true);
+    void (async () => {
+      await editQueue.current; await journalQueue.current;
+      const before = current.current.document, expected = serializeJournal(before);
+      const upgraded = await upgradeWritingJournalAsync(before);
+      if (serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while preparing unified writing. Review the latest journal and try again.');
+      setOutlineUpgrade({ ...upgraded, expected, writing: true });
     })().catch(error => setMessage(String(error))).finally(() => setBusy(false));
   };
   const priorDocument = previousDocument.current;
@@ -1179,7 +1193,7 @@ export default function App() {
     return { reset: () => { cache.clear(); budget = createProjectionBudget(); }, has: (date: string) => {
       if (!cache.has(date)) {
         if (cache.size >= 128) { cache.clear(); budget = createProjectionBudget(); }
-        const projected = readProjection(() => projectItemsForDate(documentData, date, budget).some(item => !item.completed), undefined);
+        const projected = readProjection(() => projectItemsForDate(documentData, date, budget).some(item => unfinishedTaskCount(item) > 0), undefined);
         cache.set(date, projected.value);
       }
       return cache.get(date);
@@ -1207,10 +1221,10 @@ export default function App() {
     const budget = createProjectionBudget();
     return dates.map(date => ({ date, items: projectItemsForDate(documentData, date, budget) }));
   }, []), [paletteOpen, paletteSearching, activeTab, documentData, selectedDate]);
-  const visibleEarlier = journalDays.filter(day => day.date < today && baseDates.includes(day.date) && day.upcoming.length);
+  const visibleEarlier = journalDays.filter(day => day.date < today && baseDates.includes(day.date) && day.upcoming.some(item => unfinishedTaskCount(item) > 0));
   const earlierCount = pastUnfinishedScope === 'all'
     ? globalEarlierDays.reduce((total, day) => total + day.count, 0)
-    : visibleEarlier.reduce((total, day) => total + day.upcoming.length, 0);
+    : visibleEarlier.reduce((total, day) => total + day.upcoming.reduce((count, item) => count + unfinishedTaskCount(item), 0), 0);
   const earlierDayCount = pastUnfinishedScope === 'all' ? globalEarlierDays.length : visibleEarlier.length;
   const scrollToJournalDate = (date: string, smooth = false) => {
     const viewport = journalViewport.current;
@@ -1355,7 +1369,31 @@ export default function App() {
     await commitDocumentState({ ...current.current, document });
     setMessage('Markdown passage saved.');
   };
+  const saveWriting = async (operation: WritingOperation, expected: string) => {
+    const next = await writeJournalAsync(expected, operation);
+    await saveSource(next.source!, expected);
+  };
+  const toggleWritingTask = (start: number) => {
+    const source = serializeJournal(documentData), target = writingTarget(journalModel(documentData), start);
+    if (!target?.node.checkbox) {
+      const location = writingLocationAt(journalModel(documentData), start);
+      if (location) void saveWriting({ kind: 'toggle', location, start }, source).catch(error => setMessage(String(error)));
+      return;
+    }
+    const change = withMarkdownPreparation((item: TodoItem) => {
+      if (!target.path.length) setItemCompletion(item, !item.completed);
+      else {
+        const node = detailAt(item.details, target.path), completed = !node.completed;
+        for (const child of outlineNodes([node])) if (child.kind !== 'note') child.completed = completed;
+        refreshItemCompletion(item);
+      }
+    }, source);
+    const id = target.entry.id ?? `source:${target.entry.range.start}`;
+    if (target.entry.date) mutateItem(target.entry.date, id, change);
+    else if (target.entry.list) editUndated(target.entry.list, id, change);
+  };
   const commands: PaletteCommand[] = [];
+  if (!unified && !popout) commands.push({ id: 'writing', label: 'Enable unified writing', keywords: 'documents prose checkbox editor', hidden: true, icon: FileInput, run: enableWriting });
   if (!recursive && !popout) commands.push({ id: 'outlines', label: 'Enable deeper outlines', keywords: 'nested children subtasks recursive', hidden: true, icon: FileInput, run: enableOutlines });
   if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: 'Search journal', keywords: 'find filter entries', icon: Search, run: () => openJournalSearch(true) });
   if (!popout && activeTab !== 'scratchpad') commands.push(
@@ -1395,6 +1433,7 @@ export default function App() {
     </Notice>}
     <input ref={importInput} type="file" accept=".md,.markdown,text/markdown,text/plain" hidden aria-label="Import a Planner.md file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab><ViewTab $active={activeTab === 'scratchpad'} aria-current={activeTab === 'scratchpad' ? 'page' : undefined} onClick={() => { setTag(null); setQuery(''); setCompletionFilter('all'); setActiveTab('scratchpad'); }}>Scratchpad</ViewTab></ViewTabs>}
+    {!unified && !popout && <Notice>Use one editor for paragraphs, outlines and tasks in either view.<Button disabled={busy} onClick={enableWriting}>Enable unified writing</Button></Notice>}
     {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0 || scratchPending} conflictCopies={fileSync.conflictCopies.length} onSettings={() => setSettingsOpen(true)}/>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
     {legacyRawDraft !== null && <Notice role="status">An unfinished TXT draft from the old editor is available. <Button type="button" onClick={() => {
@@ -1425,7 +1464,8 @@ export default function App() {
       current.current = journal; setState(journal);
       setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
     }}/></div>
-    {activeTab === 'scratchpad' ? null : activeTab === 'undated' ? <UndatedView recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'undated' ? searchTarget.itemId : undefined} onEditOutline={editUndated} lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
+    {activeTab === 'scratchpad' ? null : unified ? <WritingJournal document={documentData} view={activeTab} dates={journalDays.map(day => day.date)} visibleLists={popout?.kind === 'undated' ? popout.lists : undefined} onWrite={saveWriting} onToggleTask={toggleWritingTask} onCreateList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })} renderDateHeading={date => <DateHeading date={date} today={today} format={dateFormat} highlighted={false} unfinished={projectItemsForDate(documentData, date).reduce((count, item) => count + unfinishedTaskCount(item), 0)} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[date] ?? [] : []}/>}/>
+    : activeTab === 'undated' ? <UndatedView recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'undated' ? searchTarget.itemId : undefined} onEditOutline={editUndated} lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
       onAdd={addUndated}
@@ -1497,7 +1537,7 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeJournal(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
-    <OutlineUpgrade preview={outlineUpgrade} onClose={() => setOutlineUpgrade(null)} onApply={async (document, expected) => { await saveSource(document.source!, expected); setMessage('Deeper outlines enabled.'); }}/>
+    <OutlineUpgrade preview={outlineUpgrade} onClose={() => setOutlineUpgrade(null)} onApply={async (document, expected) => { await saveSource(document.source!, expected); setMessage(outlineUpgrade?.writing ? 'Unified writing enabled.' : 'Deeper outlines enabled.'); }}/>
     <SourceEditor open={sourceOpen} source={serializeJournal(state.document)} onClose={() => setSourceOpen(false)} onSave={saveSource}/>
     {markdownPassage && <MarkdownPassage target={markdownPassage} onClose={() => setMarkdownPassage(null)} onSave={savePassage} onSource={() => { setMarkdownPassage(null); setSourceOpen(true); }}/>}
     <HistoryRecovery open={historyOpen} currentText={historyOpen ? serializeJournal(state.document) : ''} onClose={() => setHistoryOpen(false)} onSettings={() => { setHistoryOpen(false); setSettingsOpen(true); }} onLoad={loadHistory} onRestore={(snapshot, id) => historyAction(snapshot, id, true)} onReview={(snapshot, id) => historyAction(snapshot, id, false)}/>

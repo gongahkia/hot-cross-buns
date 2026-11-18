@@ -1,4 +1,4 @@
-import { Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Circle, CornerDownRight, FileText, IndentDecrease, IndentIncrease, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
@@ -19,12 +19,12 @@ const Control = styled.button`display:grid;place-items:center;min-width:28px;min
 const Title = styled.textarea<{ $done?: boolean }>`display:block;width:100%;min-width:0;min-height:36px;padding:7px 2px;resize:none;overflow:hidden;border:0;border-radius:4px;background:transparent;color:${({ $done }) => $done ? 'var(--muted)' : 'var(--ink)'};font:inherit;font-size:14px;line-height:1.55;text-decoration:${({ $done }) => $done ? 'line-through' : 'none'};caret-color:var(--ink);@media(pointer:coarse){min-height:44px;font-size:16px;}`;
 const Menu = styled.div`position:fixed;z-index:80;display:grid;width:200px;max-height:calc(100dvh - 24px);overflow:auto;padding:5px;border:1px solid var(--line);border-radius:9px;background:var(--surface);box-shadow:0 10px 24px #0003;`;
 const Action = styled.button`display:flex;align-items:center;gap:9px;min-height:40px;padding:7px 9px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;&:hover,&:focus-visible{background:var(--soft);}&:disabled{opacity:.45;cursor:default;}@media(pointer:coarse){min-height:44px;}`;
-const Body = styled.details`margin:4px 0 10px 56px;min-width:0;summary{display:flex;align-items:center;gap:6px;min-height:36px;color:var(--muted);font-size:12px;cursor:pointer;}@media(max-width:540px){margin-left:28px;}@media(pointer:coarse){summary{min-height:44px;}}`;
+const Body = styled.details<{ $document?: boolean }>`margin:${({ $document }) => $document ? '0' : '4px 0 10px 56px'};min-width:0;summary{display:flex;align-items:center;gap:6px;min-height:36px;color:var(--muted);font-size:12px;cursor:pointer;}@media(max-width:540px){margin-left:${({ $document }) => $document ? '0' : '28px'};}@media(pointer:coarse){summary{min-height:44px;}}`;
 const BodyInput = styled.textarea`width:100%;min-height:140px;resize:vertical;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);font:13px/1.6 var(--raw-font);@media(pointer:coarse){font-size:16px;}`;
 const BodyActions = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;button{min-height:36px;}@media(pointer:coarse){button{min-height:44px;}}`;
 const hasDraft = (key: string) => { try { return sessionStorage.getItem(key) !== null; } catch { return false; } };
 
-export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey, expanded = false, blockOnly = false }: { body?: TodoBody[]; label: string; onSave: (markdown: string, block?: number, expectedSource?: string, links?: MarkdownLinkPreparation[]) => void | boolean | Promise<void | boolean>; editRequest?: number; draftKey: string; expanded?: boolean; blockOnly?: boolean }) {
+export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey, expanded = false, blockOnly = false, documentMode = false, onToggleTask }: { body?: TodoBody[]; label: string; onSave: (markdown: string, block?: number, expectedSource?: string, links?: MarkdownLinkPreparation[]) => void | boolean | Promise<void | boolean>; editRequest?: number; draftKey: string; expanded?: boolean; blockOnly?: boolean; documentMode?: boolean; onToggleTask?: (start: number) => void }) {
   const { source, navigation } = useContext(OutlineDocumentContext);
   const markdown = (body ?? []).map(block => block.markdown).join('\n\n');
   const [recovered] = useState(() => {
@@ -44,7 +44,7 @@ export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draft
   const [visible, setVisible] = useState(expanded || !!editRequest || !!recovered);
   const ref = useRef<HTMLDetailsElement>(null);
   const restoreFocus = (block: number | null) => requestAnimationFrame(() => {
-    const button = (block === null ? null : ref.current?.querySelector<HTMLButtonElement>(`[data-block-index="${block}"]`)) ?? ref.current?.querySelector<HTMLButtonElement>('[data-edit-notes]');
+    const button = (block === null ? null : ref.current?.querySelector<HTMLButtonElement>(`[data-block-index="${block}"]`)) ?? ref.current?.querySelector<HTMLButtonElement>('[data-edit-notes],[data-add-writing]');
     button?.focus({ preventScroll: true });
   });
   useEffect(() => { if (editRequest) { if (!editing) { baseline.current = { markdown, label, source }; setDraft(markdown); setActiveBlock(null); } setEditing(true); if (ref.current) ref.current.open = true; } }, [editRequest]);
@@ -64,8 +64,8 @@ export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draft
   const save = () => {
     if (source !== baseline.current.source || markdown !== baseline.current.markdown || label !== baseline.current.label) { setError('The document changed while this draft was open. Download your draft, then cancel to review the latest notes.'); return; }
     if (draft === (activeBlock === null ? markdown : body?.[activeBlock]?.markdown ?? '')) { clear(); setEditing(false); setActiveBlock(null); restoreFocus(activeBlock); return; }
-    if (activeBlock !== null && !body?.[activeBlock]) { setError('This notes block is no longer available. Download your draft, then cancel to review the latest notes.'); return; }
-    expected.current = (replaceMarkdownBody(body, draft, activeBlock ?? undefined) ?? []).map(block => block.markdown).join('\n\n');
+    if (activeBlock !== null && !body?.[activeBlock] && !(documentMode && activeBlock === (body?.length ?? 0))) { setError('This block is no longer available. Download your draft, then cancel to review the latest document.'); return; }
+    expected.current = documentMode && activeBlock === (body?.length ?? 0) ? [...body ?? [], { markdown: draft }].map(block => block.markdown).join('\n\n') : (replaceMarkdownBody(body, draft, activeBlock ?? undefined) ?? []).map(block => block.markdown).join('\n\n');
     setSubmitted(true); setError('The draft stays open until the change is validated. Finish any recurrence-scope review to apply it.');
     void Promise.resolve(onSave(draft, activeBlock ?? undefined, baseline.current.source, usedMarkdownPreparations(draft, pendingLinks.current))).then(applied => { if (applied === true) { clear(); setEditing(false); setSubmitted(false); setActiveBlock(null); setError(''); restoreFocus(activeBlock); } }).catch(error => { setSubmitted(false); setError(String(error)); });
   };
@@ -85,15 +85,15 @@ export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draft
   };
   const original = activeBlock === null ? baseline.current.markdown : body?.[activeBlock]?.markdown ?? '';
   const editor = <>
-    <BodyInput ref={input} autoFocus data-markdown-body-editor aria-label={`Markdown notes for ${label}`} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); event.stopPropagation(); openLinks(); } if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); } }}/>
+    <BodyInput ref={input} autoFocus data-markdown-body-editor aria-label={`Markdown ${documentMode ? 'for' : 'notes for'} ${label}`} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); event.stopPropagation(); openLinks(); } if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); } }}/>
     {linkOpen && navigation && <MarkdownLinkPicker navigation={navigation} onSelect={insertLink} onClose={() => { setLinkOpen(false); input.current?.focus(); }}/>}
     {error && <p role="status">{error}</p>}
-    <BodyActions><Button type="button" onClick={save}>Save notes</Button>{navigation && <Button type="button" onMouseDown={event => event.preventDefault()} onClick={openLinks}>Insert link</Button>}<Button type="button" onClick={() => downloadTextFile(draft, 'Planner-notes-draft.md')}>Download notes draft</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(false); setActiveBlock(null); setSubmitted(false); setError(''); setLinkOpen(false); restoreFocus(activeBlock); }}>Cancel notes edit</Button></BodyActions>
-    <div aria-label="Live Markdown preview"><MarkdownBody markdown={draft}/></div>
+    <BodyActions><Button type="button" onClick={save}>{documentMode ? 'Save' : 'Save notes'}</Button>{navigation && <Button type="button" onMouseDown={event => event.preventDefault()} onClick={openLinks}>Insert link</Button>}<Button type="button" onClick={() => downloadTextFile(draft, documentMode ? 'Planner-writing-draft.md' : 'Planner-notes-draft.md')}>{documentMode ? 'Download draft' : 'Download notes draft'}</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(false); setActiveBlock(null); setSubmitted(false); setError(''); setLinkOpen(false); restoreFocus(activeBlock); }}>{documentMode ? 'Cancel' : 'Cancel notes edit'}</Button></BodyActions>
+    <div aria-label="Live Markdown preview"><MarkdownBody markdown={draft} documentMode={documentMode}/></div>
   </>;
-  return <Body ref={ref} open={expanded || !!editRequest || !!recovered || undefined} onToggle={event => setVisible(event.currentTarget.open)} data-journal-editor="true" data-editor-dirty={editing && (draft !== original || source !== baseline.current.source) ? 'true' : 'false'}>
-    <summary><FileText size={14}/>{markdown ? 'Notes' : 'Add notes'}</summary>
-    {editing && activeBlock === null ? editor : visible ? <><MarkdownBody markdown={markdown} body={body} label={label} onEditBlock={index => begin(index)} activeBlock={editing ? activeBlock : null} editor={editor}/>{!editing && !blockOnly && <BodyActions><Button data-edit-notes type="button" onClick={() => begin(null)}>Edit notes</Button></BodyActions>}</> : null}
+  return <Body as={documentMode ? 'section' : 'details'} $document={documentMode} ref={ref} open={documentMode ? undefined : expanded || !!editRequest || !!recovered || undefined} onToggle={documentMode ? undefined : (event: SyntheticEvent<HTMLDetailsElement>) => setVisible(event.currentTarget.open)} data-journal-editor="true" data-editor-dirty={editing && (draft !== original || source !== baseline.current.source) ? 'true' : 'false'}>
+    {!documentMode && <summary><FileText size={14}/>{markdown ? 'Notes' : 'Add notes'}</summary>}
+    {editing && activeBlock === null ? editor : documentMode || visible ? <><MarkdownBody markdown={markdown} body={body} label={label} onEditBlock={index => begin(index)} activeBlock={editing ? activeBlock : null} editor={editor} onToggleTask={editing ? undefined : onToggleTask} documentMode={documentMode}/>{editing && documentMode && activeBlock === (body?.length ?? 0) && editor}{!editing && (documentMode ? <BodyActions><Button data-add-writing type="button" onClick={() => begin(body?.length ?? 0)}>{body?.length ? 'Add writing' : 'Start writing'}</Button></BodyActions> : !blockOnly && <BodyActions><Button data-edit-notes type="button" onClick={() => begin(null)}>Edit notes</Button></BodyActions>)}</> : null}
   </Body>;
 }
 

@@ -6,7 +6,7 @@ Expensive browser validation and edit preparation run in a bounded worker, with 
 
 ## Editing and content ownership
 
-The unified-writing transition is tracked in [UNIFIED_WRITING_PLAN.md](UNIFIED_WRITING_PLAN.md). The format-3 engine supports tasks and plain outlines in either location through an explicit upgrade; the editor and calendar integration are still in progress. Existing versions 1/2 keep their current UI and interpretation until upgraded.
+The unified-writing transition is tracked in [UNIFIED_WRITING_PLAN.md](UNIFIED_WRITING_PLAN.md). Format-3 dates and undated groups use the same direct block editor, allowing paragraphs, headings, rich blocks and optional task outlines without a Notes container. Attached bodies remain visible with their entry. **Enable unified writing** offers a full source preview, original download and undo; existing versions 1/2 retain their interpretation until that explicit upgrade. Quick-capture and calendar integration are still in progress.
 
 `journalWriting.ts` exposes ordered source blocks for a date, undated group or scratchpad, direct fragment edits and rich Markdown insertion. It rejects edits that change group boundaries or reinterpret entries outside the selection. Format-3 capture promotion inserts exact selected Markdown and optionally removes the selection in one validated source operation, retaining paragraphs, headings, nested checkboxes, fences and Unicode rather than mapping each line to a title. The existing storage path prepares this work in the parser worker and compares the complete source and revisions before committing; legacy capture mappings remain limited to older formats.
 

@@ -253,6 +253,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
       for (const char of marker[0]) column += char === '\t' ? 4 - column % 4 : 1;
       const entry: PlannerEntry = { ...base, details: [], indent: ' '.repeat(column),
         ...(section === 'Dated' ? { date: group.name } : { list: group.name }) };
+      if (model.format === 3) renderRanges.push(entry.range);
       if ((model.format ?? 1) >= 2) {
         const body = bodyBlocks(item, true);
         if (body.length) entry.body = body;
