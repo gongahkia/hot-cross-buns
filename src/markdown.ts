@@ -82,7 +82,7 @@ function compactNode(node: Nodes, budget: Budget, depth = 0): MarkdownNode {
 export function indexMarkdown(root: Root, selected: MarkdownRange[] = [], source = ''): MarkdownIndex {
   const definitions: MarkdownIndex['definitions'] = Object.create(null), footnotes: MarkdownIndex['footnotes'] = Object.create(null);
   const blocks: MarkdownIndex['blocks'] = Object.create(null), headings: MarkdownHeading[] = [], links: MarkdownLink[] = [];
-  const wanted = new Set(selected.map(markdownKey)), slugs = new Map<string, number>();
+  const wanted = new Set(selected.map(markdownKey)), slugs = new Map<string, number>(), usedSlugs = new Set<string>();
   const budget = { remaining: MARKDOWN_RENDER_LIMITS.modelNodes };
   const context: string[] = [];
   let contextLength = 0, blockCount = 0, truncated = false;
@@ -97,9 +97,13 @@ export function indexMarkdown(root: Root, selected: MarkdownRange[] = [], source
       else truncated = true;
     }
     if (node.type === 'heading') {
-      const text = markdownText(node), base = headingSlug(text), count = slugs.get(base) ?? 0;
+      const text = markdownText(node), base = headingSlug(text);
+      let count = slugs.get(base) ?? 0;
+      while (usedSlugs.has(count ? `${base}-${count}` : base)) count++;
       slugs.set(base, count + 1);
-      headings.push({ id: count ? `${base}-${count}` : base, text, range });
+      const id = count ? `${base}-${count}` : base;
+      usedSlugs.add(id);
+      headings.push({ id, text, range });
     }
     if (node.type === 'link') links.push({ url: node.url, text: markdownText(node), range });
     if (node.type === 'linkReference') references.push(node);

@@ -35,6 +35,8 @@ Block edits retain each sibling's source identity. Removing a block patches only
 
 ## Tests
 
+The navigation foundation in `markdownNavigation.ts` maps entry/heading targets to owning dated or undated entries, resolves encoded Unicode fragments, records actual inline/reference backlinks, and retains exact source destinations for prose/scratchpad links. Heading identities remain distinct even when duplicate suffixes collide with literal numbered titles. Suggestions expose unpersisted entries without inventing permanent links; missing IDs must be inserted atomically with the referring edit against the same full-source baseline. Navigation controls are still being integrated.
+
 `tests/markdown.test.mjs` exercises curated CommonMark/GFM examples, document-wide references, immutable render-tree reuse, BOM and all supported line endings, heading identities, hostile URLs/labels, rendering limits, and 120 deterministic source edits across nested outlines, references, fences and Unicode. `markdown-render.spec.ts` checks actual saved rendering, alignment, reference/footnote navigation, opt-in image requests, inert unsafe content and phone overflow. `markdownPlanner`, `journalDocument`, `outline` and background-worker tests separately cover planning semantics, exact edits, source ownership, validation and worker adoption. The curated corpus is not a claim of complete CommonMark conformance or Obsidian/Notion extension compatibility.
 
 ## Remaining implementation and acceptance
