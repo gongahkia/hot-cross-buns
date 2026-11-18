@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import {syncState} from './sync-helpers';
 import { runCommand } from './commands';
 
 const fixture = '---\nhcb-format: 3\ndocument-id: capture-window\n---\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\nA **shared capture**.\n';
@@ -92,6 +93,7 @@ test('capture blocks copy or move with Markdown structure and one atomic undo', 
   await load(page, fixture.replace('A **shared capture**.\n', 'A **paragraph**.\n\n- [x] Parent\n  - [x] Child\n\n~~~js\nconst retained = "🥐";\n~~~\n'));
   await runCommand(page, 'Open Scratchpad');
   const capture = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  const before=(await syncState(page,'current')).document.source;
   await capture.getByRole('button', { name: 'Move block 2 from Scratchpad', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Move to undated', exact: true }).click();
   const destination = page.getByRole('dialog', { name: 'Move Markdown to an undated document', exact: true });
@@ -99,14 +101,17 @@ test('capture blocks copy or move with Markdown structure and one atomic undo', 
   await destination.getByRole('button', { name: 'Copy content', exact: true }).click();
   await expect(destination).not.toBeVisible();
   await expect(capture.getByRole('checkbox', { name: 'Reopen Parent', exact: true })).toBeChecked();
+  const copied=(await syncState(page,'current')).document.source;
   await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(async()=>(await syncState(page,'current')).document.source).toBe(before);
   await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect.poll(async()=>(await syncState(page,'current')).document.source).toBe(copied);
   await capture.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   const inbox = page.getByRole('region', { name: 'Document for Inbox', exact: true });
   await expect(inbox.getByRole('checkbox', { name: 'Reopen Parent', exact: true })).toBeChecked();
   await expect(inbox.getByRole('checkbox', { name: 'Reopen Child', exact: true })).toBeChecked();
-  await page.getByRole('button', { name: 'Undo scratchpad conversion', exact: true }).click();
+  await page.keyboard.press('ControlOrMeta+z');
   await expect(inbox.getByRole('checkbox')).toHaveCount(0);
   await runCommand(page, 'Open Scratchpad');
   await capture.getByRole('button', { name: 'Move block 3 from Scratchpad', exact: true }).click();
