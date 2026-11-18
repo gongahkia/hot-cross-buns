@@ -6,6 +6,7 @@ import { parseSpan, validDate, type TodoReplacement, type TodoSpan } from './tod
 import { parseTimeBlock } from './timeBlock.ts';
 import { MAX_IMPORT_BYTES, MAX_IMPORT_LINES } from './importLimits.ts';
 import { MAX_OUTLINE_DEPTH, outlineNodes, taskChildren } from './outline.ts';
+import { finishMarkdownMeasurement, startMarkdownMeasurement } from './markdownMeasurements.ts';
 
 export type SourceRange = { start: number; end: number };
 export type PlannerIssue = { code: string; message: string; range: SourceRange; severity: 'error' | 'warning' };
@@ -69,6 +70,7 @@ function assertSize(source: string) {
 
 /** project planning semantics without serializing or normalizing the original Markdown. */
 export function parseMarkdownPlanner(source: string): MarkdownPlanner {
+  const started = startMarkdownMeasurement();
   assertSize(source);
   if (source.startsWith('\uFEFF\uFEFF')) throw new Error('Markdown permits only one leading UTF-8 byte-order mark. Keep the original source for recovery.');
   const root = parseMarkdownTree(source);
@@ -317,6 +319,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     }
     for (const child of childrenOf(node)) pending.push(child);
   }
+  finishMarkdownMeasurement('synchronousParse', started, source.length);
   return { ...model, markdown };
 }
 

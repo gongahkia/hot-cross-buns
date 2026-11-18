@@ -59,6 +59,7 @@ test('projected body references reuse immutable render trees without reparsing n
   assert.equal(views[body.sourceRef], model.markdown.blocks[markdownKey(model.days[0].entries[0].body[0].range)]);
   assert.equal(journalBodyViews(document), views);
   assert.ok(Object.isFrozen(views));
+  assert.equal(materializeJournal(structuredClone(document)), document, 'unchanged projections reuse the exact validated document and body trees');
 });
 
 test('block edits retain sibling objects and source identities, including block deletion', () => {

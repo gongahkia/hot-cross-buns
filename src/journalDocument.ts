@@ -312,6 +312,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     if (previous && patch.range.start === patch.range.end && patch.range.start === previous.range.end) previous.text += patch.text;
     else merged.push(patch);
   }
+  if (!merged.length) return before;
   const next = applyPlannerEdits(model, source, merged);
   return projectJournal(next).document;
 }

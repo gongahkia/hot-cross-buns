@@ -91,3 +91,11 @@ test('worker materialization and upgrades retain source identity and synchronous
   assert.equal((await materializeJournalAsync(changed)).source, result.model.source);
   assert.equal((await materializeJournalAsync(before)), before);
 });
+
+test('an unchanged working copy reuses its validated model instead of parsing again', () => {
+  const before = createJournal('unchanged-worker');
+  const parsed = runJournalWork({ id: 1, kind: 'parse', source: before.source });
+  const materialized = runJournalWork({ id: 2, kind: 'materialize', document: structuredClone(before) });
+  assert.equal(materialized.model, parsed.model);
+  assert.equal(materialized.model.source, before.source);
+});
