@@ -1,6 +1,6 @@
 import { createElement, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
-import { Pencil } from 'lucide-react';
+import { ArrowRight, Pencil } from 'lucide-react';
 import { headingSlug, markdownKey, MARKDOWN_RENDER_LIMITS, parseMarkdownPreview, safeMarkdownUrl, type MarkdownNode } from '../markdown';
 import { MarkdownDocumentContext } from '../markdownContext';
 import type { TodoBody } from '../todoText';
@@ -9,8 +9,9 @@ import { MarkdownDiagram } from './MarkdownDiagram';
 
 const Content = styled.div<{ $document?: boolean }>`font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-width:0;strong{font-weight:600;}em{font-style:italic;}&& ul{list-style:disc;padding-left:22px;}&& ol{list-style:decimal;padding-left:22px;}&& ul ul{list-style-type:circle;}li:has(>input[type=checkbox]){list-style:none;}li:has(>input[type=checkbox])>p:first-of-type{display:inline;}input[type=checkbox]{margin-right:6px;accent-color:var(--link);}p,ul,ol,blockquote,pre,table{margin:8px 0;}ul,ol{padding-left:22px;}blockquote{padding-left:12px;border-left:1px solid var(--line);color:var(--muted);}pre{max-width:100%;overflow:auto;white-space:pre-wrap;font:12px/1.6 var(--raw-font);}code{font-family:var(--raw-font);}table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;}td,th{padding:5px 8px;border:1px solid var(--line);}a{color:var(--link);text-decoration:underline;text-underline-offset:3px;}h1,h2,h3,h4,h5,h6{font-size:1em;margin:12px 0 6px;scroll-margin-top:80px;}img{display:block;max-width:100%;max-height:480px;object-fit:contain;}[data-footnotes]{margin-top:16px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;}[data-footnotes] li{scroll-margin-top:80px;}sup a{padding:2px;}li:has(>[data-task-control]){list-style:none;}li:has(>[data-task-control])>p:first-of-type{display:inline;}[data-task-control]{display:inline-flex;align-items:center;min-width:32px;min-height:36px;vertical-align:middle;}@media(pointer:coarse){[data-task-control]{min-width:44px;min-height:44px;}}${({ $document }) => $document ? "h1{font-size:1.4em;font-weight:600;margin-top:18px;}h2{font-size:1.2em;font-weight:600;margin-top:16px;}h3,h4,h5,h6{font-weight:600;}&& :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol){padding-left:8px;}&& :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol) :is(ul,ol){padding-left:0;}" : ""}`;
 const ImageButton = styled.button`min-height:36px;padding:4px 0;border:0;background:transparent;color:var(--link);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:3px;@media(pointer:coarse){min-height:44px;}`;
-const Block = styled.div`position:relative;min-width:0;padding-right:32px;[data-block-edit]{opacity:0;}&:hover [data-block-edit],&:focus-within [data-block-edit]{opacity:1;}@media(hover:none){[data-block-edit]{opacity:1;}}@media(pointer:coarse){padding-right:44px;}`;
+const Block = styled.div<{ $move?: boolean }>`position:relative;min-width:0;padding-right:${({ $move }) => $move ? '64px' : '32px'};[data-block-edit]{opacity:0;}&:hover [data-block-edit],&:focus-within [data-block-edit]{opacity:1;}@media(hover:none){[data-block-edit]{opacity:1;}}@media(pointer:coarse){padding-right:${({ $move }) => $move ? '88px' : '44px'};}`;
 const BlockEdit = styled.button`position:absolute;right:0;top:4px;display:grid;place-items:center;width:28px;min-height:32px;padding:4px;border:0;border-radius:4px;background:transparent;color:var(--muted);&:hover,&:focus-visible{background:var(--soft);color:var(--ink);}@media(pointer:coarse){width:44px;min-height:44px;}`;
+const BlockMove = styled(BlockEdit)`right:32px;@media(pointer:coarse){right:44px;}`;
 const Callout = styled.aside`margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--soft);color:var(--ink);&>strong{display:block;font-weight:600;}&>details>summary{min-height:36px;font-weight:600;cursor:pointer;}@media(pointer:coarse){&>details>summary{min-height:44px;}}`;
 
 function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?: string }) {
@@ -21,7 +22,7 @@ function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?
   return <img src={href} alt={alt ?? ''} title={title} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)}/>;
 }
 
-export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, editor, onToggleTask, documentMode = false }: { markdown: string; body?: TodoBody[]; label?: string; onEditBlock?: (index: number) => void; activeBlock?: number | null; editor?: ReactNode; onToggleTask?: (start: number) => void; documentMode?: boolean }) {
+export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, editor, onToggleTask, documentMode = false, onMoveBlock }: { markdown: string; body?: TodoBody[]; label?: string; onEditBlock?: (index: number) => void; activeBlock?: number | null; editor?: ReactNode; onToggleTask?: (start: number) => void; documentMode?: boolean; onMoveBlock?: (index: number, anchor: HTMLButtonElement) => void }) {
   const context = useContext(MarkdownDocumentContext), scope = useId();
   const content = useMemo(() => {
     const saved = body?.map(block => block.sourceRef ? context.bodyViews?.[block.sourceRef] : undefined);
@@ -90,7 +91,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
         default: return <span key={key}>{children()}</span>;
       }
     };
-    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index} tabIndex={-1} data-markdown-start={node.range.start} data-markdown-end={node.range.end}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit></Block> : render(node, index));
+    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index} $move={!!onMoveBlock} tabIndex={-1} data-markdown-start={node.range.start} data-markdown-end={node.range.end}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit>{onMoveBlock && <BlockMove data-block-edit type="button" aria-label={`Move block ${index + 1} from ${label ?? 'document'}`} onClick={event => onMoveBlock(index, event.currentTarget)}><ArrowRight size={14}/></BlockMove>}</Block> : render(node, index));
     const notes: ReactNode[] = [];
     for (let index = 0; index < footnotes.length; index++) {
       const identifier = footnotes[index], note = preview.index.footnotes[identifier];
@@ -98,6 +99,6 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
       notes.push(<li key={identifier} id={footnoteId(identifier)} tabIndex={-1}>{note.type === 'source' ? <pre>{nodeSource.slice(note.range.start, note.range.end)}</pre> : note.children?.map((child, index) => render(child, index, 0, nodeSource))}{references.get(identifier)?.map((id, index) => <a key={id} href={`#${id}`} aria-label={`Back to footnote ${footnotes.indexOf(identifier) + 1} reference ${index + 1}`} onClick={event => { event.preventDefault(); scrollTo(id); }}>Back{index ? ` ${index + 1}` : ''}</a>)}</li>);
     }
     return <>{nodes}{!!notes.length && <section data-footnotes aria-label="Footnotes"><ol>{notes}</ol></section>}</>;
-  }, [markdown, body, context, scope, label, onEditBlock, activeBlock, editor, onToggleTask]);
+  }, [markdown, body, context, scope, label, onEditBlock, activeBlock, editor, onToggleTask, onMoveBlock]);
   return <Content $document={documentMode}>{content}</Content>;
 }

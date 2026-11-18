@@ -1,18 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
-import { runCommand, openScratchpad, closeScratchpad } from './commands';
+import { runCommand } from './commands';
 
 async function blockedPopout(page: Page) {
   await runCommand(page, 'Open view in browser window');
+  const chooser = page.getByRole('dialog', { name: 'Open dated window', exact: true });
+  await chooser.getByRole('button', { name: 'Open window', exact: true }).click();
+  await expect(page.locator('dialog[open][data-state="closed"]')).toHaveCount(0);
 }
 test.beforeEach(async ({ page }) => {
   await page.clock.install();
   await page.addInitScript(() => { window.open = () => null; });
   await page.goto('/');
-  await openScratchpad(page);
 });
 
 test('blocked popouts use a corner toast without moving journal content', async ({ page }) => {
-  const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const editor = page.getByRole('textbox', { name: 'New daily item', exact: true });
   const before = await editor.boundingBox();
   await blockedPopout(page);
   const toast = page.getByRole('status', { name: 'Notification', exact: true });
@@ -59,7 +62,7 @@ test('hover pauses dismissal and the toast fits a narrow viewport', async ({ pag
 });
 
 test('notifications are readable and dismissible above settings dialogs', async ({ page }) => {
-  await closeScratchpad(page); await page.getByRole('button', { name: 'Dated', exact: true }).click();
+  await page.getByRole('button', { name: 'Dated', exact: true }).click();
   await page.evaluate(async () => {
     const pick = async () => {
       const file = await (await navigator.storage.getDirectory()).getFileHandle('occupied.md', { create: true });
@@ -86,6 +89,7 @@ test('keyboard focus pauses dismissal and reduced motion suppresses toast moveme
   const duration = await toast.evaluate(element => getComputedStyle(element).transitionDuration);
   expect(duration.split(',').every(value => parseFloat(value) < 0.001)).toBe(true);
   await toast.getByRole('button', { name: 'Dismiss message', exact: true }).focus();
+  await expect(toast.getByRole('button', { name: 'Dismiss message', exact: true })).toBeFocused();
   await page.clock.fastForward(10000);
   await expect(toast).toBeVisible();
   await page.keyboard.press('Enter');
@@ -94,7 +98,7 @@ test('keyboard focus pauses dismissal and reduced motion suppresses toast moveme
 
 test('browsers without Popover retain a fixed, dismissible notification', async ({ page }) => {
   await page.addInitScript(() => { Reflect.deleteProperty(HTMLElement.prototype, 'showPopover'); });
-  await page.reload(); await openScratchpad(page);
+  await page.reload();
   await blockedPopout(page);
   const toast = page.getByRole('status', { name: 'Notification', exact: true });
   await expect(toast).toBeVisible(); await expect(toast).toHaveCSS('position', 'fixed');

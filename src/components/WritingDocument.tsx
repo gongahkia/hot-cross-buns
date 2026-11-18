@@ -1,19 +1,20 @@
 import { useContext, useMemo, useState } from 'react';
 import { journalModel } from '../journalDocument';
 import { writingBlocks, type WritingLocation, type WritingOperation } from '../journalWriting';
+import type { SourceRange } from '../markdownPlanner';
 import { MarkdownDocumentContext } from '../markdownContext';
 import { writingPresentation } from '../writingPresentation';
 import type { TodoDocument } from '../todoText';
 import { Button, Muted } from '../styles';
 import { MarkdownBodyEditor } from './OutlineEditor';
 
-export function WritingDocument({ document, location, label, onWrite, onToggleTask, readOnly = false }: { document: TodoDocument; location: WritingLocation; label: string; onWrite: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void; readOnly?: boolean }) {
+export function WritingDocument({ document, location, label, onWrite, onToggleTask, readOnly = false, onMoveCapture }: { document: TodoDocument; location: WritingLocation; label: string; onWrite: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void; readOnly?: boolean; onMoveCapture?: (range: SourceRange, anchor: HTMLButtonElement) => void }) {
   const parent = useContext(MarkdownDocumentContext), model = journalModel(document), [limit, setLimit] = useState(200);
   const locationKey = JSON.stringify(location);
   const presentation = useMemo(() => writingPresentation(model, location, limit), [model, locationKey, limit]);
   const context = useMemo(() => ({ ...parent, source: model.source, index: model.markdown, bodyViews: presentation.views, hiddenMetadata: presentation.hiddenMetadata, entryIds: presentation.entryIds }), [parent, model, presentation]);
   return <MarkdownDocumentContext.Provider value={context}>
-    <MarkdownBodyEditor documentMode readOnly={readOnly} label={label} body={presentation.body} draftKey={`hcb-writing-draft:${model.documentId}:${locationKey}`} onToggleTask={onToggleTask} onSave={async (markdown, block, expected, links) => {
+    <MarkdownBodyEditor documentMode readOnly={readOnly} label={label} body={presentation.body} draftKey={`hcb-writing-draft:${model.documentId}:${locationKey}`} onToggleTask={onToggleTask} onMoveBlock={onMoveCapture ? (block, anchor) => { const target = writingBlocks(model, location)[block]; if (target) onMoveCapture(target.range, anchor); } : undefined} onSave={async (markdown, block, expected, links) => {
       if (expected !== model.source || block === undefined) throw new Error('This document changed. Download the draft and review the latest content.');
       if (block === presentation.body.length) {
         await onWrite({ kind: 'append', destination: location, markdown, links }, expected);

@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
 
 const fixture = '---\nhcb-format: 3\ndocument-id: capture-window\n---\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\nA **shared capture**.\n';
-async function load(page: Page) {
+async function load(page: Page, text = fixture) {
   await page.goto('/');
-  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(fixture) });
+  await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(text) });
   await expect(page.getByRole('navigation', { name: 'Views', exact: true }).getByRole('button')).toHaveText(['Dated', 'Undated']);
 }
 
@@ -85,4 +85,37 @@ test('capture retains its cross-window editing lease and an old draft survives t
   await expect(draft).toHaveAttribute('readonly');
   await expect(first.getByRole('button', { name: 'Download draft', exact: true })).toBeVisible();
   await second.close();
+});
+
+test('capture blocks copy or move with Markdown structure and one atomic undo', async ({ page }) => {
+  await page.addInitScript(() => { window.open = () => null; });
+  await load(page, fixture.replace('A **shared capture**.\n', 'A **paragraph**.\n\n- [x] Parent\n  - [x] Child\n\n~~~js\nconst retained = "🥐";\n~~~\n'));
+  await runCommand(page, 'Open Scratchpad');
+  const capture = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  await capture.getByRole('button', { name: 'Move block 2 from Scratchpad', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Move to undated', exact: true }).click();
+  const destination = page.getByRole('dialog', { name: 'Move Markdown to an undated document', exact: true });
+  await destination.getByLabel('Keep source text', { exact: true }).selectOption('copy');
+  await destination.getByRole('button', { name: 'Copy content', exact: true }).click();
+  await expect(destination).not.toBeVisible();
+  await expect(capture.getByRole('checkbox', { name: 'Reopen Parent', exact: true })).toBeChecked();
+  await capture.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
+  await page.getByRole('button', { name: 'Undated', exact: true }).click();
+  const inbox = page.getByRole('region', { name: 'Document for Inbox', exact: true });
+  await expect(inbox.getByRole('checkbox', { name: 'Reopen Parent', exact: true })).toBeChecked();
+  await expect(inbox.getByRole('checkbox', { name: 'Reopen Child', exact: true })).toBeChecked();
+  await page.getByRole('button', { name: 'Undo scratchpad conversion', exact: true }).click();
+  await expect(inbox.getByRole('checkbox')).toHaveCount(0);
+  await runCommand(page, 'Open Scratchpad');
+  await capture.getByRole('button', { name: 'Move block 3 from Scratchpad', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Move to undated', exact: true }).click();
+  await destination.getByRole('button', { name: 'Move content', exact: true }).click();
+  await expect(destination).not.toBeVisible();
+  await expect(capture.getByText('const retained = "🥐";', { exact: true })).toHaveCount(0);
+  await capture.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
+  await expect(inbox.locator('code')).toHaveText('const retained = "🥐";');
+  await page.getByRole('button', { name: 'Undo scratchpad conversion', exact: true }).click();
+  await expect(inbox.locator('code')).toHaveCount(0);
+  await runCommand(page, 'Open Scratchpad');
+  await expect(capture.locator('code')).toHaveText('const retained = "🥐";');
 });

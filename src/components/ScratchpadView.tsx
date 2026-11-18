@@ -13,6 +13,7 @@ import { WritingDocument } from './WritingDocument';
 import { Modal } from './Modal';
 import { SaveRecovery } from './SaveRecovery';
 import { WriteQueue, WriteDiscardedError } from '../writeQueue';
+import type { SourceRange } from '../markdownPlanner';
 
 const Wrap = styled.section`display:flex;flex-direction:column;height:100%;min-height:0;`;
 const Editor = styled.textarea`display:block;width:100%;flex:1;min-height:220px;padding:4px 2px;resize:none;border:0;border-radius:0;background:transparent;color:var(--ink);caret-color:var(--ink);font:inherit;font-size:16px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;&:focus{outline:none;}&:read-only{opacity:.8;}`;
@@ -31,6 +32,7 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
   document?: TodoDocument; onWrite?: (operation: WritingOperation, expected: string) => Promise<void>; onToggleTask?: (start: number) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const unified = !!journal && journalModel(journal).format === 3;
   const [draft, setDraft] = useState('');
   const [editable, setEditable] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -46,6 +48,7 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
   const conversionActive = useRef(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const editor = useRef<HTMLTextAreaElement>(null);
+  const surface = useRef<HTMLElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const current = useRef<ScratchpadState>({ text: '', revision: 0 });
   const writeQueue = useRef<WriteQueue<void> | null>(null);
@@ -160,6 +163,20 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
     else { setList(listNames[0] ?? 'Inbox'); setNewList(''); }
     setDestination(next);
   };
+  const moveCaptureBlock = async (range: SourceRange, anchor: HTMLButtonElement) => {
+    if (!journal || !editable) return;
+    const scratchpad = journalModel(journal).scratchpad;
+    if (!scratchpad) return;
+    const start = range.start - scratchpad.start, end = range.end - scratchpad.start, text = journal.source!.slice(range.start, range.end);
+    const bounds = anchor.getBoundingClientRect();
+    try {
+      const latest = await loadScratchpadState();
+      if (latest.text.slice(start, end) !== text) throw new Error('The capture changed. Reopen Scratchpad and select the content again.');
+      current.current = latest;
+      setSelection({ start, end, text });
+      setContextMenu({ x: Math.max(8, Math.min(bounds.left, innerWidth - 230)), y: Math.max(8, Math.min(bounds.bottom + 4, innerHeight - 150)), keyboard: true });
+    } catch (error) { setMessage(String(error)); }
+  };
   const copySelection = async () => {
     if (!selection) return;
     try { await navigator.clipboard.writeText(selection.text); }
@@ -174,8 +191,8 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
   };
   const convert = async () => {
     if (!destination || !selection || !editable || conversionActive.current) return;
-    const items = mapScratchpadSelection(selection.text,getScratchpadMapping());
-    if (!items.length) { setMessage('Select nonempty text to create an item.'); return; }
+    const items = unified ? [] : mapScratchpadSelection(selection.text,getScratchpadMapping());
+    if (unified ? !selection.text.trim() : !items.length) { setMessage('Select nonempty content to move.'); return; }
     const target = destination === 'dated'
       ? validDate(date) ? { kind: 'dated' as const, date } : null
       : { kind: 'undated' as const, list: newList.trim() || list || 'Inbox' };
@@ -185,30 +202,32 @@ export function ScratchpadView({ active, onPendingChange, listNames, today, befo
     try {
       await queue.current;
       await beforeConvert(); started = true;
-      const result = await convertScratchpadSelection({ start: selection.start, end: selection.end, selected: selection.text, scratchRevision: current.current.revision, destination: target, items, cut: getScratchpadMoveMode() === 'cut' || copyMode === 'cut' });
+      const result = await convertScratchpadSelection({ start: selection.start, end: selection.end, selected: selection.text, scratchRevision: current.current.revision, destination: target, items, cut: unified ? copyMode === 'cut' : getScratchpadMoveMode() === 'cut' || copyMode === 'cut' });
       current.current = result.scratchpad;
       setDraft(result.scratchpad.text); setSelection(null); setDestination(null); setMessage('');
       onJournalCommitted(result.journal,result.undo);
     } catch (error) { setMessage(String(error)); }
     finally { if (started) afterConvert(); conversionActive.current = false; setConverting(false); }
   };
-  return <Wrap aria-label="Quick capture">
+  const dialog = surface.current?.closest('dialog[open]'), bounds = dialog?.getBoundingClientRect();
+  const menuPosition = contextMenu && bounds ? { position: 'absolute' as const, left: Math.max(8, Math.min(contextMenu.x - bounds.left, bounds.width - 230)) + dialog!.scrollLeft, top: Math.max(8, Math.min(contextMenu.y - bounds.top, bounds.height - 150)) + dialog!.scrollTop } : { left: contextMenu?.x, top: contextMenu?.y };
+  return <Wrap ref={surface} aria-label="Quick capture">
     {!editable && loaded && <Note><LockKeyhole size={14}/> {waiting ? 'Taking over the scratchpad…' : 'The scratchpad is open for editing in another window.'} {!waiting && <Button onClick={() => requestEdit(true)}>Take over editing</Button>}</Note>}
-    {journal && journalModel(journal).format === 3 && onWrite ? <WritingDocument document={journal} location={{ kind: 'scratchpad' }} label="Scratchpad" readOnly={!editable} onWrite={onWrite} onToggleTask={onToggleTask}/> : <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>}
-    {contextMenu && createPortal(<ContextMenu ref={menu} role="menu" aria-label="Scratchpad selection actions" style={{ left: contextMenu.x, top: contextMenu.y }}>
+    {journal && unified && onWrite ? <WritingDocument document={journal} location={{ kind: 'scratchpad' }} label="Scratchpad" readOnly={!editable} onWrite={onWrite} onToggleTask={onToggleTask} onMoveCapture={(range, anchor) => { void moveCaptureBlock(range, anchor); }}/> : <Editor ref={editor} aria-label="Scratchpad text" value={draft} readOnly={!editable} onChange={event => save(event.target.value)} onSelect={rememberSelection} onKeyDown={openKeyboardMenu} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onContextMenu={openContextMenu}/>}
+    {contextMenu && createPortal(<ContextMenu ref={menu} role="menu" aria-label="Scratchpad selection actions" style={menuPosition}>
       <MenuAction type="button" role="menuitem" onClick={() => void copySelection()}><Copy aria-hidden="true"/>Copy selection</MenuAction>
       <MenuAction type="button" role="menuitem" onClick={() => openDestination('dated')}><ArrowRight aria-hidden="true"/>Move to dated</MenuAction>
       <MenuAction type="button" role="menuitem" onClick={() => openDestination('undated')}><ArrowRight aria-hidden="true"/>Move to undated</MenuAction>
-    </ContextMenu>, document.body)}
+    </ContextMenu>, dialog ?? document.body)}
     {message && <Note role="status">{message}</Note>}
-    <Modal open={destination !== null} onClose={() => setDestination(null)} title={destination === 'dated' ? 'Move text to a date' : 'Move text to an undated list'} compact>
+    <Modal open={destination !== null} onClose={() => setDestination(null)} title={destination === 'dated' ? unified ? 'Move Markdown to a date' : 'Move text to a date' : unified ? 'Move Markdown to an undated document' : 'Move text to an undated list'} compact>
       <Muted>{selection?.text.trim().slice(0,120)}{(selection?.text.trim().length ?? 0) > 120 ? '…' : ''}</Muted>
       {destination === 'dated'
         ? <Label>Date<Field type="date" aria-label="Destination date" value={date} onChange={event => setDate(event.target.value)}/></Label>
         : <><Label>Existing list<Select aria-label="Destination list" value={list} onChange={event => setList(event.target.value)}>{(listNames.length ? listNames : ['Inbox']).map(name => <option key={name}>{name}</option>)}</Select></Label><Label>Or new list<Field aria-label="New destination list" value={newList} onChange={event => setNewList(event.target.value)} placeholder="Optional new list name"/></Label></>}
-      {getScratchpadMoveMode() === 'ask' && <Label>After creating<Select aria-label="Keep source text" value={copyMode} onChange={event => setCopyMode(event.target.value as 'cut' | 'copy')}><option value="cut">Remove selected text</option><option value="copy">Keep selected text</option></Select></Label>}
-      <Row><Muted>{mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length} {(mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length === 1) ? 'item' : 'items'} will be created.</Muted></Row>
-      <DialogActions><Button onClick={() => setDestination(null)}>Cancel</Button><Button $primary disabled={converting} onClick={() => void convert()}>Create item</Button></DialogActions>
+      {(unified || getScratchpadMoveMode() === 'ask') && <Label>After creating<Select aria-label="Keep source text" value={copyMode} onChange={event => setCopyMode(event.target.value as 'cut' | 'copy')}><option value="cut">Remove selected text</option><option value="copy">Keep selected text</option></Select></Label>}
+      <Row><Muted>{unified ? 'Markdown structure and checkbox states will be retained.' : `${mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length} ${mapScratchpadSelection(selection?.text ?? '', getScratchpadMapping()).length === 1 ? 'item' : 'items'} will be created.`}</Muted></Row>
+      <DialogActions><Button onClick={() => setDestination(null)}>Cancel</Button><Button $primary disabled={converting || !editable} onClick={() => void convert()}>{unified ? copyMode === 'copy' ? 'Copy content' : 'Move content' : 'Create item'}</Button></DialogActions>
     </Modal>
     <SaveRecovery error={saveFailure} text={draft} kind="scratchpad" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={async () => {
       const latest = await loadScratchpadState();
