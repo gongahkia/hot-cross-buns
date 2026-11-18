@@ -9,7 +9,7 @@ async function exported(page:Page){await runCommand(page,'Download Planner.md');
 async function openMeeting(page:Page){await page.getByLabel('Calendar period',{exact:true}).selectOption('day');await page.getByRole('button',{name:`Open Meeting on ${today()}`,exact:true}).click();return page.getByRole('dialog',{name:'Edit calendar entry',exact:true});}
 
 test('calendar stays within Dated, displays canonical periods and preserves source on read',async({page})=>{
- await load(page);await expect(page.getByRole('grid',{name:'Month calendar',exact:true})).toBeVisible();
+ await load(page);await expect(page.getByRole('button',{name:'Add writing',exact:true})).toBeInViewport();await expect(page.getByRole('grid',{name:'Month calendar',exact:true})).toBeVisible();
  await page.getByRole('button',{name:`Show day ${today()}`,exact:true}).click();
  await expect(page.getByLabel('Calendar period',{exact:true})).toHaveValue('day');
  await expect(page.getByRole('button',{name:`Open Meeting on ${today()}`,exact:true})).toContainText('09:00–10:00');
@@ -38,4 +38,12 @@ test('month keyboard navigation and phone day/week layouts stay bounded in both 
  await page.setViewportSize({width:375,height:812});await load(page);const date=page.getByRole('button',{name:`Show day ${today()}`,exact:true});await date.focus();await date.press('ArrowRight');await expect(page.getByRole('button',{name:`Show day ${next()}`,exact:true})).toBeFocused();await page.keyboard.press('Enter');await expect(page.getByLabel('Calendar period',{exact:true})).toHaveValue('day');
  await page.getByLabel('Calendar period',{exact:true}).selectOption('week');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await runCommand(page,'Settings');await page.getByRole('button',{name:'Dark mode',exact:true}).click();await page.keyboard.press('Escape');await expect(page.locator('html')).toHaveAttribute('data-theme','night');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('recurring attached Markdown stays local until scope approval and a single-occurrence reschedule retains it',async({page})=>{
+ const raw=source().replace('repeat: daily; series daily\n  ```\n\n## Undated','repeat: daily; series daily\n  ```\n\n  Daily **context**.\n\n## Undated');
+ await page.goto('/');await page.getByLabel('Import a Planner.md file').setInputFiles({name:'Planner.md',mimeType:'text/markdown',buffer:Buffer.from(raw)});await page.getByRole('button',{name:'Calendar',exact:true}).click();await page.getByLabel('Calendar period',{exact:true}).selectOption('day');await page.getByRole('button',{name:'Next day',exact:true}).click();await page.getByRole('button',{name:`Open Daily on ${next()}`,exact:true}).click();
+ const entry=page.getByRole('dialog',{name:'Edit calendar entry',exact:true});await entry.getByRole('button',{name:'Edit block 1 in 08:00-08:30 Daily',exact:true}).click();const field=entry.getByRole('textbox',{name:'Markdown for 08:00-08:30 Daily',exact:true});await field.fill('An **exception body**.');await entry.getByRole('button',{name:'Save',exact:true}).click();const scope=page.getByRole('dialog',{name:'Choose recurring edit scope',exact:true});await expect(scope).toBeVisible();await scope.getByRole('button',{name:'This item',exact:true}).click();await expect(field).toHaveCount(0);await expect(entry.locator('strong')).toContainText('exception body');
+ await entry.getByRole('button',{name:'More actions for 08:00-08:30 Daily',exact:true}).click();await entry.getByRole('button',{name:'Move…',exact:true}).click();await entry.getByRole('button',{name:'Move 08:00-08:30 Daily',exact:true}).click();await entry.getByRole('button',{name:'Move 08:00-08:30 Daily to today',exact:true}).click();await scope.getByRole('button',{name:'This item',exact:true}).click();await entry.getByRole('button',{name:'Close entry',exact:true}).click();
+ const text=await exported(page);expect(text).toContain('Daily **context**.');expect(text).toContain('An **exception body**.');expect(text).toContain(`replaces: daily on ${next()}`);
 });

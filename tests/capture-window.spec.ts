@@ -99,6 +99,8 @@ test('capture blocks copy or move with Markdown structure and one atomic undo', 
   await destination.getByRole('button', { name: 'Copy content', exact: true }).click();
   await expect(destination).not.toBeVisible();
   await expect(capture.getByRole('checkbox', { name: 'Reopen Parent', exact: true })).toBeChecked();
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.keyboard.press('ControlOrMeta+Shift+z');
   await capture.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   const inbox = page.getByRole('region', { name: 'Document for Inbox', exact: true });

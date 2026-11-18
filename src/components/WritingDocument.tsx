@@ -32,6 +32,6 @@ export function WritingDocument({ document, location, label, onWrite, onToggleTa
       return true;
     }}/>
     {menu && target && <WritingNodeMenu target={target} anchor={menu.anchor} lists={(document.undated??[]).map(list=>list.name)} onClose={()=>setMenu(null)} onEdit={()=>requestEdit()} onChild={()=>requestEdit(true)} onSchedule={target.entry.date && onOpenEntry ? ()=>onOpenEntry(target.entry.id??`source:${target.entry.range.start}`) : undefined} onAction={action=>onWrite({kind:'outline',start:menu.start,action},model.source)}/>}
-    {presentation.total > limit && <p><Muted>{Math.min(limit, presentation.total)} of {presentation.total} blocks shown. </Muted><Button type="button" disabled={limit >= 5000} onClick={() => setLimit(value => Math.min(5000, value + 200))}>Show more</Button></p>}
+    {presentation.total > limit && <p><Muted as="span">{Math.min(limit, presentation.total)} of {presentation.total} blocks shown. </Muted><Button type="button" disabled={limit >= 5000} onClick={() => setLimit(value => Math.min(5000, value + 200))}>Show more</Button></p>}
   </MarkdownDocumentContext.Provider>;
 }

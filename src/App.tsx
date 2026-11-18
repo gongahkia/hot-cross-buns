@@ -646,14 +646,15 @@ export default function App() {
         if (activeTab === 'scratchpad' || document.querySelector('dialog[open]:not([data-command-palette])')) return;
         event.preventDefault(); openJournalSearch(); return;
       }
-      if (document.querySelector('dialog[open]')) return;
+      const dialogs=[...document.querySelectorAll<HTMLDialogElement>('dialog[open]')], captureDialog=dialogs.length===1 && dialogs[0]===scratchCaptureDialog.current;
+      if (dialogs.length && !captureDialog) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         if (exportOpen) return;
         if (event.target instanceof HTMLTextAreaElement && event.target.hasAttribute('data-markdown-body-editor')) return;
         const scratch = event.target instanceof HTMLTextAreaElement && event.target.getAttribute('aria-label') === 'Scratchpad text';
         const captureUndo = feedbackNotice?.kind === 'scratchpad-conversion' && serializeJournal(feedbackNotice.document) === serializeJournal(current.current.document);
         const captureRedo = event.shiftKey && captureReplay.current === serializeJournal(current.current.document) && redoStack.current.length > 0;
-        if (scratch && (scratchPendingRef.current || !captureUndo && !captureRedo)) return;
+        if ((scratch || captureDialog) && (scratchPendingRef.current || !captureUndo && !captureRedo)) return;
         event.preventDefault();
         const target = event.target;
         if (target instanceof HTMLTextAreaElement && target.hasAttribute('data-journal-entry')) target.blur();
@@ -1022,7 +1023,7 @@ export default function App() {
       const raw = await readLinkedText(handle);
       if (create || historyDirectory && !raw) {
         if (raw) throw new Error('This file already contains text. Use Link existing Planner.md to review it.');
-        await fileSync.establish(handle, raw, createJournal(), null, undefined, historyDirectory);
+        await fileSync.establish(handle, raw, createJournal(crypto.randomUUID(),3), null, undefined, historyDirectory);
       } else {
         pendingLink.current = { kind: 'local', handle, historyDirectory, raw };
         setSettingsOpen(false);
@@ -1261,16 +1262,16 @@ export default function App() {
   };
   useLayoutEffect(() => {
     if (!state || !journalViewport.current) return;
-    const key = `${activeTab}:${earlierViewKey}:${expandedEarlier}`;
+    const key = `${activeTab}:${datedPresentation}:${calendarMode}:${earlierViewKey}:${expandedEarlier}`;
     if (positionedView.current === key) return;
     positionedView.current = key;
     const viewport = journalViewport.current;
     viewport.style.paddingBottom = activeTab === 'dated' ? '24px' : '0px';
     viewport.scrollTop = 0;
-    if (activeTab !== 'dated') return;
+    if (activeTab !== 'dated' || calendarActive) return;
     if (expandedEarlier && globalEarlierDays.length) scrollToJournalDate(globalEarlierDays[0].date);
     else if (baseDates.includes(today)) scrollToJournalDate(today);
-  }, [state !== null, activeTab, earlierViewKey, expandedEarlier, today, baseDates, globalEarlierDays]);
+  }, [state !== null, activeTab, datedPresentation, calendarMode, calendarActive, earlierViewKey, expandedEarlier, today, baseDates, globalEarlierDays]);
   const paletteResults = useMemo<PaletteResult[]>(() => {
     if (!paletteOpen || !paletteSearching) return [];
     const needle = query.trim().toLowerCase();
@@ -1297,7 +1298,11 @@ export default function App() {
     if (document.querySelector('[data-editor-dirty="true"]')) { setMessage('Save, download or cancel the open Markdown draft before following another link.'); return false; }
     if (popout && target.itemId && (popout.kind === 'scratchpad' || target.date && popout.kind !== 'dated' || target.list && (popout.kind !== 'undated' || !popout.lists.includes(target.list)))) { setMessage('Open the main journal to follow a link outside this window’s view.'); return false; }
     setTag(null); setQuery(''); setCompletionFilter('all'); setPaletteOpen(false); setDateOpen(false);
-    if (!target.itemId) { setMarkdownPassage(target); return true; }
+    if (!target.itemId) {
+      const location=unified ? writingLocationAt(journalModel(documentData),target.range.start) : undefined;
+      if(location && location.kind!=='scratchpad'){setMarkdownPassage(null);setActiveTab(location.kind);if(location.kind==='dated'){setDatedPresentation('list');setSelectedDate(location.date);setViewMode('day');setExpandedEarlierKey(null);}setMarkdownJump({...target,...(location.kind==='dated'?{date:location.date}:{list:location.list})});return true;}
+      setMarkdownPassage(target); return true;
+    }
     setMarkdownPassage(null);
     const result: PaletteResult = { id: `markdown:${target.itemId}`, itemId: target.itemId, label: target.label, kind: target.date ? 'dated' : 'undated', location: target.date ?? target.list!, context: target.date ?? target.list!, completed: false };
     pendingSearchTarget.current = null; setSearchTarget(result); setActiveTab(result.kind);
@@ -1309,7 +1314,7 @@ export default function App() {
     if (!markdownJump) return;
     let frame = 0, attempts = 0;
     const focus = () => {
-      const row = [...(journalViewport.current?.querySelectorAll<HTMLElement>('[data-search-item-id]') ?? [])].find(row => row.dataset.searchItemId === markdownJump.itemId);
+      const row = markdownJump.itemId ? [...(journalViewport.current?.querySelectorAll<HTMLElement>('[data-search-item-id]') ?? [])].find(row => row.dataset.searchItemId === markdownJump.itemId) : journalViewport.current ?? undefined;
       if (markdownJump.kind !== 'entry') row?.querySelectorAll<HTMLDetailsElement>('details').forEach(details => { details.open = true; });
       const heading = markdownJump.kind === 'heading' ? [...(row?.querySelectorAll<HTMLElement>('[data-markdown-anchor]') ?? [])].find(heading => heading.dataset.markdownAnchor === markdownJump.fragment) : undefined;
       const passage = markdownJump.kind === 'passage' ? [...(row?.querySelectorAll<HTMLElement>('[data-markdown-start]') ?? [])].find(block => Number(block.dataset.markdownStart) <= markdownJump.range.start && Number(block.dataset.markdownEnd) >= markdownJump.range.end) : undefined;
@@ -1504,7 +1509,7 @@ export default function App() {
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
     <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
     {activeTab === 'scratchpad' && scratchpadSurface}
-    {activeTab === 'scratchpad' ? null : calendarActive ? <CalendarView days={calendarProjection.value} mode={calendarMode} selectedDate={selectedDate} today={today} weekStart={weekStart} onShowDay={date=>{setSelectedDate(date);setCalendarMode('day');}} onOpenDocument={openDayDocument} onOpenEntry={(date,entry)=>inspectEntry(date,entry.item)} onToggle={(date,entry)=>mutateItem(date,entry.item.id,item=>setItemCompletion(item,!item.completed))}/> : unified ? <WritingJournal composeRequest={composeRequest} projectedDays={visibleDays} onOpenEntry={inspectEntry} document={documentData} view={activeTab} dates={journalDays.map(day => day.date)} visibleLists={popout?.kind === 'undated' ? popout.lists : undefined} onWrite={saveWriting} onToggleTask={toggleWritingTask} onCreateList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })} renderDateHeading={date => <DateHeading date={date} today={today} format={dateFormat} highlighted={false} unfinished={projectItemsForDate(documentData, date).reduce((count, item) => count + unfinishedTaskCount(item), 0)} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[date] ?? [] : []}/>}/>
+    {activeTab === 'scratchpad' ? null : calendarActive ? <CalendarView holidays={holidaysEnabled && holidayMode==='view' ? Object.fromEntries(Object.entries(viewHolidays).map(([date,days])=>[date,days.map(day=>day.name)])) : undefined} days={calendarProjection.value} mode={calendarMode} selectedDate={selectedDate} today={today} weekStart={weekStart} onShowDay={date=>{setSelectedDate(date);setCalendarMode('day');}} onOpenDocument={openDayDocument} onOpenEntry={(date,entry)=>inspectEntry(date,entry.item)} onToggle={(date,entry)=>mutateItem(date,entry.item.id,item=>setItemCompletion(item,!item.completed))}/> : unified ? <WritingJournal composeRequest={composeRequest} projectedDays={visibleDays} onOpenEntry={inspectEntry} document={documentData} view={activeTab} dates={journalDays.map(day => day.date)} visibleLists={popout?.kind === 'undated' ? popout.lists : undefined} onWrite={saveWriting} onToggleTask={toggleWritingTask} onCreateList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })} renderDateHeading={date => <DateHeading date={date} today={today} format={dateFormat} highlighted={false} unfinished={projectItemsForDate(documentData, date).reduce((count, item) => count + unfinishedTaskCount(item), 0)} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[date] ?? [] : []}/>}/>
     : activeTab === 'undated' ? <UndatedView recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'undated' ? searchTarget.itemId : undefined} onEditOutline={editUndated} lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}

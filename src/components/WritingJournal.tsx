@@ -15,7 +15,7 @@ export function WritingJournal({ document, view, dates, visibleLists, renderDate
   return view === 'dated' ? <>{dates.map(date => <Document key={date} data-journal-date={date} aria-label={`Document for ${date}`}>
     {renderDateHeading(date)}
     <WritingDocument document={document} onOpenEntry={id=>{const item=projectedDays?.find(day=>day.date===date)?.items.find(item=>item.id===id);if(item)onOpenEntry?.(date,item);}} appendRequest={composeRequest?.date===date ? composeRequest.key : 0} location={{ kind: 'dated', date }} label={date} onWrite={onWrite} onToggleTask={onToggleTask}/>
-    {(projectedDays?.find(day=>day.date===date)?.items??[]).filter(item=>item.projection).map(item=><p key={item.id}><Button onClick={()=>onOpenEntry?.(date,item)}>{item.text}</Button><Muted> · {item.projection?.continuation ? 'continues' : 'repeats'}</Muted></p>)}
+    {(projectedDays?.find(day=>day.date===date)?.items??[]).filter(item=>item.projection).map(item=><p key={item.id}><Button onClick={()=>onOpenEntry?.(date,item)}>{item.text}</Button><Muted as="span"> · {item.projection?.continuation ? 'continues' : 'repeats'}</Muted></p>)}
   </Document>)}</> : <>
     {(document.undated ?? []).filter(list => !visibleLists || visibleLists.includes(list.name)).map(list => <Document key={list.sourceRef ?? list.name} aria-label={`Document for ${list.name}`}>
       <Title>{list.name}</Title>
