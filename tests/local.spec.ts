@@ -973,25 +973,26 @@ test('animates detail progress wedges in both directions, including when the ite
   const circle = () => parent.getByRole('button', { name: /^(Complete|Reopen) Progress task$/ }).locator('span');
   const fill = () => circle().evaluate(element => parseFloat(getComputedStyle(element).getPropertyValue('--circle-progress')));
   const isAnimating = () => circle().evaluate(element => element.getAnimations().some(animation => animation instanceof CSSTransition && animation.transitionProperty === '--circle-progress'));
+  const expectProgressAnimation = () => expect.poll(isAnimating, { intervals: [16] }).toBe(true);
 
   expect(await fill()).toBe(0);
   await parent.getByRole('button', { name: 'Complete detail first step' }).click();
-  expect(await isAnimating()).toBe(true);
+  await expectProgressAnimation();
   await expect(circle()).toHaveCSS('--circle-progress', '50%');
 
   await parent.getByRole('button', { name: 'Reopen detail first step' }).click();
-  expect(await isAnimating()).toBe(true);
+  await expectProgressAnimation();
   await expect(circle()).toHaveCSS('--circle-progress', '0%');
 
   await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
   await parent.getByRole('button', { name: 'Complete detail first step' }).click();
   await expect(circle()).toHaveCSS('--circle-progress', '50%');
   await parent.getByRole('button', { name: 'Complete detail second step' }).click();
-  expect(await isAnimating()).toBe(true);
+  await expectProgressAnimation();
   await expect(circle()).toHaveCSS('--circle-progress', '100%');
 
   await parent.getByRole('button', { name: 'Reopen detail second step' }).click();
-  expect(await isAnimating()).toBe(true);
+  await expectProgressAnimation();
   await expect(circle()).toHaveCSS('--circle-progress', '50%');
 
   await page.emulateMedia({ reducedMotion: 'reduce' });

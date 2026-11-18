@@ -579,10 +579,10 @@ export default function App() {
     editQueue.current = task;
     return task;
   };
-  const edit = (change: (document: TodoDocument) => void, feedback?: DeletionFeedback) => {
+  const edit = (change: (document: TodoDocument) => void, feedback?: DeletionFeedback, signal?: AbortSignal) => {
     const epoch = editEpoch.current;
     return queueDocumentAction(async () => {
-      if (epoch !== editEpoch.current) return;
+      if (epoch !== editEpoch.current || signal?.aborted) return;
       const before = current.current.document;
       let document = cloneDocument(before);
       change(document);
@@ -590,7 +590,7 @@ export default function App() {
       advanceRecurrences(before, document, todayString());
       document = await materializeJournalAsync(document);
       validateVisibleProjection(document);
-      if (epoch !== editEpoch.current) return;
+      if (epoch !== editEpoch.current || signal?.aborted) return;
       if (serializeJournal(current.current.document) !== serializeJournal(before)) throw new Error('The journal changed during validation. Your edit was not applied; review the latest journal and retry.');
       if (serializeJournal(before) === serializeJournal(document)) return;
       const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -1115,6 +1115,7 @@ export default function App() {
     } catch (error) { setFileActionError(String(error)); }
   };
   const documentData = state?.document ?? current.current.document;
+  const outlineContext = useMemo(() => ({ id: journalModel(documentData).documentId!, source: documentData.source! }), [documentData]);
   const recursive = journalModel(documentData).format === 2;
   const enableOutlines = () => {
     setBusy(true);
@@ -1311,7 +1312,7 @@ export default function App() {
   if (!popout) commands.push({ id: 'history', label: 'History and recovery', keywords: 'versions restore backup', hidden: true, icon: History, run: () => { setDateOpen(false); setHistoryOpen(true); } });
   commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
-  return <OutlineDocumentContext.Provider value={journalModel(documentData).documentId!}><Page $dated={activeTab !== 'undated'}>
+  return <OutlineDocumentContext.Provider value={outlineContext}><Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header>
@@ -1460,10 +1461,11 @@ export default function App() {
       holidaysEnabled={holidaysEnabled} onHolidaysEnabledChange={value => { if (!value) holidayImport.current?.abort(); setHolidaysEnabled(value); setHolidaysEnabledState(value); setHolidayStatus(''); }}
       holidayMode={holidayMode} onHolidayModeChange={value => { if (value !== 'saved') holidayImport.current?.abort(); setHolidayMode(value); setHolidayModeState(value); setHolidayStatus(''); }}
       holidayCountry={holidayCountry} onHolidayCountryChange={value => { holidayImport.current?.abort(); setHolidayCountry(value); setHolidayCountryState(value); setViewHolidays({}); setHolidayStatus(''); }}
-      holidayStatus={holidayStatus} onImportHolidays={(country, year) => { holidayImport.current?.abort(); const controller = new AbortController(); holidayImport.current = controller; setHolidayStatus(`Loading ${year} holidays…`); void fetchHolidayYear(country, year, controller.signal).then(({ holidays, source }) => {
+      holidayStatus={holidayStatus} onImportHolidays={(country, year) => { holidayImport.current?.abort(); const controller = new AbortController(); holidayImport.current = controller; setHolidayStatus(`Loading ${year} holidays…`); void fetchHolidayYear(country, year, controller.signal).then(async ({ holidays, source }) => {
         if (controller.signal.aborted) return;
         let added = 0;
-        edit(document => { added = addSavedHolidays(document, holidays, todayString(), newId); });
+        await edit(document => { added = addSavedHolidays(document, holidays, todayString(), newId); }, undefined, controller.signal);
+        if (controller.signal.aborted) return;
         setHolidayStatus(`${added} ${added === 1 ? 'holiday' : 'holidays'} added from ${source}${holidays.length > added ? `; ${holidays.length - added} already present` : ''}.`);
       }).catch(error => { if (!controller.signal.aborted) setHolidayStatus(`Could not add holidays: ${String(error)}`); }).finally(() => { if (holidayImport.current === controller) holidayImport.current = null; }); }}/>
     <FileReview error={fileActionError} linked={!!pendingLink.current} review={review} rawEdit={rawEdit} choices={choices} busy={busy}

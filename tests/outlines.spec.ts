@@ -169,3 +169,26 @@ test('notes changed in another window leave the old body draft recoverable inste
   await body.getByRole('button', { name: 'Cancel notes edit', exact: true }).click();
   expect(await download(page)).toContain('Remote body paragraph');
 });
+
+test('unchanged notes cannot apply an old positional draft after another part of the source changes', async ({ page, context }) => {
+  await load(page);
+  const body = page.getByRole('group', { name: 'Outline for Project', exact: true }).locator('details').first();
+  await body.locator('summary').click();
+  await body.getByRole('button', { name: 'Edit notes', exact: true }).click();
+  const draft = page.getByRole('textbox', { name: 'Markdown notes for Deep #nested', exact: true });
+  await draft.fill('Draft bound to the earlier source.');
+  const other = await context.newPage(); await other.goto('/');
+  const palette = await openCommands(other); await palette.getByRole('combobox').fill('source');
+  await palette.getByRole('option', { name: 'Edit Markdown source', exact: true }).click();
+  const editor = other.getByRole('textbox', { name: 'Markdown source', exact: true });
+  await editor.fill((await editor.inputValue()).replace('Second', 'Second revised elsewhere'));
+  await other.getByRole('button', { name: 'Save Markdown', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Edit detail Second revised elsewhere', exact: true })).toBeVisible();
+  await page.bringToFront();
+  await body.getByRole('button', { name: 'Save notes', exact: true }).click();
+  await expect(body.getByRole('status')).toContainText('document changed while this draft was open');
+  await expect(draft).toHaveValue('Draft bound to the earlier source.');
+  await body.getByRole('button', { name: 'Cancel notes edit', exact: true }).click();
+  const raw = await download(page);
+  expect(raw).toContain('Second revised elsewhere'); expect(raw).not.toContain('Draft bound to the earlier source.');
+});

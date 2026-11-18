@@ -17,32 +17,33 @@ const Action = styled.button`display:flex;align-items:center;gap:9px;min-height:
 const Body = styled.details`margin:4px 0 10px 56px;min-width:0;summary{display:flex;align-items:center;gap:6px;min-height:36px;color:var(--muted);font-size:12px;cursor:pointer;}@media(max-width:540px){margin-left:28px;}@media(pointer:coarse){summary{min-height:44px;}}`;
 const BodyInput = styled.textarea`width:100%;min-height:140px;resize:vertical;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);font:13px/1.6 var(--raw-font);@media(pointer:coarse){font-size:16px;}`;
 const BodyActions = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;button{min-height:36px;}@media(pointer:coarse){button{min-height:44px;}}`;
-export const OutlineDocumentContext = createContext('');
+export const OutlineDocumentContext = createContext({ id: '', source: '' });
 const hasDraft = (key: string) => { try { return sessionStorage.getItem(key) !== null; } catch { return false; } };
 
 function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: { body?: TodoBody[]; label: string; onSave: (markdown: string) => void; editRequest?: number; draftKey: string }) {
+  const { source } = useContext(OutlineDocumentContext);
   const markdown = (body ?? []).map(block => block.markdown).join('\n\n');
   const [recovered] = useState(() => {
-    try { const raw = sessionStorage.getItem(draftKey); if (raw) { const saved = JSON.parse(raw); if (typeof saved.draft === 'string' && typeof saved.base === 'string' && typeof saved.label === 'string') return saved as { draft: string; base: string; label: string }; return { draft: raw, base: '', label: '' }; } }
+    try { const raw = sessionStorage.getItem(draftKey); if (raw) { const saved = JSON.parse(raw); if (typeof saved.draft === 'string' && typeof saved.base === 'string' && typeof saved.label === 'string') return saved as { draft: string; base: string; label: string; source?: string }; return { draft: raw, base: '', label: '', source: '' }; } }
     catch { /* an in-memory draft and download remain available. */ }
     return null;
   });
   const [editing, setEditing] = useState(!!editRequest || !!recovered), [draft, setDraft] = useState(recovered?.draft ?? markdown);
   const [error, setError] = useState(recovered ? 'A previous notes draft was recovered. Review it before saving.' : '');
-  const baseline = useRef({ markdown: recovered?.base ?? markdown, label: recovered?.label ?? label });
+  const baseline = useRef({ markdown: recovered?.base ?? markdown, label: recovered?.label ?? label, source: recovered ? recovered.source ?? '' : source });
   const [submitted, setSubmitted] = useState(false);
   const [visible, setVisible] = useState(!!editRequest || !!recovered);
   const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { if (editRequest) { if (!editing) { baseline.current = { markdown, label }; setDraft(markdown); } setEditing(true); if (ref.current) ref.current.open = true; } }, [editRequest]);
+  useEffect(() => { if (editRequest) { if (!editing) { baseline.current = { markdown, label, source }; setDraft(markdown); } setEditing(true); if (ref.current) ref.current.open = true; } }, [editRequest]);
   useEffect(() => {
     if (!editing || draft === baseline.current.markdown) return;
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ base: baseline.current.markdown, label: baseline.current.label, draft })); }
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ base: baseline.current.markdown, label: baseline.current.label, source: baseline.current.source, draft })); }
     catch { setError('Could not checkpoint these notes. Keep the editor open or download the draft before leaving.'); }
   }, [draft, editing, draftKey]);
   const clear = () => { try { sessionStorage.removeItem(draftKey); } catch { /* the saved document remains available. */ } };
   useEffect(() => { if (submitted && markdown.trim() === draft.trim()) { clear(); setEditing(false); setSubmitted(false); setError(''); } }, [markdown, draft, submitted]);
   const save = () => {
-    if (markdown !== baseline.current.markdown || label !== baseline.current.label) { setError('These notes changed while this draft was open. Download your draft, then cancel to review the latest notes.'); return; }
+    if (source !== baseline.current.source || markdown !== baseline.current.markdown || label !== baseline.current.label) { setError('The document changed while this draft was open. Download your draft, then cancel to review the latest notes.'); return; }
     if (draft === markdown) { clear(); setEditing(false); return; }
     setSubmitted(true); setError('The draft stays open until the change is validated. Finish any recurrence-scope review to apply it.'); onSave(draft);
   };
@@ -51,8 +52,8 @@ function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: 
     {editing ? <>
       <BodyInput autoFocus data-markdown-body-editor aria-label={`Markdown notes for ${label}`} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); } }}/>
       {error && <p role="status">{error}</p>}
-      <BodyActions><Button type="button" onClick={save}>Save notes</Button><Button type="button" onClick={() => downloadTextFile(draft, 'Planner-notes-draft.md')}>Download notes draft</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label }; setDraft(markdown); setEditing(false); setSubmitted(false); setError(''); }}>Cancel notes edit</Button></BodyActions>
-    </> : visible ? <><MarkdownBody markdown={markdown}/><BodyActions><Button type="button" onClick={() => { baseline.current = { markdown, label }; setDraft(markdown); setEditing(true); }}>Edit notes</Button></BodyActions></> : null}
+      <BodyActions><Button type="button" onClick={save}>Save notes</Button><Button type="button" onClick={() => downloadTextFile(draft, 'Planner-notes-draft.md')}>Download notes draft</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(false); setSubmitted(false); setError(''); }}>Cancel notes edit</Button></BodyActions>
+    </> : visible ? <><MarkdownBody markdown={markdown}/><BodyActions><Button type="button" onClick={() => { baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(true); }}>Edit notes</Button></BodyActions></> : null}
   </Body>;
 }
 
@@ -76,7 +77,7 @@ export function OutlineEditor({ item, dated, onEdit: edit, onToggle: toggle, onP
   const [focus, setFocus] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const focusBaseline = useRef(item);
-  const documentId = useContext(OutlineDocumentContext);
+  const { id: documentId } = useContext(OutlineDocumentContext);
   const draftKey = `hcb-body-draft:${documentId}:${item.id}`;
   const priorAddRequest = useRef(addRequest);
   useEffect(() => { if (addRequest !== priorAddRequest.current) { priorAddRequest.current = addRequest; setDraft({ parent: [], index: item.details.length, note: !dated }); setDraftText(''); } }, [addRequest, dated, item.details.length]);
