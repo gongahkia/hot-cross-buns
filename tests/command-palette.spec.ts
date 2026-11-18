@@ -126,7 +126,7 @@ test('palette text editing and composition do not trigger journal undo or comman
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
   const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await input.pressSequentially('download');
-  await input.press('Control+z');
+  await input.press('ControlOrMeta+z');
   await expect(input).not.toHaveValue('download');
   await input.fill('download');
   await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true });
