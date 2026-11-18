@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult, openScratchpad, closeScratchpad } from './commands';
 import { expect, test } from '@playwright/test';
@@ -19,7 +20,7 @@ async function openSelectionMenu(page: import('@playwright/test').Page, start: n
 
 test('scratchpad starts ready to type and right click can copy selected text', async ({ page }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await expect(editor).toBeFocused();
@@ -44,7 +45,7 @@ test('scratchpad starts ready to type and right click can copy selected text', a
 });
 
 test('moves selected plain text into a dated item and undo restores both sides', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await expect(editor).toBeEditable();
@@ -68,7 +69,7 @@ test('moves selected plain text into a dated item and undo restores both sides',
 });
 
 test('settings can copy one selected line into an undated list', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await settings.getByLabel('Selected lines become').selectOption('items');
@@ -90,7 +91,7 @@ test('settings can copy one selected line into an undated list', async ({ page }
 });
 
 test('dated popout edits synchronize with the main window', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Open view in browser window');
   const chooser = page.getByRole('dialog', { name: 'Open dated window' });
   await chooser.getByLabel('Popout start date').fill('2026-10-17');
@@ -112,7 +113,7 @@ test('dated popout edits synchronize with the main window', async ({ page }) => 
 });
 
 test('scratchpad popout takes over editing and updates the main view', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   await expect(page.getByRole('textbox', { name: 'Scratchpad text' })).toBeEditable();
   const popup = await page.context().newPage();
@@ -127,7 +128,7 @@ test('scratchpad popout takes over editing and updates the main view', async ({ 
 });
 
 test('scratchpad survives reload, is exported with Markdown and is retained when browser content wins review', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await editor.fill('Private capture that has not moved');
@@ -163,7 +164,7 @@ test('scratchpad survives reload, is exported with Markdown and is retained when
 });
 
 test('one-title mapping joins selected lines into one portable item', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Hot Cross Buns settings');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByLabel('Selected lines become').selectOption('single');
   await page.getByRole('dialog', { name: 'Hot Cross Buns settings' }).getByRole('button', { name: 'close' }).click();
@@ -179,7 +180,7 @@ test('one-title mapping joins selected lines into one portable item', async ({ p
 });
 
 test('undated popout shows only chosen lists and edits synchronize', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({
     name: 'Planner.md', mimeType: 'text/plain',
     buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nIdea one\n\nLIST: Inbox\nInbox one\n')),
@@ -203,7 +204,7 @@ test('undated popout shows only chosen lists and edits synchronize', async ({ pa
 });
 
 test('independent additions from two windows both survive', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const mainAdd = page.getByRole('textbox', { name: 'New daily item' }).first();
   await mainAdd.fill('Main window item');
   await mainAdd.press('Enter');
@@ -227,7 +228,7 @@ test('independent additions from two windows both survive', async ({ page }) => 
 
 test('scratchpad controls remain reachable on a narrow phone', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text' });
   await expect(editor).toBeVisible();

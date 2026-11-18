@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
@@ -18,7 +19,7 @@ async function documentIn(page: Page) {
 async function importJournal(page: Page, raw: string) {
   // UTC is still November 15; the journal's default Singapore zone is November 16.
   await page.clock.install({ time: new Date('2026-11-15T17:30:00Z') });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
   await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
 }

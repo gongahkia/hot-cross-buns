@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
 
@@ -10,7 +11,7 @@ async function blockedPopout(page: Page) {
 test.beforeEach(async ({ page }) => {
   await page.clock.install();
   await page.addInitScript(() => { window.open = () => null; });
-  await page.goto('/');
+  await openLegacyJournal(page);
 });
 
 test('blocked popouts use a corner toast without moving journal content', async ({ page }) => {

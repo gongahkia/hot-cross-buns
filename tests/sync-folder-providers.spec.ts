@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { openHistory, runCommand } from './commands';
@@ -11,7 +12,7 @@ async function setup(page: Page, provider?: string) {
     Object.assign(window, { showDirectoryPicker: () => navigator.storage.getDirectory() });
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
   });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await runCommand(page, 'Settings'); await page.getByRole('button', { name: provider ? `Link ${provider} folder` : 'Link sync folder', exact: true }).click();
   await expect.poll(async () => (await syncState(page, 'file-sync-ledger'))?.status.kind).toBe('saved');
@@ -202,7 +203,7 @@ test('a projection arriving before its authored history is retained and its late
 test('provider setup stays inside existing folder settings and makes no provider API requests', async ({ page }) => {
   const contacted: string[] = [];
   page.on('request', request => { if (/nextcloud|dropbox|onedrive|microsoftonline/.test(new URL(request.url()).hostname)) contacted.push(request.url()); });
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/'); await runCommand(page, 'Settings');
+  await page.setViewportSize({ width: 390, height: 844 }); await openLegacyJournal(page); await runCommand(page, 'Settings');
   const region = page.getByRole('region', { name: 'File sync', exact: true });
   for (const provider of ['Syncthing', 'Nextcloud', 'Dropbox']) {
     const section = region.getByRole('region', { name: provider, exact: true });

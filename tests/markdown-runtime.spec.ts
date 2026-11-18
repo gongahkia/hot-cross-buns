@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { runCommand, openCommands } from './commands';
+import { runCommand, openCommands, openScratchpad } from './commands';
 import { syncState } from './sync-helpers';
 
 function today() { return new Intl.DateTimeFormat('en-CA',{ timeZone:'Asia/Singapore',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date()); }
@@ -31,7 +31,7 @@ test('existing views persist exact Markdown, rich bodies and the shared scratchp
   const field = page.getByRole('textbox',{ name:'Edit First task',exact:true });
   await field.fill('Edited task'); await field.press('Enter');
   await expect.poll(async()=> (await syncState(page,'current'))?.document.source.includes('Edited task')).toBe(true);
-  await page.getByRole('button',{ name:'Scratchpad',exact:true }).click();
+  await openScratchpad(page);
   const scratch = page.getByRole('textbox',{ name:'Scratchpad text',exact:true });
   await scratch.fill('Shared capture\n\n## Dated\n- [ ] Still capture\n');
   await expect.poll(async()=> (await syncState(page,'current'))?.document.source.endsWith('Shared capture\n\n## Dated\n- [ ] Still capture\n')).toBe(true);
@@ -160,7 +160,7 @@ test('a failed scratchpad save stays recoverable and retries against newer task 
       return put.call(this,value,key);
     };
   });
-  await page.getByRole('button',{name:'Scratchpad',exact:true}).click();
+  await openScratchpad(page);
   await page.getByRole('textbox',{name:'Scratchpad text',exact:true}).fill('Unsaved shared capture');
   const recovery=page.getByRole('dialog',{name:'Unsaved scratchpad',exact:true});
   await expect(recovery.getByRole('textbox',{name:'Unsaved scratchpad text',exact:true})).toHaveValue('Unsaved shared capture');
@@ -199,7 +199,7 @@ test('a failed workspace transition keeps the earlier records and succeeds after
 test('capture promotion has one canonical undo and redo, including keyboard use from the scratchpad', async ({page}) => {
   await page.goto('/'); await importSource(page,source('Capture title\nFollow up\n'));
   const before=(await syncState(page,'current')).document.source;
-  await page.getByRole('button',{name:'Scratchpad',exact:true}).click();
+  await openScratchpad(page);
   const editor=page.getByRole('textbox',{name:'Scratchpad text',exact:true});
   await editor.evaluate(element=>{const field=element as HTMLTextAreaElement;field.focus();field.setSelectionRange(0,field.value.length);field.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Shift'}));});
   await editor.press('Shift+F10');

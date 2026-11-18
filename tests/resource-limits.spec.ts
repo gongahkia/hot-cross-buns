@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { runCommand } from './commands';
 import { expect, test, type Page } from '@playwright/test';
@@ -17,7 +18,7 @@ async function savedTitles(page: Page) {
 }
 
 async function existingJournal(page: Page) {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item', exact: true });
   await add.fill('Keep this journal'); await add.press('Enter');
   await expect.poll(() => savedTitles(page)).toEqual(['Keep this journal']);

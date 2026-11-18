@@ -1,10 +1,11 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test } from '@playwright/test';
 import { openCommands, runCommand } from './commands';
 import { readFile } from 'node:fs/promises';
 
 test('the single launcher exposes the core commands and quick capture', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const header = page.locator('header');
   for (const name of ['Open search', 'Import Planner.md', 'Download Planner.md', 'Open view in browser window', 'Hot Cross Buns settings']) {
     await expect(header.getByRole('button', { name, exact: true })).toHaveCount(0);
@@ -21,7 +22,7 @@ test('the single launcher exposes the core commands and quick capture', async ({
 });
 
 test('filtering supports aliases, empty results and a fresh query on reopen', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const palette = await openCommands(page);
   const input = palette.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await input.fill('  EXPORT  ');
@@ -44,7 +45,7 @@ test('filtering supports aliases, empty results and a fresh query on reopen', as
 });
 
 test('Ctrl K, arrows, Home, End and Enter hand off to settings with focus', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
@@ -72,7 +73,7 @@ test('Ctrl K, arrows, Home, End and Enter hand off to settings with focus', asyn
 });
 
 test('search receives focus, retains its filters and still supports Ctrl F', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Open search');
   const input = page.getByRole('combobox', { name: 'Search commands and journal', exact: true });
   await expect(input).toBeFocused();
@@ -89,7 +90,7 @@ test('search receives focus, retains its filters and still supports Ctrl F', asy
 });
 
 test('import opens the real file chooser and download preserves the whole journal', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const choose = page.waitForEvent('filechooser');
   await runCommand(page, 'Import Planner.md');
   await (await choose).setFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-11-16\n\nPalette import\n- [ ] Keep this detail\n')) });
@@ -105,7 +106,7 @@ test('import opens the real file chooser and download preserves the whole journa
 });
 
 test('scratchpad popouts retain browser activation and their limited commands', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const palette = await openCommands(page);
   await expect(palette.getByRole('option', { name: 'Open Scratchpad', exact: true })).toBeVisible();
   const pending = page.waitForEvent('popup');
@@ -118,7 +119,7 @@ test('scratchpad popouts retain browser activation and their limited commands', 
 });
 
 test('palette text editing and composition do not trigger journal undo or commands', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item', exact: true });
   await add.fill('Keep the journal'); await add.press('Enter');
   await page.keyboard.press('Control+k');
@@ -140,7 +141,7 @@ test('palette text editing and composition do not trigger journal undo or comman
 });
 
 test('rapid close and reopen cancels the previous exit and keeps focus inside', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
@@ -163,7 +164,7 @@ test('rapid close and reopen cancels the previous exit and keeps focus inside', 
 });
 
 test('the historical scale and fade animate and the smooth caret resumes after entry', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item', exact: true }).waitFor();
   await page.evaluate(() => {
     const dialog = document.querySelector<HTMLDialogElement>('dialog[data-command-palette]')!;
@@ -189,7 +190,7 @@ test('the historical scale and fade animate and the smooth caret resumes after e
 
 test('the palette fits phone screens and shortened visual viewports', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   const palette = await openCommands(page);
   await expect(palette.getByRole('option').last()).toBeInViewport();
   await page.setViewportSize({ width: 667, height: 260 });
@@ -203,7 +204,7 @@ test('the palette fits phone screens and shortened visual viewports', async ({ p
 
 test('reduced motion removes the palette transition', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
+  await openLegacyJournal(page);
   const palette = await openCommands(page);
   const durations = await palette.evaluate(element => getComputedStyle(element).transitionDuration.split(',').map(value => parseFloat(value)));
   expect(durations.every(value => value < .001)).toBe(true);

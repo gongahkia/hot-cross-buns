@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { openHistory, runCommand } from './commands';
@@ -101,7 +102,7 @@ async function setup(page: Page, existing = false) {
     if (url.searchParams.get('alt') === 'media') { await route.fulfill({ contentType: 'text/plain', body: remote.text }); return; }
     await route.fulfill({ json: metadata(), headers: { ETag: '"revision-' + remote.version + '"' } });
   });
-  await page.goto('/'); await runCommand(page, 'Settings');
+  await openLegacyJournal(page); await runCommand(page, 'Settings');
   await region(page).getByRole('textbox', { name: 'Google Web OAuth client ID', exact: true }).fill('123-test.apps.googleusercontent.com');
   await region(page).getByLabel('Google Picker API key', { exact: true }).fill('test-key');
   await region(page).getByRole('textbox', { name: 'Google Cloud project number', exact: true }).fill('123');
@@ -132,7 +133,7 @@ async function editOriginal(page: Page, text: string) {
 
 test('Google Drive remains optional and does not contact Google without configuration', async ({ page }) => {
   const requests: string[] = []; page.on('request', request => { if (/google(apis)?\.com/.test(request.url())) requests.push(request.url()); });
-  await page.goto('/'); await runCommand(page, 'Settings');
+  await openLegacyJournal(page); await runCommand(page, 'Settings');
   await expect(region(page).getByRole('button', { name: 'Connect Google Drive', exact: true })).toBeDisabled();
   await expect(page.getByRole('img', { name: 'Syncthing', exact: true })).toBeVisible();
   expect(requests).toEqual([]);

@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { createRevision, parseRevision, revisionText, sha256, type Revision } from '../src/revisionProtocol';
@@ -12,7 +13,7 @@ async function setup(page: Page) {
     const pick = async () => (await folder()).getFileHandle('Planner.md', { create: true });
     Object.assign(window, { showDirectoryPicker: folder, showOpenFilePicker: async () => [await pick()], showSaveFilePicker: pick });
   });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await runCommand(page, 'Settings'); await page.getByRole('button', { name: 'Link sync folder', exact: true }).click();
   await expect.poll(() => disk(page)).toBe(initial);
@@ -107,7 +108,7 @@ test('an existing single-file link upgrades only after the matching folder is se
     const folder = () => navigator.storage.getDirectory(), file = async () => (await folder()).getFileHandle('Planner.md', { create: true });
     Object.assign(window, { showDirectoryPicker: folder, showOpenFilePicker: async () => [await file()], showSaveFilePicker: file });
   });
-  await page.goto('/'); await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
+  await openLegacyJournal(page); await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await runCommand(page, 'Settings'); await page.getByRole('button', { name: 'Create linked Planner.md', exact: true }).click();
   await expect.poll(() => disk(page)).toBe(initial);
   await page.getByRole('button', { name: 'Enable folder revision history', exact: true }).click();
@@ -143,8 +144,8 @@ test('an empty revision file waits for transfer and resumes when its complete en
 });
 
 test('history stays behind palette queries and explains browser-only journals without adding chrome', async ({ page }) => {
-  await page.goto('/'); const palette = await openCommands(page);
-  await expect(palette.getByRole('option')).toHaveCount(5);
+  await openLegacyJournal(page); const palette = await openCommands(page);
+  await expect(palette.getByRole('option')).toHaveCount(6);
   await expect(palette.getByRole('option', { name: 'History and recovery', exact: true })).toHaveCount(0);
   for (const query of ['recovery', 'versions', 'restore']) {
     await palette.getByRole('combobox').fill(query);

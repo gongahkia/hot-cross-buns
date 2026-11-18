@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { expect, test } from '@playwright/test';
 import { openCommands, openScratchpad, closeScratchpad } from './commands';
 
@@ -16,7 +17,7 @@ test('large imports use the parser worker while animation frames continue', asyn
     };
   });
   const raw = `---\nhcb-format: 1\ndocument-id: background-large\n---\n\n## Dated\n\n### 2000-01-01\n\n${Array.from({ length: 5000 }, (_, index) => `- [ ] Task ${index} &amp; context\n  \`\`\`hcb\n  id: task-${index}\n  \`\`\`\n  - [ ] Step ${index}\n`).join('\n')}\n## Undated\n\n### Inbox\n\n## Scratchpad\n`;
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(raw) });
   await closeScratchpad(page); await page.getByRole('button', { name: 'Undated', exact: true }).click();
   await expect(page.getByText('Planner.md imported.', { exact: true })).toBeVisible({ timeout: 15000 });
@@ -39,7 +40,7 @@ test('worker failure falls back to full validation, retains invalid drafts and p
       original.call(this, message, options as StructuredSerializeOptions);
     };
   });
-  await page.goto('/');
+  await openLegacyJournal(page);
   const palette = await openCommands(page);
   await palette.getByRole('combobox').fill('source');
   await palette.getByRole('option', { name: 'Edit Markdown source', exact: true }).click();

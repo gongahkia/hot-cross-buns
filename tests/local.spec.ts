@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { parseJournal } from '../src/journalDocument';
 import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
@@ -50,7 +51,7 @@ async function showJournalDay(page: Page, date: string) {
 }
 
 test('edits a dated journal and exports a portable Planner.md', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Review paper #work');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'More actions for Review paper #work' }).click();
@@ -80,7 +81,7 @@ test('edits a dated journal and exports a portable Planner.md', async ({ page })
 });
 
 test('confirms a move to Done and offers Undo for item and last-detail completion', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Review notes');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'Complete Review notes' }).click();
@@ -101,7 +102,7 @@ test('confirms a move to Done and offers Undo for item and last-detail completio
 
 test('completion confirmation enters and exits on dismissal or timeout', async ({ page }) => {
   test.setTimeout(15000);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('File report');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'Complete File report' }).click();
@@ -120,7 +121,7 @@ test('completion confirmation enters and exits on dismissal or timeout', async (
 });
 
 test('imports, reviews conflicting items, and preserves the file baseline', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const today = dateOffset(0);
   const initial = plannerFixture(`${today}\n\nRead article #idea\n`);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
@@ -137,7 +138,7 @@ test('imports, reviews conflicting items, and preserves the file baseline', asyn
 });
 
 test('flags malformed text and unfinished work on an earlier date', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2021-11-30\n\nTask\n').replace('2021-11-30','2021-11-31')) });
   await expect(page.getByText(/Invalid date heading/)).toBeVisible();
   const yesterday = dateOffset(-1);
@@ -161,7 +162,7 @@ test('offers explicit import and download even when direct file access is availa
   await page.addInitScript(() => {
     (window as Window & { showOpenFilePicker?: () => Promise<FileSystemFileHandle[]> }).showOpenFilePicker = async () => [];
   });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('button', { name: 'Open command palette', exact: true }).click();
   await expect(page.getByRole('option', { name: 'Import Planner.md', exact: true })).toBeVisible();
   await expect(page.getByRole('option', { name: 'Download Planner.md', exact: true })).toBeVisible();
@@ -173,7 +174,7 @@ test('Markdown validation preserves the original, checks edits without saving an
   const today = dateOffset(0);
   const corrected = plannerFixture(`${today}\n\nReview notes\n- [ ] check links\n`);
   const original = corrected.replace('hcb-format: 1','hcb-format: 999');
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(original) });
   const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
   await expect(review.getByText('Check Markdown import')).toBeVisible();
@@ -190,7 +191,7 @@ test('completed recurrence needs explicit identity and actual completion date be
   const yesterday = dateOffset(-1), today = dateOffset(0);
   const corrected = plannerFixture(`${yesterday}\nWater plants\n  @repeat: every 1 day after completion; series plants; occurrence 1\n  @completed: ${yesterday}\n\n`);
   const original = corrected.replace('; series plants; occurrence 1','').replace(`  completed: ${yesterday}\n`,'');
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(original) });
   const review = page.getByRole('dialog', { name: 'Review Planner.md import' });
   await expect(review.getByText(/Repeat rules need/)).toBeVisible();
@@ -206,7 +207,7 @@ test('completed recurrence needs explicit identity and actual completion date be
 });
 
 test('an invalid imported file cannot replace existing journal data', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this item');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-02-28\n\nMissing date\n').replace('2026-02-28','2026-02-30')) });
@@ -220,7 +221,7 @@ test('an invalid imported file cannot replace existing journal data', async ({ p
 
 test('imports and exports an empty date heading without turning it into an item', async ({ page }) => {
   const day = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${day}\n`)) });
   await expect(page.getByRole('dialog', { name: 'Review Planner.md import' })).toHaveCount(0);
   await expect.poll(async () => (await storedJournal(page))?.days.some(entry => entry.date === day && entry.keepEmpty), { timeout: 10000 }).toBe(true);
@@ -233,7 +234,7 @@ test('imports and exports an empty date heading without turning it into an item'
 
 test('keeps mobile lines readable and keyboard controls usable', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Skip to journal' })).toBeFocused();
@@ -262,7 +263,7 @@ test('keeps mobile lines readable and keyboard controls usable', async ({ page }
 });
 
 test('persists a journal edit across reload', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Persisted line');
   await add.press('Enter');
@@ -273,7 +274,7 @@ test('persists a journal edit across reload', async ({ page }) => {
 
 test('collapses details, sorts tasks, and styles completed work', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nAlpha\n- one detail\n\nBeta\n`)) });
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
   await page.getByRole('button', { name: 'Collapse details for Alpha' }).click();
@@ -282,6 +283,9 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
   await expect(page.getByRole('textbox', { name: 'Edit detail one detail' })).toBeVisible();
 
   const todaySection = page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) });
+  await expect.poll(()=>page.getByRole('group',{name:'Alpha',exact:true}).evaluate(element=>element.getAnimations({subtree:true}).some(animation=>animation.playState==='running' || animation.pending))).toBe(false);
+  // center this reorder so dragging does not intentionally scroll to another date.
+  await todaySection.evaluate(element=>element.scrollIntoView({block:'center'}));
   const sourceGrip = page.getByRole('button', { name: 'Drag to reorder Beta' });
   const targetGrip = page.getByRole('button', { name: 'Drag to reorder Alpha' });
   // boundingBox also returns offscreen coordinates after expanding the detail.
@@ -313,7 +317,7 @@ test('collapses details, sorts tasks, and styles completed work', async ({ page 
 });
 
 test('shows a styled calendar and opens move dates beside the actions', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Calendar task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'Previous range' }).click();
@@ -345,7 +349,7 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
   await page.setViewportSize({ width: 1280, height: 1600 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nTransfer me\n- carry this note\n\nStay here\n\n${tomorrow}\n\nDestination task\n`)) });
   await page.getByRole('button', { name: 'Choose date' }).click();
   await selectJournalCalendarDate(page, today);
@@ -397,7 +401,7 @@ test('drags a task onto another date heading and keeps its details', async ({ pa
 
 test('dragging an item between Upcoming and Done updates every detail', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nDone anchor\n\nMove me\n- [x] first\n- [ ] second\n- [ ] third\n\nOpen anchor\n`)) });
   await page.getByRole('button', { name: 'Complete Done anchor' }).click();
   await page.getByRole('button', { name: `Expand done items for ${today}` }).click();
@@ -440,7 +444,7 @@ test('dragging an item between Upcoming and Done updates every detail', async ({
 
 test('tracks detail progress, completes the parent, and round-trips detail markers', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nProgress task\n- [x] first step\n- [ ] second step\n`)) });
   const parent = page.getByRole('group', { name: 'Progress task' });
   await expect(parent.getByRole('button', { name: 'Complete Progress task' })).toHaveAttribute('aria-description', '1 of 2 details done');
@@ -470,7 +474,7 @@ test('tracks detail progress, completes the parent, and round-trips detail marke
 test('edits a time block and recurrence, creates one next item, and keeps both in Planner.md', async ({ page }) => {
   const today = dateOffset(0);
   const next = dateOffset(3);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Water plants #home');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'More actions for Water plants #home' }).click();
@@ -510,7 +514,7 @@ test('an externally completed recurring item advances once when Planner.md is im
   const repeat = '  @repeat: daily; series check-filter-import; occurrence 1';
   const pending = plannerFixture(`${today}\n\nCheck filter\n${repeat}\n- [ ] inspect it\n`);
   const completed = plannerFixture(`${today}\nCheck filter\n${repeat}\n  @completed: ${today}\n- [x] inspect it\n\n`);
-  await page.goto('/');
+  await openLegacyJournal(page);
   const importFile = page.getByLabel('Import a Planner.md file');
   await importFile.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(pending)) });
   await importFile.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(completed)) });
@@ -525,7 +529,7 @@ test('custom anchored recurrence projects its count and stores only completed ex
   const today = dateOffset(0);
   const secondDate = dateOffset(14);
   const thirdDate = dateOffset(28);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await showThirtyOneDays(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Check in');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
@@ -567,7 +571,7 @@ test('an edited Planner.md completion advances a custom series only once', async
   const line = '  @repeat: every 2 weeks on ' + weekday + '; from ' + today + '; series imported-series; occurrence 1; ends after 2';
   const pending = plannerFixture(today + '\n\nCheck filter\n' + line + '\n');
   const completed = plannerFixture(today + '\nCheck filter\n' + line + '\n  @completed: ' + today + '\n\n');
-  await page.goto('/');
+  await openLegacyJournal(page);
   await showThirtyOneDays(page);
   const input = page.getByLabel('Import a Planner.md file');
   await input.setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(pending)) });
@@ -587,7 +591,7 @@ test('an edited Planner.md completion advances a custom series only once', async
 test('custom monthly ordinal and end date survive the repeat editor and Planner.md', async ({ page }) => {
   const today = dateOffset(0);
   const endDate = dateOffset(100);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Committee');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'More actions for Committee' }).click();
@@ -634,7 +638,7 @@ test('date-based repeat presets serialize their selected calendar pattern', asyn
   const weekday = weekdayNames[new Date(today + 'T12:00:00Z').getUTCDay()];
   const day = Number(today.slice(8, 10));
   const ordinal = ['first', 'second', 'third', 'fourth', 'fifth'][Math.ceil(day / 7) - 1];
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Preset item');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   const open = async () => {
@@ -666,7 +670,7 @@ test('date-based repeat presets serialize their selected calendar pattern', asyn
 
 test('moves an undated item into a date and supports undo without losing its detail', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nDraft a talk\n- possible venue\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   await expect(page.getByRole('textbox', { name: 'Edit Draft a talk' })).toBeVisible();
@@ -683,7 +687,7 @@ test('moves an undated item into a date and supports undo without losing its det
 });
 
 test('reorders undated items and details, and deletes a list with undo', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n\nLIST: Inbox\nKeep me\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   const ideas = page.locator('section[aria-label="Ideas"]');
@@ -738,7 +742,7 @@ test('reorders undated items and details, and deletes a list with undo', async (
 });
 
 test('undated item and detail deletions show an undo confirmation and restore their original place', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({
     name: 'Planner.md', mimeType: 'text/plain',
     buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\n- second detail\nBeta\n')),
@@ -767,7 +771,7 @@ test('undated item and detail deletions show an undo confirmation and restore th
 });
 
 test('Enter on an undated item opens a focused sibling draft and preserves list order', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({
     name: 'Planner.md', mimeType: 'text/plain',
     buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- first detail\nBeta\n')),
@@ -802,7 +806,7 @@ test('Enter on an undated item opens a focused sibling draft and preserves list 
 });
 
 test('makes undated items details and promotes details back to items', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Ideas\nAlpha\n- alpha note\nBeta\n- beta note\n\nLIST: Inbox\nGamma\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   const ideas = page.locator('section[aria-label="Ideas"]');
@@ -847,7 +851,7 @@ test('makes undated items details and promotes details back to items', async ({ 
 
 test('undated make-detail picker and promotion fit on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('UNDATED\n\nLIST: Thoughts\nOne\nTwo\n')) });
   await page.getByRole('button', { name: 'Undated' }).click();
   await page.getByRole('button', { name: 'More actions for One' }).click();
@@ -872,7 +876,7 @@ test('splits a count-limited series when editing this and following items', asyn
   const tomorrow = dateOffset(1);
   const after = dateOffset(2);
   const raw = plannerFixture(`${today}\n\nCheck in\n  @repeat: every 1 day; from ${today}; series check-in; ends after 3\n`);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
   await showJournalDay(page, tomorrow);
   const next = page.locator('section').filter({ has: page.locator(`time[datetime="${tomorrow}"]`) });
@@ -896,7 +900,7 @@ test('moving a spanning item keeps its full duration', async ({ page }) => {
   const tomorrow = dateOffset(1);
   const oldEnd = dateOffset(2);
   const newEnd = dateOffset(3);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nTrip\n  @span: all-day through ${oldEnd}\n`)) });
   await page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('button', { name: 'More actions for Trip' }).click();
   await page.getByRole('button', { name: 'Move Trip' }).click();
@@ -918,7 +922,7 @@ test('moving all recurring items shifts skips and moved exceptions with the rule
   const oldSkip = dateOffset(4);
   const newSkip = dateOffset(5);
   const source = plannerFixture(`${today}\n\nStandup\n  @repeat: daily; series standup\n  @skip: ${oldSkip}\n\n${oldOverrideDay}\n\nRescheduled standup\n  @replaces: standup on ${next}\n`);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(source)) });
   await page.locator('section').filter({ has: page.locator(`time[datetime="${today}"]`) }).getByRole('button', { name: 'More actions for Standup' }).click();
   await page.getByRole('button', { name: 'Move Standup' }).click();
@@ -936,7 +940,7 @@ test('moving all recurring items shifts skips and moved exceptions with the rule
 
 test('custom yearly recurrence controls stay reachable on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Annual check');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'More actions for Annual check' }).click();
@@ -967,7 +971,7 @@ test('custom yearly recurrence controls stay reachable on a phone', async ({ pag
 
 test('animates detail progress wedges in both directions, including when the item moves through Done', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nProgress task\n- [ ] first step\n- [ ] second step\n`)) });
   const parent = page.getByRole('group', { name: 'Progress task' });
   const circle = () => parent.getByRole('button', { name: /^(Complete|Reopen) Progress task$/ }).locator('span');
@@ -1002,7 +1006,7 @@ test('animates detail progress wedges in both directions, including when the ite
 });
 
 test('formats date headings independently of Planner.md and focuses app search with Ctrl/Cmd+F', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Find this task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   const today = dateOffset(0);
@@ -1032,7 +1036,7 @@ test('formats date headings independently of Planner.md and focuses app search w
 
 test('hides completed work by default and toggles search without browser find', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nFinished task\n- [x] finished detail\n- [ ] other detail\n\nOpen task\n`)) });
   await page.getByRole('button', { name: 'Complete Finished task' }).click();
   await expect(page.getByRole('button', { name: `Expand done items for ${today}` })).toHaveAttribute('aria-expanded', 'false');
@@ -1060,7 +1064,7 @@ test('hides completed work by default and toggles search without browser find', 
 test('uses Hot Cross Buns branding and storage', async ({ page }) => {
   const today = dateOffset(0);
   await page.addInitScript(() => { localStorage.setItem('hot-cross-buns-theme', 'night'); localStorage.setItem('hot-cross-buns-date-format', 'iso'); });
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Stored under Hot Cross Buns');
   await add.press('Enter');
@@ -1084,7 +1088,7 @@ test('uses Hot Cross Buns branding and storage', async ({ page }) => {
 test('keeps controls usable and within the viewport across mobile and desktop widths', async ({ page }) => {
   for (const width of [320, 375, 768, 1280]) {
     await page.setViewportSize({ width, height: 700 });
-    await page.goto('/');
+    await openLegacyJournal(page);
     await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
     await runCommand(page, 'Open search');
     await expect(page.getByRole('combobox', { name: 'Search commands and journal' })).toBeFocused();
@@ -1108,7 +1112,7 @@ test('keeps controls usable and within the viewport across mobile and desktop wi
 });
 
 test('animates completion and honours reduced motion', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Animated task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: `Expand done items for ${dateOffset(0)}` }).click();
@@ -1127,7 +1131,7 @@ test('animates completion and honours reduced motion', async ({ page }) => {
 });
 
 test('keeps commands discoverable and persists expanded appearance choices', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
   const header = page.locator('header');
   await page.mouse.move(0, 500);
@@ -1173,7 +1177,7 @@ test('uses the calendar to switch between the default week, one day, and a selec
   const date = new Date(`${today}T12:00:00`);
   const monday = dateOffset(-((date.getDay() + 6) % 7));
   const sunday = dateOffset(6 - ((date.getDay() + 6) % 7));
-  await page.goto('/');
+  await openLegacyJournal(page);
   await expect(page.locator('[data-journal-date]')).toHaveCount(7);
   await expect(page.locator('[data-journal-date]').first().locator('time')).toHaveAttribute('datetime', monday);
   await expect(page.locator('[data-journal-date]').last().locator('time')).toHaveAttribute('datetime', sunday);
@@ -1231,7 +1235,7 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
   const yesterday = dateOffset(-1);
   const older = dateOffset(-10);
   const tomorrow = dateOffset(1);
-  await page.goto('/');
+  await openLegacyJournal(page);
   const viewport = page.getByRole('region', { name: 'Dated journal' });
   await expect.poll(async () => page.evaluate(date => {
     const journal = document.querySelector('[aria-label="Dated journal"]');
@@ -1272,7 +1276,7 @@ test('dated journal opens at today and earlier unfinished items can be scoped to
 });
 
 test('new item typing matches the saved item text size', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const newDated = page.getByRole('textbox', { name: 'New daily item' });
   const draftSize = await newDated.evaluate(element => getComputedStyle(element).fontSize);
   await newDated.fill('Size check');
@@ -1289,7 +1293,7 @@ test('new item typing matches the saved item text size', async ({ page }) => {
 test('holiday view stays out of Planner.md, saved holidays round-trip, and week start updates the calendar', async ({ page }) => {
   const today = dateOffset(0);
   await page.route('**/api/action/datastore_search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, result: { records: [{ date: today, holiday: 'Test Holiday' }] } }) }));
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings' });
   await expect(settings.getByLabel('Time zone')).toHaveValue('Asia/Singapore');
@@ -1335,7 +1339,7 @@ test('holiday view stays out of Planner.md, saved holidays round-trip, and week 
 });
 
 test('adds items through the empty-day line and Enter on an existing item', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const emptyLine = page.getByRole('textbox', { name: 'New daily item' });
   await expect(emptyLine).toHaveAttribute('placeholder', 'No lines yet. Add the first one below.');
   await expect(page.getByRole('button', { name: 'Add daily item' })).toHaveCount(0);
@@ -1351,7 +1355,7 @@ test('adds items through the empty-day line and Enter on an existing item', asyn
 });
 
 test('calendar stays above journal content and allows month and year selection', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Behind the calendar');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('button', { name: 'Choose date' }).click();
@@ -1374,7 +1378,7 @@ test('calendar stays above journal content and allows month and year selection',
 
 test('marks unfinished calendar days and keeps existing item editing visually quiet', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   const newItem = page.getByRole('textbox', { name: 'New daily item' });
   await newItem.focus();
   const lineStyle = await newItem.evaluate(element => {
@@ -1407,7 +1411,7 @@ test('marks unfinished calendar days and keeps existing item editing visually qu
 
 test('reveals item actions on hover and reorders details within their item', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nParent task\n- first detail\n- second detail\n\nOther task\n- other detail\n`)) });
   const parent = page.getByRole('group', { name: 'Parent task' });
   const grip = parent.getByRole('button', { name: 'Drag to reorder Parent task' });
@@ -1444,7 +1448,7 @@ test('reveals item actions on hover and reorders details within their item', asy
 
 test('creates siblings with Enter and promotes or demotes through row menus', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nParent\n- first\n- [x] second\n\nFollowing\n`)) });
   const parent = page.getByRole('group', { name: 'Parent' });
   await expect(parent.getByRole('button', { name: 'Collapse details for Parent' })).toContainText('1/2');
@@ -1485,7 +1489,7 @@ test('creates siblings with Enter and promotes or demotes through row menus', as
 
 test('make detail can choose a later item on the same date and preserves the choice in Planner.md', async ({ page }) => {
   const today = dateOffset(0);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\nFirst\nSecond\nThird\n`)) });
   await page.getByRole('button', { name: 'More actions for First' }).click();
   await page.getByRole('button', { name: 'Make First a detail' }).click();
@@ -1505,7 +1509,7 @@ test('make detail can choose a later item on the same date and preserves the cho
 });
 
 test('undoes and redoes journal actions with Ctrl and Cmd while editing', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Undo me');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   const editor = page.getByRole('textbox', { name: 'Edit Undo me' });
@@ -1524,7 +1528,7 @@ test('undoes and redoes journal actions with Ctrl and Cmd while editing', async 
 });
 
 test('plays history transitions and skips them when reduced motion is requested', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   test.skip(!(await page.evaluate(() => typeof document.startViewTransition === 'function')), 'View transitions are unavailable in this browser');
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Before');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
@@ -1560,7 +1564,7 @@ test('plays history transitions and skips them when reduced motion is requested'
 });
 
 test('animates undo in browsers without view transitions', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.evaluate(() => Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined }));
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Fallback before');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
@@ -1579,7 +1583,7 @@ test('animates undo in browsers without view transitions', async ({ page }) => {
 });
 
 test('keeps rapid consecutive undo and redo actions in order', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('First version');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await page.getByRole('textbox', { name: 'Edit First version' }).fill('Second version');
@@ -1600,7 +1604,7 @@ test('searches a large journal and keeps edits responsive', async ({ page }) => 
   test.setTimeout(60000);
   const today = dateOffset(0);
   const lines = Array.from({ length: 1200 }, (_, index) => `Task ${String(index).padStart(4, '0')} ${index === 1199 ? 'unique-needle' : 'ordinary'}`);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(`${today}\n\n${lines.join('\n\n')}\n`)) });
   await expect(page.getByRole('group', { name: lines[1199] })).toBeVisible({ timeout: 20000 });
   const unfilteredEditStart = Date.now();
@@ -1633,7 +1637,7 @@ test('Planner.md preview shows the complete portable file before download', asyn
   const today = dateOffset(0);
   const tomorrow = dateOffset(1);
   const initial = plannerFixture(`${today}\n\n09:00-09:30 Plan #work\n  @repeat: weekly on mon\n- [ ] Outline\n\n${tomorrow}\n\nFollow up\n`);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(initial)) });
   await expect(page.getByRole('button', { name: 'Show raw Planner.md' })).toHaveCount(0);
   await runCommand(page, 'Download Planner.md');
@@ -1655,7 +1659,7 @@ test('Planner.md preview shows the complete portable file before download', asyn
 });
 
 test('preview options preserve Planner.md meaning and reset after closing', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).fill('Keep this task');
   await page.getByRole('textbox', { name: 'New daily item' }).press('Enter');
   await runCommand(page, 'Download Planner.md');
@@ -1686,7 +1690,7 @@ test('a large Planner.md preview remains usable on a phone', async ({ page }) =>
   const today = dateOffset(0);
   const text = plannerFixture(`${today}\n\n${Array.from({ length: 1200 }, (_, index) => `Task ${index}`).join('\n')}\n`);
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(text)) });
   await runCommand(page, 'Download Planner.md');
   const dialog = page.getByRole('dialog', { name: 'Download Planner.md' });
@@ -1701,7 +1705,7 @@ test('a large Planner.md preview remains usable on a phone', async ({ page }) =>
 test('an unfinished draft from the removed editor can still be downloaded', async ({ page }) => {
   const draft = plannerFixture('2026-02-30\nUnfinished edit\n');
   await page.addInitScript(value => sessionStorage.setItem('hot-cross-buns-raw-draft-v1', value), draft);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await expect(page.getByText('An unfinished TXT draft from the old editor is available.')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'download draft' }).click();

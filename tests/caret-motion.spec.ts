@@ -1,9 +1,10 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { runCommand, openScratchpad, closeScratchpad } from './commands';
 import { expect, test } from '@playwright/test';
 
 test('carets stay solid during typing, pulse when idle and keep native selection', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Open search');
   const input = page.getByRole('combobox', { name: 'Search commands and journal' });
   await input.fill('Native selection');
@@ -23,7 +24,7 @@ test('carets stay solid during typing, pulse when idle and keep native selection
 });
 
 test('composition keeps the caret steady until it ends and blur releases typing state', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const input = page.getByRole('textbox', { name: 'New daily item', exact: true });
   await input.focus();
   await input.dispatchEvent('compositionstart', { data: 'に' });
@@ -38,7 +39,7 @@ test('composition keeps the caret steady until it ends and blur releases typing 
 });
 
 test('caret motion reaches scratchpad and dynamically opened import editors', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const scratchpad = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await scratchpad.fill('First line\nSecond line');
@@ -57,7 +58,7 @@ test('caret motion reaches scratchpad and dynamically opened import editors', as
 
 test('reduced motion uses a steady caret and responds to preference changes', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
+  await openLegacyJournal(page);
   const input = page.getByRole('textbox', { name: 'New daily item', exact: true });
   await input.focus();
   await input.fill('Motion preference');

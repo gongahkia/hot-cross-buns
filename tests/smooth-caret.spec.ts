@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { runCommand, openScratchpad } from './commands';
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -16,7 +17,7 @@ async function target(page: Page) {
   });
 }
 async function search(page: Page, value = 'Caret') {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Open search');
   const input = page.getByRole('combobox', { name: 'Search commands and journal' });
   await input.fill(value);
@@ -24,7 +25,7 @@ async function search(page: Page, value = 'Caret') {
   return input;
 }
 async function scratchpad(page: Page) {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const input = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await input.evaluate(element => {
@@ -161,7 +162,7 @@ test('wrapping and textarea scrolling keep the caret inside the editor', async (
 });
 
 test('the caret appears above native dialogs and stops during composition', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({
     name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture('2026-11-16\nReview this source\n').replace('hcb-format: 1','hcb-format: 999')),
   });
@@ -230,7 +231,7 @@ test('passwords and segmented inputs use native editing without mirrored carets'
 test.describe('touch input', () => {
   test.use({ isMobile: true, hasTouch: true, viewport: { width: 375, height: 812 } });
   test('touch selection stays native and typing resumes animated movement', async ({ page }) => {
-    await page.goto('/');
+    await openLegacyJournal(page);
     const input = page.getByRole('textbox', { name: 'New daily item', exact: true });
     await input.tap();
     await expect(input).not.toHaveAttribute('data-smooth-caret', 'true');

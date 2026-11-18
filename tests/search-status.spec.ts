@@ -1,10 +1,11 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { runCommand, selectSearchResult } from './commands';
 import { expect, test, type Page } from '@playwright/test';
 
 async function setup(page: Page) {
   const today = new Date().toLocaleDateString('en-CA');
-  await page.goto('/');
+  await openLegacyJournal(page);
   const raw = plannerFixture(`2000-01-01\nArchive done #work\n\nOld open #work\n- [ ] Needle in a detail\n\n${today}\nToday done #home\n\nToday open #home\n\nUNDATED\n\nLIST: Inbox\nRead later #work\n`);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
   await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();

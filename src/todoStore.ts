@@ -9,7 +9,7 @@ export type TodoState = { document: TodoDocument; baseline: TodoDocument | null;
 export type ScratchpadState = { text: string; revision: number };
 export type ScratchpadDestination = { kind: 'dated'; date: string } | { kind: 'undated'; list: string };
 export type ScratchpadUndo = { before: TodoState; scratchBefore: ScratchpadState; journalRevision: number; scratchRevision: number };
-export const emptyState = (): TodoState => ({ document: createJournal(), baseline: null, revision: 0 });
+export const emptyState = (): TodoState => ({ document: createJournal(crypto.randomUUID(),3), baseline: null, revision: 0 });
 const DB_NAME = 'hot-cross-buns-v1';
 const STATE_STORE = 'state';
 const SCRATCH_STORE = 'scratchpad';
@@ -224,7 +224,7 @@ export async function startMarkdownWorkspace(convert: boolean): Promise<TodoStat
   if (!archive) return loadTodoState();
   const old = archive.state.current as TodoState | undefined;
   const scratch = archive.scratchpad.current as ScratchpadState | undefined;
-  const document = convert ? journalFromModel(old ? normalizeDocument(old.document) : { days: [] }, scratch?.text ?? '') : createJournal();
+  const document = convert ? journalFromModel(old ? normalizeDocument(old.document) : { days: [] }, scratch?.text ?? '') : createJournal(crypto.randomUUID(),3);
   return transact<TodoState>([STATE_STORE], (tx, done, fail) => {
     const store = tx.objectStore(STATE_STORE), request = store.get('current');
     request.onerror = () => fail(request.error);

@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { openScratchpad } from './commands';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
@@ -28,7 +29,7 @@ async function stored(page: Page, store = 'state') {
 const titles = async (page: Page) => (await stored(page))?.document?.days.flatMap(day => day.items.map(item => item.text)) ?? [];
 
 async function initialJournal(page: Page) {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item', exact: true });
   await add.fill('Original saved text');
   await add.press('Enter');
@@ -148,7 +149,7 @@ test('an import can be discarded after a failed write without reporting success'
 
 test('keeps scratchpad text, copies it and retries without losing its saved predecessor', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await expect(editor).toBeEditable(); await editor.fill('Saved scratchpad');
@@ -167,7 +168,7 @@ test('keeps scratchpad text, copies it and retries without losing its saved pred
 });
 
 test('discarding an unsaved scratchpad returns to its durable contents', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await openScratchpad(page);
   const editor = page.getByRole('textbox', { name: 'Scratchpad text', exact: true });
   await expect(editor).toBeEditable(); await editor.fill('Keep saved scratchpad');

@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { runCommand } from './commands';
@@ -10,7 +11,7 @@ async function setup(page: Page, transition = false) {
     const pick = async () => (await navigator.storage.getDirectory()).getFileHandle('Planner.md', { create: true });
     Object.assign(window, { showOpenFilePicker: async () => [await pick()], showSaveFilePicker: pick });
   });
-  await page.goto('/');
+  if (transition) await page.goto('/'); else await openLegacyJournal(page);
   if (transition) await page.getByRole('button', { name: 'Convert saved workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Open command palette', exact: true }).waitFor();
 }
@@ -154,7 +155,7 @@ test('a failed file write keeps browser edits and resumes only after retry', asy
 
 test('unsupported browsers retain import and download without a dead link button', async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, 'showOpenFilePicker', { value: undefined }));
-  await page.goto('/'); await runCommand(page, 'Settings');
+  await openLegacyJournal(page); await runCommand(page, 'Settings');
   const section = page.getByRole('region', { name: 'File sync', exact: true });
   await expect(section).toContainText('This browser cannot link local files');
   await expect(section.getByRole('button')).toHaveCount(0);

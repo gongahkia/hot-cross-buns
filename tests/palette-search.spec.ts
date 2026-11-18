@@ -1,9 +1,10 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import { openCommands, runCommand, selectSearchResult } from './commands';
 
 async function importText(page: Page, raw: string) {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/plain', buffer: Buffer.from(plannerFixture(raw)) });
   await expect(page.getByRole('status').filter({ hasText: 'Planner.md imported.' })).toBeVisible();
 }
@@ -74,7 +75,7 @@ test('Ctrl F selects the current palette query, and closing clears every search 
 });
 
 test('search results refresh after edits in another window without losing the query', async ({ page, context }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Open search');
   await input(page).fill('New shared entry');
   await expect(results(page).getByRole('option')).toHaveCount(0);

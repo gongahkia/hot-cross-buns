@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { runCommand } from './commands';
 import { expect, test } from '@playwright/test';
 import { textEntrySelector } from '../src/textEntry';
@@ -15,7 +16,7 @@ function contrast(a: string, b: string) {
 }
 
 test('dark mode uses neutral surfaces, readable text and matching browser chrome', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Hot Cross Buns settings');
   const settings = page.getByRole('dialog', { name: 'Hot Cross Buns settings', exact: true });
   await settings.getByRole('button', { name: 'Dark mode', exact: true }).click();
@@ -44,7 +45,7 @@ test('dark mode uses neutral surfaces, readable text and matching browser chrome
 });
 
 test('text fields are borderless with an underline for keyboard focus', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await runCommand(page, 'Open search');
   const search = page.getByRole('combobox', { name: 'Search commands and journal' });
   await expect(search).toBeFocused();

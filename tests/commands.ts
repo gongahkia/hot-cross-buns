@@ -21,7 +21,9 @@ export async function openScratchpad(page: Page) {
   await page.evaluate(() => { window.open = () => null; });
   try { await runCommand(page, 'Open Scratchpad'); }
   finally { await page.evaluate(open => { window.open = open; }, original); await original.dispose(); }
-  await page.getByRole('dialog', { name: 'Scratchpad', exact: true }).waitFor();
+  const dialog=page.getByRole('dialog', { name: 'Scratchpad', exact: true });
+  await dialog.waitFor();
+  await page.waitForFunction(()=>{const dialog=document.querySelector('dialog[open][data-state="open"]:not([data-command-palette])');return !!dialog && getComputedStyle(dialog).opacity==='1' && !dialog.getAnimations().some(animation=>animation.playState==='running' || animation.pending);});
 }
 
 export async function runCommand(page: Page, name: string) {

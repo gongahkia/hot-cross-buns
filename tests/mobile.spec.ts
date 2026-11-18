@@ -1,3 +1,4 @@
+import { openLegacyJournal } from './legacy-workspace';
 import { plannerFixture } from './planner-fixture';
 import { expect, test } from '@playwright/test';
 
@@ -9,7 +10,7 @@ function todayString() {
 }
 
 test('timed items and details stay readable after a phone rotates', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   await page.getByRole('textbox', { name: 'New daily item' }).waitFor();
   const title = 'Prepare a long report for the mobile layout';
   await page.getByLabel('Import a Planner.md file').setInputFiles({
@@ -34,7 +35,7 @@ test('timed items and details stay readable after a phone rotates', async ({ pag
 });
 
 test('move calendar confirmation stays reachable in portrait and landscape', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Move on phone');
   await add.press('Enter');
@@ -49,7 +50,7 @@ test('move calendar confirmation stays reachable in portrait and landscape', asy
 });
 
 test('recurrence calendar fits a narrow phone and its controls remain reachable', async ({ page }) => {
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await add.fill('Calendar on phone');
   await add.press('Enter');
@@ -75,7 +76,7 @@ test('recurrence calendar fits a narrow phone and its controls remain reachable'
 
 test('touch editors use readable text and weekday headings do not repeat on mobile', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('hot-cross-buns-date-format', 'long-weekday'));
-  await page.goto('/');
+  await openLegacyJournal(page);
   const add = page.getByRole('textbox', { name: 'New daily item' });
   await expect(add).toHaveCSS('font-size', '16px', { timeout: 15000 });
   const otherDay = new Date();
