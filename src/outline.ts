@@ -38,7 +38,8 @@ export function refreshItemCompletion(item: TodoItem): void {
     if (node.kind !== 'note' && tasks.length) node.completed = tasks.every(child => child.completed);
   }
   const tasks = taskChildren(item.details);
-  if (tasks.length) item.completed = tasks.every(child => child.completed);
+  if (item.kind === 'note') item.completed = false;
+  else if (tasks.length) item.completed = tasks.every(child => child.completed);
 }
 
 export function setItemCompletion(item: TodoItem, completed: boolean): void {

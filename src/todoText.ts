@@ -7,7 +7,7 @@ export type TodoBody = { markdown: string; sourceRef?: string };
 export type TodoDetail = { text: string; completed: boolean; sourceRef?: string; kind?: 'note'; children?: TodoDetail[]; body?: TodoBody[] };
 export type TodoSpan = { kind: 'all-day'; through?: string } | { kind: 'time'; start: string; endDate: string; end: string };
 export type TodoReplacement = { series: string; on: string };
-export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean; repeat?: RecurrenceRule; completedOn?: string; span?: TodoSpan; skips?: string[]; replaces?: TodoReplacement; sourceRef?: string; body?: TodoBody[] };
+export type TodoItem = { id: string; text: string; details: TodoDetail[]; completed: boolean; kind?: 'note'; repeat?: RecurrenceRule; completedOn?: string; span?: TodoSpan; skips?: string[]; replaces?: TodoReplacement; sourceRef?: string; body?: TodoBody[] };
 export type TodoDay = { date: string; items: TodoItem[]; keepEmpty?: boolean };
 export type TodoList = { name: string; items: TodoItem[]; sourceRef?: string };
 export type TodoDocument = { days: TodoDay[]; undated?: TodoList[]; source?: string; scratchpad?: string };
@@ -28,8 +28,8 @@ export function normalizeDocument(document: TodoDocument): TodoDocument {
   return { days: document.days.map(day => ({ ...day, items: day.items.map(normalizeItem) })),
     ...(document.undated ? { undated: document.undated.map(list => ({ ...list, items: list.items.map(normalizeItem) })) } : {}) };
 }
-export const itemValue = (item: TodoItem) => JSON.stringify([item.text, item.details, item.completed, item.repeat, item.completedOn, item.span, item.skips, item.replaces]);
-export const itemContent = (item: TodoItem) => JSON.stringify([item.text, item.details, item.repeat, item.span, item.skips, item.replaces]);
+export const itemValue = (item: TodoItem) => JSON.stringify([item.text, item.details, item.completed, item.repeat, item.completedOn, item.span, item.skips, item.replaces, item.kind]);
+export const itemContent = (item: TodoItem) => JSON.stringify([item.text, item.details, item.repeat, item.span, item.skips, item.replaces, item.kind]);
 
 const validClock = (value: string) => /^\d{2}:\d{2}$/.test(value) && Number(value.slice(0, 2)) < 24 && Number(value.slice(3)) < 60;
 export function parseSpan(value: string, heading: string): TodoSpan | null {

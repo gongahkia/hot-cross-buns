@@ -1,5 +1,5 @@
 import { cachedJournal, isCanonicalJournal, journalFromPlanner, journalModel, materializeJournal, readJournal } from './journalDocument.ts';
-import { upgradeOutlineJournal } from './journalOutline.ts';
+import { upgradeOutlineJournal, upgradeWritingJournal } from './journalOutline.ts';
 import { assertImportText } from './importLimits.ts';
 import type { JournalWork, JournalWorkRequest, JournalWorkResult } from './journalWorker.ts';
 import type { TodoDocument } from './todoText.ts';
@@ -86,10 +86,18 @@ export async function materializeJournalAsync(document: TodoDocument): Promise<T
 }
 
 export async function upgradeOutlineJournalAsync(document: TodoDocument) {
-  if (journalModel(document).format === 2 || typeof Worker === 'undefined') return upgradeOutlineJournal(document);
+  if ((journalModel(document).format ?? 1) >= 2 || typeof Worker === 'undefined') return upgradeOutlineJournal(document);
   let result;
   try { result = await client().request({ kind: 'upgrade', document }); }
   catch (error) { if (error instanceof JournalWorkerUnavailable) return upgradeOutlineJournal(document); throw error; }
+  return { document: adopt(result.model).document, checkboxChanges: result.checkboxChanges ?? 0 };
+}
+
+export async function upgradeWritingJournalAsync(document: TodoDocument) {
+  if (journalModel(document).format === 3 || typeof Worker === 'undefined') return upgradeWritingJournal(document);
+  let result;
+  try { result = await client().request({ kind: 'upgrade-writing', document }); }
+  catch (error) { if (error instanceof JournalWorkerUnavailable) return upgradeWritingJournal(document); throw error; }
   return { document: adopt(result.model).document, checkboxChanges: result.checkboxChanges ?? 0 };
 }
 

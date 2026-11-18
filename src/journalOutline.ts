@@ -4,14 +4,14 @@ import { parseMarkdownPlanner, plannerEntries, plannerWritable, type PlannerDeta
 import type { TodoDocument } from './todoText.ts';
 
 /** an explicit source-format upgrade; never invoked by reading or syncing a document. */
-export function upgradeOutlineJournal(document: TodoDocument): { document: TodoDocument; checkboxChanges: number } {
+export function upgradeOutlineJournal(document: TodoDocument, format: 2 | 3 = 2): { document: TodoDocument; checkboxChanges: number } {
   const before = journalModel(document);
   if (!plannerWritable(before)) throw new Error('Correct the Markdown source before enabling deeper outlines.');
-  if (before.format === 2) return { document, checkboxChanges: 0 };
-  const match = /(?:^|\r\n|\r|\n)hcb-format: 1(?=[ \t]*(?:\r\n|\r|\n|$))/.exec(before.source);
+  if ((before.format ?? 1) >= format) return { document, checkboxChanges: 0 };
+  const match = /(?:^|\r\n|\r|\n)hcb-format: [12](?=[ \t]*(?:\r\n|\r|\n|$))/.exec(before.source);
   if (!match) throw new Error('The source format could not be located. Edit the Markdown source explicitly.');
   const offset = match.index + match[0].length - 1;
-  let source = before.source.slice(0, offset) + '2' + before.source.slice(offset + 1);
+  let source = before.source.slice(0, offset) + format + before.source.slice(offset + 1);
   const model = parseMarkdownPlanner(source);
   const errors = model.issues.filter(issue => issue.severity === 'error' && issue.code !== 'completion-state');
   if (errors.length) throw new Error('Correct these outline issues in Markdown source first: ' + errors.map(issue => issue.message).join(' '));
@@ -35,3 +35,5 @@ export function upgradeOutlineJournal(document: TodoDocument): { document: TodoD
   if (next.documentId !== before.documentId) throw new Error('An outline upgrade cannot change document identity.');
   return { document: journalFromPlanner(next).document, checkboxChanges: patches.length };
 }
+
+export const upgradeWritingJournal = (document: TodoDocument) => upgradeOutlineJournal(document, 3);

@@ -18,7 +18,7 @@ const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 const fields = ['repeat', 'completedOn', 'span', 'skips', 'replaces'] as const;
 const entryId = (entry: PlannerEntry) => entry.id ?? `source:${entry.range.start}`;
 const entryRef = (entry: PlannerEntry) => `entry:${entryId(entry)}`;
-const value = (item: TodoItem) => JSON.stringify([item.text, item.completed, item.details, item.body, ...fields.map(key => item[key])]);
+const value = (item: TodoItem) => JSON.stringify([item.text, item.completed, item.kind, item.details, item.body, ...fields.map(key => item[key])]);
 const bodyFrom = (node: PlannerDetail, ref: string): TodoBody[] | undefined => node.body?.map((block, index) => ({
   markdown: adjustIndent(block.markdown, block.column, 0, nlOf(block.markdown)), sourceRef: `${ref}:body:${index}`,
 }));
@@ -30,6 +30,7 @@ const detailFrom = (detail: PlannerDetail, ref: string): TodoDetail => ({
 });
 const itemFrom = (entry: PlannerEntry): TodoItem => ({
   id: entryId(entry), sourceRef: entryRef(entry), text: entry.markdown, completed: entry.completed,
+  ...(entry.kind ? { kind: entry.kind } : {}),
   details: entry.details.map((detail, index) => detailFrom(detail, `${entryRef(entry)}:detail:${index}`)),
   ...(entry.body?.length ? { body: bodyFrom(entry, entryRef(entry)) } : {}),
   ...Object.fromEntries(fields.filter(key => entry[key] !== undefined).map(key => [key, entry[key]])),
@@ -97,7 +98,7 @@ export function parseJournal(source: string) {
   })) };
 }
 
-export function createJournal(documentId: string = crypto.randomUUID(), format: 1 | 2 = 1): TodoDocument {
+export function createJournal(documentId: string = crypto.randomUUID(), format: 1 | 2 | 3 = 1): TodoDocument {
   return readJournal(`---\nhcb-format: ${format}\ndocument-id: ${documentId}\n---\n\n# Hot Cross Buns\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\n`).document;
 }
 
@@ -105,15 +106,15 @@ function assertModel(model: MarkdownPlanner) {
   if (!plannerWritable(model)) throw new Error(model.issues.filter(issue => issue.severity === 'error').map(issue => issue.message).join(' '));
 }
 
-function metadata(item: TodoItem, id: string, dated: boolean): string[] {
+function metadata(item: TodoItem, id: string, dated: boolean, unified = false): string[] {
   const lines = [`id: ${id}`];
   if (dated) {
     if (item.repeat) lines.push(`repeat: ${formatRecurrence(item.repeat)}`);
     if (item.span) lines.push(`span: ${formatSpan(item.span)}`);
     if (item.skips?.length) lines.push(`skip: ${item.skips.join(', ')}`);
     if (item.replaces) lines.push(`replaces: ${item.replaces.series} on ${item.replaces.on}`);
-    if (item.completedOn) lines.push(`completed: ${item.completedOn}`);
   }
+  if (item.completedOn && (dated || unified)) lines.push(`completed: ${item.completedOn}`);
   return lines;
 }
 
@@ -167,9 +168,14 @@ export function materializeJournal(document: TodoDocument, references: readonly 
     return text.replace(/\r\n|\r|\n/g, `${nl}${' '.repeat(indent)}`);
   };
   const render = (item: TodoDetail | TodoItem, dated: boolean, column: number, asEntry: boolean): string => {
+    if (model.format === 3 && item.kind === 'note' && (item.completed || asEntry && (item as TodoItem).completedOn)) throw new Error('Reopen a completed task before converting it to plain text. Its completion state has been kept.');
+    if (model.format === 3 && asEntry && !dated) {
+      const entry = item as TodoItem;
+      if (entry.repeat || entry.span || entry.skips?.length || entry.replaces) throw new Error('Scheduled content needs a date. Clear or reschedule it explicitly before moving it to an undated document.');
+    }
     const original = item.sourceRef ? originals.get(item.sourceRef) : undefined;
     const node = original?.node;
-    const checked = dated && !('kind' in item && item.kind === 'note');
+    const checked = (dated || model.format === 3) && item.kind !== 'note';
     const marker = `- ${checked ? `[${item.completed ? 'x' : ' '}] ` : ''}`;
     const childColumn = column + 2;
     const children = asEntry ? (item as TodoItem).details : (item as TodoDetail).children ?? [];
@@ -183,7 +189,7 @@ export function materializeJournal(document: TodoDocument, references: readonly 
       if (asEntry) {
         const entry = item as TodoItem;
         if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(entry.id)) throw new Error('New entries require a stable ID.');
-        raw += `${nl}${' '.repeat(childColumn)}\`\`\`hcb${nl}${metadata(entry, entry.id, dated).map(line => ' '.repeat(childColumn) + line).join(nl)}${nl}${' '.repeat(childColumn)}\`\`\``;
+        raw += `${nl}${' '.repeat(childColumn)}\`\`\`hcb${nl}${metadata(entry, entry.id, dated, model.format === 3).map(line => ' '.repeat(childColumn) + line).join(nl)}${nl}${' '.repeat(childColumn)}\`\`\``;
       }
       for (const block of item.body ?? []) raw += `${nl}${nl}${' '.repeat(childColumn)}${renderBody(block, childColumn)}`;
       children.forEach((child, index) => { raw += `${index === 0 && item.body?.length ? nl + nl : nl}${' '.repeat(childColumn)}${render(child, dated, childColumn, false)}`; });
@@ -195,7 +201,7 @@ export function materializeJournal(document: TodoDocument, references: readonly 
     if (originalDated !== checked) edits.push({ range: { start: node.range.start, end: node.titleRange.start }, text: marker });
     else if (node.checkbox && item.completed !== node.completed) edits.push({ range: node.checkbox, text: item.completed ? 'x' : ' ' });
     if (item.text !== node.markdown) edits.push({ range: node.titleRange, text: title(item.text, original!.column + (prefix.match(/^[-+*][ \t]+/)?.[0].length ?? 2), dated) });
-    if (model.format === 2 && JSON.stringify(item.body) !== JSON.stringify(bodyFrom(node, item.sourceRef!))) {
+    if ((model.format ?? 1) >= 2 && JSON.stringify(item.body) !== JSON.stringify(bodyFrom(node, item.sourceRef!))) {
       const oldBody = node.body ?? [], nextBody = item.body ?? [], indent = original!.column + 2;
       const references = oldBody.map((_, index) => `${item.sourceRef}:body:${index}`);
       const positions = new Map(references.map((ref, index) => [ref, index]));
@@ -224,7 +230,7 @@ export function materializeJournal(document: TodoDocument, references: readonly 
           assignedIds.set(entry, id);
         }
         const indent = old?.indent ?? ' '.repeat(original!.column + 2);
-        const block = `\`\`\`hcb${nl}${metadata(entry, id, dated).map(line => indent + line).join(nl)}${nl}${indent}\`\`\``;
+        const block = `\`\`\`hcb${nl}${metadata(entry, id, dated, model.format === 3).map(line => indent + line).join(nl)}${nl}${indent}\`\`\``;
         if (old?.metadata) edits.push({ range: old.metadata, text: block });
         else edits.push({ range: { start: node.titleRange.end, end: node.titleRange.end }, text: `${nl}${indent}${block}` });
       }
@@ -241,7 +247,7 @@ export function materializeJournal(document: TodoDocument, references: readonly 
           else edits.push({ range: { start: offset, end: offset }, text });
         }
       }
-    } else if (model.format === 2) {
+    } else if ((model.format ?? 1) >= 2) {
       const oldChildren = original!.entry?.details ?? node.children ?? [];
       const oldDetails = oldChildren.map((child, index) => detailFrom(child, `${item.sourceRef}:detail:${index}`));
       if (original!.entry?.metadata) edits.push({ range: original!.entry.metadata, text: '' });
@@ -321,7 +327,7 @@ export function materializeJournal(document: TodoDocument, references: readonly 
 export const serializeJournal = (document: TodoDocument): string => materializeJournal(document).source!;
 export const validateJournal = (document: TodoDocument): void => { materializeJournal(document); };
 export const withScratchpad = (document: TodoDocument, text: string) => materializeJournal({ ...document, scratchpad: text });
-export const isEmptyJournal = (document: TodoDocument) => document.source?.trim() === createJournal(journalModel(document).documentId, journalModel(document).format === 2 ? 2 : 1).source!.trim();
+export const isEmptyJournal = (document: TodoDocument) => document.source?.trim() === createJournal(journalModel(document).documentId, journalModel(document).format as 1 | 2 | 3).source!.trim();
 
 /** one explicit workspace conversion, not a reader for legacy files in the running app. */
 export function journalFromModel(model: TodoDocument, scratchpad = '', documentId: string = crypto.randomUUID()): TodoDocument {
