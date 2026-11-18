@@ -25,7 +25,7 @@ export type MarkdownIndex = {
   context: string; truncated: boolean;
 };
 
-export const MARKDOWN_RENDER_LIMITS = { nodes: 2000, depth: 32, characters: 40_000, modelNodes: 20_000, modelBlocks: 2000 } as const;
+export const MARKDOWN_RENDER_LIMITS = { nodes: 2000, depth: 32, characters: 40_000, modelNodes: 20_000, modelBlocks: 2000, footnotes: 100 } as const;
 export const createMarkdownParser = () => unified().use(remarkParse).use(remarkGfm).use(remarkFrontmatter);
 const parser = createMarkdownParser();
 export const markdownRange = (node: Nodes): MarkdownRange => ({ start: node.position!.start.offset!, end: node.position!.end.offset! });
@@ -76,7 +76,13 @@ function compactNode(node: Nodes, budget: Budget, depth = 0, source = '', quotes
   const range = markdownRange(node);
   if (--budget.remaining < 0 || depth > MARKDOWN_RENDER_LIMITS.depth || range.end - range.start > MARKDOWN_RENDER_LIMITS.characters || children(node).length > budget.remaining) return { type: 'source', range };
   const result: MarkdownNode = { type: node.type, range };
-  if ('children' in node) result.children = node.children.map(child => compactNode(child, budget, depth + 1, source, quotes + (node.type === 'blockquote' ? 1 : 0), extensions, context));
+  if ('children' in node) {
+    result.children = [];
+    for (const child of node.children) {
+      if (budget.remaining <= 0) return { type: 'source', range };
+      result.children.push(compactNode(child, budget, depth + 1, source, quotes + (node.type === 'blockquote' ? 1 : 0), extensions, context));
+    }
+  }
   for (const key of ['value', 'url', 'title', 'identifier', 'label', 'depth', 'ordered', 'start', 'checked', 'lang', 'align', 'alt'] as const) {
     if (key in node && node[key as keyof typeof node] !== null && node[key as keyof typeof node] !== undefined) Object.assign(result, { [key]: node[key as keyof typeof node] });
   }
@@ -97,7 +103,7 @@ export function indexMarkdown(root: Root, selected: MarkdownRange[] = [], source
   while (pending.length) {
     const { node, quotes } = pending.pop()!, range = markdownRange(node), key = markdownKey(range);
     if (node.type === 'definition' && !Object.hasOwn(definitions, node.identifier)) definitions[node.identifier] = { url: node.url, ...(node.title ? { title: node.title } : {}) };
-    if (node.type === 'footnoteDefinition' && !footnoteNodes.has(node.identifier)) footnoteNodes.set(node.identifier, { node, quotes });
+    if (node.type === 'footnoteDefinition' && !footnoteNodes.has(node.identifier)) { if (footnoteNodes.size < MARKDOWN_RENDER_LIMITS.footnotes) footnoteNodes.set(node.identifier, { node, quotes }); else truncated = true; }
     if (node.type === 'paragraph' && source.slice(range.start, range.end).includes('$$')) { if (mathParagraphs.length < 500) mathParagraphs.push({ node, quotes }); else truncated = true; }
     if (node.type === 'definition' || node.type === 'footnoteDefinition') {
       const raw = source.slice(range.start, range.end);
@@ -126,11 +132,11 @@ export function indexMarkdown(root: Root, selected: MarkdownRange[] = [], source
   links.sort((a, b) => a.range.start - b.range.start);
   const referenceContext = context.join('\n\n');
   const mathRanges = mathParagraphs.flatMap(({ node, quotes }) => markdownMathRanges(node, source, quotes, referenceContext)).sort((a, b) => a.start - b.start);
-  for (const [identifier, { node, quotes }] of footnoteNodes) footnotes[identifier] = compactNode(node, budget, 0, source, quotes, true, referenceContext);
-  for (const { node, quotes } of selectedNodes) blocks[markdownKey(markdownRange(node))] = compactNode(node, budget, 0, source, quotes, true, referenceContext);
+  for (const [identifier, { node, quotes }] of footnoteNodes) { if (budget.remaining > 0) footnotes[identifier] = compactNode(node, budget, 0, source, quotes, true, referenceContext); else truncated = true; }
+  for (const { node, quotes } of selectedNodes) { if (budget.remaining > 0) blocks[markdownKey(markdownRange(node))] = compactNode(node, budget, 0, source, quotes, true, referenceContext); else truncated = true; }
   const passages = root.children.filter(node => node.type !== 'yaml').map(node => ({ type: node.type, range: markdownRange(node) }));
   for (const node of root.children) if (!['list', 'yaml', 'definition', 'footnoteDefinition'].includes(node.type) && blockCount++ < MARKDOWN_RENDER_LIMITS.modelBlocks) {
-    blocks[markdownKey(markdownRange(node))] = compactNode(node, budget, 0, source, 0, true, referenceContext);
+    if (budget.remaining > 0) blocks[markdownKey(markdownRange(node))] = compactNode(node, budget, 0, source, 0, true, referenceContext); else truncated = true;
   }
   return { definitions, footnotes, blocks, headings, links: links.filter(link => !insideMarkdownMath(mathRanges, link.range)), passages, mathRanges, context: referenceContext, truncated: truncated || wanted.size > 0 || budget.remaining < 0 };
 }
@@ -141,7 +147,7 @@ export function insideMarkdownMath(ranges: MarkdownRange[], range: MarkdownRange
   return low > 0 && ranges[low - 1].end >= range.end;
 }
 
-export function parseMarkdownPreview(source: string, context?: Pick<MarkdownIndex, 'definitions' | 'footnotes' | 'context'>): { nodes: MarkdownNode[]; index: MarkdownIndex } {
+export function parseMarkdownPreview(source: string, context?: Pick<MarkdownIndex, 'definitions' | 'footnotes' | 'context'> & { truncated?: boolean }): { nodes: MarkdownNode[]; index: MarkdownIndex } {
   if (source.length > MARKDOWN_RENDER_LIMITS.characters) return { nodes: [{ type: 'source', range: { start: 0, end: source.length } }], index: { definitions: context?.definitions ?? {}, footnotes: context?.footnotes ?? {}, blocks: {}, headings: [], links: [], passages: [], mathRanges: [], context: '', truncated: true } };
   const root = parseMarkdownTree(source), index = indexMarkdown(root, [], source);
   const budget = { remaining: MARKDOWN_RENDER_LIMITS.nodes };
@@ -155,6 +161,12 @@ export function parseMarkdownPreview(source: string, context?: Pick<MarkdownInde
     index.definitions = { ...context.definitions, ...index.definitions };
     // outside definitions keep document coordinates and are rendered against the saved source.
     index.footnotes = { ...context.footnotes, ...index.footnotes };
+    index.truncated ||= context.truncated ?? false;
   }
-  return { nodes: nodes.map(node => compactNode(node, budget, 0, source, 0, true, `${index.context}\n\n${context?.context ?? ''}`)), index };
+  const compact = [];
+  for (const node of nodes) {
+    if (budget.remaining <= 0) { index.truncated = true; return { nodes: [{ type: 'source', range: { start: 0, end: source.length } }], index }; }
+    compact.push(compactNode(node, budget, 0, source, 0, true, `${index.context}\n\n${context?.context ?? ''}`));
+  }
+  return { nodes: compact, index };
 }

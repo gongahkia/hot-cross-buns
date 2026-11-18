@@ -1,5 +1,5 @@
 import { materializeJournalAsync, readJournalAsync } from './journalBackground.ts';
-import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel } from './journalDocument.ts';
+import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel, isCanonicalJournal } from './journalDocument.ts';
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
 import { reviewedRevision } from './revisionSync';
 import { normalizeDocument, type TodoDocument } from './todoText';
@@ -63,18 +63,19 @@ function transact<T>(stores: string[], work: (tx: IDBTransaction, done: (value: 
   }));
 }
 
-const stateFrom = (value: TodoState | undefined): TodoState => {
+const stateFrom = (value: TodoState | undefined, references: readonly TodoDocument[] = []): TodoState => {
   if (!value) return emptyState();
   if (value.document.source === undefined) throw new Error('This workspace needs the explicit Markdown transition. Export its recovery copy before continuing.');
-  const document = readJournal(value.document.source).document;
+  const resolve = (source: string) => references.find(document => isCanonicalJournal(document) && document.source === source) ?? readJournal(source).document;
+  const document = resolve(value.document.source);
   validateJournal(document);
   if (value.baseline && value.baseline.source === undefined) throw new Error('The saved baseline has no Markdown source. Keep the browser data for recovery.');
-  const baseline = value.baseline ? readJournal(value.baseline.source!).document : null;
+  const baseline = value.baseline ? resolve(value.baseline.source!) : null;
   return { document, baseline, revision: value.revision ?? 0, scratchRevision: value.scratchRevision ?? 0 };
 };
-const canonicalState = (next: TodoState, previous: TodoState): TodoState => {
-  const document = materializeJournal(next.document);
-  const baseline = next.baseline ? materializeJournal(next.baseline) : null;
+const canonicalState = (next: TodoState, previous: TodoState, references: readonly TodoDocument[] = []): TodoState => {
+  const document = materializeJournal(next.document, references);
+  const baseline = next.baseline ? materializeJournal(next.baseline, references) : null;
   return { ...next, document, baseline, revision: previous.revision + 1,
     scratchRevision: (previous.scratchRevision ?? 0) + Number(document.scratchpad !== previous.document.scratchpad) };
 };
@@ -123,7 +124,7 @@ export async function loadScratchpadState(): Promise<ScratchpadState> {
 }
 
 /** Reading and writing in one transaction serializes writes from all app windows. */
-export async function mutateTodoState(change: (latest: TodoState) => TodoState | null): Promise<TodoState | null> {
+export async function mutateTodoState(change: (latest: TodoState) => TodoState | null, references: readonly TodoDocument[] = []): Promise<TodoState | null> {
   const started = startMarkdownMeasurement();
   const result = await transact<TodoState | null>([STATE_STORE], (tx, done, fail) => {
     const store = tx.objectStore(STATE_STORE);
@@ -131,11 +132,11 @@ export async function mutateTodoState(change: (latest: TodoState) => TodoState |
     request.onerror = () => fail(request.error);
     request.onsuccess = () => {
       try {
-        const latest = stateFrom(request.result);
+        const latest = stateFrom(request.result, references);
         const changed = change(latest);
         if (!changed) { done(null); return; }
         validateJournal(changed.document);
-        const next = canonicalState(changed, latest);
+        const next = canonicalState(changed, latest, references);
         store.put(next, 'current');
         done(next);
       } catch (error) { fail(error); }

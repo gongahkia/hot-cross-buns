@@ -1,7 +1,7 @@
 import { createElement, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { Pencil } from 'lucide-react';
-import { headingSlug, parseMarkdownPreview, safeMarkdownUrl, type MarkdownNode } from '../markdown';
+import { headingSlug, MARKDOWN_RENDER_LIMITS, parseMarkdownPreview, safeMarkdownUrl, type MarkdownNode } from '../markdown';
 import { MarkdownDocumentContext } from '../markdownContext';
 import type { TodoBody } from '../todoText';
 import { MarkdownCode, MarkdownMath } from './MarkdownRich';
@@ -74,7 +74,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
         case 'table': return <table key={key}><thead><tr>{node.children?.[0]?.children?.map((cell, index) => <th key={index} style={{ textAlign: node.align?.[index] ?? 'left' }}>{cell.children?.map((child, index) => render(child, index, depth + 1, nodeSource))}</th>)}</tr></thead><tbody>{node.children?.slice(1).map((row, index) => <tr key={index}>{row.children?.map((cell, column) => <td key={column} style={{ textAlign: node.align?.[column] ?? 'left' }}>{cell.children?.map((child, index) => render(child, index, depth + 1, nodeSource))}</td>)}</tr>)}</tbody></table>;
         case 'footnoteReference': {
           const identifier = node.identifier!;
-          if (!Object.hasOwn(preview.index.footnotes, identifier)) return <sup key={key}>{node.label ?? identifier}</sup>;
+          if (!Object.hasOwn(preview.index.footnotes, identifier) || !references.has(identifier) && footnotes.length >= MARKDOWN_RENDER_LIMITS.footnotes) return <sup key={key} title="Footnote preview limit; open the Markdown source for this note.">{node.label ?? identifier}</sup>;
           const refs = references.get(identifier) ?? [], id = `${footnoteId(identifier)}-ref-${refs.length}`;
           if (!references.has(identifier)) { references.set(identifier, refs); footnotes.push(identifier); }
           refs.push(id);
@@ -86,7 +86,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
     };
     const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index} tabIndex={-1} data-markdown-start={node.range.start} data-markdown-end={node.range.end}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit></Block> : render(node, index));
     const notes: ReactNode[] = [];
-    for (let index = 0; index < Math.min(footnotes.length, 100); index++) {
+    for (let index = 0; index < footnotes.length; index++) {
       const identifier = footnotes[index], note = preview.index.footnotes[identifier];
       const nodeSource = context.index?.footnotes[identifier] === note ? context.source : source;
       notes.push(<li key={identifier} id={footnoteId(identifier)} tabIndex={-1}>{note.type === 'source' ? <pre>{nodeSource.slice(note.range.start, note.range.end)}</pre> : note.children?.map((child, index) => render(child, index, 0, nodeSource))}{references.get(identifier)?.map((id, index) => <a key={id} href={`#${id}`} aria-label={`Back to footnote ${footnotes.indexOf(identifier) + 1} reference ${index + 1}`} onClick={event => { event.preventDefault(); scrollTo(id); }}>Back{index ? ` ${index + 1}` : ''}</a>)}</li>);

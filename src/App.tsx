@@ -517,7 +517,7 @@ export default function App() {
   const persistSnapshot = (next: TodoState, before: TodoState) => enqueueJournal(() => mutateTodoState(latest => {
     if (serializeJournal(latest.document) !== serializeJournal(before.document)) throw new Error('The journal changed in another window. Your edit was not saved; reload and try again.');
     return { ...next, revision: latest.revision };
-  }));
+  }, [before.document, next.document, before.baseline, next.baseline].filter((document): document is TodoDocument => !!document)));
   const commitState = async (next: TodoState) => {
     if (!isCanonicalJournal(next.document)) next = { ...next, document: await materializeJournalAsync(next.document) };
     const before = current.current;
@@ -531,7 +531,7 @@ export default function App() {
     const document = rebaseLocalJournal(before, optimistic, latest.document, todayString());
     if (!document) throw new Error('The same item changed in another window. Your edit was not saved; reload and try again.');
     return { ...latest, document };
-  }));
+  }, [before, optimistic, current.current.baseline].filter((document): document is TodoDocument => !!document)));
   const replayState = (documentData: TodoDocument) => {
     const next = { ...current.current, document: documentData };
     const before = current.current;

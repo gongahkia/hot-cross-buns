@@ -129,10 +129,11 @@ function adjustIndent(raw: string, from: number, to: number, nl: string) {
 }
 
 /** the arrays are editable projections; only this adapter commits their changes back to source. */
-export function materializeJournal(document: TodoDocument): TodoDocument {
+export function materializeJournal(document: TodoDocument, references: readonly TodoDocument[] = []): TodoDocument {
   if (canonical.has(document)) return document;
   if (document.source === undefined) throw new Error('The journal has no Markdown source. Explicitly convert or create a Markdown workspace.');
-  const { model, document: before } = readJournal(document.source);
+  const reference = references.find(reference => canonical.has(reference) && reference.source === document.source);
+  const { model, document: before } = reference ? { model: journalModel(reference), document: reference } : readJournal(document.source);
   assertModel(model);
   const source = model.source, nl = nlOf(source);
   const patches: SourcePatch[] = [];

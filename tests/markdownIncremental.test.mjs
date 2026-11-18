@@ -24,6 +24,7 @@ test('syntax, time prefixes, Unicode, size changes and stale ranges require full
   const model = parseMarkdownPlanner(benchmarkPlanner(24, '2026-11-18')), entry = model.days[0].entries[0];
   for (const text of ['**changed**', '09:00-10:00 Meeting', '日本語', 'Changed', 'Historical task  ']) assert.equal(incrementalTitleExperiment(model, { range: entry.titleRange, expected: entry.markdown, text }), null);
   assert.equal(incrementalTitleExperiment(model, { range: entry.titleRange, expected: 'Different value', text: 'Historical task' }), null);
+  for (const changed of [model.source.replace('example.invalid', 'another.invalid'), model.source.replace('## Dated', '## Dates'), model.source.replace('## Scratchpad', '## Scratchbox'), model.source.replace('  ```\n  - [x]', '  ``\n  - [x]'), model.source.replace('Shared capture.', 'Stored capture.')]) assert.equal(incrementalTitleExperiment(model, sourceDelta(model.source, changed)), null);
 });
 
 test('revision-patch extraction preserves Unicode boundaries and reproduces complete source', () => {

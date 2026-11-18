@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { headingSlug, indexMarkdown, markdownKey, markdownRange, parseMarkdownPreview, parseMarkdownTree, safeMarkdownUrl, MARKDOWN_RENDER_LIMITS } from '../src/markdown.ts';
 import { applyPlannerEdits, parseMarkdownPlanner } from '../src/markdownPlanner.ts';
-import { journalBodyViews, materializeJournal, readJournal } from '../src/journalDocument.ts';
+import { createJournal, journalBodyViews, materializeJournal, readJournal } from '../src/journalDocument.ts';
 import { replaceMarkdownBody } from '../src/outline.ts';
 
 const walk = nodes => nodes.flatMap(node => [node, ...walk(node.children ?? [])]);
@@ -62,6 +62,16 @@ test('projected body references reuse immutable render trees without reparsing n
   assert.equal(materializeJournal(structuredClone(document)), document, 'unchanged projections reuse the exact validated document and body trees');
 });
 
+test('validated storage references survive source-cache eviction without trusting mutable projections', () => {
+  const { document } = readJournal(source('Preserved **body**.'));
+  createJournal('eviction-one'); createJournal('eviction-two');
+  assert.equal(materializeJournal(structuredClone(document), [document]), document);
+  const changed = structuredClone(document); changed.days[0].items[0].text = 'Changed entry';
+  assert.equal(materializeJournal(changed, [document]).days[0].items[0].text, 'Changed entry');
+  const unvalidated = structuredClone(document); unvalidated.days[0].items[0].text = 'Untrusted projection';
+  assert.notEqual(materializeJournal(structuredClone(document), [unvalidated]).days[0].items[0].text, 'Untrusted projection');
+});
+
 test('block edits retain sibling objects and source identities, including block deletion', () => {
   const { document } = readJournal(source('First paragraph.\n\n> A preserved **quote**.'));
   const body = document.days[0].items[0].body;
@@ -119,6 +129,14 @@ test('large and deeply nested previews fall back to exact source within renderin
   assert.ok(walk(parseMarkdownPreview(nested).nodes).some(node => node.type === 'source'));
   const wide = Array.from({ length: 4000 }, (_, i) => `- item ${i}`).join('\n');
   assert.ok(walk(parseMarkdownPreview(wide).nodes).some(node => node.type === 'source'));
+  const many = Array.from({ length: 1800 }, (_, index) => `Paragraph ${index}.`).join('\n\n');
+  const bounded = parseMarkdownPreview(many);
+  assert.ok(walk(bounded.nodes).length <= MARKDOWN_RENDER_LIMITS.nodes);
+  assert.equal(bounded.nodes[0].type, 'source');
+  const notes = Array.from({ length: 120 }, (_, index) => `[^note-${index}]: Footnote ${index}.`).join('\n\n');
+  const index = indexMarkdown(parseMarkdownTree(notes), [], notes);
+  assert.equal(Object.keys(index.footnotes).length, MARKDOWN_RENDER_LIMITS.footnotes);
+  assert.ok(index.truncated);
 });
 
 test('generated source edits preserve every untouched byte across syntax, nesting and Unicode', () => {
