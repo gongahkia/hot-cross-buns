@@ -18,6 +18,7 @@ export type MarkdownIndex = {
   footnotes: Record<string, MarkdownNode>;
   headings: MarkdownHeading[]; links: MarkdownLink[];
   blocks: Record<string, MarkdownNode>;
+  passages: Array<{ type: string; range: MarkdownRange }>;
   context: string; truncated: boolean;
 };
 
@@ -115,11 +116,15 @@ export function indexMarkdown(root: Root, selected: MarkdownRange[] = [], source
     if (definition) links.push({ url: definition.url, text: markdownText(node), range: markdownRange(node) });
   }
   links.sort((a, b) => a.range.start - b.range.start);
-  return { definitions, footnotes, blocks, headings, links, context: context.join('\n\n'), truncated: truncated || wanted.size > 0 || budget.remaining < 0 };
+  const passages = root.children.filter(node => node.type !== 'yaml').map(node => ({ type: node.type, range: markdownRange(node) }));
+  for (const node of root.children) if (!['list', 'yaml', 'definition', 'footnoteDefinition'].includes(node.type) && blockCount++ < MARKDOWN_RENDER_LIMITS.modelBlocks) {
+    blocks[markdownKey(markdownRange(node))] = compactNode(node, budget);
+  }
+  return { definitions, footnotes, blocks, headings, links, passages, context: context.join('\n\n'), truncated: truncated || wanted.size > 0 || budget.remaining < 0 };
 }
 
 export function parseMarkdownPreview(source: string, context?: Pick<MarkdownIndex, 'definitions' | 'footnotes' | 'context'>): { nodes: MarkdownNode[]; index: MarkdownIndex } {
-  if (source.length > MARKDOWN_RENDER_LIMITS.characters) return { nodes: [{ type: 'source', range: { start: 0, end: source.length } }], index: { definitions: context?.definitions ?? {}, footnotes: context?.footnotes ?? {}, blocks: {}, headings: [], links: [], context: '', truncated: true } };
+  if (source.length > MARKDOWN_RENDER_LIMITS.characters) return { nodes: [{ type: 'source', range: { start: 0, end: source.length } }], index: { definitions: context?.definitions ?? {}, footnotes: context?.footnotes ?? {}, blocks: {}, headings: [], links: [], passages: [], context: '', truncated: true } };
   const root = parseMarkdownTree(source), index = indexMarkdown(root, [], source);
   const budget = { remaining: MARKDOWN_RENDER_LIMITS.nodes };
   let nodes = root.children;

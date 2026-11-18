@@ -57,6 +57,10 @@ export function journalBodyViews(document: TodoDocument): Record<string, Markdow
     ('details' in node ? (node as PlannerEntry).details : node.children)?.forEach((child, index) => visit(child, `${ref}:detail:${index}`));
   };
   for (const entry of plannerEntries(model)) visit(entry, entryRef(entry));
+  for (const passage of model.markdown.passages) {
+    const key = markdownKey(passage.range), view = model.markdown.blocks[key];
+    if (view) views[`document:${key}`] = view;
+  }
   Object.freeze(views);
   bodyViews.set(document, views);
   return views;

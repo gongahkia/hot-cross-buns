@@ -3,6 +3,7 @@ import test from 'node:test';
 import { markdownFragment, markdownLink, markdownNavigation, prepareMarkdownLinks, suggestMarkdownLinks } from '../src/markdownNavigation.ts';
 import { journalModel, materializeJournal, readJournal } from '../src/journalDocument.ts';
 import { replaceMarkdownBody } from '../src/outline.ts';
+import { editMarkdownPassage } from '../src/markdownPassage.ts';
 
 const source = `---\nhcb-format: 2\ndocument-id: navigation\n---\n\n# A\n\n# A\n\n# A-1\n\n[plant-ref]: #hcb-plants\n\n## Dated\n\n### 2026-11-18\n\n- [ ] Plants\n  \`\`\`hcb\n  id: plants\n  \`\`\`\n\n  ### Care 日本語\n\n  Read [the other entry](#hcb-other).\n\n- [ ] Other\n  \`\`\`hcb\n  id: other\n  \`\`\`\n\n  [Water][plant-ref] and [heading](#heading-care-%E6%97%A5%E6%9C%AC%E8%AA%9E).\n\n- [ ] No persisted identity\n\n## Undated\n\n### Inbox\n\n- Idea\n\n## Scratchpad\n[Capture](#hcb-plants)\n`;
 
@@ -53,4 +54,23 @@ test('missing target identities and the referring body commit atomically without
   assert.equal(document.source, source);
   assert.throws(() => prepareMarkdownLinks(structuredClone(document), source + 'changed', []), /document changed/);
   assert.throws(() => prepareMarkdownLinks(structuredClone(document), source, [{ entryRef: target.entryRef, id: 'plants' }]), /duplicated/);
+});
+
+test('prose and scratchpad edits insert link identities atomically on either side of a passage', () => {
+  const before = readJournal(source), target = suggestMarkdownLinks(markdownNavigation(before.model), 'persisted')[0];
+  for (const fragment of ['# A-1', '[Capture](#hcb-plants)']) {
+    const start = source.indexOf(fragment), range = { start, end: start + fragment.length };
+    const result = editMarkdownPassage(source, range, '[New](#hcb-new-target)', [{ entryRef: target.entryRef, id: 'new-target' }]);
+    assert.equal(result.issues.filter(issue => issue.severity === 'error').length, 0);
+    assert.ok(result.source.includes('id: new-target'));
+    assert.ok(result.source.includes('[New](#hcb-new-target)'));
+    assert.ok(result.source.includes('Read [the other entry](#hcb-other).'));
+  }
+});
+
+test('a prose block cannot reinterpret scheduling outside its exact source range', () => {
+  const text = source.replace('- [ ] Plants', 'Ordinary group context.\n\n- [ ] Plants');
+  const start = text.indexOf('Ordinary group context.'), range = { start, end: start + 'Ordinary group context.'.length };
+  assert.throws(() => editMarkdownPassage(text, range, '## Unrelated section'), /reinterpret entries/);
+  assert.equal(editMarkdownPassage(text, range, 'Revised context.').source, text.replace('Ordinary group context.', 'Revised context.'));
 });

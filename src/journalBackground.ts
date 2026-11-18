@@ -3,6 +3,9 @@ import { upgradeOutlineJournal } from './journalOutline.ts';
 import { assertImportText } from './importLimits.ts';
 import type { JournalWork, JournalWorkRequest, JournalWorkResult } from './journalWorker.ts';
 import type { TodoDocument } from './todoText.ts';
+import { editMarkdownPassage } from './markdownPassage.ts';
+import type { SourceRange } from './markdownPlanner.ts';
+import type { MarkdownLinkPreparation } from './markdownNavigation.ts';
 
 type WorkerPort = Pick<Worker, 'postMessage' | 'terminate' | 'onmessage' | 'onerror' | 'onmessageerror'>;
 type Pending = { resolve: (value: Extract<JournalWorkResult, { ok: true }>) => void; reject: (error: Error) => void; cleanup: () => void };
@@ -83,4 +86,12 @@ export async function upgradeOutlineJournalAsync(document: TodoDocument) {
   try { result = await client().request({ kind: 'upgrade', document }); }
   catch (error) { if (error instanceof JournalWorkerUnavailable) return upgradeOutlineJournal(document); throw error; }
   return { document: journalFromPlanner(result.model).document, checkboxChanges: result.checkboxChanges ?? 0 };
+}
+
+export async function editMarkdownPassageAsync(source: string, range: SourceRange, markdown: string, links: MarkdownLinkPreparation[] = []) {
+  if (typeof Worker === 'undefined') return journalFromPlanner(editMarkdownPassage(source, range, markdown, links)).document;
+  let result;
+  try { result = await client().request({ kind: 'passage', source, range, markdown, links }); }
+  catch (error) { if (error instanceof JournalWorkerUnavailable) return journalFromPlanner(editMarkdownPassage(source, range, markdown, links)).document; throw error; }
+  return journalFromPlanner(result.model).document;
 }

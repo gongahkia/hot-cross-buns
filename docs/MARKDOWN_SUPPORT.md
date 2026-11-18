@@ -15,7 +15,7 @@ Planner.md remains exact source. Parsing a construct does not imply that every v
 | Images | Yes | Yes | Description and explicit HTTP(S) image loading; no automatic fetch | Markdown source / body draft |
 | Raw HTML | Yes | Yes | Literal source; never executed | Markdown source / body draft |
 | Callouts, mathematics, Mermaid | Yes | Source retained | Rich processing in progress | Markdown source / body draft |
-| Entry and heading navigation, backlinks, link suggestions | Yes | Entry targets diagnosed; heading/link index available | Navigation integration in progress | Markdown source / body draft |
+| Entry and heading navigation, backlinks, link suggestions | Yes | Document-wide entry, heading and actual backlink indexes | Cross-view navigation, heading deep links and collapsed linked mentions | Contextual link picker while editing Markdown |
 
 ## Shared grammar and rendering data
 
@@ -35,15 +35,17 @@ Block edits retain each sibling's source identity. Removing a block patches only
 
 ## Tests
 
-The navigation foundation in `markdownNavigation.ts` maps entry/heading targets to owning dated or undated entries, resolves encoded Unicode fragments, records actual inline/reference backlinks, and retains exact source destinations for prose/scratchpad links. Heading identities remain distinct even when duplicate suffixes collide with literal numbered titles. Suggestions expose unpersisted entries without inventing permanent links; missing IDs must be inserted atomically with the referring edit against the same full-source baseline. Navigation controls are still being integrated.
+`markdownNavigation.ts` maps entry/heading targets to owning dated or undated entries, resolves encoded Unicode fragments, records actual inline/reference backlinks, and retains exact source destinations for prose/scratchpad links. Heading identities remain distinct even when duplicate suffixes collide with literal numbered titles. Links reveal the target view/notes and move keyboard focus; fragment destinations survive reload. Linked mentions remain collapsed in an outline and return to the referring body passage. A dirty draft blocks navigation until saved, downloaded or cancelled.
+
+**Insert link** (or Command/Control+K in a Markdown notes field) offers bounded entry/heading suggestions without adding commands to item menus. Native text insertion preserves input undo. Missing entry IDs and the referring edit commit together against the full-source baseline, including recovered drafts; undone/removed draft links do not require ID insertion. A missing target inside the same enclosing raw source list must be saved/identified first rather than guessing its identity after an arbitrary list rewrite.
+
+Root prose and scratchpad link destinations open a focused passage using the same block editor. Worker validation checks the full candidate and rejects changes that reinterpret entries outside the selected block. Source access, draft download/recovery and the existing journal undo path remain available. `markdown-navigation.spec.ts` covers cross-view links, linked mentions, reloadable heading links, exact prose edits, native link-insertion undo and recovered atomic ID insertion.
 
 `tests/markdown.test.mjs` exercises curated CommonMark/GFM examples, document-wide references, immutable render-tree reuse, BOM and all supported line endings, heading identities, hostile URLs/labels, rendering limits, and 120 deterministic source edits across nested outlines, references, fences and Unicode. `markdown-render.spec.ts` checks actual saved rendering, alignment, reference/footnote navigation, opt-in image requests, inert unsafe content and phone overflow. `markdownPlanner`, `journalDocument`, `outline` and background-worker tests separately cover planning semantics, exact edits, source ownership, validation and worker adoption. The curated corpus is not a claim of complete CommonMark conformance or Obsidian/Notion extension compatibility.
 
 ## Remaining implementation and acceptance
 
 - Cache unchanged block rendering across revisions after measuring the invalidation and copying costs.
-- Extend source-aware block access to ordinary document prose and navigation targets outside entry notes.
-- Add entry/heading navigation, backlinks and link suggestions without a persistent sidebar or toolbar.
 - Add lazy syntax highlighting, callouts, bounded mathematics and isolated Mermaid, retaining safe source fallback.
 - Measure parsing, worker message copying, React commit work and durable saving separately on 1,000- and 10,000-entry journals. Evaluate revision patches and incremental parsing against the complete parser, including distant references, fences and section changes.
 - Verify the final UI at desktop and phone sizes and run the repository's full verification command. Keep README.md unchanged.

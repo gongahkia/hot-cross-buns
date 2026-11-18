@@ -78,7 +78,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
         default: return <span key={key}>{children()}</span>;
       }
     };
-    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit></Block> : render(node, index));
+    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index} tabIndex={-1} data-markdown-start={node.range.start} data-markdown-end={node.range.end}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit></Block> : render(node, index));
     const notes: ReactNode[] = [];
     for (let index = 0; index < Math.min(footnotes.length, 100); index++) {
       const identifier = footnotes[index], note = preview.index.footnotes[identifier];

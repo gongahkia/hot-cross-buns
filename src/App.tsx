@@ -1,6 +1,9 @@
 import { OutlineDocumentContext } from './components/OutlineEditor';
 import { OutlineUpgrade } from './components/OutlineUpgrade';
-import { materializeJournalAsync, readJournalAsync, upgradeOutlineJournalAsync } from './journalBackground';
+import { MarkdownPassage } from './components/MarkdownPassage';
+import { markdownFragment, markdownNavigation, prepareMarkdownChange, type MarkdownLinkPreparation, type MarkdownTarget } from './markdownNavigation';
+import type { SourceRange } from './markdownPlanner';
+import { editMarkdownPassageAsync, materializeJournalAsync, readJournalAsync, upgradeOutlineJournalAsync } from './journalBackground';
 import { outlineText, refreshItemCompletion, resetDetails, setItemCompletion } from './outline';
 import { isCanonicalJournal, journalBodyViews, journalModel, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -322,6 +325,9 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [markdownPassage, setMarkdownPassage] = useState<MarkdownTarget | null>(null);
+  const [markdownJump, setMarkdownJump] = useState<MarkdownTarget | null>(null);
+  const markdownJumpHandler = useRef<(target: MarkdownTarget) => boolean>(() => false);
   const [outlineUpgrade, setOutlineUpgrade] = useState<{ document: TodoDocument; expected: string; checkboxChanges: number } | null>(null);
   const [scratchPending, setScratchPending] = useState(false);
   const scratchPendingRef = useRef(false);
@@ -654,6 +660,7 @@ export default function App() {
     const view = projectItemsForDate(document, date).find(item => item.id === id);
     if (!view) return;
     if (view.projection?.kind === 'series') {
+      prepareMarkdownChange(change, document);
       const destinationDate = view.projection.originalDate;
       let destination = document.days.find(day => day.date === destinationDate);
       if (!destination) { destination = { date: destinationDate, items: [] }; document.days.push(destination); }
@@ -665,7 +672,7 @@ export default function App() {
     }
     const source = document.days.find(day => day.items.some(item => item.id === (view.projection?.masterId ?? id)));
     const item = source?.items.find(item => item.id === (view.projection?.masterId ?? id));
-    if (source && item) { change(item, source.items); detachRecurringOverride(document,item); }
+    if (source && item) { prepareMarkdownChange(change, document); change(item, source.items); detachRecurringOverride(document,item); }
   });
   const requestScopedEdit = (date: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => {
     const view = projectItemsForDate(current.current.document, date).find(item => item.id === id);
@@ -751,6 +758,7 @@ export default function App() {
       edit(document => {
         const master = document.days.flatMap(day => day.items).find(item => item.id === id);
         if (!master) return;
+        prepareMarkdownChange(change, document);
         const day = document.days.find(day => day.date === date)!;
         const override: TodoItem = { ...structuredClone(master), id: newId(), repeat: undefined, skips: undefined, replaces: { series, on: originalDate } };
         day.items.push(override); change(override,day.items); detachRecurringOverride(document,override);
@@ -761,6 +769,7 @@ export default function App() {
       const masterDay = document.days.find(day => day.items.some(item => item.repeat?.series === series && item.repeat.kind !== 'after'));
       const master = masterDay?.items.find(item => item.repeat?.series === series && item.repeat.kind !== 'after');
       if (!master || !masterDay?.date) return;
+      prepareMarkdownChange(change, document);
       if (scope === 'all' || originalDate <= masterDay.date) {
         change(master,masterDay.items);
         if (!master.repeat || master.repeat.kind === 'after') {
@@ -859,7 +868,7 @@ export default function App() {
   const editUndated = (listName: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void, feedback?: DeletionFeedback) => edit(document => {
     const items = document.undated?.find(list => list.name === listName)?.items;
     const item = items?.find(item => item.id === id);
-    if (items && item) change(item,items);
+    if (items && item) { prepareMarkdownChange(change, document); change(item,items); }
   }, feedback);
   const removeUndated = (listName: string, id: string, detailIndex?: number) => {
     const item = current.current.document.undated?.find(list => list.name === listName)?.items.find(item => item.id === id);
@@ -1115,7 +1124,12 @@ export default function App() {
     } catch (error) { setFileActionError(String(error)); }
   };
   const documentData = state?.document ?? current.current.document;
-  const outlineContext = useMemo(() => ({ id: journalModel(documentData).documentId!, source: documentData.source!, index: journalModel(documentData).markdown, bodyViews: journalBodyViews(documentData) }), [documentData]);
+  const navigation = useMemo(() => markdownNavigation(journalModel(documentData)), [documentData]);
+  const navigationRef = useRef(navigation); navigationRef.current = navigation;
+  const outlineContext = useMemo(() => ({ id: journalModel(documentData).documentId!, source: documentData.source!, index: journalModel(documentData).markdown, bodyViews: journalBodyViews(documentData), navigation,
+    jump: (target: MarkdownTarget) => { if (markdownJumpHandler.current(target) && target.fragment) window.history.pushState(null, '', `#${encodeURIComponent(target.fragment)}`); },
+    navigate: (url: string) => { const fragment = markdownFragment(url), target = fragment && navigation.byFragment.get(fragment); if (!target) { setMessage('This Markdown link target is no longer available. The link remains in your source.'); return; } if (markdownJumpHandler.current(target)) window.history.pushState(null, '', `#${encodeURIComponent(fragment!)}`); },
+  }), [documentData, navigation]);
   const recursive = journalModel(documentData).format === 2;
   const enableOutlines = () => {
     setBusy(true);
@@ -1240,6 +1254,40 @@ export default function App() {
     setTag(null); setSearchTarget(result); pendingSearchTarget.current = result;
     if (result.kind === 'dated') { setSelectedDate(result.location); setViewMode('day'); setExpandedEarlierKey(null); }
   };
+  markdownJumpHandler.current = target => {
+    if (document.querySelector('[data-editor-dirty="true"]')) { setMessage('Save, download or cancel the open Markdown draft before following another link.'); return false; }
+    if (popout && target.itemId && (popout.kind === 'scratchpad' || target.date && popout.kind !== 'dated' || target.list && (popout.kind !== 'undated' || !popout.lists.includes(target.list)))) { setMessage('Open the main journal to follow a link outside this window’s view.'); return false; }
+    setTag(null); setQuery(''); setCompletionFilter('all'); setPaletteOpen(false); setDateOpen(false);
+    if (!target.itemId) { setMarkdownPassage(target); return true; }
+    setMarkdownPassage(null);
+    const result: PaletteResult = { id: `markdown:${target.itemId}`, itemId: target.itemId, label: target.label, kind: target.date ? 'dated' : 'undated', location: target.date ?? target.list!, context: target.date ?? target.list!, completed: false };
+    pendingSearchTarget.current = null; setSearchTarget(result); setActiveTab(result.kind);
+    if (target.date) { setSelectedDate(target.date); setViewMode('day'); setExpandedEarlierKey(null); }
+    setMarkdownJump({ ...target });
+    return true;
+  };
+  useLayoutEffect(() => {
+    if (!markdownJump) return;
+    let frame = 0, attempts = 0;
+    const focus = () => {
+      const row = [...(journalViewport.current?.querySelectorAll<HTMLElement>('[data-search-item-id]') ?? [])].find(row => row.dataset.searchItemId === markdownJump.itemId);
+      if (markdownJump.kind !== 'entry') row?.querySelectorAll<HTMLDetailsElement>('details').forEach(details => { details.open = true; });
+      const heading = markdownJump.kind === 'heading' ? [...(row?.querySelectorAll<HTMLElement>('[data-markdown-anchor]') ?? [])].find(heading => heading.dataset.markdownAnchor === markdownJump.fragment) : undefined;
+      const passage = markdownJump.kind === 'passage' ? [...(row?.querySelectorAll<HTMLElement>('[data-markdown-start]') ?? [])].find(block => Number(block.dataset.markdownStart) <= markdownJump.range.start && Number(block.dataset.markdownEnd) >= markdownJump.range.end) : undefined;
+      const field = heading ?? passage ?? (markdownJump.kind === 'entry' ? row?.querySelector<HTMLTextAreaElement>('textarea') : undefined);
+      if (field && !field.closest('[inert]')) { field.scrollIntoView({ block: 'center' }); field.focus({ preventScroll: true }); setMarkdownJump(null); }
+      else if (++attempts < 120) frame = requestAnimationFrame(focus);
+      else { setMarkdownJump(null); setMessage('This Markdown destination could not be shown. Open the source to review it.'); }
+    };
+    frame = requestAnimationFrame(focus);
+    return () => cancelAnimationFrame(frame);
+  }, [markdownJump, activeTab, selectedDate, journalDays]);
+  useEffect(() => {
+    if (!state) return;
+    const follow = () => { const fragment = markdownFragment(window.location.hash); if (!fragment || !/^(?:hcb-|heading-)/.test(fragment)) return; const target = navigationRef.current.byFragment.get(fragment); if (target) markdownJumpHandler.current(target); else setMessage('This Markdown link target is no longer available.'); };
+    follow(); window.addEventListener('hashchange', follow);
+    return () => window.removeEventListener('hashchange', follow);
+  }, [state !== null]);
   useLayoutEffect(() => {
     if (!pendingSearchTarget.current || paletteOpen) return;
     let frame = 0, attempts = 0;
@@ -1299,6 +1347,13 @@ export default function App() {
     if (readJournal(source).model.documentId !== readJournal(expected).model.documentId) throw new Error('Source editing keeps document-id unchanged. Use explicit import review to replace the whole journal.');
     await commitDocumentState({ ...current.current, document: parsed.document });
     setMessage('Markdown source saved.');
+  };
+  const savePassage = async (markdown: string, expected: string, range: SourceRange, links: MarkdownLinkPreparation[]) => {
+    await editQueue.current; await journalQueue.current;
+    const document = await editMarkdownPassageAsync(expected, range, markdown, links);
+    if (scratchPendingRef.current || serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while this passage draft was open. Download the draft and review the latest source.');
+    await commitDocumentState({ ...current.current, document });
+    setMessage('Markdown passage saved.');
   };
   const commands: PaletteCommand[] = [];
   if (!recursive && !popout) commands.push({ id: 'outlines', label: 'Enable deeper outlines', keywords: 'nested children subtasks recursive', hidden: true, icon: FileInput, run: enableOutlines });
@@ -1444,6 +1499,7 @@ export default function App() {
     <ExportPreview open={exportOpen} text={exportOpen ? serializeJournal(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
     <OutlineUpgrade preview={outlineUpgrade} onClose={() => setOutlineUpgrade(null)} onApply={async (document, expected) => { await saveSource(document.source!, expected); setMessage('Deeper outlines enabled.'); }}/>
     <SourceEditor open={sourceOpen} source={serializeJournal(state.document)} onClose={() => setSourceOpen(false)} onSave={saveSource}/>
+    {markdownPassage && <MarkdownPassage target={markdownPassage} onClose={() => setMarkdownPassage(null)} onSave={savePassage} onSource={() => { setMarkdownPassage(null); setSourceOpen(true); }}/>}
     <HistoryRecovery open={historyOpen} currentText={historyOpen ? serializeJournal(state.document) : ''} onClose={() => setHistoryOpen(false)} onSettings={() => { setHistoryOpen(false); setSettingsOpen(true); }} onLoad={loadHistory} onRestore={(snapshot, id) => historyAction(snapshot, id, true)} onReview={(snapshot, id) => historyAction(snapshot, id, false)}/>
     <AppearanceSettings syncSettings={<><FileSyncSettings conflictCopies={fileSync.conflictCopies} onImportConflict={popout ? undefined : () => importInput.current?.click()} status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onFolder={() => { void linkFile(false, true); }} protectedHistory={fileSync.protected} historyStats={fileSync.revisions?.stats} onEnableHistory={() => { void fileSync.enableHistory().catch(error => setFileActionError(String(error))); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
       <GoogleDriveSettings protectedHistory={driveSync.protected} historyStats={driveSync.revisions?.stats} onEnableHistory={() => { void driveSync.enableHistory().catch(error => setMessage(String(error))); }} config={driveSync.config} onConfigure={driveSync.configure} sdkReady={driveSync.sdkReady} onRetrySdk={() => { void driveSync.retrySdk().catch(error => setMessage(String(error))); }} connected={!!driveSync.session} email={driveSync.session?.email ?? ''} status={driveSync.status} linked={driveSync.linked} files={driveSync.files} busy={busy || driveSync.busy} error={driveSync.error} localLinked={fileSync.status.kind !== 'unlinked'}

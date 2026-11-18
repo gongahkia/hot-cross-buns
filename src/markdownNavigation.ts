@@ -1,18 +1,31 @@
 import { plannerEntries, type MarkdownPlanner, type PlannerEntry, type SourceRange } from './markdownPlanner.ts';
 import type { TodoDocument, TodoItem } from './todoText.ts';
+import { parseMarkdownPreview } from './markdown.ts';
 
 export type MarkdownTarget = {
-  kind: 'entry' | 'heading'; label: string; fragment?: string; range: SourceRange;
+  kind: 'entry' | 'heading' | 'passage'; label: string; fragment?: string; range: SourceRange;
   itemId?: string; entryRef?: string; date?: string; list?: string;
 };
 export type MarkdownBacklink = { target: MarkdownTarget; range: SourceRange; label: string };
 export type MarkdownNavigation = {
   targets: MarkdownTarget[]; byFragment: Map<string, MarkdownTarget>;
   backlinks: Map<string, MarkdownBacklink[]>;
+  incomingByItem: Map<string, MarkdownBacklink[]>;
 };
 export type MarkdownLinkPreparation = { entryRef: string; id: string };
 const cache = new WeakMap<MarkdownPlanner, MarkdownNavigation>();
+const preparations = new WeakMap<Function, { source: string; links: MarkdownLinkPreparation[] }>();
 const itemId = (entry: PlannerEntry) => entry.id ?? `source:${entry.range.start}`;
+
+export function withMarkdownPreparation<T extends Function>(change: T, source?: string, links: MarkdownLinkPreparation[] = []): T {
+  if (source !== undefined) preparations.set(change, { source, links });
+  return change;
+}
+
+export function prepareMarkdownChange(change: Function, document: TodoDocument): void {
+  const preparation = preparations.get(change);
+  if (preparation) prepareMarkdownLinks(document, preparation.source, preparation.links);
+}
 
 export function markdownFragment(url: string): string | undefined {
   if (!url.startsWith('#')) return;
@@ -44,7 +57,12 @@ export function markdownNavigation(model: MarkdownPlanner): MarkdownNavigation {
     const incoming = backlinks.get(fragment) ?? [];
     incoming.push({ target, range: link.range, label: link.text }); backlinks.set(fragment, incoming);
   }
-  const result = { targets, byFragment, backlinks };
+  const incomingByItem = new Map<string, MarkdownBacklink[]>();
+  for (const [fragment, incoming] of backlinks) {
+    const id = byFragment.get(fragment)?.itemId;
+    if (id) incomingByItem.set(id, [...(incomingByItem.get(id) ?? []), ...incoming]);
+  }
+  const result = { targets, byFragment, backlinks, incomingByItem };
   cache.set(model, result);
   return result;
 }
@@ -57,6 +75,22 @@ export function suggestMarkdownLinks(navigation: MarkdownNavigation, query: stri
 export function markdownLink(label: string, fragment: string): string {
   const text = label.replace(/\\/g, '\\\\').replace(/([\[\]`*_~<>])/g, '\\$1').replace(/[\r\n]+/g, ' ');
   return `[${text}](#${encodeURIComponent(fragment)})`;
+}
+
+export function usedMarkdownPreparations(markdown: string, pending: MarkdownLinkPreparation[]): MarkdownLinkPreparation[] {
+  if (!pending.length) return [];
+  const targets = new Set(parseMarkdownPreview(markdown).index.links.map(link => markdownFragment(link.url)));
+  return pending.filter(link => targets.has(`hcb-${link.id}`));
+}
+
+export function assertPassageOwnership(before: MarkdownPlanner, after: MarkdownPlanner, range: SourceRange): void {
+  const delta = after.source.length - before.source.length;
+  const candidates = new Map(plannerEntries(after).map(entry => [entry.range.start, entry]));
+  for (const entry of plannerEntries(before)) {
+    if (entry.range.start < range.end && entry.range.end > range.start) continue;
+    const offset = entry.range.start >= range.end ? delta : 0, candidate = candidates.get(entry.range.start + offset);
+    if (!candidate || candidate.date !== entry.date || candidate.list !== entry.list || candidate.range.end !== entry.range.end + offset) throw new Error('This block edit would reinterpret entries outside the edited block. Use journal controls or the full source editor to review that change.');
+  }
 }
 
 /** persist missing entry identities in the same source transaction as the new link. */
