@@ -28,10 +28,39 @@ Structured edits and undo/redo are queued in order. Worker results are checked a
 
 `journalBackground.test.mjs` checks request ordering, cancellation, failure/restart, deadlines, bounded work, invalid content and worker operations. `background.spec.ts` verifies an actual production worker, rendering during a 5,000-entry parse and recovery after worker failure. One local browser run continued 66 animation frames during that parse. The existing 1,200-entry browser regression also exercises completion/undo and search; neither test establishes universal latency targets.
 
-Incremental parsing is deferred. Avoiding redundant parses and moving full validation off the UI thread address measured costs without changing reference resolution or arbitrary Markdown ownership. Future incremental work must compare complete resulting source, diagnostics and UTF-16 ranges against the current parser, including global references, frontmatter, nested fences, section boundaries and terminal scratchpad changes. A worker improves responsiveness; it does not remove full-document CPU cost or full-snapshot storage/history amplification.
+Production incremental parsing is deferred. Avoiding redundant parses and moving full validation off the UI thread address measured costs without changing reference resolution or arbitrary Markdown ownership. Future incremental work must compare complete resulting source, diagnostics and UTF-16 ranges against the current parser, including global references, frontmatter, nested fences, section boundaries and terminal scratchpad changes. A worker improves responsiveness; it does not remove full-document CPU cost or full-snapshot storage/history amplification.
 
 ## Visible-date source index
 
 The 10,000-entry browser benchmark reproduced a default-week failure with only 20 current rows: each date rescanned all historical entries and exhausted the unchanged 100,000-work budget. `seriesView.ts` now reuses a source index for frozen journal containers, including date groups, replacement identities, skip sets and span/recurrence candidates. Ordinary completed history is indexed once rather than revisited for every visible date. Mutable documents or mutable indexed skip/replacement data rebuild the index.
 
 Work and the 5,000-visible-row limit remain enforced. `seriesIndex.test.mjs` checks the original 10,000-entry week, visible-row rejection, mutable-data invalidation and equivalence with uncached recurrence/span/replacement projections. The browser benchmark now completes at both 1,000 and 10,000 entries without changing its seven-day view or the projection ceilings.
+
+## Browser measurements
+
+Run `npm run benchmark:markdown -- --samples=3`. The command builds the production profiling variant, starts its own preview server, uses a fresh Chromium context per sample, writes `.tmp/markdown-benchmark/latest.json`, then restores the ordinary production build. Instrumentation is disabled in normal builds; measurement records contain phase names, durations and sizes, not journal content.
+
+The [2026-11-18 results](performance/markdown-2026-11-18.json) used an Apple M3, macOS arm64, Node 26.7.0 and Chromium 156.0.8078.4, with three samples per size, 20 visible entries and seven visible dates. Source sizes were 82,379 and 836,488 bytes. Values below are milliseconds, median / p95. With three samples, p95 is the largest sample; these are local observations, not service-level targets or a comparison against Notion or Obsidian.
+
+| Measurement | 1,000 entries | 10,000 entries |
+| --- | ---: | ---: |
+| Cold full parse, worker CPU | 103.2 / 105.7 | 894.6 / 913.5 |
+| Full parse, worker round trip | 106.1 / 108.7 | 925.3 / 944.2 |
+| Full-source echo round trip | 0.1 / 0.2 | 0.4 / 0.5 |
+| Compact-model echo round trip | 3.4 / 3.5 | 36.2 / 36.6 |
+| Main-thread model adoption during completion | 1.2 / 2.0 | 12.9 / 13.4 |
+| React render work per completion commit | 1.9 / 6.3 | 1.8 / 12.6 |
+| Changed-candidate completion validation, worker CPU | 97.2 / 98.0 | 817.4 / 824.2 |
+| Completion durable save | 28.0 / 30.3 | 64.1 / 65.2 |
+
+Echo round trips include structured cloning, scheduling and both directions, rather than pure copying CPU time. React's production profiler adds overhead, measures render work rather than browser paint, and reports multiple commits per action. Durable save includes opening IndexedDB, validation, serialization and transaction completion. The phases can overlap or repeat; summing these medians does not describe end-to-end latency. Browser timer resolution can report zero for tiny delta transfers.
+
+The [baseline](performance/markdown-before-validation-reuse-2026-11-18.json) already included the visible-date index correction. Subsequent measurements exposed repeated validation of unchanged source: importing materialized an already-parsed document, and storage reparsed validated documents after their source fell out of the two-entry cache. Unchanged materialization now reuses its canonical document, and storage can reuse canonical references only when their exact source matches. Arbitrary mutable objects do not qualify. Changed candidates still receive full validation; database version 4 and revision protocol 2 remain unchanged.
+
+At 10,000 entries, median import materialization worker time fell from 831.2 to 13.6 ms and completion durable save from 995.0 to 64.1 ms. At 1,000 entries those figures fell from 90.2 to 1.5 ms and 141.7 to 28.0 ms. The final completion trace contains no synchronous main-thread parser invocation. `journalBackground.test.mjs` and `markdown.test.mjs` check identity reuse and rejection of unvalidated storage references.
+
+### Incremental and revision-patch evaluation
+
+`scripts/experiments/markdownIncremental.ts` is a benchmark-only prototype for same-length ASCII root-title edits with unchanged syntax and validated source. It shares unchanged model data and is compared deeply against the complete parser. The 10,000-entry median was 0.074 ms versus 1,065.5 ms for the complete title reparse. This narrow result cannot be extrapolated to arbitrary Markdown edits. Generated differential tests cover 120 accepted edits across format versions, BOM and line endings; definition, fence, section, scratchpad, Unicode, stale-source and size-changing edits require the full-parser fallback.
+
+The prototype also extracts a revision delta without splitting UTF-16 surrogate pairs. At 10,000 entries extraction cost 2.0 ms median, while a full-source echo cost 0.4 ms. Source-only patches therefore do not justify changing the revision protocol on this evidence. The 36.2 ms compact-model round trip is a better future transfer target, but full parsing remains the dominant completion cost. A next parser optimization should address changed-candidate validation with conservative invalidation and complete-model equivalence checks before shipping incremental behavior.

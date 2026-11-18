@@ -23,7 +23,7 @@ Planner.md remains exact source. Parsing a construct does not imply that every v
 
 `src/markdown.ts` owns the CommonMark/GFM/frontmatter grammar used by the planner and local previews. The planner's existing parse produces a document-wide definition, footnote, heading and link index, plus compact render trees for saved body blocks. Heading anchors use the separate `heading-` namespace, with deterministic suffixes for duplicates. Entry anchors retain `hcb-` identities.
 
-Render trees are capped at 32 levels, 2,000 nodes per preview, 40,000 source characters per block, 20,000 retained model nodes and 2,000 selected model blocks. Exceeding a rendering budget leaves exact source available. These limits are separate from the existing 5 MiB / 100,000-line document ceiling. Indexes and previews are derived data; they never replace the canonical source, database version 4 or revision protocol 2.
+Render trees are capped at 32 levels, 2,000 nodes per preview, 40,000 source characters per block, 20,000 retained model nodes, 2,000 selected model blocks and 100 rendered footnote definitions. Exceeding a rendering budget leaves exact source available; footnote references beyond the definition limit stay literal rather than pointing to missing destinations. These limits are separate from the existing 5 MiB / 100,000-line document ceiling. Indexes and previews are derived data; they never replace the canonical source, database version 4 or revision protocol 2.
 
 Saved body previews use immutable render trees from the planner's parse, including after worker adoption. Source references map each projected body block to that tree; repeated lookups reuse one document-scoped mapping. Local draft parsing uses the same grammar and document reference context. Appended reference context is excluded from preview output; unfinished code fences and HTML retain their original content instead of swallowing that context.
 
@@ -55,8 +55,8 @@ Root prose and scratchpad link destinations open a focused passage using the sam
 
 `tests/markdown.test.mjs` exercises curated CommonMark/GFM examples, document-wide references, immutable render-tree reuse, BOM and all supported line endings, heading identities, hostile URLs/labels, rendering limits, and 120 deterministic source edits across nested outlines, references, fences and Unicode. `markdown-render.spec.ts` checks actual saved rendering, alignment, reference/footnote navigation, opt-in image requests, inert unsafe content and phone overflow. `markdownPlanner`, `journalDocument`, `outline` and background-worker tests separately cover planning semantics, exact edits, source ownership, validation and worker adoption. The curated corpus is not a claim of complete CommonMark conformance or Obsidian/Notion extension compatibility.
 
-## Remaining implementation and acceptance
+## Performance and acceptance
 
-- Measure general block-cache invalidation and copying costs; unchanged code/formula rendering is already cached.
-- Measure parsing, worker message copying, React commit work and durable saving separately on 1,000- and 10,000-entry journals. Evaluate revision patches and incremental parsing against the complete parser, including distant references, fences and section changes.
-- Verify the final UI at desktop and phone sizes and run the repository's full verification command. Keep README.md unchanged.
+The [performance report](PARSER_PERFORMANCE.md#browser-measurements) separates parser work, worker transfer round trips, model adoption, React commit work and durable saving for 1,000 and 10,000 entries. It includes before/after data and the deliberately limited incremental-title experiment. Saved body trees reuse source identities within a document; unchanged code/formula results also reuse a bounded cache across revisions. General arbitrary-edit incremental parsing remains future work, with full validation retained in production.
+
+Desktop and phone browser tests cover rendered content, local editing, navigation and rich fallbacks. Final acceptance uses `npm run verify`; its dependency audit is independent of Markdown behavior. README.md stays unchanged during this transition.
