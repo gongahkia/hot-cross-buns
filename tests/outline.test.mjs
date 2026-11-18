@@ -85,6 +85,13 @@ test('nested renames, reordering, reparenting and body edits preserve untouched 
   assert.equal(bodyEdit.source, reparented.source.replace('Keep **context**.', 'Updated **context**.'));
 });
 
+test('adding a first child after an HTML body terminates the HTML block without hiding the new node', () => {
+  const document = parse(wrap('- [ ] Parent\n  - [ ] Child\n\n    <img src=x onerror=alert(1)>'));
+  const next = edit(document, next => { next.days[0].items[0].details[0].children = [{ text: 'New grandchild', completed: false }]; });
+  assert.equal(detailAt(next.days[0].items[0].details, [0, 0]).text, 'New grandchild');
+  assert.ok(next.source.includes('<img src=x onerror=alert(1)>\n\n'));
+});
+
 test('promotion and demotion retain an entire subtree and ordinary body content', () => {
   const document = parse(wrap(tree, '- Note\n  - Child\n    - Grandchild\n\n      Paragraph with `code`.'));
   const promoted = edit(document, next => {

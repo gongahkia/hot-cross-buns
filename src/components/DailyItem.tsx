@@ -1,3 +1,5 @@
+import { OutlineEditor } from './OutlineEditor';
+import { outlineNodes, promoteOutlineDetail, setItemCompletion } from '../outline';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { createPortal } from 'react-dom';
@@ -28,6 +30,7 @@ const Circle = styled.span<{ $done: boolean; $progress?: number; $previousProgre
   @starting-style { --circle-progress: ${({ $previousProgress, $done, $progress = 0 }) => `${($previousProgress ?? ($done ? 1 : $progress)) * 100}%`}; }
 `;
 const ItemBody = styled.div`min-width: 0; flex: 1; @media(max-width:540px){display:contents;}`;
+const OutlineClip = styled.div`min-width:0;@media(max-width:540px){grid-column:1 / -1;grid-row:4;}`;
 const ItemMain = styled.div`display: flex; align-items: flex-start; min-width: 0; gap: 8px; @media(max-width:540px){grid-column:3; grid-row:1; flex-direction:column; gap:0;}`;
 const TimeLabel = styled.span`flex: none; padding-top: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; @media(pointer:coarse){padding-top: 12px;} @media(max-width:540px){padding-top:0;}`;
 const RepeatLabel = styled.span`display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px 2px; color: var(--muted); font-size: 11px; @media(max-width:540px){grid-column:3 / -1; grid-row:2;}`;
@@ -104,7 +107,7 @@ export function AddItem({ onAdd, autoFocus = false, onCancel, inline = false, la
   return <AddForm $inline={inline} onSubmit={event => { event.preventDefault(); finish(); }}><AddInput ref={inputRef} data-journal-entry autoFocus={autoFocus} aria-label={label ?? (inline ? 'New item after current item' : 'New daily item')} placeholder={inline ? 'New item…' : 'No lines yet. Add the first one below.'} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); cancelled.current = true; event.currentTarget.value = ''; onCancel?.(); event.currentTarget.blur(); } }} onBlur={finish}/></AddForm>;
 }
 
-export function JournalItem({ item, parentItems, previousItem, date, onChange, onEdit, onDelete, onMove, onMakeDetail, onMakeUndated, undatedListNames, onStartNext }: { item: ViewItem; parentItems: TodoItem[]; previousItem?:TodoItem; date: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onEdit: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onDelete: () => void; onMove: (date: string) => void; onMakeDetail: (parentId: string) => void; onMakeUndated: (list: string) => void; undatedListNames: string[]; onStartNext: () => void }) {
+export function JournalItem({ item, parentItems, previousItem, date, onChange, onEdit, onDelete, onMove, onMakeDetail, onMakeUndated, undatedListNames, onStartNext, recursive, onEnableOutline, revealOutline }: { recursive: boolean; onEnableOutline: () => void; revealOutline?: boolean; item: ViewItem; parentItems: TodoItem[]; previousItem?:TodoItem; date: string; onChange: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onEdit: (change: (item: TodoItem, items: TodoItem[]) => void) => void; onDelete: () => void; onMove: (date: string) => void; onMakeDetail: (parentId: string) => void; onMakeUndated: (list: string) => void; undatedListNames: string[]; onStartNext: () => void }) {
   const today = todayString();
   const tomorrow = shiftDate(today, 1);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
@@ -125,6 +128,7 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
   const [detailInsertAt, setDetailInsertAt] = useState<number | null>(null);
   const [detailDraft, setDetailDraft] = useState('');
   const [detailsExpanded, setDetailsExpanded] = useState(true);
+  const [outlineAdd, setOutlineAdd] = useState(0), [notesRequest, setNotesRequest] = useState(0);
   const detailSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const detailCounts = new Map<string, number>();
   const detailIds = item.details.map(detail => {
@@ -133,9 +137,10 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
     detailCounts.set(signature, occurrence + 1);
     return `${item.id}:detail:${signature}:${occurrence}`;
   });
-  const completedDetails = item.details.filter(detail => detail.completed).length;
+  const taskDetails = recursive ? outlineNodes(item.details).filter(detail => detail.kind !== 'note') : item.details;
+  const completedDetails = taskDetails.filter(detail => detail.completed).length;
   const timeBlock = parseTimeBlock(item.text);
-  const detailProgress = item.details.length ? completedDetails / item.details.length : 0;
+  const detailProgress = taskDetails.length ? completedDetails / taskDetails.length : 0;
   const previousProgress = previousItem?.details.length ? previousItem.details.filter(detail => detail.completed).length / previousItem.details.length : previousItem?.completed ? 1 : undefined;
   const completionChange:CompletionChange = previousItem && previousItem.completed !== item.completed ? item.completed?'complete':'reopen' : undefined;
   const parentMatches = parentOpen ? parentItems.filter(candidate => candidate.id !== item.id && candidate.text.toLowerCase().includes(parentQuery.trim().toLowerCase())) : [];
@@ -172,19 +177,20 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
   const detailDraftRow = detailInsertAt === null ? null : <DetailDraftRow key="new-detail"><LineField detail autoFocus aria-label={`New detail for ${item.text}`} value={detailDraft} onChange={event => setDetailDraft(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { cancelDetail.current = true; event.currentTarget.blur(); } }} onBlur={() => { if (!cancelDetail.current && detailDraft.trim()) onEdit(item => { item.details.splice(detailInsertAt, 0, { text: detailDraft.trim(), completed: false }); item.completed = false; }); cancelDetail.current = false; setDetailDraft(''); setDetailInsertAt(null); }}/></DetailDraftRow>;
   return <ItemRow ref={setNodeRef} role="group" aria-label={item.text} data-transition-id={item.id} data-search-item-id={item.id} $dragging={isDragging} style={{ transform: CSS.Transform.toString(transform), transition }}>
     <Grip data-row-control ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={`Drag to reorder ${item.text}`} title="Drag to reorder or move to another date"><GripVertical size={16}/></Grip>
-    <CheckButton data-row-control $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} aria-pressed={item.completed} aria-description={item.details.length ? `${completedDetails} of ${item.details.length} details done` : undefined} onClick={() => onChange(item => { const done = !item.completed; item.completed = done; item.details.forEach(detail => { detail.completed = done; }); })}><Circle $done={item.completed} $progress={detailProgress} $previousProgress={previousProgress}/></CheckButton>
+    <CheckButton data-row-control $done={item.completed} aria-label={`${item.completed ? 'Reopen' : 'Complete'} ${item.text}`} aria-pressed={item.completed} aria-description={item.details.length ? `${completedDetails} of ${item.details.length} details done` : undefined} onClick={() => onChange(item => setItemCompletion(item, !item.completed))}><Circle $done={item.completed} $progress={detailProgress} $previousProgress={previousProgress}/></CheckButton>
     <ItemBody>
       <ItemMain>{timeBlock && <TimeLabel title="Time block">{timeBlock.start}–{timeBlock.end}</TimeLabel>}<LineField $done={item.completed} $completionChange={completionChange} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/></ItemMain>
       {item.repeat && <RepeatLabel title={`Repeat rule: ${formatRecurrence(item.repeat)}`}><Repeat2 size={12}/>{describeRecurrence(item.repeat)}</RepeatLabel>}
       {item.span && <RepeatLabel title={`Span: ${formatSpan(item.span)}`}><CalendarDays size={12}/>{item.projection?.continuation ? 'continues · ' : ''}{formatSpan(item.span)}</RepeatLabel>}
-      {!!item.details.length && <DetailsClip id={`details-${item.id}`} $open={detailsExpanded} aria-hidden={!detailsExpanded} inert={!detailsExpanded}><DndContext sensors={detailSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={({active,over}) => {
+      {recursive && <OutlineClip id={`details-${item.id}`} hidden={!detailsExpanded}><OutlineEditor item={item} dated onEdit={change => onEdit(change)} onToggle={change => onChange(change)} onPromote={path => onEdit((item,items) => promoteOutlineDetail(item, items, path, newId()))} addRequest={outlineAdd} notesRequest={notesRequest} reveal={revealOutline}/></OutlineClip>}
+      {!recursive && !!item.details.length && <DetailsClip id={`details-${item.id}`} $open={detailsExpanded} aria-hidden={!detailsExpanded} inert={!detailsExpanded}><DndContext sensors={detailSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={({active,over}) => {
         if (!over || active.id === over.id) return;
         const from = detailIds.indexOf(String(active.id));
         const to = detailIds.indexOf(String(over.id));
         if (from < 0 || to < 0) return;
         onEdit(item => { item.details = arrayMove(item.details, from, to); });
       }}><SortableContext items={detailIds} strategy={verticalListSortingStrategy}><DetailList>{item.details.map((detail,index) => <Fragment key={detailIds[index]}><Detail id={detailIds[index]} value={detail} completionChange={previousItem?.details[index]?.text === detail.text && previousItem.details[index].completed !== detail.completed ? detail.completed?'complete':'reopen' : undefined} onToggle={() => onChange(item => { item.details[index].completed = !item.details[index].completed; item.completed = item.details.every(detail => detail.completed); })} onSave={value => onEdit(item => { item.details[index].text = value; })} onStartNext={() => setDetailInsertAt(index+1)} onMakeItem={() => onEdit((item,items) => { const [promoted] = item.details.splice(index,1); items.splice(items.indexOf(item)+1,0,{id:newId(),text:promoted.text,sourceRef:promoted.sourceRef,details:[],completed:promoted.completed}); if (item.details.length) item.completed = item.details.every(detail => detail.completed); })} onDelete={() => onEdit(item => { item.details.splice(index,1); if (item.details.length) item.completed = item.details.every(detail => detail.completed); })}/>{detailInsertAt === index+1 && detailDraftRow}</Fragment>)}{detailInsertAt === 0 && detailDraftRow}</DetailList></SortableContext></DndContext></DetailsClip>}
-      {!item.details.length && detailDraftRow}
+      {!recursive && !item.details.length && detailDraftRow}
     </ItemBody>
     <ActionWrap ref={menuRef}>
       {item.details.length > 0 && <DetailToggle $open={detailsExpanded} type="button" aria-expanded={detailsExpanded} aria-controls={`details-${item.id}`} aria-label={`${detailsExpanded ? 'Collapse' : 'Expand'} details for ${item.text}`} title={`${completedDetails} of ${item.details.length} details done`} onClick={() => setDetailsExpanded(value => !value)}><ChevronDown size={14}/><span aria-hidden="true">{completedDetails}/{item.details.length}</span></DetailToggle>}
@@ -199,7 +205,8 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
             {parentMatches.length > 50 && <ParentHint>Search to see more items</ParentHint>}
           </ParentList>
         </> : <>
-        <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => { setDetailsExpanded(true); setDetailInsertAt(item.details.length); })}><Plus size={15}/> add detail</Action>
+        <Action aria-label={`Add detail to ${item.text}`} onClick={() => closeMenu(() => { setDetailsExpanded(true); if (recursive) setOutlineAdd(value => value + 1); else setDetailInsertAt(item.details.length); })}><Plus size={15}/> add detail</Action>
+        <Action onClick={() => closeMenu(() => { if (recursive) { setDetailsExpanded(true); setNotesRequest(value => value + 1); } else onEnableOutline(); })}><Plus size={15}/>{recursive ? 'edit notes' : 'enable deeper outlines'}</Action>
         <Action aria-label={`Make ${item.text} a detail`} title={item.repeat || timeBlock || item.span || item.replaces ? 'Remove the schedule and span first' : parentItems.length < 2 ? 'Add another item to this day first' : undefined} disabled={parentItems.length < 2 || !!item.repeat || !!timeBlock || !!item.span || !!item.replaces} onClick={() => { setParentQuery(''); setParentOpen(true); positionMenu(false, true); }}><CornerDownRight size={15}/> make detail</Action>
         <Action aria-label={`Set time block for ${item.text}`} onClick={() => closeMenu(() => setScheduleEditor('time'))}><Clock3 size={15}/> {timeBlock ? 'edit time' : 'add time block'}</Action>
         <Action aria-label={`Set span for ${item.text}`} onClick={() => closeMenu(() => setSpanEditor(true))}><CalendarDays size={15}/> {item.span ? 'edit span' : 'add span'}</Action>

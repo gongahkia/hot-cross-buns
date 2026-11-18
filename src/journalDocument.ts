@@ -72,8 +72,8 @@ export function parseJournal(source: string) {
   })) };
 }
 
-export function createJournal(documentId: string = crypto.randomUUID()): TodoDocument {
-  return readJournal(`---\nhcb-format: 1\ndocument-id: ${documentId}\n---\n\n# Hot Cross Buns\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\n`).document;
+export function createJournal(documentId: string = crypto.randomUUID(), format: 1 | 2 = 1): TodoDocument {
+  return readJournal(`---\nhcb-format: ${format}\ndocument-id: ${documentId}\n---\n\n# Hot Cross Buns\n\n## Dated\n\n## Undated\n\n### Inbox\n\n## Scratchpad\n`).document;
 }
 
 function assertModel(model: MarkdownPlanner) {
@@ -160,7 +160,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
         raw += `${nl}${' '.repeat(childColumn)}\`\`\`hcb${nl}${metadata(entry, entry.id, dated).map(line => ' '.repeat(childColumn) + line).join(nl)}${nl}${' '.repeat(childColumn)}\`\`\``;
       }
       for (const block of item.body ?? []) raw += `${nl}${nl}${' '.repeat(childColumn)}${renderBody(block, childColumn)}`;
-      for (const child of children) raw += `${nl}${' '.repeat(childColumn)}${render(child, dated, childColumn, false)}`;
+      children.forEach((child, index) => { raw += `${index === 0 && item.body?.length ? nl + nl : nl}${' '.repeat(childColumn)}${render(child, dated, childColumn, false)}`; });
       return raw;
     }
     const edits: Array<{ range: SourceRange; text: string }> = [];
@@ -201,7 +201,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
         const extra = entry.details.slice(oldDetails.length);
         if (extra.length) {
           const offset = oldDetails.at(-1)?.range.end ?? node.range.end;
-          const text = extra.map(detail => `${nl}${' '.repeat(detailColumn)}${render(detail, dated, detailColumn, false)}`).join('');
+          const text = extra.map((detail, index) => `${index === 0 && !oldDetails.length ? nl + nl : nl}${' '.repeat(detailColumn)}${render(detail, dated, detailColumn, false)}`).join('');
           const existing = edits.find(edit => edit.range.end === offset && edit.range.start !== edit.range.end);
           if (existing) existing.text += text;
           else edits.push({ range: { start: offset, end: offset }, text });
@@ -217,7 +217,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
         const extra = children.slice(oldChildren.length);
         if (extra.length) {
           const offset = oldChildren.at(-1)?.range.end ?? node.range.end;
-          const text = extra.map(child => `${nl}${' '.repeat(indent)}${render(child, dated, indent, false)}`).join('');
+          const text = extra.map((child, index) => `${index === 0 && !oldChildren.length ? nl + nl : nl}${' '.repeat(indent)}${render(child, dated, indent, false)}`).join('');
           const existing = edits.find(edit => edit.range.end === offset && edit.range.start !== edit.range.end);
           if (existing) existing.text += text;
           else edits.push({ range: { start: offset, end: offset }, text });
@@ -286,7 +286,7 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
 export const serializeJournal = (document: TodoDocument): string => materializeJournal(document).source!;
 export const validateJournal = (document: TodoDocument): void => { materializeJournal(document); };
 export const withScratchpad = (document: TodoDocument, text: string) => materializeJournal({ ...document, scratchpad: text });
-export const isEmptyJournal = (document: TodoDocument) => document.source?.trim() === createJournal(readJournal(document.source!).model.documentId).source!.trim();
+export const isEmptyJournal = (document: TodoDocument) => document.source?.trim() === createJournal(journalModel(document).documentId, journalModel(document).format === 2 ? 2 : 1).source!.trim();
 
 /** one explicit workspace conversion, not a reader for legacy files in the running app. */
 export function journalFromModel(model: TodoDocument, scratchpad = '', documentId: string = crypto.randomUUID()): TodoDocument {

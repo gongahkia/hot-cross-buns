@@ -5,7 +5,7 @@ import { Modal } from './Modal';
 
 export const commandKey = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 export type PaletteCommand = {
-  id: 'search' | 'import' | 'download' | 'window' | 'settings' | 'history' | 'source';
+  id: 'search' | 'import' | 'download' | 'window' | 'settings' | 'history' | 'source' | 'outlines';
   hidden?: boolean;
   label: string; keywords: string; icon: LucideIcon; run: () => void;
 };

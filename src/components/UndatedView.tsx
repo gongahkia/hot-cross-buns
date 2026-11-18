@@ -1,3 +1,6 @@
+import { OutlineEditor } from './OutlineEditor';
+import { newId } from '../todoText';
+import { promoteOutlineDetail } from '../outline';
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
@@ -41,6 +44,8 @@ function DraftText({ value, label, detail, onSave, onStartNext }: { value: strin
 }
 
 type ItemActions = {
+  recursive: boolean; onEnableOutline: () => void; revealItemId?: string;
+  onEditOutline: (list: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
   onEdit: (list: string, id: string, text: string) => void;
   onAddAfter: (list: string, id: string, text: string) => void;
   onAddDetail: (list: string, id: string, text: string) => void;
@@ -89,6 +94,7 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
   const [parentQuery, setParentQuery] = useState('');
   const [addDetail, setAddDetail] = useState(false);
   const [addAfter, setAddAfter] = useState(false);
+  const [outlineAdd, setOutlineAdd] = useState(0), [notesRequest, setNotesRequest] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -114,7 +120,8 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
       <DraftText value={item.text} label={'Edit ' + item.text} onSave={text => actions.onEdit(list,item.id,text)} onStartNext={() => setAddAfter(true)}/>
       <Actions ref={menuRef}><Icon data-row-control ref={moreRef} aria-label={'More actions for ' + item.text} aria-expanded={open !== null} onClick={() => setOpen(open ? null : 'actions')}><MoreHorizontal size={17}/></Icon>
         {open === 'actions' && <Menu aria-label={'Actions for ' + item.text}>
-          <MenuAction onClick={() => { setOpen(null); setAddDetail(true); }}><Plus size={15}/> add detail</MenuAction>
+          <MenuAction onClick={() => { setOpen(null); if (actions.recursive) setOutlineAdd(value => value + 1); else setAddDetail(true); }}><Plus size={15}/> add detail</MenuAction>
+          <MenuAction onClick={() => { setOpen(null); if (actions.recursive) setNotesRequest(value => value + 1); else actions.onEnableOutline(); }}><Plus size={15}/>{actions.recursive ? 'edit notes' : 'enable deeper outlines'}</MenuAction>
           <MenuAction aria-label={'Make ' + item.text + ' a detail'} disabled={!hasParent} title={!hasParent ? 'Add another undated item first' : undefined} onClick={() => { setParentQuery(''); setOpen('parent'); }}><CornerDownRight size={15}/> make detail</MenuAction>
           <MenuAction onClick={() => setOpen('date')}><CalendarDays size={15}/> add date</MenuAction>
           <MenuAction onClick={() => { setOpen(null); actions.onDelete(list,item.id); }}><Trash2 size={15}/> delete</MenuAction>
@@ -131,14 +138,14 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
         {open === 'date' && <Menu><CalendarPanel label={'Choose date for ' + item.text} value={todayString()} onSelect={value => { actions.onDate(list,item.id,value); setOpen(null); }}/></Menu>}
       </Actions>
     </Row>
-    <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis,restrictToParentElement]} onDragEnd={({active,over}) => {
+    {actions.recursive ? <OutlineEditor item={item} dated={false} onEdit={change => actions.onEditOutline(list,item.id,change)} onToggle={() => undefined} onPromote={path => actions.onEditOutline(list,item.id,(item,items) => promoteOutlineDetail(item,items,path,newId()))} addRequest={outlineAdd} notesRequest={notesRequest} reveal={actions.revealItemId === item.id}/> : <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis,restrictToParentElement]} onDragEnd={({active,over}) => {
       if (!over || active.id === over.id) return;
       const from = detailIds.indexOf(String(active.id));
       const to = detailIds.indexOf(String(over.id));
       if (from >= 0 && to >= 0) actions.onReorderDetails(list,item.id,from,to);
     }}><SortableContext items={detailIds} strategy={verticalListSortingStrategy}>
       {item.details.map((detail,index) => <SortableDetail key={detailIds[index]} id={detailIds[index]} detail={detail} index={index} list={list} item={item} disabled={disabled} onEditDetail={actions.onEditDetail} onDeleteDetail={actions.onDeleteDetail} onMakeItem={actions.onMakeItem}/>)}
-    </SortableContext></DndContext>
+    </SortableContext></DndContext>}
     {addDetail && <AddDetail autoFocus aria-label={'New detail for ' + item.text} placeholder="New detail…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; setAddDetail(false); } }} onBlur={event => { if (event.currentTarget.value.trim()) actions.onAddDetail(list,item.id,event.currentTarget.value.trim()); setAddDetail(false); }}/>}
     {addAfter && <AddAfter autoFocus aria-label="New item after current item" placeholder="New item…" onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value=''; event.currentTarget.blur(); } }} onBlur={event => { const text = event.currentTarget.value.trim(); if (text) actions.onAddAfter(list,item.id,text); setAddAfter(false); }}/>}
   </div>;

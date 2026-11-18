@@ -8,9 +8,11 @@ export function useJournalEditing() {
     let acquiring = false, generation = 0;
     let editor: HTMLInputElement | HTMLTextAreaElement | null = null;
     let initial = '';
-    const wanted = () => !!editor || !!document.querySelector('dialog[open][data-journal-editor="true"]:not([data-state="closed"])');
+    const inlineDraft = () => !!document.querySelector('[data-journal-editor="true"][data-editor-dirty="true"]');
+    const wanted = () => !!editor || inlineDraft() || !!document.querySelector('dialog[open][data-journal-editor="true"]:not([data-state="closed"])');
     const updateLease = () => {
-      if (editor && (!editor.isConnected || document.activeElement !== editor)) { editor = null; setDraft(false); }
+      if (editor && (!editor.isConnected || document.activeElement !== editor)) editor = null;
+      setDraft(inlineDraft() || !!editor && editor.value !== initial);
       if (!wanted()) { generation++; release?.(); release = undefined; acquiring = false; return; }
       if (release || acquiring || !navigator.locks) return;
       acquiring = true; const token = ++generation;
@@ -28,9 +30,9 @@ export function useJournalEditing() {
     };
     const input = () => setDraft(!!editor && editor.value !== initial);
     const hide = () => { if (document.visibilityState === 'hidden') editor?.blur(); };
-    const unload = (event: BeforeUnloadEvent) => { if (editor && editor.value !== initial) { event.preventDefault(); event.returnValue = ''; } };
+    const unload = (event: BeforeUnloadEvent) => { if (inlineDraft() || editor && editor.value !== initial) { event.preventDefault(); event.returnValue = ''; } };
     const observer = new MutationObserver(updateLease);
-    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'data-state', 'data-journal-editor'] });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open', 'data-state', 'data-journal-editor', 'data-editor-dirty'] });
     document.addEventListener('input', input); document.addEventListener('focusin', focus); document.addEventListener('focusout', leave); document.addEventListener('visibilitychange', hide); window.addEventListener('beforeunload', unload);
     focus();
     return () => { observer.disconnect(); generation++; release?.(); document.removeEventListener('input', input); document.removeEventListener('focusin', focus); document.removeEventListener('focusout', leave); document.removeEventListener('visibilitychange', hide); window.removeEventListener('beforeunload', unload); };

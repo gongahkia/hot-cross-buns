@@ -1,4 +1,8 @@
-import { materializeJournal, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
+import { OutlineDocumentContext } from './components/OutlineEditor';
+import { OutlineUpgrade } from './components/OutlineUpgrade';
+import { upgradeOutlineJournal } from './journalOutline';
+import { outlineText, refreshItemCompletion, resetDetails, setItemCompletion } from './outline';
+import { journalModel, materializeJournal, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { createPortal, flushSync } from 'react-dom';
@@ -245,7 +249,8 @@ function DateHeading({ date, today, format, highlighted, unfinished, holidays }:
   </DayTitle>;
 }
 
-function DayItems({ date, items, selected, revealItemId, completed, upcoming, previousItem, onChange, onEdit, onDelete, onMove, onMakeDetail, onAddAfter, onMakeUndated, undatedListNames }: {
+function DayItems({ date, items, selected, revealItemId, completed, upcoming, previousItem, onChange, onEdit, onDelete, onMove, onMakeDetail, onAddAfter, onMakeUndated, undatedListNames, recursive, onEnableOutline }: {
+  recursive: boolean; onEnableOutline: () => void;
   date: string; items: TodoItem[]; selected: boolean; revealItemId?: string; completed: TodoItem[]; upcoming: TodoItem[];
   previousItem:(id:string)=>TodoItem|undefined;
   onChange: (id: string, change: (item: TodoItem, items: TodoItem[]) => void) => void;
@@ -264,12 +269,12 @@ function DayItems({ date, items, selected, revealItemId, completed, upcoming, pr
   return <>
     {(completed.length > 0 || selected) && <DoneToggle type="button" aria-expanded={doneVisible} aria-controls={`done-${date}`} aria-label={`${doneVisible?'Collapse':'Expand'} done items for ${date}`} onClick={() => setDoneExpanded(value => !value)}><ChevronDown size={14} style={{transform:doneVisible?'rotate(0deg)':'rotate(-90deg)',transition:'transform 180ms ease-out'}}/><span>done</span><DoneCount aria-hidden="true">{completed.length}</DoneCount></DoneToggle>}
     <CompletedClip id={`done-${date}`} $open={doneVisible} aria-hidden={!doneVisible} inert={!doneVisible}><div><SortableContext items={completed.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {completed.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onEdit={change => onEdit(item.id,change)} onDelete={() => onDelete(item.id)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onMakeUndated={list => onMakeUndated(item.id,list)} undatedListNames={undatedListNames} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
+      {completed.map(item => <Fragment key={item.id}><JournalItem recursive={recursive} onEnableOutline={onEnableOutline} revealOutline={revealItemId === item.id} item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onEdit={change => onEdit(item.id,change)} onDelete={() => onDelete(item.id)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onMakeUndated={list => onMakeUndated(item.id,list)} undatedListNames={undatedListNames} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext></div></CompletedClip>
     <Divider aria-hidden="true"/>
     {(upcoming.length > 0 || selected) && <SectionCaption>upcoming</SectionCaption>}
     <SortableContext items={upcoming.map(item => item.id)} strategy={verticalListSortingStrategy}>
-      {upcoming.map(item => <Fragment key={item.id}><JournalItem item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onEdit={change => onEdit(item.id,change)} onDelete={() => onDelete(item.id)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onMakeUndated={list => onMakeUndated(item.id,list)} undatedListNames={undatedListNames} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
+      {upcoming.map(item => <Fragment key={item.id}><JournalItem recursive={recursive} onEnableOutline={onEnableOutline} revealOutline={revealItemId === item.id} item={item} parentItems={items} previousItem={previousItem(item.id)} date={date} onChange={change => onChange(item.id,change)} onEdit={change => onEdit(item.id,change)} onDelete={() => onDelete(item.id)} onMove={target => onMove(item.id,target)} onMakeDetail={parentId => onMakeDetail(item.id, parentId)} onMakeUndated={list => onMakeUndated(item.id,list)} undatedListNames={undatedListNames} onStartNext={() => setDraftAfterId(item.id)}/>{draftAfterId === item.id && <AddItem inline autoFocus onAdd={text => onAddAfter(item.id,text)} onCancel={() => setDraftAfterId(null)}/>}</Fragment>)}
     </SortableContext>
   </>;
 }
@@ -317,6 +322,7 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [outlineUpgrade, setOutlineUpgrade] = useState<{ document: TodoDocument; expected: string; checkboxChanges: number } | null>(null);
   const [scratchPending, setScratchPending] = useState(false);
   const scratchPendingRef = useRef(false);
   const scratchActivity = useRef(-Infinity);
@@ -358,8 +364,8 @@ export default function App() {
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
   const mergeReviewText = useRef<string | null>(null);
   const pendingLink = useRef<{ kind: 'local'; handle: LinkedFileHandle; historyDirectory?: LinkedDirectoryHandle; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | { kind: 'drive'; snapshot: DriveSnapshot; raw: string; id?: string; generation?: string; revisionId?: string; baselineDocument?: TodoDocument; } | null>(null);
-  const fileSync = useLinkedFile(state?.document ?? null, () => !scratchPendingRef.current && performance.now() - scratchActivity.current >= 500 && !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
-  const driveSync = useGoogleDrive(state?.document ?? null, () => !scratchPendingRef.current && performance.now() - scratchActivity.current >= 500 && !sourceOpen && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
+  const fileSync = useLinkedFile(state?.document ?? null, () => !scratchPendingRef.current && performance.now() - scratchActivity.current >= 500 && !sourceOpen && !outlineUpgrade && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, document => validateVisibleProjection(document));
+  const driveSync = useGoogleDrive(state?.document ?? null, () => !scratchPendingRef.current && performance.now() - scratchActivity.current >= 500 && !sourceOpen && !outlineUpgrade && !historyOpen && !pendingJournal.current && !pendingLink.current && !review && !busy && !saveFailure, setMessage, document => validateVisibleProjection(document));
   const preserveSyncHistory = (next: TodoDocument) => {
     const before = current.current.document;
     undoStack.current = rebaseSyncHistory(undoStack.current, before, next, todayString());
@@ -604,6 +610,7 @@ export default function App() {
       if (document.querySelector('dialog[open]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         if (exportOpen) return;
+        if (event.target instanceof HTMLTextAreaElement && event.target.hasAttribute('data-markdown-body-editor')) return;
         const scratch = event.target instanceof HTMLTextAreaElement && event.target.getAttribute('aria-label') === 'Scratchpad text';
         const captureUndo = feedbackNotice?.kind === 'scratchpad-conversion' && serializeJournal(feedbackNotice.document) === serializeJournal(current.current.document);
         const captureRedo = event.shiftKey && captureReplay.current === serializeJournal(current.current.document) && redoStack.current.length > 0;
@@ -769,7 +776,7 @@ export default function App() {
       else master.repeat = { ...rule, endsOn: cutoff };
       master.skips = oldSkips.filter(value => value < originalDate);
       const next: TodoItem = { ...structuredClone(master), id: newId(), repeat: nextRule, completed: false, completedOn: undefined,
-        details: master.details.map(detail => ({ ...detail, completed: false })), skips: oldSkips.filter(value => value >= originalDate) };
+        details: resetDetails(master.details), skips: oldSkips.filter(value => value >= originalDate) };
       shiftItemSpan(next,masterDay.date,originalDate);
       let target = document.days.find(day => day.date === originalDate);
       if (!target) { target = { date: originalDate, items: [] }; document.days.push(target); }
@@ -815,8 +822,7 @@ export default function App() {
       if (target) {
         const beforeTarget = sourceDate !== targetDate || from > destination.items.indexOf(target);
         if (sourceDate === targetDate && moved.completed !== target.completed) {
-          moved.completed = target.completed;
-          moved.details.forEach(detail => { detail.completed = target.completed; });
+          setItemCompletion(moved, target.completed);
         }
         destination.items.splice(destination.items.indexOf(target) + (beforeTarget ? 0 : 1), 0, moved);
       } else destination.items.push(moved);
@@ -868,7 +874,7 @@ export default function App() {
       const [item] = list.items.splice(index,1);
       let day = document.days.find(day => day.date === date);
       if (!day) { day = { date, items: [] }; document.days.push(day); }
-      day.items.push({ ...item, completed: false, details: item.details.map(detail => ({ ...detail, completed: false })) });
+      day.items.push({ ...item, completed: false, details: resetDetails(item.details) });
     });
     setActiveTab('dated'); setSelectedDate(date); setViewMode('day');
   };
@@ -890,7 +896,7 @@ export default function App() {
       let list = document.undated?.find(list => list.name === listName);
       if (!list) { list = { name: listName, items: [] }; (document.undated ??= []).push(list); }
       const copy = { ...structuredClone(view), id: view.repeat && view.repeat.kind !== 'after' ? newId() : stored.id, repeat: undefined, skips: undefined, replaces: undefined, completed: false, completedOn: undefined, span: undefined,
-        details: view.details.map(detail => ({ ...detail, completed: false })) };
+        details: resetDetails(view.details) };
       delete (copy as ViewItem).projection;
       const time = parseTimeBlock(copy.text);
       if (time) { copy.text = time.title; copy.details.unshift({ text: `Time: ${time.start}–${time.end}`, completed: false }); }
@@ -905,8 +911,9 @@ export default function App() {
     const parent = items?.find(item => item.id === parentId);
     if (!items || index < 0 || !parent || id === parentId || items[index].repeat || items[index].span || items[index].replaces || parseTimeBlock(items[index].text)) return;
     const [child] = items.splice(index, 1);
-    parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed }, ...child.details);
-    parent.completed = parent.details.every(detail => detail.completed);
+    if (journalModel(current.current.document).format === 2) parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed, body: child.body, children: child.details });
+    else parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed }, ...child.details);
+    refreshItemCompletion(parent);
   });
   const moveItem = (date: string, id: string, target: string, keepRange = false) => {
     if (!validDate(target) || target === date) return;
@@ -1089,6 +1096,11 @@ export default function App() {
     } catch (error) { setFileActionError(String(error)); }
   };
   const documentData = state?.document ?? current.current.document;
+  const recursive = journalModel(documentData).format === 2;
+  const enableOutlines = () => {
+    try { setOutlineUpgrade({ ...upgradeOutlineJournal(current.current.document), expected: serializeJournal(current.current.document) }); }
+    catch (error) { setMessage(String(error)); }
+  };
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
@@ -1120,7 +1132,7 @@ export default function App() {
       setPopoutChooser('undated');
     }
   };
-  const allTags = useMemo(() => [...new Set([...documentData.days.flatMap(day => day.items), ...(documentData.undated ?? []).flatMap(list => list.items)].flatMap(item => [item.text, ...item.details.map(detail => detail.text)].flatMap(tagsIn)))].sort(), [documentData]);
+  const allTags = useMemo(() => [...new Set([...documentData.days.flatMap(day => day.items), ...(documentData.undated ?? []).flatMap(list => list.items)].flatMap(item => outlineText(item).flatMap(tagsIn)))].sort(), [documentData]);
   const unfinishedDates = useMemo(() => {
     const cache = new Map<string, boolean | undefined>();
     let budget = createProjectionBudget();
@@ -1186,15 +1198,15 @@ export default function App() {
     const result = (item: TodoItem, location: string, kind: 'dated' | 'undated'): PaletteResult => ({
       id: `${kind}:${location}:${item.id}`, itemId: item.id, kind, location, label: item.text, completed: item.completed,
       context: kind === 'dated' ? `${location} · ${item.completed ? 'Done' : 'Open'}` : location,
-      detail: needle ? item.details.find(detail => detail.text.toLowerCase().includes(needle))?.text : undefined,
+      detail: needle ? outlineText(item).slice(1).find(text => text.toLowerCase().includes(needle)) : undefined,
     });
     if (activeTab === 'dated') return searchProjection.value.flatMap(day => day.items.filter(item => {
       if (statusFilter === 'open' && item.completed || statusFilter === 'done' && !item.completed) return false;
-      const content = [item.text, ...item.details.map(detail => detail.text)].join(' ').toLowerCase();
+      const content = outlineText(item).join(' ').toLowerCase();
       return (!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag));
     }).map(item => result(item, day.date, 'dated')));
     return (documentData.undated ?? []).filter(list => popout?.kind !== 'undated' || popout.lists.includes(list.name)).flatMap(list => list.items.filter(item => {
-      const content = [item.text, ...item.details.map(detail => detail.text)].join(' ').toLowerCase();
+      const content = outlineText(item).join(' ').toLowerCase();
       return (!needle || content.includes(needle)) && (!tag || tagsIn(content).includes(tag));
     }).map(item => result(item, list.name, 'undated')));
   }, [paletteOpen, paletteSearching, query, activeTab, searchProjection, statusFilter, documentData, popout, tag]);
@@ -1261,6 +1273,7 @@ export default function App() {
     setMessage('Markdown source saved.');
   };
   const commands: PaletteCommand[] = [];
+  if (!recursive && !popout) commands.push({ id: 'outlines', label: 'Enable deeper outlines', keywords: 'nested children subtasks recursive', hidden: true, icon: FileInput, run: enableOutlines });
   if (activeTab !== 'scratchpad') commands.push({ id: 'search', label: 'Search journal', keywords: 'find filter entries', icon: Search, run: () => openJournalSearch(true) });
   if (!popout && activeTab !== 'scratchpad') commands.push(
     { id: 'import', label: 'Import Planner.md', keywords: 'load upload file', icon: FileInput, run: () => importInput.current?.click() },
@@ -1271,7 +1284,7 @@ export default function App() {
   if (!popout) commands.push({ id: 'history', label: 'History and recovery', keywords: 'versions restore backup', hidden: true, icon: History, run: () => { setDateOpen(false); setHistoryOpen(true); } });
   commands.push({ id: 'settings', label: 'Settings', keywords: 'preferences appearance theme holidays time zone date format', icon: Settings2, run: () => { setDateOpen(false); setSettingsOpen(true); } });
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
-  return <Page $dated={activeTab !== 'undated'}>
+  return <OutlineDocumentContext.Provider value={journalModel(documentData).documentId!}><Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header>
@@ -1329,7 +1342,7 @@ export default function App() {
       current.current = journal; setState(journal);
       setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
     }}/></div>
-    {activeTab === 'scratchpad' ? null : activeTab === 'undated' ? <UndatedView lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
+    {activeTab === 'scratchpad' ? null : activeTab === 'undated' ? <UndatedView recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'undated' ? searchTarget.itemId : undefined} onEditOutline={editUndated} lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
       onAdd={addUndated}
@@ -1353,7 +1366,8 @@ export default function App() {
         const parent = target?.items.find(item => item.id === parentId);
         if (!source || !target || sourceIndex < 0 || !parent || id === parentId) return;
         const [moved] = source.items.splice(sourceIndex,1);
-        parent.details.push({ text: moved.text, sourceRef: moved.sourceRef, completed: false }, ...moved.details.map(detail => ({ ...detail, completed: false })));
+        if (recursive) parent.details.push({ text: moved.text, sourceRef: moved.sourceRef, completed: false, body: moved.body, children: resetDetails(moved.details) });
+        else parent.details.push({ text: moved.text, sourceRef: moved.sourceRef, completed: false }, ...resetDetails(moved.details));
       })}
       onMakeItem={(list,id,index) => editUndated(list,id,(item,items) => {
         if (index < 0 || index >= item.details.length) return;
@@ -1373,7 +1387,7 @@ export default function App() {
       return <DaySection key={`${day.date}:${day.date===selectedDate?'selected':'other'}`} $selected={day.date===selectedDate} data-journal-date={day.date} aria-label={`${dateLabel(day.date,today)}, ${day.date}`}>
         <DateHeading date={day.date} today={today} format={dateFormat} highlighted={!!draggingId && dragOverDate === day.date} unfinished={upcoming.length} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[day.date] ?? [] : []}/>
         {day.items.length === 0 ? <AddItem label={day.date === selectedDate ? 'New daily item' : `New item for ${day.date}`} onAdd={text => addItem(day.date,text)}/> : <>
-        <DayItems revealItemId={searchTarget?.kind === 'dated' && searchTarget.location === day.date ? searchTarget.itemId : undefined} date={day.date} items={day.items} selected={day.date === selectedDate} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
+        <DayItems recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'dated' && searchTarget.location === day.date ? searchTarget.itemId : undefined} date={day.date} items={day.items} selected={day.date === selectedDate} completed={completed} upcoming={upcoming} previousItem={id=>priorItems.get(id)} onChange={(id,change) => mutateItem(day.date,id,change)} onEdit={(id,change) => requestScopedEdit(day.date,id,change)} onDelete={id => deleteItem(day.date,id)} onMove={(id,target) => moveItem(day.date,id,target)} onMakeDetail={(id,parentId) => makeDetail(day.date,id,parentId)} onMakeUndated={(id,list) => makeUndated(day.date,id,list)} undatedListNames={(documentData.undated ?? []).map(list => list.name)} onAddAfter={(id,text) => addItemAfter(day.date,id,text)}/>
         </>}
       </DaySection>;
     })}
@@ -1400,6 +1414,7 @@ export default function App() {
       }}>Open window</Button></PopoutActions>
     </Modal>
     <ExportPreview open={exportOpen} text={exportOpen ? serializeJournal(state.document) : ''} onClose={() => setExportOpen(false)} onDownload={(fileName, lineEnding) => { void download(fileName, lineEnding).catch(error => reportSaveError(error, 'Could not download: ')); }}/>
+    <OutlineUpgrade preview={outlineUpgrade} onClose={() => setOutlineUpgrade(null)} onApply={async (document, expected) => { await saveSource(document.source!, expected); setMessage('Deeper outlines enabled.'); }}/>
     <SourceEditor open={sourceOpen} source={serializeJournal(state.document)} onClose={() => setSourceOpen(false)} onSave={saveSource}/>
     <HistoryRecovery open={historyOpen} currentText={historyOpen ? serializeJournal(state.document) : ''} onClose={() => setHistoryOpen(false)} onSettings={() => { setHistoryOpen(false); setSettingsOpen(true); }} onLoad={loadHistory} onRestore={(snapshot, id) => historyAction(snapshot, id, true)} onReview={(snapshot, id) => historyAction(snapshot, id, false)}/>
     <AppearanceSettings syncSettings={<><FileSyncSettings conflictCopies={fileSync.conflictCopies} onImportConflict={popout ? undefined : () => importInput.current?.click()} status={fileSync.status} error={review ? '' : fileActionError} busy={busy || driveSync.linked} onLink={create => { void linkFile(create); }} onFolder={() => { void linkFile(false, true); }} protectedHistory={fileSync.protected} historyStats={fileSync.revisions?.stats} onEnableHistory={() => { void fileSync.enableHistory().catch(error => setFileActionError(String(error))); }} onReview={() => { void reviewLinkedFile(); }} onResume={() => { setFileActionError(''); void fileSync.resume().catch(error => setFileActionError(String(error))); }} onUnlink={() => { setFileActionError(''); void fileSync.unlink().catch(error => setFileActionError(String(error))); }}/>
@@ -1429,5 +1444,5 @@ export default function App() {
       onChoice={(key, choice) => setChoices(previous => ({ ...previous, [key]: choice }))}
       onReparse={() => void reparse()} onApply={() => void applyReview()}/>
     <SaveRecovery error={saveFailure} text={saveFailure ? serializeJournal(current.current.document) : ''} kind="journal" onRetry={() => { setSaveFailure(null); writeQueue.current!.retry(); }} onDiscard={discardUnsavedJournal}/>
-  </Page>;
+  </Page></OutlineDocumentContext.Provider>;
 }
