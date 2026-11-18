@@ -27,6 +27,12 @@ Saved body previews use immutable render trees from the planner's parse, includi
 
 Body footnotes use instance-scoped DOM identities with keyboard-focusable destinations and return links for each occurrence. Remote images require an explicit click, use no-referrer requests and retain retry controls on failure. Raw HTML stays literal and unsupported URL schemes stay inert.
 
+## Live body blocks
+
+Expanded notes render inactive body blocks. A contextual pencil control edits one block in place while its siblings remain rendered; **Edit notes** retains whole-body Markdown editing. Draft typing and live preview remain local until **Save notes** (or Command/Control+Enter) validates the full candidate through the normal edit queue. Composition cannot submit a draft. Native textarea selection and undo stay separate from journal undo, and save/cancel restore keyboard focus.
+
+Block edits retain each sibling's source identity. Removing a block patches only its old range, without moving the remaining blocks into earlier ranges. Draft checkpoints retain the active block and exact full-source baseline across reload. Stale/invalid drafts remain editable and downloadable; a checkpoint failure is reported without discarding the in-memory draft. Saving still requires the original source and title, and the existing editing lease remains active for dirty or stale drafts.
+
 ## Tests
 
 `tests/markdown.test.mjs` exercises curated CommonMark/GFM examples, document-wide references, immutable render-tree reuse, BOM and all supported line endings, heading identities, hostile URLs/labels, rendering limits, and 120 deterministic source edits across nested outlines, references, fences and Unicode. `markdown-render.spec.ts` checks actual saved rendering, alignment, reference/footnote navigation, opt-in image requests, inert unsafe content and phone overflow. `markdownPlanner`, `journalDocument`, `outline` and background-worker tests separately cover planning semantics, exact edits, source ownership, validation and worker adoption. The curated corpus is not a claim of complete CommonMark conformance or Obsidian/Notion extension compatibility.
@@ -34,7 +40,7 @@ Body footnotes use instance-scoped DOM identities with keyboard-focusable destin
 ## Remaining implementation and acceptance
 
 - Cache unchanged block rendering across revisions after measuring the invalidation and copying costs.
-- Render inactive body blocks and edit one active block with local live preview; retain selection, composition, native undo, draft recovery, stale checks and full-candidate validation.
+- Extend source-aware block access to ordinary document prose and navigation targets outside entry notes.
 - Add entry/heading navigation, backlinks and link suggestions without a persistent sidebar or toolbar.
 - Add lazy syntax highlighting, callouts, bounded mathematics and isolated Mermaid, retaining safe source fallback.
 - Measure parsing, worker message copying, React commit work and durable saving separately on 1,000- and 10,000-entry journals. Evaluate revision patches and incremental parsing against the complete parser, including distant references, fences and section changes.

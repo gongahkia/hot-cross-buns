@@ -192,7 +192,15 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
     if (item.text !== node.markdown) edits.push({ range: node.titleRange, text: title(item.text, original!.column + (prefix.match(/^[-+*][ \t]+/)?.[0].length ?? 2), dated) });
     if (model.format === 2 && JSON.stringify(item.body) !== JSON.stringify(bodyFrom(node, item.sourceRef!))) {
       const oldBody = node.body ?? [], nextBody = item.body ?? [], indent = original!.column + 2;
-      oldBody.forEach((block, index) => edits.push({ range: block.range, text: nextBody[index] ? renderBody(nextBody[index], indent) : '' }));
+      const references = oldBody.map((_, index) => `${item.sourceRef}:body:${index}`);
+      const positions = new Map(references.map((ref, index) => [ref, index]));
+      const desiredByRef = new Map(nextBody.map(block => [block.sourceRef, block]));
+      const retained = nextBody.map(block => block.sourceRef ? positions.get(block.sourceRef) ?? -1 : -1);
+      const sameOrder = retained.every((index, position) => index >= 0 && (!position || index > retained[position - 1]));
+      oldBody.forEach((block, index) => {
+        const desired = sameOrder ? desiredByRef.get(references[index]) : nextBody[index];
+        edits.push({ range: block.range, text: desired ? renderBody(desired, indent) : '' });
+      });
       const extra = nextBody.slice(oldBody.length);
       if (extra.length) {
         const offset = oldBody.at(-1)?.range.end ?? node.titleRange.end;

@@ -1,4 +1,13 @@
-import type { TodoDetail, TodoItem } from './todoText.ts';
+import type { TodoBody, TodoDetail, TodoItem } from './todoText.ts';
+
+export function replaceMarkdownBody(body: TodoBody[] | undefined, markdown: string, block?: number): TodoBody[] | undefined {
+  if (block === undefined) return markdown.trim() ? [{ markdown }] : undefined;
+  if (!Number.isInteger(block) || block < 0 || !body?.[block]) throw new Error('This notes block changed. Keep your draft and review the latest notes.');
+  const next = [...body];
+  if (markdown.trim()) next[block] = { ...next[block], markdown };
+  else next.splice(block, 1);
+  return next.length ? next : undefined;
+}
 
 export const MAX_OUTLINE_DEPTH = 32;
 type OutlineNode = { completed: boolean; kind?: 'note'; children?: OutlineNode[] };

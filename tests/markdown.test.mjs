@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { headingSlug, indexMarkdown, markdownKey, markdownRange, parseMarkdownPreview, parseMarkdownTree, safeMarkdownUrl, MARKDOWN_RENDER_LIMITS } from '../src/markdown.ts';
 import { applyPlannerEdits, parseMarkdownPlanner } from '../src/markdownPlanner.ts';
-import { journalBodyViews, readJournal } from '../src/journalDocument.ts';
+import { journalBodyViews, materializeJournal, readJournal } from '../src/journalDocument.ts';
+import { replaceMarkdownBody } from '../src/outline.ts';
 
 const walk = nodes => nodes.flatMap(node => [node, ...walk(node.children ?? [])]);
 const source = notes => `---\nhcb-format: 2\ndocument-id: markdown-corpus\n---\n\n# Journal\n\n[global]: https://example.com "Global title"\n\n[^global]: A document-wide footnote.\n\n## Dated\n\n### 2026-11-18\n\n- [ ] Entry\n  \`\`\`hcb\n  id: entry\n  \`\`\`\n\n  ${notes.replaceAll('\n', '\n  ')}\n\n## Undated\n\n### Inbox\n\n## Scratchpad\nExact **capture**.\n`;
@@ -58,6 +59,21 @@ test('projected body references reuse immutable render trees without reparsing n
   assert.equal(views[body.sourceRef], model.markdown.blocks[markdownKey(model.days[0].entries[0].body[0].range)]);
   assert.equal(journalBodyViews(document), views);
   assert.ok(Object.isFrozen(views));
+});
+
+test('block edits retain sibling objects and source identities, including block deletion', () => {
+  const { document } = readJournal(source('First paragraph.\n\n> A preserved **quote**.'));
+  const body = document.days[0].items[0].body;
+  const edited = replaceMarkdownBody(body, 'Updated **first**.', 0);
+  assert.equal(edited[1], body[1]);
+  assert.equal(edited[0].sourceRef, body[0].sourceRef);
+  assert.equal(body[0].markdown, 'First paragraph.');
+  assert.equal(replaceMarkdownBody(body, '', 0)[0], body[1]);
+  assert.throws(() => replaceMarkdownBody(body, 'bad', 10), /block changed/);
+  const changed = structuredClone(document);
+  changed.days[0].items[0].body = replaceMarkdownBody(changed.days[0].items[0].body, '', 0);
+  const firstRange = parseMarkdownPlanner(document.source).days[0].entries[0].body[0].range;
+  assert.equal(materializeJournal(changed).source, document.source.slice(0, firstRange.start) + document.source.slice(firstRange.end));
 });
 
 test('external reference context never leaks into unfinished code or HTML', () => {

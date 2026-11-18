@@ -1,11 +1,14 @@
 import { createElement, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import styled from 'styled-components';
+import { Pencil } from 'lucide-react';
 import { headingSlug, parseMarkdownPreview, safeMarkdownUrl, type MarkdownNode } from '../markdown';
 import { MarkdownDocumentContext } from '../markdownContext';
 import type { TodoBody } from '../todoText';
 
 const Content = styled.div`font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-width:0;p,ul,ol,blockquote,pre,table{margin:8px 0;}ul,ol{padding-left:22px;}blockquote{padding-left:12px;border-left:1px solid var(--line);color:var(--muted);}pre{max-width:100%;overflow:auto;white-space:pre-wrap;font:12px/1.6 var(--raw-font);}code{font-family:var(--raw-font);}table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;}td,th{padding:5px 8px;border:1px solid var(--line);}a{color:var(--link);text-decoration:underline;text-underline-offset:3px;}h1,h2,h3,h4,h5,h6{font-size:1em;margin:12px 0 6px;scroll-margin-top:80px;}img{display:block;max-width:100%;max-height:480px;object-fit:contain;}[data-footnotes]{margin-top:16px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;}[data-footnotes] li{scroll-margin-top:80px;}sup a{padding:2px;}`;
 const ImageButton = styled.button`min-height:36px;padding:4px 0;border:0;background:transparent;color:var(--link);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:3px;@media(pointer:coarse){min-height:44px;}`;
+const Block = styled.div`position:relative;min-width:0;padding-right:32px;[data-block-edit]{opacity:0;}&:hover [data-block-edit],&:focus-within [data-block-edit]{opacity:1;}@media(hover:none){[data-block-edit]{opacity:1;}}@media(pointer:coarse){padding-right:44px;}`;
+const BlockEdit = styled.button`position:absolute;right:0;top:4px;display:grid;place-items:center;width:28px;min-height:32px;padding:4px;border:0;border-radius:4px;background:transparent;color:var(--muted);&:hover,&:focus-visible{background:var(--soft);color:var(--ink);}@media(pointer:coarse){width:44px;min-height:44px;}`;
 
 function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?: string }) {
   const [loaded, setLoaded] = useState(false), [failed, setFailed] = useState(false);
@@ -15,7 +18,7 @@ function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?
   return <img src={href} alt={alt ?? ''} title={title} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)}/>;
 }
 
-export function MarkdownBody({ markdown, body }: { markdown: string; body?: TodoBody[] }) {
+export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, editor }: { markdown: string; body?: TodoBody[]; label?: string; onEditBlock?: (index: number) => void; activeBlock?: number | null; editor?: ReactNode }) {
   const context = useContext(MarkdownDocumentContext), scope = useId();
   const content = useMemo(() => {
     const saved = body?.map(block => block.sourceRef ? context.bodyViews?.[block.sourceRef] : undefined);
@@ -75,7 +78,7 @@ export function MarkdownBody({ markdown, body }: { markdown: string; body?: Todo
         default: return <span key={key}>{children()}</span>;
       }
     };
-    const nodes = preview.nodes.map((node, index) => render(node, index));
+    const nodes = preview.nodes.map((node, index) => activeBlock === index && editor ? <div key={index}>{editor}</div> : onEditBlock && body?.length === preview.nodes.length ? <Block key={index}><div>{render(node, index)}</div><BlockEdit data-block-edit data-block-index={index} type="button" aria-label={`Edit block ${index + 1} in ${label ?? 'notes'}`} onClick={() => onEditBlock(index)}><Pencil size={14}/></BlockEdit></Block> : render(node, index));
     const notes: ReactNode[] = [];
     for (let index = 0; index < Math.min(footnotes.length, 100); index++) {
       const identifier = footnotes[index], note = preview.index.footnotes[identifier];
@@ -83,6 +86,6 @@ export function MarkdownBody({ markdown, body }: { markdown: string; body?: Todo
       notes.push(<li key={identifier} id={footnoteId(identifier)} tabIndex={-1}>{note.type === 'source' ? <pre>{nodeSource.slice(note.range.start, note.range.end)}</pre> : note.children?.map((child, index) => render(child, index, 0, nodeSource))}{references.get(identifier)?.map((id, index) => <a key={id} href={`#${id}`} aria-label={`Back to footnote ${footnotes.indexOf(identifier) + 1} reference ${index + 1}`} onClick={event => { event.preventDefault(); scrollTo(id); }}>Back{index ? ` ${index + 1}` : ''}</a>)}</li>);
     }
     return <>{nodes}{!!notes.length && <section data-footnotes aria-label="Footnotes"><ol>{notes}</ol></section>}</>;
-  }, [markdown, body, context, scope]);
+  }, [markdown, body, context, scope, label, onEditBlock, activeBlock, editor]);
   return <Content>{content}</Content>;
 }

@@ -2,7 +2,7 @@ import { Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useSta
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Circle, CornerDownRight, FileText, IndentDecrease, IndentIncrease, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
-import { MAX_OUTLINE_DEPTH, detailAt, detailSiblings, moveOutlineDetail, outlineContent, outlineNodes, refreshItemCompletion } from '../outline';
+import { MAX_OUTLINE_DEPTH, detailAt, detailSiblings, moveOutlineDetail, outlineContent, outlineNodes, refreshItemCompletion, replaceMarkdownBody } from '../outline';
 import type { TodoBody, TodoDetail, TodoItem } from '../todoText';
 import { Button } from '../styles';
 import { MarkdownBody } from './MarkdownBody';
@@ -21,40 +21,57 @@ const BodyInput = styled.textarea`width:100%;min-height:140px;resize:vertical;pa
 const BodyActions = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;button{min-height:36px;}@media(pointer:coarse){button{min-height:44px;}}`;
 const hasDraft = (key: string) => { try { return sessionStorage.getItem(key) !== null; } catch { return false; } };
 
-function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: { body?: TodoBody[]; label: string; onSave: (markdown: string) => void; editRequest?: number; draftKey: string }) {
+function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: { body?: TodoBody[]; label: string; onSave: (markdown: string, block?: number) => void; editRequest?: number; draftKey: string }) {
   const { source } = useContext(OutlineDocumentContext);
   const markdown = (body ?? []).map(block => block.markdown).join('\n\n');
   const [recovered] = useState(() => {
-    try { const raw = sessionStorage.getItem(draftKey); if (raw) { const saved = JSON.parse(raw); if (typeof saved.draft === 'string' && typeof saved.base === 'string' && typeof saved.label === 'string') return saved as { draft: string; base: string; label: string; source?: string }; return { draft: raw, base: '', label: '', source: '' }; } }
+    try { const raw = sessionStorage.getItem(draftKey); if (raw) { const saved = JSON.parse(raw); if (typeof saved.draft === 'string' && typeof saved.base === 'string' && typeof saved.label === 'string') return saved as { draft: string; base: string; label: string; source?: string; block?: number }; return { draft: raw, base: '', label: '', source: '', block: undefined }; } }
     catch { /* an in-memory draft and download remain available. */ }
     return null;
   });
   const [editing, setEditing] = useState(!!editRequest || !!recovered), [draft, setDraft] = useState(recovered?.draft ?? markdown);
+  const [activeBlock, setActiveBlock] = useState<number | null>(Number.isInteger(recovered?.block) && recovered!.block! >= 0 ? recovered!.block! : null);
   const [error, setError] = useState(recovered ? 'A previous notes draft was recovered. Review it before saving.' : '');
   const baseline = useRef({ markdown: recovered?.base ?? markdown, label: recovered?.label ?? label, source: recovered ? recovered.source ?? '' : source });
+  const expected = useRef('');
   const [submitted, setSubmitted] = useState(false);
   const [visible, setVisible] = useState(!!editRequest || !!recovered);
   const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { if (editRequest) { if (!editing) { baseline.current = { markdown, label, source }; setDraft(markdown); } setEditing(true); if (ref.current) ref.current.open = true; } }, [editRequest]);
+  const restoreFocus = (block: number | null) => requestAnimationFrame(() => {
+    const button = (block === null ? null : ref.current?.querySelector<HTMLButtonElement>(`[data-block-index="${block}"]`)) ?? ref.current?.querySelector<HTMLButtonElement>('[data-edit-notes]');
+    button?.focus({ preventScroll: true });
+  });
+  useEffect(() => { if (editRequest) { if (!editing) { baseline.current = { markdown, label, source }; setDraft(markdown); setActiveBlock(null); } setEditing(true); if (ref.current) ref.current.open = true; } }, [editRequest]);
   useEffect(() => {
-    if (!editing || draft === baseline.current.markdown) return;
-    try { sessionStorage.setItem(draftKey, JSON.stringify({ base: baseline.current.markdown, label: baseline.current.label, source: baseline.current.source, draft })); }
+    if (!editing) return;
+    const original = activeBlock === null ? baseline.current.markdown : body?.[activeBlock]?.markdown ?? '';
+    if (draft === original && source === baseline.current.source) { try { sessionStorage.removeItem(draftKey); } catch { /* the unchanged saved block remains authoritative. */ } return; }
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ base: baseline.current.markdown, label: baseline.current.label, source: baseline.current.source, draft, ...(activeBlock === null ? {} : { block: activeBlock }) })); }
     catch { setError('Could not checkpoint these notes. Keep the editor open or download the draft before leaving.'); }
-  }, [draft, editing, draftKey]);
+  }, [draft, editing, draftKey, activeBlock, body, source]);
   const clear = () => { try { sessionStorage.removeItem(draftKey); } catch { /* the saved document remains available. */ } };
-  useEffect(() => { if (submitted && markdown.trim() === draft.trim()) { clear(); setEditing(false); setSubmitted(false); setError(''); } }, [markdown, draft, submitted]);
+  useEffect(() => { if (submitted && markdown.trim() === expected.current.trim()) { clear(); setEditing(false); setSubmitted(false); setActiveBlock(null); setError(''); restoreFocus(activeBlock); } }, [markdown, submitted]);
+  const begin = (block: number | null) => {
+    if (editing && draft !== (activeBlock === null ? baseline.current.markdown : body?.[activeBlock]?.markdown ?? '')) { setError('Save, download or cancel this draft before editing another block.'); return; }
+    baseline.current = { markdown, label, source }; setDraft(block === null ? markdown : body?.[block]?.markdown ?? ''); setActiveBlock(block); setSubmitted(false); setError(''); setEditing(true);
+  };
   const save = () => {
     if (source !== baseline.current.source || markdown !== baseline.current.markdown || label !== baseline.current.label) { setError('The document changed while this draft was open. Download your draft, then cancel to review the latest notes.'); return; }
-    if (draft === markdown) { clear(); setEditing(false); return; }
-    setSubmitted(true); setError('The draft stays open until the change is validated. Finish any recurrence-scope review to apply it.'); onSave(draft);
+    if (draft === (activeBlock === null ? markdown : body?.[activeBlock]?.markdown ?? '')) { clear(); setEditing(false); setActiveBlock(null); restoreFocus(activeBlock); return; }
+    if (activeBlock !== null && !body?.[activeBlock]) { setError('This notes block is no longer available. Download your draft, then cancel to review the latest notes.'); return; }
+    expected.current = (replaceMarkdownBody(body, draft, activeBlock ?? undefined) ?? []).map(block => block.markdown).join('\n\n');
+    setSubmitted(true); setError('The draft stays open until the change is validated. Finish any recurrence-scope review to apply it.'); onSave(draft, activeBlock ?? undefined);
   };
-  return <Body ref={ref} open={!!editRequest || !!recovered || undefined} onToggle={event => setVisible(event.currentTarget.open)} data-journal-editor="true" data-editor-dirty={editing && draft !== baseline.current.markdown ? 'true' : 'false'}>
+  const original = activeBlock === null ? baseline.current.markdown : body?.[activeBlock]?.markdown ?? '';
+  const editor = <>
+    <BodyInput autoFocus data-markdown-body-editor aria-label={`Markdown notes for ${label}`} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (!event.nativeEvent.isComposing && (event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); } }}/>
+    {error && <p role="status">{error}</p>}
+    <BodyActions><Button type="button" onClick={save}>Save notes</Button><Button type="button" onClick={() => downloadTextFile(draft, 'Planner-notes-draft.md')}>Download notes draft</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(false); setActiveBlock(null); setSubmitted(false); setError(''); restoreFocus(activeBlock); }}>Cancel notes edit</Button></BodyActions>
+    <div aria-label="Live Markdown preview"><MarkdownBody markdown={draft}/></div>
+  </>;
+  return <Body ref={ref} open={!!editRequest || !!recovered || undefined} onToggle={event => setVisible(event.currentTarget.open)} data-journal-editor="true" data-editor-dirty={editing && (draft !== original || source !== baseline.current.source) ? 'true' : 'false'}>
     <summary><FileText size={14}/>{markdown ? 'Notes' : 'Add notes'}</summary>
-    {editing ? <>
-      <BodyInput autoFocus data-markdown-body-editor aria-label={`Markdown notes for ${label}`} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); save(); } }}/>
-      {error && <p role="status">{error}</p>}
-      <BodyActions><Button type="button" onClick={save}>Save notes</Button><Button type="button" onClick={() => downloadTextFile(draft, 'Planner-notes-draft.md')}>Download notes draft</Button><Button type="button" onClick={() => { clear(); baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(false); setSubmitted(false); setError(''); }}>Cancel notes edit</Button></BodyActions>
-    </> : visible ? <><MarkdownBody markdown={markdown} body={body}/><BodyActions><Button type="button" onClick={() => { baseline.current = { markdown, label, source }; setDraft(markdown); setEditing(true); }}>Edit notes</Button></BodyActions></> : null}
+    {editing && activeBlock === null ? editor : visible ? <><MarkdownBody markdown={markdown} body={body} label={label} onEditBlock={index => begin(index)} activeBlock={editing ? activeBlock : null} editor={editor}/>{!editing && <BodyActions><Button data-edit-notes type="button" onClick={() => begin(null)}>Edit notes</Button></BodyActions>}</> : null}
   </Body>;
 }
 
@@ -117,14 +134,14 @@ export function OutlineEditor({ item, dated, onEdit: edit, onToggle: toggle, onP
       onToggle={() => onToggle(next => { const target = detailAt(next.details, path), completed = !target.completed; for (const child of outlineNodes([target])) if (child.kind !== 'note') child.completed = completed; refreshItemCompletion(next); })}
       onMove={direction => move(path, direction)} onAdd={note => add(path, node.children?.length ?? 0, note)} onSibling={() => add(parent, index + 1, node.kind === 'note')}
       onDelete={() => onEdit(next => { detailSiblings(next, path).splice(index, 1); if (dated) refreshItemCompletion(next); })}
-      onPromote={() => onPromote(path, content)} onBody={markdown => onEdit(next => { detailAt(next.details, path).body = markdown.trim() ? [{ markdown }] : undefined; })}
+      onPromote={() => onPromote(path, content)} onBody={(markdown, block) => onEdit(next => { const node = detailAt(next.details, path); node.body = replaceMarkdownBody(node.body, markdown, block); })}
       childrenContent={nodes(node.children ?? [], path)}
       draftContent={draft && draft.parent.join('.') === path.join('.') ? true : null}/>
     </Fragment>;
   })}{draft && draft.parent.join('.') === parent.join('.') && draft.index >= details.length ? draftField() : null}</ul>;
   const draftField = () => <li><Row $depth={draft?.parent.length ?? 0}><span/><span/><Title autoFocus aria-label={`New outline item for ${item.text}`} aria-busy={submitted} value={draftText} onChange={event => { draftSubmitted.current = false; setDraftText(event.target.value); }} onBlur={() => saveDraft()} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { event.preventDefault(); if (!submitted) { setDraft(null); setDraftText(''); draftSubmitted.current = false; } } }}/><Control type="button" aria-label="Save outline item" disabled={submitted} onMouseDown={event => event.preventDefault()} onClick={() => saveDraft(true)}><Check size={15}/></Control></Row></li>;
   return <Wrap ref={root} role="group" aria-label={`Outline for ${item.text}`}>
-    {!!(item.body?.length || notesRequest || hasDraft(draftKey)) && <MarkdownBodyEditor draftKey={draftKey} label={item.text} body={item.body} editRequest={notesRequest} onSave={markdown => onEdit(next => { next.body = markdown.trim() ? [{ markdown }] : undefined; })}/>}
+    {!!(item.body?.length || notesRequest || hasDraft(draftKey)) && <MarkdownBodyEditor draftKey={draftKey} label={item.text} body={item.body} editRequest={notesRequest} onSave={(markdown, block) => onEdit(next => { next.body = replaceMarkdownBody(next.body, markdown, block); })}/>}
     {nodes(item.details)}
   </Wrap>;
 }
@@ -133,7 +150,7 @@ function OutlineNode({ node, path, dated, reveal, siblings, draftKey, onSave, on
   node: TodoDetail; path: number[]; dated: boolean; reveal: boolean; siblings: number; onSave: (text: string) => void; onToggle: () => void;
   draftKey: string;
   onMove: (direction: 'up' | 'down' | 'in' | 'out') => void; onAdd: (note: boolean) => void; onSibling: () => void; onDelete: () => void; onPromote: () => void;
-  onBody: (markdown: string) => void; childrenContent: React.ReactNode; draftContent: React.ReactNode;
+  onBody: (markdown: string, block?: number) => void; childrenContent: React.ReactNode; draftContent: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(path.length < 4), [menu, setMenu] = useState(false), [notes, setNotes] = useState(0);
   const [value, setValue] = useState(node.text);
@@ -173,7 +190,7 @@ function OutlineNode({ node, path, dated, reveal, siblings, draftKey, onSave, on
       <Title ref={title} rows={1} data-journal-entry data-outline-path={path.join('.')} aria-label={`Edit detail ${node.text}`} $done={task && node.completed} value={value} onChange={event => setValue(event.target.value.replace(/[\r\n]+/g, ' '))} onKeyDown={shortcut} onBlur={() => { if (!cancelled.current && value.trim() && value.trim() !== node.text) onSave(value.trim()); else setValue(node.text); cancelled.current = false; }}/>
       <Control ref={trigger} type="button" aria-label={`More actions for detail ${node.text}`} aria-expanded={menu} onClick={() => setMenu(value => !value)}><MoreHorizontal size={16}/></Control>
     </Row>
-    {(node.body?.length || notes || hasDraft(draftKey)) ? <MarkdownBodyEditor draftKey={draftKey} label={node.text} body={node.body} editRequest={notes} onSave={markdown => { onBody(markdown); }}/> : null}
+    {(node.body?.length || notes || hasDraft(draftKey)) ? <MarkdownBodyEditor draftKey={draftKey} label={node.text} body={node.body} editRequest={notes} onSave={onBody}/> : null}
     {expanded && <div id={id}>{childrenContent}</div>}
     {menu && rect && createPortal(<Menu ref={panel} aria-label={`Actions for detail ${node.text}`} style={{ left: Math.max(8, Math.min(rect.right - 200, innerWidth - 208)), top: Math.max(8, Math.min(rect.bottom + 4, innerHeight - (dated ? 450 : 400))) }}>
       {dated && <Action disabled={path.length >= MAX_OUTLINE_DEPTH} onClick={() => run(() => { setExpanded(true); onAdd(false); })}><Plus size={15}/> add subtask</Action>}
