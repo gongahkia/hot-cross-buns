@@ -7,6 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from '@playwright/test';
 import { parseMarkdownPlanner } from '../src/markdownPlanner.ts';
 import { incrementalTitleExperiment, sourceDelta } from './experiments/markdownIncremental.ts';
+import {navigateCalendar} from '../src/calendar.ts';
 import { benchmarkPlanner } from './markdown-benchmark-fixture.mjs';
 
 const countArg = process.argv.find(arg => arg.startsWith('--samples='));
@@ -25,11 +26,13 @@ const run = (cmd, args, env = process.env) => new Promise((resolve, reject) => {
   const child = spawn(cmd, args, { stdio: 'inherit', env });
   child.once('error', reject); child.once('exit', code => code === 0 ? resolve() : reject(new Error(`${cmd} exited with ${code}.`)));
 });
-const report = { generatedAt: new Date().toISOString(), complete: false, environment: { node: process.version, platform: os.platform(), arch: os.arch(), cpu: os.cpus()[0]?.model, browser: '', samples, profiling: true, visibleEntries: 20, visibleDates: 7 }, datasets: [], notes: [
+const report = { generatedAt: new Date().toISOString(), complete: false, environment: { node: process.version, platform: os.platform(), arch: os.arch(), cpu: os.cpus()[0]?.model, browser: '', samples, profiling: true, documentFormat: 3, visibleEntries: 20, visibleDates: 7 }, datasets: [], notes: [
   'React measurements use the production profiling build and include its instrumentation overhead.',
   'Worker echo round trips include structured cloning, scheduling and both directions; they are not pure copy CPU time.',
   'Durable save includes opening IndexedDB, validation, serialization and the completed transaction.',
   'The incremental-title implementation is a benchmark-only experiment; production retains full validation.',
+  'Typing measures the input event to a second animation frame, a paint opportunity proxy rather than physical input-to-display latency.',
+  'Calendar automation timings include browser protocol overhead; React render work is recorded separately.',
   'No Obsidian/Notion or physical-device speed comparison is established by this benchmark.',
 ] };
 let server, browser, profilingBuilt = false;
@@ -69,19 +72,45 @@ try {
       try {
         await context.addInitScript(() => { window.__hcbMarkdownMetrics = { enabled: true, samples: [] }; });
         const page = await context.newPage();
-        await page.goto(base); await page.getByRole('textbox', { name: 'New daily item', exact: true }).waitFor();
+        await page.goto(base); await page.getByRole('region', { name: `Document for ${today}`, exact: true }).getByRole('button', { name: 'Start writing', exact: true }).waitFor();
         if (!await page.evaluate(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'reactRender'))) throw new Error('React profiling is unavailable; do not report ordinary production renders as profiled.');
         await page.evaluate(() => { window.__hcbMarkdownMetrics.samples = []; });
         fixture = benchmarkPlanner(size, today, sample);
         await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(fixture) });
-        try { await page.getByRole('button', { name: 'Complete Visible task 0', exact: true }).waitFor({ timeout: 30000 }); }
+        try { await page.getByRole('checkbox', { name: 'Complete Visible task 0', exact: true }).waitFor({ timeout: 30000 }); }
         catch (error) { await mkdir(path.dirname(output), { recursive: true }); await page.screenshot({ path: path.join(path.dirname(output), `failure-${size}-${sample}.png`) }); await writeFile(path.join(path.dirname(output), `failure-${size}-${sample}.txt`), await page.locator('body').innerText()); throw error; }
         await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), undefined, { timeout: 30000 });
         measurements.push(...(await page.evaluate(() => window.__hcbMarkdownMetrics.samples)).map(item => ({ ...item, phase: `import:${item.phase}` })));
         await page.evaluate(() => { window.__hcbMarkdownMetrics.samples = []; });
-        await page.getByRole('button', { name: 'Complete Visible task 0', exact: true }).click();
+        await page.getByRole('checkbox', { name: 'Complete Visible task 0', exact: true }).click();
         await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), undefined, { timeout: 30000 });
         measurements.push(...(await page.evaluate(() => window.__hcbMarkdownMetrics.samples)).map(item => ({ ...item, phase: `completion:${item.phase}` })));
+        await page.getByRole('button',{name:'Actions for Visible task 1',exact:true}).click();
+        await page.getByRole('button',{name:'Edit content',exact:true}).click();
+        const draft=page.getByRole('textbox',{name:`Markdown for ${today}`,exact:true});
+        await draft.waitFor();
+        await page.evaluate(()=>{
+          window.__hcbMarkdownMetrics.samples=[];
+          window.__hcbInputFrames=[];
+          document.querySelector('textarea[data-markdown-body-editor]').addEventListener('input',()=>{const start=performance.now();requestAnimationFrame(()=>requestAnimationFrame(()=>window.__hcbInputFrames.push(performance.now()-start)));},{once:true});
+        });
+        await draft.press('End');await page.keyboard.insertText(' draft');
+        await page.waitForFunction(()=>window.__hcbInputFrames.length>0);
+        measurements.push({phase:'typing:inputToSecondFrame',milliseconds:await page.evaluate(()=>window.__hcbInputFrames[0])});
+        measurements.push(...(await page.evaluate(()=>window.__hcbMarkdownMetrics.samples)).map(item=>({...item,phase:`typing:${item.phase}`})));
+        await page.getByRole('button',{name:'Cancel',exact:true}).click();
+        await page.evaluate(()=>{window.__hcbMarkdownMetrics.samples=[];});
+        let navigationStart=performance.now();
+        await page.getByRole('button',{name:'Calendar',exact:true}).click();
+        await page.getByRole('grid',{name:'Month calendar',exact:true}).waitFor();
+        await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+        measurements.push({phase:'calendar:openAutomation',milliseconds:performance.now()-navigationStart});
+        navigationStart=performance.now();
+        await page.getByRole('button',{name:'Next month',exact:true}).click();
+        await page.getByRole('button',{name:`Show day ${navigateCalendar(today,'month',1)}`,exact:true}).waitFor();
+        await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+        measurements.push({phase:'calendar:nextMonthAutomation',milliseconds:performance.now()-navigationStart});
+        measurements.push(...(await page.evaluate(()=>window.__hcbMarkdownMetrics.samples)).map(item=>({...item,phase:`calendar:${item.phase}`})));
         transfers.push(await page.evaluate(async ({ source, asset }) => {
           const worker = new Worker(`/assets/${asset}`, { type: 'module' });
           const ask = request => new Promise((resolve, reject) => { worker.onerror = () => reject(new Error('Benchmark parser worker failed.')); worker.onmessage = event => event.data.ok ? resolve(event.data) : reject(new Error(event.data.error)); worker.postMessage(request); });

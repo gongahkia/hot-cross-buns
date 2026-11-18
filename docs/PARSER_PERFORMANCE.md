@@ -64,3 +64,30 @@ At 10,000 entries, median import materialization worker time fell from 831.2 to 
 `scripts/experiments/markdownIncremental.ts` is a benchmark-only prototype for same-length ASCII root-title edits with unchanged syntax and validated source. It shares unchanged model data and is compared deeply against the complete parser. The 10,000-entry median was 0.074 ms versus 1,065.5 ms for the complete title reparse. This narrow result cannot be extrapolated to arbitrary Markdown edits. Generated differential tests cover 120 accepted edits across format versions, BOM and line endings; definition, fence, section, scratchpad, Unicode, stale-source and size-changing edits require the full-parser fallback.
 
 The prototype also extracts a revision delta without splitting UTF-16 surrogate pairs. At 10,000 entries extraction cost 2.0 ms median, while a full-source echo cost 0.4 ms. Source-only patches therefore do not justify changing the revision protocol on this evidence. The 36.2 ms compact-model round trip is a better future transfer target, but full parsing remains the dominant completion cost. A next parser optimization should address changed-candidate validation with conservative invalidation and complete-model equivalence checks before shipping incremental behavior.
+
+## Unified-writing measurements
+
+The [format-3 writing results](performance/unified-writing-2026-11-18.json) repeat the three-sample, 20-visible-entry, seven-date dataset on the same Apple M3 / Node 26.7 / Chromium 156 environment. Source sizes remain 82,379 and 836,488 bytes. The benchmark now opens the direct document editor, types in a local block without saving, opens Calendar and advances one month. It restores the ordinary production build afterward.
+
+Values are milliseconds, median / p95; with three samples p95 is the largest observation.
+
+| Measurement | 1,000 entries | 10,000 entries |
+| --- | ---: | ---: |
+| Cold full parse, worker CPU | 117.1 / 121.3 | 914.3 / 925.7 |
+| Full parse, worker round trip | 125.6 / 131.8 | 966.3 / 969.9 |
+| Compact-model echo round trip | 10.0 / 11.7 | 50.0 / 56.6 |
+| Main-thread model adoption during completion | 2.5 / 3.6 | 16.3 / 16.5 |
+| React render work per completion commit | 0.2 / 5.9 | 0.3 / 18.7 |
+| Changed-candidate completion validation, worker CPU | 95.9 / 110.1 | 811.0 / 850.1 |
+| Completion durable save | 15.9 / 17.3 | 52.7 / 55.5 |
+| Local input event to second animation frame | 23.4 / 25.4 | 26.9 / 28.3 |
+| React render work per local typing commit | 1.0 / 2.7 | 1.0 / 3.1 |
+| Calendar opening, automation elapsed time | 74.3 / 84.5 | 78.4 / 78.6 |
+| Next month, automation elapsed time | 66.8 / 67.5 | 66.6 / 67.2 |
+| React render work per calendar commit | 1.9 / 5.5 | 3.3 / 6.4 |
+
+The two-frame input measure is a paint-opportunity proxy, not physical input-to-display latency. Calendar elapsed times include browser automation/protocol overhead; React render timings are recorded separately. Local typing does not commit or validate a durable journal candidate. These measurements do not establish a Notion/Obsidian speed comparison, universal input targets or real-phone performance.
+
+Format 3 retains bounded root-outline render trees in addition to attached bodies. The serialized compact model grew from 602,073 to 1,253,823 characters at 1,000 entries and from 6,186,116 to 7,436,199 at 10,000 entries. This explains a real transfer/adoption tradeoff; visible documents reuse saved trees or bounded cached fallback previews rather than keeping an unbounded full AST. Completion validation remains similar to the previous full-parser measurements. Lower durable-save observations cannot be attributed to this UI change alone.
+
+The narrow benchmark-only incremental-title experiment now updates retained root text trees too and matches the complete model for 180 generated edits across formats 1/2/3, BOM and supported line endings. Its 10,000-entry median is 3.05 ms; it remains excluded from production. The next parser priority is conservative changed-candidate invalidation with complete-source/model/diagnostic equivalence, followed by smaller worker model transfers. Full validation, database version 4 and revision protocol 2 remain intact.

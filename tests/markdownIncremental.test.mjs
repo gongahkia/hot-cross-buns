@@ -5,8 +5,8 @@ import { parseMarkdownPlanner } from '../src/markdownPlanner.ts';
 import { benchmarkPlanner } from '../scripts/markdown-benchmark-fixture.mjs';
 
 test('the narrow incremental experiment matches the complete model across generated title edits', () => {
-  for (const version of [1, 2]) for (const ending of ['\n', '\r\n', '\r']) {
-    let source = '\uFEFF' + benchmarkPlanner(24, '2026-11-18').replace('hcb-format: 2', `hcb-format: ${version}`).replaceAll('\n', ending);
+  for (const version of [1, 2, 3]) for (const ending of ['\n', '\r\n', '\r']) {
+    let source = '\uFEFF' + benchmarkPlanner(24, '2026-11-18').replace('hcb-format: 3', `hcb-format: ${version}`).replaceAll('\n', ending);
     for (let index = 0; index < 20; index++) {
       const before = parseMarkdownPlanner(source), entry = before.days[0].entries[index % 4];
       const text = index % 2 ? 'Historical item' : 'Historical task';

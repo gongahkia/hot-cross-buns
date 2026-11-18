@@ -1,3 +1,4 @@
+import type {MarkdownNode} from '../../src/markdown.ts';
 import type { MarkdownPlanner, SourcePatch } from '../../src/markdownPlanner.ts';
 
 /** benchmark-only experiment; production source edits still use the full validator. */
@@ -9,7 +10,9 @@ export function incrementalTitleExperiment(model: MarkdownPlanner, patch: Source
     const entries = [...group.entries], groups = [...model[key]];
     entries[entryIndex] = { ...entries[entryIndex], markdown: patch.text, text: patch.text };
     groups[groupIndex] = { ...group, entries };
-    return { ...model, source: model.source.slice(0, patch.range.start) + patch.text + model.source.slice(patch.range.end), [key]: groups };
+    const update=(node:MarkdownNode):MarkdownNode=>{if(node.range.start>patch.range.start || node.range.end<patch.range.end)return node;if(node.type==='text' && node.range.start===patch.range.start && node.range.end===patch.range.end)return {...node,value:patch.text};return node.children?{...node,children:node.children.map(update)}:node;};
+    const blocks=Object.assign(Object.create(null),Object.fromEntries(Object.entries(model.markdown.blocks).map(([key,node])=>[key,update(node)])));
+    return { ...model, markdown:{...model.markdown,blocks}, source: model.source.slice(0, patch.range.start) + patch.text + model.source.slice(patch.range.end), [key]: groups };
   }
   return null;
 }
