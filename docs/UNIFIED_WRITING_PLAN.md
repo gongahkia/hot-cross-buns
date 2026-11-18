@@ -22,4 +22,4 @@ Approved 18 November 2026. This extends the earlier Markdown plan: Dated and Und
 
 ## Progress
 
-Implementation started. The prior rendering/navigation work and its support matrix are the baseline, not evidence that this product transition is complete.
+The format-3 engine, explicit upgrade primitive and direct document/capture source operations are implemented. Focused tests cover mixed outlines, completion and metadata preservation, document boundaries, rich capture moves, source ownership, Unicode and all supported line endings. The format foundation passed the complete unit suite and production build. Editor, popup and calendar integration and final acceptance remain outstanding. The prior rendering/navigation work and its support matrix are the baseline, not evidence that this product transition is complete.

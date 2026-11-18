@@ -1,5 +1,5 @@
-import { materializeJournalAsync, readJournalAsync } from './journalBackground.ts';
-import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel, isCanonicalJournal } from './journalDocument.ts';
+import { materializeJournalAsync, readJournalAsync, writeJournalAsync } from './journalBackground.ts';
+import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel, isCanonicalJournal, journalModel } from './journalDocument.ts';
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
 import { reviewedRevision } from './revisionSync';
 import { normalizeDocument, type TodoDocument } from './todoText';
@@ -147,10 +147,10 @@ export async function mutateTodoState(change: (latest: TodoState) => TodoState |
   return result;
 }
 
-async function prepareJournalMutation(work: (before: TodoState) => TodoDocument): Promise<{ before: TodoState; journal: TodoState }> {
+async function prepareJournalMutation(work: (before: TodoState) => TodoDocument | Promise<TodoDocument>): Promise<{ before: TodoState; journal: TodoState }> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = await loadTodoState();
-    const document = await materializeJournalAsync(work(before));
+    const document = await materializeJournalAsync(await work(before));
     const journal = await mutateTodoState(latest => {
       if (latest.revision !== before.revision || latest.scratchRevision !== before.scratchRevision || latest.document.source !== before.document.source) return null;
       return { ...latest, document };
@@ -172,6 +172,7 @@ export async function convertScratchpadSelection(args: { start: number; end: num
   const { before, journal: result } = await prepareJournalMutation(latest => {
     const scratch = latest.document.scratchpad ?? '';
     if ((latest.scratchRevision ?? 0) !== args.scratchRevision || scratch.slice(args.start, args.end) !== args.selected) throw new Error('The scratchpad changed. Select the text again.');
+    if (journalModel(latest.document).format === 3) return writeJournalAsync(latest.document.source!, { kind: 'capture', capture: args });
     const document = structuredClone(latest.document);
     const items = args.items.map(({ title, details }) => ({ id: crypto.randomUUID(), text: title, completed: false, details: details.map(text => ({ text, completed: false })) }));
     if (args.destination.kind === 'dated') {

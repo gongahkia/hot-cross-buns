@@ -7,6 +7,7 @@ import { editMarkdownPassage } from './markdownPassage.ts';
 import type { SourceRange } from './markdownPlanner.ts';
 import type { MarkdownLinkPreparation } from './markdownNavigation.ts';
 import { finishMarkdownMeasurement, recordMarkdownDuration, startMarkdownMeasurement } from './markdownMeasurements.ts';
+import { runWritingOperation, type WritingOperation } from './journalWriting.ts';
 
 type WorkerPort = Pick<Worker, 'postMessage' | 'terminate' | 'onmessage' | 'onerror' | 'onmessageerror'>;
 type Pending = { operation: JournalWork['kind']; started?: number; resolve: (value: Extract<JournalWorkResult, { ok: true }>) => void; reject: (error: Error) => void; cleanup: () => void };
@@ -106,5 +107,13 @@ export async function editMarkdownPassageAsync(source: string, range: SourceRang
   let result;
   try { result = await client().request({ kind: 'passage', source, range, markdown, links }); }
   catch (error) { if (error instanceof JournalWorkerUnavailable) return journalFromPlanner(editMarkdownPassage(source, range, markdown, links)).document; throw error; }
+  return adopt(result.model).document;
+}
+
+export async function writeJournalAsync(source: string, operation: WritingOperation) {
+  if (typeof Worker === 'undefined') return journalFromPlanner(runWritingOperation(source, operation)).document;
+  let result;
+  try { result = await client().request({ kind: 'writing', source, operation }); }
+  catch (error) { if (error instanceof JournalWorkerUnavailable) return journalFromPlanner(runWritingOperation(source, operation)).document; throw error; }
   return adopt(result.model).document;
 }
