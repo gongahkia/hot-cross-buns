@@ -9,3 +9,11 @@ The runtime uses remark/micromark to retain real CommonMark/GFM structure and ex
 `tests/markdownParserPatch.test.mjs` checks both exports against deterministic edit sequences, including replacement/removal/insertion, same-index additions, ordering, object identity, reuse and no-op consumption. It also measures copied references to catch the prefix regression without a host-time assertion. The planner source/offset fixtures and 10,000-entry performance tests exercise the actual patched parser. These finite tests are not a complete CommonMark conformance certification.
 
 When upstream releases a correction, inspect its semantics, update the lockfile and remove this patch and its install/check hooks together. Run the full format, operation, performance and browser suites before removing it; do not silently bypass a checksum mismatch.
+
+## Reusing planning models
+
+Each immutable document retains its compact planning model in a WeakMap. Merge operations use those models for identity checks, source-field ownership and insertion validation instead of repeatedly reparsing baseline/browser/file sources through the two-entry source cache. Models expire with their documents; no full remark AST is retained and the global source cache remains limited to two entries. Undo history retains at most 100 documents in the current UI.
+
+Duplicate group detection and edited-group lookup use sets/maps. Ambiguous desired group names or reused group identities are rejected before source edits. Source offsets, full candidate validation, immutable projections and conservative conflict behavior remain unchanged.
+
+The 10,000-item merge regression now changes different entries on both sides, checks both results and times the actual merge. The former case had an unchanged side and exercised a fast path. On an Apple M3 with Node 26.7, one local run measured 640 ms for this merge and 1,138 ms for the round trip. These single-run measurements are not cross-device performance guarantees; CI also checks supported Node 22/24 configurations.

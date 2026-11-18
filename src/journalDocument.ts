@@ -7,6 +7,8 @@ export const JOURNAL_FORMAT = 'hcb-markdown-1';
 const cache = new Map<string, { model: MarkdownPlanner; document: TodoDocument }>();
 const assignedIds = new WeakMap<TodoItem, string>();
 const canonical = new WeakSet<TodoDocument>();
+// models live only as long as their immutable documents; the source cache stays bounded.
+const models = new WeakMap<TodoDocument, MarkdownPlanner>();
 const textAt = (source: string, range: SourceRange) => source.slice(range.start, range.end);
 const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 const fields = ['repeat', 'completedOn', 'span', 'skips', 'replaces'] as const;
@@ -25,6 +27,10 @@ export function readJournal(source: string): { model: MarkdownPlanner; document:
   return projectJournal(parseMarkdownPlanner(source));
 }
 
+export function journalModel(document: TodoDocument): MarkdownPlanner {
+  return models.get(document) ?? readJournal(serializeJournal(document)).model;
+}
+
 function projectJournal(model: MarkdownPlanner): { model: MarkdownPlanner; document: TodoDocument } {
   const source = model.source;
   const document: TodoDocument = {
@@ -41,6 +47,7 @@ function projectJournal(model: MarkdownPlanner): { model: MarkdownPlanner; docum
   }
   if (plannerWritable(model)) canonical.add(document);
   const result = { model, document };
+  models.set(document, model);
   cache.set(source, result);
   if (cache.size > 2) cache.delete(cache.keys().next().value!);
   return result;
@@ -182,8 +189,12 @@ export function materializeJournal(document: TodoDocument): TodoDocument {
   const updateGroups = (groups: PlannerGroup[], desired: Array<{ name: string; items: TodoItem[]; sourceRef?: string }>, dated: boolean) => {
     const prior = new Map(groups.map(group => [group.name, group]));
     const references = new Set(groups.map(group => `list:${group.range.start}`));
+    const byName = new Map(desired.map(group => [group.name, group]));
+    const byReference = new Map(desired.filter(group => group.sourceRef).map(group => [group.sourceRef!, group]));
+    if (byName.size !== desired.length) throw new Error('Planner group names must be unique.');
+    if (byReference.size !== desired.filter(group => group.sourceRef).length) throw new Error('A planner group cannot appear more than once.');
     for (const group of groups) {
-      const next = desired.find(candidate => !dated && candidate.sourceRef === `list:${group.range.start}`) ?? desired.find(candidate => candidate.name === group.name);
+      const next = (!dated && byReference.get(`list:${group.range.start}`)) || byName.get(group.name);
       if (!next) add({ start: group.range.start, end: group.content.end }, '');
       else {
         if (next.name !== group.name) add(group.range, `### ${heading(next.name)}`);

@@ -24,20 +24,22 @@ test('round-trips a 10,000-entry Markdown journal within a practical time budget
   assert.ok(elapsed < 5000, `round-trip took ${elapsed.toFixed(0)}ms`);
 });
 
-test('merges a 10,000-item raw edit without quadratic slowdown', () => {
+test('merges independent edits on both sides of a 10,000-item journal', () => {
   const items = Array.from({ length: 10000 }, (_, index) => ({
     id: `item-${index}`, text: `Task ${index}`, completed: false, details: [],
   }));
   const baseline = journalFromModel({ days: [{ date: '2026-10-13', items }] }, '', 'performance-journal');
-  const raw = serializeJournal(baseline).replace('Task 5000', 'Task 5000 edited');
-  const parsed = parseJournal(raw);
+  const raw = serializeJournal(baseline);
+  const local = parseJournal(raw.replace('Task 5000', 'Task 5000 edited')).document;
+  const remote = parseJournal(raw.replace('Task 7000', 'Task 7000 edited')).document;
   const start = performance.now();
-  const proposal = proposeMerge(baseline, parsed.document, baseline);
+  const proposal = proposeMerge(local, remote, baseline);
   const merged = resolveMerge(proposal, {});
   const elapsed = performance.now() - start;
   assert.deepEqual(proposal.conflicts, []);
   assert.equal(merged.days[0].items[5000].text, 'Task 5000 edited');
   assert.equal(merged.days[0].items[5000].id, 'item-5000');
+  assert.equal(merged.days[0].items[7000].text, 'Task 7000 edited');
   assert.equal(merged.days[0].items.length, 10000);
   console.log(`10,000-item Markdown merge: ${elapsed.toFixed(0)}ms`);
   assert.ok(elapsed < 5000, `merge took ${elapsed.toFixed(0)}ms`);

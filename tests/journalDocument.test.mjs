@@ -1,13 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { createJournal, escapeMarkdownText, journalFromModel, materializeJournal, parseJournal, readJournal, serializeJournal, withScratchpad } from '../src/journalDocument.ts';
+import { createJournal, escapeMarkdownText, journalFromModel, journalModel, materializeJournal, parseJournal, readJournal, serializeJournal, withScratchpad } from '../src/journalDocument.ts';
 import { advanceRecurrences } from '../src/recurrence.ts';
 
 const fixture = readFileSync(new URL('./fixtures/markdown-planner.md', import.meta.url), 'utf8');
 const parse = text => { const result = parseJournal(text); assert.deepEqual(result.issues, []); return result.document; };
 const edit = (document, work) => { const next = structuredClone(document); work(next); return materializeJournal(next); };
 const item = (id, text, details = []) => ({ id, text, completed: false, details });
+
+test('immutable documents retain their own parsed models after source cache eviction', () => {
+  const { document, model } = readJournal(fixture);
+  for (let index = 0; index < 5; index++) createJournal(`cache-eviction-${index}`);
+  assert.equal(journalModel(document), model);
+  assert.ok(Object.isFrozen(journalModel(document)));
+  const changed = structuredClone(document);
+  changed.days[0].items[0].text += ' edited';
+  assert.notEqual(journalModel(changed), model);
+  assert.equal(journalModel(document), model);
+});
+
+test('group lookup rejects ambiguous names and repeated source identities', () => {
+  const document = createJournal('group-lookup');
+  assert.throws(() => edit(document, next => next.undated.push({ name: 'Inbox', items: [] })), /unique/);
+  assert.throws(() => edit(document, next => next.undated.push({ ...next.undated[0], name: 'Copy' })), /more than once/);
+});
 
 test('unchanged projections retain exact source, including rich Markdown and terminal scratchpad', () => {
   for (const source of [fixture, '\ufeff' + fixture.replaceAll('\n', '\r\n')]) {

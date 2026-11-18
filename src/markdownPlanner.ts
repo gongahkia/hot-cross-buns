@@ -185,6 +185,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
   let groupDepth = 0;
   const seen: string[] = [];
   const recognizedMetadata = new Set<Code>();
+  const groupNames = { Dated: new Set<string>(), Undated: new Set<string>() };
   for (const node of root.children) {
     const range = rangeOf(node);
     if (node.type === 'heading') {
@@ -214,7 +215,8 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
           continue;
         }
         const groups = section === 'Dated' ? model.days : model.undated;
-        if (groups.some(previous => previous.name === name)) issue('duplicate-group', `Repeated ${section} heading: ${name}.`, range);
+        if (groupNames[section].has(name)) issue('duplicate-group', `Repeated ${section} heading: ${name}.`, range);
+        groupNames[section].add(name);
         group = { name, range, content: { start: range.end, end: source.length }, entries: [] };
         groups.push(group);
         groupDepth = node.depth;

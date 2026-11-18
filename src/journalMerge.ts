@@ -1,7 +1,7 @@
-import { materializeJournal, parseJournal, readJournal, serializeJournal } from './journalDocument.ts';
+import { journalModel, materializeJournal, parseJournal, readJournal, serializeJournal } from './journalDocument.ts';
 import { applyPlannerEdits } from './markdownPlanner.ts';
 import type { TodoDocument } from './todoText.ts';
-import type { SourceRange } from './markdownPlanner.ts';
+import type { MarkdownPlanner, SourceRange } from './markdownPlanner.ts';
 
 export type MergeChoice = 'local' | 'file' | 'both' | 'manual';
 
@@ -18,8 +18,8 @@ const intersects = (change: Change, range: SourceRange) => change.start === chan
   ? change.start >= range.start && change.start <= range.end && !(change.start === range.end && /^[\r\n]/.test(change.text))
   : change.start < range.end && change.end > range.start;
 
-function atomicFields(source: string, change: Change): Set<string> {
-  const { model } = readJournal(source), keys = new Set<string>();
+function atomicFields(model: MarkdownPlanner, change: Change): Set<string> {
+  const keys = new Set<string>();
   for (const group of [...model.days, ...model.undated]) for (const entry of group.entries) {
     const key = String(entry.range.start);
     if (intersects(change, entry.titleRange)) keys.add(key + ':title');
@@ -30,9 +30,9 @@ function atomicFields(source: string, change: Change): Set<string> {
   return keys;
 }
 
-function taskInsertion(source: string, change: Change): boolean {
+function taskInsertion(model: MarkdownPlanner, change: Change): boolean {
   if (change.start !== change.end || !change.text.trim()) return false;
-  const { model } = readJournal(source);
+  const source = model.source;
   const entries = [...model.days, ...model.undated].flatMap(group => group.entries).filter(entry => entry.range.start >= change.start && entry.range.end <= change.start + change.text.length);
   if (!entries.length || entries.some(entry => !entry.id)) return false;
   let remainder = '', cursor = change.start;
@@ -44,19 +44,20 @@ function taskInsertion(source: string, change: Change): boolean {
 /** bounded conservative source merge; overlapping fields and opaque captures require review. */
 export function mergeJournalSources(baseline: TodoDocument, local: TodoDocument, remote: TodoDocument): TodoDocument | null {
   const base = serializeJournal(baseline), ours = serializeJournal(local), theirs = serializeJournal(remote);
-  const identity = readJournal(base).model.documentId;
-  if (readJournal(ours).model.documentId !== identity || readJournal(theirs).model.documentId !== identity) return null;
+  const baseModel = journalModel(baseline), localModel = journalModel(local), remoteModel = journalModel(remote);
+  const identity = baseModel.documentId;
+  if (localModel.documentId !== identity || remoteModel.documentId !== identity) return null;
   if (ours === theirs || theirs === base) return local;
   if (ours === base) return remote;
   const left = changeFrom(base, ours), right = changeFrom(base, theirs);
   let source: string;
   if (left.start === left.end && right.start === right.end && left.start === right.start) {
-    if (!taskInsertion(ours, left) || !taskInsertion(theirs, right)) return null;
+    if (!taskInsertion(localModel, left) || !taskInsertion(remoteModel, right)) return null;
     const parts = [left.text, right.text].sort();
     source = base.slice(0, left.start) + parts.join('\n') + base.slice(left.end);
   } else {
     if (left.start < right.end && right.start < left.end || left.start === right.start) return null;
-    const localFields = atomicFields(base, left), remoteFields = atomicFields(base, right);
+    const localFields = atomicFields(baseModel, left), remoteFields = atomicFields(baseModel, right);
     if ([...localFields].some(key => remoteFields.has(key))) return null;
     const edits = [left, right].sort((a, b) => b.start - a.start);
     source = base;
@@ -75,11 +76,12 @@ export type JournalMergeProposal = {
 };
 function keepBothEntryVersions(local: TodoDocument, remote: TodoDocument): TodoDocument | undefined {
   const ours = serializeJournal(local), theirs = serializeJournal(remote);
-  const left = readJournal(ours).model, right = readJournal(theirs).model;
+  const left = journalModel(local), right = journalModel(remote);
   if (left.documentId !== right.documentId) return;
   const candidates = [...left.days,...left.undated].flatMap(group => group.entries).filter(entry => entry.id);
+  const byId = new Map([...right.days,...right.undated].flatMap(group => group.entries).map(entry => [entry.id, entry]));
   for (const entry of candidates) {
-    const other = [...right.days,...right.undated].flatMap(group => group.entries).find(candidate => candidate.id === entry.id);
+    const other = byId.get(entry.id);
     if (!other || other.repeat || other.replaces || entry.date !== other.date || entry.list !== other.list) continue;
     if (ours.slice(0,entry.range.start) !== theirs.slice(0,other.range.start) || ours.slice(entry.range.end) !== theirs.slice(other.range.end)) continue;
     const copy = structuredClone(remote), id = crypto.randomUUID();
