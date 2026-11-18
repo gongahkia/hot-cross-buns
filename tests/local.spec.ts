@@ -1117,13 +1117,13 @@ test('animates completion and honours reduced motion', async ({ page }) => {
   await expect(strike).toBeVisible();
   expect(await strike.evaluate(element => getComputedStyle(element).animationName)).not.toBe('none');
   await page.getByRole('button', { name: 'Reopen Animated task' }).click();
+  await expect(page.getByRole('button', { name: 'Complete Animated task' })).toBeVisible();
   const reopeningStrike = page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]');
   expect(await reopeningStrike.evaluate(element => getComputedStyle(element).animationName)).not.toBe('none');
-  await expect(page.getByRole('button', { name: 'Complete Animated task' })).toBeVisible();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'Complete Animated task' }).click();
-  const duration = await page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]').evaluate(element => getComputedStyle(element).animationDuration);
-  expect(parseFloat(duration)).toBeLessThan(0.01);
+  await expect(page.getByRole('button', { name: 'Reopen Animated task' })).toBeVisible();
+  await expect.poll(() => page.getByRole('group', { name: 'Animated task' }).locator('[data-strike]').evaluate(element => parseFloat(getComputedStyle(element).animationDuration))).toBeLessThan(0.01);
 });
 
 test('keeps commands discoverable and persists expanded appearance choices', async ({ page }) => {
