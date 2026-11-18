@@ -1,12 +1,12 @@
 # Markdown support and verification
 
-Planner.md remains exact source. Parsing a construct does not imply that every view renders it or offers a visual editing control. Source editing and whole-body Markdown editing preserve unsupported syntax rather than converting it to another format.
+Planner.md remains exact source. Parsing a construct does not imply that every view renders it or offers a visual editing control. Source editing and Markdown drafts preserve unsupported syntax rather than converting it to another format. Format-3 dated documents, undated documents and quick capture share the same rendered blocks, local editor and rich-content processing. New workspaces use format 3; older journals retain their grammar until a previewed upgrade.
 
 | Construct | Preserved | Parsed | Current body rendering | Editing |
 | --- | --- | --- | --- | --- |
 | Paragraphs, headings, emphasis, strong, strikethrough, inline code | Yes | Yes | Yes | Markdown source / body draft |
 | Soft and hard breaks, escapes, entities, Unicode | Yes | Yes | Yes | Markdown source / body draft |
-| Ordered lists, nested lists, task lists, blockquotes, thematic breaks | Yes | Yes | Yes; body checkboxes are read-only | Markdown source / body draft; format-2 outlines have task controls |
+| Ordered lists, nested lists, task lists, blockquotes, thematic breaks | Yes | Yes | Yes; format-3 saved document checkboxes are interactive, including ordered-list and capture checkboxes | Shared document draft; contextual child/conversion/movement controls for planner outlines; legacy body previews retain read-only checkboxes |
 | Fenced and indented code | Yes | Yes | Lazy highlighting for registered common languages; exact text fallback | Markdown source / body draft |
 | Inline links and autolinks | Yes | Yes | Safe HTTP(S), mail and fragment links | Markdown source / body draft |
 | Reference links | Yes | Yes, document-wide | Yes, including definitions outside the body | Markdown source / body draft |
@@ -43,7 +43,9 @@ Mermaid uses a bundled classic script in an opaque `sandbox="allow-scripts"` fra
 
 ## Live body blocks
 
-Expanded notes render inactive body blocks. A contextual pencil control edits one block in place while its siblings remain rendered; **Edit notes** retains whole-body Markdown editing. Draft typing and live preview remain local until **Save notes** (or Command/Control+Enter) validates the full candidate through the normal edit queue. Composition cannot submit a draft. Native textarea selection and undo stay separate from journal undo, and save/cancel restore keyboard focus.
+In format 3 these controls operate directly on date, undated-document and capture blocks, with no Notes wrapper. Inactive content renders normally; contextual actions open one local Markdown draft and live preview. **Start writing**/**Add writing** accepts prose, headings, tables, code and mixed outlines directly. Outline menus use one **Add child**, plain/task conversion and a **Move…** group. Structured recurring-entry actions open the occurrence inspector and retain scope review. Entry/heading links and linked mentions focus the direct document destination; a full-source conflict keeps the old draft recoverable.
+
+In the retained legacy editor, expanded notes render inactive body blocks. A contextual pencil control edits one block in place while its siblings remain rendered; **Edit notes** retains whole-body Markdown editing. Draft typing and live preview remain local until **Save notes** (or Command/Control+Enter) validates the full candidate through the normal edit queue. Composition cannot submit a draft. Native textarea selection and undo stay separate from journal undo, and save/cancel restore keyboard focus.
 
 Block edits retain each sibling's source identity. Removing a block patches only its old range, without moving the remaining blocks into earlier ranges. Draft checkpoints retain the active block and exact full-source baseline across reload. Stale/invalid drafts remain editable and downloadable; a checkpoint failure is reported without discarding the in-memory draft. Saving still requires the original source and title, and the existing editing lease remains active for dirty or stale drafts.
 
