@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { applyPlannerEdits, incrementallyValidatePlanner, parseMarkdownPlanner, plannerValidationKind, plannerWritable } from '../src/markdownPlanner.ts';
+import { createPlannerIncrementalValidator } from '../src/plannerIncremental.ts';
 import { journalModel, materializeJournal, readJournal } from '../src/journalDocument.ts';
 import { runJournalWork } from '../src/journalWorker.ts';
 import { benchmarkPlanner } from '../scripts/markdown-benchmark-fixture.mjs';
@@ -68,6 +69,7 @@ test('metadata, structure, code, references, scratchpad, Unicode and size change
 test('parser certificates cannot be forged by copying or shallow-freezing mutable models',()=>{
  const model=parse(wrap('- [ ] Alpha')),copy=structuredClone(model),at=model.days[0].entries[0].checkbox.start,after=model.source.slice(0,at)+'x'+model.source.slice(at+1);
  copy.days[0].entries[0].text='Forged';Object.freeze(copy);
+ createPlannerIncrementalValidator().seal(copy);
  assert.equal(incrementallyValidatePlanner(copy,after),null);assert.equal(plannerValidationKind(copy),undefined);
  const next=applyPlannerEdits(copy,copy.source,[{range:{start:at,end:at+1},expected:' ',text:'x'}]);assert.deepEqual(next,parseMarkdownPlanner(after));assert.equal(plannerValidationKind(next),'full');
  assert.throws(()=>{model.days[0].entries[0].checkbox.start=0;},TypeError);
@@ -88,4 +90,23 @@ test('worker completion validates incrementally and a structural edit returns to
  const document=structuredClone(readJournal(source).document);setItemCompletion(document.days.at(-1).items[0],true);
  const {result,samples}=metric(()=>runJournalWork({id:2,kind:'materialize',document}));assert.equal(result.ok,true);assert.equal(plannerValidationKind(result.model),'incremental');assert.ok(!samples.some(sample=>sample.phase==='synchronousParse'));assert.deepEqual(result.model,parseMarkdownPlanner(result.model.source));
  const next=structuredClone(readJournal(result.model.source).document);next.days.at(-1).items[0].text+=' extended';const full=runJournalWork({id:3,kind:'materialize',document:next});assert.equal(full.ok,true);assert.equal(plannerValidationKind(full.model),'full');assert.deepEqual(full.model,parseMarkdownPlanner(full.model.source));
+});
+
+test('tabbed markers, deep outlines and render-budget fallbacks stay equivalent',()=>{
+ for(const prefix of ['-\t[ ] ','  - [ ] ','+  [ ] ']){
+  const model=parse(wrap(prefix+'Alpha'));
+  const node=model.days[0].entries[0];equalFull(model,candidate(model,[{range:node.checkbox,text:'x'}]));
+ }
+ const deep='- [ ] Alpha\n'+Array.from({length:32},(_,index)=>'  '.repeat(index+1)+'- [ ] Child').join('\n');
+ const model=parse(wrap(deep));equalFull(model,candidate(model,nodes(model.days[0].entries[0]).filter(node=>node.checkbox).map(node=>({range:node.checkbox,text:'x'}))));
+ const oversized=parse(wrap('- [ ] Alpha\n\n  '+'A'.repeat(41000)));
+ equalFull(oversized,candidate(oversized,[{range:oversized.days[0].entries[0].checkbox,text:'x'}]));
+});
+
+test('a safe edit cannot conceal another changed region or update only part of a candidate',()=>{
+ const model=parse(wrap('- [ ] Alpha\n  ```hcb\n  id: root\n  ```'));
+ const entry=model.days[0].entries[0],changed=candidate(model,[{range:entry.checkbox,text:'x'}]).replace('example.com','example.net');
+ assert.equal(incrementallyValidatePlanner(model,changed),null);
+ const next=applyPlannerEdits(model,model.source,[{range:{start:0,end:model.source.length},expected:model.source,text:changed}]);
+ assert.equal(plannerValidationKind(next),'full');assert.deepEqual(next,parseMarkdownPlanner(changed));assert.equal(model.days[0].entries[0].completed,false);
 });
