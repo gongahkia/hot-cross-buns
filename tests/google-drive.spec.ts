@@ -189,7 +189,7 @@ test('malformed Drive text is linked only after explicit doctor approval', async
   remote.text = corrected.replace('hcb-format: 1','hcb-format: 999'); await connect(page);
   await region(page).getByRole('button', { name: 'Planner.md', exact: true }).click();
   const review = page.getByRole('dialog', { name: 'Review Planner.md import', exact: true });
-  await expect(review).toContainText('Only hcb-format: 1 or 2 is supported');
+  await expect(review).toContainText('Only hcb-format: 1, 2 or 3 is supported');
   expect(await savedLink(page)).toBeNull(); expect(remote.writes).toBe(0);
   await review.getByRole('textbox', { name: 'Edit imported Planner.md', exact: true }).fill(corrected);
   await review.getByRole('button', { name: 'check file', exact: true }).click();

@@ -107,6 +107,14 @@ test('moving a completed unscheduled task between views retains its checkbox, de
   assert.equal(journalModel(returned).days[0].entries[0].date, '2026-11-18');
 });
 
+test('structured conversions refuse to discard completion or scheduling fields', () => {
+  const before = parse(wrap('- [x] Finished\n  ```hcb\n  id: finished\n  completed: 2026-11-17\n  ```\n\n- [ ] Scheduled\n  ```hcb\n  id: scheduled\n  span: all-day\n  ```'));
+  assert.throws(() => edit(before, document => { document.days[0].items[0].kind = 'note'; }), /Reopen a completed task/);
+  assert.throws(() => edit(before, document => { document.undated[0].items.push(document.days[0].items.pop()); }), /Scheduled content needs a date/);
+  assert.ok(before.source.includes('completed: 2026-11-17'));
+  assert.ok(before.source.includes('span: all-day'));
+});
+
 test('invalid completion, scheduling and unsupported versions still reject structured writing', () => {
   const cases = [
     wrap('- Plain\n  ```hcb\n  completed: 2026-11-18\n  ```'),
