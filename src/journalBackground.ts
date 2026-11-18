@@ -31,7 +31,8 @@ export class JournalBackground {
   request(work: JournalWork, signal?: AbortSignal): Promise<Extract<JournalWorkResult, { ok: true }>> {
     if (signal?.aborted) return Promise.reject(new DOMException('Journal validation was cancelled.', 'AbortError'));
     if (this.pending.size >= 8) return Promise.reject(new Error('Journal validation is busy. Wait for the current edits, then retry.'));
-    try { work = structuredClone(work); }
+    const snapshot = startMarkdownMeasurement();
+    try { work = structuredClone(work); finishMarkdownMeasurement(`requestSnapshot:${work.kind}`, snapshot); }
     catch { return Promise.reject(new Error('Journal validation could not copy its input. Keep your draft and retry.')); }
     if (!this.worker) {
       try { this.worker = this.createWorker(); }

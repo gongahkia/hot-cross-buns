@@ -1,0 +1,694 @@
+{
+  "generatedAt": "2026-11-18T14:46:50.486Z",
+  "complete": true,
+  "environment": {
+    "node": "v26.7.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3",
+    "browser": "156.0.8078.4",
+    "samples": 3,
+    "profiling": true,
+    "documentFormat": 3,
+    "visibleEntries": 20,
+    "visibleDates": 7
+  },
+  "datasets": [
+    {
+      "entries": 1000,
+      "sourceBytes": 82379,
+      "sourceLines": 6031,
+      "nodeParse": {
+        "count": 3,
+        "medianMs": 133.63650000000052,
+        "p95Ms": 136.5839159999996,
+        "maxMs": 136.5839159999996
+      },
+      "ui": {
+        "calendar:nextMonthAutomation": {
+          "count": 3,
+          "medianMs": 66.61629100000027,
+          "p95Ms": 66.65529200000128,
+          "maxMs": 66.65529200000128
+        },
+        "calendar:openAutomation": {
+          "count": 3,
+          "medianMs": 81.81829199999993,
+          "p95Ms": 82.21941700000025,
+          "maxMs": 82.21941700000025
+        },
+        "calendar:reactRender": {
+          "count": 12,
+          "medianMs": 2.100000023841858,
+          "p95Ms": 5.300000011920929,
+          "maxMs": 5.300000011920929
+        },
+        "completion:deltaReplay": {
+          "count": 9,
+          "medianMs": 0,
+          "p95Ms": 2.699999988079071,
+          "maxMs": 2.699999988079071
+        },
+        "completion:durableSave": {
+          "count": 3,
+          "medianMs": 8.799999982118607,
+          "p95Ms": 9.400000005960464,
+          "maxMs": 9.400000005960464
+        },
+        "completion:incrementalValidation": {
+          "count": 3,
+          "medianMs": 2.4000000059604645,
+          "p95Ms": 2.5,
+          "maxMs": 2.5
+        },
+        "completion:modelAdoption": {
+          "count": 9,
+          "medianMs": 0,
+          "p95Ms": 0.10000002384185791,
+          "maxMs": 0.10000002384185791
+        },
+        "completion:postMessage:materialize": {
+          "count": 3,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.4000000059604645,
+          "maxMs": 0.4000000059604645
+        },
+        "completion:postMessage:parse": {
+          "count": 6,
+          "medianMs": 0,
+          "p95Ms": 0.09999999403953552,
+          "maxMs": 0.09999999403953552
+        },
+        "completion:reactRender": {
+          "count": 8,
+          "medianMs": 0.30000001192092896,
+          "p95Ms": 5.200000017881393,
+          "maxMs": 5.200000017881393
+        },
+        "completion:requestSnapshot:materialize": {
+          "count": 3,
+          "medianMs": 0.7999999821186066,
+          "p95Ms": 0.800000011920929,
+          "maxMs": 0.800000011920929
+        },
+        "completion:requestSnapshot:parse": {
+          "count": 6,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "completion:workerRoundTrip:materialize": {
+          "count": 3,
+          "medianMs": 14.699999988079071,
+          "p95Ms": 15.200000017881393,
+          "maxMs": 15.200000017881393
+        },
+        "completion:workerRoundTrip:parse": {
+          "count": 6,
+          "medianMs": 1.5,
+          "p95Ms": 1.5999999940395355,
+          "maxMs": 1.5999999940395355
+        },
+        "completion:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "completion:workerTransport:parse:delta": {
+          "count": 6,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "completion:workerValidation:materialize:incremental": {
+          "count": 3,
+          "medianMs": 4,
+          "p95Ms": 4.0999999940395355,
+          "maxMs": 4.0999999940395355
+        },
+        "completion:workerValidation:parse:full": {
+          "count": 6,
+          "medianMs": 0,
+          "p95Ms": 0.09999999403953552,
+          "maxMs": 0.09999999403953552
+        },
+        "completion:workerWork:materialize": {
+          "count": 3,
+          "medianMs": 4,
+          "p95Ms": 4.0999999940395355,
+          "maxMs": 4.0999999940395355
+        },
+        "completion:workerWork:parse": {
+          "count": 6,
+          "medianMs": 0,
+          "p95Ms": 0.09999999403953552,
+          "maxMs": 0.09999999403953552
+        },
+        "import:deltaReplay": {
+          "count": 3,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.20000001788139343,
+          "maxMs": 0.20000001788139343
+        },
+        "import:durableSave": {
+          "count": 3,
+          "medianMs": 15.099999994039536,
+          "p95Ms": 15.599999994039536,
+          "maxMs": 15.599999994039536
+        },
+        "import:modelAdoption": {
+          "count": 6,
+          "medianMs": 1.0999999940395355,
+          "p95Ms": 1.199999988079071,
+          "maxMs": 1.199999988079071
+        },
+        "import:postMessage:materialize": {
+          "count": 3,
+          "medianMs": 0.20000001788139343,
+          "p95Ms": 0.20000001788139343,
+          "maxMs": 0.20000001788139343
+        },
+        "import:postMessage:parse": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0.09999999403953552,
+          "maxMs": 0.09999999403953552
+        },
+        "import:reactRender": {
+          "count": 22,
+          "medianMs": 0.5,
+          "p95Ms": 6.900000035762787,
+          "maxMs": 7.5
+        },
+        "import:requestSnapshot:materialize": {
+          "count": 3,
+          "medianMs": 0.7999999821186066,
+          "p95Ms": 0.800000011920929,
+          "maxMs": 0.800000011920929
+        },
+        "import:requestSnapshot:parse": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0.09999999403953552,
+          "maxMs": 0.09999999403953552
+        },
+        "import:synchronousParse": {
+          "count": 3,
+          "medianMs": 0.4000000059604645,
+          "p95Ms": 0.5,
+          "maxMs": 0.5
+        },
+        "import:workerRoundTrip:materialize": {
+          "count": 3,
+          "medianMs": 2.300000011920929,
+          "p95Ms": 2.4000000059604645,
+          "maxMs": 2.4000000059604645
+        },
+        "import:workerRoundTrip:parse": {
+          "count": 3,
+          "medianMs": 138.90000000596046,
+          "p95Ms": 144.09999999403954,
+          "maxMs": 144.09999999403954
+        },
+        "import:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "import:workerTransport:parse:full": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "import:workerValidation:materialize:full": {
+          "count": 3,
+          "medianMs": 1.4000000059604645,
+          "p95Ms": 1.4000000059604645,
+          "maxMs": 1.4000000059604645
+        },
+        "import:workerValidation:parse:full": {
+          "count": 3,
+          "medianMs": 113.19999998807907,
+          "p95Ms": 117.80000001192093,
+          "maxMs": 117.80000001192093
+        },
+        "import:workerWork:materialize": {
+          "count": 3,
+          "medianMs": 1.4000000059604645,
+          "p95Ms": 1.4000000059604645,
+          "maxMs": 1.4000000059604645
+        },
+        "import:workerWork:parse": {
+          "count": 3,
+          "medianMs": 113.19999998807907,
+          "p95Ms": 117.80000001192093,
+          "maxMs": 117.80000001192093
+        },
+        "typing:inputToSecondFrame": {
+          "count": 3,
+          "medianMs": 25.69999998807907,
+          "p95Ms": 26,
+          "maxMs": 26
+        },
+        "typing:reactRender": {
+          "count": 9,
+          "medianMs": 1,
+          "p95Ms": 2.5,
+          "maxMs": 2.5
+        }
+      },
+      "responseCharacters": {
+        "completion:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianCharacters": 188,
+          "p95Characters": 188,
+          "maxCharacters": 188
+        },
+        "completion:workerTransport:parse:delta": {
+          "count": 6,
+          "medianCharacters": 101,
+          "p95Characters": 119,
+          "maxCharacters": 119
+        },
+        "import:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianCharacters": 118,
+          "p95Characters": 118,
+          "maxCharacters": 118
+        },
+        "import:workerTransport:parse:full": {
+          "count": 3,
+          "medianCharacters": 1253912,
+          "p95Characters": 1253912,
+          "maxCharacters": 1253912
+        }
+      },
+      "worker": {
+        "coldStartup": {
+          "count": 3,
+          "medianMs": 11.400000005960464,
+          "p95Ms": 11.599999994039536,
+          "maxMs": 11.599999994039536
+        },
+        "fullParse": {
+          "count": 3,
+          "medianMs": 122.30000001192093,
+          "p95Ms": 127.09999999403954,
+          "maxMs": 127.09999999403954
+        },
+        "parseRoundTrip": {
+          "count": 3,
+          "medianMs": 136,
+          "p95Ms": 140.90000000596046,
+          "maxMs": 140.90000000596046
+        },
+        "sourceEcho": {
+          "count": 9,
+          "medianMs": 0.09999999403953552,
+          "p95Ms": 0.10000002384185791,
+          "maxMs": 0.10000002384185791
+        },
+        "modelEcho": {
+          "count": 9,
+          "medianMs": 10.100000023841858,
+          "p95Ms": 12.200000017881393,
+          "maxMs": 12.200000017881393
+        },
+        "deltaEcho": {
+          "count": 9,
+          "medianMs": 0,
+          "p95Ms": 0.30000001192092896,
+          "maxMs": 0.30000001192092896
+        },
+        "modelSerializedCharacters": 1253823
+      },
+      "experiments": {
+        "fullTitleParse": {
+          "count": 3,
+          "medianMs": 111.92858400000114,
+          "p95Ms": 120.7811670000001,
+          "maxMs": 120.7811670000001
+        },
+        "incrementalTitle": {
+          "count": 3,
+          "medianMs": 2.267334000000119,
+          "p95Ms": 2.6452079999999114,
+          "maxMs": 2.6452079999999114
+        },
+        "deltaExtraction": {
+          "count": 3,
+          "medianMs": 1.220542000000023,
+          "p95Ms": 1.4157090000007884,
+          "maxMs": 1.4157090000007884
+        },
+        "fullModelEquivalenceSamples": 3
+      }
+    },
+    {
+      "entries": 10000,
+      "sourceBytes": 836488,
+      "sourceLines": 60283,
+      "nodeParse": {
+        "count": 3,
+        "medianMs": 1165.5396249999976,
+        "p95Ms": 1196.180209000002,
+        "maxMs": 1196.180209000002
+      },
+      "ui": {
+        "calendar:nextMonthAutomation": {
+          "count": 3,
+          "medianMs": 66.59270899999683,
+          "p95Ms": 66.65379100000064,
+          "maxMs": 66.65379100000064
+        },
+        "calendar:openAutomation": {
+          "count": 3,
+          "medianMs": 75.90008399999715,
+          "p95Ms": 81.13966699999946,
+          "maxMs": 81.13966699999946
+        },
+        "calendar:reactRender": {
+          "count": 12,
+          "medianMs": 3.300000011920929,
+          "p95Ms": 6,
+          "maxMs": 6
+        },
+        "completion:deltaReplay": {
+          "count": 6,
+          "medianMs": 8.599999994039536,
+          "p95Ms": 8.899999976158142,
+          "maxMs": 8.899999976158142
+        },
+        "completion:durableSave": {
+          "count": 3,
+          "medianMs": 46.900000005960464,
+          "p95Ms": 48.79999998211861,
+          "maxMs": 48.79999998211861
+        },
+        "completion:incrementalValidation": {
+          "count": 3,
+          "medianMs": 7.600000023841858,
+          "p95Ms": 7.699999988079071,
+          "maxMs": 7.699999988079071
+        },
+        "completion:modelAdoption": {
+          "count": 6,
+          "medianMs": 0.29999998211860657,
+          "p95Ms": 0.30000001192092896,
+          "maxMs": 0.30000001192092896
+        },
+        "completion:postMessage:materialize": {
+          "count": 3,
+          "medianMs": 4.0999999940395355,
+          "p95Ms": 4.100000023841858,
+          "maxMs": 4.100000023841858
+        },
+        "completion:postMessage:parse": {
+          "count": 6,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.20000001788139343,
+          "maxMs": 0.20000001788139343
+        },
+        "completion:reactRender": {
+          "count": 9,
+          "medianMs": 0.30000001192092896,
+          "p95Ms": 21.5,
+          "maxMs": 21.5
+        },
+        "completion:requestSnapshot:materialize": {
+          "count": 3,
+          "medianMs": 10.900000005960464,
+          "p95Ms": 11.300000011920929,
+          "maxMs": 11.300000011920929
+        },
+        "completion:requestSnapshot:parse": {
+          "count": 6,
+          "medianMs": 0.29999998211860657,
+          "p95Ms": 0.30000001192092896,
+          "maxMs": 0.30000001192092896
+        },
+        "completion:workerRoundTrip:materialize": {
+          "count": 3,
+          "medianMs": 57.79999998211861,
+          "p95Ms": 58.900000005960464,
+          "maxMs": 58.900000005960464
+        },
+        "completion:workerRoundTrip:parse": {
+          "count": 3,
+          "medianMs": 16,
+          "p95Ms": 16.099999994039536,
+          "maxMs": 16.099999994039536
+        },
+        "completion:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "completion:workerTransport:parse:delta": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "completion:workerValidation:materialize:incremental": {
+          "count": 3,
+          "medianMs": 25.899999976158142,
+          "p95Ms": 27.30000001192093,
+          "maxMs": 27.30000001192093
+        },
+        "completion:workerValidation:parse:full": {
+          "count": 3,
+          "medianMs": 0.5999999940395355,
+          "p95Ms": 0.6000000238418579,
+          "maxMs": 0.6000000238418579
+        },
+        "completion:workerWork:materialize": {
+          "count": 3,
+          "medianMs": 25.899999976158142,
+          "p95Ms": 27.30000001192093,
+          "maxMs": 27.30000001192093
+        },
+        "completion:workerWork:parse": {
+          "count": 3,
+          "medianMs": 0.5999999940395355,
+          "p95Ms": 0.6000000238418579,
+          "maxMs": 0.6000000238418579
+        },
+        "import:deltaReplay": {
+          "count": 3,
+          "medianMs": 1.0999999940395355,
+          "p95Ms": 1.2000000178813934,
+          "maxMs": 1.2000000178813934
+        },
+        "import:durableSave": {
+          "count": 3,
+          "medianMs": 37,
+          "p95Ms": 37.30000001192093,
+          "maxMs": 37.30000001192093
+        },
+        "import:modelAdoption": {
+          "count": 6,
+          "medianMs": 7,
+          "p95Ms": 7.5,
+          "maxMs": 7.5
+        },
+        "import:postMessage:materialize": {
+          "count": 3,
+          "medianMs": 3.399999976158142,
+          "p95Ms": 3.5,
+          "maxMs": 3.5
+        },
+        "import:postMessage:parse": {
+          "count": 3,
+          "medianMs": 0.19999998807907104,
+          "p95Ms": 0.20000001788139343,
+          "maxMs": 0.20000001788139343
+        },
+        "import:reactRender": {
+          "count": 24,
+          "medianMs": 0.5,
+          "p95Ms": 23.30000001192093,
+          "maxMs": 23.30000001192093
+        },
+        "import:requestSnapshot:materialize": {
+          "count": 3,
+          "medianMs": 12.900000005960464,
+          "p95Ms": 13.299999982118607,
+          "maxMs": 13.299999982118607
+        },
+        "import:requestSnapshot:parse": {
+          "count": 3,
+          "medianMs": 0.5,
+          "p95Ms": 0.5999999940395355,
+          "maxMs": 0.5999999940395355
+        },
+        "import:synchronousParse": {
+          "count": 3,
+          "medianMs": 0.5,
+          "p95Ms": 0.5,
+          "maxMs": 0.5
+        },
+        "import:workerRoundTrip:materialize": {
+          "count": 3,
+          "medianMs": 21.5,
+          "p95Ms": 22.5,
+          "maxMs": 22.5
+        },
+        "import:workerRoundTrip:parse": {
+          "count": 3,
+          "medianMs": 974.5999999940395,
+          "p95Ms": 985,
+          "maxMs": 985
+        },
+        "import:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "import:workerTransport:parse:full": {
+          "count": 3,
+          "medianMs": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "import:workerValidation:materialize:full": {
+          "count": 3,
+          "medianMs": 12.599999994039536,
+          "p95Ms": 13.399999976158142,
+          "maxMs": 13.399999976158142
+        },
+        "import:workerValidation:parse:full": {
+          "count": 3,
+          "medianMs": 895.7999999821186,
+          "p95Ms": 901.5,
+          "maxMs": 901.5
+        },
+        "import:workerWork:materialize": {
+          "count": 3,
+          "medianMs": 12.599999994039536,
+          "p95Ms": 13.399999976158142,
+          "maxMs": 13.399999976158142
+        },
+        "import:workerWork:parse": {
+          "count": 3,
+          "medianMs": 895.7999999821186,
+          "p95Ms": 901.5,
+          "maxMs": 901.5
+        },
+        "typing:inputToSecondFrame": {
+          "count": 3,
+          "medianMs": 24.700000017881393,
+          "p95Ms": 26.80000001192093,
+          "maxMs": 26.80000001192093
+        },
+        "typing:reactRender": {
+          "count": 9,
+          "medianMs": 0.800000011920929,
+          "p95Ms": 3.399999976158142,
+          "maxMs": 3.399999976158142
+        }
+      },
+      "responseCharacters": {
+        "completion:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianCharacters": 190,
+          "p95Characters": 190,
+          "maxCharacters": 190
+        },
+        "completion:workerTransport:parse:delta": {
+          "count": 3,
+          "medianCharacters": 118,
+          "p95Characters": 118,
+          "maxCharacters": 118
+        },
+        "import:workerTransport:materialize:delta": {
+          "count": 3,
+          "medianCharacters": 118,
+          "p95Characters": 118,
+          "maxCharacters": 118
+        },
+        "import:workerTransport:parse:full": {
+          "count": 3,
+          "medianCharacters": 7436287,
+          "p95Characters": 7436287,
+          "maxCharacters": 7436287
+        }
+      },
+      "worker": {
+        "coldStartup": {
+          "count": 3,
+          "medianMs": 9.599999994039536,
+          "p95Ms": 9.699999988079071,
+          "maxMs": 9.699999988079071
+        },
+        "fullParse": {
+          "count": 3,
+          "medianMs": 907.0999999940395,
+          "p95Ms": 925.8999999761581,
+          "maxMs": 925.8999999761581
+        },
+        "parseRoundTrip": {
+          "count": 3,
+          "medianMs": 971.4000000059605,
+          "p95Ms": 988,
+          "maxMs": 988
+        },
+        "sourceEcho": {
+          "count": 9,
+          "medianMs": 0.4000000059604645,
+          "p95Ms": 2.0999999940395355,
+          "maxMs": 2.0999999940395355
+        },
+        "modelEcho": {
+          "count": 9,
+          "medianMs": 48.900000005960464,
+          "p95Ms": 50,
+          "maxMs": 50
+        },
+        "deltaEcho": {
+          "count": 9,
+          "medianMs": 0.20000001788139343,
+          "p95Ms": 1,
+          "maxMs": 1
+        },
+        "modelSerializedCharacters": 7436199
+      },
+      "experiments": {
+        "fullTitleParse": {
+          "count": 3,
+          "medianMs": 1099.338040999999,
+          "p95Ms": 1169.5891669999983,
+          "maxMs": 1169.5891669999983
+        },
+        "incrementalTitle": {
+          "count": 3,
+          "medianMs": 2.8838749999995343,
+          "p95Ms": 2.9641670000000886,
+          "maxMs": 2.9641670000000886
+        },
+        "deltaExtraction": {
+          "count": 3,
+          "medianMs": 2.0114160000011907,
+          "p95Ms": 2.0861670000012964,
+          "maxMs": 2.0861670000012964
+        },
+        "fullModelEquivalenceSamples": 3
+      }
+    }
+  ],
+  "notes": [
+    "React measurements use the production profiling build and include its instrumentation overhead.",
+    "Worker echo round trips include structured cloning, scheduling and both directions; they are not pure copy CPU time.",
+    "Durable save includes opening IndexedDB, validation, serialization and the completed transaction.",
+    "Worker response sizes are serialized character counts before adding the size field; profiling serialization overhead is included in round trips, not workerWork. Request snapshots and main-thread delta replay are recorded separately.",
+    "Production reuses validated grammar for certified same-width title/checkbox edits; other edits retain full parsing. The separate title-only prototype remains benchmark-only.",
+    "Typing measures the input event to a second animation frame, a paint opportunity proxy rather than physical input-to-display latency.",
+    "Calendar automation timings include browser protocol overhead; React render work is recorded separately.",
+    "No Obsidian/Notion or physical-device speed comparison is established by this benchmark."
+  ]
+}

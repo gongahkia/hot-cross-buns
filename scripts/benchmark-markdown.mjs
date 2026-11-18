@@ -22,6 +22,10 @@ const summary = values => {
   return { count: sorted.length, medianMs: sorted[Math.floor(sorted.length / 2)] ?? null, p95Ms: sorted[Math.max(0, Math.ceil(sorted.length * .95) - 1)] ?? null, maxMs: sorted.at(-1) ?? null };
 };
 const phases = measurements => Object.fromEntries([...new Set(measurements.map(item => item.phase))].sort().map(phase => [phase, summary(measurements.filter(item => item.phase === phase).map(item => item.milliseconds))]));
+const payloads = measurements => Object.fromEntries([...new Set(measurements.filter(item => item.phase.includes('workerTransport:') && item.characters !== undefined).map(item => item.phase))].sort().map(phase => {
+  const values = measurements.filter(item => item.phase === phase).map(item => item.characters).sort((a,b) => a-b);
+  return [phase, { count: values.length, medianCharacters: values[Math.floor(values.length / 2)], p95Characters: values[Math.ceil(values.length * .95) - 1], maxCharacters: values.at(-1) }];
+}));
 const run = (cmd, args, env = process.env) => new Promise((resolve, reject) => {
   const child = spawn(cmd, args, { stdio: 'inherit', env });
   child.once('error', reject); child.once('exit', code => code === 0 ? resolve() : reject(new Error(`${cmd} exited with ${code}.`)));
@@ -30,6 +34,7 @@ const report = { generatedAt: new Date().toISOString(), complete: false, environ
   'React measurements use the production profiling build and include its instrumentation overhead.',
   'Worker echo round trips include structured cloning, scheduling and both directions; they are not pure copy CPU time.',
   'Durable save includes opening IndexedDB, validation, serialization and the completed transaction.',
+  'Worker response sizes are serialized character counts before adding the size field; profiling serialization overhead is included in round trips, not workerWork. Request snapshots and main-thread delta replay are recorded separately.',
   'Production reuses validated grammar for certified same-width title/checkbox edits; other edits retain full parsing. The separate title-only prototype remains benchmark-only.',
   'Typing measures the input event to a second animation frame, a paint opportunity proxy rather than physical input-to-display latency.',
   'Calendar automation timings include browser protocol overhead; React render work is recorded separately.',
@@ -86,6 +91,7 @@ try {
         await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), undefined, { timeout: 30000 });
         const completionMetrics = await page.evaluate(() => window.__hcbMarkdownMetrics.samples);
         assert.ok(completionMetrics.some(item => item.phase === 'workerValidation:materialize:incremental'), 'the measured completion must exercise production incremental validation');
+        assert.ok(completionMetrics.some(item => item.phase === 'workerTransport:materialize:delta' && item.characters < 1024), 'the measured completion must transfer a bounded production delta');
         measurements.push(...completionMetrics.map(item => ({ ...item, phase: `completion:${item.phase}` })));
         await page.getByRole('button',{name:'Actions for Visible task 1',exact:true}).click();
         await page.getByRole('button',{name:'Edit content',exact:true}).click();
@@ -130,7 +136,7 @@ try {
         }, { source: fixture, asset }));
       } finally { await context.close(); }
     }
-    report.datasets.push({ entries: size, sourceBytes: Buffer.byteLength(fixture), sourceLines: fixture.split('\n').length - 1, nodeParse: summary(nodeParse), ui: phases(measurements), worker: {
+    report.datasets.push({ entries: size, sourceBytes: Buffer.byteLength(fixture), sourceLines: fixture.split('\n').length - 1, nodeParse: summary(nodeParse), ui: phases(measurements), responseCharacters: payloads(measurements), worker: {
       coldStartup: summary(transfers.map(item => item.startupMs)), fullParse: summary(transfers.map(item => item.workerParseMs)), parseRoundTrip: summary(transfers.map(item => item.parseRoundTripMs)), sourceEcho: summary(transfers.flatMap(item => item.sourceEchoMs)), modelEcho: summary(transfers.flatMap(item => item.modelEchoMs)), deltaEcho: summary(transfers.flatMap(item => item.deltaEchoMs)), modelSerializedCharacters: transfers[0].modelSerializedCharacters,
     }, experiments: { fullTitleParse: summary(fullTitle), incrementalTitle: summary(incremental), deltaExtraction: summary(extraction), fullModelEquivalenceSamples: samples } });
     await mkdir(path.dirname(output), { recursive: true }); await writeFile(output, JSON.stringify(report, null, 2) + '\n');
