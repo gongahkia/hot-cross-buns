@@ -25,7 +25,7 @@ const run = (cmd, args, env = process.env) => new Promise((resolve, reject) => {
   const child = spawn(cmd, args, { stdio: 'inherit', env });
   child.once('error', reject); child.once('exit', code => code === 0 ? resolve() : reject(new Error(`${cmd} exited with ${code}.`)));
 });
-const report = { generatedAt: new Date().toISOString(), environment: { node: process.version, platform: os.platform(), arch: os.arch(), cpu: os.cpus()[0]?.model, browser: '', samples, profiling: true, visibleEntries: 20 }, datasets: [], notes: [
+const report = { generatedAt: new Date().toISOString(), complete: false, environment: { node: process.version, platform: os.platform(), arch: os.arch(), cpu: os.cpus()[0]?.model, browser: '', samples, profiling: true, visibleEntries: 20, visibleDates: 7 }, datasets: [], notes: [
   'React measurements use the production profiling build and include its instrumentation overhead.',
   'Worker echo round trips include structured cloning, scheduling and both directions; they are not pure copy CPU time.',
   'Durable save includes opening IndexedDB, validation, serialization and the completed transaction.',
@@ -34,15 +34,17 @@ const report = { generatedAt: new Date().toISOString(), environment: { node: pro
 ] };
 let server, browser, profilingBuilt = false;
 try {
-  await run('npm', ['run', 'build'], { ...process.env, VITE_HCB_MARKDOWN_PROFILE: '1' });
   profilingBuilt = true;
+  await run('npm', ['run', 'build'], { ...process.env, VITE_HCB_MARKDOWN_PROFILE: '1' });
   server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] });
   let serverError = '';
+  let serverReady = false;
+  server.stdout.on('data', data => { if (String(data).includes(`127.0.0.1:${port}`)) serverReady = true; });
   server.stderr.on('data', data => { serverError += String(data); });
   const base = `http://127.0.0.1:${port}`;
   for (let attempt = 0; ; attempt++) {
     if (server.exitCode !== null) throw new Error(`Benchmark server exited: ${serverError}`);
-    try { if ((await fetch(base)).ok) break; } catch { /* wait for this server's first response. */ }
+    try { if (serverReady && (await fetch(base)).ok) break; } catch { /* wait for this server's first response. */ }
     if (attempt > 100) throw new Error('Benchmark server did not start.');
     await new Promise(resolve => setTimeout(resolve, 50));
   }
@@ -72,12 +74,13 @@ try {
         await page.evaluate(() => { window.__hcbMarkdownMetrics.samples = []; });
         fixture = benchmarkPlanner(size, today, sample);
         await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(fixture) });
-        await page.getByRole('button', { name: 'Complete Visible task 0', exact: true }).waitFor({ timeout: 30000 });
-        await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), { timeout: 30000 });
+        try { await page.getByRole('button', { name: 'Complete Visible task 0', exact: true }).waitFor({ timeout: 30000 }); }
+        catch (error) { await mkdir(path.dirname(output), { recursive: true }); await page.screenshot({ path: path.join(path.dirname(output), `failure-${size}-${sample}.png`) }); await writeFile(path.join(path.dirname(output), `failure-${size}-${sample}.txt`), await page.locator('body').innerText()); throw error; }
+        await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), undefined, { timeout: 30000 });
         measurements.push(...(await page.evaluate(() => window.__hcbMarkdownMetrics.samples)).map(item => ({ ...item, phase: `import:${item.phase}` })));
         await page.evaluate(() => { window.__hcbMarkdownMetrics.samples = []; });
         await page.getByRole('button', { name: 'Complete Visible task 0', exact: true }).click();
-        await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), { timeout: 30000 });
+        await page.waitForFunction(() => window.__hcbMarkdownMetrics.samples.some(sample => sample.phase === 'durableSave'), undefined, { timeout: 30000 });
         measurements.push(...(await page.evaluate(() => window.__hcbMarkdownMetrics.samples)).map(item => ({ ...item, phase: `completion:${item.phase}` })));
         transfers.push(await page.evaluate(async ({ source, asset }) => {
           const worker = new Worker(`/assets/${asset}`, { type: 'module' });
@@ -99,11 +102,13 @@ try {
     report.datasets.push({ entries: size, sourceBytes: Buffer.byteLength(fixture), sourceLines: fixture.split('\n').length - 1, nodeParse: summary(nodeParse), ui: phases(measurements), worker: {
       coldStartup: summary(transfers.map(item => item.startupMs)), fullParse: summary(transfers.map(item => item.workerParseMs)), parseRoundTrip: summary(transfers.map(item => item.parseRoundTripMs)), sourceEcho: summary(transfers.flatMap(item => item.sourceEchoMs)), modelEcho: summary(transfers.flatMap(item => item.modelEchoMs)), deltaEcho: summary(transfers.flatMap(item => item.deltaEchoMs)), modelSerializedCharacters: transfers[0].modelSerializedCharacters,
     }, experiments: { fullTitleParse: summary(fullTitle), incrementalTitle: summary(incremental), deltaExtraction: summary(extraction), fullModelEquivalenceSamples: samples } });
+    await mkdir(path.dirname(output), { recursive: true }); await writeFile(output, JSON.stringify(report, null, 2) + '\n');
   }
+  report.complete = true;
   await mkdir(path.dirname(output), { recursive: true }); await writeFile(output, JSON.stringify(report, null, 2) + '\n');
   console.log(`Benchmark report: ${output}`);
 } finally {
   await browser?.close();
-  if (server && server.exitCode === null) { const exited = new Promise(resolve => server.once('exit', resolve)); server.kill('SIGTERM'); await exited; }
+  if (server && server.exitCode === null) { const exited = new Promise(resolve => server.once('exit', resolve)); const kill = setTimeout(() => server.kill('SIGKILL'), 5000); server.kill('SIGTERM'); await exited; clearTimeout(kill); }
   if (profilingBuilt) await run('npm', ['run', 'build'], { ...process.env, VITE_HCB_MARKDOWN_PROFILE: '0' });
 }
