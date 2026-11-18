@@ -2,8 +2,8 @@ import type { TodoBody, TodoDetail, TodoItem } from './todoText.ts';
 
 export function replaceMarkdownBody(body: TodoBody[] | undefined, markdown: string, block?: number): TodoBody[] | undefined {
   if (block === undefined) return markdown.trim() ? [{ markdown }] : undefined;
-  if (!Number.isInteger(block) || block < 0 || !body?.[block]) throw new Error('This notes block changed. Keep your draft and review the latest notes.');
-  const next = [...body];
+  if (!Number.isInteger(block) || block < 0 || block > (body?.length ?? 0)) throw new Error('This notes block changed. Keep your draft and review the latest notes.');
+  const next = [...body ?? []];
   if (markdown.trim()) next[block] = { ...next[block], markdown };
   else next.splice(block, 1);
   return next.length ? next : undefined;
@@ -88,11 +88,11 @@ export function moveOutlineDetail(item: TodoItem, path: number[], direction: 'up
   refreshItemCompletion(item);
 }
 
-export function promoteOutlineDetail(item: TodoItem, items: TodoItem[], path: number[], id: string): void {
+export function promoteOutlineDetail(item: TodoItem, items: TodoItem[], path: number[], id: string, preserveKind = false): void {
   const node = detailAt(item.details, path), siblings = detailSiblings(item, path);
   siblings.splice(path.at(-1)!, 1);
   const { children, kind: _kind, ...rest } = node;
-  const promoted: TodoItem = { ...rest, id, details: children ?? [] };
+  const promoted: TodoItem = { ...rest, ...(preserveKind && _kind ? { kind: _kind } : {}), id, details: children ?? [] };
   refreshItemCompletion(promoted); refreshItemCompletion(item);
   items.splice(items.indexOf(item) + 1, 0, promoted);
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import { Modal } from './Modal';
 import { validDate, type TodoSpan } from '../todoText';
+import { validTime } from '../timeBlock';
 
 const Title = styled.h2`margin:4px 2px 18px;font-size:18px;text-wrap:balance;`;
 const Fields = styled.div`display:grid;gap:12px;`;
@@ -26,7 +27,7 @@ export function SpanEditor({ open, date, span, onClose, onSave }: { open:boolean
       if (!validDate(through) || through <= date) { setError('Choose an end date after this date.'); return; }
       onSave({kind:'all-day',through}); return;
     }
-    if (!validDate(endDate) || endDate <= date || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) { setError('Choose a valid end date after this date and both times.'); return; }
+    if (!validDate(endDate) || endDate <= date || !validTime(start) || !validTime(end)) { setError('Choose a valid end date after this date and both times.'); return; }
     onSave({kind:'time',start,endDate,end});
   };
   return <Modal journalEditor open={open} onClose={onClose} title="Edit span" compact><Title>When does this item occupy time?</Title><Fields>

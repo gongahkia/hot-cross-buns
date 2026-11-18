@@ -1,3 +1,6 @@
+import { CalendarView } from './components/CalendarView';
+import { CalendarPanel } from './components/CalendarPanel';
+import { calendarDates, navigateCalendar, projectCalendarDays, type CalendarMode } from './calendar';
 import { OutlineDocumentContext } from './components/OutlineEditor';
 import { OutlineUpgrade } from './components/OutlineUpgrade';
 import { MarkdownPassage } from './components/MarkdownPassage';
@@ -59,7 +62,7 @@ import { materializeOccurrence, projectItemsForDate, type ViewItem } from './ser
 import { newSeriesId, type RecurrenceRule } from './recurrence';
 import { emptyState, loadTodoState, mutateTodoState, subscribeStore, type TodoState } from './todoStore';
 
-const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
+const Page = styled.main<{ $dated?: boolean; $calendar?: boolean }>`display:flex; flex-direction:column; width: min(${({$calendar})=>$calendar?'1120px':'730px'}, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header`position:relative;z-index:40;display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:20px;`;
 const PaletteTrigger = styled.button`${press};display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:13px;flex-shrink:0;&:hover{background:var(--soft);color:var(--ink);}kbd{font:inherit;font-size:11px;padding:2px 4px;border-radius:4px;background:var(--soft);}@media(max-width:600px){width:44px;padding:0;span,kbd{display:none;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
@@ -98,6 +101,8 @@ const PopoutField = styled.label`display:grid;gap:6px;margin:12px 0;font-size:13
 const PopoutList = styled.div`display:grid;gap:2px;max-height:45dvh;overflow:auto;`;
 const PopoutCheck = styled.label`display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;input{width:18px;height:18px;accent-color:var(--link);}`;
 const PopoutActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:18px;`;
+const CalendarControls = styled.div`display:flex;align-items:center;gap:4px;margin:-14px 0 18px;select{margin-left:auto;min-height:40px;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;font-size:13px;}@media(pointer:coarse){select{min-height:44px;}}`;
+const EntryInspector = styled.div`min-height:min(65dvh,560px);min-width:0;`;
 const CaptureBody = styled.div`height:min(65dvh,600px);min-height:240px;overflow:auto;`;
 type UndoNotice = { kind: UndoNoticeKind; text: string; document: TodoDocument };
 type DeletionFeedback = { kind: 'item-deletion' | 'detail-deletion'; text: string };
@@ -311,6 +316,10 @@ export default function App() {
   const [viewHolidays, setViewHolidays] = useState<Record<string, PublicHoliday[]>>({});
   const viewHolidayCache = useRef<Map<string, Promise<HolidayYear>>>(new Map());
   const holidayImport = useRef<AbortController | null>(null);
+  const [datedPresentation, setDatedPresentation] = useState<'list' | 'calendar'>('list');
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>('month');
+  const [composeRequest, setComposeRequest] = useState<{date:string;key:number} | null>(null);
+  const [inspectedEntry, setInspectedEntry] = useState<{date:string;id:string;series?:string;on?:string} | null>(null);
   const [viewMode, setViewMode] = useState<'day' | 'range'>(() => popout?.kind === 'dated' && popout.from === popout.to ? 'day' : 'range');
   const [activeTab, setActiveTab] = useState<'dated' | 'undated' | 'scratchpad'>(() => popout?.kind ?? 'dated');
   const [scopePrompt, setScopePrompt] = useState<{ date: string; id: string; label: string } | null>(null);
@@ -907,7 +916,7 @@ export default function App() {
       const [item] = list.items.splice(index,1);
       let day = document.days.find(day => day.date === date);
       if (!day) { day = { date, items: [] }; document.days.push(day); }
-      day.items.push({ ...item, completed: false, details: resetDetails(item.details) });
+      day.items.push(journalModel(current.current.document).format === 3 ? item : { ...item, completed: false, details: resetDetails(item.details) });
     });
     setActiveTab('dated'); setSelectedDate(date); setViewMode('day');
   };
@@ -918,6 +927,13 @@ export default function App() {
       const source = document.days.find(day => day.items.some(item => item.id === (view.projection?.masterId ?? id)));
       const stored = source?.items.find(item => item.id === (view.projection?.masterId ?? id));
       if (!source || !stored) return;
+      if (journalModel(current.current.document).format === 3) {
+        if (view.repeat || view.span || view.replaces || parseTimeBlock(view.text)) throw new Error('Clear the schedule before moving this entry to an undated document.');
+        source.items.splice(source.items.indexOf(stored),1);
+        let list = document.undated?.find(list=>list.name===listName);
+        if (!list) { list={name:listName,items:[]}; (document.undated??=[]).push(list); }
+        list.items.push(stored); return;
+      }
       if (view.replaces) {
         const master = document.days.flatMap(day => day.items).find(item => item.repeat?.series === view.replaces!.series);
         if (master && !master.skips?.includes(view.replaces.on)) (master.skips ??= []).push(view.replaces.on);
@@ -944,7 +960,7 @@ export default function App() {
     const parent = items?.find(item => item.id === parentId);
     if (!items || index < 0 || !parent || id === parentId || items[index].repeat || items[index].span || items[index].replaces || parseTimeBlock(items[index].text)) return;
     const [child] = items.splice(index, 1);
-    if (journalModel(current.current.document).format === 2) parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed, body: child.body, children: child.details });
+    if ((journalModel(current.current.document).format ?? 1) >= 2) parent.details.push({ ...(child.kind ? {kind:child.kind} : {}), text: child.text, sourceRef: child.sourceRef, completed: child.completed, body: child.body, children: child.details });
     else parent.details.push({ text: child.text, sourceRef: child.sourceRef, completed: child.completed }, ...child.details);
     refreshItemCompletion(parent);
   });
@@ -1163,8 +1179,10 @@ export default function App() {
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
   const dateForDrop = (id: string | undefined) => id ? id.startsWith('date:') ? id.slice(5) : documentData.days.find(day => day.items.some(item => item.id === id))?.date ?? null : null;
-  const rangeActive = viewMode === 'range';
+  const calendarActive = activeTab === 'dated' && datedPresentation === 'calendar';
+  const rangeActive = !calendarActive && viewMode === 'range';
   const moveDateView = (direction: -1 | 1) => {
+    if (calendarActive) { const next = navigateCalendar(selectedDate, calendarMode, direction); if (next) setSelectedDate(next); return; }
     if (rangeActive) {
       const shifted = shiftRange(activeRange, direction * datesInRange(activeRange).length);
       setActiveRange(shifted);
@@ -1204,21 +1222,23 @@ export default function App() {
       return cache.get(date);
     } };
   }, [documentData]);
-  const baseDates = useMemo(() => rangeActive ? datesInRange(activeRange) : [selectedDate], [rangeActive, activeRange, selectedDate]);
+  const baseDates = useMemo(() => calendarActive ? calendarDates(selectedDate, calendarMode, weekStart) : rangeActive ? datesInRange(activeRange) : [selectedDate], [calendarActive, calendarMode, weekStart, rangeActive, activeRange, selectedDate]);
+  const calendarProjection = useMemo(() => readProjection(() => calendarActive ? projectCalendarDays(documentData, baseDates) : [], []), [calendarActive, documentData, baseDates]);
   const earlierViewKey = `${viewMode}:${activeRange.from}:${activeRange.to}:${selectedDate}`;
-  const earlierProjection = useMemo(() => readProjection(() => pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData, today) : [], []), [pastUnfinishedScope, state?.document, today]);
+  const earlierProjection = useMemo(() => readProjection(() => !calendarActive && pastUnfinishedScope === 'all' && state ? earlierUnfinishedDays(documentData, today) : [], []), [calendarActive, pastUnfinishedScope, state?.document, today]);
   const globalEarlierDays = earlierProjection.value;
   const expandedEarlier = pastUnfinishedScope === 'all' && expandedEarlierKey === earlierViewKey;
   const visibleProjection = useMemo(() => readProjection(() => {
+    if (calendarActive) return calendarProjection.value.map(day => ({date:day.date,items:day.entries.map(entry=>entry.item)}));
     const dates = expandedEarlier
       ? [...new Set([...globalEarlierDays.map(day => day.date).filter(date => !baseDates.includes(date)), ...baseDates])].sort()
       : baseDates;
     const budget = createProjectionBudget();
     return dates.map(date => ({ date, items: projectItemsForDate(documentData, date, budget) }));
-  }, []), [documentData, expandedEarlier, globalEarlierDays, baseDates]);
+  }, []), [documentData, calendarActive, calendarProjection, expandedEarlier, globalEarlierDays, baseDates]);
   const visibleDays = visibleProjection.value;
   const draggingItem = draggingId ? visibleDays.flatMap(day => day.items).find(item => item.id === draggingId) : null;
-  const projectionError = visibleProjection.error ?? earlierProjection.error;
+  const projectionError = calendarProjection.error ?? visibleProjection.error ?? earlierProjection.error;
   const journalDays = useMemo(() => visibleDays.map(day => ({ ...day, completed: day.items.filter(item => item.completed), upcoming: day.items.filter(item => !item.completed) })), [visibleDays]);
   const searchProjection = useMemo(() => readProjection(() => {
     if (!paletteOpen || !paletteSearching || activeTab !== 'dated') return [];
@@ -1271,7 +1291,7 @@ export default function App() {
   }, [paletteOpen, paletteSearching, query, activeTab, searchProjection, statusFilter, documentData, popout, tag]);
   const selectSearchResult = (result: PaletteResult) => {
     setTag(null); setSearchTarget(result); pendingSearchTarget.current = result;
-    if (result.kind === 'dated') { setSelectedDate(result.location); setViewMode('day'); setExpandedEarlierKey(null); }
+    if (result.kind === 'dated') { setDatedPresentation('list'); setSelectedDate(result.location); setViewMode('day'); setExpandedEarlierKey(null); }
   };
   markdownJumpHandler.current = target => {
     if (document.querySelector('[data-editor-dirty="true"]')) { setMessage('Save, download or cancel the open Markdown draft before following another link.'); return false; }
@@ -1281,7 +1301,7 @@ export default function App() {
     setMarkdownPassage(null);
     const result: PaletteResult = { id: `markdown:${target.itemId}`, itemId: target.itemId, label: target.label, kind: target.date ? 'dated' : 'undated', location: target.date ?? target.list!, context: target.date ?? target.list!, completed: false };
     pendingSearchTarget.current = null; setSearchTarget(result); setActiveTab(result.kind);
-    if (target.date) { setSelectedDate(target.date); setViewMode('day'); setExpandedEarlierKey(null); }
+    if (target.date) { setDatedPresentation('list'); setSelectedDate(target.date); setViewMode('day'); setExpandedEarlierKey(null); }
     setMarkdownJump({ ...target });
     return true;
   };
@@ -1293,7 +1313,7 @@ export default function App() {
       if (markdownJump.kind !== 'entry') row?.querySelectorAll<HTMLDetailsElement>('details').forEach(details => { details.open = true; });
       const heading = markdownJump.kind === 'heading' ? [...(row?.querySelectorAll<HTMLElement>('[data-markdown-anchor]') ?? [])].find(heading => heading.dataset.markdownAnchor === markdownJump.fragment) : undefined;
       const passage = markdownJump.kind === 'passage' ? [...(row?.querySelectorAll<HTMLElement>('[data-markdown-start]') ?? [])].find(block => Number(block.dataset.markdownStart) <= markdownJump.range.start && Number(block.dataset.markdownEnd) >= markdownJump.range.end) : undefined;
-      const field = heading ?? passage ?? (markdownJump.kind === 'entry' ? row?.querySelector<HTMLTextAreaElement>('textarea') : undefined);
+      const field = heading ?? passage ?? (markdownJump.kind === 'entry' ? row?.querySelector<HTMLTextAreaElement>('textarea') ?? row : undefined);
       if (field && !field.closest('[inert]')) { field.scrollIntoView({ block: 'center' }); field.focus({ preventScroll: true }); setMarkdownJump(null); }
       else if (++attempts < 120) frame = requestAnimationFrame(focus);
       else { setMarkdownJump(null); setMessage('This Markdown destination could not be shown. Open the source to review it.'); }
@@ -1314,7 +1334,7 @@ export default function App() {
       const target = pendingSearchTarget.current;
       if (!target) return;
       const row = [...(journalViewport.current?.querySelectorAll<HTMLElement>('[data-search-item-id]') ?? [])].find(row => row.dataset.searchItemId === target.itemId);
-      const field = row?.querySelector<HTMLTextAreaElement>('textarea');
+      const field = row?.querySelector<HTMLTextAreaElement>('textarea') ?? row;
       let animating = false;
       for (let ancestor = row; ancestor && ancestor !== journalViewport.current; ancestor = ancestor.parentElement ?? undefined) {
         if (ancestor.getAnimations().some(animation => animation.playState === 'running' || animation.pending)) { animating = true; break; }
@@ -1375,6 +1395,7 @@ export default function App() {
     setMessage('Markdown passage saved.');
   };
   const saveWriting = async (operation: WritingOperation, expected: string) => {
+    if (operation.kind==='fragment') { const target=writingTarget(journalModel(current.current.document),operation.range.start);if(target && (target.entry.repeat || target.entry.replaces)) throw new Error('Open this recurring entry to choose which occurrences to change. Your draft is kept.'); }
     const next = await writeJournalAsync(expected, operation);
     await saveSource(next.source!, expected);
   };
@@ -1397,6 +1418,10 @@ export default function App() {
     if (target.entry.date) mutateItem(target.entry.date, id, change);
     else if (target.entry.list) editUndated(target.entry.list, id, change);
   };
+  const openDayDocument = (date: string, compose = false) => { setInspectedEntry(null); setActiveTab('dated'); setDatedPresentation('list'); setSelectedDate(date); setViewMode('day'); if(compose) setComposeRequest({date,key:Date.now()}); };
+  const inspectEntry = (date: string, item: ViewItem) => setInspectedEntry({date,id:item.id,series:item.projection?.series ?? item.replaces?.series ?? item.repeat?.series,on:item.projection?.originalDate ?? item.replaces?.on ?? date});
+  const inspectedItems = inspectedEntry ? readProjection(()=>projectItemsForDate(documentData,inspectedEntry.date),[]).value : [];
+  const inspectedItem = inspectedEntry ? inspectedItems.find(item=>item.id===inspectedEntry.id) ?? inspectedItems.find(item=>inspectedEntry.series && (item.replaces?.series ?? item.projection?.series ?? item.repeat?.series)===inspectedEntry.series && (item.replaces?.on ?? item.projection?.originalDate ?? inspectedEntry.date)===inspectedEntry.on) : undefined;
   const closeScratchCapture = () => {
     if (scratchCaptureDialog.current?.querySelector('[data-editor-dirty="true"]')) setMessage('Your Scratchpad draft is kept in this tab. Reopen Scratchpad to save or download it.');
     setScratchCaptureOpen(false);
@@ -1427,22 +1452,22 @@ export default function App() {
       setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
     }}/>;
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
-  return <OutlineDocumentContext.Provider value={outlineContext}><Page $dated={activeTab !== 'undated'}>
+  return <OutlineDocumentContext.Provider value={outlineContext}><Page $dated={activeTab !== 'undated'} $calendar={calendarActive}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header>
     <Toolbar>
       {activeTab === 'dated' && <>
-      <Icon aria-label={rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
+      <Icon aria-label={calendarActive ? `Previous ${calendarMode}` : rangeActive?'Previous range':'Previous day'} onClick={() => moveDateView(-1)}><ChevronLeft size={17}/></Icon>
       <DateControl ref={dateControlRef} $range={rangeActive}>
-        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today, weekStart)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
+        <DateText aria-label={rangeActive ? `Viewing ${activeRange.from} to ${activeRange.to}; go to today` : `Go to today from ${selectedDate}`} title="Go to today" onClick={() => { const today = todayString(); setSelectedDate(today); setActiveRange(weekRange(today, weekStart)); setRangeCustomized(false); setViewMode('range'); setDateOpen(false); }}><span className="full">{calendarActive && calendarMode === 'month' ? new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'}) : calendarActive && calendarMode === 'week' ? compactRange({from:baseDates[0],to:baseDates.at(-1)!}) : rangeActive ? `${navDate(activeRange.from)} – ${navDate(activeRange.to)}` : navDate(selectedDate)}</span><span className="compact">{calendarActive && calendarMode === 'month' ? new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString('en-GB',{month:'short',year:'numeric',timeZone:'UTC'}) : calendarActive && calendarMode === 'week' ? compactRange({from:baseDates[0],to:baseDates.at(-1)!}) : rangeActive ? compactRange(activeRange) : navDate(selectedDate)}</span></DateText>
         <DateCalendar aria-label="Choose date" aria-expanded={dateOpen} title="Choose date" onClick={() => setDateOpen(value => !value)}><CalendarDays size={17}/></DateCalendar>
-        {dateOpen && <DatePopover><JournalDatePicker selectedDate={selectedDate} activeRange={activeRange} rangeActive={rangeActive} unfinishedDates={unfinishedDates}
+        {dateOpen && <DatePopover>{calendarActive ? <CalendarPanel label="Choose calendar date" value={selectedDate} onSelect={date => {setSelectedDate(date);setDateOpen(false);}}/> : <JournalDatePicker selectedDate={selectedDate} activeRange={activeRange} rangeActive={rangeActive} unfinishedDates={unfinishedDates}
           onSelectDate={value => { setSelectedDate(value); setViewMode('day'); setDateOpen(false); }}
           onToggleRange={active => { if (!active) setSelectedDate(todayString()); setViewMode(active ? 'range' : 'day'); }}
-          onSelectRange={range => { setActiveRange(range); setRangeCustomized(true); setViewMode('range'); setDateOpen(false); }}/></DatePopover>}
+          onSelectRange={range => { setActiveRange(range); setRangeCustomized(true); setViewMode('range'); setDateOpen(false); }}/>}</DatePopover>}
       </DateControl>
-      <Icon aria-label={rangeActive?'Next range':'Next day'} onClick={() => moveDateView(1)}><ChevronRight size={17}/></Icon>
+      <Icon aria-label={calendarActive ? `Next ${calendarMode}` : rangeActive?'Next range':'Next day'} onClick={() => moveDateView(1)}><ChevronRight size={17}/></Icon>
       </>}
     </Toolbar>
     <PaletteTrigger type="button" aria-label="Open command palette" aria-haspopup="dialog" aria-expanded={paletteOpen} aria-keyshortcuts="Meta+K Control+K" title="Commands (⌘K / Ctrl+K)" onClick={openCommands}><Command size={17} aria-hidden="true"/><span>Commands</span><kbd>{commandKey} K</kbd></PaletteTrigger>
@@ -1455,6 +1480,7 @@ export default function App() {
     </Notice>}
     <input ref={importInput} type="file" accept=".md,.markdown,text/markdown,text/plain" hidden aria-label="Import a Planner.md file" onChange={event => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = ''; }}/>
     {!popout && <ViewTabs aria-label="Views"><ViewTab $active={activeTab === 'dated'} aria-current={activeTab === 'dated' ? 'page' : undefined} onClick={() => setActiveTab('dated')}>Dated</ViewTab><ViewTab $active={activeTab === 'undated'} aria-current={activeTab === 'undated' ? 'page' : undefined} onClick={() => setActiveTab('undated')}>Undated</ViewTab></ViewTabs>}
+    {activeTab === 'dated' && <CalendarControls role="group" aria-label="Dated presentation"><ViewTab $active={!calendarActive} aria-pressed={!calendarActive} onClick={()=>setDatedPresentation('list')}>List</ViewTab><ViewTab $active={calendarActive} aria-pressed={calendarActive} onClick={()=>setDatedPresentation('calendar')}>Calendar</ViewTab>{calendarActive && <select aria-label="Calendar period" value={calendarMode} onChange={event=>setCalendarMode(event.target.value as CalendarMode)}><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></select>}</CalendarControls>}
     {!unified && !popout && <Notice>Use one editor for paragraphs, outlines and tasks in either view.<Button disabled={busy} onClick={enableWriting}>Enable unified writing</Button></Notice>}
     {(fileSync.status.kind !== 'unlinked' || driveSync.status.kind !== 'unlinked') && <JournalSyncStatus status={fileSync.status.kind !== 'unlinked' ? fileSync.status : driveSync.status} provider={fileSync.status.kind !== 'unlinked' ? 'file' : 'drive'} draft={editingDraft} saving={pendingJournal.current > 0 || scratchPending} conflictCopies={fileSync.conflictCopies.length} onSettings={() => setSettingsOpen(true)}/>}
     {activeTab === 'dated' && holidaysEnabled && holidayMode === 'view' && holidayStatus.startsWith('Could not show holidays') && <HolidayLoadError role="status">Public holidays could not load. Check Settings for details.</HolidayLoadError>}
@@ -1470,7 +1496,7 @@ export default function App() {
       if (feedbackNotice && serializeJournal(current.current.document) === serializeJournal(feedbackNotice.document)) undo();
       else setFeedbackNotice(null);
     }}/>
-    {activeTab === 'dated' && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
+    {activeTab === 'dated' && !calendarActive && earlierCount > 0 && <EarlierLink type="button" aria-expanded={pastUnfinishedScope === 'all' ? expandedEarlier : undefined} onClick={() => {
       if (pastUnfinishedScope === 'all') {
         if (expandedEarlier) setExpandedEarlierKey(null);
         else setExpandedEarlierKey(earlierViewKey);
@@ -1478,7 +1504,7 @@ export default function App() {
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
     <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
     {activeTab === 'scratchpad' && scratchpadSurface}
-    {activeTab === 'scratchpad' ? null : unified ? <WritingJournal document={documentData} view={activeTab} dates={journalDays.map(day => day.date)} visibleLists={popout?.kind === 'undated' ? popout.lists : undefined} onWrite={saveWriting} onToggleTask={toggleWritingTask} onCreateList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })} renderDateHeading={date => <DateHeading date={date} today={today} format={dateFormat} highlighted={false} unfinished={projectItemsForDate(documentData, date).reduce((count, item) => count + unfinishedTaskCount(item), 0)} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[date] ?? [] : []}/>}/>
+    {activeTab === 'scratchpad' ? null : calendarActive ? <CalendarView days={calendarProjection.value} mode={calendarMode} selectedDate={selectedDate} today={today} weekStart={weekStart} onShowDay={date=>{setSelectedDate(date);setCalendarMode('day');}} onOpenDocument={openDayDocument} onOpenEntry={(date,entry)=>inspectEntry(date,entry.item)} onToggle={(date,entry)=>mutateItem(date,entry.item.id,item=>setItemCompletion(item,!item.completed))}/> : unified ? <WritingJournal composeRequest={composeRequest} projectedDays={visibleDays} onOpenEntry={inspectEntry} document={documentData} view={activeTab} dates={journalDays.map(day => day.date)} visibleLists={popout?.kind === 'undated' ? popout.lists : undefined} onWrite={saveWriting} onToggleTask={toggleWritingTask} onCreateList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })} renderDateHeading={date => <DateHeading date={date} today={today} format={dateFormat} highlighted={false} unfinished={projectItemsForDate(documentData, date).reduce((count, item) => count + unfinishedTaskCount(item), 0)} holidays={holidaysEnabled && holidayMode === 'view' ? viewHolidays[date] ?? [] : []}/>}/>
     : activeTab === 'undated' ? <UndatedView recursive={recursive} onEnableOutline={enableOutlines} revealItemId={searchTarget?.kind === 'undated' ? searchTarget.itemId : undefined} onEditOutline={editUndated} lists={documentData.undated} visibleNames={popout?.kind === 'undated' ? popout.lists : undefined}
       onAddList={name => edit(document => { if (!(document.undated ?? []).some(list => list.name === name)) (document.undated ??= []).push({ name, items: [] }); })}
       onDeleteList={name => edit(document => { document.undated = (document.undated ?? []).filter(list => list.name !== name); })}
@@ -1536,6 +1562,10 @@ export default function App() {
       <CaptureBody>{scratchpadSurface}</CaptureBody>
       <PopoutActions><Button onClick={closeScratchCapture}>Close Scratchpad</Button></PopoutActions>
     </Modal>}
+    <Modal journalEditor open={!!inspectedEntry} onClose={()=>setInspectedEntry(null)} title="Edit calendar entry" wide>
+      <EntryInspector>{inspectedEntry && inspectedItem ? <JournalItem key={`${inspectedEntry.date}:${inspectedEntry.id}`} standalone unified={unified} recursive={recursive} item={inspectedItem} date={inspectedEntry.date} parentItems={inspectedItems} undatedListNames={(documentData.undated??[]).map(list=>list.name)} onEnableOutline={enableWriting} onChange={change=>mutateItem(inspectedEntry.date,inspectedItem.id,change)} onEdit={change=>requestScopedEdit(inspectedEntry.date,inspectedItem.id,change)} onDelete={()=>{deleteItem(inspectedEntry.date,inspectedItem.id);}} onMove={date=>moveItem(inspectedEntry.date,inspectedItem.id,date)} onMakeDetail={id=>makeDetail(inspectedEntry.date,inspectedItem.id,id)} onMakeUndated={list=>{makeUndated(inspectedEntry.date,inspectedItem.id,list);setInspectedEntry(null);}} onStartNext={()=>openDayDocument(inspectedEntry.date,true)}/> : <p>This entry moved or was deleted. Its saved content remains in the journal.</p>}</EntryInspector>
+      <PopoutActions><Button onClick={()=>inspectedEntry && openDayDocument(inspectedEntry.date)}>Open day document</Button><Button onClick={()=>setInspectedEntry(null)}>Close entry</Button></PopoutActions>
+    </Modal>
     <Modal journalEditor open={!!scopePrompt} onClose={() => { setScopePrompt(null); scopedChange.current = null; scopedMove.current = null; scopedDelete.current = false; }} title="Choose recurring edit scope" compact>
       <ScopeTitle>Change “{scopePrompt?.label}”</ScopeTitle><ScopeHint>Choose which occurrences this change applies to.</ScopeHint>
       <ScopeOption onClick={() => applyScope('this')}>This item</ScopeOption>

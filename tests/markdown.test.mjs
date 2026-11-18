@@ -158,3 +158,13 @@ test('generated source edits preserve every untouched byte across syntax, nestin
     }
   }
 });
+
+ test('attached document blocks support appending without changing existing Markdown', () => {
+  const body = [{markdown:'Keep **source**.',sourceRef:'body:0'}];
+  const appended=replaceMarkdownBody(body,'Second paragraph.',1);
+  assert.equal(appended[0],body[0]);
+  assert.equal(appended[1].markdown,'Second paragraph.');
+  assert.deepEqual(replaceMarkdownBody(undefined,'First paragraph.',0),[{markdown:'First paragraph.'}]);
+  assert.equal(replaceMarkdownBody(undefined,'',0),undefined);
+  assert.throws(()=>replaceMarkdownBody(undefined,'Bad index.',1),/block changed/);
+});

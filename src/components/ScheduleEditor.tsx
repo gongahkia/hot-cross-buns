@@ -134,7 +134,7 @@ export function ScheduleEditor({ kind, item, date, onClose, onTime, onRepeat }: 
           <option value="yearly">annually on {monthNames[monthNumber - 1]} {dayNumber}</option>
           <option value="weekdays">every weekday (Mon–Fri)</option>
           <option value="custom">custom…</option>
-          <option value="after">interval after completion</option>
+          <option value="after" disabled={item.kind === 'note'}>interval after completion{item.kind === 'note' ? ' (task required)' : ''}</option>
         </Select></Label>
         {mode === 'custom' && <>
           <Inline><Label>repeat every<Input aria-label="Repeat interval" type="number" min="1" max="999" value={every} onChange={event => setEvery(Number(event.target.value))}/></Label><Label>unit<Select aria-label="Repeat unit" value={unit} onChange={event => setUnit(event.target.value as Unit)}><option value="days">days</option><option value="weeks">weeks</option><option value="months">months</option><option value="years">years</option></Select></Label></Inline>
