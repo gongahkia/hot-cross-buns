@@ -1,4 +1,5 @@
-import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel, withScratchpad } from './journalDocument.ts';
+import { materializeJournalAsync, readJournalAsync } from './journalBackground.ts';
+import { createJournal, serializeJournal, validateJournal, materializeJournal, readJournal, journalFromModel } from './journalDocument.ts';
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
 import { reviewedRevision } from './revisionSync';
 import { normalizeDocument, type TodoDocument } from './todoText';
@@ -95,7 +96,11 @@ export async function loadTodoState(): Promise<TodoState> {
       request.onerror = () => reject(request.error);
     });
   } finally { db.close(); }
-  if (existing) return stateFrom(existing);
+  if (existing) {
+    const sources = [existing.document?.source, existing.baseline?.source].filter((source): source is string => typeof source === 'string');
+    await Promise.all([...new Set(sources)].map(source => readJournalAsync(source)));
+    return stateFrom(existing);
+  }
   return transact<TodoState>([STATE_STORE, SCRATCH_STORE], (tx, done, fail) => {
     const store = tx.objectStore(STATE_STORE), current = store.get('current'), legacy = store.get('legacy-txt:current'), scratch = tx.objectStore(SCRATCH_STORE).get('legacy-txt:current');
     let remaining = 3;
@@ -138,18 +143,29 @@ export async function mutateTodoState(change: (latest: TodoState) => TodoState |
   return result;
 }
 
+async function prepareJournalMutation(work: (before: TodoState) => TodoDocument): Promise<{ before: TodoState; journal: TodoState }> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const before = await loadTodoState();
+    const document = await materializeJournalAsync(work(before));
+    const journal = await mutateTodoState(latest => {
+      if (latest.revision !== before.revision || latest.scratchRevision !== before.scratchRevision || latest.document.source !== before.document.source) return null;
+      return { ...latest, document };
+    });
+    if (journal) return { before, journal };
+  }
+  throw new Error('The journal kept changing during validation. Your draft has not been applied; retry against the latest journal.');
+}
+
 export async function saveScratchpadText(expectedRevision: number, text: string): Promise<ScratchpadState> {
-  const result = await mutateTodoState(latest => {
+  const { journal } = await prepareJournalMutation(latest => {
     if ((latest.scratchRevision ?? 0) !== expectedRevision) throw new Error('Scratchpad changed in another window. Reload it before editing.');
-    return { ...latest, document: withScratchpad(latest.document, text) };
+    return { ...latest.document, scratchpad: text };
   });
-  if (!result) throw new Error('The scratchpad was not saved.');
-  return { text: result.document.scratchpad ?? '', revision: result.scratchRevision ?? 0 };
+  return { text: journal.document.scratchpad ?? '', revision: journal.scratchRevision ?? 0 };
 }
 
 export async function convertScratchpadSelection(args: { start: number; end: number; selected: string; scratchRevision: number; destination: ScratchpadDestination; items: Array<{ title: string; details: string[] }>; cut: boolean }): Promise<{ journal: TodoState; scratchpad: ScratchpadState; undo: ScratchpadUndo }> {
-  let undo: ScratchpadUndo | undefined;
-  const result = await mutateTodoState(latest => {
+  const { before, journal: result } = await prepareJournalMutation(latest => {
     const scratch = latest.document.scratchpad ?? '';
     if ((latest.scratchRevision ?? 0) !== args.scratchRevision || scratch.slice(args.start, args.end) !== args.selected) throw new Error('The scratchpad changed. Select the text again.');
     const document = structuredClone(latest.document);
@@ -166,11 +182,9 @@ export async function convertScratchpadSelection(args: { start: number; end: num
       list.items.push(...items);
     }
     if (args.cut) document.scratchpad = scratch.slice(0, args.start) + scratch.slice(args.end);
-    const next = canonicalState({ ...latest, document }, latest);
-    undo = { before: latest, scratchBefore: { text: scratch, revision: latest.scratchRevision ?? 0 }, journalRevision: next.revision, scratchRevision: next.scratchRevision ?? 0 };
-    return next;
+    return document;
   });
-  if (!result || !undo) throw new Error('The capture promotion was not saved.');
+  const undo: ScratchpadUndo = { before, scratchBefore: { text: before.document.scratchpad ?? '', revision: before.scratchRevision ?? 0 }, journalRevision: result.revision, scratchRevision: result.scratchRevision ?? 0 };
   return { journal: result, scratchpad: { text: result.document.scratchpad ?? '', revision: result.scratchRevision ?? 0 }, undo };
 }
 

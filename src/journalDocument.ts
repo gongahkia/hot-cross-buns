@@ -9,6 +9,8 @@ const assignedIds = new WeakMap<TodoItem, string>();
 const canonical = new WeakSet<TodoDocument>();
 // models live only as long as their immutable documents; the source cache stays bounded.
 const models = new WeakMap<TodoDocument, MarkdownPlanner>();
+export const isCanonicalJournal = (document: TodoDocument) => canonical.has(document);
+export const cachedJournal = (source: string) => cache.get(source);
 const textAt = (source: string, range: SourceRange) => source.slice(range.start, range.end);
 const nlOf = (source: string) => /\r\n|\r|\n/.exec(source)?.[0] ?? '\n';
 const fields = ['repeat', 'completedOn', 'span', 'skips', 'replaces'] as const;

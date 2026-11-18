@@ -86,3 +86,8 @@ export function promoteOutlineDetail(item: TodoItem, items: TodoItem[], path: nu
 export function outlineText(item: TodoItem): string[] {
   return [item.text, ...(item.body ?? []).map(block => block.markdown), ...outlineNodes(item.details).flatMap(node => [node.text, ...(node.body ?? []).map(block => block.markdown)])];
 }
+
+export function outlineContent(item: TodoItem): string {
+  const content = (node: TodoDetail): unknown => [node.text, node.kind, node.body, node.children?.map(content)];
+  return JSON.stringify([item.text, item.body, item.details.map(content)]);
+}

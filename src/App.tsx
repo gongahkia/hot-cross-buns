@@ -1,8 +1,8 @@
 import { OutlineDocumentContext } from './components/OutlineEditor';
 import { OutlineUpgrade } from './components/OutlineUpgrade';
-import { upgradeOutlineJournal } from './journalOutline';
+import { materializeJournalAsync, readJournalAsync, upgradeOutlineJournalAsync } from './journalBackground';
 import { outlineText, refreshItemCompletion, resetDetails, setItemCompletion } from './outline';
-import { journalModel, materializeJournal, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
+import { isCanonicalJournal, journalModel, readJournal, isEmptyJournal, createJournal, parseJournal, serializeJournal, validateJournal } from './journalDocument.ts';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from '@dnd-kit/core';
 import { createPortal, flushSync } from 'react-dom';
@@ -359,6 +359,8 @@ export default function App() {
   const writeQueue = useRef<WriteQueue<TodoState | null> | null>(null);
   if (!writeQueue.current) writeQueue.current = new WriteQueue(error => setSaveFailure('Could not save: ' + String(error)));
   const journalQueue = useRef<Promise<void>>(Promise.resolve());
+  const editQueue = useRef<Promise<void>>(Promise.resolve());
+  const editEpoch = useRef(0);
   const pendingJournal = useRef(0);
   const journalGeneration = useRef(0);
   const activeHistoryTransition = useRef<{ transition: ViewTransition; rows: Set<HTMLElement> } | null>(null);
@@ -474,6 +476,7 @@ export default function App() {
     if (!(error instanceof WriteDiscardedError)) setMessage(prefix + String(error));
   };
   const discardUnsavedJournal = async () => {
+    editEpoch.current++;
     const latest = await loadTodoState();
     journalGeneration.current++;
     writeQueue.current!.discard();
@@ -484,25 +487,25 @@ export default function App() {
     setSaveFailure(null);
     setMessage('Unsaved journal edits discarded.');
   };
+  const refreshSavedJournal = async (generation: number) => {
+    if (pendingJournal.current) return;
+    try {
+      const latest = await loadTodoState();
+      if (pendingJournal.current || generation !== journalGeneration.current) return;
+      const sameDocument = serializeJournal(latest.document) === serializeJournal(current.current.document);
+      const sameBaseline = latest.baseline === null && current.current.baseline === null || !!latest.baseline && !!current.current.baseline && serializeJournal(latest.baseline) === serializeJournal(current.current.baseline);
+      const synchronized = sameDocument ? { ...latest, document: current.current.document } : latest;
+      if (!sameDocument) preserveSyncHistory(latest.document);
+      current.current = synchronized;
+      if (!sameDocument || !sameBaseline) setState(synchronized);
+    } catch (error) { setMessage(`Could not refresh journal: ${String(error)}`); }
+  };
   const enqueueJournal = (work: () => Promise<TodoState | null>) => {
     const generation = ++journalGeneration.current;
     pendingJournal.current++;
     const task = writeQueue.current!.enqueue(work);
     journalQueue.current = task.then(() => undefined, () => undefined);
-    void task.finally(async () => {
-      pendingJournal.current--;
-      if (pendingJournal.current) return;
-      try {
-        const latest = await loadTodoState();
-        if (pendingJournal.current || generation !== journalGeneration.current) return;
-        const sameDocument = serializeJournal(latest.document) === serializeJournal(current.current.document);
-        const sameBaseline = latest.baseline === null && current.current.baseline === null || !!latest.baseline && !!current.current.baseline && serializeJournal(latest.baseline) === serializeJournal(current.current.baseline);
-        const synchronized = sameDocument ? { ...latest, document: current.current.document } : latest;
-        if (!sameDocument) preserveSyncHistory(latest.document);
-        current.current = synchronized;
-        if (!sameDocument || !sameBaseline) setState(synchronized);
-      } catch (error) { setMessage(`Could not refresh journal: ${String(error)}`); }
-    }).catch(() => undefined);
+    void task.finally(async () => { pendingJournal.current--; await refreshSavedJournal(generation); }).catch(() => undefined);
     return task;
   };
   const persistSnapshot = (next: TodoState, before: TodoState) => enqueueJournal(() => mutateTodoState(latest => {
@@ -510,7 +513,7 @@ export default function App() {
     return { ...next, revision: latest.revision };
   }));
   const commitState = async (next: TodoState) => {
-    next = { ...next, document: materializeJournal(next.document) };
+    if (!isCanonicalJournal(next.document)) next = { ...next, document: await materializeJournalAsync(next.document) };
     const before = current.current;
     const stamped = { ...next, revision: before.revision + 1 };
     current.current = stamped;
@@ -570,28 +573,41 @@ export default function App() {
     setFeedbackNotice(null);
     await commitState(next);
   };
-  const edit = (change: (document: TodoDocument) => void, feedback?: DeletionFeedback) => {
-    const before = current.current.document;
-    let document = cloneDocument(before);
-    change(document);
-    document.days = document.days.filter(day => day.items.length || day.keepEmpty);
-    advanceRecurrences(before, document, todayString());
-    try { document = materializeJournal(document); validateVisibleProjection(document); } catch (error) { setMessage(String(error)); return; }
-    if (serializeJournal(before) === serializeJournal(document)) return;
-    const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
-    const completed = document.days.flatMap(day => day.items).find(item => item.completed && priorItems.get(item.id)?.completed === false);
-    undoStack.current.push(before);
-    if (undoStack.current.length > 100) undoStack.current.shift();
-    redoStack.current = [];
-    const stamped = { ...current.current, document, revision: current.current.revision + 1 };
-    previousDocument.current = before;
-    current.current = stamped;
-    setState(stamped);
-    void persistEdit(before,document).catch(reportSaveError);
-    setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
+  const queueDocumentAction = (work: () => void | Promise<void>) => {
+    pendingJournal.current++;
+    const task = editQueue.current.then(work).catch(error => setMessage(String(error))).finally(async () => { pendingJournal.current--; await refreshSavedJournal(journalGeneration.current); });
+    editQueue.current = task;
+    return task;
   };
-  const undo = () => { const previous = undoStack.current.pop(); if (!previous) return; captureReplay.current = feedbackNotice?.kind === 'scratchpad-conversion' ? serializeJournal(previous) : null; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); };
-  const redo = () => { const next = redoStack.current.pop(); if (!next) return; captureReplay.current = null; setFeedbackNotice(null); undoStack.current.push(current.current.document); replayState(next); };
+  const edit = (change: (document: TodoDocument) => void, feedback?: DeletionFeedback) => {
+    const epoch = editEpoch.current;
+    return queueDocumentAction(async () => {
+      if (epoch !== editEpoch.current) return;
+      const before = current.current.document;
+      let document = cloneDocument(before);
+      change(document);
+      document.days = document.days.filter(day => day.items.length || day.keepEmpty);
+      advanceRecurrences(before, document, todayString());
+      document = await materializeJournalAsync(document);
+      validateVisibleProjection(document);
+      if (epoch !== editEpoch.current) return;
+      if (serializeJournal(current.current.document) !== serializeJournal(before)) throw new Error('The journal changed during validation. Your edit was not applied; review the latest journal and retry.');
+      if (serializeJournal(before) === serializeJournal(document)) return;
+      const priorItems = new Map(before.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
+      const completed = document.days.flatMap(day => day.items).find(item => item.completed && priorItems.get(item.id)?.completed === false);
+      undoStack.current.push(before);
+      if (undoStack.current.length > 100) undoStack.current.shift();
+      redoStack.current = [];
+      const stamped = { ...current.current, document, revision: current.current.revision + 1 };
+      previousDocument.current = before;
+      current.current = stamped;
+      setState(stamped);
+      void persistEdit(before,document).catch(reportSaveError);
+      setFeedbackNotice(completed ? { kind: 'completion', text: parseTimeBlock(completed.text)?.title ?? completed.text, document } : feedback ? { ...feedback, document } : null);
+    });
+  };
+  const undo = () => { void queueDocumentAction(() => { const previous = undoStack.current.pop(); if (!previous) return; captureReplay.current = feedbackNotice?.kind === 'scratchpad-conversion' ? serializeJournal(previous) : null; setFeedbackNotice(null); redoStack.current.push(current.current.document); replayState(previous); }); };
+  const redo = () => { void queueDocumentAction(() => { const next = redoStack.current.pop(); if (!next) return; captureReplay.current = null; setFeedbackNotice(null); undoStack.current.push(current.current.document); replayState(next); }); };
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
@@ -653,7 +669,7 @@ export default function App() {
   });
   const requestScopedEdit = (date: string, id: string, change: (item: TodoItem, items: TodoItem[]) => void) => {
     const view = projectItemsForDate(current.current.document, date).find(item => item.id === id);
-    if (!view || (!view.repeat || view.repeat.kind === 'after') && !view.replaces) { mutateItem(date,id,change); return; }
+    if (!view || (!view.repeat || view.repeat.kind === 'after') && !view.replaces) return mutateItem(date,id,change);
     scopedChange.current = change;
     setScopePrompt({ date, id, label: parseTimeBlock(view.text)?.title ?? view.text });
   };
@@ -1029,7 +1045,9 @@ export default function App() {
     return () => { clearTimeout(reviewDraftTimer.current); window.removeEventListener('beforeunload',unload); };
   }, []);
   const imported = async (raw: string, original = raw) => {
+    await editQueue.current;
     assertImportText(raw);
+    await readJournalAsync(raw);
     const diagnosis = doctorJournal(raw);
     if (diagnosis.findings.some(finding => finding.level === 'review')) {
       reviewDraft.current ??= { key: `hot-cross-buns-markdown-review:${readJournal(current.current.document.source!).model.documentId}`, text: raw, dirty: false };
@@ -1055,6 +1073,7 @@ export default function App() {
   };
   const importFile = async (file: File) => { setBusy(true); setFileActionError(''); try { assertImportSize(file.size); await imported(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await file.arrayBuffer())); } catch (error) { reportSaveError(error, ''); } finally { setBusy(false); } };
   const download = async (fileName: string, lineEnding: LineEnding) => {
+    await editQueue.current;
     const output = serializeJournal(current.current.document);
     const fileText = lineEnding === 'crlf' ? output.replace(/\r\n|\r|\n/g, '\r\n') : output;
     downloadTextFile(fileText, fileName);
@@ -1098,8 +1117,14 @@ export default function App() {
   const documentData = state?.document ?? current.current.document;
   const recursive = journalModel(documentData).format === 2;
   const enableOutlines = () => {
-    try { setOutlineUpgrade({ ...upgradeOutlineJournal(current.current.document), expected: serializeJournal(current.current.document) }); }
-    catch (error) { setMessage(String(error)); }
+    setBusy(true);
+    void (async () => {
+      await editQueue.current;
+      const before = current.current.document, expected = serializeJournal(before);
+      const upgraded = await upgradeOutlineJournalAsync(before);
+      if (serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while preparing outlines. Review the latest journal and try again.');
+      setOutlineUpgrade({ ...upgraded, expected });
+    })().catch(error => setMessage(String(error))).finally(() => setBusy(false));
   };
   const priorDocument = previousDocument.current;
   const priorItems = new Map(priorDocument?.days.flatMap(day => day.items.map(item => [item.id, item] as const)));
@@ -1263,7 +1288,9 @@ export default function App() {
     }
   };
   const saveSource = async (source: string, expected: string) => {
+    await editQueue.current;
     await journalQueue.current;
+    await readJournalAsync(source);
     if (scratchPendingRef.current) throw new Error('Finish saving the scratchpad before replacing the Markdown source.');
     if (serializeJournal(current.current.document) !== expected) throw new Error('The journal changed while this source draft was open. Download your draft, close and reopen the source to review the latest version.');
     const parsed = parseJournal(source);
@@ -1333,7 +1360,7 @@ export default function App() {
       } else if (visibleEarlier.length) scrollToJournalDate(visibleEarlier[0].date,true);
     }}><CircleAlert size={14} aria-hidden="true"/>{earlierCount} unfinished from earlier {earlierDayCount === 1 ? 'day' : 'days'}{expandedEarlier ? ' · show current range' : ''}</EarlierLink>}
     <JournalViewport id="journal-content" ref={journalViewport} $dated={activeTab !== 'undated'} tabIndex={-1} role="region" aria-label={activeTab === 'scratchpad' ? 'Scratchpad' : activeTab === 'dated' ? 'Dated journal' : 'Undated journal'}>
-    <div hidden={activeTab !== 'scratchpad'} style={{ height: '100%' }}><ScratchpadView active={activeTab === 'scratchpad'} onPendingChange={pending => { if (pending) scratchActivity.current = performance.now(); scratchPendingRef.current = pending; setScratchPending(pending); }} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} beforeConvert={async () => { await journalQueue.current; pendingJournal.current++; journalGeneration.current++; }} afterConvert={() => { pendingJournal.current--; }} onJournalCommitted={(journal, undo) => {
+    <div hidden={activeTab !== 'scratchpad'} style={{ height: '100%' }}><ScratchpadView active={activeTab === 'scratchpad'} onPendingChange={pending => { if (pending) scratchActivity.current = performance.now(); scratchPendingRef.current = pending; setScratchPending(pending); }} listNames={(documentData.undated ?? []).map(list => list.name)} today={today} beforeConvert={async () => { await editQueue.current; await journalQueue.current; pendingJournal.current++; journalGeneration.current++; }} afterConvert={() => { pendingJournal.current--; }} onJournalCommitted={(journal, undo) => {
       if (journal.revision < current.current.revision) return;
       if (serializeJournal(current.current.document) !== serializeJournal(undo.before.document)) preserveSyncHistory(undo.before.document);
       undoStack.current.push(undo.before.document);

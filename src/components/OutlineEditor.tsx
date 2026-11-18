@@ -2,7 +2,7 @@ import { Fragment, createContext, useContext, useEffect, useId, useLayoutEffect,
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Circle, CornerDownRight, FileText, IndentDecrease, IndentIncrease, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
-import { MAX_OUTLINE_DEPTH, detailAt, detailSiblings, moveOutlineDetail, outlineNodes, refreshItemCompletion } from '../outline';
+import { MAX_OUTLINE_DEPTH, detailAt, detailSiblings, moveOutlineDetail, outlineContent, outlineNodes, refreshItemCompletion } from '../outline';
 import type { TodoBody, TodoDetail, TodoItem } from '../todoText';
 import { Button } from '../styles';
 import { MarkdownBody } from './MarkdownBody';
@@ -59,11 +59,20 @@ function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draftKey }: 
 type Change = (item: TodoItem) => void;
 type Draft = { parent: number[]; index: number; note: boolean };
 
-export function OutlineEditor({ item, dated, onEdit, onToggle, onPromote, addRequest = 0, notesRequest = 0, reveal = false }: {
-  item: TodoItem; dated: boolean; onEdit: (change: Change) => void; onToggle: (change: Change) => void;
-  onPromote: (path: number[]) => void; addRequest?: number; notesRequest?: number; reveal?: boolean;
+export function OutlineEditor({ item, dated, onEdit: edit, onToggle: toggle, onPromote, addRequest = 0, notesRequest = 0, reveal = false }: {
+  item: TodoItem; dated: boolean; onEdit: (change: Change) => void | Promise<void>; onToggle: (change: Change) => void;
+  onPromote: (path: number[], expected: string) => void; addRequest?: number; notesRequest?: number; reveal?: boolean;
 }) {
   const [draft, setDraft] = useState<Draft | null>(null), [draftText, setDraftText] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const draftSubmitted = useRef(false);
+  const content = outlineContent(item);
+  const checked = (change: Change): Change => next => {
+    if (outlineContent(next) !== content) throw new Error('This outline changed while the edit was being prepared. Your draft was kept; review the latest outline and retry.');
+    change(next);
+  };
+  const onEdit = (change: Change) => edit(checked(change));
+  const onToggle = (change: Change) => toggle(checked(change));
   const [focus, setFocus] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const focusBaseline = useRef(item);
@@ -73,17 +82,21 @@ export function OutlineEditor({ item, dated, onEdit, onToggle, onPromote, addReq
   useEffect(() => { if (addRequest !== priorAddRequest.current) { priorAddRequest.current = addRequest; setDraft({ parent: [], index: item.details.length, note: !dated }); setDraftText(''); } }, [addRequest, dated, item.details.length]);
   useLayoutEffect(() => { if (focus && item !== focusBaseline.current) { root.current?.querySelector<HTMLTextAreaElement>(`[data-outline-path="${focus}"]`)?.focus(); setFocus(null); } }, [item, focus]);
   const requestFocus = (path: number[]) => { focusBaseline.current = item; setFocus(path.join('.')); };
-  const add = (parent: number[], index: number, note = !dated) => { setDraftText(''); setDraft({ parent, index, note }); };
-  const saveDraft = () => {
-    if (!draft) return;
+  useEffect(() => {
+    if (!draft || !draftText.trim()) return;
+    try { if (detailAt(item.details, [...draft.parent, draft.index]).text === draftText.trim()) { setDraft(null); setDraftText(''); draftSubmitted.current = false; } } catch { /* validation or scope review is still pending. */ }
+  }, [item]);
+  const add = (parent: number[], index: number, note = !dated) => { setDraftText(''); setSubmitted(false); draftSubmitted.current = false; setDraft({ parent, index, note }); };
+  const saveDraft = (retry = false) => {
+    if (!draft || draftSubmitted.current && !retry) return;
     const text = draftText.trim(), location = draft;
-    setDraft(null); setDraftText('');
-    if (!text) return;
-    onEdit(next => {
+    if (!text) { setDraft(null); setDraftText(''); return; }
+    setSubmitted(true); draftSubmitted.current = true;
+    void Promise.resolve(onEdit(next => {
       const siblings = location.parent.length ? (detailAt(next.details, location.parent).children ??= []) : next.details;
       siblings.splice(location.index, 0, { text, completed: false, ...(dated && location.note ? { kind: 'note' as const } : {}) });
       if (dated) refreshItemCompletion(next);
-    });
+    })).finally(() => setSubmitted(false));
     requestFocus([...location.parent, location.index]);
   };
   const move = (path: number[], direction: 'up' | 'down' | 'in' | 'out') => {
@@ -102,12 +115,12 @@ export function OutlineEditor({ item, dated, onEdit, onToggle, onPromote, addReq
       onToggle={() => onToggle(next => { const target = detailAt(next.details, path), completed = !target.completed; for (const child of outlineNodes([target])) if (child.kind !== 'note') child.completed = completed; refreshItemCompletion(next); })}
       onMove={direction => move(path, direction)} onAdd={note => add(path, node.children?.length ?? 0, note)} onSibling={() => add(parent, index + 1, node.kind === 'note')}
       onDelete={() => onEdit(next => { detailSiblings(next, path).splice(index, 1); if (dated) refreshItemCompletion(next); })}
-      onPromote={() => onPromote(path)} onBody={markdown => onEdit(next => { detailAt(next.details, path).body = markdown.trim() ? [{ markdown }] : undefined; })}
+      onPromote={() => onPromote(path, content)} onBody={markdown => onEdit(next => { detailAt(next.details, path).body = markdown.trim() ? [{ markdown }] : undefined; })}
       childrenContent={nodes(node.children ?? [], path)}
       draftContent={draft && draft.parent.join('.') === path.join('.') ? true : null}/>
     </Fragment>;
   })}{draft && draft.parent.join('.') === parent.join('.') && draft.index >= details.length ? draftField() : null}</ul>;
-  const draftField = () => <li><Row $depth={draft?.parent.length ?? 0}><span/><span/><Title autoFocus aria-label={`New outline item for ${item.text}`} value={draftText} onChange={event => setDraftText(event.target.value)} onBlur={saveDraft} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { event.preventDefault(); setDraft(null); setDraftText(''); } }}/></Row></li>;
+  const draftField = () => <li><Row $depth={draft?.parent.length ?? 0}><span/><span/><Title autoFocus aria-label={`New outline item for ${item.text}`} aria-busy={submitted} value={draftText} onChange={event => { draftSubmitted.current = false; setDraftText(event.target.value); }} onBlur={() => saveDraft()} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } if (event.key === 'Escape') { event.preventDefault(); if (!submitted) { setDraft(null); setDraftText(''); draftSubmitted.current = false; } } }}/><Control type="button" aria-label="Save outline item" disabled={submitted} onMouseDown={event => event.preventDefault()} onClick={() => saveDraft(true)}><Check size={15}/></Control></Row></li>;
   return <Wrap ref={root} role="group" aria-label={`Outline for ${item.text}`}>
     {!!(item.body?.length || notesRequest || hasDraft(draftKey)) && <MarkdownBodyEditor draftKey={draftKey} label={item.text} body={item.body} editRequest={notesRequest} onSave={markdown => onEdit(next => { next.body = markdown.trim() ? [{ markdown }] : undefined; })}/>}
     {nodes(item.details)}

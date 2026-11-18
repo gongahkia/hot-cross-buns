@@ -1,6 +1,6 @@
 import { OutlineEditor } from './OutlineEditor';
 import { newId } from '../todoText';
-import { promoteOutlineDetail } from '../outline';
+import { outlineContent, promoteOutlineDetail } from '../outline';
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
@@ -138,7 +138,7 @@ function SortableItem({ item, list, parents, disabled, ...actions }: { item: Tod
         {open === 'date' && <Menu><CalendarPanel label={'Choose date for ' + item.text} value={todayString()} onSelect={value => { actions.onDate(list,item.id,value); setOpen(null); }}/></Menu>}
       </Actions>
     </Row>
-    {actions.recursive ? <OutlineEditor item={item} dated={false} onEdit={change => actions.onEditOutline(list,item.id,change)} onToggle={() => undefined} onPromote={path => actions.onEditOutline(list,item.id,(item,items) => promoteOutlineDetail(item,items,path,newId()))} addRequest={outlineAdd} notesRequest={notesRequest} reveal={actions.revealItemId === item.id}/> : <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis,restrictToParentElement]} onDragEnd={({active,over}) => {
+    {actions.recursive ? <OutlineEditor item={item} dated={false} onEdit={change => actions.onEditOutline(list,item.id,change)} onToggle={() => undefined} onPromote={(path,expected) => actions.onEditOutline(list,item.id,(item,items) => { if (outlineContent(item) !== expected) throw new Error('This outline changed. Review the latest outline before promoting this branch.'); promoteOutlineDetail(item,items,path,newId()); })} addRequest={outlineAdd} notesRequest={notesRequest} reveal={actions.revealItemId === item.id}/> : <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis,restrictToParentElement]} onDragEnd={({active,over}) => {
       if (!over || active.id === over.id) return;
       const from = detailIds.indexOf(String(active.id));
       const to = detailIds.indexOf(String(over.id));

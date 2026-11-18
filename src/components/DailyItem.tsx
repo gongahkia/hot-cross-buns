@@ -1,5 +1,5 @@
 import { OutlineEditor } from './OutlineEditor';
-import { outlineNodes, promoteOutlineDetail, setItemCompletion } from '../outline';
+import { outlineContent, outlineNodes, promoteOutlineDetail, setItemCompletion } from '../outline';
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { createPortal } from 'react-dom';
@@ -182,7 +182,7 @@ export function JournalItem({ item, parentItems, previousItem, date, onChange, o
       <ItemMain>{timeBlock && <TimeLabel title="Time block">{timeBlock.start}–{timeBlock.end}</TimeLabel>}<LineField $done={item.completed} $completionChange={completionChange} aria-label={`Edit ${item.text}`} value={text} onChange={event => setText(event.target.value.replace(/[\r\n]+/g, ' '))} onBlur={saveText} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); onStartNext(); } if (event.key === 'Escape') { cancelText.current = true; event.currentTarget.blur(); } }}/></ItemMain>
       {item.repeat && <RepeatLabel title={`Repeat rule: ${formatRecurrence(item.repeat)}`}><Repeat2 size={12}/>{describeRecurrence(item.repeat)}</RepeatLabel>}
       {item.span && <RepeatLabel title={`Span: ${formatSpan(item.span)}`}><CalendarDays size={12}/>{item.projection?.continuation ? 'continues · ' : ''}{formatSpan(item.span)}</RepeatLabel>}
-      {recursive && <OutlineClip id={`details-${item.id}`} hidden={!detailsExpanded}><OutlineEditor item={item} dated onEdit={change => onEdit(change)} onToggle={change => onChange(change)} onPromote={path => onEdit((item,items) => promoteOutlineDetail(item, items, path, newId()))} addRequest={outlineAdd} notesRequest={notesRequest} reveal={revealOutline}/></OutlineClip>}
+      {recursive && <OutlineClip id={`details-${item.id}`} hidden={!detailsExpanded}><OutlineEditor item={item} dated onEdit={change => onEdit(change)} onToggle={change => onChange(change)} onPromote={(path,expected) => onEdit((item,items) => { if (outlineContent(item) !== expected) throw new Error('This outline changed. Review the latest outline before promoting this branch.'); promoteOutlineDetail(item, items, path, newId()); })} addRequest={outlineAdd} notesRequest={notesRequest} reveal={revealOutline}/></OutlineClip>}
       {!recursive && !!item.details.length && <DetailsClip id={`details-${item.id}`} $open={detailsExpanded} aria-hidden={!detailsExpanded} inert={!detailsExpanded}><DndContext sensors={detailSensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={({active,over}) => {
         if (!over || active.id === over.id) return;
         const from = detailIds.indexOf(String(active.id));

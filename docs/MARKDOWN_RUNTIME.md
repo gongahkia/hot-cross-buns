@@ -2,6 +2,8 @@
 
 The app's working document is now the exact UTF-8 Markdown source described in [MARKDOWN_FORMAT.md](MARKDOWN_FORMAT.md). The default file is `Planner.md`. Dated entries, undated lists, ordinary prose and the terminal scratchpad belong to that one document. Appearance, local view preferences and credentials remain outside it. Immutable revisions are companion recovery artifacts; unresolved branches can contain work absent from the latest `Planner.md` projection.
 
+Expensive browser validation and edit preparation run in a bounded worker, with full synchronous validation as a fallback when worker infrastructure is unavailable. Queued edits preserve ordering and reject stale results; parsing never commits browser or provider state on its own. Scratchpad save/capture prepares a full candidate before an atomic source/revision check in IndexedDB. See [parser performance and verification](PARSER_PERFORMANCE.md).
+
 ## Editing and content ownership
 
 Existing entry/detail controls, completion, recurrence, spans, moves and capture promotion use `journalDocument.ts` to patch intended source ranges and validate the complete candidate. Derived task arrays are rebuildable views. They cannot replace source on reload, and the TXT serializer and merge are not runtime fallbacks. Untouched prose, tables, code, comments, spacing, line endings and metadata spelling survive structured edits. A changed metadata field can deliberately regenerate that entry's metadata block. Missing entry IDs are inserted when an operation requires identity; existing IDs survive ordinary moves and title edits, and copies receive new IDs.
