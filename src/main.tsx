@@ -10,6 +10,7 @@ import { migrateLegacyStorage } from './legacyStorage';
 import { loadWorkspaceArchive, loadTodoState, readBrowserRecovery } from './todoStore';
 import { WorkspaceTransition } from './components/WorkspaceTransition';
 import { downloadTextFile } from './files';
+import { recordMarkdownDuration } from './markdownMeasurements';
 
 async function start() {
   await migrateLegacyStorage();
@@ -21,7 +22,7 @@ async function start() {
 
   const root = ReactDOM.createRoot(document.getElementById('root')!);
   const archive = await loadWorkspaceArchive();
-  const renderApp = () => root.render(<React.StrictMode><GlobalStyle /><App /></React.StrictMode>);
+  const renderApp = () => root.render(<React.StrictMode><GlobalStyle />{import.meta.env.VITE_HCB_MARKDOWN_PROFILE === '1' ? <React.Profiler id="journal" onRender={(_id, _phase, duration) => recordMarkdownDuration('reactRender', duration)}><App/></React.Profiler> : <App/>}</React.StrictMode>);
   if (archive) root.render(<React.StrictMode><GlobalStyle /><WorkspaceTransition archive={archive} onReady={renderApp}/></React.StrictMode>);
   else { await loadTodoState(); renderApp(); }
 }

@@ -3,6 +3,7 @@ import { createJournal, serializeJournal, validateJournal, materializeJournal, r
 import { newSyncLedger, type SyncBundle, type SyncLink, type SyncProvider } from './journalSync';
 import { reviewedRevision } from './revisionSync';
 import { normalizeDocument, type TodoDocument } from './todoText';
+import { finishMarkdownMeasurement, startMarkdownMeasurement } from './markdownMeasurements';
 
 export type TodoState = { document: TodoDocument; baseline: TodoDocument | null; revision: number; scratchRevision?: number };
 export type ScratchpadState = { text: string; revision: number };
@@ -123,6 +124,7 @@ export async function loadScratchpadState(): Promise<ScratchpadState> {
 
 /** Reading and writing in one transaction serializes writes from all app windows. */
 export async function mutateTodoState(change: (latest: TodoState) => TodoState | null): Promise<TodoState | null> {
+  const started = startMarkdownMeasurement();
   const result = await transact<TodoState | null>([STATE_STORE], (tx, done, fail) => {
     const store = tx.objectStore(STATE_STORE);
     const request = store.get('current');
@@ -139,6 +141,7 @@ export async function mutateTodoState(change: (latest: TodoState) => TodoState |
       } catch (error) { fail(error); }
     };
   });
+  finishMarkdownMeasurement('durableSave', started);
   if (result) { announce('journal', true); announce('scratchpad', true); }
   return result;
 }

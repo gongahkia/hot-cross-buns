@@ -19,6 +19,7 @@
     "test:ui": "playwright test",
     "test:e2e": "npm run build && npm run test:ui",
     "test:local": "npm run test:e2e",
+    "benchmark:markdown": "node --experimental-strip-types scripts/benchmark-markdown.mjs",
     "verify": "npm run test:unit && npm run test:python && npm run build && npm run test:ui && npm audit --audit-level=low"
   },
   "dependencies": {

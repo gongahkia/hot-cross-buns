@@ -6,9 +6,10 @@ import type { TodoDocument } from './todoText.ts';
 import { editMarkdownPassage } from './markdownPassage.ts';
 import type { SourceRange } from './markdownPlanner.ts';
 import type { MarkdownLinkPreparation } from './markdownNavigation.ts';
+import { finishMarkdownMeasurement, recordMarkdownDuration, startMarkdownMeasurement } from './markdownMeasurements.ts';
 
 type WorkerPort = Pick<Worker, 'postMessage' | 'terminate' | 'onmessage' | 'onerror' | 'onmessageerror'>;
-type Pending = { resolve: (value: Extract<JournalWorkResult, { ok: true }>) => void; reject: (error: Error) => void; cleanup: () => void };
+type Pending = { operation: JournalWork['kind']; started?: number; resolve: (value: Extract<JournalWorkResult, { ok: true }>) => void; reject: (error: Error) => void; cleanup: () => void };
 export class JournalWorkerUnavailable extends Error {}
 
 /** one worker and at most eight outstanding requests; results never commit journal state. */
@@ -29,6 +30,8 @@ export class JournalBackground {
       this.worker.onmessage = (event: MessageEvent<JournalWorkResult>) => {
         const result = event.data, pending = this.pending.get(result.id);
         if (!pending) return;
+        finishMarkdownMeasurement(`workerRoundTrip:${pending.operation}`, pending.started);
+        if (pending.started !== undefined && result.workerMs !== undefined) recordMarkdownDuration(`workerWork:${pending.operation}`, result.workerMs);
         this.pending.delete(result.id); pending.cleanup();
         if (result.ok) pending.resolve(result); else pending.reject(new Error(result.error));
       };
@@ -40,9 +43,10 @@ export class JournalBackground {
       const abort = () => { const pending = this.pending.get(id); if (pending) { this.pending.delete(id); pending.cleanup(); reject(new DOMException('Journal validation was cancelled.', 'AbortError')); } };
       const timeout = setTimeout(() => this.dispose('Journal validation exceeded its time budget. Keep or download your draft, then retry.'), this.timeoutMs);
       const cleanup = () => { clearTimeout(timeout); signal?.removeEventListener('abort', abort); };
-      this.pending.set(id, { resolve, reject, cleanup });
+      const started = startMarkdownMeasurement();
+      this.pending.set(id, { operation: work.kind, started, resolve, reject, cleanup });
       signal?.addEventListener('abort', abort, { once: true });
-      try { this.worker!.postMessage({ ...work, id } satisfies JournalWorkRequest); }
+      try { const posted = startMarkdownMeasurement(); this.worker!.postMessage({ ...work, id, ...(started === undefined ? {} : { profile: true }) } satisfies JournalWorkRequest); finishMarkdownMeasurement(`postMessage:${work.kind}`, posted); }
       catch { this.pending.delete(id); cleanup(); reject(new Error('Journal validation could not be submitted. Keep your draft and retry.')); }
     });
   }
@@ -56,6 +60,7 @@ export class JournalBackground {
 
 let background: JournalBackground | undefined;
 const client = () => background ??= new JournalBackground(() => new Worker(new URL('./journalWorkerEntry.ts', import.meta.url), { type: 'module', name: 'planner-validation' }));
+const adopt = (model: Parameters<typeof journalFromPlanner>[0]) => { const started = startMarkdownMeasurement(); const result = journalFromPlanner(model); finishMarkdownMeasurement('modelAdoption', started, model.source.length); return result; };
 
 export async function readJournalAsync(source: string, signal?: AbortSignal) {
   if (signal?.aborted) throw new DOMException('Journal validation was cancelled.', 'AbortError');
@@ -68,7 +73,7 @@ export async function readJournalAsync(source: string, signal?: AbortSignal) {
   catch (error) { if (signal?.aborted) throw new DOMException('Journal validation was cancelled.', 'AbortError'); if (error instanceof JournalWorkerUnavailable) return readJournal(source); throw error; }
   if (signal?.aborted) throw new DOMException('Journal validation was cancelled.', 'AbortError');
   if (result.model.source !== source) throw new Error('Journal validation returned a different source. Keep your draft and retry.');
-  return journalFromPlanner(result.model);
+  return adopt(result.model);
 }
 
 export async function materializeJournalAsync(document: TodoDocument): Promise<TodoDocument> {
@@ -77,7 +82,7 @@ export async function materializeJournalAsync(document: TodoDocument): Promise<T
   let result;
   try { result = await client().request({ kind: 'materialize', document }); }
   catch (error) { if (error instanceof JournalWorkerUnavailable) return materializeJournal(document); throw error; }
-  return journalFromPlanner(result.model).document;
+  return adopt(result.model).document;
 }
 
 export async function upgradeOutlineJournalAsync(document: TodoDocument) {
@@ -85,7 +90,7 @@ export async function upgradeOutlineJournalAsync(document: TodoDocument) {
   let result;
   try { result = await client().request({ kind: 'upgrade', document }); }
   catch (error) { if (error instanceof JournalWorkerUnavailable) return upgradeOutlineJournal(document); throw error; }
-  return { document: journalFromPlanner(result.model).document, checkboxChanges: result.checkboxChanges ?? 0 };
+  return { document: adopt(result.model).document, checkboxChanges: result.checkboxChanges ?? 0 };
 }
 
 export async function editMarkdownPassageAsync(source: string, range: SourceRange, markdown: string, links: MarkdownLinkPreparation[] = []) {
@@ -93,5 +98,5 @@ export async function editMarkdownPassageAsync(source: string, range: SourceRang
   let result;
   try { result = await client().request({ kind: 'passage', source, range, markdown, links }); }
   catch (error) { if (error instanceof JournalWorkerUnavailable) return journalFromPlanner(editMarkdownPassage(source, range, markdown, links)).document; throw error; }
-  return journalFromPlanner(result.model).document;
+  return adopt(result.model).document;
 }
