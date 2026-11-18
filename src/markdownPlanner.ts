@@ -36,6 +36,7 @@ export type SourcePatch = { range: SourceRange; expected: string; text: string }
 const incremental = createPlannerIncrementalValidator();
 export const incrementallyValidatePlanner = incremental.validate;
 export const plannerValidationKind = incremental.kind;
+export const incrementalPlannerChanges = incremental.changes;
 
 const identity = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const rangeOf = (node: Node): SourceRange => ({ start: node.position!.start.offset!, end: node.position!.end.offset! });

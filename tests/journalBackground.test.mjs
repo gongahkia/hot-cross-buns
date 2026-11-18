@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JournalBackground, JournalWorkerUnavailable, materializeJournalAsync, readJournalAsync } from '../src/journalBackground.ts';
-import { createJournal, parseJournal } from '../src/journalDocument.ts';
-import { runJournalWork } from '../src/journalWorker.ts';
+import { createJournal, journalFromPlanner, parseJournal } from '../src/journalDocument.ts';
+import { createJournalWorkerHost, runJournalWork } from '../src/journalWorker.ts';
 
 class Port {
   messages = []; terminated = false;
@@ -98,4 +98,30 @@ test('an unchanged working copy reuses its validated model instead of parsing ag
   const materialized = runJournalWork({ id: 2, kind: 'materialize', document: structuredClone(before) });
   assert.equal(materialized.model, parsed.model);
   assert.equal(materialized.model.source, before.source);
+});
+
+
+class CompactPort extends Port {
+  host = createJournalWorkerHost(); responses = [];
+  postMessage(message) { super.postMessage(structuredClone(message)); }
+  finish(index = 0, change = value => value) {
+    const result = change(structuredClone(this.host(this.messages[index])));
+    this.responses.push(result); this.onmessage({ data: result });
+  }
+}
+const compactSource = () => createJournal('background-compact',3).source.replace('## Dated\n', '## Dated\n\n### 2026-11-18\n\n- [ ] Alpha\n  ```hcb\n  id: alpha\n  ```\n');
+async function bootstrap(client, port) {
+ const source=compactSource(),pending=client.request({kind:'parse',source});port.finish(port.messages.length-1);
+ const model=(await pending).model;return journalFromPlanner(model).document;
+}
+const completed = document => { const next=structuredClone(document);next.days[0].items[0].completed=true;return next; };
+
+test('background negotiates a compact response and preserves the original immutable baseline', async()=>{
+ const port=new CompactPort(),client=new JournalBackground(()=>port);
+ const document=await bootstrap(client,port),pending=client.request({kind:'materialize',document:completed(document)});
+ assert.equal(port.messages[1].baselineId,port.messages[0].id);port.finish(1);
+ assert.ok(port.responses[1].delta);assert.equal('model' in port.responses[1],false);
+ const result=await pending;assert.equal(result.model.source,document.source.replace('[ ] Alpha','[x] Alpha'));
+ assert.equal(document.days[0].items[0].completed,false);assert.ok(Object.isFrozen(result.model));
+ client.dispose();
 });

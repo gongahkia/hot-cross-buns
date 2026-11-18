@@ -1,9 +1,5 @@
-import { plannerValidationKind } from './markdownPlanner.ts';
-import { runJournalWork, type JournalWorkRequest, type JournalWorkResult } from './journalWorker.ts';
+import { createJournalWorkerHost, type JournalWorkRequest, type JournalWireResult } from './journalWorker.ts';
 
-const scope = globalThis as unknown as { onmessage: (event: MessageEvent<JournalWorkRequest>) => void; postMessage: (result: JournalWorkResult) => void };
-scope.onmessage = event => {
-  const started = event.data.profile ? performance.now() : undefined;
-  const result = runJournalWork(event.data);
-  scope.postMessage(started === undefined ? result : { ...result, workerMs: performance.now() - started, ...(result.ok ? { validation: plannerValidationKind(result.model) } : {}) });
-};
+const scope = globalThis as unknown as { onmessage: (event: MessageEvent<JournalWorkRequest>) => void; postMessage: (result: JournalWireResult) => void };
+const respond = createJournalWorkerHost();
+scope.onmessage = event => scope.postMessage(respond(event.data));

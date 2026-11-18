@@ -1,5 +1,5 @@
 import type { MarkdownNode } from './markdown.ts';
-import type { MarkdownPlanner, PlannerDetail, PlannerEntry, SourceRange } from './markdownPlanner.ts';
+import type { MarkdownPlanner, PlannerDetail, PlannerEntry, SourcePatch, SourceRange } from './markdownPlanner.ts';
 import { taskChildren } from './outline.ts';
 import { finishMarkdownMeasurement, startMarkdownMeasurement } from './markdownMeasurements.ts';
 
@@ -10,9 +10,10 @@ const plainTitle = /^[A-Za-z](?:[A-Za-z ]*[A-Za-z])?$/;
 
 export function createPlannerIncrementalValidator() {
   const validated = new WeakMap<MarkdownPlanner, 'full' | 'incremental'>();
+  const receipts = new WeakMap<MarkdownPlanner, { base: WeakRef<MarkdownPlanner>; patches: readonly SourcePatch[] }>();
   const indexes = new WeakMap<MarkdownPlanner, Token[]>();
 
-  /** internal parser certificate: copied/wire models must pass the full parser before reuse. */
+  /** private certificate: only this validator instance can authorize its baselines. */
   function sealParsedPlanner(model: MarkdownPlanner, kind: 'full' | 'incremental' = 'full'): MarkdownPlanner {
     const pending: object[] = [model];
     while (pending.length) {
@@ -71,6 +72,7 @@ export function createPlannerIncrementalValidator() {
     let start = 0, end = source.length;
     while (before[start] === source[start]) start++;
     while (end > start && before[end - 1] === source[end - 1]) end--;
+    const patches: SourcePatch[] = [];
     const tokens = tokensFor(model), changes = new Map<number, Change>(), owners = new Set<Owner>();
     for (let offset = start; offset < end;) {
       if (before[offset] === source[offset]) { offset++; continue; }
@@ -84,6 +86,7 @@ export function createPlannerIncrementalValidator() {
         if (!/^[ xX]$/.test(text)) return null;
         change.completed = text !== ' ';
       }
+      patches.push(Object.freeze({ range: token.range, expected: before.slice(token.range.start, token.range.end), text }));
       changes.set(token.node, change); owners.add(token.owner); offset = token.range.end;
     }
     const update = <T extends PlannerDetail>(node: T): T => {
@@ -128,9 +131,11 @@ export function createPlannerIncrementalValidator() {
     }
     if (blocks !== model.markdown.blocks) next.markdown = { ...model.markdown, blocks };
     sealParsedPlanner(next, 'incremental'); indexes.set(next, tokens);
+    // receipts must not retain an unbounded chain of historical full models.
+    if (typeof WeakRef !== 'undefined') receipts.set(next, { base: new WeakRef(model), patches: Object.freeze(patches) });
     finishMarkdownMeasurement('incrementalValidation', started, source.length);
     return next;
   }
 
-  return { seal: sealParsedPlanner, validate: incrementallyValidatePlanner, kind: (model:MarkdownPlanner) => validated.get(model) };
+  return { changes: (model: MarkdownPlanner, base: MarkdownPlanner) => { const receipt = receipts.get(model); return receipt?.base.deref() === base ? receipt.patches : undefined; }, seal: sealParsedPlanner, validate: incrementallyValidatePlanner, kind: (model:MarkdownPlanner) => validated.get(model) };
 }
