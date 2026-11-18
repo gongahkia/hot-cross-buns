@@ -1,3 +1,4 @@
+import {refreshItemCompletion,setItemCompletion} from '../src/outline.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { materializeJournal, readJournal } from '../src/journalDocument.ts';
@@ -42,4 +43,14 @@ test('the source adapter rejects metadata-losing demotion even outside contextua
  const document=structuredClone(parse(source).document);const [child]=document.days[0].items.splice(1,1);
  document.days[0].items[0].details.push({text:child.text,completed:child.completed,sourceRef:child.sourceRef,children:child.details,body:child.body});
  assert.throws(()=>materializeJournal(document),/Keep identified/);assert.equal(parse(source).document.days[0].items[1].id,'done');
+});
+
+test('reopening a completed undated task intentionally clears its completion date',()=>{
+ const moved=editWritingOutline(source,at(source,'- [x] Done'),{list:'Inbox'});const document=structuredClone(parse(moved.source).document);
+ const item=document.undated[0].items[0];setItemCompletion(item,false);const next=materializeJournal(document);
+ assert.equal(next.undated[0].items[0].completed,false);assert.equal(next.undated[0].items[0].completedOn,undefined);assert.ok(!next.source.includes('completed: 2026-11-17'));assert.ok(next.source.includes('id: done'));
+});
+test('reopening through a child clears the ancestor completion date in either location',()=>{
+ const item={id:'parent',text:'Parent',completed:true,completedOn:'2026-11-17',details:[{text:'Child',completed:false}]};
+ refreshItemCompletion(item);assert.equal(item.completed,false);assert.equal(item.completedOn,undefined);
 });

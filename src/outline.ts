@@ -40,10 +40,12 @@ export function refreshItemCompletion(item: TodoItem): void {
   const tasks = taskChildren(item.details);
   if (item.kind === 'note') item.completed = false;
   else if (tasks.length) item.completed = tasks.every(child => child.completed);
+  if (!item.completed) delete item.completedOn;
 }
 
 export function setItemCompletion(item: TodoItem, completed: boolean): void {
   item.completed = completed;
+  if (!completed) delete item.completedOn;
   for (const node of outlineNodes(item.details)) if (node.kind !== 'note') node.completed = completed;
 }
 
