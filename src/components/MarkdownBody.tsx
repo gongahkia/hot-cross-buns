@@ -4,11 +4,14 @@ import { Pencil } from 'lucide-react';
 import { headingSlug, parseMarkdownPreview, safeMarkdownUrl, type MarkdownNode } from '../markdown';
 import { MarkdownDocumentContext } from '../markdownContext';
 import type { TodoBody } from '../todoText';
+import { MarkdownCode, MarkdownMath } from './MarkdownRich';
+import { MarkdownDiagram } from './MarkdownDiagram';
 
-const Content = styled.div`font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-width:0;p,ul,ol,blockquote,pre,table{margin:8px 0;}ul,ol{padding-left:22px;}blockquote{padding-left:12px;border-left:1px solid var(--line);color:var(--muted);}pre{max-width:100%;overflow:auto;white-space:pre-wrap;font:12px/1.6 var(--raw-font);}code{font-family:var(--raw-font);}table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;}td,th{padding:5px 8px;border:1px solid var(--line);}a{color:var(--link);text-decoration:underline;text-underline-offset:3px;}h1,h2,h3,h4,h5,h6{font-size:1em;margin:12px 0 6px;scroll-margin-top:80px;}img{display:block;max-width:100%;max-height:480px;object-fit:contain;}[data-footnotes]{margin-top:16px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;}[data-footnotes] li{scroll-margin-top:80px;}sup a{padding:2px;}`;
+const Content = styled.div`font-size:14px;line-height:1.6;overflow-wrap:anywhere;min-width:0;strong{font-weight:600;}em{font-style:italic;}&& ul{list-style:disc;padding-left:22px;}&& ol{list-style:decimal;padding-left:22px;}&& ul ul{list-style-type:circle;}li:has(>input[type=checkbox]){list-style:none;}p,ul,ol,blockquote,pre,table{margin:8px 0;}ul,ol{padding-left:22px;}blockquote{padding-left:12px;border-left:1px solid var(--line);color:var(--muted);}pre{max-width:100%;overflow:auto;white-space:pre-wrap;font:12px/1.6 var(--raw-font);}code{font-family:var(--raw-font);}table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;}td,th{padding:5px 8px;border:1px solid var(--line);}a{color:var(--link);text-decoration:underline;text-underline-offset:3px;}h1,h2,h3,h4,h5,h6{font-size:1em;margin:12px 0 6px;scroll-margin-top:80px;}img{display:block;max-width:100%;max-height:480px;object-fit:contain;}[data-footnotes]{margin-top:16px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;}[data-footnotes] li{scroll-margin-top:80px;}sup a{padding:2px;}`;
 const ImageButton = styled.button`min-height:36px;padding:4px 0;border:0;background:transparent;color:var(--link);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:3px;@media(pointer:coarse){min-height:44px;}`;
 const Block = styled.div`position:relative;min-width:0;padding-right:32px;[data-block-edit]{opacity:0;}&:hover [data-block-edit],&:focus-within [data-block-edit]{opacity:1;}@media(hover:none){[data-block-edit]{opacity:1;}}@media(pointer:coarse){padding-right:44px;}`;
 const BlockEdit = styled.button`position:absolute;right:0;top:4px;display:grid;place-items:center;width:28px;min-height:32px;padding:4px;border:0;border-radius:4px;background:transparent;color:var(--muted);&:hover,&:focus-visible{background:var(--soft);color:var(--ink);}@media(pointer:coarse){width:44px;min-height:44px;}`;
+const Callout = styled.aside`margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--soft);color:var(--ink);&>strong{display:block;font-weight:600;}&>details>summary{min-height:36px;font-weight:600;cursor:pointer;}@media(pointer:coarse){&>details>summary{min-height:44px;}}`;
 
 function MarkdownImage({ url, alt, title }: { url?: string; alt?: string; title?: string }) {
   const [loaded, setLoaded] = useState(false), [failed, setFailed] = useState(false);
@@ -38,6 +41,7 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
         case 'source': return <pre key={key}>{nodeSource.slice(node.range.start, node.range.end)}</pre>;
         case 'text': return node.value;
         case 'paragraph': return <p key={key}>{children()}</p>;
+        case 'group': return <div key={key}>{children()}</div>;
         case 'heading': {
           const heading = preview.index.headings.find(heading => heading.range.start === node.range.start);
           const anchor = heading?.id ?? headingSlug(nodeSource.slice(node.range.start, node.range.end));
@@ -47,11 +51,13 @@ export function MarkdownBody({ markdown, body, label, onEditBlock, activeBlock, 
         case 'emphasis': return <em key={key}>{children()}</em>;
         case 'delete': return <del key={key}>{children()}</del>;
         case 'inlineCode': return <code key={key}>{node.value}</code>;
-        case 'code': return <pre key={key}><code>{node.value}</code></pre>;
+        case 'code': return node.lang?.toLowerCase() === 'mermaid' ? <MarkdownDiagram key={key} source={node.value ?? ''}/> : ['math', 'latex', 'tex'].includes(node.lang?.toLowerCase() ?? '') ? <MarkdownMath key={key} source={node.value ?? ''} display fallback={node.value ?? ''}/> : <MarkdownCode key={key} source={node.value ?? ''} language={node.lang}/>;
+        case 'math': case 'inlineMath': return <MarkdownMath key={key} source={node.value ?? ''} display={node.type === 'math'} fallback={nodeSource.slice(node.range.start, node.range.end)}/>;
         case 'html': return <pre key={key}>{node.value}</pre>;
         case 'break': return <br key={key}/>;
         case 'thematicBreak': return <hr key={key}/>;
         case 'blockquote': return <blockquote key={key}>{children()}</blockquote>;
+        case 'callout': return <Callout key={key} data-callout={node.callout?.kind}>{node.callout?.fold ? <details open={node.callout.fold === 'open'}><summary>{node.callout.title}</summary>{children()}</details> : <><strong>{node.callout?.title}</strong>{children()}</>}</Callout>;
         case 'list': return node.ordered ? <ol key={key} start={node.start}>{children()}</ol> : <ul key={key}>{children()}</ul>;
         case 'listItem': return <li key={key}>{typeof node.checked === 'boolean' && <input type="checkbox" checked={node.checked} disabled aria-label="Checkbox in body preview"/>}{children()}</li>;
         case 'link': case 'linkReference': {

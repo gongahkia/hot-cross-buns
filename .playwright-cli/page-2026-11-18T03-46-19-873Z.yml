@@ -1,0 +1,78 @@
+- generic [ref=e1]:
+  - main [ref=e3]:
+    - link "Skip to journal" [ref=e4] [cursor=pointer]:
+      - /url: "#journal-content"
+    - heading "Hot Cross Buns journal and scratchpad" [level=1] [ref=e5]
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "Previous range" [ref=e8] [cursor=pointer]
+        - generic [ref=e11]:
+          - button "Viewing 2026-11-16 to 2026-11-22; go to today" [ref=e12] [cursor=pointer]: 16/11/2026 – 22/11/2026
+          - button "Choose date" [ref=e13] [cursor=pointer]
+        - button "Next range" [ref=e16] [cursor=pointer]
+      - button "Open command palette" [active] [ref=e19] [cursor=pointer]:
+        - generic [ref=e22]: Commands
+        - generic [ref=e23]: ⌘ K
+    - navigation "Views" [ref=e24]:
+      - button "Dated" [ref=e25] [cursor=pointer]
+      - button "Undated" [ref=e26] [cursor=pointer]
+      - button "Scratchpad" [ref=e27] [cursor=pointer]
+    - region "Dated journal" [ref=e28]:
+      - region "Monday, 2026-11-16" [ref=e29]:
+        - heading "16 November 2026 Monday" [level=2] [ref=e30]:
+          - time [ref=e31]: 16 November 2026
+          - generic [ref=e32]: Monday
+        - textbox "New item for 2026-11-16" [ref=e34]:
+          - /placeholder: No lines yet. Add the first one below.
+      - region "Tuesday, 2026-11-17" [ref=e35]:
+        - heading "17 November 2026 Tuesday" [level=2] [ref=e36]:
+          - time [ref=e37]: 17 November 2026
+          - generic [ref=e38]: Tuesday
+        - textbox "New item for 2026-11-17" [ref=e40]:
+          - /placeholder: No lines yet. Add the first one below.
+      - region "Today, 2026-11-18" [ref=e41]:
+        - heading "18 November 2026 Today" [level=2] [ref=e42]:
+          - time [ref=e43]: 18 November 2026
+          - generic [ref=e44]: Today
+        - button "Expand done items for 2026-11-18" [ref=e113] [cursor=pointer]:
+          - generic [ref=e116]: done
+          - generic [aria-hidden] [ref=e117]: "0"
+        - paragraph [ref=e119]: upcoming
+        - group "Project notes" [ref=e120]:
+          - button "Drag to reorder Project notes" [ref=e121]
+          - button "Complete Project notes" [ref=e129] [cursor=pointer]
+          - generic [ref=e131]:
+            - textbox "Edit Project notes" [ref=e134]: Project notes
+            - group "Outline for Project notes" [ref=e136]:
+              - group [ref=e137]:
+                - generic "Notes" [ref=e138] [cursor=pointer]
+              - list
+          - button "More actions for Project notes" [ref=e143] [cursor=pointer]
+      - region "Thursday, 2026-11-19" [ref=e47]:
+        - heading "19 November 2026 Thursday" [level=2] [ref=e48]:
+          - time [ref=e49]: 19 November 2026
+          - generic [ref=e50]: Thursday
+        - textbox "New item for 2026-11-19" [ref=e52]:
+          - /placeholder: No lines yet. Add the first one below.
+      - region "Friday, 2026-11-20" [ref=e53]:
+        - heading "20 November 2026 Friday" [level=2] [ref=e54]:
+          - time [ref=e55]: 20 November 2026
+          - generic [ref=e56]: Friday
+        - textbox "New item for 2026-11-20" [ref=e58]:
+          - /placeholder: No lines yet. Add the first one below.
+      - region "Saturday, 2026-11-21" [ref=e59]:
+        - heading "21 November 2026 Saturday" [level=2] [ref=e60]:
+          - time [ref=e61]: 21 November 2026
+          - generic [ref=e62]: Saturday
+        - textbox "New item for 2026-11-21" [ref=e64]:
+          - /placeholder: No lines yet. Add the first one below.
+      - region "Sunday, 2026-11-22" [ref=e65]:
+        - heading "22 November 2026 Sunday" [level=2] [ref=e66]:
+          - time [ref=e67]: 22 November 2026
+          - generic [ref=e68]: Sunday
+        - textbox "New item for 2026-11-22" [ref=e70]:
+          - /placeholder: No lines yet. Add the first one below.
+      - status [ref=e71]
+  - status "Notification" [ref=e148]:
+    - generic [ref=e151]: Planner.md imported.
+    - button "Dismiss message" [ref=e152] [cursor=pointer]

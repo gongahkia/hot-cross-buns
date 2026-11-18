@@ -1,4 +1,4 @@
-import { indexMarkdown, parseMarkdownTree, type MarkdownIndex } from './markdown.ts';
+import { indexMarkdown, insideMarkdownMath, parseMarkdownTree, type MarkdownIndex } from './markdown.ts';
 import type { Node } from 'unist';
 import type { Code, ListItem } from 'mdast';
 import { parseRecurrence, type RecurrenceRule } from './recurrence.ts';
@@ -303,6 +303,7 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
     }
   }
   for (const entry of entries) if (entry.replaces && !series.has(entry.replaces.series)) issue('missing-series', 'Replacement refers to a missing scheduled series.', entry.range);
+  const markdown = indexMarkdown(root, renderRanges, source);
   // inspect iteratively: arbitrary Markdown nesting must not consume our call stack.
   const pending: Node[] = [...root.children];
   while (pending.length) {
@@ -312,11 +313,11 @@ export function parseMarkdownPlanner(source: string): MarkdownPlanner {
       issue('orphan-metadata', 'An hcb fence outside a direct planner entry is an example, not metadata.', rangeOf(node), 'warning');
     }
     if ((node.type === 'link' || node.type === 'definition') && 'url' in node && typeof node.url === 'string' && node.url.startsWith('#hcb-')) {
-      if (!ids.has(node.url.slice(5))) issue('broken-link', `Missing entry target: ${node.url}.`, rangeOf(node), 'warning');
+      if (!insideMarkdownMath(markdown.mathRanges, rangeOf(node)) && !ids.has(node.url.slice(5))) issue('broken-link', `Missing entry target: ${node.url}.`, rangeOf(node), 'warning');
     }
     for (const child of childrenOf(node)) pending.push(child);
   }
-  return { ...model, markdown: indexMarkdown(root, renderRanges, source) };
+  return { ...model, markdown };
 }
 
 export const plannerEntries = (model: Pick<MarkdownPlanner, 'days' | 'undated'>) => [...model.days, ...model.undated].flatMap(group => group.entries);
