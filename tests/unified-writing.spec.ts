@@ -7,7 +7,9 @@ const source = () => `---\nhcb-format: 3\ndocument-id: unified-browser\n---\n\n[
 async function load(page: Page) {
   await page.goto('/');
   await page.getByLabel('Import a Planner.md file').setInputFiles({ name: 'Planner.md', mimeType: 'text/markdown', buffer: Buffer.from(source()) });
-  return page.getByRole('region', { name: `Document for ${today()}`, exact: true });
+  const day = page.getByRole('region', { name: `Document for ${today()}`, exact: true });
+  await expect(day.locator('strong').filter({ hasText: 'writing' })).toBeVisible();
+  return day;
 }
 async function download(page: Page) {
   await runCommand(page, 'Download Planner.md');
@@ -51,7 +53,7 @@ test('task completion works inside plain dated outlines and undated task outline
 
 test('new writing can be a paragraph, table or mixed outline without a task wrapper', async ({ page }) => {
   const day = await load(page);
-  await day.getByRole('button', { name: 'Add writing', exact: true }).click();
+  await day.getByRole('button', { name: `Write in ${today()}`, exact: true }).click();
   const field = day.getByRole('textbox', { name: `Markdown for ${today()}`, exact: true });
   await field.fill('## Meeting\n\nA **direct paragraph**.\n\n| Person | Action |\n| --- | --- |\n| Sam | Review |\n\n- Context\n  - [ ] Follow up\n\n1. [ ] Ordered followup');
   await day.getByRole('button', { name: 'Save', exact: true }).click();
@@ -108,7 +110,7 @@ test('legacy writing upgrades are previewable, downloadable and undoable without
 test('the shared document surface fits a phone and supports dark appearance and rich content', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const day = await load(page);
-  await day.getByRole('button', { name: 'Add writing', exact: true }).click();
+  await day.getByRole('button', { name: `Write in ${today()}`, exact: true }).click();
   await day.getByRole('textbox', { name: `Markdown for ${today()}`, exact: true }).fill('> [!note] Context\n> A **useful** note.\n\nFormula $$\\frac{1}{2} + x_i$$.');
   await day.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(day.getByRole('math')).toBeVisible();
@@ -139,7 +141,7 @@ test('undated task/plain conversion and moves preserve completion rather than re
 
 test('new workspaces start with direct Markdown writing and only two core views',async({page})=>{
  await page.goto('/');await expect(page.getByRole('button',{name:'Enable unified writing',exact:true})).toHaveCount(0);await expect(page.getByRole('navigation',{name:'Views',exact:true}).getByRole('button')).toHaveText(['Dated','Undated']);
- const day=page.getByRole('region',{name:`Document for ${today()}`,exact:true});await day.getByRole('button',{name:'Start writing',exact:true}).click();await day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('First **paragraph**.\n\n- Context\n  - [ ] First action');await day.getByRole('button',{name:'Save',exact:true}).click();await expect(day.getByRole('textbox')).toHaveCount(0);await expect(day.getByRole('checkbox',{name:'Complete First action',exact:true})).toBeVisible();expect(await download(page)).toContain('hcb-format: 3');
+ const day=page.getByRole('region',{name:`Document for ${today()}`,exact:true});await day.getByRole('button',{name:`Write in ${today()}`,exact:true}).click();await day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('First **paragraph**.\n\n- Context\n  - [ ] First action');await day.getByRole('button',{name:'Save',exact:true}).click();await expect(day.getByRole('textbox')).toHaveCount(0);await expect(day.getByRole('checkbox',{name:'Complete First action',exact:true})).toBeVisible();expect(await download(page)).toContain('hcb-format: 3');
 });
 
 test('direct-document entry links and linked mentions move focus across the two views',async({page})=>{
@@ -191,4 +193,17 @@ test('clicking another block retains a dirty draft and reports how to finish it'
  await day.getByRole('button',{name:'Cancel',exact:true}).click();await day.locator('blockquote').click();
  await expect(field).toHaveValue(/- Plain outline[\s\S]*id: plain-outline[\s\S]*Attached \*\*context\*\*/);
  await day.getByRole('button',{name:'Cancel',exact:true}).click();expect(await download(page)).toBe(source());
+});
+
+
+test('one quiet writing line handles empty and populated dated, undated and capture surfaces',async({page})=>{
+ await page.addInitScript(()=>{window.open=()=>null;});await page.goto('/');
+ const day=page.getByRole('region',{name:`Document for ${today()}`,exact:true}),line=day.getByRole('button',{name:`Write in ${today()}`,exact:true});
+ await expect(day.getByRole('button',{name:/^(Add|Start) writing$/})).toHaveCount(0);
+ await line.press('Enter');const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await expect(field).toBeFocused();
+ await field.fill('A first paragraph.');await field.press('ControlOrMeta+Enter');await expect(field).toHaveCount(0);await expect(day.getByText('A first paragraph.',{exact:true})).toBeVisible();
+ await line.click();await expect(field).toHaveValue('');await field.fill('Another paragraph.');await field.press('ControlOrMeta+Enter');await expect(field).toHaveCount(0);await expect(day.getByText('Another paragraph.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Undated',exact:true}).click();const inbox=page.getByRole('region',{name:'Document for Inbox',exact:true});
+ await inbox.getByRole('button',{name:'Write in Inbox',exact:true}).click();const undated=inbox.getByRole('textbox',{name:'Markdown for Inbox',exact:true});await undated.fill('Undated writing.');await undated.press('ControlOrMeta+Enter');await expect(undated).toHaveCount(0);await expect(inbox.getByText('Undated writing.',{exact:true})).toBeVisible();
+ await runCommand(page,'Open Scratchpad');const capture=page.getByRole('dialog',{name:'Scratchpad',exact:true});await capture.getByRole('button',{name:'Write in Scratchpad',exact:true}).click();const scratch=capture.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true});await scratch.fill('Captured writing.');await scratch.press('ControlOrMeta+Enter');await expect(scratch).toHaveCount(0);await expect(capture.getByText('Captured writing.',{exact:true})).toBeVisible();
 });

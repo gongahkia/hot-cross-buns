@@ -58,7 +58,7 @@ test('a blocked desktop popup falls back to the same capture editor', async ({ p
   await runCommand(page, 'Open Scratchpad');
   const dialog = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
   await expect(dialog.locator('strong')).toHaveText('shared capture');
-  await expect(dialog.getByRole('button', { name: 'Add writing', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Write in Scratchpad', exact: true })).toBeVisible();
   expect(context.pages()).toHaveLength(1);
   await dialog.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
   await expect(dialog).not.toBeVisible();
