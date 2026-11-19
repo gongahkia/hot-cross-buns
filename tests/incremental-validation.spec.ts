@@ -29,7 +29,7 @@ test('real worker completes outlines incrementally while preserving exact Markdo
  const day=await load(page);await reset(page);await day.getByRole('checkbox',{name:'Complete Alpha',exact:true}).click();await expect(day.getByRole('checkbox',{name:'Reopen Child',exact:true})).toBeChecked();await hasPath(page,'workerValidation:materialize:incremental');await hasPath(page,'workerTransport:materialize:delta');expect(await exported(page)).toBe(source().replaceAll('[ ]','[x]'));await page.keyboard.press('ControlOrMeta+z');await expect(day.getByRole('checkbox',{name:'Complete Alpha',exact:true})).not.toBeChecked();expect(await exported(page)).toBe(source());await page.keyboard.press('ControlOrMeta+Shift+z');await expect(day.getByRole('checkbox',{name:'Reopen Alpha',exact:true})).toBeChecked();expect(await exported(page)).toBe(source().replaceAll('[ ]','[x]'));
 });
 test('ordinary rich document edits still take the full validation path',async({page})=>{
- const day=await load(page);await day.getByRole('button',{name:`Edit block 1 in ${today()}`,exact:true}).click();await day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('Other **prose**.');await reset(page);await day.getByRole('button',{name:'Save',exact:true}).click();await expect(day.getByRole('textbox')).toHaveCount(0);await hasPath(page,'workerValidation:writing:full');expect(await exported(page)).toBe(source().replace('Daily **prose**.','Other **prose**.'));
+ const day=await load(page);await day.getByRole('group', { name: `Writing block 1 in ${today()}`, exact: true }).press('Enter');await day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('Other **prose**.');await reset(page);await day.getByRole('button',{name:'Save',exact:true}).click();await expect(day.getByRole('textbox')).toHaveCount(0);await hasPath(page,'workerValidation:writing:full');expect(await exported(page)).toBe(source().replace('Daily **prose**.','Other **prose**.'));
 });
 
 
@@ -52,7 +52,7 @@ test('a corrupted compact response recovers through a complete real-worker resul
 test('compact completion and undo preserve later writing synchronized from another window',async({page,context})=>{
  const day=await load(page);await reset(page);await day.getByRole('checkbox',{name:'Complete Alpha',exact:true}).click();await hasPath(page,'workerTransport:materialize:delta');await reset(page);
  const other=await context.newPage();await other.goto('/');const second=other.getByRole('region',{name:`Document for ${today()}`,exact:true});
- await second.getByRole('button',{name:`Edit block 1 in ${today()}`,exact:true}).click();await second.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('Later **synced prose**.');await second.getByRole('button',{name:'Save',exact:true}).click();
+ await second.getByRole('group', { name: `Writing block 1 in ${today()}`, exact: true }).press('Enter');await second.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('Later **synced prose**.');await second.getByRole('button',{name:'Save',exact:true}).click();
  await expect(day.locator('strong').filter({hasText:'synced prose'})).toBeVisible();
  await day.getByRole('checkbox',{name:'Reopen Alpha',exact:true}).click();await expect(day.getByRole('checkbox',{name:'Complete Child',exact:true})).not.toBeChecked();
  expect(await exported(page)).toBe(source().replace('Daily **prose**.','Later **synced prose**.'));

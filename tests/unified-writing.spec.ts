@@ -23,14 +23,14 @@ test('dates and undated documents render writing directly and preserve attached 
   await expect(day.locator('blockquote')).toContainText('Attached context stays visible.');
   await expect(day.getByText('id: plain-outline', { exact: true })).toHaveCount(0);
   await expect(day.getByText('Notes', { exact: true })).toHaveCount(0);
-  await day.getByRole('button', { name: `Edit block 1 in ${today()}`, exact: true }).click();
+  await day.getByRole('group', { name: `Writing block 1 in ${today()}`, exact: true }).press('Enter');
   await day.getByRole('textbox', { name: `Markdown for ${today()}`, exact: true }).fill('Daily **updated writing** with [context][shared].');
   await day.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(day.locator('strong').filter({ hasText: 'updated writing' })).toBeVisible();
   await page.getByRole('button', { name: 'Undated', exact: true }).click();
   const inbox = page.getByRole('region', { name: 'Document for Inbox', exact: true });
   await expect(inbox.locator('strong')).toHaveText('writing');
-  await inbox.getByRole('button', { name: 'Edit block 1 in Inbox', exact: true }).click();
+  await inbox.getByRole('group', { name: 'Writing block 1 in Inbox', exact: true }).press('Enter');
   await inbox.getByRole('textbox', { name: 'Markdown for Inbox', exact: true }).fill('Persistent **updated writing**.');
   await inbox.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(inbox.locator('strong')).toHaveText('updated writing');
@@ -68,7 +68,7 @@ test('new writing can be a paragraph, table or mixed outline without a task wrap
 
 test('direct writing retains invalid drafts across reload and keeps native input undo', async ({ page }) => {
   const day = await load(page);
-  await day.getByRole('button', { name: `Edit block 1 in ${today()}`, exact: true }).click();
+  await day.getByRole('group', { name: `Writing block 1 in ${today()}`, exact: true }).press('Enter');
   const field = day.getByRole('textbox', { name: `Markdown for ${today()}`, exact: true });
   await field.fill('Recoverable draft');
   await field.press('End'); await field.press('x');
@@ -148,8 +148,8 @@ test('direct-document entry links and linked mentions move focus across the two 
 });
 
 test('a changed document in another window preserves and rejects a stale local writing draft',async({page})=>{
- const day=await load(page);await day.getByRole('button',{name:`Edit block 1 in ${today()}`,exact:true}).click();const draft=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await draft.fill('My recoverable draft.');
- const other=await page.context().newPage();await other.goto('/');const second=other.getByRole('region',{name:`Document for ${today()}`,exact:true});await second.getByRole('button',{name:`Edit block 1 in ${today()}`,exact:true}).click();await second.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('A newer **saved** paragraph.');await second.getByRole('button',{name:'Save',exact:true}).click();await expect(second.getByRole('textbox')).toHaveCount(0);
+ const day=await load(page);await day.getByRole('group', { name: `Writing block 1 in ${today()}`, exact: true }).press('Enter');const draft=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await draft.fill('My recoverable draft.');
+ const other=await page.context().newPage();await other.goto('/');const second=other.getByRole('region',{name:`Document for ${today()}`,exact:true});await second.getByRole('group', { name: `Writing block 1 in ${today()}`, exact: true }).press('Enter');await second.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true}).fill('A newer **saved** paragraph.');await second.getByRole('button',{name:'Save',exact:true}).click();await expect(second.getByRole('textbox')).toHaveCount(0);
  await expect(day.locator('strong').filter({hasText:'saved'})).toHaveCount(0);await day.getByRole('button',{name:'Save',exact:true}).click();await expect(day.getByRole('status')).toContainText('changed');await expect(draft).toHaveValue('My recoverable draft.');await page.reload();await expect(draft).toHaveValue('My recoverable draft.');await day.getByRole('button',{name:'Cancel',exact:true}).click();await expect(day.locator('strong').filter({hasText:'saved'})).toBeVisible();await other.close();
 });
 
@@ -159,4 +159,36 @@ test('identified roots expose child creation but cannot silently discard identit
 
 test('reopening an undated task clears its retained completion date and undo restores both',async({page})=>{
  const raw=source().replace('[ ] Undated action','[x] Undated action').replace('[ ] Undated child','[x] Undated child').replace('id: undated-action','id: undated-action\n  completed: '+today());await page.goto('/');await page.getByLabel('Import a Planner.md file').setInputFiles({name:'Planner.md',mimeType:'text/markdown',buffer:Buffer.from(raw)});await page.getByRole('button',{name:'Undated',exact:true}).click();const inbox=page.getByRole('region',{name:'Document for Inbox',exact:true});await inbox.getByRole('checkbox',{name:'Reopen Undated action',exact:true}).click();await expect(inbox.getByRole('checkbox',{name:'Complete Undated action',exact:true})).not.toBeChecked();expect(await download(page)).not.toContain('completed: '+today());await page.keyboard.press('Escape');await page.keyboard.press('ControlOrMeta+z');await expect(inbox.getByRole('checkbox',{name:'Reopen Undated action',exact:true})).toBeChecked();expect(await download(page)).toBe(raw);
+});
+
+
+test('clicking saved prose edits it in place and returns focus after saving or cancelling',async({page})=>{
+ const day=await load(page);
+ await expect(day.getByRole('button',{name:`Edit block 1 in ${today()}`,exact:true})).toHaveCount(0);
+ await day.locator('strong').filter({hasText:'writing'}).click();
+ const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});
+ await expect(field).toBeFocused();await expect(field).toHaveValue('Daily **writing** with [context][shared].');
+ await field.fill('Click to **edit** this paragraph.');await field.press('ControlOrMeta+Enter');
+ const block=day.getByRole('group',{name:`Writing block 1 in ${today()}`,exact:true});await expect(block).toBeFocused();
+ expect(await download(page)).toBe(source().replace('Daily **writing** with [context][shared].','Click to **edit** this paragraph.'));
+ await day.getByText('Click to edit this paragraph.',{exact:true}).click();await field.fill('A discarded change.');
+ await day.getByRole('button',{name:'Cancel',exact:true}).click();await expect(block).toBeFocused();await expect(block).toContainText('Click to edit this paragraph.');
+});
+
+test('links, task controls and selecting rendered text do not open an editor',async({page})=>{
+ const day=await load(page),popup=page.waitForEvent('popup');
+ await day.getByRole('link',{name:'context',exact:true}).click();await(await popup).close();await expect(day.getByRole('textbox')).toHaveCount(0);
+ await day.getByRole('checkbox',{name:'Complete Nested action',exact:true}).click();await expect(day.getByRole('checkbox',{name:'Reopen Nested action',exact:true})).toBeChecked();await expect(day.getByRole('textbox')).toHaveCount(0);
+ const prose=day.getByRole('group',{name:`Writing block 1 in ${today()}`,exact:true}).locator('p');
+ const bounds=(await prose.boundingBox())!;await page.mouse.move(bounds.x+3,bounds.y+bounds.height/2);await page.mouse.down();await page.mouse.move(bounds.x+70,bounds.y+bounds.height/2,{steps:8});await page.mouse.up();
+ expect(await page.evaluate(()=>getSelection()?.toString().length)).toBeGreaterThan(0);await expect(day.getByRole('textbox')).toHaveCount(0);
+});
+
+test('clicking another block retains a dirty draft and reports how to finish it',async({page})=>{
+ const day=await load(page);await day.locator('strong').filter({hasText:'writing'}).click();
+ const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await field.fill('Keep my current draft.');
+ await day.locator('blockquote').click();await expect(field).toHaveValue('Keep my current draft.');await expect(day.getByRole('status')).toContainText('before editing another block');
+ await day.getByRole('button',{name:'Cancel',exact:true}).click();await day.locator('blockquote').click();
+ await expect(field).toHaveValue(/- Plain outline[\s\S]*id: plain-outline[\s\S]*Attached \*\*context\*\*/);
+ await day.getByRole('button',{name:'Cancel',exact:true}).click();expect(await download(page)).toBe(source());
 });

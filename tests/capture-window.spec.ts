@@ -16,7 +16,7 @@ test('Commands opens one reusable capture window and preserves its unsaved Markd
   const popup = await pending;
   await expect(popup).toHaveURL(/popout=scratchpad/);
   await expect(popup).toHaveTitle('Scratchpad · Hot Cross Buns');
-  await popup.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  await popup.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true }).press('Enter');
   const field = popup.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true });
   await field.fill('An **unsaved capture**.');
   await runCommand(page, 'Open Scratchpad');
@@ -40,7 +40,7 @@ test('mobile capture opens in-app and retains a draft when closed and reopened',
   const dialog = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
   await expect(dialog).toBeVisible();
   expect(context.pages()).toHaveLength(1);
-  await dialog.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  await dialog.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true }).press('Enter');
   const field = dialog.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true });
   await field.fill('A **mobile draft**.');
   await dialog.getByRole('button', { name: 'Close Scratchpad', exact: true }).click();
@@ -70,15 +70,15 @@ test('capture retains its cross-window editing lease and an old draft survives t
   await load(page);
   await runCommand(page, 'Open Scratchpad');
   const first = page.getByRole('dialog', { name: 'Scratchpad', exact: true });
-  await first.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  await first.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true }).press('Enter');
   const draft = first.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true });
   await draft.fill('Keep this **old draft**.');
   const second = await context.newPage();
   await second.goto('/?popout=scratchpad');
   await expect(second.getByRole('button', { name: 'Take over editing', exact: true })).toBeVisible();
-  await expect(second.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true })).toHaveCount(0);
+  await expect(second.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true })).toHaveCount(0);
   await second.getByRole('button', { name: 'Take over editing', exact: true }).click();
-  await second.getByRole('button', { name: 'Edit block 1 in Scratchpad', exact: true }).click();
+  await second.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true }).press('Enter');
   await second.getByRole('textbox', { name: 'Markdown for Scratchpad', exact: true }).fill('A **newer capture**.');
   await second.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(second.getByRole('region', { name: 'Quick capture', exact: true }).locator('strong')).toHaveText('newer capture');
@@ -138,9 +138,9 @@ test('takeover waits for an accepted rich capture save before granting the next 
    post.call(this,message,options as StructuredSerializeOptions);
   };
  });
- await load(page);await runCommand(page,'Open Scratchpad');const first=page.getByRole('dialog',{name:'Scratchpad',exact:true});await first.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true}).click();await first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true}).fill('Held **capture**.');await first.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>typeof Reflect.get(window,'releaseHeldCapture')==='function');
- const other=await page.context().newPage();await other.goto('/?popout=scratchpad');await other.getByRole('button',{name:'Take over editing',exact:true}).click();await expect(other.getByText('Taking over the scratchpad…',{exact:false})).toBeVisible();await expect(other.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true})).toHaveCount(0);
- await page.evaluate(()=>Reflect.get(window,'releaseHeldCapture')());await expect(first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true})).toHaveCount(0);await expect(other.getByRole('button',{name:'Edit block 1 in Scratchpad',exact:true})).toBeVisible();await expect(other.getByRole('region',{name:'Quick capture',exact:true}).locator('strong')).toHaveText('capture');await expect(first.getByRole('button',{name:'Take over editing',exact:true})).toBeVisible();await other.close();
+ await load(page);await runCommand(page,'Open Scratchpad');const first=page.getByRole('dialog',{name:'Scratchpad',exact:true});await first.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true }).press('Enter');await first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true}).fill('Held **capture**.');await first.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>typeof Reflect.get(window,'releaseHeldCapture')==='function');
+ const other=await page.context().newPage();await other.goto('/?popout=scratchpad');await other.getByRole('button',{name:'Take over editing',exact:true}).click();await expect(other.getByText('Taking over the scratchpad…',{exact:false})).toBeVisible();await expect(other.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true })).toHaveCount(0);
+ await page.evaluate(()=>Reflect.get(window,'releaseHeldCapture')());await expect(first.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true})).toHaveCount(0);await expect(other.getByRole('group', { name: 'Writing block 1 in Scratchpad', exact: true })).toBeVisible();await expect(other.getByRole('region',{name:'Quick capture',exact:true}).locator('strong')).toHaveText('capture');await expect(first.getByRole('button',{name:'Take over editing',exact:true})).toBeVisible();await other.close();
 });
 
 test('capture queued behind a legacy text save releases pending state after the transfer',async({page})=>{

@@ -44,7 +44,7 @@ export function MarkdownBodyEditor({ body, label, onSave, editRequest = 0, draft
   const [visible, setVisible] = useState(expanded || !!editRequest || !!recovered);
   const ref = useRef<HTMLDetailsElement>(null);
   const restoreFocus = (block: number | null) => requestAnimationFrame(() => {
-    const button = (block === null ? null : ref.current?.querySelector<HTMLButtonElement>(`[data-block-index="${block}"]`)) ?? ref.current?.querySelector<HTMLButtonElement>('[data-edit-notes],[data-add-writing]');
+    const button = (block === null ? null : ref.current?.querySelector<HTMLElement>(`[data-writing-block="${block}"],[data-block-index="${block}"]`)) ?? ref.current?.querySelector<HTMLButtonElement>('[data-edit-notes],[data-add-writing]');
     button?.focus({ preventScroll: true });
   });
   useEffect(() => { if (editRequest) { if (!editing) { baseline.current = { markdown, label, source }; setDraft(markdown); setActiveBlock(null); } setEditing(true); if (ref.current) ref.current.open = true; } }, [editRequest]);
