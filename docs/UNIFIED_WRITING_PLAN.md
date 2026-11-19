@@ -45,3 +45,17 @@ Earlier full runs exposed obsolete Scratchpad-tab assertions, transition/drag-co
 `git diff --check` passed. README.md retains its starting SHA-256, `0d2d10d75f9c6f66bdc45c7a1dc6e5616be75f695ff6cf13171fff47440b155c`.
 
 Identified top-level entries stay top-level when using structured controls: the current child grammar has no planner-ID metadata, so demotion is rejected instead of dropping identity. Unidentified, unscheduled roots can be indented; existing child branches can move, nest and promote with their attached Markdown. Use Add child to extend an identified entry. Calendar drag/resize and nested planner identities are not implemented.
+
+
+## Direct editing refinement — 19 November 2026
+
+Format-3 writing now opens its local Markdown draft when the user clicks rendered text. Focusable writing blocks also accept Enter and regain focus after Save/Cancel. Unified documents no longer show separate pencil controls. Links, task checkboxes, text selection and contextual menus retain their own interactions, and clicking another block cannot discard a dirty draft. The same full-width, quiet **Write something…** line opens an append draft in empty and populated dated documents, undated documents and Scratchpad. Calendar quick-capture controls still open the dated document.
+
+Text inputs and textareas now use transparent surfaces, with keyboard-focus underlines and forced-color focus treatment. Document drafts inherit the surrounding typography, grow from 64 to 560 pixels and scroll for longer writing. The existing local draft, Save/Cancel, Command/Control+Enter, live preview, recovery, ownership and source-validation paths remain in use.
+
+Desktop light and 375-pixel phone light/dark rendering were inspected. Browser tests cover direct pointer/keyboard editing, focus restoration, selected text, link/checkbox interactions, dirty drafts, empty/populated writing, capture, growing/shrinking drafts, overflow and forced colors. The mechanical design scan exited 2 with one warning about the existing Inter font; the incumbent typeface was retained. This is browser/viewport verification, not a physical-device or other-browser-engine result. README.md remains unchanged.
+
+
+Verification for this refinement: `npm run verify` passed 371 unit tests, 15 Python tests and the production build, then stopped at one legacy drag-and-drop timeout (282 browser tests passed). The trace showed the second gesture dropping onto the following date and the helper waiting for its now-hidden item. That unmodified test passed three consecutive isolated reruns with `npx playwright test tests/local.spec.ts --grep 'dragging an item between Upcoming and Done updates every detail' --repeat-each=3 --workers=1`. A subsequent `npm run test:ui` passed all 283 browser tests without retries. The initial drag timing failure remains recorded rather than being hidden by a test or production-code change.
+
+A separate `npm audit --audit-level=low` passed with zero reported vulnerabilities on 19 November 2026; dependency manifests and lockfiles were unchanged. Existing main-chunk/Mermaid bundle warnings remain. `git diff --check` passed. Local checks used Node 26.7 and Chromium; Node 22/24 CI, other browser engines, physical phones and live cloud-provider delivery were not run. Browser sync checks use fault models. README.md retained SHA-256 `0d2d10d75f9c6f66bdc45c7a1dc6e5616be75f695ff6cf13171fff47440b155c`.
