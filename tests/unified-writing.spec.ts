@@ -200,10 +200,23 @@ test('one quiet writing line handles empty and populated dated, undated and capt
  await page.addInitScript(()=>{window.open=()=>null;});await page.goto('/');
  const day=page.getByRole('region',{name:`Document for ${today()}`,exact:true}),line=day.getByRole('button',{name:`Write in ${today()}`,exact:true});
  await expect(day.getByRole('button',{name:/^(Add|Start) writing$/})).toHaveCount(0);
- await line.press('Enter');const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await expect(field).toBeFocused();
+ await expect(line).toHaveCSS('cursor','text');await line.press('Enter');const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await expect(field).toBeFocused();
  await field.fill('A first paragraph.');await field.press('ControlOrMeta+Enter');await expect(field).toHaveCount(0);await expect(day.getByText('A first paragraph.',{exact:true})).toBeVisible();
  await line.click();await expect(field).toHaveValue('');await field.fill('Another paragraph.');await field.press('ControlOrMeta+Enter');await expect(field).toHaveCount(0);await expect(day.getByText('Another paragraph.',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Undated',exact:true}).click();const inbox=page.getByRole('region',{name:'Document for Inbox',exact:true});
  await inbox.getByRole('button',{name:'Write in Inbox',exact:true}).click();const undated=inbox.getByRole('textbox',{name:'Markdown for Inbox',exact:true});await undated.fill('Undated writing.');await undated.press('ControlOrMeta+Enter');await expect(undated).toHaveCount(0);await expect(inbox.getByText('Undated writing.',{exact:true})).toBeVisible();
  await runCommand(page,'Open Scratchpad');const capture=page.getByRole('dialog',{name:'Scratchpad',exact:true});await capture.getByRole('button',{name:'Write in Scratchpad',exact:true}).click();const scratch=capture.getByRole('textbox',{name:'Markdown for Scratchpad',exact:true});await scratch.fill('Captured writing.');await scratch.press('ControlOrMeta+Enter');await expect(scratch).toHaveCount(0);await expect(capture.getByText('Captured writing.',{exact:true})).toBeVisible();
+});
+
+
+test('inline editing grows with writing, stays bounded and retains keyboard focus visibility',async({page})=>{
+ await page.setViewportSize({width:375,height:812});const day=await load(page);await day.locator('strong').filter({hasText:'writing'}).click();
+ const field=day.getByRole('textbox',{name:`Markdown for ${today()}`,exact:true});await expect(field).toHaveCSS('background-color','rgba(0, 0, 0, 0)');await expect(field).toHaveCSS('border-top-width','0px');
+ await field.fill(Array.from({length:80},(_,index)=>`Line ${index}`).join('\n'));
+ await expect.poll(()=>field.evaluate(element=>element.clientHeight)).toBe(560);expect(await field.evaluate(element=>element.scrollHeight>element.clientHeight)).toBe(true);
+ await field.fill('A short draft.');await expect.poll(()=>field.evaluate(element=>element.clientHeight)).toBeLessThan(100);
+ await field.press('Tab');await page.keyboard.press('Shift+Tab');await expect(field).toBeFocused();await expect(field).not.toHaveCSS('box-shadow','none');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.emulateMedia({forcedColors:'active'});await expect(field).toHaveCSS('border-bottom-width','2px');
+ await day.getByRole('button',{name:'Cancel',exact:true}).click();expect(await download(page)).toBe(source());
 });

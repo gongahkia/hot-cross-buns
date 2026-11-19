@@ -44,7 +44,7 @@ test('dark mode uses neutral surfaces, readable text and matching browser chrome
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(20, 20, 20)');
 });
 
-test('text fields are borderless with an underline for keyboard focus', async ({ page }) => {
+test('text fields blend into their surface in both themes and retain keyboard focus styling', async ({ page }) => {
   await openLegacyJournal(page);
   await runCommand(page, 'Open search');
   const search = page.getByRole('combobox', { name: 'Search commands and journal' });
@@ -53,11 +53,15 @@ test('text fields are borderless with an underline for keyboard focus', async ({
   await expect(search).toHaveCSS('outline-style', 'none');
   await expect(search).toHaveCSS('box-shadow', 'none');
   await runCommand(page, 'Hot Cross Buns settings');
-  const borders = await page.locator(textEntrySelector).evaluateAll(elements => elements.map(element => ({
-    label: element.getAttribute('aria-label'),
-    width: getComputedStyle(element).borderTopWidth,
-  })));
-  expect(borders.length).toBeGreaterThan(0);
-  expect(borders.filter(field => field.width !== '0px')).toEqual([]);
+  for (const theme of ['Light mode', 'Dark mode']) {
+    await page.getByRole('button', { name: theme, exact: true }).click();
+    const fields = await page.locator(textEntrySelector).evaluateAll(elements => elements.map(element => ({
+      label: element.getAttribute('aria-label'),
+      width: getComputedStyle(element).borderTopWidth,
+      background: getComputedStyle(element).backgroundColor,
+    })));
+    expect(fields.length).toBeGreaterThan(0);
+    expect(fields.filter(field => field.width !== '0px' || field.background !== 'rgba(0, 0, 0, 0)')).toEqual([]);
+  }
   await expect(page.getByRole('button', { name: 'Dark mode', exact: true })).toHaveCSS('border-top-width', '0px');
 });

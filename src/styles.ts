@@ -35,8 +35,9 @@ export const GlobalStyle = createGlobalStyle`
   button:disabled { cursor: not-allowed; opacity: .5; }
   :focus:not(:focus-visible) { outline: none; }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  :root :is(${textEntrySelector}) { border: 0; border-radius: 0; caret-color: var(--ink); }
-  :root :is(${textEntrySelector}):focus { outline: none; box-shadow: inset 0 -1px 0 var(--focus); }
+  :root :is(${textEntrySelector}) { border: 0; border-radius: 0; background: transparent; caret-color: var(--ink); }
+  :root :is(${textEntrySelector})::placeholder { color: var(--muted); opacity: 1; }
+  :root :is(${textEntrySelector}):focus { outline: none; box-shadow: none; }
   :root :is(${textEntrySelector}):focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--focus); }
   @keyframes hcb-caret-pulse {
     0%, 35%, 100% { caret-color: var(--ink); }
