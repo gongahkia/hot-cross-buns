@@ -62,7 +62,7 @@ import { materializeOccurrence, projectItemsForDate, type ViewItem } from './ser
 import { newSeriesId, type RecurrenceRule } from './recurrence';
 import { emptyState, loadTodoState, mutateTodoState, subscribeStore, type TodoState } from './todoStore';
 
-const Page = styled.main<{ $dated?: boolean; $calendar?: boolean }>`display:flex; flex-direction:column; width: min(${({$calendar})=>$calendar?'1120px':'730px'}, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
+const Page = styled.main<{ $dated?: boolean }>`display:flex; flex-direction:column; width: min(730px, calc(100% - 40px)); height:${({$dated})=>$dated?'100dvh':'auto'}; min-height:${({$dated})=>$dated?'0':'100dvh'}; margin: 0 auto; padding: 35px 0 ${({$dated})=>$dated?'max(12px,env(safe-area-inset-bottom))':'80px'}; overflow:${({$dated})=>$dated?'hidden':'visible'}; @media(max-width: 600px){width: calc(100% - 28px); padding-top: 16px;}`;
 const Header = styled.header`position:relative;z-index:40;display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:20px;`;
 const PaletteTrigger = styled.button`${press};display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:13px;flex-shrink:0;&:hover{background:var(--soft);color:var(--ink);}kbd{font:inherit;font-size:11px;padding:2px 4px;border-radius:4px;background:var(--soft);}@media(max-width:600px){width:44px;padding:0;span,kbd{display:none;}}`;
 const Icon = styled(IconButton)`width: 44px; height: 44px;`;
@@ -1457,7 +1457,7 @@ export default function App() {
       setFeedbackNotice({ kind: 'scratchpad-conversion', text: 'Scratchpad text', document: journal.document });
     }}/>;
   if (!state) return <Page $dated><Muted role="status">Opening journal…</Muted><StatusToast notice={notification} onDismiss={dismissNotification} persistent/></Page>;
-  return <OutlineDocumentContext.Provider value={outlineContext}><Page $dated={activeTab !== 'undated'} $calendar={calendarActive}>
+  return <OutlineDocumentContext.Provider value={outlineContext}><Page $dated={activeTab !== 'undated'}>
     <a href="#journal-content" className="skip-link">Skip to journal</a>
     <VisuallyHidden as="h1">Hot Cross Buns journal and scratchpad</VisuallyHidden>
     <Header>

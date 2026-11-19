@@ -47,3 +47,25 @@ test('recurring attached Markdown stays local until scope approval and a single-
  await entry.getByRole('button',{name:'More actions for 08:00-08:30 Daily',exact:true}).click();await entry.getByRole('button',{name:'Move…',exact:true}).click();await entry.getByRole('button',{name:'Move 08:00-08:30 Daily',exact:true}).click();await entry.getByRole('button',{name:'Move 08:00-08:30 Daily to today',exact:true}).click();await scope.getByRole('button',{name:'This item',exact:true}).click();await entry.getByRole('button',{name:'Close entry',exact:true}).click();
  const text=await exported(page);expect(text).toContain('Daily **context**.');expect(text).toContain('An **exception body**.');expect(text).toContain(`replaces: daily on ${next()}`);
 });
+
+for (const width of [1280, 800, 600, 375]) {
+ test(`calendar keeps the writing column aligned when toggling views at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:1000});await page.goto('/');
+  await page.getByLabel('Import a Planner.md file').setInputFiles({name:'Planner.md',mimeType:'text/markdown',buffer:Buffer.from(source())});
+  await expect(page.getByRole('region',{name:`Document for ${today()}`,exact:true}).getByRole('checkbox',{name:'Complete Untimed task',exact:true})).toBeVisible();
+  const frame=async()=>{const bounds=(await page.getByRole('main').boundingBox())!;return{x:bounds.x,width:bounds.width};};
+  const writing=await frame();
+  await page.getByRole('button',{name:'Calendar',exact:true}).click();
+  for(const mode of ['month','week','day']){
+   await page.getByLabel('Calendar period',{exact:true}).selectOption(mode);
+   expect(await frame()).toEqual(writing);
+   const calendar=mode==='month'?page.getByRole('grid',{name:'Month calendar',exact:true}):page.getByLabel(`${mode==='week'?'Week':'Day'} calendar`,{exact:true});
+   const bounds=(await calendar.boundingBox())!;
+   expect(bounds.x).toBeGreaterThanOrEqual(writing.x);expect(bounds.x+bounds.width).toBeLessThanOrEqual(writing.x+writing.width);
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+  await page.getByRole('button',{name:'List',exact:true}).click();expect(await frame()).toEqual(writing);
+  await page.getByRole('button',{name:'Undated',exact:true}).click();expect(await frame()).toEqual(writing);
+  await page.getByRole('button',{name:'Dated',exact:true}).click();await page.getByRole('button',{name:'Calendar',exact:true}).click();expect(await frame()).toEqual(writing);
+ });
+}
