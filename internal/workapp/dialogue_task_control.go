@@ -9,6 +9,15 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
+func (m Model) bridgeCanCorrectAction() bool {
+	for _, request := range m.requests.Requests {
+		if task, ok := m.localConversationTask(request); ok && task.CanCorrectAction {
+			return true
+		}
+	}
+	return false
+}
+
 // localConversationTask projects the actual execution owner, including the
 // otherwise idle period in which a proposed plan is waiting for human review.
 func (m Model) localConversationTask(request worksession.Request) (workrun.ConversationTask, bool) {

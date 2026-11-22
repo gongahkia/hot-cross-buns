@@ -22,6 +22,8 @@ import (
 // BridgeState is a display-only projection for the desktop.
 // The Go model remains the sole owner of commands, runs, approvals and history.
 type BridgeState struct {
+	CanCorrectAction          bool                               `json:"can_correct_action"`
+	CanRevisePlans            []string                           `json:"can_revise_plans,omitempty"`
 	PersonalMemoryResult      *personalization.CatalogResult     `json:"personal_memory_result,omitempty"`
 	NativeProviderResult      *modelcatalog.NativeProviderResult `json:"native_provider_result,omitempty"`
 	NativeWorkspaceResult     *NativeWorkspaceResult             `json:"native_workspace_result,omitempty"`
@@ -226,6 +228,7 @@ func (m Model) BridgeState() BridgeState {
 	desktop := m.desktop
 	desktop.Shortcuts = m.desktop.ResolvedShortcuts()
 	state := BridgeState{
+		CanCorrectAction:         m.bridgeCanCorrectAction(),
 		PersonalMemoryResult:     m.personalMemoryResult,
 		NativeProviderResult:     m.nativeProviderResult,
 		NativeWorkspaceResult:    m.nativeWorkspaceResult,
@@ -288,6 +291,11 @@ func (m Model) BridgeState() BridgeState {
 		FirstRun:              m.firstRun,
 		External:              m.bridgeExternal,
 		Notice:                m.bridgeNotice,
+	}
+	for _, request := range m.requests.Requests {
+		if task, ok := m.localConversationTask(request); ok && task.CanRevisePlan {
+			state.CanRevisePlans = append(state.CanRevisePlans, request.ID)
+		}
 	}
 	for _, item := range m.queue {
 		state.Queue = append(state.Queue, BridgeQueuedRun{ReplyToUpdateID: item.options.ReplyToUpdateID, Interrupted: item.interrupted, Inputs: uploadNames(item.options.Uploads), ID: bridgeQueuedRunID(item), Text: item.prompt})

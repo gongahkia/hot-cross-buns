@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { attachmentPreview } from "./attachment-preview.mjs";
 import { taskSummaries, delegatedSummaries } from "./task-summaries.mjs";
 import { taskDetails } from './task-details.mjs';
+import { correctionDrafts } from './corrections.mjs';
 import { buildBrowserDependencies } from "./build.mjs";
 import { Application } from "../app-host/src/application.mjs";
 import { attachmentLimit, uploadLimits } from "../app-host/src/attachment-limits.mjs";
@@ -20,6 +21,7 @@ const assets = new Map([
   ["/task-details.mjs", ["task-details.mjs", "text/javascript; charset=utf-8"]],
   ["/workspace.mjs", ["workspace.mjs", "text/javascript; charset=utf-8"]],
   ["/streaming.mjs", ["streaming.mjs", "text/javascript; charset=utf-8"]],
+  ["/reviews.mjs", ["reviews.mjs", "text/javascript; charset=utf-8"]],
   ["/views.mjs", ["views.mjs", "text/javascript; charset=utf-8"]],
   ["/local-models.mjs", ["local-models.mjs", "text/javascript; charset=utf-8"]],
   ["/fields.mjs", ["fields.mjs", "text/javascript; charset=utf-8"]],
@@ -76,14 +78,15 @@ function reviewFor(state, context) {
   // Go binds this message index to its pending interaction. Some typed reviews
   // replace the generic request-ID field with their own fields.
   if (!action?.token || message?.result?.kind !== "approval") return null;
-  return { id: digest([context, action, message]), result: message.result };
+  return { id: digest([context, action, message]), result: message.result, canCorrect: state.can_correct_action === true };
 }
 
-function projection(host) {
+function projection(host, corrections) {
   const snapshot = host.snapshot();
   const state = snapshot.state;
   return {
     context: host.context, connection: snapshot.connection, switching: snapshot.sessionSwitching,
+    correction: corrections?.overlay({})?.correction,
     issue: snapshot.error || snapshot.sessionIssue || state?.requests_issue || state?.notice,
     activity: snapshot.chatActivity,
     tasks: taskSummaries(host),
@@ -98,7 +101,7 @@ function projection(host) {
       running: state.running, cancelling: state.cancelling, working: state.dialogue_busy || state.pending_operation,
       status: state.status, queue: state.queue, panel: state.panel, composer: state.composer,
       activity: state.activity, approval: reviewFor(state, host.context), needsApproval: !!state.pending_approval,
-      external: state.external?.kind, plans: state.task_plans, recoveries: state.request_recoveries?.length,
+      external: state.external?.kind, plans: state.task_plans?.map(plan => ({ ...plan, canRevise: !!state.can_revise_plans?.includes(plan.id) })), recoveries: state.request_recoveries?.length,
       updates: state.chat_updates, uploadResult: state.upload_result, latestBundle: state.work_details?.latest_bundle,
     },
   };
@@ -108,6 +111,7 @@ export async function startWeb(options, port = 4317) {
   await buildBrowserDependencies();
   const host = new Application(options);
   const inspection = taskDetails(host);
+  const corrections = correctionDrafts(host, reviewFor);
   const streams = new Set();
   let tail = Promise.resolve(), closing = false;
   const admissions = new Map();
@@ -127,7 +131,7 @@ export async function startWeb(options, port = 4317) {
     const { drafts } = await host.drafts.request({ action: "list" });
     const saved = drafts.find(item => item.context === context);
     const { title = "", source = "" } = host.backend.state;
-    return { context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(saved?.plan_first ? { plan_first: true } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) };
+    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(saved?.plan_first ? { plan_first: true } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
   }
   async function saveDraft(value) {
     await host.drafts.request({ action: "save", draft: value });
@@ -169,7 +173,7 @@ export async function startWeb(options, port = 4317) {
     const { context, op } = body;
     if (op === "send") {
       if (typeof body.id !== "string" || !/^[a-f0-9-]{36}$/.test(body.id) || typeof body.text !== "string" || Buffer.byteLength(body.text) > 128 * 1024 || !Array.isArray(body.files)) throw new RequestError(400, "Invalid message.");
-      const signature = digest([context, body.text, body.files, !!body.queueOnly]);
+      const signature = digest([context, body.text, body.files, !!body.queueOnly, body.correction || '']);
       const accepted = admissions.get(body.id);
       if (accepted) {
         if (accepted !== signature) throw new RequestError(409, "This message identity has already been used.");
@@ -177,16 +181,24 @@ export async function startWeb(options, port = 4317) {
       }
       requireContext(context);
       const saved = await draft();
+      if ((saved.correction?.id || '') !== (body.correction || '')) throw new RequestError(409, 'The selected correction draft changed. Review the composer before sending.');
       const files = saved.uploads.map(file => file.id);
       if (JSON.stringify(files) !== JSON.stringify(body.files)) throw new RequestError(409, "The attachments changed. Review the draft before sending.");
-      await saveDraft({ ...saved, text: body.text });
+      let text = body.text;
+      if (saved.correction) {
+        if (body.queueOnly || body.files.length) throw new RequestError(409, 'A correction is a text request for this exact proposal.');
+        text = corrections.prepare(body.correction, body.text);
+        if (Buffer.byteLength(text) > 128 * 1024) throw new RequestError(400, 'Shorten the correction before sending.');
+        corrections.edit(body.correction, body.text);
+      } else await saveDraft({ ...saved, text: body.text });
       await host.send({ type: "upload_submit", upload: {
-        request_id: body.id, context, text: body.text, files,
+        request_id: body.id, context, text, files,
         ...(body.queueOnly === true ? { queue_only: true } : {}),
-        ...(saved.plan_first ? { plan_first: true } : {}),
-        ...(saved.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}),
+        ...(!saved.correction && saved.plan_first ? { plan_first: true } : {}),
+        ...(!saved.correction && saved.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}),
       } });
       admissions.set(body.id, signature);
+      if (saved.correction) { corrections.complete(body.correction); broadcast(); return {}; }
       if (admissions.size > 64) admissions.delete(admissions.keys().next().value);
       // Work was admitted even if draft cleanup fails. Keep the receipt.
       try { await host.drafts.request({ action: "remove", context }); }
@@ -200,6 +212,10 @@ export async function startWeb(options, port = 4317) {
     }
     requireContext(context);
     switch (op) {
+      case 'begin-correction':
+        await corrections.begin(body, context); broadcast(); return draft();
+      case 'cancel-correction':
+        corrections.cancel(body.correction); broadcast(); return draft();
       case 'workspace-browse':
       case 'workspace-select': {
         host.mutable();
@@ -294,7 +310,11 @@ export async function startWeb(options, port = 4317) {
       case "save":
       case "remove-file": {
         const saved = await draft();
-        if (typeof body.text !== "string") throw new RequestError(400, "Invalid draft text.");
+        if (typeof body.text !== "string" || Buffer.byteLength(body.text) > 128 * 1024) throw new RequestError(400, "Invalid draft text.");
+        if (saved.correction || body.correction) {
+          if (op !== 'save' || saved.correction?.id !== body.correction) throw new RequestError(409, 'This correction draft changed.');
+          corrections.edit(body.correction, body.text); return draft();
+        }
         saved.text = body.text;
         if (op === "remove-file") saved.uploads = saved.uploads.filter(file => file.id !== body.id);
         return saveDraft(saved);
@@ -376,7 +396,7 @@ export async function startWeb(options, port = 4317) {
 
   function broadcast() {
     if (!streams.size) return;
-    const frame = "data: " + JSON.stringify(projection(host)) + "\n\n";
+    const frame = "data: " + JSON.stringify(projection(host, corrections)) + "\n\n";
     for (const stream of streams) {
       // A slow client reconnects to the latest snapshot rather than building a queue.
       if (stream.writableLength > 1024 * 1024) stream.destroy();
@@ -418,7 +438,7 @@ export async function startWeb(options, port = 4317) {
       if (req.method === "GET" && req.url === "/api/events") {
         if (streams.size >= 8) throw new RequestError(429, "Too many browser tabs are connected.");
         res.writeHead(200, { ...headers, "Content-Type": "text/event-stream", "Connection": "keep-alive" });
-        res.write("data: " + JSON.stringify(projection(host)) + "\n\n");
+        res.write("data: " + JSON.stringify(projection(host, corrections)) + "\n\n");
         streams.add(res);
         res.on("close", () => streams.delete(res));
         return;
@@ -440,10 +460,12 @@ export async function startWeb(options, port = 4317) {
         if (req.headers["content-type"] !== "application/octet-stream") throw new RequestError(415, "Choose a file from your device.");
         const context = url.searchParams.get("context"), name = url.searchParams.get("name") || "";
         requireContext(context);
+        if (corrections.current()) throw new RequestError(409, 'Corrections use text only. Cancel the correction to attach files to your ordinary draft.');
         const bytes = await readBody(req, attachmentLimit(name));
         const result = await serialized(async () => {
           requireContext(context);
           const saved = await draft();
+          if (saved.correction) throw new RequestError(409, 'The composer changed to a correction draft. No attachment was added.');
           if (saved.uploads.length >= uploadLimits.count || saved.uploads.reduce((total, file) => total + file.size, bytes.length) > uploadLimits.total) {
             throw new RequestError(413, "The draft holds up to 12 files and 16 MiB in total.");
           }

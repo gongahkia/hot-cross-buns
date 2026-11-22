@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, outputPreview, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, outputPreview, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -585,4 +585,21 @@ test('streaming reveal keeps graphemes intact, bounds backlog, and copies the co
   assert.equal(copied, 'A quiet thought about tomorrow.');
   stream.update('## Structured\n\n```js\nconst x = 1\n```', 'run'); assert.ok(stream.element.querySelector('code')); stream.dispose();
   const complete = turn('**Original** markdown', false, 'Hot Cross Buns'); complete.querySelector('.response-tools button').click(); await new Promise(resolve => setTimeout(resolve, 0)); assert.equal(copied, '**Original** markdown');
+});
+
+test('plan reviews show effects, sources, changed inputs, budgets, and prior attempts before technical data', () => {
+  const view = planReview({ task: 'Review the notes', revision: 3, phase: 'review', state: 'queued',
+    content: { outcome: 'A short summary', steps: [{ id: 'one', text: 'Read the note' }], effects: ['Read only; no writes'], sources: ['note.md'] },
+    sources: ['Personal notes'], input_names: ['note.md'], input_additions: ['new.md'], input_removals: ['old.md'],
+    budget: { max_steps: 8, code_max_steps: 2 }, original_budget: { max_steps: 12, code_max_steps: 4 }, attempts: [{ uncertain: true, measured_steps: 4 }] });
+  const visible = [...view.children].filter(node => node.tagName !== 'DETAILS').map(node => node.textContent).join('\n');
+  assert.match(visible, /Declared effectsRead only; no writes/); assert.match(visible, /Inputs addednew.md/); assert.match(visible, /Inputs removedold.md/);
+  assert.match(visible, /Remaining execution budgetWork steps: 8/); assert.match(visible, /Original budgetWork steps: 12/); assert.match(visible, /Prior attempt 1 · effects uncertain/);
+  assert.equal(view.querySelector('details').open, false); assert.match(view.querySelector('details pre').textContent, /"revision": 3/);
+});
+
+test('correction messages keep the user instruction readable without exposing routing identifiers', () => {
+  const raw = 'Regarding the pending action in conversation work-fixture:\nUse a calmer subject.\nThis is a correction request for review, not approval or permission to start or send anything.';
+  assert.deepEqual(correctionText(raw), { label: 'Requested an action correction', text: 'Use a calmer subject.' });
+  assert.equal(correctionText('Regarding an unrelated note'), null);
 });

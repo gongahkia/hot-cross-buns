@@ -461,3 +461,41 @@ test('workspace selection confirms canonical folders without moving existing dra
     assert.equal(app.payloads.length, 0);
   } finally { live.close(); await app.close(); }
 });
+
+test('source-access reviews cannot be presented or submitted as correctable external actions', { timeout: 20000 }, async () => {
+  const app = await fixture(), live = await stream(app.url);
+  const action = async body => { const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body) }); return { status: response.status, value: await response.json() }; };
+  try {
+    const { context } = await live.until(s => s.connection === 'connected', 'connection');
+    await action({ op: 'send', context, id: randomUUID(), text: 'Run a fixture approval for a web source', files: [] });
+    const pending = await live.until(s => s.state?.approval, 'approval');
+    await action({ op: 'save', context, text: 'My unrelated draft' });
+    assert.equal(pending.state.approval.canCorrect, false);
+    assert.equal((await action({ op: 'begin-correction', context, kind: 'action', review: pending.state.approval.id })).status, 409);
+    assert.equal((await action({ op: 'draft', context })).value.text, 'My unrelated draft');
+    assert.equal((await action({ op: 'send', context, correction: 'invented', id: randomUUID(), text: 'Old request', files: [] })).status, 409);
+    assert.equal((await action({ op: 'approve', context, id: pending.state.approval.id, approved: false })).status, 200);
+    await live.until(s => !s.state?.needsApproval && !s.state?.running, 'declined');
+  } finally { live.close(); await app.close(); }
+});
+
+test('correctable review protocol preserves the normal draft and rejects the withdrawn review', { timeout: 15000, skip: process.platform === 'win32' }, async () => {
+  const { reviewFixture } = await import('./review-fixture.mjs'); const app = await reviewFixture(), live = await stream(app.url);
+  const action = async body => { const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body) }); return { status: response.status, value: await response.json() }; };
+  try {
+    const initial = await live.until(s => s.state?.approval?.canCorrect, 'correctable fixture'), context = initial.context;
+    await action({ op: 'save', context, text: 'Original draft stays here.' });
+    const begin = await action({ op: 'begin-correction', context, kind: 'action', review: initial.state.approval.id }); assert.equal(begin.status, 200);
+    const correction = begin.value.correction.id;
+    const upload = await fetch(app.url + '/api/attachment?' + new URLSearchParams({ context, name: 'notes.txt' }), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Origin: app.url }, body: 'Do not attach to a correction' });
+    assert.equal(upload.status, 409);
+    await action({ op: 'save', context, correction, text: 'Change the subject.' });
+    const message = { op: 'send', context, correction, text: 'Change the subject.', files: [], id: randomUUID() };
+    assert.equal((await action(message)).status, 200); assert.equal((await action(message)).status, 200);
+    const changed = await live.until(s => s.state?.approval?.id !== initial.state.approval.id && s.state?.dialogue?.length, 'replacement fixture');
+    assert.match(changed.state.dialogue[0].text, /not approval or permission to start/);
+    assert.equal((await action({ op: 'draft', context })).value.text, 'Original draft stays here.');
+    assert.equal((await action({ op: 'approve', context, id: initial.state.approval.id, approved: true })).status, 409);
+    assert.equal((await action({ op: 'begin-correction', context, kind: 'plan', id: 'c'.repeat(32), revision: 1, digest: 'd'.repeat(64) })).status, 200);
+  } finally { live.close(); await app.close(); }
+});

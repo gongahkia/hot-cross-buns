@@ -207,3 +207,32 @@ acknowledgements retire the submitted selection rather than replaying it.
 The [current product direction](CONVERSATIONAL-PRODUCT-DIRECTION.md#current-web-direction--22-november-2026)
 favors one persistent conversation. Retained-chat management remains secondary.
 Menu-bar/notch access, separate native windows, and the mascot are excluded.
+
+## Web completion of the former Swift surface
+
+Workspace selection is in the app menu and command palette. Its local folder
+browser uses Go's canonical resolver; hidden folders can be entered by absolute
+path. Choosing a different folder opens a new owner without changing old work.
+The chat menu shows real activity and attention states beside retained titles.
+
+Full assistant responses, including a currently streaming response, have a quiet
+Copy response control. It copies the received Markdown source, including content
+that has not yet finished its visual reveal. Plain streamed prose reveals on a
+66 ms word-aware cadence with grapheme boundaries, an 8,192-character bound and
+a 2,048-character backlog limit. Structured content, reduced motion, background
+tabs, and completed responses settle directly to the received source.
+
+Exact action reviews offer Request correction only when the Go owner reports a
+single correctable external action. Source-access prompts are not eligible.
+Pending plan reviews offer Request revision only when Go reports readiness.
+These open a separate composer draft in the original requesting chat, preserving
+its ordinary draft and attachments. The original owner and proposal must still
+match before admission. Cancelling restores the ordinary draft. Correction text
+is retained by the running host and browser session; after a host replacement the
+old target is unavailable and must be reviewed again. No correction approves or
+executes a replacement, and unconfirmed submissions retain their admission ID.
+
+Plan reviews display outcomes, ordered steps, effects, sources, changed inputs,
+remaining and original budgets, prior attempts, and current state. Exact raw
+review data remains in a closed disclosure. Backend revision/digest checks remain
+the execution boundary.

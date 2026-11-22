@@ -14,6 +14,7 @@ import { reactionFor, reactionChip, reactionPreference } from './reactions.mjs';
 import { taskDetailView } from './task-details.mjs';
 import { workspaceView } from './workspace.mjs';
 import { streamingResponse } from './streaming.mjs';
+import { planReview, correctionText } from './reviews.mjs';
 import { icon } from "./icons.mjs";
 import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
 
@@ -26,6 +27,9 @@ let draftLoad = 0, saveTail = Promise.resolve(), detailGeneration = 0;
 let previewContext;
 const previewCache = new Map();
 const sampleMemories = createMemorySamples();
+const correctionBar = element('div', undefined, 'correction-context'); correctionBar.hidden = true;
+document.querySelector('#composer').prepend(correctionBar);
+const draftTextKey = value => ':text:' + value?.context + (value?.correction ? ':correction:' + value.correction.id : '');
 const reading = readingPosition({ transcript: $('transcript'), streaming: $('streaming') });
 document.querySelector('.composer-wrap').prepend(reading.element);
 const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
@@ -85,8 +89,9 @@ function controls() {
   const waiting = pending?.context === snapshot.context;
   input.disabled = !writing;
   input.readOnly = waiting;
-  $("attach").disabled = !writing || waiting;
-  $("send").disabled = !writing || !waiting && !input.value.trim() && !draft?.uploads.length;
+  $("attach").disabled = !writing || waiting || !!draft?.correction;
+  const correction = snapshot.correction?.id === draft?.correction?.id ? snapshot.correction : draft?.correction;
+  $("send").disabled = !writing || !waiting && (!!correction?.issue || !input.value.trim() && !draft?.uploads.length);
   const sendLabel = waiting ? "Retry message" : state?.running && !state.dialogueActive ? "Queue message" : "Send message";
   $("send").setAttribute("aria-label", sendLabel);
   $("send").title = sendLabel;
@@ -103,6 +108,19 @@ function controls() {
   for (const node of document.querySelectorAll(".attachment-open")) node.disabled = !enabled;
   $("new-chat").disabled = !enabled;
   for (const node of document.querySelectorAll("[data-route], #chat-list button")) node.disabled = !enabled;
+  renderCorrection(correction);
+}
+function renderCorrection(value = draft?.correction) {
+  correctionBar.hidden = !value;
+  if (!value) { correctionBar.replaceChildren(); return; }
+  const cancel = button('Cancel', () => void execute(async () => {
+    if (pending?.context === draft?.context) throw new Error('Inspect the unconfirmed submission before cancelling its correction draft.');
+    const context = draft.context;
+    if (!value.recovered) { await flush(); await call({ op: 'cancel-correction', correction: value.id }); }
+    remember(':correction:' + context, null); remember(draftTextKey(draft), null); await loadDraft();
+  })); cancel.disabled = !!pending || busy;
+  const inspect = button('Inspect proposal', () => void execute(() => showTaskDetails(value.owner)));
+  correctionBar.replaceChildren(element('span', value.label), inspect, cancel, element('small', value.issue || 'A correction request only. Nothing is approved or executed.', 'hint'));
 }
 async function execute(operation) {
   if (busy) return;
@@ -138,6 +156,7 @@ async function call(data, binary = false) {
 
 function showDraft(value) {
   draft = value;
+  if (value?.correction) remember(':correction:' + value.context, { ...value.correction, text: value.text });
   input.value = value?.text || "";
   const files = value?.uploads || [];
   $("attachments").hidden = !files.length;
@@ -157,15 +176,16 @@ function showDraft(value) {
 }
 function save(value = draft) {
   if (!value) return Promise.resolve();
-  const record = { context: value.context, text: value.text };
+  if (value.correction?.recovered) return Promise.resolve();
+  const record = { context: value.context, text: value.text, ...(value.correction ? { correction: value.correction.id } : {}) };
   const operation = saveTail.then(() => call({ op: "save", ...record }));
   saveTail = operation.catch(() => {});
   return operation.then(() => {
-    if (restore(":text:" + record.context) === record.text) remember(":text:" + record.context, null);
+    if (!value.correction && restore(draftTextKey(value)) === record.text) remember(draftTextKey(value), null);
   });
 }
 function flush() {
-  if (!saveTimer && (typeof restore(":text:" + draft?.context) !== "string" || !draft)) return saveTail;
+  if (!saveTimer && (typeof restore(draftTextKey(draft)) !== "string" || !draft)) return saveTail;
   clearTimeout(saveTimer); saveTimer = undefined;
   return save();
 }
@@ -173,7 +193,8 @@ input.addEventListener("input", () => {
   if (!draft) return;
   revision++;
   draft.text = input.value;
-  remember(":text:" + draft.context, draft.text);
+  remember(draftTextKey(draft), draft.text);
+  if (draft.correction) remember(':correction:' + draft.context, { ...draft.correction, text: draft.text });
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = undefined;
@@ -189,7 +210,12 @@ async function loadDraft() {
   try {
     const value = await call({ op: "draft", context });
     if (request !== draftLoad || snapshot.context !== context || version !== revision) return;
-    const unsaved = restore(":text:" + context);
+    const savedCorrection = restore(':correction:' + context);
+    if (!value.correction && savedCorrection?.id) {
+      value.correction = { ...savedCorrection, recovered: true, issue: 'This host no longer owns the saved correction target. Your text is kept; cancel this draft and inspect the current proposal before requesting a fresh correction.' };
+      value.text = savedCorrection.text || ''; value.uploads = [];
+    }
+    const unsaved = restore(draftTextKey(value));
     if (typeof unsaved === "string") value.text = unsaved;
     showDraft(value);
   } catch (error) { if (request === draftLoad) { issue = error.message; status(); } }
@@ -197,10 +223,12 @@ async function loadDraft() {
 function acceptMessage(id) {
   if (pending?.id !== id) return;
   const context = pending.context;
+  const correction = pending.correction;
   pending = undefined;
   remember(":pending", null);
-  remember(":text:" + context, null);
-  if (draft?.context === context) showDraft({ ...draft, text: "", uploads: [] });
+  remember(draftTextKey({ context, ...(correction ? { correction: { id: correction } } : {}) }), null);
+  if (correction) { remember(':correction:' + context, null); void loadDraft(); }
+  else if (draft?.context === context) showDraft({ ...draft, text: "", uploads: [] });
 }
 pending = restore(":pending");
 
@@ -213,7 +241,7 @@ $("composer").addEventListener("submit", event => {
     if (pending && pending.context !== draft.context) {
       throw new Error("A message in another conversation is unconfirmed. Return there to review it.");
     }
-    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id) };
+    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(draft.correction ? { correction: draft.correction.id } : {}) };
     if (!next.text.trim() && !next.files.length) return;
     pending = next;
     remember(":pending", pending);
@@ -623,8 +651,14 @@ function approval(review, context) {
     await call({ op: "approve", context, id: review.id, approved });
     dialog.close();
   });
+  if (review.canCorrect) actions.append(button('Request correction', () => void execute(() => beginCorrection({ kind: 'action', review: review.id }, context))));
   actions.append(button("Decline", () => choose(false)), button("Approve this action", () => choose(true), "send"));
   openDetail(review.result.title, describeResult({ ...review.result, footer: review.result.footer?.startsWith("/approve ") ? undefined : review.result.footer }), actions);
+}
+async function beginCorrection(target, context) {
+  if (pending) throw new Error('Resolve the unconfirmed message before opening a correction draft.');
+  await flush(); const value = await call({ op: 'begin-correction', context, ...target });
+  dialog.close(); if (value.context === snapshot.context) showDraft(value); input.focus();
 }
 function showPlan(plan, context, conversation) {
   void execute(async () => {
@@ -635,12 +669,13 @@ function showPlan(plan, context, conversation) {
     const { review } = await action("inspect");
     if (!review) throw new Error("The current plan is unavailable.");
     const controls = element("div", undefined, "review-actions");
+    if (review.phase === 'review' && plan.canRevise) controls.append(button('Request revision', () => void execute(() => beginCorrection({ kind: 'plan', id: plan.id, revision: plan.revision, digest: plan.digest }, context))));
     if (review.state === "queued" && review.phase === "review") {
       controls.append(button("Approve and start", () => void execute(async () => { await action("approve"); dialog.close(); }), "send"));
     } else if (review.state === "queued" && review.phase === "approved") {
       controls.append(button("Start reviewed work", () => void execute(async () => { await action("start"); dialog.close(); }), "send"));
     }
-    openDetail("Task plan", element("p", review.task), element("pre", JSON.stringify(review, null, 2)), controls);
+    openDetail("Task plan", planReview(review), element('p', 'Approval starts this exact revision. External actions still need their own required reviews.', 'hint'), controls);
   });
 }
 
@@ -688,7 +723,9 @@ function renderTranscript(state) {
   for (const { type, value } of items) {
     if (type === "talk") {
       response = undefined;
-      const request = turn(value.text, true, "You");
+      const correction = correctionText(value.text);
+      const request = turn(correction?.text ?? value.text, true, "You");
+      if (correction) request.prepend(element('small', correction.label, 'hint'));
       request.dataset.messageId = 'dialogue:' + value.id + ':user';
       const reaction = reactionFor(value, state.conversation_id, reactionMode);
       if (reaction) request.append(reactionChip(reaction));
@@ -809,16 +846,18 @@ function renderStreaming(state) {
   const live = state.running && state.activity?.entries?.at(-1);
   const text = live?.kind === "text" ? live.text : "";
   const identity = snapshot.context + ':' + (state.activity?.started_at || '') + ':' + (live?.id || '');
-  if (text === streamingText && text && streamed.element.dataset.identity === identity) return;
+  const active = online && snapshot.connection === 'connected';
+  if (text === streamingText && text && streamed.element.dataset.identity === identity && streamed.element.dataset.active === String(active)) return;
   reading.before(state.conversation_id || snapshot.context);
   streamingText = text;
   streamed.element.dataset.identity = identity;
-  if (text) streamed.update(text, identity, { active: online && snapshot.connection === 'connected' }); else streamed.clear();
+  streamed.element.dataset.active = String(active);
+  if (text) streamed.update(text, identity, { active }); else streamed.clear();
   reading.after();
 }
 const events = new EventSource("/api/events");
-events.onopen = () => { online = true; renderLiveActivity(snapshot.state || {}); renderProgress(); controls(); status(); };
-events.onerror = () => { online = false; renderLiveActivity(snapshot.state || {}); renderProgress(); controls(); status(); };
+events.onopen = () => { online = true; renderLiveActivity(snapshot.state || {}); renderStreaming(snapshot.state || {}); renderProgress(); controls(); status(); };
+events.onerror = () => { online = false; renderLiveActivity(snapshot.state || {}); renderStreaming(snapshot.state || {}); renderProgress(); controls(); status(); };
 events.onmessage = ({ data }) => {
   const previous = snapshot;
   snapshot = JSON.parse(data);
