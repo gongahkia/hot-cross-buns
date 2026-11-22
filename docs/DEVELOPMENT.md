@@ -129,8 +129,10 @@ destination owner before focusing it. No arbitrary renderer chat ID is trusted.
 
 Models, Connections, Memory, Saved, Scheduled tasks, and Settings use modals.
 Local models use the native provider API for inventory and exact reviewed future
-selection, including selection receipts and reconciliation. The old managed
-`/model` screen remains blocked; runtime start/stop and downloads are not enabled.
+selection, including selection receipts and reconciliation. The web host's old
+`/model` screen remains blocked; runtime start/stop and downloads are not enabled
+there. The terminal launcher explicitly identifies its frontend and retains its
+reviewed Go model-management panel, including provider setup and local downloads.
 Settings is a hub for real model, connection, privacy, usage, data, and recovery
 controls; backend forms keep their view identity and explicit review step.
 Saved contains global notes rather than a second personal-memory list.

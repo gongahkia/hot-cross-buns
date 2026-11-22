@@ -244,6 +244,7 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 		Live:                     true,
 		BridgeMode:               backend,
 		ManagedSessions:          os.Getenv("HOT_CROSS_BUNS_UI_SESSION_HOST") == "1",
+		TerminalModelManagement:  os.Getenv("HOT_CROSS_BUNS_UI_FRONTEND") == "terminal",
 		StartNew:                 os.Getenv("HOT_CROSS_BUNS_UI_BOOT_MODE") == "new",
 		StartView:                os.Getenv("HOT_CROSS_BUNS_UI_BOOT_MODE") == "view",
 		ViewOriginConversationID: os.Getenv("HOT_CROSS_BUNS_UI_VIEW_ORIGIN"),

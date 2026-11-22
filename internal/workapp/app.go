@@ -213,6 +213,7 @@ type Config struct {
 	Live                     bool
 	BridgeMode               bool
 	ManagedSessions          bool
+	TerminalModelManagement  bool
 	StartNew                 bool
 	StartView                bool
 	ViewOriginConversationID string

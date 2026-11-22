@@ -31,7 +31,7 @@ default provider when they run. A live evaluation can select it explicitly with
 The managed local provider disables browser sessions, so tasks that need a
 browser require a different provider.
 
-## Download, select, and delete
+## Download, select, and removal status
 
 1. Choose a model with ↑/↓. The screen shows installed state, source, approximate
    size, and host eligibility.
@@ -40,17 +40,17 @@ browser require a different provider.
    cancellation; a later pull uses Ollama's resumable download behavior.
 3. Press `u` or Enter to select an installed model. The selection is saved for
    the next Work run and later sessions. Press `e` to edit its display name.
-4. Press `x` to review deletion, then Enter or `y` to confirm, or `n`/Esc to
-   decline. Deletion updates the selected provider; deleting its last configured
-   model clears that selection. Model files belong to the selected Ollama runtime,
-   so deletion also affects other clients using the same runtime.
+4. Model deletion is currently blocked, including after the `x` confirmation.
+   The backend reports that cross-process use leases and durable mutation receipts
+   are not implemented. It sends no delete request and keeps the model and saved
+   selection. Model files may also be used by other clients of the same runtime.
 5. Press Esc to return to the same conversation or draft. First-run setup keeps
    the pending prompt in the composer; press Enter to start it after selection.
 
 `r` refreshes inventory, `i` opens prerequisite help, and F1 shows shortcuts.
-Model management waits until active Work has finished or been cancelled, so a
-model being used by that run cannot be deleted from this screen mid-run.
-Download and deletion always require their own TUI confirmation.
+Model management waits until active Work in its execution owner has finished or
+been cancelled. Downloads require their own TUI confirmation. That confirmation
+does not grant model-deletion authority.
 
 ## Runtime setup
 
@@ -70,7 +70,7 @@ output while the download runs. On macOS, Hot Cross Buns opens Ollama's official
 page so the system installer remains visible to you. Hot Cross Buns does not guess
 distribution package-manager commands.
 Once installed, refresh from the Local screen; model downloads, selection,
-deletion and runtime startup require no separate Hot Cross Buns CLI commands.
+and runtime startup require no separate Hot Cross Buns CLI commands.
 
 ## Cloud and custom models
 
@@ -127,8 +127,8 @@ headroom for the pull. The current catalog evaluates to:
 
 Hot Cross Buns blocks TUI download/selection and every
 managed-local executor setup (including a previously selected model) when the
-host fails this policy. It leaves rename and removal available, so a disabled
-model can be removed to reclaim disk. This is intentionally a capacity safety
+host fails this policy. Rename remains available; deletion stays blocked by the
+separate cross-process ownership requirement. This is intentionally a capacity safety
 check: it does not guarantee useful speed or full context support.
 
 Hot Cross Buns uses `OLLAMA_MODELS` when it is present. Otherwise it follows Ollama's
@@ -221,8 +221,8 @@ this change.
 
 The assembled Bubble Tea test uses local HTTP fixtures to exercise download
 confirmation, progress, cancellation, a completed download, persistent selection,
-an actual Work-service artifact run, declined deletion, confirmed deletion, and
-clearing the last selected model. Other regressions cover short-terminal
+an actual Work-service artifact run, declined deletion, and refusal of confirmed
+deletion while preserving the installed model and selection. Other regressions cover short-terminal
 confirmations, preserving conversations and historical Code drafts, cancelled
 refreshes, stale panel responses, active-run exclusion and runtime shutdown.
 An initial race run exposed test synchronization against streamed text rather

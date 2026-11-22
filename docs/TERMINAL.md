@@ -75,6 +75,10 @@ a fresh review. Export outside Hot Cross Buns's private storage.
 Settings → Models and providers (also `/models`) separates model selection,
 effort, and provider/local-model setup. Escape in a model or effort list returns
 to that parent menu. Panels show one consolidated keyboard hint bar.
+The terminal startup identity enables `/model` for provider setup and reviewed
+local downloads. Session hosting alone does not enable that panel in web/native
+hosts. Opening setup preserves the original chat and draft; live work still
+blocks model management in its execution owner.
 The optional left rail marks the current page, including nested settings and
 reviews. The inset composer shows the selected model and effort; click that
 line or use `/models` to change them. Ctrl+B shows or hides the rail.

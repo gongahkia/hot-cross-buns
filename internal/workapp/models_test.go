@@ -54,6 +54,31 @@ func TestModelManagementCannotOpenDuringWork(t *testing.T) {
 	}
 }
 
+func TestManagedTerminalModelManagementKeepsOwnerAndRejectsLiveWork(t *testing.T) {
+	panel := &testModelPanel{}
+	calls := 0
+	m := New(Config{ManagedSessions: true, TerminalModelManagement: true, Models: func() (ModelPanel, error) {
+		calls++
+		return panel, nil
+	}})
+	m.home, m.conversation, m.source, m.input = false, "original-chat", "/selected/source", "keep my draft"
+	next, _ := m.openModels()
+	m = next.(Model)
+	if calls != 1 || m.models != panel || m.conversation != "original-chat" || m.source != "/selected/source" || m.input != "keep my draft" {
+		t.Fatal("terminal model management lost the original owner or draft")
+	}
+	next, _ = m.NavigateBridge("/chat")
+	m = next.(Model)
+	if !panel.closed || m.models != nil || m.conversation != "original-chat" || m.input != "keep my draft" {
+		t.Fatal("leaving terminal model management did not close its panel and retain the draft")
+	}
+	m.running = true
+	next, command := m.openModels()
+	if calls != 1 || command != nil || next.(Model).models != nil || !next.(Model).running {
+		t.Fatal("terminal model management opened during live work")
+	}
+}
+
 func TestModelsAliasOpensTheSameModelPicker(t *testing.T) {
 	panel := &testModelPanel{}
 	m := New(Config{Models: func() (ModelPanel, error) { return panel, nil }})

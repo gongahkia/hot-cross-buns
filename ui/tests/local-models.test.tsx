@@ -7,7 +7,7 @@ import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
 import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
-test("local model keyboard reviews download cancellation selection rename and removal against the Go runtime manager", async () => {
+test("local model keyboard reviews download cancellation selection rename and refuses unsafe removal", async () => {
   const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-local-model-")), config = join(root, "config/hot-cross-buns/config.json"), modelID = "qwen2.5-coder:0.5b"
   let installed = false, pulls = 0, cancelled = 0, removed = 0, calls = 0
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
@@ -54,8 +54,12 @@ test("local model keyboard reviews download cancellation selection rename and re
     expect(client.draft.text).toBe("Keep local setup draft"); expect(calls).toBe(0)
     await client.send({ type: "submit", text: "/mode inspect" }); await client.submit(); await until(() => calls === 1 && !client.state?.running, "local model task")
     await client.navigate("/model"); await select("Local model"); setup.mockInput.pressEnter(); await select("Tiny local fixture")
-    await review("x", "Confirm removal"); expect(removed).toBe(0); setup.mockInput.pressEnter(); await until(() => removed === 1 && !installed, "explicit model removal")
-    await until(async () => !(JSON.parse(await readFile(config, "utf8")).custom_providers ?? []).some((provider: { id: string }) => provider.id === "hot-cross-buns-local"), "removed managed configuration")
+    const beforeRemoval = await readFile(config, "utf8")
+    await review("x", "Confirm removal"); expect(removed).toBe(0); setup.mockInput.pressEnter()
+    await until(() => !!client.state?.panel?.notice?.includes("model removal not admitted"), "blocked removal explained")
+    expect(client.state?.panel?.notice).toContain("no delete request was sent")
+    expect(removed).toBe(0); expect(installed).toBe(true)
+    expect(await readFile(config, "utf8")).toBe(beforeRemoval)
     expect(calls).toBe(1)
   } finally { await client.close(); await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }
 }, 60000)
